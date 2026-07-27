@@ -1,0 +1,9 @@
+; body-extend-001 ADD slot imm golden — H_2E 0x62 ADD slot imm + RET
+; 1-handler exercise: ADD S[0x50] += 3 (no prior SET, no I/O).
+; Rust emit must equal JS emit (load_state(0x50) + add rax,3 + store_state(0x50) + ret).
+; 19B expected hex: 498b87800200004883c00349898780020000c3
+; Mirror of selfhost_min_inc.ty / selfhost_min_dec.ty template
+; (single-handler, single-op, no cross-handler branch).
+40 22
+  62 50 03
+  FF

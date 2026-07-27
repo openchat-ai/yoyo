@@ -1,0 +1,6 @@
+; body-extend-014 LDB-OFF112-HANDLER golden — H_47 0x80 LDB dd ss oo + RET
+; Exercises the positive imm8 path at oo=0x70 (= 112 decimal) at fresh
+; selector 0x35. Both peers must emit 48 83 c0 70, not the imm32 form.
+40 35
+  80 50 60 70
+  FF

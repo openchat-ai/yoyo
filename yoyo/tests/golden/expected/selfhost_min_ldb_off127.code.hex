@@ -1,0 +1,6 @@
+; SET0 (18B): movabs rax,0 + store_state(0x50) + ret
+; LDB-off127 (23B): load_state(0x60) + add rax,imm8 0x7f + movzx [rax] + store_state(0x50) + ret
+;   imm8 path RIGHT-edge: 48 83 c0 + imm8(0x7f) = 48 83 c0 7f
+;   (offset 127 is the largest signed imm8; +1 → off=128 forces imm32)
+; H_02 RET (1B); total=42B
+48b8000000000000000049898780020000c3498b87000300004883c07f480fb60049898780020000c3c3

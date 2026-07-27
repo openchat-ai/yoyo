@@ -1,0 +1,3 @@
+; H_748 selfhost_min_cmp_60_52 (0x65 CMP a=0x60 b=0x52)
+65 60 52
+FF

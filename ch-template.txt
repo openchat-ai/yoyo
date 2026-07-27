@@ -1,0 +1,25 @@
+## Appendix CH: Prior Changelog Archive (NON-NORMATIVE, slim)
+
+|> v3.3.9 spec slim-down: full changelog archive → `docs/aux/changelog.md`. Current delta is the **v3.3.9** blurb at the document top.
+
+### Recent deltas (summary; full text → aux/changelog.md)
+
+|- **v3.3.9** — Spec slim-down: ≤1500 lines; non-normative detail (Trit, demos, roadmap, maintainer, comparison, SIMD, changelog) moved to `docs/aux/`. Normative law unchanged.
+|- **v3.3.8** — W4.1 gap inventory folded into 文首 (D-1…D-4); `docs/W4-GAP-INVENTORY.md` deleted.
+|- **v3.3.7** — Week-axis dashboard Week-N only in-file; multi-doc STATUS/PROGRESS-MAP entry deprecated.
+|- **v3.3.6** — Week-axis pointer era; PROMPT remains normative semantics.
+|- **v3.3.5** — Structure reorder: BOOK I–VIII reading path.
+|- **v3.3.4** — N.8 authoring-vs-Layer-S DECISION pointer; `.tys` sugar as fail-closed stub.
+|- **v3.3.3** — N.7 quarantine / anti-rewrite pointer; `quarantine-gen.ps1` fail-closed.
+|- **v3.3.2** — Claim-class (N.5) + Appendix Bib + `check-cites.mjs`.
+|- **v3.3.1** — Forbidden dedupe (E.17→N.4); E.18→N.3 pointer; Part 3 → honesty half-page + Appendix T.
+|- **v3.3** — Parts F / Deduce / Gnd; CDS theater rejected as NORMATIVE.
+|- **v3.2.1** — Part E.19 posture continuum.
+|- **v3.2** — Part E morphology / PPMPR / Morph-Lock.
+|- **v3.1** — Encoding honesty, Part 4S, Part G, Part 5B, Part 6.9, 8-step lock, Part L, Appendix F.
+
+### v3 design pillars (unchanged intent)
+
+4 projects; 3-chain DDC; `yoyo.ty` hand-authored when LOCKED; Phase 4 split; morphology + posture continuum under audit.
+
+---

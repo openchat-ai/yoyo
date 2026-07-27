@@ -1,0 +1,14 @@
+; G03 — CMP+JE patches rel32 to labeled handler (Appendix F)
+; H_00: SET 0x50=1 ; CMP 0x50,0x51 ; JE H_02 ; RET
+; H_02: SET 0x50=0x99 ; RET
+; Runner checks: JE opcode present; rel32 points at the SET slot 0x50=0x99 stream.
+
+40 00
+  30 50 01
+  65 50 51
+  71 02
+  FF
+
+40 02
+  30 50 99
+  FF

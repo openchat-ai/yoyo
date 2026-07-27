@@ -1,0 +1,11 @@
+; W-selfhost-min LDB offset=8 golden — compile-only byte probe
+; H_00 SET state[0x50]=0; H_01 LDB state[0x50]=zx(byte[mem[state[0x60]+8]]); H_02 RET
+; Encoder path: load_state + add rax,imm8 (48 83 c0 08) + movzx byte[rax] + store_state
+40 00
+  30 50 00
+  FF
+40 01
+  80 50 60 08
+  FF
+40 02
+  FF

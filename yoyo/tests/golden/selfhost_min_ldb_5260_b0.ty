@@ -1,0 +1,4 @@
+; body-extend-043 selfhost_min_ldb_5260_b0
+40 11B
+  80 52 60 B0
+  FF

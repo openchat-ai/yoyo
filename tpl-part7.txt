@@ -1,0 +1,61 @@
+### 7.1 Problem & 7.2 PlatformBackend Trait
+
+YOYO ISA is arch-agnostic. Emitting code that runs requires platform knowledge: Win32 (IAT thunk, CreateFileA, etc.), Linux (mmap syscall, etc.), Bare-metal (no syscall, direct hardware). `PlatformBackend` trait lives in `yoyo-rust/verifier/src/platform.rs`:
+
+```rust
+pub trait PlatformBackend {
+    fn emit_alloc(&mut self, slot: u16, size: u64) -> Result<Vec<u8>, IsaError>;
+    fn emit_load_file(&mut self, slot: u16, str_idx: u8) -> Result<Vec<u8>, IsaError>;
+    fn emit_write_file(&mut self, slot: u16, str_idx: u8, sz_slot: u16) -> Result<Vec<u8>, IsaError>;
+    fn emit_exit(&mut self, code: u8) -> Result<Vec<u8>, IsaError>;
+    fn startup_blob(&self) -> &[u8];
+    fn template(&self) -> TemplateInfo;
+}
+```
+
+The 3 syscall instructions (`0x20 ALLOC`, `0x50 LOAD_FILE`, `0x51 WRITE_FILE`) emit ~129-193 bytes each via `emit_complex.rs` (yoyo-rust verifier, hand-audited ~150 lines). Never regenerate from a template; if it changes, audit again.
+
+### 7.3–7.5 Four backends + selection
+
+| Impl | emit_alloc | emit_load_file | emit_write_file | host |
+|------|------------|----------------|------------------|------|
+| Win32Platform | VirtualAlloc IAT | CreateFileA → ReadFile → CloseHandle | CreateFileA → WriteFile → CloseHandle | PE64 |
+| LinuxPlatform | mmap syscall | open → mmap → close | open → write → close | ELF64 |
+| BareMetalPlatform | Error (no heap) | ATA PIO | ATA PIO | Multiboot / flat |
+| StubPlatform | "ALLOC(slot,size)" | "LOAD(slot,str)" | "WRITE(slot,str,sz)" | FlatBinary (NON-CONFORMING for DDC release) |
+
+CLI: `yoyo link --target={win32,linux,baremetal,stub} input.ty output.{exe,elf,bin}`. Morphology: `--morph=<id>` and `--posture={energy-extreme,perf-extreme,blend:<w>,auto}` (Part E). Backends are adaptive cortex (A) modules (Part E); switching targets is a morphology action under PPMPR when it changes advertised posture or pins. Energy↔perf pole flips follow Part E.19.
+
+**35 non-syscall instructions** stay in `src/isa.rs` and emit identically across platforms (arithmetic / branches / memory / HANDLER / RET / RAW escape). 3 syscall instructions handled per-platform. This split keeps audit at 38 lines for ISA + 450 lines of platform code total.
+
+### 7.6 libyoyo API Names (Standardized in v3)
+
+All `libyoyo_*` (snake-case, libyoyo_ prefix). yoyo.ty source uses these names; the compiler resolves them to platform-specific implementations at link time.
+
+| Function | Win32 | Linux | Bare-metal |
+|----------|-------|-------|------------|
+| `libyoyo_alloc(size)` | VirtualAlloc | mmap | bump |
+| `libyoyo_free(ptr)` | VirtualFree | munmap | no-op |
+| `libyoyo_open(path)` | CreateFileA | open (syscall 2) | ATA PIO |
+| `libyoyo_read(fd,buf,len)` | ReadFile | read (syscall 0) | ATA PIO |
+| `libyoyo_write(fd,buf,len)` | WriteFile | write (syscall 1) | VGA / serial |
+| `libyoyo_close(fd)` | CloseHandle | close (syscall 3) | no-op |
+| `libyoyo_exit(code)` | ExitProcess (IAT) | exit (syscall 60) | hlt |
+| `libyoyo_print(s)` | WriteConsoleA | write(1,...) | VGA text |
+| `libyoyo_time()` | GetSystemTimeAsFileTime | clock_gettime (syscall 228) | HPET / PIT |
+
+Full implementation code (libyoyo-win32.dll, libyoyo-linux.so, libyoyo-baremetal.a, Win32/Linux/macOS mapping) → `docs/aux/build.md` §"libyoyo API + 3-platform implementation".
+
+### 7.7 Bare-Metal Backend
+
+No OS, no libyoyo runtime, direct hardware (VGA, ATA, IDT/GDT setup). Memory layout:
+
+| Address | Size | Purpose |
+|---------|------|---------|
+| `0x0000`-`0x0FFF` | 4 KB | Startup blob + multiboot header |
+| `0x1000`-`0x4FFF` | 16 KB | User code (.ty compiled) |
+| `0x8000`-`0x8FFF` | 4 KB | Data section |
+| `0x9000`-`0x9FFF` | 4 KB | BSS / state machine (R15 base) |
+| `0x90000` | 64 KB | Stack |
+
+State base fixed at `0x9000` (not data section like hosted). Startup blob x64 (~200 bytes), VGA text mode (0xB8000, white-on-black 0x0F), ATA PIO disk read (ports 0x1F0-0x1F7) → `docs/aux/build.md` §"Bare-metal".

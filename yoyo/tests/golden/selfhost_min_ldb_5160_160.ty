@@ -1,0 +1,4 @@
+; body-extend-070 selfhost_min_ldb_5160_160
+40 1F2
+  80 51 60 160
+  FF

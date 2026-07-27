@@ -1,0 +1,14 @@
+## Part 12: SIMD Extensions
+
+> **Status: NON-NORMATIVE ROADMAP. Moved to `docs/aux/roadmap.md` §"SIMD". No Phase 0–4d acceptance test requires SIMD. Opcode ranges below are reserved discussion only.**
+
+Quick reference (full table → aux):
+
+| Range | Usage | Audit Time |
+|-------|-------|------------|
+| `0x00`-`0xFF` | Core ISA (38 ops) | 30 min |
+| `0x100`-`0x1FF` | Core extensions (bit ops, atomic) | 1 hour |
+| `0x200`-`0x2FF` | SSE2 (~50 ops) | 2 hours |
+| `0x300`-`0x9FF` | SSE3..AVX-512 (~575 ops) | ~14 hours |
+
+**38 core = 30 min audit. Full SIMD = 15× the audit cost.** YOYO doesn't default to SIMD because (1) audit surface grows per instruction; (2) platform variability (SSE/NEON/none); (3) cost-benefit doesn't justify for compiler/OS/simple apps. Vector registers live outside state machine: YOYO_XMM0–15 (16×16B), YOYO_YMM0–15 (16×32B), YOYO_ZMM0–31 (32×64B). VEX/EVEX prefixes emitted by `encode-x64.js` only when `.ty` opts in via `:simd` block.

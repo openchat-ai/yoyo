@@ -1,0 +1,5 @@
+; body-extend-008 LDB-OFF127-HANDLER golden — H_41 0x80 LDB dd ss oo + RET
+; Exercises signed-imm8 right edge: oo=127 must use 48 83 c0 7f, never imm32.
+40 2F
+  80 50 60 7F
+  FF

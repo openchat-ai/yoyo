@@ -1,0 +1,9 @@
+## Appendix A: libyoyo API + 3-Platform Implementation (pointer)
+
+Full libyoyo API defined in **Part 7.6** (libyoyo_alloc, libyoyo_open, libyoyo_read, libyoyo_write, libyoyo_close, libyoyo_exit, libyoyo_print, libyoyo_time). Three implementations:
+
+- **libyoyo-win32.dll** — Windows FFI (Win32 VirtualAlloc, CreateFileA, ReadFile, WriteFile, CloseHandle, ExitProcess, GetStdHandle, GetSystemTimeAsFileTime)
+- **libyoyo-linux.so** — Linux (mmap, open/read/write/close via syscall 0/1/2/3, exit via syscall 60, clock_gettime)
+- **libyoyo-baremetal.a** — Bare-metal (bump allocator, ATA PIO, VGA text mode, HPET/PIT timer) — see Part 7.7.3 / 7.7.4
+
+For function-by-function Win32/Linux/macOS mapping, see Part 7.6 (libyoyo API Names) — the canonical and complete reference in this v3 spec.

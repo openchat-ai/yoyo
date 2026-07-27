@@ -1,0 +1,12 @@
+; G02 — ORV ≠ ADDV byte stream for same operands (Appendix F)
+; H_00: ADDV S[0x50] += S[0x51]
+; H_01: ORV  S[0x50] |= S[0x51]
+; Runner also compares isolated ADDV vs ORV emit streams.
+
+40 00
+  68 50 51
+  FF
+
+40 01
+  69 50 51
+  FF

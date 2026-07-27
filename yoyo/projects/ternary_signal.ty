@@ -1,0 +1,37 @@
+; ternary_signal.ty — Trit decision engine (PROMPT-v3 Part 4.6)
+; H_20: sum 7 trit votes; H_30: decide from sum (threshold 4)
+
+40 20
+  30 50 00
+  30 51 00
+  30 52 07
+
+40 21
+  65 51 52
+  71 24
+  80 53 51 00
+  68 50 53
+  66 51
+  70 21
+
+40 24
+  FF
+
+40 30
+  30 53 04
+  65 50 53
+  71 33
+  73 31
+  70 32
+
+40 31
+  30 50 00
+  FF
+
+40 32
+  30 50 02
+  FF
+
+40 33
+  30 50 01
+  FF

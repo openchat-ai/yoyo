@@ -1,0 +1,17 @@
+## Part 14: Maintainer Role + Custody Workflow
+
+> **Status: NON-NORMATIVE operational guide. Moved to `docs/aux/build.md` §"Maintainer custody workflow".**
+
+Quick orientation (full content → aux):
+
+- **3 signing patterns:** A (DIY, 4 hours), B (Delegate Audit, 50K-500K RMB), C (Multiple Signers, defense in depth). **Default for YOYO: Pattern C** — yoyo maintainer signs (Rust), yoyo-asm maintainer signs (asm), you sign overall adoption. All agree via 3-chain DDC.
+- **12 things only you can do:** Decide who signs · Generate GPG key · Pin golden hash of `yoyo.js` · Verify Self-Hosting Chain · Sign Off on Freezing · Sign Off on DDC Verification · Public "I Trust This" claim · Final Production Decision · Ongoing trust decisions · Mission Commitment · Moral Responsibility · Long-Term Custodianship.
+- **Delegable**: any technical task (read code, run tests, GPG-sign). **NOT delegable**: trust decisions ("I trust this").
+- **4-Hour Pre-Launch Checklist**: (1) trust decisions (1h) — pick auditor pattern A/B/C/D, pick signer pattern A/B/C; (2) verifications (15m) — read auditor's report; (3) sign-offs (30m) — `gpg --full-generate-key`, sign `docs/custody/06-FROZEN.md`; (4) public claim (1h) — write "I, [name], am the maintainer..." with GPG-signed commit; (5) final decision (15m) — "YOYO is ready."
+- **Outputs** (`docs/custody/`): `01-audit-yoyo-js.md` · `02-audit-isa.md` · `03-GOLDEN_HASH.txt(.sig)` · `04-SELF_HOST_VERIFIED.md(.sig)` · `05-DDC_VERIFIED.md(.sig)` · `06-FROZEN.md(.sig)` · `README.md`.
+- **Continuous commitments**: daily (5m issue check), weekly (30m triage + hash check), monthly (2h security advisories), quarterly (1 day re-audit), yearly (1 week external review).
+- **Mistake recovery**: DDC catches backdoors missed by audit; regenerate hash + re-pin; revoke sign-off + redo; edit README + correction.
+
+> *Document rewritten after user asked: 「意思最终签字的人还得是我？」— Answer: the decision is always yours; technical signature can be delegated.*
+
+**The final word:** YOYO's code is the developers'. **Trust decisions are yours.** Architecture makes trust **verifiable**, but the trust itself **must be human**. Make the call. The signature is yours to give or to delegate. The decision is always yours.

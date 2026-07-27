@@ -1,0 +1,329 @@
+/// body-extend-016 / parallel-batch-10 H_54: 0x69 ORV dst=0x52 src=0x51.
+fn check_selfhost_min_orv_h52(root: &std::path::Path) -> Result<String, String> {
+    use crate::assembler::{emit_orv, ret};
+    let fixture_path = root.join("yoyo/tests/golden/selfhost_min_orv_h52.ty");
+    let exp_path = root.join("yoyo/tests/golden/expected/selfhost_min_orv_h52.code.hex");
+    let canonical_path = root.join("yoyo/projects/yoyo.ty");
+    for path in [&fixture_path, &exp_path, &canonical_path] {
+        if !path.is_file() {
+            return Err(format!("missing {}", path.display()));
+        }
+    }
+    let expected = load_expected_hex(&exp_path).map_err(|e| e.to_string())?;
+    let fixture_src = fs::read_to_string(&fixture_path).map_err(|e| e.to_string())?;
+    let fixture = executor::compile_ty_source(&fixture_src, PlatformKind::Stub)
+        .map_err(|e| e.to_string())?;
+    if fixture.code != expected {
+        return Err(format!(
+            "fixture mismatch: got {} want {}",
+            hex_encode(&fixture.code),
+            hex_encode(&expected)
+        ));
+    }
+    let canonical_src = fs::read_to_string(&canonical_path).map_err(|e| e.to_string())?;
+    let compiled = executor::compile_one_handler(&canonical_src, 0x3C, PlatformKind::Stub)
+        .map_err(|e| e.to_string())?;
+    let mut want = emit_orv(0x52, 0x51).map_err(|e| e.to_string())?;
+    want.extend(ret());
+    if compiled.code != want || compiled.code != expected {
+        return Err(format!(
+            "M_rust canonical H_3C mismatch: got {} want {}",
+            hex_encode(&compiled.code),
+            hex_encode(&expected)
+        ));
+    }
+    Ok(format!(
+        "M_rust read yoyo.ty H_3C and emitted {} via opcode orv-h52+FF",
+        hex_encode(&compiled.code)
+    ))
+}
+
+/// body-extend-016 / parallel-batch-10 H_55: 0x6A SUBV dst=0x52 src=0x51.
+fn check_selfhost_min_subv_h52(root: &std::path::Path) -> Result<String, String> {
+    use crate::assembler::{emit_subv, ret};
+    let fixture_path = root.join("yoyo/tests/golden/selfhost_min_subv_h52.ty");
+    let exp_path = root.join("yoyo/tests/golden/expected/selfhost_min_subv_h52.code.hex");
+    let canonical_path = root.join("yoyo/projects/yoyo.ty");
+    for path in [&fixture_path, &exp_path, &canonical_path] {
+        if !path.is_file() {
+            return Err(format!("missing {}", path.display()));
+        }
+    }
+    let expected = load_expected_hex(&exp_path).map_err(|e| e.to_string())?;
+    let fixture_src = fs::read_to_string(&fixture_path).map_err(|e| e.to_string())?;
+    let fixture = executor::compile_ty_source(&fixture_src, PlatformKind::Stub)
+        .map_err(|e| e.to_string())?;
+    if fixture.code != expected {
+        return Err(format!(
+            "fixture mismatch: got {} want {}",
+            hex_encode(&fixture.code),
+            hex_encode(&expected)
+        ));
+    }
+    let canonical_src = fs::read_to_string(&canonical_path).map_err(|e| e.to_string())?;
+    let compiled = executor::compile_one_handler(&canonical_src, 0x3D, PlatformKind::Stub)
+        .map_err(|e| e.to_string())?;
+    let mut want = emit_subv(0x52, 0x51).map_err(|e| e.to_string())?;
+    want.extend(ret());
+    if compiled.code != want || compiled.code != expected {
+        return Err(format!(
+            "M_rust canonical H_3D mismatch: got {} want {}",
+            hex_encode(&compiled.code),
+            hex_encode(&expected)
+        ));
+    }
+    Ok(format!(
+        "M_rust read yoyo.ty H_3D and emitted {} via opcode subv-h52+FF",
+        hex_encode(&compiled.code)
+    ))
+}
+
+/// body-extend-016 / parallel-batch-10 H_56: 0x63 IMUL dst=0x51 src=0x50.
+fn check_selfhost_min_imul_swap(root: &std::path::Path) -> Result<String, String> {
+    use crate::assembler::{emit_imul, ret};
+    let fixture_path = root.join("yoyo/tests/golden/selfhost_min_imul_swap.ty");
+    let exp_path = root.join("yoyo/tests/golden/expected/selfhost_min_imul_swap.code.hex");
+    let canonical_path = root.join("yoyo/projects/yoyo.ty");
+    for path in [&fixture_path, &exp_path, &canonical_path] {
+        if !path.is_file() {
+            return Err(format!("missing {}", path.display()));
+        }
+    }
+    let expected = load_expected_hex(&exp_path).map_err(|e| e.to_string())?;
+    let fixture_src = fs::read_to_string(&fixture_path).map_err(|e| e.to_string())?;
+    let fixture = executor::compile_ty_source(&fixture_src, PlatformKind::Stub)
+        .map_err(|e| e.to_string())?;
+    if fixture.code != expected {
+        return Err(format!(
+            "fixture mismatch: got {} want {}",
+            hex_encode(&fixture.code),
+            hex_encode(&expected)
+        ));
+    }
+    let canonical_src = fs::read_to_string(&canonical_path).map_err(|e| e.to_string())?;
+    let compiled = executor::compile_one_handler(&canonical_src, 0x3E, PlatformKind::Stub)
+        .map_err(|e| e.to_string())?;
+    let mut want = emit_imul(0x51, 0x50).map_err(|e| e.to_string())?;
+    want.extend(ret());
+    if compiled.code != want || compiled.code != expected {
+        return Err(format!(
+            "M_rust canonical H_3E mismatch: got {} want {}",
+            hex_encode(&compiled.code),
+            hex_encode(&expected)
+        ));
+    }
+    Ok(format!(
+        "M_rust read yoyo.ty H_3E and emitted {} via opcode imul-swap+FF",
+        hex_encode(&compiled.code)
+    ))
+}
+
+/// body-extend-016 / parallel-batch-10 H_57: 0x63 IMUL dst=0x52 src=0x51.
+fn check_selfhost_min_imul_h52(root: &std::path::Path) -> Result<String, String> {
+    use crate::assembler::{emit_imul, ret};
+    let fixture_path = root.join("yoyo/tests/golden/selfhost_min_imul_h52.ty");
+    let exp_path = root.join("yoyo/tests/golden/expected/selfhost_min_imul_h52.code.hex");
+    let canonical_path = root.join("yoyo/projects/yoyo.ty");
+    for path in [&fixture_path, &exp_path, &canonical_path] {
+        if !path.is_file() {
+            return Err(format!("missing {}", path.display()));
+        }
+    }
+    let expected = load_expected_hex(&exp_path).map_err(|e| e.to_string())?;
+    let fixture_src = fs::read_to_string(&fixture_path).map_err(|e| e.to_string())?;
+    let fixture = executor::compile_ty_source(&fixture_src, PlatformKind::Stub)
+        .map_err(|e| e.to_string())?;
+    if fixture.code != expected {
+        return Err(format!(
+            "fixture mismatch: got {} want {}",
+            hex_encode(&fixture.code),
+            hex_encode(&expected)
+        ));
+    }
+    let canonical_src = fs::read_to_string(&canonical_path).map_err(|e| e.to_string())?;
+    let compiled = executor::compile_one_handler(&canonical_src, 0x3F, PlatformKind::Stub)
+        .map_err(|e| e.to_string())?;
+    let mut want = emit_imul(0x52, 0x51).map_err(|e| e.to_string())?;
+    want.extend(ret());
+    if compiled.code != want || compiled.code != expected {
+        return Err(format!(
+            "M_rust canonical H_3F mismatch: got {} want {}",
+            hex_encode(&compiled.code),
+            hex_encode(&expected)
+        ));
+    }
+    Ok(format!(
+        "M_rust read yoyo.ty H_3F and emitted {} via opcode imul-h52+FF",
+        hex_encode(&compiled.code)
+    ))
+}
+
+/// body-extend-016 / parallel-batch-10 H_58: 0x65 CMP a=0x51 b=0x50.
+fn check_selfhost_min_cmp_swap(root: &std::path::Path) -> Result<String, String> {
+    use crate::assembler::{emit_cmp, ret};
+    let fixture_path = root.join("yoyo/tests/golden/selfhost_min_cmp_swap.ty");
+    let exp_path = root.join("yoyo/tests/golden/expected/selfhost_min_cmp_swap.code.hex");
+    let canonical_path = root.join("yoyo/projects/yoyo.ty");
+    for path in [&fixture_path, &exp_path, &canonical_path] {
+        if !path.is_file() {
+            return Err(format!("missing {}", path.display()));
+        }
+    }
+    let expected = load_expected_hex(&exp_path).map_err(|e| e.to_string())?;
+    let fixture_src = fs::read_to_string(&fixture_path).map_err(|e| e.to_string())?;
+    let fixture = executor::compile_ty_source(&fixture_src, PlatformKind::Stub)
+        .map_err(|e| e.to_string())?;
+    if fixture.code != expected {
+        return Err(format!(
+            "fixture mismatch: got {} want {}",
+            hex_encode(&fixture.code),
+            hex_encode(&expected)
+        ));
+    }
+    let canonical_src = fs::read_to_string(&canonical_path).map_err(|e| e.to_string())?;
+    let compiled = executor::compile_one_handler(&canonical_src, 0x40, PlatformKind::Stub)
+        .map_err(|e| e.to_string())?;
+    let mut want = emit_cmp(0x51, 0x50).map_err(|e| e.to_string())?;
+    want.extend(ret());
+    if compiled.code != want || compiled.code != expected {
+        return Err(format!(
+            "M_rust canonical H_40 mismatch: got {} want {}",
+            hex_encode(&compiled.code),
+            hex_encode(&expected)
+        ));
+    }
+    Ok(format!(
+        "M_rust read yoyo.ty H_40 and emitted {} via opcode cmp-swap+FF",
+        hex_encode(&compiled.code)
+    ))
+}
+
+/// body-extend-016 / parallel-batch-10 H_59: 0x60 GET dst=0x52 src=0x50.
+fn check_selfhost_min_get_h52(root: &std::path::Path) -> Result<String, String> {
+    use crate::assembler::{emit_get, ret};
+    let fixture_path = root.join("yoyo/tests/golden/selfhost_min_get_h52.ty");
+    let exp_path = root.join("yoyo/tests/golden/expected/selfhost_min_get_h52.code.hex");
+    let canonical_path = root.join("yoyo/projects/yoyo.ty");
+    for path in [&fixture_path, &exp_path, &canonical_path] {
+        if !path.is_file() {
+            return Err(format!("missing {}", path.display()));
+        }
+    }
+    let expected = load_expected_hex(&exp_path).map_err(|e| e.to_string())?;
+    let fixture_src = fs::read_to_string(&fixture_path).map_err(|e| e.to_string())?;
+    let fixture = executor::compile_ty_source(&fixture_src, PlatformKind::Stub)
+        .map_err(|e| e.to_string())?;
+    if fixture.code != expected {
+        return Err(format!(
+            "fixture mismatch: got {} want {}",
+            hex_encode(&fixture.code),
+            hex_encode(&expected)
+        ));
+    }
+    let canonical_src = fs::read_to_string(&canonical_path).map_err(|e| e.to_string())?;
+    let compiled = executor::compile_one_handler(&canonical_src, 0x41, PlatformKind::Stub)
+        .map_err(|e| e.to_string())?;
+    let mut want = emit_get(0x52, 0x50).map_err(|e| e.to_string())?;
+    want.extend(ret());
+    if compiled.code != want || compiled.code != expected {
+        return Err(format!(
+            "M_rust canonical H_41 mismatch: got {} want {}",
+            hex_encode(&compiled.code),
+            hex_encode(&expected)
+        ));
+    }
+    Ok(format!(
+        "M_rust read yoyo.ty H_41 and emitted {} via opcode get-h52+FF",
+        hex_encode(&compiled.code)
+    ))
+}
+
+/// body-extend-016 / parallel-batch-10 H_60: 0x30 SET slot=0x51 imm=0xDEADBEEF.
+fn check_selfhost_min_set_deadbeef(root: &std::path::Path) -> Result<String, String> {
+    use crate::assembler::{emit_set, ret};
+    let fixture_path = root.join("yoyo/tests/golden/selfhost_min_set_deadbeef.ty");
+    let exp_path = root.join("yoyo/tests/golden/expected/selfhost_min_set_deadbeef.code.hex");
+    let canonical_path = root.join("yoyo/projects/yoyo.ty");
+    for path in [&fixture_path, &exp_path, &canonical_path] {
+        if !path.is_file() {
+            return Err(format!("missing {}", path.display()));
+        }
+    }
+    let expected = load_expected_hex(&exp_path).map_err(|e| e.to_string())?;
+    let fixture_src = fs::read_to_string(&fixture_path).map_err(|e| e.to_string())?;
+    let fixture = executor::compile_ty_source(&fixture_src, PlatformKind::Stub)
+        .map_err(|e| e.to_string())?;
+    if fixture.code != expected {
+        return Err(format!(
+            "fixture mismatch: got {} want {}",
+            hex_encode(&fixture.code),
+            hex_encode(&expected)
+        ));
+    }
+    let canonical_src = fs::read_to_string(&canonical_path).map_err(|e| e.to_string())?;
+    let compiled = executor::compile_one_handler(&canonical_src, 0x42, PlatformKind::Stub)
+        .map_err(|e| e.to_string())?;
+    let mut want = emit_set(0x51, 0xDEADBEEF).map_err(|e| e.to_string())?;
+    want.extend(ret());
+    if compiled.code != want || compiled.code != expected {
+        return Err(format!(
+            "M_rust canonical H_42 mismatch: got {} want {}",
+            hex_encode(&compiled.code),
+            hex_encode(&expected)
+        ));
+    }
+    Ok(format!(
+        "M_rust read yoyo.ty H_42 and emitted {} via opcode set-deadbeef+FF",
+        hex_encode(&compiled.code)
+    ))
+}
+
+/// body-extend-016 / parallel-batch-10 H_61: 0x80 LDB dd=0x51 ss=0x60 oo=8.
+fn check_selfhost_min_ldb_dst51(root: &std::path::Path) -> Result<String, String> {
+    let fixture_path = root.join("yoyo/tests/golden/selfhost_min_ldb_dst51.ty");
+    let exp_path = root.join("yoyo/tests/golden/expected/selfhost_min_ldb_dst51.code.hex");
+    let canonical_path = root.join("yoyo/projects/yoyo.ty");
+    for path in [&fixture_path, &exp_path, &canonical_path] {
+        if !path.is_file() {
+            return Err(format!("missing {}", path.display()));
+        }
+    }
+    let expected = load_expected_hex(&exp_path).map_err(|e| e.to_string())?;
+    let want: [u8; 23] = [
+        0x49, 0x8B, 0x87, 0x00, 0x03, 0x00, 0x00,
+        0x48, 0x83, 0xC0, 0x08,
+        0x48, 0x0F, 0xB6, 0x00,
+        0x49, 0x89, 0x87, 0x88, 0x02, 0x00, 0x00,
+        0xC3,
+    ];
+    if expected != want {
+        return Err(format!(
+            "expected LDB-DST51 pin mismatch: got {}",
+            hex_encode(&expected)
+        ));
+    }
+    let fixture_src = fs::read_to_string(&fixture_path).map_err(|e| e.to_string())?;
+    let fixture = executor::compile_ty_source(&fixture_src, PlatformKind::Stub)
+        .map_err(|e| e.to_string())?;
+    if fixture.code != expected {
+        return Err(format!(
+            "fixture mismatch: got {} want {}",
+            hex_encode(&fixture.code),
+            hex_encode(&expected)
+        ));
+    }
+    let canonical_src = fs::read_to_string(&canonical_path).map_err(|e| e.to_string())?;
+    let compiled = executor::compile_one_handler(&canonical_src, 0x43, PlatformKind::Stub)
+        .map_err(|e| e.to_string())?;
+    if compiled.code != expected {
+        return Err(format!(
+            "M_rust canonical H_43 mismatch: got {} want {}",
+            hex_encode(&compiled.code),
+            hex_encode(&expected)
+        ));
+    }
+    Ok(format!(
+        "M_rust read yoyo.ty H_43 and emitted {} via opcode ldb-dst51+FF",
+        hex_encode(&compiled.code)
+    ))
+}

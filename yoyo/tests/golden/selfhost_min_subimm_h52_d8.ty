@@ -1,0 +1,5 @@
+; body-extend-052 selfhost_min_subimm_h52_d8
+40 163
+  61 52 D8
+  FF
+

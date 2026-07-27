@@ -1,0 +1,3 @@
+; H_746 selfhost_min_set_51_10000 (0x30 SET slot=0x51 imm=0x10000)
+30 51 10000
+FF

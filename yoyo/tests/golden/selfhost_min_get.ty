@@ -1,0 +1,9 @@
+; body-extend-006 GET slot→slot golden — H_39 0x60 GET dst src + RET
+; 1-handler exercise: GET S[0x50] = S[0x51] (no prior SET, no I/O).
+; Rust emit must equal JS emit (load_state(0x51,rax) + store_state(0x50,rax) + ret).
+; 15B expected hex: 498b878802000049898780020000c3
+; Mirror of selfhost_min_movrr.ty / selfhost_min_orv.ty template
+; (single-handler, single-op, no cross-handler branch).
+40 2D
+  60 50 51
+  FF

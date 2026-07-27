@@ -1,0 +1,19 @@
+[package]
+name = "verifier"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "YOYO verifier + linker (Rust DDC peer)"
+
+[[bin]]
+name = "yoyo"
+path = "src/main.rs"
+
+[dependencies]
+isa-proc = { workspace = true }
+libyoyo = { workspace = true }
+yoyo-platform = { workspace = true }
+sha2 = "0.10"
+hex = "0.4"
+
+[dev-dependencies]

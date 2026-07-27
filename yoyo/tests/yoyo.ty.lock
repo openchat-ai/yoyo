@@ -1,0 +1,7 @@
+{
+    "date": "2026-07-27",
+  "sha256": "ce24c2ff41f61980bf70bcc573f94adec470933b6ec577d9eca86d4eb156d207",
+  "previous_sha256": "20391de3e4855c52d3b918753ae6013a7ed4b60bc529d497867f27e95a32b315",
+  "signer": "bootstrap",
+  "note": "Decision #23 - yoyo.ty reconstructed from golden fixtures + body-extend logs after accidental overwrite. 739/739 golden PASS, 8/8 executor tests PASS. EXPERIMENTAL only."
+}

@@ -1,0 +1,6 @@
+; W-selfhost-min DEC golden — H_18 0x67 DEC slot + RET
+; Rust-only G-SM-DEC: compile_one_handler(H_18) must emit
+; load_state(0x50) + dec rax + store_state(0x50) + ret.
+40 12
+  67 50
+  FF

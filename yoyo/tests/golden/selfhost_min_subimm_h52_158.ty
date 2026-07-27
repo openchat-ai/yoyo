@@ -1,0 +1,4 @@
+; body-extend-070 selfhost_min_subimm_h52_158
+40 1F0
+  61 52 158
+  FF

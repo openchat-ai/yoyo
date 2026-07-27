@@ -1,0 +1,21 @@
+## Appendix E: Build & Test + Reference Documents (pointer)
+
+> Full content (~75 lines of build/test/lint/golden/lockdown recipes) → `docs/aux/build.md` §"Build + test recipes".
+
+Quick reference (full recipes → aux):
+
+**Build**: `cd yoyo && cargo build --release`; `cargo build -p isa-proc --release`.
+
+**Test**: `cargo test` (primitives / isa_table / ddc / variable / platform / libyoyo); budget override `--budget=5000000000`.
+
+**Lint**: `cargo clippy --all-targets --all-features -- -D warnings`; `cargo fmt --check`.
+
+**3-Chain Self-Hosting**: see Part 5.5 + 6.2 (M3_asm comparison step).
+
+**QEMU Bare-Metal**: `./target/release/yoyo link --target=baremetal kernel.ty kernel.elf`; `qemu-system-x86_64 -kernel kernel.elf -nographic -serial mon:stdio`.
+
+**Golden Hash Verification** (3 anchors): `sha256sum` on `yoyo-js/src/yoyo.js`, `yoyo-rust/libyoyo/src/lib.rs`, `yoyo-asm/yoyo-asm.s` → pin in `docs/GOLDEN_HASH_*.txt`; verify on every build, fail closed.
+
+**yoyo.ty Lockdown Verification**: `scripts/verify-yoyo-ty.mjs` (sha256 vs lock) · `scripts/verify-selfhost.ps1` (4-round byte-equal) · `yoyo-rust/target/release/yoyo diff build/gen{1,2,3}.exe` (3-chain).
+
+**Nav**: 文首 Week 轴. SoT = this document. Prior digest set deleted (git history).

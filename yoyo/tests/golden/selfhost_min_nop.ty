@@ -1,0 +1,6 @@
+; body-extend-005 NOP golden — H_32 0x00 NOP + RET
+; Zero-argument real compile path; JS encodeOp(0x00) and Rust TirOp::Nop each emit 90.
+; Expected bytes: 90 c3.
+40 26
+  00
+  FF

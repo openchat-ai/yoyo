@@ -1,0 +1,9 @@
+; body-extend-002 SUB slot imm golden — H_2F 0x61 SUB slot imm + RET
+; 1-handler exercise: SUB S[0x50] -= 3 (no prior SET, no I/O).
+; Rust emit must equal JS emit (load_state(0x50) + sub rax,3 + store_state(0x50) + ret).
+; 19B expected hex: 498b87800200004883e80349898780020000c3
+; Mirror of selfhost_min_add_imm.ty template
+; (single-handler, single-op, no cross-handler branch).
+40 23
+  61 50 03
+  FF

@@ -1,0 +1,15 @@
+; body-extend-007 LDB-OFF8-HANDLER golden — H_40 0x80 LDB dd ss oo + RET
+; 1-handler exercise: LDB dd=0x50, ss=0x60, oo=8 (imm8 path: 8 ∈ [-128, 127]).
+; Shape: load_state(0x60,rax) + add rax,8 + movzx rax,byte[rax] + store_state(0x50,rax) + ret.
+; Rust emit must equal JS emit (23B).
+; 23B expected hex: 498b87000300004883c008480fb60049898780020000c3
+; Companion to existing selfhost_min_ldb_body.ty / selfhost_min_ldb_off8.ty
+; (latter uses old H_01 selector). This is the canonical HANDLER entry at
+; the canonical selector 0x2E (H_40), binding LDB-with-off8 to a permanent
+; canonical handler so the lock-respected surface documents the imm8
+; offset path explicitly.
+; (Existing selfhost_min_ldb_off8.ty uses an arbitrary H_01 selector and
+; remains a free-standing probe; H_40 is the canonical handler entry.)
+40 2E
+  80 50 60 08
+  FF

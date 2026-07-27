@@ -1,0 +1,8 @@
+## How to Read / 如何阅读
+
+|> **NON-NORMATIVE navigation.** Daily nav = 文首 Week 轴. Construction order = 文首, not BOOK order. Semantics live in the Parts; this section only orders attention.
+
+1. **Week 轴 (preferred · daily)** — [当前进度 · Week 轴](#当前进度--week-轴non-normative--日常只看这里).
+2. **Changelog** — v3.3.9 blurb at the top; older → Appendix CH.
+3. **Reading path (optional):** BOOK I (N→L) · II (0→3) · III (4→4S→G) · IV (5→9) · V (E) · VI (F/Deduce/Gnd/S) · VII (10→16) · VIII (Appendices).
+4. **Aux:** non-normative detail lives under `docs/aux/` (changelog / build / roadmap).

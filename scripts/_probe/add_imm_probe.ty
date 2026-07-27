@@ -1,0 +1,4 @@
+; Body-extend-001 ADD S[0x50] += 3 (probe — bytes derived independently)
+40 22
+  62 50 03
+  FF

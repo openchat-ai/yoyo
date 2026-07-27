@@ -1,0 +1,7 @@
+## Appendix B: yoyo-asm Third Implementation (pointer)
+
+> **Role**: The 3rd DDC peer. Independent low-shared-surface peer for 3-chain verification (Part 6). Full content (~140 lines) → `docs/aux/build.md` §"yoyo-asm third implementation".
+
+**Why a third implementation?** `yoyo.js` (162 lines, JS) hides behind Node.js v8 (millions LOC). `yoyo-rust` (~4000 lines) hides behind rustc+LLVM. `yoyo-asm` (~500 lines x64, NASM) is pure — every byte visible. Trust model comparison: yoyo.js (Easy hiding, millions toolchain) · yoyo (Medium hiding, millions toolchain) · **yoyo-asm (Hard hiding, ~100K assembler)**. After Phase 4d, three implementations all must agree — no single layer can lie.
+
+**File layout**: `yoyo-asm/yoyo-asm.s` (~500 lines compressed from 1420 via NASM macros); platform/{x64-encode.s, pe-stub.s, elf-stub.s}; Makefile. Won't do: run fast, error messages, support all features, run on every platform, easy to extend. Will do: read `.ty`, emit x64 bytes for all 38 instructions, verify DDC against JS/Rust, be most auditable, be trust anchor fallback. Tools required: nasm (Netwide Assembler), ld, make.

@@ -1,0 +1,9 @@
+### 5.3 Pre-Phase-2 / 5.4 Compression / 5.5 Verify / 5.6 Origin / 5.7 Freezing / 5.8 Audit Surface
+
+Historical / verbose detail → `docs/aux/build.md` §"Self-host compression history". Normative pointers:
+
+- **Root cause fix (Phase 2):** `OUTPUT_DATA_NEED = 0x38000` floor pre-allocated; gen1 ≡ gen2 in data section.
+- **Architectural fix (Phase 4c):** platform bytes leave `yoyo.ty` entirely (replaced by `libyoyo_*` abstract calls — Part 7).
+- **Freeze rule:** Only after full `yoyo.ty` reaches M1≡M2≡M3 under `section-ddc` + Lock Protocol is the compiler "frozen at M3". Stub trees MUST NOT claim freeze.
+- **Audit surface after all phases:** ISA 38 lines + seed 162 lines + `yoyo.ty` ≤1500 lines + libyoyo ~600 lines ≈ ~2300 lines. One-day audit.
+- **Steady state (LOCKED):** `yoyo.ty` is canonical, hand-edited only via 8-step Lock Protocol (Part 9.4). Pre-lock Node generators (`yoyo-gen.js`, since deleted) are NON-NORMATIVE historical; do not cite line numbers.

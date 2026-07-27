@@ -1,0 +1,28 @@
+# Physical Cite Registry — tiny sample (Part Gnd)
+# Cite/pin only. NON-CLAIM physics. NOT ground truth.
+
+schema: gnd.cite.v0
+bundle_id: gnd.bundle/sample-si@0.1.0
+notes: "Stub pack for schema presence. Does NOT green M-gnd. Does NOT endorse perf-extreme."
+
+constants:
+  - entry_id: c_light
+    value: "299792458"
+    value_form: exact_int
+    unit_id: metre_per_second
+    uncertainty_kind: exact
+    provenance: CODATA-2018
+    source_ref: "https://doi.org/10.1103/RevModPhys.93.025010"
+    notes: "cite only; YOYO does not implement c"
+
+units:
+  - unit_id: metre_per_second
+    quantity_kind: velocity
+    system_id: gnd.unit/si
+    dimension: { T: -1, L: 1, M: 0 }
+    exact: true
+
+forbidden_claims:
+  - "Gnd is physical ground truth"
+  - "CODATA proves posture.perf-extreme"
+  - "YOYO obeys conservation of energy therefore morph is safe"

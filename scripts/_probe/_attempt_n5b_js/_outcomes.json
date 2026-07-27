@@ -1,0 +1,91 @@
+{
+  "tag": "attempt-N5b-js-EXPERIMENTAL-JS-runtime",
+  "timestamp_utc8": "2026-07-24T18:15+08:00",
+  "w_start": "EXPERIMENTAL",
+  "n5_ref": "docs/auxdocs/selfhost-attempt-N5-log.md",
+  "n5b_ref": "docs/auxdocs/selfhost-attempt-N5b-log.md",
+  "verdict": "EXPERIMENTAL · NOT-GREEN · cross-peer runtime parity observed · 1:1 Rust vs JS on 4 targets",
+  "scope_choice": "new file `scripts/_probe/_attempt_n5b_js/yoyo-exec.mjs` outside yoyo-js/src (per brief hard scope); Rust side untouched",
+  "lock_pin": "b830a7f5074d814c320be0dc337874170c31d735059d7c4f3afc9e6545a1e685",
+  "interpreter_files": {
+    "yoyo-exec.mjs": "176 lines, 4693 B; mirrors yoyo-rust/executor/src/cpu.rs + mmu.rs opcode subset 1:1",
+    "hex2bin.mjs": "aux helper to bypass PowerShell UTF-16 stdout corruption"
+  },
+  "files_added": [
+    "scripts/_probe/_attempt_n5b_js/yoyo-exec.mjs",
+    "scripts/_probe/_attempt_n5b_js/hex2bin.mjs",
+    "scripts/_probe/_attempt_n5b_js/out/canary-A.bin",
+    "scripts/_probe/_attempt_n5b_js/out/canary-B.bin",
+    "scripts/_probe/_attempt_n5b_js/out/canary-C.bin",
+    "scripts/_probe/_attempt_n5b_js/out/yoyo.ty.bin",
+    "docs/auxdocs/selfhost-attempt-N5b-js-log.md",
+    "scripts/_probe/_attempt_n5b_js/_outcomes.json"
+  ],
+  "trust_anchors_modified": [],
+  "commit": false,
+  "opcode_coverage_subset_mirrors_n5b": {
+    "0x90 NOP": "Y",
+    "0xC3 RET": "Y",
+    "0xE8 CALL rel32": "Y (1-deep shadow ret_stack)",
+    "0xE9 JMP rel32": "Y",
+    "0x0F 0x8x Jcc rel32 (10 conditions)": "Y",
+    "0x48 0xB8+rd movabs rax, imm64": "Y",
+    "0x49 0x8B ModRM=0x47/0x87+disp load_state": "Y",
+    "0x49 0x89 ModRM=0x47/0x87+disp store_state": "Y",
+    "0x48 0xFF 0xC0 inc rax": "Y",
+    "0x48 0xFF 0xC8 dec rax": "Y",
+    "0x48 0x83 0xC0 imm8 add rax, imm8": "Y",
+    "0x48 0x83 0xE8 imm8 sub rax, imm8": "Y",
+    "0x48 0x81 0xC0 imm32 add rax, imm32": "Y",
+    "0x48 0x81 0xE8 imm32 sub rax, imm32": "Y",
+    "0x48 0x01 ModRM=0xC0 add r64, r64": "Y",
+    "0x48 0x29 ModRM=0xC0 sub r64, r64": "Y",
+    "0x48 0x09 ModRM=0xC0 or  r64, r64": "Y",
+    "0x48 0x0F 0xAF ModRM imul r64, r64": "Y",
+    "0x48 0x39/0x3B ModRM cmp r64, r64": "Y",
+    "0x48 0x0F 0xB6 0x00 movzx rax, byte[rax]": "Y",
+    "0x20 ALLOC / 0x50 LOAD_FILE / 0x51 WRITE_FILE (D-1 stub)": "Y (movabs+store, no syscall)",
+    "0xA0/0xA1 RAW_BYTE / RAW_BYTES": "Y (transparent pass-through)",
+    "0x84/0x85 MEMCPY_DATA / MEMCPY_STATE": "NOT_IMPLEMENTED (fail-closed)",
+    "0x40 HANDLER": "Y (compile-time only)"
+  },
+  "unit_tests": {
+    "name": "8 inline tests mirroring Rust's 8 unit tests",
+    "result": "8/8 pass",
+    "tests": [
+      "nop_ret_halts",
+      "movabs_store_ret",
+      "movzx_inc_store_ret",
+      "jmp_backward_to_nop",
+      "jmp_je_taken",
+      "decode_fault_on_unknown_opcode",
+      "hex_text_roundtrip",
+      "raw_byte_nop_chain_halts"
+    ]
+  },
+  "canaries_js_vs_rust": {
+    "canary-A": { "intent": "SET 0 + LDB NULL", "js": "FAULT read OOB at 0x0 (1B) at 4 steps, exit=1", "rust": "FAULT read OOB at 0x0 (1B) at 4 steps, exit=1", "agreement": "YES" },
+    "canary-B": { "intent": "SET 0x7F + LDB NULL", "js": "FAULT read OOB at 0x0 (1B) at 4 steps, exit=1", "rust": "FAULT read OOB at 0x0 (1B) at 4 steps, exit=1", "agreement": "YES" },
+    "canary-C": { "intent": "INC×3 + RET (control flow)", "js": "HALT at 0x1034 after 10 steps, rax=3, exit=0", "rust": "HALT at 0x1034 after 10 steps, rax=3, exit=0", "agreement": "YES" }
+  },
+  "locked_yoyo_ty_js_vs_rust": {
+    "js_compiled_bytes": 931,
+    "rust_compiled_bytes": 931,
+    "sha256_match": "YES (5714c2a5...)",
+    "js_runtime": "HALT at 0x1012 after 3 steps, rax=0, rcx=0, r15=0x1000, exit=0",
+    "rust_runtime": "HALT at 0x1012 after 3 steps, rax=0, rcx=0, r15=0x1000, exit=0",
+    "agreement": "YES"
+  },
+  "still_red": [
+    "full compiler self-host",
+    "3-chain section-ddc 实现",
+    "G06",
+    "Phase 2 出口",
+    "冻结编译器",
+    "M-morph",
+    "Phase 4c libyoyo",
+    "gen1≡gen2",
+    "CI"
+  ],
+  "next_direction_one_liner": "Extend parity to a 3rd peer (yoyo-asm/) or STOP N-series here; runtime parity is now observed cross-peer for the first time, no items promoted to GREEN."
+}

@@ -1,0 +1,6 @@
+; G00 — NOP+RET → x64 bytes 90 C3 (Appendix F)
+; Handler H_00: single NOP then RET. No extra nops.
+
+40 00
+  00
+  FF

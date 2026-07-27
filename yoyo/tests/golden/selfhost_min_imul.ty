@@ -1,0 +1,9 @@
+; body-extend-005 IMUL golden — H_34 0x63 IMUL dst src + RET
+; 1-handler exercise: IMUL S[0x50] *= S[0x51] (no prior SET, no I/O).
+; Rust emit must equal JS emit (load_state(0x50,rax) +
+; load_state(0x51,rcx) + imul rax,rcx + store_state(0x50,rax) + ret).
+; 26B expected hex: 498b8780020000498b8f88020000480fafc149898780020000c3
+; Mirror of selfhost_min_orv.ty template (single-handler, 2-arg ALU).
+40 28
+  63 50 51
+  FF

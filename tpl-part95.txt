@@ -1,0 +1,5 @@
+### 9.5 Layering & 9.6 Out-of-scope
+
+Layer stack: trust anchor (162-line `yoyo.js`) → implementation diversity (3-chain DDC verified) → ISA transparency (38-line table) → compile-time guarantees (zero alloc / Result / type safety) → runtime detection (self-test / budget / progress) → post-compile lockdown (`yoyo.ty` sha256-pinned).
+
+**Out of scope (accepted risks):** hardware bugs; source bugs in `yoyo.ty`; side-channel attacks; human error; algorithm bugs; unaudited morphological drift (without Part E PPMPR / Morph-Lock, env-driven form changes are lock breaks, not defenses); Thompson-proofing via morph (Part E adapts *form*, not Appendix G). 3-chain DDC catches some; tests catch others; Morph-Lock catches profile drift when followed.

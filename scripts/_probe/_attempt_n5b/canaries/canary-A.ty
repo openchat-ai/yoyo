@@ -1,0 +1,15 @@
+; canary-A — SET 0 + LDB NULL (audit probe; W-START attempt-N5b)
+; H_00:  SET state[0x50] = 0
+;        LDB state[0x50] = zx(byte[mem[state[0x60]+0]])  (state[0x60]=0 → NULL)
+;        RET
+; Expected runtime outcome: the LDB tries to read from address 0
+; (NULL). The Rust emulator's Mmu base is 0x1000; address 0 < 0x1000
+; → read-OOB fault. Verifier behaviour: emits the same bytes; the
+; *runtime* divergence is what we are observing. Per PROMPT-v3 §4S.3
+; the lock-step behaviour is "host fault on bad addresses"; the
+; emulator's ReadOob at NULL satisfies that contract.
+; This is a FAIL-CLOSED canary, not a GREEN canary.
+40 00
+  30 50 00
+  80 50 60 00
+  FF

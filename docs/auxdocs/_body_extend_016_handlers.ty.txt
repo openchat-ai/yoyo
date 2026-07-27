@@ -1,0 +1,66 @@
+; H_54 (body-extend-016 / parallel-batch-10 — 0x69 ORV dst=0x52 src=0x51):
+;   High-slot ORV at S[0x52]|=S[0x51] (canonical H_31 uses 69 50 51; H_49 uses 69 51 50).
+;   Same shape as H_52 ADDV-h52 except `or rax,rcx`=4809c8 at byte 16. Pin 25B:
+;   498b8790020000498b8f880200004809c849898790020000c3.
+;   Not full self-host / not G06 / not Phase 2 / not freeze.
+40 3C
+  69 52 51
+  FF
+
+; H_55 (body-extend-016 / parallel-batch-10 — 0x6A SUBV dst=0x52 src=0x51):
+;   High-slot SUBV at S[0x52]-=S[0x51] (canonical H_35 uses 6A 50 51; H_50 uses 6A 51 50).
+;   Same shape as H_54 except `sub rax,rcx`=4829c8 at byte 16. Pin 25B:
+;   498b8790020000498b8f880200004829c849898790020000c3.
+;   Not full self-host / not G06 / not Phase 2 / not freeze.
+40 3D
+  6A 52 51
+  FF
+
+; H_56 (body-extend-016 / parallel-batch-10 — 0x63 IMUL dst=0x51 src=0x50):
+;   Slot-swap IMUL (canonical H_34 uses 63 50 51). load+load+imul+store+ret. Pin 26B:
+;   498b8788020000498b8f80020000480fafc149898788020000c3.
+;   Not full self-host / not G06 / not Phase 2 / not freeze.
+40 3E
+  63 51 50
+  FF
+
+; H_57 (body-extend-016 / parallel-batch-10 — 0x63 IMUL dst=0x52 src=0x51):
+;   High-slot IMUL at S[0x52]*=S[0x51]. Pin 26B:
+;   498b8790020000498b8f88020000480fafc149898790020000c3.
+;   Not full self-host / not G06 / not Phase 2 / not freeze.
+40 3F
+  63 52 51
+  FF
+
+; H_58 (body-extend-016 / parallel-batch-10 — 0x65 CMP a=0x51 b=0x50):
+;   Slot-swap CMP (canonical H_36 uses 65 50 51). load+load+cmp+ret (no store). Pin 18B:
+;   498b8788020000498b8f800200004839c8c3.
+;   Not full self-host / not G06 / not Phase 2 / not freeze.
+40 40
+  65 51 50
+  FF
+
+; H_59 (body-extend-016 / parallel-batch-10 — 0x60 GET dst=0x52 src=0x50):
+;   High-dst GET (H_39=60 50 51; H_51=60 51 52). load_state(0x50)+store_state(0x52)+ret.
+;   Pin: 498b878002000049898790020000c3 (15B).
+;   Not full self-host / not G06 / not Phase 2 / not freeze.
+40 41
+  60 52 50
+  FF
+
+; H_60 (body-extend-016 / parallel-batch-10 — 0x30 SET slot=0x51 imm=0xDEADBEEF):
+;   Non-zero SET imm at slot 0x51 (H_53 uses slot 0x52 / CAFEBABE).
+;   movabs rax,0xDEADBEEF + store_state(0x51)+ret.
+;   Pin: 48b8efbeadde0000000049898788020000c3 (18B).
+;   Not full self-host / not G06 / not Phase 2 / not freeze.
+40 42
+  30 51 DEADBEEF
+  FF
+
+; H_61 (body-extend-016 / parallel-batch-10 — 0x80 LDB dd=0x51 ss=0x60 oo=0x08):
+;   LDB with dest slot 0x51 (H_40 uses dd=0x50). Same imm8 path at oo=8. Pin 23B:
+;   498b87000300004883c008480fb60049898788020000c3.
+;   Not full self-host / not G06 / not Phase 2 / not freeze.
+40 43
+  80 51 60 08
+  FF

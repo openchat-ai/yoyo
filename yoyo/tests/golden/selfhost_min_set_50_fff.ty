@@ -1,0 +1,3 @@
+; H_745 selfhost_min_set_50_fff (0x30 SET slot=0x50 imm=0xfff)
+30 50 fff
+FF

@@ -1,0 +1,19 @@
+; W-selfhost-min LDB offset=256 golden — compile-only byte probe (imm32 path)
+; H_00 SET state[0x50]=0; H_01 LDB state[0x50]=zx(byte[mem[state[0x60]+256]]); H_02 RET
+; offset=256 (0x100) exceeds imm8 signed range [-128, 127], so the encoder MUST
+; pick `add rax, imm32` (opcode 48 81 c0 + 4-byte LE imm) instead of
+; `add rax, imm8` (48 83 c0). 256 is the smallest unsigned value that forces
+; the imm32 path; if the encoder interprets imm8 as unsigned [0, 255], it
+; would emit imm8 = 0x00 (which would be wrong: 0 != 256). STOP if so.
+; H_00: movabs rax,0 (10B) + store_state(0x50) (7B) + ret (1B) = 18B
+; H_01: load_state(0x60) (7B) + add rax,imm32 0x100 (7B) + movzx [rax] (4B) +
+;       store_state(0x50) (7B) + ret (1B) = 26B
+; H_02: ret (1B)
+40 00
+  30 50 00
+  FF
+40 01
+  80 50 60 100
+  FF
+40 02
+  FF

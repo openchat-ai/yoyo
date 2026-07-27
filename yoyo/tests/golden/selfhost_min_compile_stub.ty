@@ -1,0 +1,4 @@
+; W-selfhost-min golden — compile one tiny handler to x64 NOP+RET
+40 05
+  A0 90
+  FF

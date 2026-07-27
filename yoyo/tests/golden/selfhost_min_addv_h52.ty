@@ -1,0 +1,6 @@
+; body-extend-015 / parallel-batch-09 ADDV-h52 — H_52 0x68 ADDV dst src + RET
+; High-slot: ADDV S[0x52] += S[0x51].
+; Pin 25B: 498b8790020000498b8f880200004801c849898790020000c3
+40 3A
+  68 52 51
+  FF

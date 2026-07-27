@@ -1,0 +1,13 @@
+; W-selfhost-min JE golden — H_21 CMP+JE to H_00 + RET
+; CMP compares S[0x50]==S[0x51] (both SET to 0), JE always taken.
+; Rust-only G-SM-JE: fixture compiles both handlers, JE rel32 patches
+; backward to H_00 entry at offset 0.
+40 00
+  30 50 00
+  FF
+40 15
+  30 50 00
+  30 51 00
+  65 50 51
+  71 00
+  FF

@@ -1,0 +1,22 @@
+; hello.tys — optional authoring surface (NON-NORMATIVE convenience)
+; Vote: docs/ROLE-DEBATE-EMITTER-VS-READABLE.md
+; Law remains Layer-S `.ty` after deterministic desugar (profile tys-hello-v1).
+; DDC / lock MUST NOT treat this file as compare truth.
+;
+; Desugar: scripts/check-sugar.mjs → yoyo/examples/hello.expected.ty
+; (stock_gui-shaped: 40 10 / named slots / loop / FF)
+
+HANDLER entry:
+  SET i 0
+  SET n 5
+  SET sum 0
+
+HANDLER loop:
+  CMP i n
+  JZ done
+  INC sum
+  INC i
+  JMP loop
+
+HANDLER done:
+  RET

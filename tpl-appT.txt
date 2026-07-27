@@ -1,0 +1,20 @@
+## Appendix T: Thompson 1984 Background (NON-NORMATIVE, pointer)
+
+> **Status: NON-NORMATIVE historical narrative. Full content (~250 lines) → `docs/aux/build.md` §"Thompson background". Honesty rules that bind agents live in Part 3 (half-page) and Part N.4. Do not treat this appendix as acceptance criteria.**
+
+Quick summary (full content → aux):
+
+- **Author**: Kenneth Lane Thompson (b. 1943). Co-creator of Unix (with Dennis Ritchie), creator of B (predecessor of C), co-creator of Plan 9 and Inferno, Go co-designer. 1983 Turing Award (with Ritchie).
+- **Original Abstract**: "To what extent should one trust a statement that a program is free of Trojan horses? Perhaps it is more important to trust the people who wrote the software."
+- **Publication**: 1983 Turing Award Lecture, *Communications of the ACM*, Vol. 27, No. 8, August 1984, pp. 761–763. DOI: 10.1145/358198.358210
+- **The 3-layer attack**: (L1) source-level backdoor in `/bin/login.c` ("wonderland" password); (L2) compiler-level backdoor (C compiler inserts L1 when compiling login.c); (L3) self-regenerating quine-trap (compiler inserts L2 when compiling the compiler itself). You cannot remove the backdoor by recompiling from source.
+- **Reductio**: "Assume verified `C₀`. Compile its own source with `C₀` to produce `C₁`. Are they identical?" If yes — good. If no — one might be tainted. **No way to tell which.**
+- **Thompson's own conclusion**: "The question of whether to trust a piece of software may ultimately come down to a question of **trusting the people who wrote it**."
+- **What the paper does NOT solve**: Thompson explicitly does not solve bootstrap trust. Notes: mathematical proof (CompCert, expensive), multiple independent impls (reduces probability), reproducible builds (verify output, trust chain).
+- **Defense strategies known today**: (A) Reproducible Builds; (B) Multi-Implementation Cross-Verification (YOYO primary); (C) Mathematical/Formal Verification (CompCert); (D) Diversity + Minimal TCB (YOYO secondary); (E) Hardware Roots of Trust (TPM, Secure Boot).
+- **YOYO's defense**: 3-chain DDC + minimal TCB. Thompson Layer 1 → 38-line ISA table (auditable). Layer 2 → yoyo.js (162 lines) + libyoyo (~150 lines). Layer 3 → JS + Rust + asm triple, SHA-256 per generation.
+- **What YOYO cannot defend**: backdoor inside `yoyo.js` itself; backdoor in libyoyo's ABI surface; backdoor in hardware; backdoor in Node.js v8; backdoor in the human auditor (rubber-hose cryptanalysis). Accepted as irreducible trust anchors.
+- **Fundamental trade-off**: YOYO trades performance-as-product + feature richness + type safety **for** comprehensibility + verifiability + detection of Thompson-style divergence across diverse peers (not a proof of absence). YOYO is not the fastest, smallest, or most capable compiler — it is the most auditable.
+- **Connection to design decisions**: ISA is a table (auditable), seed compiler is small (minimize trust surface), 3-chain DDC, zero dynamic allocation (Part 9.2.1), fixed-size structures, full Result chain (no panic, Part 9.2.2), `0xA1 RAW byte` escape hatch.
+- **Timeline**: 1983 (Turing lecture) · 1984 (paper) · 1984-2000 (academic curiosity) · 2006 (CompCert) · 2013 (Reproducible builds traction) · 2017-present (supply chain attacks: SolarWinds, XZ utils) · 2024-2026 (YOYO design).
+- **Source**: K. Thompson, *Reflections on Trusting Trust*, CACM 27(8), 1984. DOI: 10.1145/358198.358210.

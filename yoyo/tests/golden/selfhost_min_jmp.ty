@@ -1,0 +1,9 @@
+; W-selfhost-min JMP golden — H_19 JMP to H_00 + RET
+; Rust-only G-SM-JMP: fixture compiles both handlers, JMP rel32 patches
+; backward to H_00 entry at offset 0.
+40 00
+  30 50 00
+  FF
+40 13
+  70 00
+  FF

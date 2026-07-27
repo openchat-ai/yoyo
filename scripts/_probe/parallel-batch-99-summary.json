@@ -1,0 +1,92 @@
+{
+  "attempted": 8,
+  "pass": 5,
+  "reject": 3,
+  "pin": "20391de3e4855c52",
+  "concurrency": 8,
+  "matrixPriority": true,
+  "passes": [
+    {
+      "h": 765,
+      "sel": 771,
+      "name": "ldb_60_50_127",
+      "opcode": "0x80 LDB",
+      "args": "dst=0x60 src=0x50 oo=127",
+      "body": "80 60 50 7F",
+      "pin": "498b87800200004883c07f480fb60049898700030000c3",
+      "len": 23,
+      "sha16": "70e494ef742c7042",
+      "sha256": "70e494ef742c70428ddca9b83c7e9fcc8c8e6397772ebab88229dac90f6f1434",
+      "matrixPriority": "P2"
+    },
+    {
+      "h": 766,
+      "sel": 772,
+      "name": "addimm_50_127",
+      "opcode": "0x62 ADD-IMM",
+      "args": "slot=0x50 imm=127",
+      "body": "62 50 7F",
+      "pin": "498b87800200004883c07f49898780020000c3",
+      "len": 19,
+      "sha16": "df7da850e8308744",
+      "sha256": "df7da850e83087448dbcb647a81e02e4892f0f91dfc1e57a831719ae6e7fe256",
+      "matrixPriority": "P2"
+    },
+    {
+      "h": 767,
+      "sel": 773,
+      "name": "addimm_50_m1",
+      "opcode": "0x62 ADD-IMM",
+      "args": "slot=0x50 imm=-1",
+      "body": "62 50 FF",
+      "pin": "498b87800200004881c0ff00000049898780020000c3",
+      "len": 22,
+      "sha16": "28bf04ba57d52c56",
+      "sha256": "28bf04ba57d52c5626526b7b8ecbca40005a003a85e8882b1ba89f13c7400083",
+      "matrixPriority": "P2"
+    },
+    {
+      "h": 768,
+      "sel": 774,
+      "name": "subimm_51_m128",
+      "opcode": "0x61 SUB-IMM",
+      "args": "slot=0x51 imm=-128",
+      "body": "61 51 80",
+      "pin": "498b87880200004881e88000000049898788020000c3",
+      "len": 22,
+      "sha16": "f76a1690a99750ff",
+      "sha256": "f76a1690a99750ff96f35a052519004f469b3b306da7134812d7c6e8d10cf962",
+      "matrixPriority": "P2"
+    },
+    {
+      "h": 769,
+      "sel": 775,
+      "name": "subimm_51_m1",
+      "opcode": "0x61 SUB-IMM",
+      "args": "slot=0x51 imm=-1",
+      "body": "61 51 FF",
+      "pin": "498b87880200004881e8ff00000049898788020000c3",
+      "len": 22,
+      "sha16": "7a46aab2d98a29c0",
+      "sha256": "7a46aab2d98a29c0351a236447433398498b55aaaf9f98d94881d9acf1dca60e",
+      "matrixPriority": "P2"
+    }
+  ],
+  "rejects": [
+    {
+      "name": "ldb_60_50_m128",
+      "opcode": "0x80 LDB",
+      "reason": "mismatch"
+    },
+    {
+      "name": "addimm_50_128",
+      "opcode": "0x62 ADD-IMM",
+      "reason": "peer-divergence"
+    },
+    {
+      "name": "subimm_51_m129",
+      "opcode": "0x61 SUB-IMM",
+      "reason": "peer-divergence"
+    }
+  ]
+}

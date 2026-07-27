@@ -1,0 +1,6 @@
+; SET0 (18B): movabs rax,0 + store_state(0x50) + ret
+; LDB-off128 (26B): load_state(0x60) + add rax,imm32 0x80 + movzx [rax] + store_state(0x50) + ret
+;   imm32 path LEFT-edge: 48 81 c0 + imm32_LE(0x80) = 48 81 c0 80 00 00 00
+;   (offset 128 is the smallest value that escapes the signed imm8 range [-128,127])
+; H_02 RET (1B); total=45B
+48b8000000000000000049898780020000c3498b87000300004881c080000000480fb60049898780020000c3c3

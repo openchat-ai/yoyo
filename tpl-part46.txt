@@ -1,0 +1,11 @@
+### 4.6 Ternary Data Model (Trit) — NON-NORMATIVE CONVENTION
+
+|> Trit patterns are application-level convention on `u64` slots. **Not** part of core ISA acceptance criteria. Phase gates MUST NOT require Trit. Full content (4.6.1–4.6.7, decision patterns, anti-patterns) → `docs/aux/build.md` §"Trit conventions".
+
+| Code | Meaning |
+|------|---------|
+| `0` | Sell / Negative / Oppose |
+| `1` | Hold / Neutral / Wait |
+| `2` | Buy / Positive / Support |
+
+**Why u64 not a real ternary type**: (1) compiler internals use u64; (2) 38 ops suffice; (3) packing is paper advantage; (4) type safety misses logic bugs; (5) audit surface growth; (6) ISA frozen post-Phase 1. Trit is convention, not type.

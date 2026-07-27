@@ -1,0 +1,29 @@
+; N4 (probe-only, non-canonical) — D-1 ops 0x20/0x50/0x51 exercised as
+; independent opcodes via the slot-by-name path.
+; Name-binding chain:
+;   H_00 SET buf=0  → binds `buf` to slot 0x50
+;   H_01 SET sz=0   → binds `sz`  to slot 0x51
+; H_02 ALLOC slot=buf(=0x50), size=0x1000  → opcode 0x20
+; H_03 LOAD_FILE slot=buf, str_idx=0       → opcode 0x50
+; H_04 WRITE_FILE slot=buf, str_idx=0, sz=sz(=0x51) → opcode 0x51
+; Every slot arg is given by NAME (the slot-by-name path), not raw hex.
+; Stub backend: each 0x20/0x50/0x51 should emit
+;   movabs rax, <imm>; mov [r15+slot*8], rax
+; Both peers should be byte-equal here, regardless of D-1's
+; historical divergence in other code paths.
+
+40 00
+  30 buf 00
+  FF
+40 01
+  30 sz 00
+  FF
+40 02
+  20 buf 1000
+  FF
+40 03
+  50 buf 00
+  FF
+40 04
+  51 buf 00 sz
+  FF

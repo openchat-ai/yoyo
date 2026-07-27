@@ -1,0 +1,11 @@
+[package]
+name = "yoyo-platform"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "YOYO platform readers (PE/ELF/disasm)"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]

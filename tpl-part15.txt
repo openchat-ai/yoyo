@@ -1,0 +1,36 @@
+## Part 15: Demos & Use Cases
+
+> **Status: Mostly NON-NORMATIVE storytelling. Moved to `docs/aux/build.md` §"Demos + cross-platform reality". Demo scripts MUST NOT contradict Part L / Appendix G.**
+
+Demos by audience:
+- **60-second** (casual): "YOYO's compiler fits in **38 lines**. Seed = **162 lines**. Whole chain = **2,300 lines**. Three independent implementations produce the same binary verified by SHA-256. If any one is compromised, we know."
+- **5-min** (technical): show ISA table (`wc -l yoyo/src/isa.rs`), seed compiler (`wc -l yoyo-js/src/yoyo.js`), self-host chain (Part 5.5), DDC triple, audit cost (Part 11.1).
+- **30-min** (skeptical): let them read ISA table 30 min, run DDC in front of them, show trust chain, explain attack model (attacker must backdoor yoyo.js 162 lines AND yoyo-rust ~3000 lines AND yoyo-asm ~500 lines AND produce same tampered output AND leave no traces in chain-of-compilation logs).
+- **5-min** (investor/media): "Imagine a magic box that turns recipes into cakes. Most boxes are made by big companies; you can't see inside. YOYO's box is **transparent** — **38 wires, total**. And we have **three** boxes, made by different people, in different languages. Every cake is the same. If a bad guy sneaks into one, the cakes won't match — and we'll know."
+- **One-liner**: "YOYO is a compiler with 2,300 lines of audit surface, three independent implementations verified by SHA-256, and a self-hosting chain frozen at the third generation. You can read the whole thing in a day. Try doing that with GCC."
+
+#### What NOT to claim
+
+YOYO is **not** "100% secure" (no software is) · "bug-free" · "faster than C" (slower; state machine) · "easier to use" · "production-ready for general use" (niche).
+
+YOYO **is**: auditable in 1 day · self-hosting (M0→M3≡M3_asm) · cross-verified (3-chain DDC) · backed by documented threat model · frozen after Phase 4d.
+
+### 15.7 Cross-Platform Reality
+
+"YOYO supports any OS and any hardware" — **Designed yes, implemented: 1 CPU + 2 OS today** (Win32 + Linux on x86-64; bare-metal Part 7.7 done but not phase-validated).
+
+Effort to add: Android (0.5 PM) · FreeBSD (1 PM) · macOS (1-2 PM) · ARM64 emit (6-12 PM) · RISC-V emit (6-12 PM) · Bare-metal (1-2 PM).
+
+`0xA1 RAW_BYTES` lets you emit any x64 instruction from within `yoyo.ty`. **YOYO can already express any x64 sequence** — for OS development, you don't need new ISA instructions.
+
+### 15.8 Space-Oriented Position (ROADMAP — NON-NORMATIVE)
+
+> No acceptance criteria in Phase 0–6. Do not treat as language core. **Not** space-grade flight software under Part L.
+
+Hosted x64 bootstrap traits (not space-qualified): 38-line ISA + small audit surface (when full body exists) · zero dynamic allocation **in emit/AM EQUAL paths** (host toolchains exempt N.4) · full Result chain · self-test + CRC interfaces (ROADMAP) · budget-limited execution · M3 freeze only after full-body lock · 3-chain DDC detects peer divergence under independence assumptions (**not** a proof).
+
+**What's Needed Beyond v3** (10 items): (1) Software TMR · (2) Watchdog · (3) Heartbeat/telemetry · (4) Safe mode · (5) WCET · (6) EDAC · (7) Power mgmt · (8) Verified updates · (9) Boot ROM · (10) Fault-tolerant storage.
+
+**5 Failure Modes**: SEU (EDAC+TMR+restart) · SEFI (watchdog reset) · Total Dose (continuous self-test) · Comm Loss (autonomous mode + event queue).
+
+Roadmap to space-oriented backends: 2-4 years, 3-5 engineers, $200K+ for radiation beam time. Phases S1–S5. **Not** flight software; **not** Phase 0–6 Final deliverable.

@@ -1,0 +1,53 @@
+; W-selfhost-min chained8 golden — combined H_05 through H_12
+40 05
+  A0 90
+  FF
+40 06
+  A0 90
+  A0 90
+  FF
+40 07
+  A0 90
+  A0 90
+  A0 90
+  FF
+40 08
+  A0 90
+  A0 90
+  A0 90
+  A0 90
+  FF
+40 09
+  A0 90
+  A0 90
+  A0 90
+  A0 90
+  A0 90
+  FF
+40 0A
+  A0 90
+  A0 90
+  A0 90
+  A0 90
+  A0 90
+  A0 90
+  FF
+40 0B
+  A0 90
+  A0 90
+  A0 90
+  A0 90
+  A0 90
+  A0 90
+  A0 90
+  FF
+40 0C
+  A0 90
+  A0 90
+  A0 90
+  A0 90
+  A0 90
+  A0 90
+  A0 90
+  A0 90
+  FF

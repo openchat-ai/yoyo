@@ -1,0 +1,4 @@
+; body-extend selfhost_min_set_deadbeef
+40 42
+  30 51 DEADBEEF
+  FF

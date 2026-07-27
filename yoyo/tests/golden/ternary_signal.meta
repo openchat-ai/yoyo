@@ -1,0 +1,4 @@
+# golden: ternary_signal entry exists
+# Used as post-freeze immutable fixture marker.
+entry=H_20
+ops_min=20

@@ -1,0 +1,9 @@
+; body-extend-005 RAW_BYTES golden — H_33 0xA1 RAW_BYTES + RET
+; 1-handler exercise: 0xA1 emits literal-byte args verbatim (variadic).
+; Probe uses 2-byte variadic literal `A1 CC DD`. NOT RAW_BYTE 0xA0 filler
+; — opcode 0xA1 routes through the real variadic literal-byte emit path.
+; Expected bytes: ccdd c3 (3B).
+; Mirror of selfhost_min_nop.ty template (single-handler, single-op).
+40 27
+  A1 CC DD
+  FF

@@ -1,0 +1,3 @@
+; H_744 selfhost_min_get_50_60 (0x60 GET dst=0x50 src=0x60)
+60 50 60
+FF

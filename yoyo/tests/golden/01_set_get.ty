@@ -1,0 +1,7 @@
+; G01 — SET/GET round-trip (Appendix F)
+; SET S[0x50]=0x2A then GET S[0x51]←S[0x50]; emit must store then load same slot disp.
+
+40 00
+  30 50 2A
+  60 51 50
+  FF

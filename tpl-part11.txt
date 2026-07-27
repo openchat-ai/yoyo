@@ -1,0 +1,16 @@
+## Part 11: Cross-Project Comparison
+
+> **Status: NON-NORMATIVE marketing comparison. Moved to `docs/aux/build.md` §"Cross-project comparison".**
+
+Quick pointers (full tables → aux):
+
+| Compiler | Self-host | Audit surface | Frozen? |
+|----------|-----------|----------------|---------|
+| **YOYO** | Yes (M0→M3) | ~2300 lines | **Yes** |
+| TCC | Partial | ~10000 lines | No |
+| ghc | Yes | ~500000 lines | No |
+| SBCL | Yes | ~100000 lines | No |
+| OCaml | Yes | ~200000 lines | No |
+| CompCert | No (uses OCaml) | ~100000 lines + Coq | n/a |
+
+YOYO is **45x smaller than TCC**, **500x smaller than SBCL**, the only one that **freezes** its self-hosting chain (now with 3-chain DDC). CompCert offers *formal* C correctness via Coq; YOYO offers *empirical multi-impl divergence detection*. Neither eliminates Thompson's irreducible trust roots.

@@ -1,0 +1,105 @@
+{
+  "attempted": 8,
+  "pass": 8,
+  "reject": 0,
+  "pin": "ea348e8b7a43f285121c1755b572a87940a50432ef5d0482be6ecc3c575a98bd",
+  "passes": [
+    {
+      "h": 86,
+      "sel": 92,
+      "name": "set_feedface",
+      "opcode": "0x30 SET",
+      "args": "slot=0x52 imm=0xFEEDFACE",
+      "body": "30 52 FEEDFACE",
+      "pin": "48b8cefaedfe0000000049898790020000c3",
+      "len": 18,
+      "sha16": "e66d020e76069da7",
+      "sha256": "e66d020e76069da7f2aeb30d6618f61321d1c7b396f15ed6d03a1858326e589e"
+    },
+    {
+      "h": 87,
+      "sel": 93,
+      "name": "set_aabbccdd",
+      "opcode": "0x30 SET",
+      "args": "slot=0x51 imm=0xAABBCCDD",
+      "body": "30 51 AABBCCDD",
+      "pin": "48b8ddccbbaa0000000049898788020000c3",
+      "len": 18,
+      "sha16": "2a98933dfb0d8cdd",
+      "sha256": "2a98933dfb0d8cdda9161df415cb8a9a9635ff1387085d7168024e8869a6688f"
+    },
+    {
+      "h": 88,
+      "sel": 94,
+      "name": "get_5052",
+      "opcode": "0x60 GET",
+      "args": "(0x50, 0x52)",
+      "body": "60 50 52",
+      "pin": "498b879002000049898780020000c3",
+      "len": 15,
+      "sha16": "ce17131dfed4ee14",
+      "sha256": "ce17131dfed4ee14af0697f07f0d04f1a0b667aff33bef843c12e28b08399120"
+    },
+    {
+      "h": 89,
+      "sel": 95,
+      "name": "cmp_5052",
+      "opcode": "0x65 CMP",
+      "args": "(0x50, 0x52)",
+      "body": "65 50 52",
+      "pin": "498b8780020000498b8f900200004839c8c3",
+      "len": 18,
+      "sha16": "594c4a8e7b724cf5",
+      "sha256": "594c4a8e7b724cf54fbf766598061808a0fbd5b4965f2b1d858d7c2f2fb68ab0"
+    },
+    {
+      "h": 90,
+      "sel": 96,
+      "name": "ldb_5160_10",
+      "opcode": "0x80 LDB",
+      "args": "dd=0x51 ss=0x60 oo=0x10",
+      "body": "80 51 60 10",
+      "pin": "498b87000300004883c010480fb60049898788020000c3",
+      "len": 23,
+      "sha16": "d3253d0131cd96d0",
+      "sha256": "d3253d0131cd96d0f544e7149d58883b77ce84fe3deea780b141e7adabf943af"
+    },
+    {
+      "h": 91,
+      "sel": 97,
+      "name": "imul_5250",
+      "opcode": "0x63 IMUL",
+      "args": "(0x52, 0x50)",
+      "body": "63 52 50",
+      "pin": "498b8790020000498b8f80020000480fafc149898790020000c3",
+      "len": 26,
+      "sha16": "ba2a57ad864330da",
+      "sha256": "ba2a57ad864330daa4c0158da3ecfb56887a5f08df92b7e86c397ab9d1669f92"
+    },
+    {
+      "h": 92,
+      "sel": 98,
+      "name": "orv_5152",
+      "opcode": "0x69 ORV",
+      "args": "(0x51, 0x52)",
+      "body": "69 51 52",
+      "pin": "498b8788020000498b8f900200004809c849898788020000c3",
+      "len": 25,
+      "sha16": "df8b41f4c74b2540",
+      "sha256": "df8b41f4c74b2540fd7aa2f3437d35001f0d4753344f5157bf836cd26c24864b"
+    },
+    {
+      "h": 93,
+      "sel": 99,
+      "name": "addimm_h50_0f",
+      "opcode": "0x62 ADD-IMM",
+      "args": "slot=0x50 imm=0x0F",
+      "body": "62 50 0F",
+      "pin": "498b87800200004883c00f49898780020000c3",
+      "len": 19,
+      "sha16": "899a90c682241183",
+      "sha256": "899a90c68224118374482202720a205f23b7e1cb0dd41f92127a4303f7c7a4ca"
+    }
+  ],
+  "rejects": []
+}

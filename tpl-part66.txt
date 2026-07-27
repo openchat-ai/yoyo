@@ -1,0 +1,10 @@
+### 6.6 Trust Root
+
+| Root | Approx. surface |
+|------|-----------------|
+| `yoyo.js` (M0 seed) | ~162 LOC + Node APIs |
+| `yoyo-rust` + rustc + LLVM | millions LOC |
+| `yoyo-asm` + nasm | ~500 LOC + assembler |
+| Node.js / V8 / Host OS + CPU | millions / irreducible |
+
+**Bootstrap**: (1) audit anchors, (2) disclose trust roots (Appendix G), (3) compute golden hashes, (4) pin in repo, (5) verify on every build, fail closed.

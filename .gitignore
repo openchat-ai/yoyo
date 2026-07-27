@@ -1,0 +1,24 @@
+# Ignore build artifacts
+**/target/
+yoyo-js/build/
+yoyo-js/node_modules/
+*.exe
+*.dll
+*.so
+*.a
+*.o
+*.obj
+*.pdb
+.DS_Store
+
+# Temp / scratch / build artifacts
+_scratch_*
+_ddc_*
+_h43_*
+_js_actual*
+_rust_*
+_yoyo_*
+_ls_*
+_tmp_*
+*.bin
+*.tmp

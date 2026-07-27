@@ -1,0 +1,11 @@
+## Appendix C: Cross-Platform Story (Why libyoyo) (pointer)
+
+> Why does Part 14 of v2.1 exist as a separate section here? Because the cross-platform claim was a half-truth before this insight. Full content → `docs/aux/build.md` §"Cross-platform story".
+
+**Original claim** (now known wrong): "YOYO supports any OS and any hardware". Reality: `yoyo.ty` (Win-specific) → `yoyo.exe` (Win); `yoyo.ty` (Linux-specific) → `yoyo.elf` (Linux); step-1 source already bound. The compiler (`yoyo.js`) is cross-platform, but programs it compiles (`.ty`) are NOT.
+
+**Fix**: `.ty` calls `libyoyo_alloc`, `libyoyo_open`, etc. — abstract names. `yoyo.js`/`yoyo-rust`/`yoyo-asm` at compile-time resolves them to platform-specific machine code via the platform backend. **Result**: same `yoyo.ty` produces Windows `yoyo.exe` that calls `libyoyo-win32.dll!yoyo_alloc`; Linux `yoyo.elf` that calls `libyoyo-linux.so!yoyo_alloc`.
+
+**C analogy**: C's `xx.c` is portable via `xx.c → cc compile → xx.o → ld link → xx.exe`. YOYO has no `.o` layer but doesn't need one — translation happens inside `yoyo.js` at compile time, as long as `.ty` uses `libyoyo_*` calls.
+
+User's two corrections: (1) pointed out cross-platform flaw in `.ty`; (2) rejected over-engineered `.tyo` intermediate — saved ~4 weeks of unnecessary work.

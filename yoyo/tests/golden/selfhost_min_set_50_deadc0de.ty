@@ -1,0 +1,4 @@
+; body-extend-031 selfhost_min_set_50_deadc0de
+40 B4
+  30 50 DEADC0DE
+  FF

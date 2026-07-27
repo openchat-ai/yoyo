@@ -1,0 +1,4 @@
+; body-extend selfhost_min_imul_h52
+40 3F
+  63 52 51
+  FF

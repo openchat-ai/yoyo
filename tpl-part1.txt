@@ -1,0 +1,42 @@
+## Part 1: 4-Project Architecture
+
+|> v3 reorganizes YOYO around **4 independent projects**: canonical `yoyo` language + 3 implementations (yoyo-js / yoyo-rust / yoyo-asm).
+
+### 1.1 The 4 Projects
+
+| # | Project | Role |
+|---|---------|------|
+| 1 | **yoyo** | Canonical Language — `projects/yoyo.ty` (locked), ISA spec, format, libyoyo API, goldens |
+| 2 | **yoyo-js** | Compiler (M0 seed 162 lines, JS portion of platform-emit) |
+| 3 | **yoyo-rust** | Verifier + Stdlib (verifier/ + libyoyo/, Rust portion of platform-emit) |
+| 4 | **yoyo-asm** | Independent DDC peer (`yoyo-asm.s` ~500 lines x64, asm portion of platform-emit) |
+
+### 1.2 Why 4, Not 3 or 6
+
+- **Why not 3:** Without `yoyo` as its own project, `projects/yoyo.ty` would live inside one impl; the other two would `git submodule` — destroying the independent input promise of 3-chain DDC.
+- **Why not 6:** The earlier "6 entities" framing conflated role with org. `yoyo.js` lives inside `yoyo-js/`, `libyoyo` shares release cadence with the verifier inside `yoyo-rust/`, `platform-emit` is split 3 ways. **Project organization ≠ DDD role. Roles are 6; projects are 4.**
+
+### 1.3 Project Layout (canonical, authoritative)
+
+```
+yoyo/                          # PROJECT 1: language (canonical)
+  projects/yoyo.ty             # 🔒 locked source
+  tests/yoyo.ty.lock           # Decision #13 lock
+  tests/golden/                # post-freeze golden tests
+  isa/  format/  api/libyoyo/  foundations/  plans/  gnd/
+yoyo-js/                       # PROJECT 2: JS compiler (M0 + platform-emit portion)
+yoyo-rust/                     # PROJECT 3: Rust verifier + libyoyo + platform-emit portion
+yoyo-asm/                      # PROJECT 4: asm independent peer
+tests/                         # repo-root pins (morph / foundations / plans / gnd)
+```
+
+### 1.4 Project Forbidden
+
+| Project | Forbidden |
+|---------|-----------|
+| `yoyo` | platform-specific bytes (0xE8 / 0xE9 / FF 15 / IAT / syscall numbers / PE-ELF magic) |
+| `yoyo-js` | emit algo different from `yoyo.ty`; holding `projects/yoyo.ty`; regenerating `yoyo.ty` while LOCKED |
+| `yoyo-rust` | duplicating emit in verifier; compiling `yoyo.ty` for **distribution** (DDC peer only) |
+| `yoyo-asm` | reusing yoyo-js's `platform/*` files; cleverness diverging from `yoyo.ty` |
+
+Violation → reject + reset. See Part 9 Decision #13.

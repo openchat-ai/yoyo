@@ -1,0 +1,42 @@
+## Part 2: Context and Goals
+
+### 2.1 What is YOYO
+
+State-machine-based, self-hosting compiler toolchain (Part L) producing x64 binaries:
+- **38 core instructions** (integer, control flow, memory, syscalls); source = hex token stream; opcode ids = u8 (Part 4.0)
+- **256-slot state machine** (8 bytes/slot, accessed via R15)
+- **Three diverse implementations** (JS / Rust / asm) compared by 3-chain DDC (Part 6.9)
+- **Freeze-at-M3** only after full-body lock + DDC (stub trees are NOT frozen compilers)
+
+### 2.2 Why YOYO Exists
+
+Answer one question: **"Can I trust my compiler?"** Ken Thompson (1984) showed a compiler can hide a backdoor that (1) is not in source, (2) survives recompilation from clean source, (3) persists through the build chain. YOYO's design is a direct response — see Part 3 (honesty half-page) + Appendix T.
+
+### 2.3 Goals
+
+| Goal | Class | How Achieved |
+|------|-------|--------------|
+| **Divergence-detectable / auditable compilation** | FACT | 3-chain DDC (Part 6) — detection ≠ proof 【cite:Thompson84;WheelerDDC】 |
+| **Small audit surface** | DECISION | 38-line ISA, 162-line seed (`yoyo.js`) |
+| **Self-hosting** | DECISION | M0→M1→M2→M3 chain, frozen at M3 |
+| **Cross-platform** | DECISION | libyoyo abstracts syscalls; `.tyo` + platform backends |
+| **Deterministic (scoped)** | DECISION | Zero dynamic allocation **in emit/AM paths claiming EQUAL**; host toolchains exempt (N.4) |
+| **Reliable** | DECISION | Full Result chain, no panics, budget-limited |
+| **Morphological adaptation** | INTERFACE | Part E — PPMPR / Morph-Lock for **named** env class (not "any env") |
+| **Energy↔perf posture continuum** | INTERFACE | Part E.19 — pole/blend switching; "seamless" only if §E.19.3 |
+| **Pinned foundations + Plan-first deduction** | INTERFACE | Parts F / Deduce — `.fdn` + `*.plan.*` + ReplayRecord (no CDS daemon) |
+| **Physical cite pins (optional)** | FACT | Part Gnd — pin units/constants when advertising physical meaning 【cite:CODATA2018】 |
+
+### 2.4 Non-Goals
+
+- **Performance as a product goal** — YOYO prioritizes auditability over speed. Does **not** forbid `posture.perf-extreme` **preference pin** (Part E.19); that pin is an auditable strategy, **not** a claim of throughput leadership.
+- **Type safety** — ISA is untyped u64; types are application-level.
+- **Rich ecosystem** — No package manager; libyoyo is a thin syscall façade, not a libc.
+- **Cross-architecture compilation** — Single architecture per build (x86-64 normative).
+- **User-friendly ergonomics** — Designed for auditors, not typical developers.
+- **C/Rust replacement** — see Part L (explicit).
+- **Provable absence of backdoors** — DDC detects divergence; it does not prove purity.
+
+### 2.5 Project Layout (single authority)
+
+**Part 1.3** is the single Project Layout source of truth. Do not maintain a second full tree here.

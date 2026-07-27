@@ -1,0 +1,21 @@
+### 13.2 User Patterns + 13.3 Honesty Tests + 13.4 Design Principles
+
+User patterns: (1) direction control (1-3 words, I implement); (2) logic consistency (catches sequencing); (3) honesty tests (3 passed — thousands-of-lines / spacecraft / Q-prefixed); (4) outcome focus.
+
+The 3 honesty tests are the **trust foundation** of the collaboration — I didn't fabricate. This is why YOYO's design emphasizes DDC, golden hashes, verifiable chains: the user values *checkable* correctness over plausible-sounding ones.
+
+**Design principles established:** (1) self-hosting is foundation, not goal (freeze after verification); (2) single source of truth (38-line ISA table, all else generated); (3) conservative engineering (each feature passes DDC + test + user value); (4) audit-friendly, not user-friendly; (5) defense in depth (13 safety decisions); (6) cross-platform after libyoyo; (7) bilingual EN/ZH (v2.1 era; v3 EN-only).
+
+### 13.6 User Decision-Making Style
+
+The 3 honesty tests reveal: tests my honesty about past statements; tests my consistency; will not accept "I think so" — demands evidence. **This is why** YOYO's design emphasizes DDC, golden hashes, verifiable chains — the user values *checkable* correctness over plausible sounding ones. (Full Part 14 custody workflow → `docs/aux/build.md` §"Maintainer + custody".)
+
+13.1 (20 decisions) and 13.5 (anti-patterns) **kept above** in this Part — they are normative for agents. Anti-patterns:
+
+❌ **Don't** add self-hosting OCD after Phase 4d · bypass 3-chain DDC · add panics in emit path · allocate in hot path · mix hex/named slots carelessly · add 50-line+ diffs without tests · edit `yoyo.ty` without 8-step Lock Protocol · "just morph" without PPMPR / Morph-Lock.
+
+#### 13.5.1 Three Iron Rules (from opencode AGENTS.md)
+
+1. **Three-layer decomposition** — every problem through 3 layers (source / TIR-bytecode / machine code). If any layer uncertain, descend.
+2. **0 loops in same layer** — if uncertain, descend. Don't repeat analysis.
+3. **0 guesses** — all conclusions have file evidence. No "probably", "likely", "looks like".

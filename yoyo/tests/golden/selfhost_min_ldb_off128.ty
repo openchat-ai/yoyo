@@ -1,0 +1,22 @@
+; W-selfhost-min LDB offset=128 golden — compile-only byte probe (imm32 path edge)
+; H_00 SET state[0x50]=0; H_01 LDB state[0x50]=zx(byte[mem[state[0x60]+128]]); H_02 RET
+; offset=128 (0x80) is the FIRST value past the signed imm8 range [-128, 127],
+; so the encoder MUST switch to the imm32 path: `add rax, imm32` = 48 81 c0 +
+; 4-byte LE imm32(0x80). This is the left edge of the imm32 range.
+; If the encoder interprets imm8 as unsigned [0, 255], it would silently emit
+; imm8 = 0x80 (WRONG: 0x80 != 128 in two's-complement semantics for signed
+; range checks; more importantly the LDB read would land at offset 128 via
+; `add rax,0x80` which IS still numerically correct, so this is purely an
+; encoding path question). STOP if asm emits imm8 48 83 c0 80 for off128.
+; H_00: movabs rax,0 (10B) + store_state(0x50) (7B) + ret (1B) = 18B
+; H_01: load_state(0x60) (7B) + add rax,imm32 0x80 (7B) + movzx [rax] (4B) +
+;       store_state(0x50) (7B) + ret (1B) = 26B
+; H_02: ret (1B); total=45B
+40 00
+  30 50 00
+  FF
+40 01
+  80 50 60 80
+  FF
+40 02
+  FF

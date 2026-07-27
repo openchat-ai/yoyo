@@ -1,0 +1,51 @@
+# FACT bibliography — real sources only (PROMPT Appendix Bib / Part N.5)
+# NOT a third truth source. NOT CDS theater. MUST NOT invent DOIs.
+# check-cites.mjs resolves cite_id against this file.
+
+schema: fact.bib.v0
+notes: "Empty or missing ids MUST NOT green FACT advertisements."
+
+entries:
+  - cite_id: Thompson84
+    title: Reflections on Trusting Trust
+    author: Ken Thompson
+    year: 1984
+    venue: Communications of the ACM 27(8)
+    doi: "10.1145/358198.358210"
+    notes: "Threat history; detection context — not proven resistance"
+
+  - cite_id: WheelerDDC
+    title: Fully Countering Trusting Trust through Diverse Double-Compiling
+    author: David A. Wheeler
+    year: 2009
+    venue: PhD dissertation / DDC reports
+    notes: "DDC method lineage; detection ≠ proof"
+
+  - cite_id: RFC2119
+    title: Key words for use in RFCs to Indicate Requirement Levels
+    author: S. Bradner
+    year: 1997
+    venue: RFC 2119
+
+  - cite_id: CODATA2018
+    title: CODATA Recommended Values of the Fundamental Physical Constants 2018
+    year: 2018
+    doi: "10.1103/RevModPhys.93.025010"
+    notes: "Use with Part Gnd pin when advertising physical constants"
+
+  - cite_id: PECOFF
+    title: Microsoft PE/COFF Specification
+    notes: "Pin edition in implementation notes when advertising PE layout FACT"
+
+  - cite_id: IEEE754
+    title: IEEE Standard for Floating-Point Arithmetic
+    venue: IEEE Std 754
+    notes: "Pin edition when advertising float encoding FACT"
+
+  - cite_id: IntelSDM
+    title: Intel 64 and IA-32 Architectures Software Developer's Manual
+    notes: "Pin revision when advertising x86-64 encoding FACT"
+
+  - cite_id: AMD64APM
+    title: AMD64 Architecture Programmer's Manual
+    notes: "Pin revision as needed"

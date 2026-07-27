@@ -1,0 +1,13 @@
+; G04 — CALL/RET stack pair (Appendix F)
+; H_00: CALL H_02; RET (fall-through never taken; CALL pushes RIP+5)
+; H_02: SET slot[0x50]=0xCC; RET
+; Runner checks: CALL opcode 0xE8 + RET opcode 0xC3 paired; rel32 patches
+; CALL site to the H_02 handler.
+
+40 00
+  41 02
+  FF
+
+40 02
+  30 50 CC
+  FF

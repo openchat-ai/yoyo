@@ -1,0 +1,4 @@
+; body-extend-062 selfhost_min_subimm_h52_120
+40 1B1
+  61 52 120
+  FF

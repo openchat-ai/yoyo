@@ -1,0 +1,11 @@
+### 6.7 Chain-of-Compilation Logs
+
+Every generation's 3-chain DDC result is logged:
+
+```
+[timestamp] gen=N input_sha=X
+  js_output_sha=Y rust_output_sha=Z asm_output_sha=W
+  status=MATCH|MISMATCH prev_signature=V
+```
+
+Logs form a **tamper-evident chain** — each entry includes the previous signature. Reflective verification (6.4): same peer runs twice, `ddc_compare(out1, out2)` must succeed (otherwise halt + investigate non-determinism). Run on every CI build; regression = uninitialized memory / address-of-stack — must fix before merge.

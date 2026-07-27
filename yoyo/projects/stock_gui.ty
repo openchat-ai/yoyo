@@ -1,0 +1,17 @@
+; stock_gui.ty — named-slot example (Phase 3)
+; Demonstrates Part 8 variable layer
+
+40 10
+  30 i 0
+  30 n 5
+  30 sum 0
+
+40 11
+  65 i n
+  71 12
+  66 sum
+  66 i
+  70 11
+
+40 12
+  FF

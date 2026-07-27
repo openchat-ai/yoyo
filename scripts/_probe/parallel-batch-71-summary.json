@@ -1,0 +1,105 @@
+{
+  "attempted": 8,
+  "pass": 8,
+  "reject": 0,
+  "pin": "ebbc6d765fcc0fcdc045848e93a3839d47ffdf287646adb781170a66d80690be",
+  "passes": [
+    {
+      "h": 541,
+      "sel": 547,
+      "name": "addimm_h52_188",
+      "opcode": "0x62 ADD-IMM",
+      "args": "slot=0x52 imm=0x188",
+      "body": "62 52 188",
+      "pin": "498b87900200004881c08801000049898790020000c3",
+      "len": 22,
+      "sha16": "ef2cfed790c9d301",
+      "sha256": "ef2cfed790c9d301a5e0e1ab548235f8151a62bb286305c852eb8a574a858dc2"
+    },
+    {
+      "h": 542,
+      "sel": 548,
+      "name": "subimm_h50_188",
+      "opcode": "0x61 SUB-IMM",
+      "args": "slot=0x50 imm=0x188",
+      "body": "61 50 188",
+      "pin": "498b87800200004881e88801000049898780020000c3",
+      "len": 22,
+      "sha16": "4576822a906e44b8",
+      "sha256": "4576822a906e44b809a53bc7a47d6f3fed4fe69032568c8eda7f87908db4d346"
+    },
+    {
+      "h": 543,
+      "sel": 549,
+      "name": "subimm_h51_188",
+      "opcode": "0x61 SUB-IMM",
+      "args": "slot=0x51 imm=0x188",
+      "body": "61 51 188",
+      "pin": "498b87880200004881e88801000049898788020000c3",
+      "len": 22,
+      "sha16": "6c36bec002d9aa7d",
+      "sha256": "6c36bec002d9aa7d47823bae9b798b4dc708bf86beb972c41a859b8a0306e6e2"
+    },
+    {
+      "h": 544,
+      "sel": 550,
+      "name": "subimm_h52_188",
+      "opcode": "0x61 SUB-IMM",
+      "args": "slot=0x52 imm=0x188",
+      "body": "61 52 188",
+      "pin": "498b87900200004881e88801000049898790020000c3",
+      "len": 22,
+      "sha16": "c77a089b4ef783bb",
+      "sha256": "c77a089b4ef783bb9bd65accaf84e7c7c8c93a11feb6eaf13367e292569b410d"
+    },
+    {
+      "h": 545,
+      "sel": 551,
+      "name": "ldb_5060_190",
+      "opcode": "0x80 LDB",
+      "args": "dd=0x50 ss=0x60 oo=0x190",
+      "body": "80 50 60 190",
+      "pin": "498b87000300004881c090010000480fb60049898780020000c3",
+      "len": 26,
+      "sha16": "e4ad649adfa675bd",
+      "sha256": "e4ad649adfa675bdf2ebda458ed06c9a0467812a402f3d0ebcf72a1de375467d"
+    },
+    {
+      "h": 546,
+      "sel": 552,
+      "name": "ldb_5160_190",
+      "opcode": "0x80 LDB",
+      "args": "dd=0x51 ss=0x60 oo=0x190",
+      "body": "80 51 60 190",
+      "pin": "498b87000300004881c090010000480fb60049898788020000c3",
+      "len": 26,
+      "sha16": "251c22877545c901",
+      "sha256": "251c22877545c901900760bd670ecc3c4cb5859fe25dd5a312a1dc18c86bb180"
+    },
+    {
+      "h": 547,
+      "sel": 553,
+      "name": "ldb_5260_190",
+      "opcode": "0x80 LDB",
+      "args": "dd=0x52 ss=0x60 oo=0x190",
+      "body": "80 52 60 190",
+      "pin": "498b87000300004881c090010000480fb60049898790020000c3",
+      "len": 26,
+      "sha16": "21f0254d615d4969",
+      "sha256": "21f0254d615d4969cfeabc75fd1bed32d0186f70199fa80476540ef9edd1fcb2"
+    },
+    {
+      "h": 548,
+      "sel": 554,
+      "name": "addimm_h50_190",
+      "opcode": "0x62 ADD-IMM",
+      "args": "slot=0x50 imm=0x190",
+      "body": "62 50 190",
+      "pin": "498b87800200004881c09001000049898780020000c3",
+      "len": 22,
+      "sha16": "0b1729a7a8c31cb9",
+      "sha256": "0b1729a7a8c31cb9d196acf729c90a88f1fb4eec35c56ed3180ed11842146c58"
+    }
+  ],
+  "rejects": []
+}

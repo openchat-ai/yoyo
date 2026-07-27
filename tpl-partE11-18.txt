@@ -1,0 +1,99 @@
+### E.11 Evolution constructs (summary)
+
+YOYO remains compiler-specialized ISA. Evolution constructs are thin + explicit, not a general reflective PL:
+
+| Construct | Status | Role |
+|-----------|--------|------|
+| Env capability bits (host probe / `--morph=` / `--posture=`) | Interface MUST-now | Feed PLAN / §E.19 |
+| `FORM` / profile select | ROADMAP directive; normative CLI/profile | Select morphology without silent defaults |
+| Posture continuum | NORMATIVE interface (§E.19); backends ROADMAP | Posture switch per §E.19 (call "seamless" only if §E.19.3) |
+| Conditional emit profiles (`PlatformBackend` + allowlists) | NORMATIVE architecture | A morph |
+| ISA allowlists (profile `isa_allowlist`) | NORMATIVE for subset morphs | Fail-closed on forbidden ops |
+| `0xA1` escape | Already normative | Escape hatch; morphs using heavy `0xA1` are AUDITED+ |
+| Self-rewrite of compiler image | DANGEROUS only | Staged self-hosting as evolution *engine*, not silent field update |
+| Quines / metacompilation | Part 5 chain | Evolution engine under Relock |
+| Interpreter-on-interpreter (`H=interp²`) | ROADMAP impl; normative axis | Unknown-ISA / hostile-host degrade |
+
+**MUST NOT** add GP language features (GC, async, packages) "for evolution."
+
+### E.12 Verification Posture Ladder (honesty)
+
+```
+V3-chain  ≥  V-reflective  ≥  V-hashlock  ≥  V-sealed-rom
+   (strongest claims)              (weakest equality claims)
+```
+
+- Moving **down** = valid extreme morph (degrade).
+- Moving **up** = requires Prove gates of the higher posture.
+- Advertising a higher `V` than Prove achieved is FORBIDDEN.
+- DDC does NOT delete trust roots (Appendix G). Morphology may **reduce reliance** on a particular root (e.g. avoid untrusted libc via freestanding) but Appendix G remains.
+
+### E.13 Integration Matrix (compose, don't contradict)
+
+| Concern | Governing part |
+|---------|----------------|
+| What YOYO is | Part L (plasticity = morphology, not C-replacement) |
+| Cold-start / stub honesty | Part 5B (stub trees morph only within stub claims; no fake 2109-op compiler) |
+| LOCKED regenerator ban | Part 5B / 9.4 (DANGEROUS rewrite ≠ silent regenerator) |
+| DDC compare | Part 6.9 (profile name stability; posture id in scope §E.19.6) |
+| Platforms | Part 7 (backends = A modules; `--posture=` overlays §E.19.5) |
+| Space / SEU | Part 15.8 / 16.5 (E9 ROADMAP; interfaces in §E.9 / §E.4) |
+| Energy↔perf | §E.19 (continuum poles; call "seamless" only if §E.19.3) |
+| Conformance tests | Appendix F (SHOULD grow morph-profile fixtures; Appendix F.5 posture cases) |
+
+### E.14 Lifecycle State Extension (Part 5B)
+
+Extend Part 5B.2:
+
+```
+UNLOCKED ──pin──▶ LOCKED
+LOCKED ──PPMPR──▶ MORPHING ──Morph-Lock (+9.4 if needed)──▶ LOCKED'
+LOCKED ──explicit unlock──▶ UNLOCKED
+MORPHING ──abort/rollback──▶ LOCKED (prior pin) | UNLOCKED
+```
+
+| State | Release claims | Regenerator |
+|-------|----------------|-------------|
+| MORPHING | MUST NOT claim LOCKED release | MUST NOT |
+| LOCKED' | Only after Morph-Lock (+9.4 if required) | MUST NOT |
+
+### E.15 Evolution Engines (NORMATIVE roles, honest limits)
+
+| Engine | Use | Limit |
+|--------|-----|-------|
+| Reflective self-host (M0→M3) | Prove determinism after morph | Same-peer quine cannot replace cross-impl DDC |
+| 3-chain DDC | AUDITED/DANGEROUS prove | Needs independent peers for target morph |
+| Quine / metacompile | Generate next compiler image under unlock | DANGEROUS; Relock mandatory |
+| Staged interpreters | E7/Eu/E3 degrade | Not a native backend claim |
+| Sealed bootstrap | E10 / Eu | Field immutability; updates are custody events |
+
+### E.16 Interfaces That MUST Exist Now (names; stubs ≠ green)
+
+1. `CapabilityReport` / probe result schema (§E.6.1) — including energy/perf fields.
+2. Morphology profile id grammar (§E.5) — including optional `/P=<posture>`.
+3. Mutation class enum: `SAFE|AUDITED|DANGEROUS|FORBIDDEN`.
+4. Morph journal append API / file convention — posture transitions MUST append.
+5. `tests/morph/*.lock` pin path (may be empty pending first pin).
+6. CLI or config: `--morph=<id>` / `--target=` mapped into a profile.
+7. Unknown-fallback profile id: `morph.unknown-fallback`.
+8. Documented mapping Part 7 backends → default profiles for E0/E5.
+9. `--posture=` CLI / config (§E.19.5) — aliases `energy-extreme` / `perf-extreme` / `blend:<w>` / `auto`.
+10. `PosturePlan` / transition state machine types (§E.19.4) — even if auto-switch daemon is ROADMAP.
+11. `posture.energy-extreme` / `posture.perf-extreme` named pole pins.
+
+ROADMAP: full aarch64/riscv lowers, SEU TMR runtime, `.ty` `FORM` directive sugar, automated env daemon, **continuous blend scheduler backends** (emit knobs / SIMD / PE sizing) behind the §E.19 interfaces.
+
+### E.17 Forbidden Claims (Evolution-specific)
+
+**Superseded by Part N.4 / N.4.1** (merged in v3.3.1). Evolution-specific bans live there.
+
+### E.18 Success Criteria Additions (Part N gate)
+
+Gate names **M-morph** and **M-posture** defined in **Part N.3** (authoritative).
+
+| Class | See |
+|-------|-----|
+| **M-morph** | Part N.3 row **M-morph** + Morph-Lock (E.10) |
+| **M-posture** | Part N.3 row **M-posture** + §E.19; Appendix F.5 cases executable (stub ⇒ red / NON-CONFORMING) |
+
+`M-morph` required only when advertising non-default morphology or after PPMPR. Default E0 hosted x64 bootstrap MAY omit until first morph pin. `M-posture` required when advertising env-driven energy↔perf switching or non-default `--posture=` poles.

@@ -1,0 +1,9 @@
+; W-selfhost-min CALL golden — H_20 CALL to H_00 then RET
+; Rust-only G-SM-CALL: fixture compiles both handlers, CALL rel32 patches
+; backward to H_00 entry at offset 0.
+40 00
+  30 50 00
+  FF
+40 14
+  41 00
+  FF

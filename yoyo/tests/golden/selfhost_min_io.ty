@@ -1,0 +1,14 @@
+; W-selfhost-min I/O golden — H_2B ALLOC, H_2C LOAD_FILE, H_2D WRITE_FILE
+; All three ops emit movabs+store on stub (matching JS).
+40 00
+  30 50 00
+  FF
+40 1F
+  20 50 1000
+  FF
+40 20
+  50 50 00
+  FF
+40 21
+  51 50 00 51
+  FF

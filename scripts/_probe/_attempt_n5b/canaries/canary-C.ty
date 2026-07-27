@@ -1,0 +1,15 @@
+; canary-C — control flow only (NOP / INC / RET chain; W-START attempt-N5b)
+; H_00:  INC state[0x50]    (state[0x50] was 0, becomes 1)
+;        INC state[0x50]    (becomes 2)
+;        INC state[0x50]    (becomes 3)
+;        RET
+; Expected: clean HALT, rax = 3 (or state[0x50] = 3 in the Mmu).
+; This canary is the GREEN canary — it has no NULL deref and no
+; platform op. Verifier byte-equality: identical to G-SM-INC
+; chained thrice. Used to baseline the emulator's correctness
+; against the W-SM-INC fixture (single-INC variant).
+40 00
+  66 50
+  66 50
+  66 50
+  FF

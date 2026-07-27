@@ -1,0 +1,5 @@
+## Appendix D: Anti-Patterns Catalog (pointer)
+
+> [Condensed cross-reference to Part 13.5. Full content → Part 13.]
+
+Same anti-patterns as Part 13.5 plus 4 v3-NEW patterns: Don't add self-hosting OCD · Don't bypass 3-chain DDC · Don't add panics · Don't allocate in hot path · Don't mix hex/named slots carelessly · Don't add 50-line+ diffs without tests · Don't edit `yoyo.ty` without 8-step Lock Protocol · Don't "just morph" without PPMPR / Morph-Lock.

@@ -1,0 +1,6 @@
+; body-extend-015 / parallel-batch-09 ORV-swap — H_49 0x69 ORV dst src + RET
+; Slot-swap: ORV S[0x51] |= S[0x50] (canonical H_31 uses 69 50 51).
+; Pin 25B: 498b8788020000498b8f800200004809c849898788020000c3
+40 37
+  69 51 50
+  FF

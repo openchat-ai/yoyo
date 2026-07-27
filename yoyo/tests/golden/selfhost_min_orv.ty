@@ -1,0 +1,9 @@
+; body-extend-004 ORV dst src golden — H_31 0x69 ORV dst src + RET
+; 1-handler exercise: ORV S[0x50] |= S[0x51] (no prior SET, no I/O).
+; Rust emit must equal JS emit (load_state(0x50) + load_state(0x51,rcx) + or rax,rcx + store_state(0x50) + ret).
+; 25B expected hex: 498b8780020000498b8f880200004809c849898780020000c3
+; Mirror of selfhost_min_movrr.ty template
+; (single-handler, single-op, no cross-handler branch).
+40 25
+  69 50 51
+  FF

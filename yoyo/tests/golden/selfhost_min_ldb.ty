@@ -1,0 +1,18 @@
+; W-selfhost-min LDB golden — H_00 SET state[0x50]=0 (then RET)
+;                              H_01 LDB state[0x50] = zx(byte[mem[state[0x60]+0]]) (then RET)
+;                              H_02 RET
+; Compile-only probe (Part §4S.3 LDB semantics; no OOB; state[0x60] is left at 0
+; by runtime startup so the LDB read lands at NULL — the bytes themselves are
+; the audit subject, not the load).
+; Rust-only G-SM-LDB: fixture compiles three handlers. H_00 emit =
+; movabs rax,0 + store_state(0x50,rax) + ret. H_01 emit =
+; load_state(0x60,rax) + movzx rax,byte[rax] + store_state(0x50,rax) + ret.
+; H_02 emit = ret.
+40 00
+  30 50 00
+  FF
+40 01
+  80 50 60 00
+  FF
+40 02
+  FF

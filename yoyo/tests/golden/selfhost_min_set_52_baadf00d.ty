@@ -1,0 +1,4 @@
+; body-extend-025 selfhost_min_set_52_baadf00d
+40 8A
+  30 52 BAADF00D
+  FF

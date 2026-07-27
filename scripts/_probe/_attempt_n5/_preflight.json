@@ -1,0 +1,43 @@
+{
+  "tag": "attempt-N5-EXPERIMENTAL-runtime-canary",
+  "timestamp_utc8": "2026-07-24T15:56+08:00",
+  "w_start": "EXPERIMENTAL",
+  "verdict": "FAIL-CLOSED",
+  "scans": [
+    {
+      "name": "rust_cli_matrix",
+      "method": "read_file: yoyo-rust/verifier/src/main.rs::usage()",
+      "result": "5 commands: link | diff | hash | selftest | render | test",
+      "runtime_subcommand_present": false
+    },
+    {
+      "name": "rust_executor_module",
+      "method": "read_file + ripgrep: yoyo-rust/verifier/src/executor.rs over run|exec|emulate|memory",
+      "result": "executor::compile_ty_source only — no executor::run, no Mmu/Cpu",
+      "runtime_present": false
+    },
+    {
+      "name": "rust_workspace_other_runtime",
+      "method": "ripgrep -e '\"run\"|\"exec\"|\"emulate\"' over yoyo-rust",
+      "result": "0 matches",
+      "runtime_present": false
+    },
+    {
+      "name": "js_runtime_surface",
+      "method": "ripgrep over yoyo-js/src for interpreter|emulator|child_process|vm.run",
+      "result": "0 matches in yoyo.js / golden.js / encode-x64.js; one false-positive in elf-builder.js comment only",
+      "runtime_present": false
+    }
+  ],
+  "canaries": [
+    { "id": "canary-A", "intent": "SET 0 + LDB NULL", "js": "NOT_RUN", "rust": "NOT_RUN", "verdict": "FAIL_CLOSED" },
+    { "id": "canary-B", "intent": "SET 0x7F + LDB poison", "js": "NOT_RUN", "rust": "NOT_RUN", "verdict": "FAIL_CLOSED" },
+    { "id": "canary-C", "intent": "control-flow only (NOP/INC chain + RET)", "js": "NOT_RUN", "rust": "NOT_RUN", "verdict": "FAIL_CLOSED" }
+  ],
+  "files_added": [
+    "scripts/_probe/_attempt_n5/README.md",
+    "scripts/_probe/_attempt_n5/_preflight.json"
+  ],
+  "trust_anchors_modified": [],
+  "commit": false
+}

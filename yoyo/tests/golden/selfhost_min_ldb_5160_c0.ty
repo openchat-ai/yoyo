@@ -1,0 +1,4 @@
+; body-extend-046 selfhost_min_ldb_5160_c0
+40 12C
+  80 51 60 C0
+  FF

@@ -1,0 +1,18 @@
+[workspace]
+
+[package]
+name = "executor"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "YOYO executor (W-START attempt-N5b · EXPERIMENTAL · not part of the locked trust root)"
+
+[[bin]]
+name = "yoyo-exec-run"
+path = "src/main.rs"
+
+[lib]
+name = "yoyo_executor"
+path = "src/lib.rs"
+
+[dependencies]

@@ -1,0 +1,9 @@
+; body-extend-005 CMP golden — H_36 0x65 CMP dst src + RET
+; 1-handler exercise: CMP S[0x50] vs S[0x51] (no prior SET, no I/O; no store).
+; Rust emit must equal JS emit (load_state(0x50,rax) +
+; load_state(0x51,rcx) + cmp rax,rcx + ret).
+; 18B expected hex: 498b8780020000498b8f880200004839c8c3
+; Mirror of selfhost_min_orv.ty template (single-handler, 2-arg compare).
+40 2A
+  65 50 51
+  FF

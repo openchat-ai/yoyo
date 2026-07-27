@@ -1,0 +1,10 @@
+; body-extend-005 LDB-BODY golden — H_37 0x80 LDB dd ss oo + RET
+; 1-handler exercise: LDB dd=0x50, ss=0x60, oo=0 (load byte from state[0x60]+0
+; into state[0x50]). Rust emit must equal JS emit (load_state(0x60,rax) +
+; movzx rax,byte[rax] + store_state(0x50,rax) + ret).
+; 19B expected hex: 498b8700030000480fb60049898780020000c3
+; Companion to existing selfhost_min_ldb.ty (multi-handler fixture). This
+; is the canonical-body 3-arg form at oo=0.
+40 2B
+  80 50 60 00
+  FF

@@ -1,0 +1,5 @@
+steps : 3
+rax   : 0x0000000000000000
+rcx   : 0x0000000000000000
+r15   : 0x0000000000001000
+exit  : HALT at 0x1012 after 3 steps

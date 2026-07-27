@@ -1,0 +1,4 @@
+; body-extend-017 selfhost_min_ldb_dst52
+40 4B
+  80 52 60 08
+  FF

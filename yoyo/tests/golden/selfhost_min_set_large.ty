@@ -1,0 +1,6 @@
+; body-extend-015 / parallel-batch-09 SET-large — H_53 0x30 SET slot imm + RET
+; Non-zero imm at high slot: SET S[0x52] = 0xCAFEBABE.
+; Pin 18B: 48b8bebafeca0000000049898790020000c3
+40 3B
+  30 52 CAFEBABE
+  FF

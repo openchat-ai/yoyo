@@ -1,0 +1,17 @@
+[package]
+name = "libyoyo"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "YOYO stdlib — platform syscall abstraction (Part 7.6)"
+
+[lib]
+crate-type = ["cdylib", "rlib", "staticlib"]
+name = "libyoyo"
+
+[features]
+default = ["std"]
+std = []
+baremetal = []
+
+[dependencies]

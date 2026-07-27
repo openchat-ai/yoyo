@@ -1,0 +1,12 @@
+; G05 — Named slots ≡ hex rewrite (Appendix F, Part 8 / Phase 3 smoke).
+; Names bind on first occurrence starting at USER_SLOT_BASE (0x50).
+; Use multi-letter names so the slotOf bind path is exercised (single-letter
+; names collide with hex parsing).
+; Expected binding: foo → 0x50, bar → 0x51, baz → 0x52.
+; Layout: H_00 SET foo=0x2A ; SET bar=0x07 ; ADDV foo,bar ; RET.
+
+40 00
+  30 foo 2A
+  30 bar 07
+  68 foo bar
+  FF

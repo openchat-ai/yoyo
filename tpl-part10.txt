@@ -1,0 +1,92 @@
+### 10.1 Phase 0: Foundation
+
+**Goal**: types + primitives + proc-macro crate.
+
+**Acceptance** (P-phase; named commands):
+- [ ] `cargo build -p verifier` succeeds
+- [ ] Assembler unit tests pass (`cargo test -p verifier`)
+
+### 10.1b Phase 1b: V3 Runtime Executor
+
+22 of 38 opcodes: arith, JMP/CALL/JCC/RET, LDB/MEMCPY, ALLOC/READ/WRITE, RAW, HANDLER. Pipeline: `yoyo link X.ty gen2.exe` → `gen2.exe` → `output.exe` (valid PE32+).
+
+**Acceptance**: Executor compiles golden `.ty` fixtures; PE wrapper produces valid PE32+ (or documented stub); smoke binary exits 0.
+
+### 10.2 Phase 1: ISA Table + Emitter Rewrite
+
+Replace hand-coded `tir.rs` / `emit.rs` with `isaproc`-generated code. `src/isa.rs` (38 instructions, 40 lines) → `src/tir.rs` (50 lines) → `src/emit.rs` (~293 lines).
+
+**Acceptance**: `.ty → TIR → x64` on **current** locked `yoyo.ty`; PE linker valid PE32+ on Windows CI; 3-chain / 2-chain DDC per Part 6.9 (asm may be interim-blocked; document honestly).
+
+### 10.3 Phase 2: Self-Host Compression + Root Cause Fix
+
+Compress `yoyo.ty` to human-writable form + fix gen1/gen2 78KB mismatch. **Historical note (NON-NORMATIVE)**: past generator trees baked platform bytes / mismatched `OUTPUT_DATA_NEED` (≈0x1D000 vs 0x38000). Normative rule retained: **`OUTPUT_DATA_NEED = 0x38000`**. Detail archived in git history / agent transcripts.
+
+**Acceptance**: `./gen1.exe yoyo.ty gen2.exe` → same SHA (blocked by D4); `yoyo link yoyo.ty gen3_rust.exe` works (2109 ops → 24KB PE); **`yoyo.ty` is human-writable** (≤ 1500 lines, no direct syscalls) — not yet achieved.
+
+### 10.4 Phase 3: Variable/Name Layer
+
+Named slots for human-usable programming. `src/variable.rs` (~100 lines). Named slots resolve correctly, backward-compatible with raw hex.
+
+### 10.5 Phase 4: Platform Abstraction (4a→4b→4c→4d)
+
+Order matters: 4a (format) → 4b (libyoyo) → 4c (migrate `yoyo.ty`) → 4d (yoyo-asm).
+
+#### Phase 4a: `.tyo` Format — **OPTIONAL**
+
+Default = compile `.ty` directly to platform binary (Option A, no `.tyo` intermediate). 3-chain DDC uses Option A. Phase 4a is only relevant for incremental compilation / 3rd-party tool interop. `.tyo` magic = `b"TYO\x01"`; header 32 bytes LE; sections `.text` / `.data` / `.rela.text` / `.symtab` / `.strtab`. PLT32 = standard reloc type when `.ty` invokes `libyoyo_*`. Worked example for `30 50 00` → 32B header + 10B `.text` + 32B `.symtab`. **Full spec → `docs/aux/build.md` §".tyo format".**
+
+#### Phase 4b: Implement libyoyo (3 weeks)
+
+| Task | Deliverable |
+|------|-------------|
+| libyoyo-win32 (Rust FFI) | `libyoyo-win32.dll` |
+| libyoyo-linux (Rust) | `libyoyo-linux.so` |
+| libyoyo-baremetal (Rust, no_std) | `libyoyo-baremetal.a` |
+| Test suite | `tests/libyoyo-test.ty` |
+
+#### Phase 4c: Migrate `yoyo.ty` to libyoyo (2 weeks, **post-Phase-2**)
+
+Current status (2026-07-16): H_00/H_50/H_51 refactored out of `yoyo.ty` into Rust `emit_h00_code()` (v3-rust01). `yoyo.ty` still uses raw `libyoyo_*` calls that don't resolve at runtime (no libyoyo.dll IAT in output PE). Remaining 2400+ lines still contain raw x64 bytes, platform-specific strings, direct syscall sequences. Full migration deferred — Phase 4c is a separate high-effort task.
+
+| Task | Deliverable |
+|------|-------------|
+| Rewrite `yoyo.ty` to use `libyoyo_*` calls | `projects/yoyo.ty` (universal) |
+| Verify Windows compile + run | Passes on Windows |
+| Verify Linux compile + run | Passes on Linux |
+| 3-chain DDC: same `.ty`, different platform, same `.tyo` | Verified |
+
+After 4c: `yoyo.ty` no longer contains `0xE9`, `0xE8`, IAT addresses, syscall numbers, or PE/ELF magic. Windows M2→M3 AV crash (gen2 reading `1e800` as `12E800`, count 78KB drift) is **structurally impossible** post-4c.
+
+#### Phase 4d: yoyo-asm (3rd implementation, 4 weeks)
+
+| Task | Deliverable |
+|------|-------------|
+| `yoyo-asm` in 500 lines x64 | `yoyo-asm.s` |
+| Reads `.ty`, emits `.tyo`, links | Working x64 binary |
+| 3-chain triple: JS + Rust + Asm | All 3 match |
+
+After 4d: 3-chain DDC is fully active.
+
+### 10.6 Phase 5: Bare-Metal Backend
+
+`src/platform_baremetal.rs` (~200 lines, no syscall, no API), `src/startup.rs` (~150 lines, hand-audited GDT/IDT/CR3). Output: Flat binary, Multiboot ELF.
+
+**Acceptance**: QEMU boots a yoyo-compiled flat binary; VGA output works; ATA PIO read works; memory layout matches spec.
+
+### 10.7 Phase 6: Documentation
+
+[Phase 6: daily nav = 文首 Week 轴; SoT = this document. Old bilingual digest set deleted (git history).]
+
+### 10.8 Total Timeline Estimate (compact)
+
+| Phase | Effort | Phase | Effort |
+|-------|--------|-------|--------|
+| 0 | 1-2 w | 4a | 3 w |
+| 1 | 2-3 w | 4b | 3 w |
+| 2 | 2-4 w | 4c | 2 w |
+| 3 | 1 w | 4d | 4 w |
+| | | 5 | 2-3 w |
+| | | 6 | 2-4 w |
+
+**Total**: ~22-31 weeks, ~3650 LOC, ~4700 lines docs.

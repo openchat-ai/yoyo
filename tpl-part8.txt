@@ -1,0 +1,31 @@
+## Part 8: Variable / Name Layer
+
+### 8.1 Problem & 8.2 Named Slots
+
+Current 38 instructions use hex state slot IDs (`state[0x50]`, ...). For 100+ line programs, hand-allocating slots is error-prone. Solution: **named slots** — parser extends with `Arg::Name(String)`, first-occurrence names bind to `0x50..0xCF` (USER_SLOT_BASE..USER_SLOT_MAX, 128 slots). Layer-S stays hex; emit-time substitution resolves names to hex.
+
+### 8.3 Implementation (sketch)
+
+```rust
+pub enum Arg { Hex(u64), Name(String) }
+pub struct NameTable { names: Vec<NameEntry>, next_slot: u16 }
+```
+
+LAYOUT block optional at top of `.ty` for explicit slot binding.
+
+### 8.4 Reserved Slots (authoritative map = Part 4.2)
+
+| Range | Purpose |
+|-------|---------|
+| `0x00`-`0x4F` | system / reserved — names MUST NOT bind |
+| `0x50`-`0xCF` | user / named slots (`USER_SLOT_BASE`/`MAX`) |
+| `0xD0`-`0xFF` | reserved future — names MUST NOT bind |
+
+### 8.5–8.10 Backward compat, use cases, limitations
+
+- **100% backward compatible**: hex tokens still work; existing yoyo programs compile unchanged; variable layer is opt-in.
+- **DDC MUST verify**: named-slot output == hex-slot output (byte-for-byte).
+- **Use names for hand-written code; hex for `yoyo-blob.ty` / debugging emit.**
+- **Deliberate limits**: no struct/array types, no function params, no scope (names are global), no type checking (everything is u64). Adding more inflates parser + audit + breaks YOYO design principle. If you need types, use a different language.
+
+**Phase 3 exit**: compile `yoyo/projects/stock_gui.ty` with named slots; verify output matches hex-slot version byte-for-byte; backward compat holds; DDC verified.

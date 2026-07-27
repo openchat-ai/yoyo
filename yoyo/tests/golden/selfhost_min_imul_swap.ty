@@ -1,0 +1,4 @@
+; body-extend selfhost_min_imul_swap
+40 3E
+  63 51 50
+  FF

@@ -1,0 +1,15 @@
+[workspace]
+resolver = "2"
+members = ["verifier", "libyoyo", "verifier/isa-proc", "platform"]
+default-members = ["verifier", "libyoyo"]
+
+[workspace.package]
+version = "0.3.0"
+edition = "2021"
+license = "MIT"
+authors = ["YOYO maintainers"]
+
+[workspace.dependencies]
+isa-proc = { path = "verifier/isa-proc" }
+libyoyo = { path = "libyoyo" }
+yoyo-platform = { path = "platform" }

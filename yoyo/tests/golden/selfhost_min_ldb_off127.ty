@@ -1,0 +1,21 @@
+; W-selfhost-min LDB offset=127 golden — compile-only byte probe (imm8 path edge)
+; H_00 SET state[0x50]=0; H_01 LDB state[0x50]=zx(byte[mem[state[0x60]+127]]); H_02 RET
+; offset=127 (0x7f) is the LARGEST signed imm8 value [-128, 127], so the encoder
+; MUST stay on the imm8 path: `add rax, imm8` = 48 83 c0 + 1B imm8(0x7f).
+; This is the right edge of the imm8 range; off=128 forces imm32.
+; If the encoder interprets imm8 as unsigned [0, 255], it would still pick imm8
+; for off=127 (0x7f fits either way), but off=128 (0x80) would still be imm8
+; (since 0x80 fits in [0,255]). The hand-derivation confirms the JS threshold
+; is signed: `if (imm >= -128 && imm <= 127)`. STOP if asm emits imm8 for 128.
+; H_00: movabs rax,0 (10B) + store_state(0x50) (7B) + ret (1B) = 18B
+; H_01: load_state(0x60) (7B) + add rax,imm8 0x7f (4B) + movzx [rax] (4B) +
+;       store_state(0x50) (7B) + ret (1B) = 23B
+; H_02: ret (1B); total=42B
+40 00
+  30 50 00
+  FF
+40 01
+  80 50 60 7F
+  FF
+40 02
+  FF

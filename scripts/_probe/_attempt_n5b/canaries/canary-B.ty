@@ -1,0 +1,16 @@
+; canary-B — SET 0x7F + LDB poison (audit probe; W-START attempt-N5b)
+; H_00:  SET state[0x50] = 0x7F
+;        LDB state[0x50] = zx(byte[mem[state[0x60]+0]])  (state[0x60]=0 → NULL)
+;        SET state[0x50] = 0  (unreachable in this canary: LDB
+;                               will fault before reaching here)
+;        RET
+; Expected: same NULL OOB read as canary-A. SET 0x7F is on
+; state[0x50] (a value cell) and never touches state[0x60]; the
+; "poison" framing is descriptive only — the actual fault is the
+; same NULL deref. Verifier byte-equality: identical to canary-A's
+; LDB sequence (offset=0, same modrm). Differing only in the SET
+; imm byte. The runtime diverges only on the LDB.
+40 00
+  30 50 7F
+  80 50 60 00
+  FF

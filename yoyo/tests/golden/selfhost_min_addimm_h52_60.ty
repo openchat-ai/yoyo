@@ -1,0 +1,5 @@
+; body-extend-036 selfhost_min_addimm_h52_60
+40 DD
+  62 52 60
+  FF
+

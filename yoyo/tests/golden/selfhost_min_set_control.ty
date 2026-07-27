@@ -1,0 +1,7 @@
+; body-extend-005 SET-CONTROL golden — H_38 0x30 SET slot imm + RET
+; 1-handler exercise: SET S[0x50] = 0 (no regression vs H_00..H_04).
+; Rust emit must equal JS emit (movabs rax,0x00 + store_state(S[0x50],rax)
+; + ret). Identical 18B pin to H_00.
+40 2C
+  30 50 00
+  FF

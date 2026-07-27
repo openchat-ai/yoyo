@@ -1,0 +1,10 @@
+# YOYO: Engineering Specification (v3.3.9)
+
+|> A self-hosting **compiler-specialized ISA / DDC toolchain** with **auditable** Thompson-style backdoor *detection* (not a formal proof), **4-project architecture**, **3-chain DDC verification**, **yoyo.ty lockdown**, and **protocol-gated morphology** (Part E). This document is the **single source of truth** for rebuilding YOYO from scratch.
+|>
+|> **Week axis (v3.3.9)** — **日常进度只看文首『当前进度 · Week 轴』**；下文 Parts 是规范参考，不是阅读/施工顺序。 Do **not** treat BOOK I–VIII or Part order as the work queue. Agents: one Week at a time — not "run whole PROMPT."
+|>
+|> **v3.3.9 changelog** (**structure only — no NORMATIVE semantic change**):
+|> - Spec slim-down: ≤1500 lines; non-normative detail (Trit, demos, roadmap, maintainer, comparison, SIMD, Thompson background, changelog) moved to `docs/aux/`. Normative law unchanged.
+|>
+|> Markers **NORMATIVE** / **NON-NORMATIVE** / **ROADMAP** follow Part N. Debate CLOSED → git history.

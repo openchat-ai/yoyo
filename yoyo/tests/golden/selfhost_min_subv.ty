@@ -1,0 +1,9 @@
+; body-extend-005 SUBV golden — H_35 0x6A SUBV dst src + RET
+; 1-handler exercise: SUBV S[0x50] -= S[0x51] (no prior SET, no I/O).
+; Rust emit must equal JS emit (load_state(0x50,rax) +
+; load_state(0x51,rcx) + sub rax,rcx + store_state(0x50,rax) + ret).
+; 25B expected hex: 498b8780020000498b8f880200004829c849898780020000c3
+; Mirror of selfhost_min_orv.ty template (single-handler, 2-arg ALU).
+40 29
+  6A 50 51
+  FF

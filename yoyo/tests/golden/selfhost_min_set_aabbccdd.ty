@@ -1,0 +1,4 @@
+; body-extend-020 selfhost_min_set_aabbccdd
+40 5D
+  30 51 AABBCCDD
+  FF

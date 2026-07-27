@@ -1,0 +1,4 @@
+; body-extend-045 selfhost_min_subimm_h50_a0
+40 128
+  61 50 A0
+  FF

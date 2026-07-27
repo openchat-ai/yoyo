@@ -1,0 +1,22 @@
+; W-selfhost-min LDB offset=-129 golden — compile-only byte probe (imm32 path, negative side)
+; H_00 SET state[0x50]=0; H_01 LDB state[0x50]=zx(byte[mem[state[0x60]+(-129)]]); H_02 RET
+; offset=-129 (signed) is JUST PAST the signed imm8 range [-128, 127] on the
+; negative side, so the encoder MUST switch to the imm32 path:
+; `add rax, imm32` = 48 81 c0 + 4-byte LE imm32(0xFFFFFF7F, signed -129).
+; This is the imm32 LEFT-edge on the NEGATIVE side, symmetric with off=128
+; (positive imm32 LEFT-edge) and off=-128 (imm8 LEFT-edge / negative).
+; If the encoder silently truncates to imm8 (48 83 c0 7F) it would emit
+; +127 instead of -129 (wrong sign / magnitude). STOP if so.
+; H_00: movabs rax,0 (10B) + store_state(0x50) (7B) + ret (1B) = 18B
+; H_01: load_state(0x60) (7B) + add rax,imm32 0xFFFFFF7F (7B) + movzx [rax] (4B) +
+;       store_state(0x50) (7B) + ret (1B) = 26B
+; H_02: ret (1B); total=44B
+; The -81 token is parsed by golden.js parseTy as signed hex literal -129.
+40 00
+  30 50 00
+  FF
+40 01
+  80 50 60 -81
+  FF
+40 02
+  FF

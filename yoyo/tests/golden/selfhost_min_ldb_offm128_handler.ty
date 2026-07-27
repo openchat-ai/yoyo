@@ -1,0 +1,10 @@
+; body-extend-009 LDB-OFFM128-HANDLER golden — H_42 0x80 LDB dd ss oo + RET
+; Exercises the imm8 path at the LEFT-side imm8 byte slot (oo=0x50,
+; 80 decimal). Both peers stay on the imm8 path; neither escalates
+; to imm32. The signed-imm8 LEFT-edge signed-token semantic (-128 →
+; imm8 byte 0x80) is covered by the JS-only checkLDBoffm128 probe
+; on selfhost_min_ldb_offm128.ty (Rust ty_parser lacks signed-hex
+; support; emit.rs treats oo as unsigned u16 per dispatch contract).
+40 30
+  80 50 60 50
+  FF

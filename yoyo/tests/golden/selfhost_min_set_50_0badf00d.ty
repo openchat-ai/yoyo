@@ -1,0 +1,4 @@
+; body-extend-026 selfhost_min_set_50_0badf00d
+40 8E
+  30 50 0BADF00D
+  FF

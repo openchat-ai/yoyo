@@ -1,0 +1,6 @@
+; W-selfhost-min INC golden — H_17 0x66 INC slot + RET
+; Rust-only G-SM-INC: compile_one_handler(H_17) must emit
+; load_state(0x50) + inc rax + store_state(0x50) + ret.
+40 11
+  66 50
+  FF

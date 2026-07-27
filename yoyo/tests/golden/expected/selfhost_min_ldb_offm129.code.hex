@@ -1,0 +1,6 @@
+; SET0 (18B): movabs rax,0 + store_state(0x50) + ret
+; LDB-offm129 (26B): load_state(0x60) + add rax,imm32 0xFFFFFF7F + movzx [rax] + store_state(0x50) + ret
+;   imm32 path triggered on the negative side: 48 81 c0 + imm32_LE(0xFFFFFF7F) = 48 81 c0 7f ff ff ff
+;   (signed -129 is just past the signed imm8 range [-128, 127]; -128 stays on imm8 path)
+; H_02 RET (1B); total=45B
+48b8000000000000000049898780020000c3498b87000300004881c07fffffff480fb60049898780020000c3c3

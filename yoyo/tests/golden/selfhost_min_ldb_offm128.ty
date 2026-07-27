@@ -1,0 +1,19 @@
+; W-selfhost-min LDB offset=-128 golden — compile-only byte probe (imm8 LEFT edge)
+; H_00 SET state[0x50]=0; H_01 LDB state[0x50]=zx(byte[mem[state[0x60]+(-128)]]); H_02 RET
+; offset=-128 (0x80 as signed int8) is the SMALLEST signed imm8 value [-128, 127],
+; so the encoder MUST stay on the imm8 path: `add rax, imm8` = 48 83 c0 + 1B imm8(0x80).
+; This is the LEFT edge of the imm8 range; off=-129 forces imm32.
+; The -80 token is parsed by golden.js parseTy as signed hex literal -128.
+; STOP if the encoder emits imm32 (48 81 c0 80 00 00 00) for off=-128.
+; H_00: movabs rax,0 (10B) + store_state(0x50) (7B) + ret (1B) = 18B
+; H_01: load_state(0x60) (7B) + add rax,imm8 0x80 (4B) + movzx [rax] (4B) +
+;       store_state(0x50) (7B) + ret (1B) = 23B
+; H_02: ret (1B); total=42B
+40 00
+  30 50 00
+  FF
+40 01
+  80 50 60 -80
+  FF
+40 02
+  FF

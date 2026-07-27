@@ -1,0 +1,16 @@
+id: fdn.battery-thresholds@1.0.0
+k_refs: [K7]
+facts:
+  - key: battery_low_pct
+    value: 20
+    maps_to: CapabilityReport.battery_pct
+  - key: prefer_posture_when_low
+    value: posture.energy-extreme
+    maps_to: --posture=
+posture_hooks:
+  - field: L_enter
+    rule: score uses battery_low_pct as documented in score_formula_ref
+theory_pin: posture-score-v0
+forbidden_claims:
+  - "battery foundation proves Thompson resistance"
+  - "foundation understands all physics"
