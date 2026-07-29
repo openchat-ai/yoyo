@@ -4028,3 +4028,88 @@
   65 61 60
   FF
 
+; body-extend-106 P2 imm boundary — LDB oo=128 (imm32 boundary)
+40 303
+  80 50 60 80
+  FF
+
+; body-extend-106 P2 imm boundary — LDB oo=-129 (imm32 path, signed -129)
+40 304
+  80 50 60 81
+  FF
+
+; body-extend-106 P2 imm boundary — LDB oo=256 (imm32 path)
+40 305
+  80 50 60 100
+  FF
+
+; body-extend-106 P2 imm boundary — ADD-IMM imm=127 (imm8 upper bound)
+40 306
+  62 50 7F
+  FF
+
+; body-extend-106 P2 imm boundary — ADD-IMM imm=128 (imm32 boundary)
+40 307
+  62 50 80
+  FF
+
+; body-extend-106 P2 imm boundary — ADD-IMM imm=-1 (imm8 upper bound, signed -1)
+40 308
+  62 50 FF
+  FF
+
+; body-extend-106 P2 imm boundary — SUB-IMM imm=-128 (imm8 lower bound, signed -128)
+40 309
+  61 50 80
+  FF
+
+; body-extend-106 P2 imm boundary — SUB-IMM imm=-129 (imm32 path, signed -129)
+40 30A
+  61 50 81
+  FF
+
+; body-extend-106 P2 imm boundary — SUB-IMM imm=-1 (imm8 upper bound, signed -1)
+40 30B
+  61 50 FF
+  FF
+
+; body-extend-106 P1 multi-slot — INC slot=0x51
+40 30C
+  66 51
+  FF
+
+; body-extend-106 P1 multi-slot — INC slot=0x52
+40 30D
+  66 52
+  FF
+
+; body-extend-106 P1 multi-slot — DEC slot=0x51
+40 30E
+  67 51
+  FF
+
+; body-extend-106 P1 multi-slot — DEC slot=0x52
+40 30F
+  67 52
+  FF
+
+; body-extend-106 P1 multi-slot — JMP target=H_01
+40 310
+  70 01
+  FF
+
+; body-extend-106 P1 multi-slot — JMP target=H_02
+40 311
+  70 02
+  FF
+
+; body-extend-106 P1 multi-slot — CALL target=H_01
+40 312
+  41 01
+  FF
+
+; body-extend-106 P1 multi-slot — CALL target=H_02
+40 313
+  41 02
+  FF
+

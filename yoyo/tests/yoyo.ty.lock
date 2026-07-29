@@ -1,7 +1,7 @@
 {
-    "date": "2026-07-27",
-  "sha256": "ce24c2ff41f61980bf70bcc573f94adec470933b6ec577d9eca86d4eb156d207",
-  "previous_sha256": "20391de3e4855c52d3b918753ae6013a7ed4b60bc529d497867f27e95a32b315",
+    "date": "2026-07-29",
+  "sha256": "af5300941cfecdef1a8d4f3733239846bf9a99087b39c76cf9c645fe380e9725",
+  "previous_sha256": "713b8fca96a4ecff77f1c1263f02bb34571e712b0909b4dc32230306ebe4d54e",
   "signer": "bootstrap",
-  "note": "Decision #23 - yoyo.ty reconstructed from golden fixtures + body-extend logs after accidental overwrite. 739/739 golden PASS, 8/8 executor tests PASS. EXPERIMENTAL only."
+  "note": "Decision #24 - body-extend-106: P2 imm boundary (LDB/ADD/SUB) + P1 multi-slot (INC/DEC/JMP/CALL). 17 new handlers, 0-307. 739/739 golden PASS, 0 FAIL. EXPERIMENTAL only."
 }
