@@ -65,7 +65,7 @@
 > **日常入口。** 规格语义仍在下方 Parts；施工顺序 = 本 Week 轴。Status 仅允许：**GREEN (DONE)** / **RED** / **SCOPE-CUT** / **HOLD**。勿再维护 `STATUS.md` / `docs/PROGRESS-MAP.md`（已并入此处）。
 
 ### 你现在在哪
-`yoyo.ty` = **771 handlers / 4030 lines**（850 行注释已恢复）；Rust golden **739/739 PASS**· executor **8/8 PASS**；JS==Rust==pin 三方字节级相等。W-START body-extend-001..105 全部 GREEN；MEMCPY real emit + LEA scale fix + executor expand + DDC fix；pin `ce24c2ff41f61980…`（Decision #23）。
+`yoyo.ty` = **788 handlers / 4170 lines**（850 行注释已恢复）；Rust golden **739/739 PASS**· executor **8/8 PASS**；JS==Rust==pin 三方字节级相等。W-START body-extend-001..106 全部 GREEN；MEMCPY real emit + LEA scale fix + executor expand + DDC fix；P2 imm 边界 + P1 多 slot 变体补齐；pin `af5300941cfecdef…`（Decision #24）。
 
 ### 仍红（big list）
 full compiler self-host · 3-chain `section-ddc` 实现 · gen1≡gen2 · 冻结编译器
@@ -77,7 +77,7 @@ full compiler self-host · 3-chain `section-ddc` 实现 · gen1≡gen2 · 冻结
 - Checklist（压缩）：冷启复验文首+pin · Lock/Relock 一致（无 LOCKED 不谈 freeze）· scope 标签 · D-1/平台分叉 fail-closed · stub/RAW_BYTE 不宣称 C-ddc / Morph / freeze / gen1≡gen2
 - 「尝试已开始」= 可复现 Rust 入口（cmd+log+scope tag）+ checklist（**attempt-level 全绿**；见 `docs/auxdocs/selfhost-attempt-N1-log.md`）
 - 「自举 GREEN」= 仍红项（full body · 3-chain `section-ddc` · gen1≡gen2 · Freeze+Lock）— **START NODE 一律不豁免**；Freeze = end gate（Part 5）；full body 仍在 W5.5 **SCOPE-CUT**
-- body-extend 连续扩写（EXPERIMENTAL · ≠ stub 34）：控制面 `docs/auxdocs/body-extend-queue.md` — scratch≤8 并发 / Relock 单写 / **矩阵满即停（matrix coverage gate）**；现 **771 handlers** · pin `ce24c2ff41f61980…`（Decision #23）· body-extend-105 DONE（MEMCPY + executor expand）
+- body-extend 连续扩写（EXPERIMENTAL · ≠ stub 34）：控制面 `docs/auxdocs/body-extend-queue.md` — scratch≤8 并发 / Relock 单写 / **矩阵满即停（matrix coverage gate）**；现 **788 handlers** · pin `af5300941cfecdef…`（Decision #24）· body-extend-106 DONE（P2 imm 边界 + P1 多 slot）
 - 入口（最小，不真编）：`cd f:\yoyo; .\scripts\verify-asm.ps1; node .\yoyo-js\scripts\golden.js; .\scripts\verify-selfhost.ps1; cd f:\yoyo\yoyo-rust; cargo run -p verifier --bin yoyo -- test golden`
 - attempt-level 4 critical-path：#1 pin re-verify ✅ / #4 D-1+WSL 路径 ✅ / #5 不假 pin ✅ / #7 harness 18+25+2 DDC EQUAL ✅
 
@@ -91,7 +91,7 @@ full compiler self-host · 3-chain `section-ddc` 实现 · gen1≡gen2 · 冻结
 比对方式：各 peer 对同一 opcode 序列 emit raw x64 bytes → hex text diff。平台无关 opcode 三家字节**必须一致**；平台相关 opcode（ALLOC/LOAD/WRITE）允许分叉。
 
 ### ISA / cross-peer gaps（NON-NORMATIVE · 自 W4.1 收纳）
-body 今日 = **771 handlers / 4030 lines**（W-START 扩写后）。扩写勿静默碰下列面（非 Week 红，但是诚实缺口）：
+body 今日 = **788 handlers / 4170 lines**（W-START 扩写后）。扩写勿静默碰下列面（非 Week 红，但是诚实缺口）：
 - **D-1** `0x20/0x50/0x51`：JS 三码合流 movabs+store；Rust 走 `PlatformBackend`（Stub=movabs+store / Win=movabs+store）→ **peer 字节可分叉**；`yoyo.ty` 已练（H_2B-H_2D）。
 - **D-2** `0x64 MOVRR`：两端今日等于 GET（JS load+store；Rust `emit_get`）；规范独立语义未强制 — Phase 2 cleanup。
 - **D-3** `0x84/0x85`：两端真实 `rep movsb` emit；DDC EQUAL；JS REX.R + Rust 参数顺序 + pin byte-17 均已修平（body-extend-105）。
@@ -107,19 +107,19 @@ body 今日 = **771 handlers / 4030 lines**（W-START 扩写后）。扩写勿�
 | 5 | `0x71-7A Jcc hh` | H_21..H_2A + G-SM-JE + G-SM-JCC-ALL | **GREEN (DONE)** |
 | 6 | `0x20/0x50/0x51` I/O | H_2B-H_2D + G-SM-IO | **GREEN (DONE)** |
 | 7 | asm INC/DEC | `verify-asm.ps1` exit 0 | **GREEN (DONE)** |
-| 8 | body-extend-001..105 | W-START 连续扩写；771 handlers · 739/739 golden | **GREEN (DONE)** |
+| 8 | body-extend-001..106 | W-START 连续扩写；788 handlers · 739/739 golden · P2+P1 补齐 | **GREEN (DONE)** |
 | 9 | yoyo.ty 注释恢复 | 850 行注释从 golden fixture 恢复 | **GREEN (DONE)** |
 | 10 | MEMCPY real emit + executor expand | D-3 语义缺口关闭 · RSI/RDI/FC | **GREEN (DONE)** |
-| 11 | P2 imm 边界补齐 | LDB/ADD/SUB imm8/imm32 边界 handler 填充 | **HOLD** |
-| 12 | P1 多 slot 变体 | INC/DEC/JMP/CALL 多目标 handler | **HOLD** |
-| 13 | 3-chain section-ddc 实现 | full self-host GREEN 真正关卡 | **HOLD** |
+|| 11 | P2 imm 边界补齐 | LDB/ADD/SUB imm8/imm32 边界 handler 填充 | **GREEN (DONE)** |
+|| 12 | P1 多 slot 变体 | INC/DEC/JMP/CALL 多目标 handler | **GREEN (DONE)** |
+|| 13 | 3-chain section-ddc 实现 | full self-host GREEN 真正关卡 | **HOLD** |
 
 ### DDC 修复备注
 #D-1 修复：Rust Win32Platform `emit_alloc`/`emit_load_file`/`emit_write_file` 从 VirtualAlloc 参数设置改为 movabs+store，与 JS M0 编译器匹配。DDC 恢复到 EQUAL。真实平台实现（VirtualAlloc IAT / syscall）延迟到 Phase 2。
 #D-3 修复（body-extend-105）：MEMCPY_DATA/MEMCPY_STATE 三伤修平 — JS REX.R 0x4D→0x49、JS LEA scale 0x40→0xC0、Rust emit.rs 参数顺序 swap + pin byte-17 0xC8→0x00。JS==Rust==pin EQUAL。
 
 ### 最终 pin
-`ce24c2ff41f61980bf70bcc573f94adec470933b6ec577d9eca86d4eb156d207`（`yoyo/tests/yoyo.ty.lock`，Decision #23）
+`af5300941cfecdef1a8d4f3733239846bf9a99087b39c76cf9c645fe380e9725`（`yoyo/tests/yoyo.ty.lock`，Decision #24）
 
 ### Quick verify
 ```powershell
@@ -1205,7 +1205,7 @@ isa! { r#"
 > **日常入口。** 规格语义仍在下方 Parts；施工顺序 = 本 Week 轴。Status 仅允许：**GREEN (DONE)** / **RED** / **SCOPE-CUT** / **HOLD**。勿再维护 `STATUS.md` / `docs/PROGRESS-MAP.md`（已并入此处）。
 
 ### 你现在在哪
-`yoyo.ty` = **771 handlers / 4030 lines**（850 行注释已恢复）；Rust golden **739/739 PASS**· executor **8/8 PASS**；JS==Rust==pin 三方字节级相等。W-START body-extend-001..105 全部 GREEN；MEMCPY real emit + LEA scale fix + executor expand + DDC fix；pin `ce24c2ff41f61980…`（Decision #23）。
+`yoyo.ty` = **788 handlers / 4170 lines**（850 行注释已恢复）；Rust golden **739/739 PASS**· executor **8/8 PASS**；JS==Rust==pin 三方字节级相等。W-START body-extend-001..106 全部 GREEN；MEMCPY real emit + LEA scale fix + executor expand + DDC fix；P2 imm 边界 + P1 多 slot 变体补齐；pin `af5300941cfecdef…`（Decision #24）。
 
 ### 仍红（big list）
 full compiler self-host · 3-chain `section-ddc` 实现 · gen1≡gen2 · 冻结编译器
@@ -1217,7 +1217,7 @@ full compiler self-host · 3-chain `section-ddc` 实现 · gen1≡gen2 · 冻结
 - Checklist（压缩）：冷启复验文首+pin · Lock/Relock 一致（无 LOCKED 不谈 freeze）· scope 标签 · D-1/平台分叉 fail-closed · stub/RAW_BYTE 不宣称 C-ddc / Morph / freeze / gen1≡gen2
 - 「尝试已开始」= 可复现 Rust 入口（cmd+log+scope tag）+ checklist（**attempt-level 全绿**；见 `docs/auxdocs/selfhost-attempt-N1-log.md`）
 - 「自举 GREEN」= 仍红项（full body · 3-chain `section-ddc` · gen1≡gen2 · Freeze+Lock）— **START NODE 一律不豁免**；Freeze = end gate（Part 5）；full body 仍在 W5.5 **SCOPE-CUT**
-- body-extend 连续扩写（EXPERIMENTAL · ≠ stub 34）：控制面 `docs/auxdocs/body-extend-queue.md` — scratch≤8 并发 / Relock 单写 / **矩阵满即停（matrix coverage gate）**；现 **771 handlers** · pin `ce24c2ff41f61980…`（Decision #23）· body-extend-105 DONE（MEMCPY + executor expand）
+- body-extend 连续扩写（EXPERIMENTAL · ≠ stub 34）：控制面 `docs/auxdocs/body-extend-queue.md` — scratch≤8 并发 / Relock 单写 / **矩阵满即停（matrix coverage gate）**；现 **788 handlers** · pin `af5300941cfecdef…`（Decision #24）· body-extend-106 DONE（P2 imm 边界 + P1 多 slot）
 - 入口（最小，不真编）：`cd f:\yoyo; .\scripts\verify-asm.ps1; node .\yoyo-js\scripts\golden.js; .\scripts\verify-selfhost.ps1; cd f:\yoyo\yoyo-rust; cargo run -p verifier --bin yoyo -- test golden`
 - attempt-level 4 critical-path：#1 pin re-verify ✅ / #4 D-1+WSL 路径 ✅ / #5 不假 pin ✅ / #7 harness 18+25+2 DDC EQUAL ✅
 
@@ -1231,7 +1231,7 @@ full compiler self-host · 3-chain `section-ddc` 实现 · gen1≡gen2 · 冻结
 比对方式：各 peer 对同一 opcode 序列 emit raw x64 bytes → hex text diff。平台无关 opcode 三家字节**必须一致**；平台相关 opcode（ALLOC/LOAD/WRITE）允许分叉。
 
 ### ISA / cross-peer gaps（NON-NORMATIVE · 自 W4.1 收纳）
-body 今日 = **771 handlers / 4030 lines**（W-START 扩写后）。扩写勿静默碰下列面（非 Week 红，但是诚实缺口）：
+body 今日 = **788 handlers / 4170 lines**（W-START 扩写后）。扩写勿静默碰下列面（非 Week 红，但是诚实缺口）：
 - **D-1** `0x20/0x50/0x51`：JS 三码合流 movabs+store；Rust 走 `PlatformBackend`（Stub=movabs+store / Win=movabs+store）→ **peer 字节可分叉**；`yoyo.ty` 已练（H_2B-H_2D）。
 - **D-2** `0x64 MOVRR`：两端今日等于 GET（JS load+store；Rust `emit_get`）；规范独立语义未强制 — Phase 2 cleanup。
 - **D-3** `0x84/0x85`：两端真实 `rep movsb` emit；DDC EQUAL；JS REX.R + Rust 参数顺序 + pin byte-17 均已修平（body-extend-105）。
@@ -1247,19 +1247,19 @@ body 今日 = **771 handlers / 4030 lines**（W-START 扩写后）。扩写勿�
 | 5 | `0x71-7A Jcc hh` | H_21..H_2A + G-SM-JE + G-SM-JCC-ALL | **GREEN (DONE)** |
 | 6 | `0x20/0x50/0x51` I/O | H_2B-H_2D + G-SM-IO | **GREEN (DONE)** |
 | 7 | asm INC/DEC | `verify-asm.ps1` exit 0 | **GREEN (DONE)** |
-| 8 | body-extend-001..105 | W-START 连续扩写；771 handlers · 739/739 golden | **GREEN (DONE)** |
+| 8 | body-extend-001..106 | W-START 连续扩写；788 handlers · 739/739 golden · P2+P1 补齐 | **GREEN (DONE)** |
 | 9 | yoyo.ty 注释恢复 | 850 行注释从 golden fixture 恢复 | **GREEN (DONE)** |
 | 10 | MEMCPY real emit + executor expand | D-3 语义缺口关闭 · RSI/RDI/FC | **GREEN (DONE)** |
-| 11 | P2 imm 边界补齐 | LDB/ADD/SUB imm8/imm32 边界 handler 填充 | **HOLD** |
-| 12 | P1 多 slot 变体 | INC/DEC/JMP/CALL 多目标 handler | **HOLD** |
-| 13 | 3-chain section-ddc 实现 | full self-host GREEN 真正关卡 | **HOLD** |
+|| 11 | P2 imm 边界补齐 | LDB/ADD/SUB imm8/imm32 边界 handler 填充 | **GREEN (DONE)** |
+|| 12 | P1 多 slot 变体 | INC/DEC/JMP/CALL 多目标 handler | **GREEN (DONE)** |
+|| 13 | 3-chain section-ddc 实现 | full self-host GREEN 真正关卡 | **HOLD** |
 
 ### DDC 修复备注
 #D-1 修复：Rust Win32Platform `emit_alloc`/`emit_load_file`/`emit_write_file` 从 VirtualAlloc 参数设置改为 movabs+store，与 JS M0 编译器匹配。DDC 恢复到 EQUAL。真实平台实现（VirtualAlloc IAT / syscall）延迟到 Phase 2。
 #D-3 修复（body-extend-105）：MEMCPY_DATA/MEMCPY_STATE 三伤修平 — JS REX.R 0x4D→0x49、JS LEA scale 0x40→0xC0、Rust emit.rs 参数顺序 swap + pin byte-17 0xC8→0x00。JS==Rust==pin EQUAL。
 
 ### 最终 pin
-`ce24c2ff41f61980bf70bcc573f94adec470933b6ec577d9eca86d4eb156d207`（`yoyo/tests/yoyo.ty.lock`，Decision #23）
+`af5300941cfecdef1a8d4f3733239846bf9a99087b39c76cf9c645fe380e9725`（`yoyo/tests/yoyo.ty.lock`，Decision #24）
 
 ### Quick verify
 ```powershell
