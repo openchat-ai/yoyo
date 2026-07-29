@@ -474,6 +474,218 @@ emit_call_rel32:
     add rdi, 4
     ret
 
+; ── sub rax, rcx (48 29 C8)
+emit_sub_rax_rcx:
+    emit_byte 0x48
+    emit_byte 0x29
+    emit_byte 0xC8
+    ret
+
+; ── imul rax, rcx (48 0F AF C1)
+emit_mul_rax_rcx:
+    emit_byte 0x48
+    emit_byte 0x0F
+    emit_byte 0xAF
+    emit_byte 0xC1
+    ret
+
+; ── cmp rax, rcx (48 39 C8)
+emit_cmp_rax_rcx:
+    emit_byte 0x48
+    emit_byte 0x39
+    emit_byte 0xC8
+    ret
+
+; ── add rax, imm (signed; imm8 or imm32)
+; imm64 value in rsi (low 32 bits for imm32 path)
+emit_add_rax_imm:
+    mov eax, esi               ; sign-extend through eax
+    cmp eax, -128
+    jl .add_imm32
+    cmp eax, 127
+    jg .add_imm32
+    ; imm8 path: 48 83 C0 ib
+    emit_byte 0x48
+    emit_byte 0x83
+    emit_byte 0xC0
+    mov [rdi], sil
+    inc rdi
+    ret
+.add_imm32:
+    ; imm32 path: 48 81 C0 id
+    emit_byte 0x48
+    emit_byte 0x81
+    emit_byte 0xC0
+    mov [rdi], esi
+    add rdi, 4
+    ret
+
+; ── sub rax, imm (signed; imm8 or imm32)
+; imm64 value in rsi
+emit_sub_rax_imm:
+    mov eax, esi
+    cmp eax, -128
+    jl .sub_imm32
+    cmp eax, 127
+    jg .sub_imm32
+    ; imm8 path: 48 83 E8 ib
+    emit_byte 0x48
+    emit_byte 0x83
+    emit_byte 0xE8
+    mov [rdi], sil
+    inc rdi
+    ret
+.sub_imm32:
+    ; imm32 path: 48 81 E8 id
+    emit_byte 0x48
+    emit_byte 0x81
+    emit_byte 0xE8
+    mov [rdi], esi
+    add rdi, 4
+    ret
+
+; ── load_state slot → rsi (slot in sil)
+emit_load_state_rsi:
+    emit_byte 0x49
+    emit_byte 0x8B
+    movzx ecx, sil
+    shl ecx, 3
+    cmp ecx, 127
+    ja .lds_disp32
+    emit_byte 0x77            ; ModRM: 01 110 111 (disp8, rsi, r15)
+    mov [rdi], cl
+    inc rdi
+    ret
+.lds_disp32:
+    emit_byte 0xB7            ; ModRM: 10 110 111 (disp32, rsi, r15)
+    mov [rdi], ecx
+    add rdi, 4
+    ret
+
+; ── load_state slot → rdi (slot in sil)
+emit_load_state_rdi:
+    emit_byte 0x49
+    emit_byte 0x8B
+    movzx ecx, sil
+    shl ecx, 3
+    cmp ecx, 127
+    ja .ldd_disp32
+    emit_byte 0x7F            ; ModRM: 01 111 111 (disp8, rdi, r15)
+    mov [rdi], cl
+    inc rdi
+    ret
+.ldd_disp32:
+    emit_byte 0xBF            ; ModRM: 10 111 111 (disp32, rdi, r15)
+    mov [rdi], ecx
+    add rdi, 4
+    ret
+
+; ── store_state rsi → slot (slot in sil)
+emit_store_state_rsi:
+    emit_byte 0x49
+    emit_byte 0x89
+    movzx ecx, sil
+    shl ecx, 3
+    cmp ecx, 127
+    ja .sts_disp32
+    emit_byte 0x77            ; ModRM: 01 110 111 (disp8, rsi, r15)
+    mov [rdi], cl
+    inc rdi
+    ret
+.sts_disp32:
+    emit_byte 0xB7            ; ModRM: 10 110 111 (disp32, rsi, r15)
+    mov [rdi], ecx
+    add rdi, 4
+    ret
+
+; ── store_state rdi → slot (slot in sil)
+emit_store_state_rdi:
+    emit_byte 0x49
+    emit_byte 0x89
+    movzx ecx, sil
+    shl ecx, 3
+    cmp ecx, 127
+    ja .std_disp32
+    emit_byte 0x7F            ; ModRM: 01 111 111 (disp8, rdi, r15)
+    mov [rdi], cl
+    inc rdi
+    ret
+.std_disp32:
+    emit_byte 0xBF            ; ModRM: 10 111 111 (disp32, rdi, r15)
+    mov [rdi], ecx
+    add rdi, 4
+    ret
+
+; ── lea <reg>, [r15 + <reg>*8]  (7 bytes)
+; reg=rdi (sil=7) or reg=rsi (sil=6)
+; ModRM: 00 0rr 100 (SIB), SIB: 11 rrr 111
+; REX.WRB = 0x4D, then 0x8B, modrm, sib, disp32=0
+emit_lea_r15_scale8_rdi:
+    emit_byte 0x4D            ; REX.WRB
+    emit_byte 0x8B            ; lea
+    emit_byte 0x3C            ; modrm: 00 111 100 (rdi, SIB)
+    emit_byte 0x3F            ; SIB: 11 111 111 (scale=8, index=rdi, base=r15)
+    emit_byte 0x00
+    emit_byte 0x00
+    emit_byte 0x00
+    ret
+
+emit_lea_r15_scale8_rsi:
+    emit_byte 0x4D            ; REX.WRB
+    emit_byte 0x8B            ; lea
+    emit_byte 0x34            ; modrm: 00 110 100 (rsi, SIB)
+    emit_byte 0x37            ; SIB: 11 110 111 (scale=8, index=rsi, base=r15)
+    emit_byte 0x00
+    emit_byte 0x00
+    emit_byte 0x00
+    ret
+
+; ── JCC rel32 primitives (0F 8x + 4B imm32)
+; signed offset in esi
+%macro jcc_primitive 2
+    emit_byte 0x0F
+    emit_byte %1
+    mov [rdi], esi
+    add rdi, 4
+    ret
+%endmacro
+
+emit_je_rel32:
+    jcc_primitive 0x84
+emit_jne_rel32:
+    jcc_primitive 0x85
+emit_jl_rel32:
+    jcc_primitive 0x8C
+emit_jge_rel32:
+    jcc_primitive 0x8D
+emit_jle_rel32:
+    jcc_primitive 0x8E
+emit_jg_rel32:
+    jcc_primitive 0x8F
+emit_jb_rel32:
+    jcc_primitive 0x82
+emit_jae_rel32:
+    jcc_primitive 0x83
+emit_jbe_rel32:
+    jcc_primitive 0x86
+emit_ja_rel32:
+    jcc_primitive 0x87
+
+; ── MEMCPY_DATA dst src n — rep movsb (stub: see Python peer asm.py)
+; The Python DDC peer (asm.py) provides the canonical implementation.
+; NASM probe uses the same byte sequences via direct emit_* calls.
+emit_memcpy_data:
+    ; Full implementation deferred to Python DDC peer (asm.py)
+    ; To encode: load_state(RSI=src) + load_state(RDI=dst) + load_state(RCX=n) + FC
+    emit_byte 0xFC
+    ret
+
+; ── MEMCPY_STATE dst src n — slot indices, lea-scale + rep movsb (stub)
+emit_memcpy_state:
+    ; Full implementation deferred to Python DDC peer (asm.py)
+    emit_byte 0xFC
+    ret
+
 ; flush outbuf[0 .. rdi-outbuf) to stdout (raw bytes)
 emit_flush:
     push rcx
