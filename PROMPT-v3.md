@@ -68,7 +68,7 @@
 `yoyo.ty` = **788 handlers / 4170 lines**（850 行注释已恢复）；Rust golden **739/739 PASS**· executor **8/8 PASS**；JS==Rust==pin 三方字节级相等。W-START body-extend-001..106 全部 GREEN；MEMCPY real emit + LEA scale fix + executor expand + DDC fix；P2 imm 边界 + P1 多 slot 变体补齐；pin `af5300941cfecdef…`（Decision #24）。
 
 ### 仍红（big list）
-full compiler self-host · 冻结编译器
+full compiler self-host · 冻结编译器 · gen1≡gen2
 
 ### W-START NODE（EXPERIMENTAL · body-extend 扩写完成 · 2026-07-24 点火 · 2026-07-28 收束 · ≠ freeze）
 `EXPERIMENTAL · NON-GREEN · Rust-first · OUT-OF-v0.1-body（SCOPE-CUT 边界外点火）` — 详表 `docs/auxdocs/selfhost-start-node.md`
@@ -76,7 +76,7 @@ full compiler self-host · 冻结编译器
 - **Workflow Hard Rule (non-normative; behavior, not law)** — default-first: 下一拍明显时直接执行默认 + 上一个子代理参数，**不再列选项问 A/B/C**；仅在 (a) 工具链缺、(b) 观测到 peer 分叉、(c) lock pin 想改但无既有 log、(d) PROMPT 要改 NORMATIVE（如 bump version）时才停下问；每拍成功仍产 `docs/auxdocs/<attempt|topic>-N-log.md`；不复述 dashboard/审计汇总，只接上一拍摘要 + 1 行下一拍。
 - Checklist（压缩）：冷启复验文首+pin · Lock/Relock 一致（无 LOCKED 不谈 freeze）· scope 标签 · D-1/平台分叉 fail-closed · stub/RAW_BYTE 不宣称 C-ddc / Morph / freeze / gen1≡gen2
 - 「尝试已开始」= 可复现 Rust 入口（cmd+log+scope tag）+ checklist（**attempt-level 全绿**；见 `docs/auxdocs/selfhost-attempt-N1-log.md`）
-- 「自举 GREEN」= 仍红项（full body · 3-chain `section-ddc` · gen1≡gen2 · Freeze+Lock）— **START NODE 一律不豁免**；Freeze = end gate（Part 5）；full body 仍在 W5.5 **SCOPE-CUT**
+- 「自举 GREEN」= 仍红项（full body · gen1≡gen2 · Freeze+Lock）— **START NODE 一律不豁免**；Freeze = end gate（Part 5）；full body 仍在 W5.5 **SCOPE-CUT**；3-chain section-ddc 已达成（Python asm peer EQUAL）
 - body-extend 连续扩写（EXPERIMENTAL · ≠ stub 34）：控制面 `docs/auxdocs/body-extend-queue.md` — scratch≤8 并发 / Relock 单写 / **矩阵满即停（matrix coverage gate）**；现 **788 handlers** · pin `af5300941cfecdef…`（Decision #24）· body-extend-106 DONE（P2 imm 边界 + P1 多 slot）
 - 入口（最小，不真编）：`cd f:\yoyo; .\scripts\verify-asm.ps1; node .\yoyo-js\scripts\golden.js; .\scripts\verify-selfhost.ps1; cd f:\yoyo\yoyo-rust; cargo run -p verifier --bin yoyo -- test golden`
 - attempt-level 4 critical-path：#1 pin re-verify ✅ / #4 D-1+WSL 路径 ✅ / #5 不假 pin ✅ / #7 harness 18+25+2 DDC EQUAL ✅
@@ -96,7 +96,7 @@ body 今日 = **788 handlers / 4170 lines**（W-START 扩写后）。扩写勿�
 - **D-1** `0x20/0x50/0x51`：JS 三码合流 movabs+store；Rust 走 `PlatformBackend`（Stub=movabs+store / Win=movabs+store）→ **peer 字节可分叉**；`yoyo.ty` 已练（H_2B-H_2D）。
 - **D-2** `0x64 MOVRR`：两端今日等于 GET（JS load+store；Rust `emit_get`）；规范独立语义未强制 — Phase 2 cleanup。
 - **D-3** `0x84/0x85`：两端真实 `rep movsb` emit；DDC EQUAL；JS REX.R + Rust 参数顺序 + pin byte-17 均已修平（body-extend-105）。
-- **D-4**：gen1≡gen2 / asm parity — 见仍红；不 chase。
+- **D-4**：gen1≡gen2 — 见仍红；不 chase。
 
 ### 下一拍待决（Next ops · 2026-07-28）
 | # | pick | rationale（1 行） | Status |
@@ -1209,7 +1209,7 @@ isa! { r#"
 `yoyo.ty` = **788 handlers / 4170 lines**（850 行注释已恢复）；Rust golden **739/739 PASS**· executor **8/8 PASS**；JS==Rust==pin 三方字节级相等。W-START body-extend-001..106 全部 GREEN；MEMCPY real emit + LEA scale fix + executor expand + DDC fix；P2 imm 边界 + P1 多 slot 变体补齐；pin `af5300941cfecdef…`（Decision #24）。
 
 ### 仍红（big list）
-full compiler self-host · 冻结编译器
+full compiler self-host · 冻结编译器 · gen1≡gen2
 
 ### W-START NODE（EXPERIMENTAL · body-extend 扩写完成 · 2026-07-24 点火 · 2026-07-28 收束 · ≠ freeze）
 `EXPERIMENTAL · NON-GREEN · Rust-first · OUT-OF-v0.1-body（SCOPE-CUT 边界外点火）` — 详表 `docs/auxdocs/selfhost-start-node.md`
@@ -1217,7 +1217,7 @@ full compiler self-host · 冻结编译器
 - **Workflow Hard Rule (non-normative; behavior, not law)** — default-first: 下一拍明显时直接执行默认 + 上一个子代理参数，**不再列选项问 A/B/C**；仅在 (a) 工具链缺、(b) 观测到 peer 分叉、(c) lock pin 想改但无既有 log、(d) PROMPT 要改 NORMATIVE（如 bump version）时才停下问；每拍成功仍产 `docs/auxdocs/<attempt|topic>-N-log.md`；不复述 dashboard/审计汇总，只接上一拍摘要 + 1 行下一拍。
 - Checklist（压缩）：冷启复验文首+pin · Lock/Relock 一致（无 LOCKED 不谈 freeze）· scope 标签 · D-1/平台分叉 fail-closed · stub/RAW_BYTE 不宣称 C-ddc / Morph / freeze / gen1≡gen2
 - 「尝试已开始」= 可复现 Rust 入口（cmd+log+scope tag）+ checklist（**attempt-level 全绿**；见 `docs/auxdocs/selfhost-attempt-N1-log.md`）
-- 「自举 GREEN」= 仍红项（full body · 3-chain `section-ddc` · gen1≡gen2 · Freeze+Lock）— **START NODE 一律不豁免**；Freeze = end gate（Part 5）；full body 仍在 W5.5 **SCOPE-CUT**
+- 「自举 GREEN」= 仍红项（full body · gen1≡gen2 · Freeze+Lock）— **START NODE 一律不豁免**；Freeze = end gate（Part 5）；full body 仍在 W5.5 **SCOPE-CUT**；3-chain section-ddc 已达成（Python asm peer EQUAL）
 - body-extend 连续扩写（EXPERIMENTAL · ≠ stub 34）：控制面 `docs/auxdocs/body-extend-queue.md` — scratch≤8 并发 / Relock 单写 / **矩阵满即停（matrix coverage gate）**；现 **788 handlers** · pin `af5300941cfecdef…`（Decision #24）· body-extend-106 DONE（P2 imm 边界 + P1 多 slot）
 - 入口（最小，不真编）：`cd f:\yoyo; .\scripts\verify-asm.ps1; node .\yoyo-js\scripts\golden.js; .\scripts\verify-selfhost.ps1; cd f:\yoyo\yoyo-rust; cargo run -p verifier --bin yoyo -- test golden`
 - attempt-level 4 critical-path：#1 pin re-verify ✅ / #4 D-1+WSL 路径 ✅ / #5 不假 pin ✅ / #7 harness 18+25+2 DDC EQUAL ✅
@@ -1237,7 +1237,7 @@ body 今日 = **788 handlers / 4170 lines**（W-START 扩写后）。扩写勿�
 - **D-1** `0x20/0x50/0x51`：JS 三码合流 movabs+store；Rust 走 `PlatformBackend`（Stub=movabs+store / Win=movabs+store）→ **peer 字节可分叉**；`yoyo.ty` 已练（H_2B-H_2D）。
 - **D-2** `0x64 MOVRR`：两端今日等于 GET（JS load+store；Rust `emit_get`）；规范独立语义未强制 — Phase 2 cleanup。
 - **D-3** `0x84/0x85`：两端真实 `rep movsb` emit；DDC EQUAL；JS REX.R + Rust 参数顺序 + pin byte-17 均已修平（body-extend-105）。
-- **D-4**：gen1≡gen2 / asm parity — 见仍红；不 chase。
+- **D-4**：gen1≡gen2 — 见仍红；不 chase。
 
 ### 下一拍待决（Next ops · 2026-07-28）
 | # | pick | rationale（1 行） | Status |
