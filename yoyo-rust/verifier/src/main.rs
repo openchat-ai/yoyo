@@ -12,6 +12,7 @@ mod self_test;
 mod startup;
 mod tir;
 mod ty_parser;
+mod tyb_parser;
 mod types;
 mod variable;
 
@@ -126,14 +127,33 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
         usage();
     }
     budget.consume(1)?;
-    let src = fs::read_to_string(&rest[0]).map_err(|e| types::IsaError::IoError {
-        msg: e.to_string(),
-    })?;
-    let out = executor::compile_ty_source(&src, target)?;
+    let input_path = &rest[0];
+    let input_ext = std::path::Path::new(input_path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+
+    let out = if input_ext == "tyb" || {
+        let data = std::fs::read(input_path).ok();
+        data.as_ref().map_or(false, |d| tyb_parser::is_tyb(d))
+    } {
+        let data = std::fs::read(input_path).map_err(|e| types::IsaError::IoError {
+            msg: e.to_string(),
+        })?;
+        executor::compile_tyb_source(&data, target)?
+    } else {
+        let src = fs::read_to_string(input_path).map_err(|e| types::IsaError::IoError {
+            msg: e.to_string(),
+        })?;
+        executor::compile_ty_source(&src, target)?
+    };
+    let op_count = std::fs::read_to_string(input_path)
+        .ok()
+        .map(|s| s.lines().filter(|l| !l.trim().is_empty() && !l.trim().starts_with(';')).count())
+        .unwrap_or(0);
     println!(
         "emit: {} ops 鈫?{} code bytes, {} data bytes, entry H_{:02X}",
-        // approximate
-        src.lines().filter(|l| !l.trim().is_empty() && !l.trim().starts_with(';')).count(),
+        op_count,
         out.code.len(),
         out.data.len(),
         out.entry_hh

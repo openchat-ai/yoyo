@@ -6,11 +6,19 @@ use crate::emit;
 use crate::platform::PlatformKind;
 use crate::tir::lower_op_checked;
 use crate::ty_parser;
+use crate::tyb_parser;
 use crate::types::IsaResult;
 
 /// Compile `.ty` source text to raw x64 (+ data) via the standard pipeline.
 pub fn compile_ty_source(src: &str, platform: PlatformKind) -> IsaResult<emit::EmitOutput> {
     let lines = ty_parser::parse(src)?;
+    compile_source_lines(&lines, platform)
+}
+
+/// Compile `.tyb` binary to raw x64 (+ data) via the standard pipeline.
+/// Paper-tape format: 8-byte records, no parser needed.
+pub fn compile_tyb_source(data: &[u8], platform: PlatformKind) -> IsaResult<emit::EmitOutput> {
+    let lines = tyb_parser::parse_tyb(data)?;
     compile_source_lines(&lines, platform)
 }
 

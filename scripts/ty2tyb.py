@@ -3,10 +3,14 @@
 ty2tyb.py — Convert .ty to 8-byte-record binary .tyb.
 
 Design principle: each .ty line → exactly 8 bytes, fitting one state slot.
-Format: [opcode:1][argc:1][arg0:2][arg1:2][arg2:2]
+Format: [opcode:1][argc:1][arg0:4][arg1:2]
 
-Label:  40 hh,0    →  [0x40][hh_hi][hh_lo][0][0][0][0][0]
-Record: op,args    →  [op][argc][a0][a1][a2][0][0][0]
+a0 = 4 bytes (u32) — covers all imm values.
+a1 = 2 bytes (u16) — covers arg2.
+For 3-arg instructions: a1 high byte = arg1, low byte = arg2 (both ≤ 0xFF).
+
+Label:  40 hh,0    →  [0x40][1][hh:4][0:2]
+Record: op,args    →  [op][argc][a0:4][a1:2]
 
 The .tyb is a flat byte array. The YOYO compiler framework reads
 it sequentially: MEMCPY_DATA copies 8 bytes → slot → dispatch.
@@ -34,6 +38,7 @@ def parse_ty(source):
         
         if op == 0x40:
             labels[args[0]] = len(records)
+            records.append((op, args))  # emit label record too
             continue
         if op in (0x10, 0x12, 0x13):
             data_bytes.extend(args)
@@ -49,10 +54,21 @@ def parse_ty(source):
 
 def pack_record(op, args):
     """Pack opcode + args into 8 bytes.
-    [op:1][argc:1][arg0:2][arg1:2][arg2:2]
+    argc=0: [op:1][0][pad:6]
+    argc=1: [op:1][1][a0:4][pad:2]
+    argc=2: [op:1][2][a0:4][a1:2]  — a0=imm(32b), a1=slot(16b)
+    argc=3: [op:1][3][a0:2][a1:2][a2:2]  — 3×16b
     """
     a = args + [0] * (3 - len(args))
-    return struct.pack('<BBHHH', op & 0xFF, len(args), a[0] & 0xFFFF, a[1] & 0xFFFF, a[2] & 0xFFFF)
+    n = len(args)
+    if n == 0:
+        return struct.pack('<BBxxxxxx', op & 0xFF, 0)
+    elif n == 1:
+        return struct.pack('<BBIxx', op & 0xFF, 1, a[0] & 0xFFFFFFFF)
+    elif n == 2:
+        return struct.pack('<BBHI', op & 0xFF, 2, a[0] & 0xFFFF, a[1] & 0xFFFFFFFF)
+    else:  # n == 3
+        return struct.pack('<BBHHH', op & 0xFF, 3, a[0] & 0xFFFF, a[1] & 0xFFFF, a[2] & 0xFFFF)
 
 def build_tyb(records, labels, data_bytes, fixups):
     """Build .tyb: header + records + fixups + data."""
