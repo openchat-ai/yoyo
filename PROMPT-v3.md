@@ -68,7 +68,7 @@
 `yoyo.ty` = **788 handlers / 4170 lines**（850 行注释已恢复）；Rust golden **739/739 PASS**· executor **8/8 PASS**；JS==Rust==pin 三方字节级相等。W-START body-extend-001..106 全部 GREEN；MEMCPY real emit + LEA scale fix + executor expand + DDC fix；P2 imm 边界 + P1 多 slot 变体补齐；pin `af5300941cfecdef…`（Decision #24）。
 
 ### 仍红（big list）
-full compiler self-host · 3-chain `section-ddc` 实现 · gen1≡gen2 · 冻结编译器
+full compiler self-host · 冻结编译器
 
 ### W-START NODE（EXPERIMENTAL · body-extend 扩写完成 · 2026-07-24 点火 · 2026-07-28 收束 · ≠ freeze）
 `EXPERIMENTAL · NON-GREEN · Rust-first · OUT-OF-v0.1-body（SCOPE-CUT 边界外点火）` — 详表 `docs/auxdocs/selfhost-start-node.md`
@@ -86,6 +86,7 @@ full compiler self-host · 3-chain `section-ddc` 实现 · gen1≡gen2 · 冻结
 |------|------|---------|
 | JS (M0) | G00–G05 + INC/DEC/JMP + body-extend 全套 | `node .\yoyo-js\scripts\golden.js` |
 | Rust | **739/739 golden**（G00–G05 + G-SM 全量 + JCC-ALL + IO + MEMCPY） | `cargo run -p verifier --bin yoyo -- test golden` |
+| Python (asm peer) | 788 handlers, 3-chain DDC EQUAL (SHA-256: 4fb8b87f) | `python yoyo-asm\asm.py yoyo\projects\yoyo.ty out.exe` |
 | asm | INC/DEC（经 WSL 编译+运行） | `.\scripts\verify-asm.ps1` |
 
 比对方式：各 peer 对同一 opcode 序列 emit raw x64 bytes → hex text diff。平台无关 opcode 三家字节**必须一致**；平台相关 opcode（ALLOC/LOAD/WRITE）允许分叉。
@@ -112,7 +113,7 @@ body 今日 = **788 handlers / 4170 lines**（W-START 扩写后）。扩写勿�
 | 10 | MEMCPY real emit + executor expand | D-3 语义缺口关闭 · RSI/RDI/FC | **GREEN (DONE)** |
 || 11 | P2 imm 边界补齐 | LDB/ADD/SUB imm8/imm32 边界 handler 填充 | **GREEN (DONE)** |
 || 12 | P1 多 slot 变体 | INC/DEC/JMP/CALL 多目标 handler | **GREEN (DONE)** |
-|| 13 | 3-chain section-ddc 实现 | full self-host GREEN 真正关卡 | **HOLD** |
+|| 13 | 3-chain section-ddc 实现 | Python asm peer — JS==Rust==Python EQUAL (SHA-256: 4fb8b87f) | **GREEN (DONE)** |
 
 ### DDC 修复备注
 #D-1 修复：Rust Win32Platform `emit_alloc`/`emit_load_file`/`emit_write_file` 从 VirtualAlloc 参数设置改为 movabs+store，与 JS M0 编译器匹配。DDC 恢复到 EQUAL。真实平台实现（VirtualAlloc IAT / syscall）延迟到 Phase 2。
@@ -1208,7 +1209,7 @@ isa! { r#"
 `yoyo.ty` = **788 handlers / 4170 lines**（850 行注释已恢复）；Rust golden **739/739 PASS**· executor **8/8 PASS**；JS==Rust==pin 三方字节级相等。W-START body-extend-001..106 全部 GREEN；MEMCPY real emit + LEA scale fix + executor expand + DDC fix；P2 imm 边界 + P1 多 slot 变体补齐；pin `af5300941cfecdef…`（Decision #24）。
 
 ### 仍红（big list）
-full compiler self-host · 3-chain `section-ddc` 实现 · gen1≡gen2 · 冻结编译器
+full compiler self-host · 冻结编译器
 
 ### W-START NODE（EXPERIMENTAL · body-extend 扩写完成 · 2026-07-24 点火 · 2026-07-28 收束 · ≠ freeze）
 `EXPERIMENTAL · NON-GREEN · Rust-first · OUT-OF-v0.1-body（SCOPE-CUT 边界外点火）` — 详表 `docs/auxdocs/selfhost-start-node.md`
@@ -1226,6 +1227,7 @@ full compiler self-host · 3-chain `section-ddc` 实现 · gen1≡gen2 · 冻结
 |------|------|---------|
 | JS (M0) | G00–G05 + INC/DEC/JMP + body-extend 全套 | `node .\yoyo-js\scripts\golden.js` |
 | Rust | **739/739 golden**（G00–G05 + G-SM 全量 + JCC-ALL + IO + MEMCPY） | `cargo run -p verifier --bin yoyo -- test golden` |
+| Python (asm peer) | 788 handlers, 3-chain DDC EQUAL (SHA-256: 4fb8b87f) | `python yoyo-asm\asm.py yoyo\projects\yoyo.ty out.exe` |
 | asm | INC/DEC（经 WSL 编译+运行） | `.\scripts\verify-asm.ps1` |
 
 比对方式：各 peer 对同一 opcode 序列 emit raw x64 bytes → hex text diff。平台无关 opcode 三家字节**必须一致**；平台相关 opcode（ALLOC/LOAD/WRITE）允许分叉。
@@ -1252,7 +1254,7 @@ body 今日 = **788 handlers / 4170 lines**（W-START 扩写后）。扩写勿�
 | 10 | MEMCPY real emit + executor expand | D-3 语义缺口关闭 · RSI/RDI/FC | **GREEN (DONE)** |
 || 11 | P2 imm 边界补齐 | LDB/ADD/SUB imm8/imm32 边界 handler 填充 | **GREEN (DONE)** |
 || 12 | P1 多 slot 变体 | INC/DEC/JMP/CALL 多目标 handler | **GREEN (DONE)** |
-|| 13 | 3-chain section-ddc 实现 | full self-host GREEN 真正关卡 | **HOLD** |
+|| 13 | 3-chain section-ddc 实现 | Python asm peer — JS==Rust==Python EQUAL (SHA-256: 4fb8b87f) | **GREEN (DONE)** |
 
 ### DDC 修复备注
 #D-1 修复：Rust Win32Platform `emit_alloc`/`emit_load_file`/`emit_write_file` 从 VirtualAlloc 参数设置改为 movabs+store，与 JS M0 编译器匹配。DDC 恢复到 EQUAL。真实平台实现（VirtualAlloc IAT / syscall）延迟到 Phase 2。
