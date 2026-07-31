@@ -15,6 +15,8 @@ pub struct EmitOutput {
     pub data: Vec<u8>,
     pub entry_hh: u16,
     pub labels: FixupTable,
+    /// (hh, offset, length) for each handler — used by --selfhost
+    pub handler_offsets: Vec<(u16, u32, u32)>,
 }
 
 fn label_hh(args: &[u64]) -> IsaResult<u16> {
@@ -33,18 +35,27 @@ pub fn emit(tir: &[TirInst], platform: PlatformKind) -> IsaResult<EmitOutput> {
     let mut pending_fixups: Vec<(usize, u16, BranchKind)> = Vec::new();
     let mut entry_hh: u16 = 0;
     let mut first_handler = true;
+    let mut current_hh: u16 = 0xFFFF; // sentinel: no handler open yet
+    let mut handler_offsets: Vec<(u16, u32, u32)> = Vec::new();
+    let mut handler_start: u32 = 0;
 
     // Pass 1: emit with placeholder rel32 = 0
     for inst in tir {
         let op = opcode_to_u8(inst.op);
         match instr_branch_kind(inst.op) {
             BranchKind::LabelDef => {
+                // Close previous handler if any
+                if current_hh != 0xFFFF {
+                    handler_offsets.push((current_hh, handler_start, code.tell() as u32 - handler_start));
+                }
                 let hh = label_hh(&inst.args)?;
                 labels.define(hh, code.tell() as u32)?;
                 if first_handler {
                     entry_hh = hh;
                     first_handler = false;
                 }
+                current_hh = hh;
+                handler_start = code.tell() as u32;
             }
             BranchKind::Call | BranchKind::Jmp | BranchKind::Jcc { .. } => {
                 let hh = label_hh(&inst.args)?;
@@ -76,6 +87,10 @@ pub fn emit(tir: &[TirInst], platform: PlatformKind) -> IsaResult<EmitOutput> {
 
     // Pass 2: patch rel32
     let _code_len = code.tell();
+    // Close last handler
+    if current_hh != 0xFFFF {
+        handler_offsets.push((current_hh, handler_start, code.tell() as u32 - handler_start));
+    }
     for (rel_at, hh, kind) in pending_fixups {
         let target = labels
             .lookup(hh)
@@ -90,6 +105,7 @@ pub fn emit(tir: &[TirInst], platform: PlatformKind) -> IsaResult<EmitOutput> {
         data,
         entry_hh,
         labels,
+        handler_offsets,
     })
 }
 

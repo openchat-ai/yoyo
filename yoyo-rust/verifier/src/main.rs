@@ -9,6 +9,7 @@ mod pe_link;
 mod platform;
 mod render;
 mod self_test;
+mod selfhost;
 mod startup;
 mod tir;
 mod ty_parser;
@@ -89,6 +90,7 @@ fn main() -> ExitCode {
 fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
     let mut target = PlatformKind::Win32;
     let mut rest = Vec::new();
+    let mut selfhost = false;
     for a in args {
         if let Some(t) = a.strip_prefix("--target=") {
             target = parse_platform(t)?;
@@ -119,6 +121,8 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
                     "[NON-CONFORMING] --morph={m} recognized but morph backends not implemented; M-morph stays red (PROMPT Part E)"
                 ),
             });
+        } else if a == "--selfhost" {
+            selfhost = true;
         } else {
             rest.push(a.clone());
         }
@@ -161,7 +165,13 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
 
     match target {
         PlatformKind::Win32 => {
-            let pe = pe_link::link_pe(&out.code, &out.data)?;
+            let pe = if selfhost {
+                let hot = selfhost::build_hot(&out.handler_offsets);
+                let startup = selfhost::gen_selfhost_startup(0, 0, 0);
+                pe_link::link_pe_selfhost(&out.code, &out.data, &hot, &startup)?
+            } else {
+                pe_link::link_pe(&out.code, &out.data)?
+            };
             fs::write(&rest[1], &pe.bytes).map_err(|e| types::IsaError::IoError {
                 msg: e.to_string(),
             })?;

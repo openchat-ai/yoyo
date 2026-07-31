@@ -14,6 +14,20 @@ pub struct PeImage {
 /// Wrap raw x64 code (+ optional data) in a PE32+ image.
 /// Entry: sets up R15 → .data (state base), then jumps to `code`.
 pub fn link_pe(code: &[u8], data: &[u8]) -> IsaResult<PeImage> {
+    link_pe_impl(code, data, &[], false)
+}
+
+/// Wrap raw x64 code with selfhost startup + HOT table in a PE32+ image.
+/// Entry: selfhost_startup (reads .tyb, compiles, writes output).
+pub fn link_pe_selfhost(code: &[u8], data: &[u8], hot_table: &[u8], startup_code: &[u8]) -> IsaResult<PeImage> {
+    let mut full_code = Vec::new();
+    full_code.extend_from_slice(startup_code);
+    full_code.extend_from_slice(code);
+    full_code.extend_from_slice(hot_table);
+    link_pe_impl(&full_code, data, startup_code, true)
+}
+
+fn link_pe_impl(code: &[u8], data: &[u8], startup_code: &[u8], is_selfhost: bool) -> IsaResult<PeImage> {
     let section_align: u32 = 0x1000;
     let file_align: u32 = 0x200;
 
