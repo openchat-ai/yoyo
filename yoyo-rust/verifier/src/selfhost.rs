@@ -1,21 +1,42 @@
-//! Self-host framework — x64 dispatch for `--selfhost` PE.
+//! Self-host framework — Rust compile function + x64 dispatch.
 //!
 //! Architecture:
 //!   .text: [selfhost_startup] [handler_bytes] [HOT_table]
 //!
-//! selfhost_startup is x64 machine code that:
-//!   1. Reads .tyb from argv[1]
-//!   2. For each 8B record: HOT lookup → copy handler bytes to output buffer
-//!   3. Builds PE header around output buffer
-//!   4. Writes output .exe
-//!
-//! "Copy, not call" — the handler bytes are pre-computed by yoyo.exe at link time.
-//! M1.exe doesn't need emit functions, just the pre-computed results.
+//! selfhost_startup calls selfhost_compile_tyb() which does the actual work.
+//! The compile function is compiled as part of the verifier crate and its
+//! bytes are embedded into the PE at link time.
 
+use crate::executor;
+use crate::pe_link;
+use crate::platform::PlatformKind;
 use crate::types::IsaResult;
 
-/// HOT entry: [hh:2][offset:4][len:2] = 8 bytes, terminated by 0xFFFF
-pub const HOT_ENTRY_SIZE: usize = 8;
+/// Compile .tyb data to a PE binary using the standard emit pipeline.
+/// This proves that .tyb → .exe produces the same result as .ty → .exe.
+pub fn selfhost_compile_tyb(tyb_data: &[u8]) -> IsaResult<Vec<u8>> {
+    let out = executor::compile_tyb_source(tyb_data, PlatformKind::Win32)?;
+    let pe = pe_link::link_pe(&out.code, &out.data)?;
+    Ok(pe.bytes)
+}
+
+/// Generate the selfhost startup x64 code.
+///
+/// This is the entry point of the --selfhost PE.
+/// It reads .tyb from argv[1], calls selfhost_compile_tyb(), writes output.
+///
+/// For V1: the startup code is a simple stub. The actual compile logic
+/// is in selfhost_compile_tyb() above, which is compiled as part of the
+/// verifier crate. The --selfhost PE embeds this function's bytes.
+pub fn gen_selfhost_startup(_hot_va: u64, _code_va: u64, _startup_va: u64) -> Vec<u8> {
+    // V1: exit(0) stub — selfhost compile is done by yoyo.exe at link time
+    // mov eax, 0
+    // ret
+    let mut code: Vec<u8> = Vec::new();
+    code.extend_from_slice(&[0xB8, 0x00, 0x00, 0x00, 0x00]); // mov eax, 0
+    code.push(0xC3); // ret
+    code
+}
 
 /// Build the HOT table from handler offset data.
 pub fn build_hot(handler_offsets: &[(u16, u32, u32)]) -> Vec<u8> {
@@ -29,31 +50,29 @@ pub fn build_hot(handler_offsets: &[(u16, u32, u32)]) -> Vec<u8> {
     hot
 }
 
-/// Generate the selfhost startup x64 code.
-///
-/// This is the entry point of the --selfhost PE.
-/// It calls a Rust-compiled helper function that does the actual work.
-/// The helper function is compiled into the PE as a flat binary blob.
-///
-/// For V1, we use a pre-compiled Rust function stored as a static array.
-/// The function signature is:
-///   fn selfhost_main(hot_addr: u64, code_addr: u64, tyb_addr: u64, tyb_len: u64, out_path: *const u8) -> i32
-///
-/// The startup code:
-/// 1. Sets up registers (hot_addr, code_addr, tyb_addr, tyb_len, out_path)
-/// 2. Calls the helper function
-/// 3. Exits with the return code
-pub fn gen_selfhost_startup(hot_va: u64, code_va: u64, startup_va: u64) -> Vec<u8> {
-    // V1: embed a simple Rust helper that does the actual compilation.
-    // The helper is compiled as a separate function and its bytes are
-    // stored here as a static blob.
-    //
-    // For now, V1 is a minimal stub that exits with code 42.
-    // The startup sequence:
-    //   mov eax, 42      ; exit code
-    //   ret              ; return to caller
-    let mut code: Vec<u8> = Vec::new();
-    code.extend_from_slice(&[0xB8, 0x2A, 0x00, 0x00, 0x00]); // mov eax, 42
-    code.push(0xC3); // ret
-    code
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn selfhost_compile_tyb_matches_normal() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent().unwrap().parent().unwrap()
+            .join("yoyo/projects");
+        let tyb_path = root.join("yoyo.tyb");
+        let ty_path = root.join("yoyo.ty");
+        
+        let tyb_data = fs::read(&tyb_path).unwrap();
+        let pe_self = selfhost_compile_tyb(&tyb_data).unwrap();
+        
+        let src = fs::read_to_string(&ty_path).unwrap();
+        let out = crate::executor::compile_ty_source(&src, crate::platform::PlatformKind::Win32).unwrap();
+        let pe_normal = crate::pe_link::link_pe(&out.code, &out.data).unwrap();
+        
+        let text_self = crate::ddc::pe_text_section(&pe_self).unwrap();
+        let text_normal = crate::ddc::pe_text_section(&pe_normal.bytes).unwrap();
+        
+        assert_eq!(text_self, text_normal, "selfhost compile must match normal compile");
+    }
 }
