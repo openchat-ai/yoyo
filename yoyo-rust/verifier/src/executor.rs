@@ -4,7 +4,7 @@
 
 use crate::emit;
 use crate::platform::PlatformKind;
-use crate::tir::lower_op_checked;
+use crate::tir::{lower_op_checked, TirInst};
 use crate::ty_parser;
 use crate::tyb_parser;
 use crate::types::IsaResult;
@@ -20,6 +20,28 @@ pub fn compile_ty_source(src: &str, platform: PlatformKind) -> IsaResult<emit::E
 pub fn compile_tyb_source(data: &[u8], platform: PlatformKind) -> IsaResult<emit::EmitOutput> {
     let lines = tyb_parser::parse_tyb(data)?;
     compile_source_lines(&lines, platform)
+}
+
+/// Compile `.ty` source to TIR instructions (for CUDA/text backends).
+pub fn compile_ty_source_to_tir(src: &str) -> IsaResult<Vec<TirInst>> {
+    let lines = ty_parser::parse(src)?;
+    lower_to_tir(&lines)
+}
+
+/// Compile `.tyb` binary to TIR instructions (for CUDA/text backends).
+pub fn compile_tyb_source_to_tir(data: &[u8]) -> IsaResult<Vec<TirInst>> {
+    let lines = tyb_parser::parse_tyb(data)?;
+    lower_to_tir(&lines)
+}
+
+/// Lower parsed lines to TIR instructions (shared by all backends).
+fn lower_to_tir(lines: &[ty_parser::SourceLine]) -> IsaResult<Vec<TirInst>> {
+    let mut tir = Vec::new();
+    for line in lines {
+        let args = ty_parser::resolve_line(line)?;
+        tir.push(lower_op_checked(line.opcode, &args, line.line)?);
+    }
+    Ok(tir)
 }
 
 /// Compile one handler selected directly from canonical `.ty` source bytes.
@@ -53,13 +75,7 @@ fn compile_source_lines(
     lines: &[ty_parser::SourceLine],
     platform: PlatformKind,
 ) -> IsaResult<emit::EmitOutput> {
-    let mut tir = Vec::new();
-    for line in lines {
-        let args = ty_parser::resolve_line(line)?;
-        // Skip pure data-definition opcodes that the executor ignores at runtime
-        // (still lower them so data section is populated).
-        tir.push(lower_op_checked(line.opcode, &args, line.line)?);
-    }
+    let tir = lower_to_tir(lines)?;
     emit::emit(&tir, platform)
 }
 

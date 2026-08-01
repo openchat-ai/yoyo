@@ -1,6 +1,7 @@
 //! YOYO verifier CLI —`yoyo link|diff|selftest|hash` (PROMPT-v3 Part 10.2).
 
 mod assembler;
+mod cuda_backend;
 mod ddc;
 mod emit;
 mod executor;
@@ -29,7 +30,7 @@ fn usage() -> ! {
     eprintln!(
         "yoyo —YOYO verifier (Rust DDC peer)\n\n\
          Usage:\n\
-           yoyo link [--target=win32|linux|stub|baremetal] [--posture=...] [--morph=...] <input.ty> <output>\n\
+           yoyo link [--target=win32|linux|stub|baremetal|cuda] [--posture=...] [--morph=...] <input.ty> <output>\n\
            yoyo diff <a.bin> <b.bin>\n\
            yoyo hash <file>\n\
            yoyo selftest\n\
@@ -138,6 +139,40 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
         .and_then(|e| e.to_str())
         .unwrap_or("");
 
+    // CUDA uses a separate TIR→PTX path (not x64 emit)
+    if target == PlatformKind::Cuda {
+        let tir = if input_ext == "tyb" || {
+            let data = std::fs::read(input_path).ok();
+            data.as_ref().map_or(false, |d| tyb_parser::is_tyb(d))
+        } {
+            let data = std::fs::read(input_path).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            executor::compile_tyb_source_to_tir(&data)?
+        } else {
+            let src = fs::read_to_string(input_path).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            executor::compile_ty_source_to_tir(&src)?
+        };
+        let ptx = cuda_backend::emit_cuda(&tir)?;
+        println!(
+            "emit: {} ops → PTX ({} lines), entry H_{:02X}",
+            tir.len(),
+            ptx.lines().count(),
+            // Find entry handler (first HANDLER instruction)
+            tir.iter()
+                .find(|i| matches!(i.op, crate::tir::TirOp::Handler))
+                .and_then(|i| i.args.first().copied())
+                .unwrap_or(0)
+        );
+        fs::write(&rest[1], &ptx).map_err(|e| types::IsaError::IoError {
+            msg: e.to_string(),
+        })?;
+        println!("wrote PTX {} ({} bytes)", rest[1], ptx.len());
+        return Ok(());
+    }
+
     let out = if input_ext == "tyb" || {
         let data = std::fs::read(input_path).ok();
         data.as_ref().map_or(false, |d| tyb_parser::is_tyb(d))
@@ -157,7 +192,7 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
         .map(|s| s.lines().filter(|l| !l.trim().is_empty() && !l.trim().starts_with(';')).count())
         .unwrap_or(0);
     println!(
-        "emit: {} ops 鈫?{} code bytes, {} data bytes, entry H_{:02X}",
+        "emit: {} ops → {} code bytes, {} data bytes, entry H_{:02X}",
         op_count,
         out.code.len(),
         out.data.len(),
@@ -194,6 +229,9 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
                 msg: e.to_string(),
             })?;
             println!("wrote flat {} ({} bytes)", rest[1], blob.len());
+        }
+        PlatformKind::Cuda => {
+            unreachable!("CUDA handled above before x64 emit pipeline");
         }
     }
     Ok(())

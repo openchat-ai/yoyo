@@ -8,6 +8,7 @@ pub enum PlatformKind {
     Linux,
     BareMetal,
     Stub,
+    Cuda,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,6 +43,7 @@ pub fn select_platform(target: PlatformKind) -> Box<dyn PlatformBackend> {
         PlatformKind::Linux => Box::new(LinuxPlatform::new()),
         PlatformKind::BareMetal => Box::new(BareMetalPlatform::new()),
         PlatformKind::Stub => Box::new(StubPlatform::new()),
+        PlatformKind::Cuda => Box::new(CudaPlatform::new()),
     }
 }
 
@@ -51,6 +53,7 @@ pub fn parse_platform(s: &str) -> IsaResult<PlatformKind> {
         "linux" | "elf" => Ok(PlatformKind::Linux),
         "baremetal" | "bare" => Ok(PlatformKind::BareMetal),
         "stub" => Ok(PlatformKind::Stub),
+        "cuda" | "ptx" => Ok(PlatformKind::Cuda),
         _ => Err(IsaError::PlatformError {
             msg: format!("unknown platform '{s}'"),
         }),
@@ -219,6 +222,48 @@ impl PlatformBackend for LinuxPlatform {
             stack_size: 0x10000,
             data_section_offset: 0x402000,
             data_section_size: 0x38000,
+        }
+    }
+}
+
+// ── CUDA ──────────────────────────────────────────────────────────
+pub struct CudaPlatform;
+
+impl CudaPlatform {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl PlatformBackend for CudaPlatform {
+    fn emit_alloc(&mut self, _slot: u16, _size: u64) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "CUDA backend has no inline alloc; use cuda_backend::emit_cuda instead".into(),
+        })
+    }
+    fn emit_load_file(&mut self, _slot: u16, _str_idx: u8) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "CUDA backend has no file I/O; use cuda_backend::emit_cuda instead".into(),
+        })
+    }
+    fn emit_write_file(&mut self, _slot: u16, _str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "CUDA backend has no file I/O; use cuda_backend::emit_cuda instead".into(),
+        })
+    }
+    fn emit_exit(&mut self, _code: u8) -> IsaResult<Vec<u8>> {
+        Ok(vec![0xFF]) // sentinel for ret
+    }
+    fn startup_blob(&self) -> &[u8] {
+        &[]
+    }
+    fn template(&self) -> TemplateInfo {
+        TemplateInfo {
+            format: BinaryFormat::FlatBinary,
+            entry_point: 0,
+            stack_size: 0,
+            data_section_offset: 0,
+            data_section_size: 0,
         }
     }
 }
