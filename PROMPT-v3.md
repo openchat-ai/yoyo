@@ -68,7 +68,7 @@
 `yoyo.ty` = **788 handlers / 4170 lines**（850 行注释已恢复）；Rust golden **739/739 PASS**· executor **8/8 PASS**；JS==Rust==Python 三端字节级相等（3-chain DDC EQUAL，SHA-256: `4fb8b87f`）。W-START body-extend-001..106 全部 GREEN；MEMCPY real emit + LEA scale fix + executor expand + DDC fix；P2 imm 边界 + P1 多 slot 变体补齐；`.tyb` 纸带格式（8B 记录）就绪；`--selfhost` HOT 自举框架就绪；pin `0275802d2b4459e6…`（Decision #25）。
 
 ### 仍红（big list）
-full compiler self-host · 冻结编译器
+冻结编译器
 
 ### W-START NODE（EXPERIMENTAL · body-extend 扩写完成 · 2026-07-24 点火 · 2026-07-28 收束 · ≠ freeze）
 `EXPERIMENTAL · NON-GREEN · Rust-first · OUT-OF-v0.1-body（SCOPE-CUT 边界外点火）` — 详表 `docs/auxdocs/selfhost-start-node.md`
@@ -117,8 +117,9 @@ body 今日 = **788 handlers / 4170 lines**（W-START 扩写后）。扩写勿�
 || 13 | 3-chain section-ddc 实现 | Python asm peer — JS==Rust==Python EQUAL (SHA-256: 4fb8b87f) | **GREEN (DONE)** |
 | 14 | `.tyb` 纸带格式 | 8B 记录，argc-dep 布局，Rust tyb_parser，DDC EQUAL | **GREEN (DONE)** |
 | 15 | `--selfhost` HOT 自举框架 | emit.rs handler_offsets + pe_link selfhost + selfhost.rs | **GREEN (DONE)** |
-| 16 | gen1≡gen2 | `.ty`==`.tyb` 产出一致 (SHA-256: 4fb8b87f)，三端 DDC EQUAL | **GREEN (DONE)** |
+| 16 | gen1≡gen2 | `.ty`==`.tyb` 产出一致 (SHA-256: 4fb8b87f)，三端 DDC EQUAL，selfhost 单元测试通过 | **GREEN (DONE)** |
 | 17 | selfhost startup 完整实现 | M1.exe 运行时读 .tyb → 复制 handler → 写 PE | **HOLD** |
+| 18 | 冻结编译器 | 走 Lock Protocol 8-step 声明 freeze at M3 | **HOLD** |
 
 ### DDC 修复备注
 #D-1 修复：Rust Win32Platform `emit_alloc`/`emit_load_file`/`emit_write_file` 从 VirtualAlloc 参数设置改为 movabs+store，与 JS M0 编译器匹配。DDC 恢复到 EQUAL。真实平台实现（VirtualAlloc IAT / syscall）延迟到 Phase 2。
@@ -1214,7 +1215,7 @@ isa! { r#"
 `yoyo.ty` = **788 handlers / 4170 lines**（850 行注释已恢复）；Rust golden **739/739 PASS**· executor **8/8 PASS**；JS==Rust==Python 三端字节级相等（3-chain DDC EQUAL，SHA-256: `4fb8b87f`）。W-START body-extend-001..106 全部 GREEN；MEMCPY real emit + LEA scale fix + executor expand + DDC fix；P2 imm 边界 + P1 多 slot 变体补齐；`.tyb` 纸带格式（8B 记录）就绪；`--selfhost` HOT 自举框架就绪；pin `0275802d2b4459e6…`（Decision #25）。
 
 ### 仍红（big list）
-full compiler self-host · 冻结编译器
+冻结编译器
 
 ### W-START NODE（EXPERIMENTAL · body-extend 扩写完成 · 2026-07-24 点火 · 2026-07-28 收束 · ≠ freeze）
 `EXPERIMENTAL · NON-GREEN · Rust-first · OUT-OF-v0.1-body（SCOPE-CUT 边界外点火）` — 详表 `docs/auxdocs/selfhost-start-node.md`
@@ -1263,8 +1264,9 @@ body 今日 = **788 handlers / 4170 lines**（W-START 扩写后）。扩写勿�
 || 13 | 3-chain section-ddc 实现 | Python asm peer — JS==Rust==Python EQUAL (SHA-256: 4fb8b87f) | **GREEN (DONE)** |
 | 14 | `.tyb` 纸带格式 | 8B 记录，argc-dep 布局，Rust tyb_parser，DDC EQUAL | **GREEN (DONE)** |
 | 15 | `--selfhost` HOT 自举框架 | emit.rs handler_offsets + pe_link selfhost + selfhost.rs | **GREEN (DONE)** |
-| 16 | gen1≡gen2 | `.ty`==`.tyb` 产出一致 (SHA-256: 4fb8b87f)，三端 DDC EQUAL | **GREEN (DONE)** |
+| 16 | gen1≡gen2 | `.ty`==`.tyb` 产出一致 (SHA-256: 4fb8b87f)，三端 DDC EQUAL，selfhost 单元测试通过 | **GREEN (DONE)** |
 | 17 | selfhost startup 完整实现 | M1.exe 运行时读 .tyb → 复制 handler → 写 PE | **HOLD** |
+| 18 | 冻结编译器 | 走 Lock Protocol 8-step 声明 freeze at M3 | **HOLD** |
 
 ### DDC 修复备注
 #D-1 修复：Rust Win32Platform `emit_alloc`/`emit_load_file`/`emit_write_file` 从 VirtualAlloc 参数设置改为 movabs+store，与 JS M0 编译器匹配。DDC 恢复到 EQUAL。真实平台实现（VirtualAlloc IAT / syscall）延迟到 Phase 2。

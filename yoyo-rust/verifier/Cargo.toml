@@ -9,6 +9,10 @@ description = "YOYO verifier + linker (Rust DDC peer)"
 name = "yoyo"
 path = "src/main.rs"
 
+[lib]
+name = "verifier"
+path = "src/lib.rs"
+
 [dependencies]
 isa-proc = { workspace = true }
 libyoyo = { workspace = true }
