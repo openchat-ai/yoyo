@@ -8,6 +8,7 @@ use crate::assembler::{
 use crate::fixup::FixupTable;
 use crate::platform::{PlatformBackend, PlatformKind, select_platform};
 use crate::tir::{instr_branch_kind, opcode_to_u8, BranchKind, TirInst, TirOp};
+use crate::ty_parser;
 use crate::types::{IsaError, IsaResult, CODE_BUF_CAP, FixedBuf};
 
 pub struct EmitOutput {
@@ -28,6 +29,22 @@ fn label_hh(args: &[u64]) -> IsaResult<u16> {
 }
 
 pub fn emit(tir: &[TirInst], platform: PlatformKind) -> IsaResult<EmitOutput> {
+    emit_internal(tir, platform, false)
+}
+
+/// Compile from SourceLine entries (used by selfhost path).
+/// This is the same emit pipeline, but takes pre-parsed SourceLine entries
+/// instead of TIR instructions.
+pub fn emit_from_lines(lines: &[ty_parser::SourceLine], platform: PlatformKind) -> IsaResult<EmitOutput> {
+    let mut tir = Vec::new();
+    for line in lines {
+        let args = ty_parser::resolve_line(line)?;
+        tir.push(crate::tir::lower_op_checked(line.opcode, &args, line.line)?);
+    }
+    emit_internal(&tir, platform, true)
+}
+
+fn emit_internal(tir: &[TirInst], platform: PlatformKind, track_handlers: bool) -> IsaResult<EmitOutput> {
     let mut backend = select_platform(platform);
     let mut code: Box<FixedBuf<CODE_BUF_CAP>> = FixedBuf::new_boxed();
     let mut data: Vec<u8> = Vec::new();
