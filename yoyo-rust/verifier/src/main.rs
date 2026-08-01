@@ -5,6 +5,7 @@ mod ddc;
 mod emit;
 mod executor;
 mod fixup;
+mod elf_link;
 mod pe_link;
 mod platform;
 mod render;
@@ -177,8 +178,15 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
             })?;
             println!("wrote PE32+ {} ({} bytes)", rest[1], pe.bytes.len());
         }
-        PlatformKind::Linux | PlatformKind::Stub | PlatformKind::BareMetal => {
-            // Flat code dump for non-PE targets (ELF builder deferred)
+        PlatformKind::Linux => {
+            let elf = elf_link::link_elf(&out.code, &out.data)?;
+            fs::write(&rest[1], &elf.bytes).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote ELF64 {} ({} bytes)", rest[1], elf.bytes.len());
+        }
+        PlatformKind::Stub | PlatformKind::BareMetal => {
+            // Flat code dump for non-PE/non-ELF targets
             let mut blob = Vec::new();
             blob.extend_from_slice(startup::startup_blob_baremetal());
             blob.extend_from_slice(&out.code);
