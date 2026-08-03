@@ -180,6 +180,104 @@ pub trait PlatformBackend {
     }
 }
 
+// ── Foreign-arch arithmetic helpers (marker format: NOP + type + operands) ──
+
+fn mark_nop(op: u8, slot: u16, imm: u64) -> Vec<u8> {
+    let mut v = vec![op];
+    v.push((slot & 0xFF) as u8);
+    v.push(((slot >> 8) & 0xFF) as u8);
+    v.extend_from_slice(&imm.to_le_bytes());
+    v
+}
+
+fn mark2_nop(op: u8, a: u16, b: u64) -> Vec<u8> {
+    let mut v = vec![op];
+    v.push((a & 0xFF) as u8);
+    v.push(((a >> 8) & 0xFF) as u8);
+    v.extend_from_slice(&(b as u64).to_le_bytes());
+    v
+}
+
+fn mark1_nop(op: u8, slot: u16) -> Vec<u8> {
+    let mut v = vec![op];
+    v.push((slot & 0xFF) as u8);
+    v.push(((slot >> 8) & 0xFF) as u8);
+    v
+}
+
+// marker type bytes
+const MK_SET: u8 = 0x80;
+const MK_GET: u8 = 0x81;
+const MK_MOV: u8 = 0x82;
+const MK_ADDI: u8 = 0x83;
+const MK_SUBI: u8 = 0x84;
+const MK_INC: u8 = 0x85;
+const MK_DEC: u8 = 0x86;
+const MK_ADDV: u8 = 0x87;
+const MK_ORV: u8 = 0x88;
+const MK_SUBV: u8 = 0x89;
+const MK_IMUL: u8 = 0x8A;
+const MK_CMP: u8 = 0x8B;
+const MK_LDB: u8 = 0x8C;
+const MK_MCD: u8 = 0x8D;
+const MK_MCS: u8 = 0x8E;
+
+// foreign-arch stub body helpers (return just the body, not the NOP prefix)
+fn foreign_set(slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+    Ok(mark_nop(MK_SET, slot, imm))
+}
+fn foreign_get(dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+    Ok(mark_nop(MK_GET, dst, src as u64))
+}
+fn foreign_movrr(dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+    Ok(mark_nop(MK_MOV, dst, src as u64))
+}
+fn foreign_add_imm(slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+    Ok(mark_nop(MK_ADDI, slot, imm))
+}
+fn foreign_sub_imm(slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+    Ok(mark_nop(MK_SUBI, slot, imm))
+}
+fn foreign_inc(slot: u16) -> IsaResult<Vec<u8>> {
+    Ok(mark1_nop(MK_INC, slot))
+}
+fn foreign_dec(slot: u16) -> IsaResult<Vec<u8>> {
+    Ok(mark1_nop(MK_DEC, slot))
+}
+fn foreign_addv(dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+    Ok(mark_nop(MK_ADDV, dst, src as u64))
+}
+fn foreign_orv(dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+    Ok(mark_nop(MK_ORV, dst, src as u64))
+}
+fn foreign_subv(dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+    Ok(mark_nop(MK_SUBV, dst, src as u64))
+}
+fn foreign_imul(dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+    Ok(mark_nop(MK_IMUL, dst, src as u64))
+}
+fn foreign_cmp(a: u16, b: u16) -> IsaResult<Vec<u8>> {
+    Ok(mark_nop(MK_CMP, a, b as u64))
+}
+fn foreign_ldb(dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
+    let mut v = mark_nop(MK_LDB, dd, ss as u64);
+    v.push((oo & 0xFF) as u8);
+    v.push(((oo >> 8) & 0xFF) as u8);
+    Ok(v)
+}
+fn foreign_memcpy_data(dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+    let mut v = mark_nop(MK_MCD, dst, src as u64);
+    v.push((n & 0xFF) as u8);
+    v.push(((n >> 8) & 0xFF) as u8);
+    Ok(v)
+}
+fn foreign_memcpy_state(dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+    let mut v = mark_nop(MK_MCS, dst, src as u64);
+    v.push((n & 0xFF) as u8);
+    v.push(((n >> 8) & 0xFF) as u8);
+    Ok(v)
+}
+
 pub fn select_platform(target: PlatformKind) -> Box<dyn PlatformBackend> {
     match target {
         PlatformKind::Win32 => Box::new(Win32Platform::new()),
@@ -487,7 +585,15 @@ fn arm64_movz_w_imm16(rd: u32, imm16: u16) -> [u8; 4] {
 
 const ARM64_NOP: [u8; 4] = [0x1F, 0x20, 0x03, 0xD5];
 
+const ARM64_RET: [u8; 4] = [0xC0, 0x03, 0x5F, 0xD6]; // ret = 0xD65F03C0 (LE)
+
 impl PlatformBackend for AndroidPlatform {
+    fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(ARM64_NOP.to_vec())
+    }
+    fn emit_ret(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(ARM64_RET.to_vec())
+    }
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
         let mut out = ARM64_NOP.to_vec();
         out.extend_from_slice(&(size as u64).to_le_bytes());
@@ -537,6 +643,12 @@ impl ApplePlatform {
 }
 
 impl PlatformBackend for ApplePlatform {
+    fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(ARM64_NOP.to_vec())
+    }
+    fn emit_ret(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(ARM64_RET.to_vec())
+    }
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
         let mut out = ARM64_NOP.to_vec();
         out.extend_from_slice(&(size as u64).to_le_bytes());
@@ -587,6 +699,54 @@ impl Eight051Platform {
 }
 
 impl PlatformBackend for Eight051Platform {
+    fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(vec![0x00])
+    }
+    fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_set(slot, imm)
+    }
+    fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_get(dst, src)
+    }
+    fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_movrr(dst, src)
+    }
+    fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_add_imm(slot, imm)
+    }
+    fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_sub_imm(slot, imm)
+    }
+    fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_inc(slot)
+    }
+    fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_dec(slot)
+    }
+    fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_addv(dst, src)
+    }
+    fn emit_orv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_orv(dst, src)
+    }
+    fn emit_subv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_subv(dst, src)
+    }
+    fn emit_imul(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_imul(dst, src)
+    }
+    fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
+        foreign_cmp(a, b)
+    }
+    fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
+        foreign_ldb(dd, ss, oo)
+    }
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_data(dst, src, n)
+    }
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_state(dst, src, n)
+    }
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
         let mut out = vec![0x00];
         out.extend_from_slice(&(size as u32).to_le_bytes());
@@ -726,6 +886,57 @@ impl Riscv64Platform {
 }
 
 impl PlatformBackend for Riscv64Platform {
+    fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(RISC64_NOP.to_vec())
+    }
+    fn emit_ret(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(0x00008067u32.to_le_bytes().to_vec()) // jr ra: rd=0, funct7=0x007, rs1=1(ra), 0x00008067
+    }
+    fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_set(slot, imm)
+    }
+    fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_get(dst, src)
+    }
+    fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_movrr(dst, src)
+    }
+    fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_add_imm(slot, imm)
+    }
+    fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_sub_imm(slot, imm)
+    }
+    fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_inc(slot)
+    }
+    fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_dec(slot)
+    }
+    fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_addv(dst, src)
+    }
+    fn emit_orv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_orv(dst, src)
+    }
+    fn emit_subv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_subv(dst, src)
+    }
+    fn emit_imul(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_imul(dst, src)
+    }
+    fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
+        foreign_cmp(a, b)
+    }
+    fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
+        foreign_ldb(dd, ss, oo)
+    }
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_data(dst, src, n)
+    }
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_state(dst, src, n)
+    }
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
         let mut out = RISC64_NOP.to_vec();
         out.extend_from_slice(&size.to_le_bytes());
@@ -783,6 +994,57 @@ impl MipsPlatform {
 }
 
 impl PlatformBackend for MipsPlatform {
+    fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(MIPS_NOP.to_vec())
+    }
+    fn emit_ret(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(0x03E00008u32.to_be_bytes().to_vec()) // jr $ra
+    }
+    fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_set(slot, imm)
+    }
+    fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_get(dst, src)
+    }
+    fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_movrr(dst, src)
+    }
+    fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_add_imm(slot, imm)
+    }
+    fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_sub_imm(slot, imm)
+    }
+    fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_inc(slot)
+    }
+    fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_dec(slot)
+    }
+    fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_addv(dst, src)
+    }
+    fn emit_orv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_orv(dst, src)
+    }
+    fn emit_subv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_subv(dst, src)
+    }
+    fn emit_imul(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_imul(dst, src)
+    }
+    fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
+        foreign_cmp(a, b)
+    }
+    fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
+        foreign_ldb(dd, ss, oo)
+    }
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_data(dst, src, n)
+    }
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_state(dst, src, n)
+    }
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
         let mut out = MIPS_NOP.to_vec();
         out.extend_from_slice(&(size as u32).to_be_bytes());
@@ -834,6 +1096,57 @@ impl PowerPc64LePlatform {
 }
 
 impl PlatformBackend for PowerPc64LePlatform {
+    fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(PPC64LE_NOP.to_vec())
+    }
+    fn emit_ret(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(0x4E800020u32.to_le_bytes().to_vec()) // blr = 0x4E800020 (LE: 20 00 80 4E)
+    }
+    fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_set(slot, imm)
+    }
+    fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_get(dst, src)
+    }
+    fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_movrr(dst, src)
+    }
+    fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_add_imm(slot, imm)
+    }
+    fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_sub_imm(slot, imm)
+    }
+    fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_inc(slot)
+    }
+    fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_dec(slot)
+    }
+    fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_addv(dst, src)
+    }
+    fn emit_orv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_orv(dst, src)
+    }
+    fn emit_subv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_subv(dst, src)
+    }
+    fn emit_imul(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_imul(dst, src)
+    }
+    fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
+        foreign_cmp(a, b)
+    }
+    fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
+        foreign_ldb(dd, ss, oo)
+    }
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_data(dst, src, n)
+    }
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_state(dst, src, n)
+    }
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
         let mut out = PPC64LE_NOP.to_vec();
         out.extend_from_slice(&size.to_le_bytes());
@@ -885,6 +1198,57 @@ impl AvrPlatform {
 }
 
 impl PlatformBackend for AvrPlatform {
+    fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(AVR_NOP.to_vec())
+    }
+    fn emit_ret(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(vec![0x95, 0x08]) // ret
+    }
+    fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_set(slot, imm)
+    }
+    fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_get(dst, src)
+    }
+    fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_movrr(dst, src)
+    }
+    fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_add_imm(slot, imm)
+    }
+    fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_sub_imm(slot, imm)
+    }
+    fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_inc(slot)
+    }
+    fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_dec(slot)
+    }
+    fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_addv(dst, src)
+    }
+    fn emit_orv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_orv(dst, src)
+    }
+    fn emit_subv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_subv(dst, src)
+    }
+    fn emit_imul(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_imul(dst, src)
+    }
+    fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
+        foreign_cmp(a, b)
+    }
+    fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
+        foreign_ldb(dd, ss, oo)
+    }
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_data(dst, src, n)
+    }
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_state(dst, src, n)
+    }
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
         let mut out = AVR_NOP.to_vec();
         out.extend_from_slice(&(size as u16).to_le_bytes());
@@ -930,6 +1294,57 @@ impl Arm32Platform {
 }
 
 impl PlatformBackend for Arm32Platform {
+    fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(ARM32_NOP.to_vec())
+    }
+    fn emit_ret(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(0xE12FFF1Eu32.to_le_bytes().to_vec()) // bx lr
+    }
+    fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_set(slot, imm)
+    }
+    fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_get(dst, src)
+    }
+    fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_movrr(dst, src)
+    }
+    fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_add_imm(slot, imm)
+    }
+    fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_sub_imm(slot, imm)
+    }
+    fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_inc(slot)
+    }
+    fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_dec(slot)
+    }
+    fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_addv(dst, src)
+    }
+    fn emit_orv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_orv(dst, src)
+    }
+    fn emit_subv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_subv(dst, src)
+    }
+    fn emit_imul(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_imul(dst, src)
+    }
+    fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
+        foreign_cmp(a, b)
+    }
+    fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
+        foreign_ldb(dd, ss, oo)
+    }
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_data(dst, src, n)
+    }
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_state(dst, src, n)
+    }
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
         let mut out = ARM32_NOP.to_vec();
         out.extend_from_slice(&(size as u32).to_le_bytes());
@@ -975,6 +1390,84 @@ impl WasmPlatform {
 }
 
 impl PlatformBackend for WasmPlatform {
+    fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(vec![WASM_NOP])
+    }
+    fn emit_set(&mut self, _slot: u16, _imm: u64) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "Wasm backend has no inline SET; use wasm_backend::emit_wasm instead".into(),
+        })
+    }
+    fn emit_get(&mut self, _dst: u16, _src: u16) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "Wasm backend has no inline GET; use wasm_backend::emit_wasm instead".into(),
+        })
+    }
+    fn emit_movrr(&mut self, _dst: u16, _src: u16) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "Wasm backend has no inline MOVRR; use wasm_backend::emit_wasm instead".into(),
+        })
+    }
+    fn emit_add_imm(&mut self, _slot: u16, _imm: u64) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "Wasm backend has no inline ADD_IMM; use wasm_backend::emit_wasm instead".into(),
+        })
+    }
+    fn emit_sub_imm(&mut self, _slot: u16, _imm: u64) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "Wasm backend has no inline SUB_IMM; use wasm_backend::emit_wasm instead".into(),
+        })
+    }
+    fn emit_inc(&mut self, _slot: u16) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "Wasm backend has no inline INC; use wasm_backend::emit_wasm instead".into(),
+        })
+    }
+    fn emit_dec(&mut self, _slot: u16) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "Wasm backend has no inline DEC; use wasm_backend::emit_wasm instead".into(),
+        })
+    }
+    fn emit_addv(&mut self, _dst: u16, _src: u16) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "Wasm backend has no inline ADDV; use wasm_backend::emit_wasm instead".into(),
+        })
+    }
+    fn emit_orv(&mut self, _dst: u16, _src: u16) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "Wasm backend has no inline ORV; use wasm_backend::emit_wasm instead".into(),
+        })
+    }
+    fn emit_subv(&mut self, _dst: u16, _src: u16) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "Wasm backend has no inline SUBV; use wasm_backend::emit_wasm instead".into(),
+        })
+    }
+    fn emit_imul(&mut self, _dst: u16, _src: u16) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "Wasm backend has no inline IMUL; use wasm_backend::emit_wasm instead".into(),
+        })
+    }
+    fn emit_cmp(&mut self, _a: u16, _b: u16) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "Wasm backend has no inline CMP; use wasm_backend::emit_wasm instead".into(),
+        })
+    }
+    fn emit_ldb(&mut self, _dd: u16, _ss: u16, _oo: u16) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "Wasm backend has no inline LDB; use wasm_backend::emit_wasm instead".into(),
+        })
+    }
+    fn emit_memcpy_data(&mut self, _dst: u16, _src: u16, _n: u16) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "Wasm backend has no inline MEMCPY_DATA; use wasm_backend::emit_wasm instead".into(),
+        })
+    }
+    fn emit_memcpy_state(&mut self, _dst: u16, _src: u16, _n: u16) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "Wasm backend has no inline MEMCPY_STATE; use wasm_backend::emit_wasm instead".into(),
+        })
+    }
     fn emit_alloc(&mut self, _slot: u16, _size: u64) -> IsaResult<Vec<u8>> {
         Err(IsaError::PlatformError {
             msg: "Wasm backend has no inline alloc; use wasm_backend::emit_wasm instead".into(),
@@ -1069,6 +1562,54 @@ impl LoongArchPlatform {
 }
 
 impl PlatformBackend for LoongArchPlatform {
+    fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(LOONGARCH_NOP.to_vec())
+    }
+    fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_set(slot, imm)
+    }
+    fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_get(dst, src)
+    }
+    fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_movrr(dst, src)
+    }
+    fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_add_imm(slot, imm)
+    }
+    fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_sub_imm(slot, imm)
+    }
+    fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_inc(slot)
+    }
+    fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_dec(slot)
+    }
+    fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_addv(dst, src)
+    }
+    fn emit_orv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_orv(dst, src)
+    }
+    fn emit_subv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_subv(dst, src)
+    }
+    fn emit_imul(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_imul(dst, src)
+    }
+    fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
+        foreign_cmp(a, b)
+    }
+    fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
+        foreign_ldb(dd, ss, oo)
+    }
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_data(dst, src, n)
+    }
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_state(dst, src, n)
+    }
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
         let mut out = LOONGARCH_NOP.to_vec();
         out.extend_from_slice(&size.to_le_bytes());
@@ -1114,6 +1655,54 @@ impl SparcPlatform {
 }
 
 impl PlatformBackend for SparcPlatform {
+    fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(SPARC_NOP.to_vec())
+    }
+    fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_set(slot, imm)
+    }
+    fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_get(dst, src)
+    }
+    fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_movrr(dst, src)
+    }
+    fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_add_imm(slot, imm)
+    }
+    fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_sub_imm(slot, imm)
+    }
+    fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_inc(slot)
+    }
+    fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_dec(slot)
+    }
+    fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_addv(dst, src)
+    }
+    fn emit_orv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_orv(dst, src)
+    }
+    fn emit_subv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_subv(dst, src)
+    }
+    fn emit_imul(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_imul(dst, src)
+    }
+    fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
+        foreign_cmp(a, b)
+    }
+    fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
+        foreign_ldb(dd, ss, oo)
+    }
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_data(dst, src, n)
+    }
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_state(dst, src, n)
+    }
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
         let mut out = SPARC_NOP.to_vec();
         out.extend_from_slice(&(size as u32).to_be_bytes());
@@ -1160,6 +1749,57 @@ impl Riscv32Platform {
 }
 
 impl PlatformBackend for Riscv32Platform {
+    fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(RISCV32_NOP.to_vec())
+    }
+    fn emit_ret(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(0x00008067u32.to_le_bytes().to_vec()) // jr ra
+    }
+    fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_set(slot, imm)
+    }
+    fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_get(dst, src)
+    }
+    fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_movrr(dst, src)
+    }
+    fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_add_imm(slot, imm)
+    }
+    fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_sub_imm(slot, imm)
+    }
+    fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_inc(slot)
+    }
+    fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_dec(slot)
+    }
+    fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_addv(dst, src)
+    }
+    fn emit_orv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_orv(dst, src)
+    }
+    fn emit_subv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_subv(dst, src)
+    }
+    fn emit_imul(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_imul(dst, src)
+    }
+    fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
+        foreign_cmp(a, b)
+    }
+    fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
+        foreign_ldb(dd, ss, oo)
+    }
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_data(dst, src, n)
+    }
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_state(dst, src, n)
+    }
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
         let mut out = RISCV32_NOP.to_vec();
         out.extend_from_slice(&(size as u32).to_le_bytes());
@@ -1209,6 +1849,12 @@ impl Aarch64WindowsPlatform {
 }
 
 impl PlatformBackend for Aarch64WindowsPlatform {
+    fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(AARCH64_WIN_NOP.to_vec())
+    }
+    fn emit_ret(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(ARM64_RET.to_vec())
+    }
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
         let mut out = AARCH64_WIN_NOP.to_vec();
         out.extend_from_slice(&size.to_le_bytes());

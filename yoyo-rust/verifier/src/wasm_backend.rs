@@ -3,10 +3,13 @@
 //! Produces a valid Wasm module with:
 //!   - 1 type: (func (param i32*locals)) — one big state vector
 //!   - 1 function: main entry containing all handlers as labeled blocks
-//!   - 1 data segment: raw data bytes
+//!   - 1 memory: linear memory (1 page = 64KB)
+//!   - 1 data segment: raw data bytes (active, anchored at base 0)
 //!
 //! State: N locals (i32), one per slot. Max slot index determines N.
 //! Branches: handlers are blocks with labels; `br` jumps between them.
+//! Memory: ALLOC stores the linear-memory base for that allocation into its slot;
+//!   LDB computes address = state[src] + offset and loads a byte from linear memory.
 //! Exit: `unreachable` trap (0x00).
 //!
 //! Wasm opcodes used:
@@ -27,9 +30,12 @@
 //!   i32.gt_s      : 0x4A
 //!   i32.ge_s      : 0x4B
 //!   i32.eqz       : 0x45
+//!   i32.load8_u   : 0x2C <mem_idx> <align> <offset>
+//!   i32.store8    : 0x3A <mem_idx> <align> <offset>
 //!   block(label)  : 0x02 0x40 ... end 0x0B
 //!   br depth      : 0x0C depth
 //!   br_if depth   : 0x0D depth
+//!   drop          : 0x1A
 //!   end           : 0x0B
 //!   unreachable   : 0x00
 //!
@@ -51,6 +57,11 @@ pub fn emit_wasm(tir: &[TirInst]) -> IsaResult<Vec<u8>> {
     let mut max_slot: u32 = 0;
     let mut raw_data: Vec<u8> = Vec::new();
     let mut local_count = 0u32;
+
+    // Map each slot index → linear-memory base offset assigned by ALLOC.
+    let mut alloc_base: std::collections::HashMap<u32, u32> =
+        std::collections::HashMap::new();
+
     for inst in tir {
         match inst.op {
             TirOp::Set => {
@@ -92,8 +103,8 @@ pub fn emit_wasm(tir: &[TirInst]) -> IsaResult<Vec<u8>> {
                 max_slot = max_slot.max(dst.max(src));
             }
             TirOp::Alloc => {
-                let s = inst.args.get(0).copied().unwrap_or(0) as u32;
-                max_slot = max_slot.max(s);
+                let slot = inst.args.get(0).copied().unwrap_or(0) as u32;
+                max_slot = max_slot.max(slot);
             }
             TirOp::LoadFile | TirOp::WriteFile => {
                 let s = inst.args.get(0).copied().unwrap_or(0) as u32;
@@ -108,6 +119,20 @@ pub fn emit_wasm(tir: &[TirInst]) -> IsaResult<Vec<u8>> {
         }
     }
     local_count = max_slot + 1;
+
+    // Compute per-slot alloc base offsets. Start after the static data region.
+    let data_end = raw_data.len() as u32;
+    let mut current_offset = data_end;
+    for inst in tir {
+        if inst.op == TirOp::Alloc {
+            let slot = inst.args.get(0).copied().unwrap_or(0) as u32;
+            let size = inst.args.get(1).copied().unwrap_or(1) as u32;
+            // Align allocations to 1 byte (Wasm linear memory is byte-addressable).
+            let aligned = size.max(1);
+            alloc_base.insert(slot, current_offset);
+            current_offset += aligned;
+        }
+    }
 
     // ── Type section (id 1) ──
     // func type: (param N i32) -> () — N = local_count state slots
@@ -127,6 +152,20 @@ pub fn emit_wasm(tir: &[TirInst]) -> IsaResult<Vec<u8>> {
         out.extend_from_slice(&type_sec);
     }
 
+    // ── Memory section (id 2) ──
+    // 1 page (64KB), no maximum.
+    // body: <mem_count> <flags=0x00 (no max)> <initial=1>
+    {
+        let mut mem_body = Vec::new();
+        mem_body.extend_from_slice(&encode_u32leb(1)); // mem_count = 1
+        mem_body.push(0x00); // flags: no maximum
+        mem_body.extend_from_slice(&encode_u32leb(1)); // initial pages = 1
+        let mem_sec = encode_vec_with_size(mem_body);
+        out.push(2); // section id
+        out.extend_from_slice(&encode_u32leb(mem_sec.len() as u32));
+        out.extend_from_slice(&mem_sec);
+    }
+
     // ── Function section (id 3) ──
     {
         out.push(3);
@@ -137,7 +176,7 @@ pub fn emit_wasm(tir: &[TirInst]) -> IsaResult<Vec<u8>> {
 
     // ── Code section (id 10) ──
     {
-        let body = build_function_body(tir, local_count);
+        let body = build_function_body(tir, local_count, &alloc_base);
         let func_body = encode_vec_with_size(body);
 
         out.push(10);
@@ -158,9 +197,12 @@ pub fn emit_wasm(tir: &[TirInst]) -> IsaResult<Vec<u8>> {
 
 /// Build the body of the single Wasm function.
 /// Layout:
-///   local.get N for each state slot (to pre-declare is implicit via locals count)
 ///   <labeled blocks for handlers, nested>
-fn build_function_body(tir: &[TirInst], local_count: u32) -> Vec<u8> {
+fn build_function_body(
+    tir: &[TirInst],
+    local_count: u32,
+    alloc_base: &std::collections::HashMap<u32, u32>,
+) -> Vec<u8> {
     let mut body = Vec::new();
 
     // Local declaration: single entry — N locals of type i32 (0x7F)
@@ -204,7 +246,7 @@ fn build_function_body(tir: &[TirInst], local_count: u32) -> Vec<u8> {
                 body.extend_from_slice(&encode_u32leb(depth as u32));
             }
             BranchKind::None => {
-                emit_wasm_inst(inst, &mut body);
+                emit_wasm_inst(inst, &mut body, alloc_base);
             }
         }
     }
@@ -218,7 +260,11 @@ fn build_function_body(tir: &[TirInst], local_count: u32) -> Vec<u8> {
     body
 }
 
-fn emit_wasm_inst(inst: &TirInst, body: &mut Vec<u8>) {
+fn emit_wasm_inst(
+    inst: &TirInst,
+    body: &mut Vec<u8>,
+    alloc_base: &std::collections::HashMap<u32, u32>,
+) {
     let a = |i: usize| inst.args.get(i).copied().unwrap_or(0) as u32;
 
     macro_rules! push_slot {
@@ -240,14 +286,36 @@ fn emit_wasm_inst(inst: &TirInst, body: &mut Vec<u8>) {
         }};
     }
 
+    /// Emit `i32.load8_u mem=0 align=0 offset=0` — load 8-bit unsigned from
+    /// linear memory at (top-of-stack) address into a 32-bit i32 result.
+    fn emit_i32_load8_u(body: &mut Vec<u8>) {
+        body.push(0x2C); // i32.load8_u
+        body.push(0x00); // mem_idx = 0
+        body.push(0x00); // align = 0
+        body.push(0x00); // byte_offset = 0
+    }
+
+    /// Emit `i32.store8 mem=0 align=0 offset=0` — store 8-bit unsigned from
+    /// (second on stack) into linear memory at (top-of-stack) address.
+    /// Stack: <addr> <value>  ->  (pops both)
+    fn emit_i32_store8(body: &mut Vec<u8>) {
+        body.push(0x3A); // i32.store8
+        body.push(0x00); // mem_idx = 0
+        body.push(0x00); // align = 0
+        body.push(0x00); // byte_offset = 0
+    }
+
     match inst.op {
         TirOp::Nop => {
             body.push(0x00);
         }
         TirOp::Data | TirOp::Str | TirOp::Raw => {}
         TirOp::Alloc => {
-            push_const!(a(1));
-            set_slot!(a(0));
+            // Store the precomputed linear-memory base offset for this slot.
+            let slot = a(0);
+            let base = alloc_base.get(&slot).copied().unwrap_or(0);
+            push_const!(base);
+            set_slot!(slot);
         }
         TirOp::Set => {
             push_const!(a(1));
@@ -319,16 +387,67 @@ fn emit_wasm_inst(inst: &TirInst, body: &mut Vec<u8>) {
             body.push(0x46); // i32.eq
         }
         TirOp::Ldb => {
-            push_const!(0);
-            set_slot!(a(0));
-        }
-        TirOp::MemcpyData => {
-            push_const!(0);
-            set_slot!(a(0));
+            // LDB dst src offset: load byte from state[src] + offset → state[dst]
+            let dst = a(0);
+            let src = a(1);
+            let offset = a(2);
+            push_slot!(src);       // stack: base_addr (from ALLOC)
+            push_const!(offset);    // stack: base_addr, offset
+            body.push(0x6A);       // stack: byte_addr = base_addr + offset
+            emit_i32_load8_u(body); // stack: loaded_byte (i32)
+            set_slot!(dst);        // store into state[dst]
         }
         TirOp::MemcpyState => {
-            push_const!(0);
-            set_slot!(a(0));
+            // MemcpyState dst src N: copy N words from state[src] to state[dst]
+            // (N words = N slots)
+            let dst = a(0) as usize;
+            let src = a(1) as usize;
+            let n = a(2) as usize;
+            if n <= 64 {
+                for i in 0..n {
+                    push_slot!((src + i) as u32);
+                    set_slot!((dst + i) as u32);
+                }
+            } else {
+                // Trap for large copy counts.
+                body.push(0x00); // unreachable
+            }
+        }
+        TirOp::MemcpyData => {
+            // MemcpyData dst src N: copy N bytes from data segment to
+            // linear memory at address state[dst].
+            // src = offset into the data segment; N = byte count.
+            let dst = a(0);
+            let src = a(1) as usize;
+            let n = a(2) as usize;
+            if n == 0 {
+                return;
+            }
+            // dst slot may not be used when we already have an address; we
+            // load the address from state[dst] if available, otherwise use
+            // the raw src offset directly.
+            // Stack: <dst_addr>
+            push_slot!(dst);
+            // Emit a bytewise copy loop: load8 from data base + i, store8
+            // into dst_addr + i.  Since Wasm has no dynamic-loop construct
+            // in our flat model, unroll for small N and trap otherwise.
+            if n <= 64 {
+                for i in 0..n {
+                    // --- store byte i ---
+                    // load address of destination byte: dst_addr + i
+                    push_slot!(dst);
+                    push_const!(src as u32 + i as u32);
+                    body.push(0x6A); // add
+                    // load the byte from the data segment
+                    push_const!(src as u32 + i as u32);
+                    emit_i32_load8_u(body); // load from data area
+                    // stack now: <dst_byte_addr> <data_byte>
+                    emit_i32_store8(body);
+                }
+            } else {
+                body.push(0x1A); // drop dst_addr
+                body.push(0x00); // unreachable
+            }
         }
         TirOp::RawByte | TirOp::RawBytes => {}
         TirOp::Handler | TirOp::Call | TirOp::Jmp | TirOp::Je
