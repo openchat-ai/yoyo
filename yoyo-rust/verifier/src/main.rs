@@ -29,6 +29,7 @@ mod startup;
 mod tir;
 mod ty_parser;
 mod tyb_parser;
+mod wasm_e2e;
 mod simulator;
 mod types;
 mod variable;
@@ -50,6 +51,7 @@ fn usage() -> ! {
            yoyo selftest\n\
            yoyo render <input.ty>\n\
            yoyo simulate <input.ty>\n\
+           yoyo wasm-validate <input.ty>\n\
            yoyo ddcmp <A.elf> <B.elf> <input.ty>\n\
            yoyo test golden\n\n\
          Note: --posture= / --morph= are recognized and fail-closed (NON-CONFORMING)\n\
@@ -92,6 +94,7 @@ fn main() -> ExitCode {
         "simulate" => cmd_simulate(&args[1..]),
         "ddcmp" => cmd_ddcmp(&args[1..]),
         "test" => cmd_test(&args[1..]),
+        "wasm-validate" => cmd_wasm_validate(&args[1..]),
         _ => {
             eprintln!("unknown command '{cmd}'");
             usage();
@@ -501,6 +504,45 @@ fn cmd_render(args: &[String]) -> Result<(), types::IsaError> {
     })?;
     let out = executor::compile_ty_source(&src, PlatformKind::Stub)?;
     print!("{}", render::disasm_bytes(&out.code));
+    Ok(())
+}
+
+fn cmd_wasm_validate(args: &[String]) -> Result<(), types::IsaError> {
+    if args.len() != 1 {
+        usage();
+    }
+    let src = fs::read_to_string(&args[0]).map_err(|e| types::IsaError::IoError {
+        msg: e.to_string(),
+    })?;
+    let tir = executor::compile_ty_source_to_tir(&src)?;
+    let wasm = wasm_backend::emit_wasm(&tir)?;
+    let sim = simulator::simulate(&tir)?;
+
+    // Phase 1 DDC: wasmtime validate + instantiate.
+    match wasm_e2e::validate_wasm(&wasm) {
+        Ok(()) => println!("wasm  : valid (instantiated in wasmtime)"),
+        Err(e) => {
+            eprintln!("wasm  : INVALID — {}", e);
+            return Err(e);
+        }
+    }
+    println!(
+        "sim   : {} {} steps",
+        sim.exit_reason, sim.steps
+    );
+    if matches!(sim.exit_reason, simulator::SimExitReason::Ret) {
+        println!(
+            "DDC   : Wasm module is valid; TIR simulation exits RET — consistent"
+        );
+    } else {
+        eprintln!(
+            "DDC   : Wasm module is valid, but TIR simulation exits {:?} — INCONSISTENT",
+            sim.exit_reason
+        );
+        return Err(types::IsaError::PlatformError {
+            msg: "TIR simulation did not exit RET".to_string(),
+        });
+    }
     Ok(())
 }
 

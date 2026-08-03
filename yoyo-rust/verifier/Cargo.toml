@@ -19,5 +19,4 @@ libyoyo = { workspace = true }
 yoyo-platform = { workspace = true }
 sha2 = "0.10"
 hex = "0.4"
-
-[dev-dependencies]
+wasmtime = { version = "40", features = ["cranelift"] }

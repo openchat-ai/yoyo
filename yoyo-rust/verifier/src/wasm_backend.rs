@@ -138,6 +138,9 @@ pub fn emit_wasm(tir: &[TirInst]) -> IsaResult<Vec<u8>> {
     // func type: (param N i32) -> () — N = local_count state slots
     {
         let mut type_body = Vec::new();
+        // type count
+        type_body.extend_from_slice(&encode_u32leb(1));
+        // func type entry
         type_body.push(0x60); // func
         // param count + param types
         type_body.extend_from_slice(&encode_u32leb(local_count));
@@ -146,24 +149,9 @@ pub fn emit_wasm(tir: &[TirInst]) -> IsaResult<Vec<u8>> {
         }
         // result count = 0
         type_body.push(0x00);
-        let type_sec = encode_vec_with_size(type_body);
         out.push(1); // section id
-        out.extend_from_slice(&encode_u32leb(type_sec.len() as u32));
-        out.extend_from_slice(&type_sec);
-    }
-
-    // ── Memory section (id 2) ──
-    // 1 page (64KB), no maximum.
-    // body: <mem_count> <flags=0x00 (no max)> <initial=1>
-    {
-        let mut mem_body = Vec::new();
-        mem_body.extend_from_slice(&encode_u32leb(1)); // mem_count = 1
-        mem_body.push(0x00); // flags: no maximum
-        mem_body.extend_from_slice(&encode_u32leb(1)); // initial pages = 1
-        let mem_sec = encode_vec_with_size(mem_body);
-        out.push(2); // section id
-        out.extend_from_slice(&encode_u32leb(mem_sec.len() as u32));
-        out.extend_from_slice(&mem_sec);
+        out.extend_from_slice(&encode_u32leb(type_body.len() as u32));
+        out.extend_from_slice(&type_body);
     }
 
     // ── Function section (id 3) ──
@@ -174,20 +162,36 @@ pub fn emit_wasm(tir: &[TirInst]) -> IsaResult<Vec<u8>> {
         out.extend_from_slice(&func_body);
     }
 
-    // ── Code section (id 10) ──
+    // ── Memory section (id 5) ──
+    // 1 page (64KB), no maximum.
+    // body: <mem_count> <flags=0x00 (no max)> <initial=1>
     {
-        let body = build_function_body(tir, local_count, &alloc_base);
-        let func_body = encode_vec_with_size(body);
-
-        out.push(10);
-        out.extend_from_slice(&encode_u32leb(func_body.len() as u32));
-        out.extend_from_slice(&func_body);
+        let mut mem_body = Vec::new();
+        mem_body.extend_from_slice(&encode_u32leb(1)); // mem_count = 1
+        mem_body.push(0x00); // flags: no maximum
+        mem_body.extend_from_slice(&encode_u32leb(1)); // initial pages = 1
+        out.push(5); // section id 5 = Memory
+        out.extend_from_slice(&encode_u32leb(mem_body.len() as u32));
+        out.extend_from_slice(&mem_body);
     }
 
-    // ── Data section (id 5) — optional, only if data present ──
+    // ── Code section (id 10) ──
+    {
+        let mut code_body = Vec::new();
+        code_body.extend_from_slice(&encode_u32leb(1)); // func count = 1
+        let body = build_function_body(tir, local_count, &alloc_base);
+        code_body.extend_from_slice(&encode_u32leb(body.len() as u32));
+        code_body.extend_from_slice(&body);
+
+        out.push(10);
+        out.extend_from_slice(&encode_u32leb(code_body.len() as u32));
+        out.extend_from_slice(&code_body);
+    }
+
+    // ── Data section (id 11) — optional, only if data present ──
     if !raw_data.is_empty() {
         let data_body = encode_data_segment(&raw_data);
-        out.push(5);
+        out.push(11);
         out.extend_from_slice(&encode_u32leb(data_body.len() as u32));
         out.extend_from_slice(&data_body);
     }
@@ -200,14 +204,13 @@ pub fn emit_wasm(tir: &[TirInst]) -> IsaResult<Vec<u8>> {
 ///   <labeled blocks for handlers, nested>
 fn build_function_body(
     tir: &[TirInst],
-    local_count: u32,
+    _local_count: u32,
     alloc_base: &std::collections::HashMap<u32, u32>,
 ) -> Vec<u8> {
     let mut body = Vec::new();
 
-    // Local declaration: single entry — N locals of type i32 (0x7F)
-    body.extend_from_slice(&encode_u32leb(local_count));
-    body.push(0x7F);
+    // Local declaration: no extras — state slots are already parameters
+    body.push(0x00); // 0 locals declared
 
     let mut label_stack: Vec<u16> = Vec::new();
     let mut handler_label: std::collections::HashMap<u16, usize> = std::collections::HashMap::new();
@@ -256,7 +259,7 @@ fn build_function_body(
         let _ = label_stack.pop();
         body.push(0x0B);
     }
-    body.push(0x00); // unreachable
+    body.push(0x0B); // end (function body terminator)
     body
 }
 
@@ -307,7 +310,7 @@ fn emit_wasm_inst(
 
     match inst.op {
         TirOp::Nop => {
-            body.push(0x00);
+            body.push(0x01); // Wasm nop = 0x01
         }
         TirOp::Data | TirOp::Str | TirOp::Raw => {}
         TirOp::Alloc => {
@@ -587,8 +590,8 @@ mod tests {
             },
         ];
         let bytes = emit_wasm(&tir).unwrap();
-        // section id 5 = data
-        assert!(bytes.contains(&5));
+        // section id 11 = data
+        assert!(bytes.contains(&11));
         // data content should be present
         assert!(bytes.windows(3).any(|w| w == [1, 2, 3]));
     }
