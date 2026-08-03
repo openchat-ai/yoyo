@@ -1,9 +1,7 @@
 //! Emit pipeline: TirInst[] → x64 bytes (PROMPT-v3 Part 4.5 / Phase 1).
 
 use crate::assembler::{
-    self, call_rel32, emit_add_imm, emit_addv, emit_cmp, emit_dec, emit_get, emit_imul, emit_inc,
-    emit_memcpy_data, emit_memcpy_state, emit_orv, emit_set, emit_sub_imm, emit_subv, jcc_rel32,
-    jmp_rel32, ret, JCC_TABLE,
+    self, JCC_TABLE,
 };
 use crate::fixup::FixupTable;
 use crate::platform::{PlatformBackend, PlatformKind, select_platform};
@@ -78,9 +76,11 @@ fn emit_internal(tir: &[TirInst], platform: PlatformKind, track_handlers: bool) 
                 let hh = label_hh(&inst.args)?;
                 let start = code.tell();
                 let bytes = match instr_branch_kind(inst.op) {
-                    BranchKind::Call => call_rel32(0)?,
-                    BranchKind::Jmp => jmp_rel32(0)?,
-                    BranchKind::Jcc { index } => jcc_rel32(JCC_TABLE[index as usize], 0)?,
+                    BranchKind::Call => backend.emit_call_placeholder()?,
+                    BranchKind::Jmp => backend.emit_jmp_placeholder()?,
+                    BranchKind::Jcc { index } => {
+                        backend.emit_jcc_placeholder(JCC_TABLE[index as usize])?
+                    }
                     _ => unreachable!(),
                 };
                 code.extend_from_slice(&bytes)?;
@@ -92,7 +92,7 @@ fn emit_internal(tir: &[TirInst], platform: PlatformKind, track_handlers: bool) 
                 pending_fixups.push((rel_at, hh, instr_branch_kind(inst.op)));
             }
             BranchKind::Ret => {
-                code.extend_from_slice(&ret())?;
+                code.extend_from_slice(&backend.emit_ret()?)?;
             }
             BranchKind::None => {
                 let bytes = emit_one(inst, &mut *backend, &mut data)?;
@@ -133,35 +133,33 @@ fn emit_one(
 ) -> IsaResult<Vec<u8>> {
     let a = |i: usize| inst.args.get(i).copied().unwrap_or(0);
     match inst.op {
-        TirOp::Nop => Ok(vec![0x90]),
+        TirOp::Nop => backend.emit_nop(),
         TirOp::Data | TirOp::Str | TirOp::Raw => {
-            // Data defs: append payload to data section, emit nothing in code
             for v in &inst.args {
                 data.push(*v as u8);
             }
             Ok(vec![])
         }
         TirOp::Alloc => backend.emit_alloc(a(0) as u16, a(1)),
-        TirOp::Set => emit_set(a(0) as u16, a(1)),
+        TirOp::Set => backend.emit_set(a(0) as u16, a(1)),
         TirOp::LoadFile => backend.emit_load_file(a(0) as u16, a(1) as u8),
         TirOp::WriteFile => backend.emit_write_file(a(0) as u16, a(1) as u8, a(2) as u16),
-        TirOp::Get => emit_get(a(0) as u16, a(1) as u16),
-        TirOp::Sub => emit_sub_imm(a(0) as u16, a(1)),
-        TirOp::Add => emit_add_imm(a(0) as u16, a(1)),
-        TirOp::Imul => emit_imul(a(0) as u16, a(1) as u16),
-        TirOp::Movrr => emit_get(a(0) as u16, a(1) as u16),
-        TirOp::Cmp => emit_cmp(a(0) as u16, a(1) as u16),
-        TirOp::Inc => emit_inc(a(0) as u16),
-        TirOp::Dec => emit_dec(a(0) as u16),
-        TirOp::Addv => emit_addv(a(0) as u16, a(1) as u16),
-        TirOp::Orv => emit_orv(a(0) as u16, a(1) as u16),
-        TirOp::Subv => emit_subv(a(0) as u16, a(1) as u16),
-        TirOp::Ldb => emit_ldb(a(0) as u16, a(1) as u16, a(2) as u16),
-        TirOp::MemcpyData => emit_memcpy_data(a(1) as u16, a(0) as u16, a(2) as u16),
-        TirOp::MemcpyState => emit_memcpy_state(a(1) as u16, a(0) as u16, a(2) as u16),
-        TirOp::RawByte => Ok(vec![a(0) as u8]),
-        TirOp::RawBytes => Ok(inst.args.iter().map(|v| *v as u8).collect()),
-        // Handlers / branches / ret handled in emit()
+        TirOp::Get => backend.emit_get(a(0) as u16, a(1) as u16),
+        TirOp::Sub => backend.emit_sub_imm(a(0) as u16, a(1)),
+        TirOp::Add => backend.emit_add_imm(a(0) as u16, a(1)),
+        TirOp::Imul => backend.emit_imul(a(0) as u16, a(1) as u16),
+        TirOp::Movrr => backend.emit_movrr(a(0) as u16, a(1) as u16),
+        TirOp::Cmp => backend.emit_cmp(a(0) as u16, a(1) as u16),
+        TirOp::Inc => backend.emit_inc(a(0) as u16),
+        TirOp::Dec => backend.emit_dec(a(0) as u16),
+        TirOp::Addv => backend.emit_addv(a(0) as u16, a(1) as u16),
+        TirOp::Orv => backend.emit_orv(a(0) as u16, a(1) as u16),
+        TirOp::Subv => backend.emit_subv(a(0) as u16, a(1) as u16),
+        TirOp::Ldb => backend.emit_ldb(a(0) as u16, a(1) as u16, a(2) as u16),
+        TirOp::MemcpyData => backend.emit_memcpy_data(a(1) as u16, a(0) as u16, a(2) as u16),
+        TirOp::MemcpyState => backend.emit_memcpy_state(a(1) as u16, a(0) as u16, a(2) as u16),
+        TirOp::RawByte => backend.emit_raw_byte(a(0) as u8),
+        TirOp::RawBytes => backend.emit_raw_bytes(inst.args.iter().map(|v| *v as u8).collect()),
         TirOp::Handler | TirOp::Call | TirOp::Jmp | TirOp::Je | TirOp::Jne | TirOp::Jl
         | TirOp::Jge | TirOp::Jle | TirOp::Jg | TirOp::Jb | TirOp::Jae | TirOp::Jbe
         | TirOp::Ja | TirOp::Ret => Ok(vec![]),

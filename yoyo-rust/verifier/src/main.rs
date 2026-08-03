@@ -2,6 +2,8 @@
 
 mod assembler;
 mod cuda_backend;
+mod apple_backend;
+mod arm64_elf_link;
 mod ddc;
 mod emit;
 mod executor;
@@ -10,6 +12,17 @@ mod elf_link;
 mod pe_link;
 mod platform;
 mod render;
+mod x86_link;
+mod riscv_elf_link;
+mod mips_elf_link;
+mod ppc_elf_link;
+mod arm32_elf_link;
+mod wasm_backend;
+mod macho_x64_link;
+mod loongarch_elf_link;
+mod sparc_elf_link;
+mod riscv32_elf_link;
+mod arm64_pe_link;
 mod self_test;
 mod selfhost;
 mod startup;
@@ -30,7 +43,7 @@ fn usage() -> ! {
     eprintln!(
         "yoyo —YOYO verifier (Rust DDC peer)\n\n\
          Usage:\n\
-           yoyo link [--target=win32|linux|stub|baremetal|cuda] [--posture=...] [--morph=...] <input.ty> <output>\n\
+           yoyo link [--target=win32|linux|stub|baremetal|cuda|android|apple|8051|x86|freedos|riscv64|mips|ppc64le|avr|arm32|wasm|macos-x64|serenity|loongarch|sparc|riscv32|arm64-win] [--posture=...] [--morph=...] <input.ty> <output>\n\
            yoyo diff <a.bin> <b.bin>\n\
            yoyo hash <file>\n\
            yoyo selftest\n\
@@ -139,7 +152,8 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
         .and_then(|e| e.to_str())
         .unwrap_or("");
 
-    // CUDA uses a separate TIR→PTX path (not x64 emit)
+    // CUDA uses a separate TIR→PTX path (not x64 emit).
+    // Wasm uses a separate TIR→Wasm-binary path (not x64 emit).
     if target == PlatformKind::Cuda {
         let tir = if input_ext == "tyb" || {
             let data = std::fs::read(input_path).ok();
@@ -160,7 +174,6 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
             "emit: {} ops → PTX ({} lines), entry H_{:02X}",
             tir.len(),
             ptx.lines().count(),
-            // Find entry handler (first HANDLER instruction)
             tir.iter()
                 .find(|i| matches!(i.op, crate::tir::TirOp::Handler))
                 .and_then(|i| i.args.first().copied())
@@ -170,6 +183,65 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
             msg: e.to_string(),
         })?;
         println!("wrote PTX {} ({} bytes)", rest[1], ptx.len());
+        return Ok(());
+    }
+
+    if target == PlatformKind::Wasm {
+        let tir = if input_ext == "tyb" || {
+            let data = std::fs::read(input_path).ok();
+            data.as_ref().map_or(false, |d| tyb_parser::is_tyb(d))
+        } {
+            let data = std::fs::read(input_path).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            executor::compile_tyb_source_to_tir(&data)?
+        } else {
+            let src = fs::read_to_string(input_path).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            executor::compile_ty_source_to_tir(&src)?
+        };
+        let wasm = wasm_backend::emit_wasm(&tir)?;
+        println!(
+            "emit: {} ops → Wasm ({} bytes), entry H_{:02X}",
+            tir.len(),
+            wasm.len(),
+            tir.iter()
+                .find(|i| matches!(i.op, crate::tir::TirOp::Handler))
+                .and_then(|i| i.args.first().copied())
+                .unwrap_or(0)
+        );
+        fs::write(&rest[1], &wasm).map_err(|e| types::IsaError::IoError {
+            msg: e.to_string(),
+        })?;
+        println!("wrote Wasm {} ({} bytes)", rest[1], wasm.len());
+        return Ok(());
+    }
+
+    // SerenityOS uses x64 emit but writes SERE flat binary.
+    if target == PlatformKind::Serenity {
+        let out = if input_ext == "tyb" || {
+            let data = std::fs::read(input_path).ok();
+            data.as_ref().map_or(false, |d| tyb_parser::is_tyb(d))
+        } {
+            let data = std::fs::read(input_path).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            executor::compile_tyb_source(&data, target)?
+        } else {
+            let src = fs::read_to_string(input_path).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            executor::compile_ty_source(&src, target)?
+        };
+        let mut img = Vec::new();
+        img.extend_from_slice(b"SERE");
+        img.extend_from_slice(&8u32.to_le_bytes());
+        img.extend_from_slice(&out.code);
+        fs::write(&rest[1], &img).map_err(|e| types::IsaError::IoError {
+            msg: e.to_string(),
+        })?;
+        println!("wrote Serenity flat {} ({} bytes)", rest[1], img.len());
         return Ok(());
     }
 
@@ -232,6 +304,113 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
         }
         PlatformKind::Cuda => {
             unreachable!("CUDA handled above before x64 emit pipeline");
+        }
+        PlatformKind::Android => {
+            let elf = arm64_elf_link::link_arm64_elf(&out.code, &out.data)?;
+            fs::write(&rest[1], &elf.bytes).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote ARM64 ELF64 {} ({} bytes)", rest[1], elf.bytes.len());
+        }
+        PlatformKind::Apple => {
+            let mach = apple_backend::link_macho64(&out.code, &out.data)?;
+            fs::write(&rest[1], &mach.bytes).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote Mach-O64 {} ({} bytes)", rest[1], mach.bytes.len());
+        }
+        PlatformKind::Eight051 => {
+            // 8051 produces a flat binary — no linker wrapper needed.
+            fs::write(&rest[1], &out.code).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote 8051 flat {} ({} bytes)", rest[1], out.code.len());
+        }
+        PlatformKind::X86 => {
+            let pe = x86_link::link_x86(&out.code, &out.data)?;
+            fs::write(&rest[1], &pe.bytes).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote PE32 {} ({} bytes)", rest[1], pe.bytes.len());
+        }
+        PlatformKind::Freedos => {
+            // DOS COM: flat binary — no header, code runs at 0x0000:0x0100.
+            fs::write(&rest[1], &out.code).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote DOS COM {} ({} bytes)", rest[1], out.code.len());
+        }
+        PlatformKind::Riscv64 => {
+            let elf = riscv_elf_link::link_riscv_elf(&out.code, &out.data)?;
+            fs::write(&rest[1], &elf.bytes).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote RISC-V ELF64 {} ({} bytes)", rest[1], elf.bytes.len());
+        }
+        PlatformKind::Mips => {
+            let elf = mips_elf_link::link_mips_elf(&out.code, &out.data)?;
+            fs::write(&rest[1], &elf.bytes).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote MIPS ELF32BE {} ({} bytes)", rest[1], elf.bytes.len());
+        }
+        PlatformKind::PowerPc64Le => {
+            let elf = ppc_elf_link::link_ppc_elf(&out.code, &out.data)?;
+            fs::write(&rest[1], &elf.bytes).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote PPC64LE ELF64 {} ({} bytes)", rest[1], elf.bytes.len());
+        }
+        PlatformKind::Avr => {
+            fs::write(&rest[1], &out.code).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote AVR flat {} ({} bytes)", rest[1], out.code.len());
+        }
+        PlatformKind::Arm32 => {
+            let elf = arm32_elf_link::link_arm32_elf(&out.code, &out.data)?;
+            fs::write(&rest[1], &elf.bytes).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote ARM32 ELF32 {} ({} bytes)", rest[1], elf.bytes.len());
+        }
+        PlatformKind::MachoX64 => {
+            let mach = macho_x64_link::link_macho_x64(&out.code, &out.data)?;
+            fs::write(&rest[1], &mach.bytes).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote Mach-O64 x64 {} ({} bytes)", rest[1], mach.bytes.len());
+        }
+        PlatformKind::Wasm | PlatformKind::Serenity => {
+            unreachable!("Wasm and Serenity handled above before generic emit")
+        }
+        PlatformKind::LoongArch => {
+            let elf = loongarch_elf_link::link_loongarch_elf(&out.code, &out.data)?;
+            fs::write(&rest[1], &elf.bytes).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote LoongArch ELF64 {} ({} bytes)", rest[1], elf.bytes.len());
+        }
+        PlatformKind::Sparc => {
+            let elf = sparc_elf_link::link_sparc_elf(&out.code, &out.data)?;
+            fs::write(&rest[1], &elf.bytes).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote SPARC ELF32BE {} ({} bytes)", rest[1], elf.bytes.len());
+        }
+        PlatformKind::Riscv32 => {
+            let elf = riscv32_elf_link::link_riscv32_elf(&out.code, &out.data)?;
+            fs::write(&rest[1], &elf.bytes).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote RV32 ELF32 {} ({} bytes)", rest[1], elf.bytes.len());
+        }
+        PlatformKind::Aarch64Windows => {
+            let pe = arm64_pe_link::link_arm64_pe(&out.code, &out.data)?;
+            fs::write(&rest[1], &pe.bytes).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote ARM64 PE32+ {} ({} bytes)", rest[1], pe.bytes.len());
         }
     }
     Ok(())
