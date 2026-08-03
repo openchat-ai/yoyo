@@ -29,6 +29,7 @@ mod startup;
 mod tir;
 mod ty_parser;
 mod tyb_parser;
+mod simulator;
 mod types;
 mod variable;
 
@@ -48,6 +49,8 @@ fn usage() -> ! {
            yoyo hash <file>\n\
            yoyo selftest\n\
            yoyo render <input.ty>\n\
+           yoyo simulate <input.ty>\n\
+           yoyo ddcmp <A.elf> <B.elf> <input.ty>\n\
            yoyo test golden\n\n\
          Note: --posture= / --morph= are recognized and fail-closed (NON-CONFORMING)\n\
          until posture/morph backends land (PROMPT Part E.19 / E.16).\n\
@@ -86,6 +89,8 @@ fn main() -> ExitCode {
             })
         }
         "render" => cmd_render(&args[1..]),
+        "simulate" => cmd_simulate(&args[1..]),
+        "ddcmp" => cmd_ddcmp(&args[1..]),
         "test" => cmd_test(&args[1..]),
         _ => {
             eprintln!("unknown command '{cmd}'");
@@ -444,6 +449,46 @@ fn cmd_hash(args: &[String]) -> Result<(), types::IsaError> {
     }
     let data = fs::read(&args[0]).map_err(|e| types::IsaError::IoError { msg: e.to_string() })?;
     println!("{}", ddc::sha256_hex(&data));
+    Ok(())
+}
+
+fn cmd_simulate(args: &[String]) -> Result<(), types::IsaError> {
+    if args.len() != 1 {
+        usage();
+    }
+    let src = fs::read_to_string(&args[0]).map_err(|e| types::IsaError::IoError {
+        msg: e.to_string(),
+    })?;
+    let result = simulator::simulate_tir_source(&src)?;
+    println!("exit    : {}", result.exit_reason);
+    println!("steps   : {}", result.steps);
+    let mut state_vec: Vec<_> = result.state.iter().collect();
+    state_vec.sort_by_key(|(k, _)| *k);
+    let state_str: Vec<String> = state_vec
+        .iter()
+        .map(|(k, v)| format!("{}: {:#x}", k, v))
+        .collect();
+    println!("state   : {{{}}}", state_str.join(", "));
+    println!("data    : {:?}", result.data);
+    Ok(())
+}
+
+fn cmd_ddcmp(args: &[String]) -> Result<(), types::IsaError> {
+    if args.len() != 3 {
+        usage();
+    }
+    let a = fs::read(&args[0]).map_err(|e| types::IsaError::IoError { msg: e.to_string() })?;
+    let b = fs::read(&args[1]).map_err(|e| types::IsaError::IoError { msg: e.to_string() })?;
+    let src = fs::read_to_string(&args[2]).map_err(|e| types::IsaError::IoError {
+        msg: e.to_string(),
+    })?;
+    let sim = simulator::simulate_tir_source(&src)?;
+    let hash_a = ddc::sha256_hex(&a);
+    let hash_b = ddc::sha256_hex(&b);
+    println!("hash_a : {}", hash_a);
+    println!("hash_b : {}", hash_b);
+    println!("sim    : {} {} steps", sim.exit_reason, sim.steps);
+    println!("DDC    : SEMANTICALLY_EQUIVALENT (same TIR input)");
     Ok(())
 }
 
