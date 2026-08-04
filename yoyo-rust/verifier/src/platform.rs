@@ -26,6 +26,13 @@ pub enum PlatformKind {
     Sparc,
     Riscv32,
     Aarch64Windows,
+    FreeBSD,
+    Haiku,
+    Plan9,
+    Xtensa,
+    Z80,
+    M6502,
+    M68k,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -302,6 +309,13 @@ pub fn select_platform(target: PlatformKind) -> Box<dyn PlatformBackend> {
         PlatformKind::Sparc => Box::new(SparcPlatform::new()),
         PlatformKind::Riscv32 => Box::new(Riscv32Platform::new()),
         PlatformKind::Aarch64Windows => Box::new(Aarch64WindowsPlatform::new()),
+        PlatformKind::FreeBSD => Box::new(FreeBSDPlatform::new()),
+        PlatformKind::Haiku => Box::new(HaikuPlatform::new()),
+        PlatformKind::Plan9 => Box::new(Plan9Platform::new()),
+        PlatformKind::Xtensa => Box::new(XtensaPlatform::new()),
+        PlatformKind::Z80 => Box::new(Z80Platform::new()),
+        PlatformKind::M6502 => Box::new(M6502Platform::new()),
+        PlatformKind::M68k => Box::new(M68kPlatform::new()),
     }
 }
 
@@ -329,6 +343,13 @@ pub fn parse_platform(s: &str) -> IsaResult<PlatformKind> {
         "wasm" | "webasm" | "wasm32" => Ok(PlatformKind::Wasm),
         "macos-x86" | "macos-intel" | "macho-x64" | "macho-x86_64" => Ok(PlatformKind::MachoX64),
         "serenity" | "serenityos" => Ok(PlatformKind::Serenity),
+        "freebsd" | "freebsd-x64" => Ok(PlatformKind::FreeBSD),
+        "haiku" | "haiku-x64" => Ok(PlatformKind::Haiku),
+        "plan9" | "plan9-x64" | "acadia" => Ok(PlatformKind::Plan9),
+        "xtensa" | "esp32" | "lx6" => Ok(PlatformKind::Xtensa),
+        "z80" | "z80-rom" => Ok(PlatformKind::Z80),
+        "6502" | "m6502" | "commodore" => Ok(PlatformKind::M6502),
+        "m68k" | "68000" | "m68000" | "amiga" => Ok(PlatformKind::M68k),
         _ => Err(IsaError::PlatformError {
             msg: format!("unknown platform '{s}'"),
         }),
@@ -1932,6 +1953,517 @@ impl PlatformBackend for SerenityPlatform {
             stack_size: 0x10000,
             data_section_offset: 8,
             data_section_size: 0x10000,
+        }
+    }
+}
+
+// ── FreeBSD (x64 ELF64, FreeBSD syscall ABI) ─────────────────────
+pub struct FreeBSDPlatform;
+
+impl FreeBSDPlatform {
+    pub fn new() -> Self { Self }
+}
+
+impl PlatformBackend for FreeBSDPlatform {
+    fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
+        use crate::assembler::{movabs, store_state};
+        use crate::types::Reg;
+        let mut out = movabs(Reg::Rax, size)?;
+        out.extend(store_state(slot, Reg::Rax)?);
+        Ok(out)
+    }
+    fn emit_load_file(&mut self, slot: u16, _str_idx: u8) -> IsaResult<Vec<u8>> {
+        use crate::assembler::{movabs, store_state};
+        use crate::types::Reg;
+        let mut out = movabs(Reg::Rax, 0)?;
+        out.extend(store_state(slot, Reg::Rax)?);
+        Ok(out)
+    }
+    fn emit_write_file(&mut self, slot: u16, _str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
+        use crate::assembler::{movabs, store_state};
+        use crate::types::Reg;
+        let mut out = movabs(Reg::Rax, 0)?;
+        out.extend(store_state(slot, Reg::Rax)?);
+        Ok(out)
+    }
+    fn emit_exit(&mut self, code: u8) -> IsaResult<Vec<u8>> {
+        // FreeBSD SYS_exit = 1: mov eax,1; mov edi,code; syscall
+        Ok(vec![
+            0xB8, 0x01, 0x00, 0x00, 0x00, // mov eax, 1
+            0xBF, code, 0x00, 0x00, 0x00, // mov edi, code
+            0x0F, 0x05,                   // syscall
+        ])
+    }
+    fn startup_blob(&self) -> &[u8] {
+        &[]
+    }
+    fn template(&self) -> TemplateInfo {
+        TemplateInfo {
+            format: BinaryFormat::Elf64,
+            entry_point: 0x401000,
+            stack_size: 0x10000,
+            data_section_offset: 0x402000,
+            data_section_size: 0x38000,
+        }
+    }
+}
+
+// ── Haiku (x64 ELF64, Haiku syscall ABI) ─────────────────────────
+pub struct HaikuPlatform;
+
+impl HaikuPlatform {
+    pub fn new() -> Self { Self }
+}
+
+impl PlatformBackend for HaikuPlatform {
+    fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
+        use crate::assembler::{movabs, store_state};
+        use crate::types::Reg;
+        let mut out = movabs(Reg::Rax, size)?;
+        out.extend(store_state(slot, Reg::Rax)?);
+        Ok(out)
+    }
+    fn emit_load_file(&mut self, slot: u16, _str_idx: u8) -> IsaResult<Vec<u8>> {
+        use crate::assembler::{movabs, store_state};
+        use crate::types::Reg;
+        let mut out = movabs(Reg::Rax, 0)?;
+        out.extend(store_state(slot, Reg::Rax)?);
+        Ok(out)
+    }
+    fn emit_write_file(&mut self, slot: u16, _str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
+        use crate::assembler::{movabs, store_state};
+        use crate::types::Reg;
+        let mut out = movabs(Reg::Rax, 0)?;
+        out.extend(store_state(slot, Reg::Rax)?);
+        Ok(out)
+    }
+    fn emit_exit(&mut self, _code: u8) -> IsaResult<Vec<u8>> {
+        Ok(vec![0xF4]) // hlt — Haiku syscall ABI is complex, use hlt as stub
+    }
+    fn startup_blob(&self) -> &[u8] {
+        &[]
+    }
+    fn template(&self) -> TemplateInfo {
+        TemplateInfo {
+            format: BinaryFormat::Elf64,
+            entry_point: 0x401000,
+            stack_size: 0x10000,
+            data_section_offset: 0x402000,
+            data_section_size: 0x38000,
+        }
+    }
+}
+
+// ── Plan9 (9P/Acadia, flat binary) ────────────────────────────────
+pub struct Plan9Platform;
+
+impl Plan9Platform {
+    pub fn new() -> Self { Self }
+}
+
+impl PlatformBackend for Plan9Platform {
+    fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
+        let mut out = vec![0x90];
+        out.extend_from_slice(&size.to_le_bytes());
+        out.extend_from_slice(&(slot as u64).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_load_file(&mut self, slot: u16, str_idx: u8) -> IsaResult<Vec<u8>> {
+        let mut out = vec![0x90];
+        out.push(str_idx);
+        out.extend_from_slice(&(slot as u64).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_write_file(&mut self, slot: u16, str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
+        let mut out = vec![0x90];
+        out.push(str_idx);
+        out.extend_from_slice(&(slot as u64).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_exit(&mut self, _code: u8) -> IsaResult<Vec<u8>> {
+        Ok(vec![0xF4]) // hlt
+    }
+    fn startup_blob(&self) -> &[u8] {
+        &[]
+    }
+    fn template(&self) -> TemplateInfo {
+        TemplateInfo {
+            format: BinaryFormat::FlatBinary,
+            entry_point: 0,
+            stack_size: 0x10000,
+            data_section_offset: 0,
+            data_section_size: 0x38000,
+        }
+    }
+}
+
+// ── Xtensa (ESP32 LX6, flat binary) ──────────────────────────────
+const XTENSA_NOP: [u8; 3] = [0x00, 0x00, 0x00];
+
+pub struct XtensaPlatform;
+
+impl XtensaPlatform {
+    pub fn new() -> Self { Self }
+}
+
+impl PlatformBackend for XtensaPlatform {
+    fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(XTENSA_NOP.to_vec())
+    }
+    fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_set(slot, imm)
+    }
+    fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_get(dst, src)
+    }
+    fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_movrr(dst, src)
+    }
+    fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_add_imm(slot, imm)
+    }
+    fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_sub_imm(slot, imm)
+    }
+    fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_inc(slot)
+    }
+    fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_dec(slot)
+    }
+    fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_addv(dst, src)
+    }
+    fn emit_orv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_orv(dst, src)
+    }
+    fn emit_subv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_subv(dst, src)
+    }
+    fn emit_imul(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_imul(dst, src)
+    }
+    fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
+        foreign_cmp(a, b)
+    }
+    fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
+        foreign_ldb(dd, ss, oo)
+    }
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_data(dst, src, n)
+    }
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_state(dst, src, n)
+    }
+    fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
+        let mut out = XTENSA_NOP.to_vec();
+        out.extend_from_slice(&size.to_le_bytes());
+        out.extend_from_slice(&(slot as u64).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_load_file(&mut self, slot: u16, str_idx: u8) -> IsaResult<Vec<u8>> {
+        let mut out = XTENSA_NOP.to_vec();
+        out.push(str_idx);
+        out.extend_from_slice(&(slot as u64).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_write_file(&mut self, slot: u16, str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
+        let mut out = XTENSA_NOP.to_vec();
+        out.push(str_idx);
+        out.extend_from_slice(&(slot as u64).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_exit(&mut self, _code: u8) -> IsaResult<Vec<u8>> {
+        // Xtensa halt: 0x0000F0 (3 bytes LE: F0 00 00)
+        Ok(vec![0xF0, 0x00, 0x00])
+    }
+    fn startup_blob(&self) -> &[u8] {
+        &[]
+    }
+    fn template(&self) -> TemplateInfo {
+        TemplateInfo {
+            format: BinaryFormat::FlatBinary,
+            entry_point: 0,
+            stack_size: 0x10000,
+            data_section_offset: 0,
+            data_section_size: 0x38000,
+        }
+    }
+}
+
+// ── Z80 (8-bit, CP/M or ROM, flat binary) ────────────────────────
+pub struct Z80Platform;
+
+impl Z80Platform {
+    pub fn new() -> Self { Self }
+}
+
+impl PlatformBackend for Z80Platform {
+    fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(vec![0x00])
+    }
+    fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_set(slot, imm)
+    }
+    fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_get(dst, src)
+    }
+    fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_movrr(dst, src)
+    }
+    fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_add_imm(slot, imm)
+    }
+    fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_sub_imm(slot, imm)
+    }
+    fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_inc(slot)
+    }
+    fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_dec(slot)
+    }
+    fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_addv(dst, src)
+    }
+    fn emit_orv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_orv(dst, src)
+    }
+    fn emit_subv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_subv(dst, src)
+    }
+    fn emit_imul(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_imul(dst, src)
+    }
+    fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
+        foreign_cmp(a, b)
+    }
+    fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
+        foreign_ldb(dd, ss, oo)
+    }
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_data(dst, src, n)
+    }
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_state(dst, src, n)
+    }
+    fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
+        let mut out = vec![0x00];
+        out.extend_from_slice(&(size as u16).to_le_bytes());
+        out.extend_from_slice(&(slot as u16).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_load_file(&mut self, slot: u16, str_idx: u8) -> IsaResult<Vec<u8>> {
+        let mut out = vec![0x00];
+        out.push(str_idx);
+        out.extend_from_slice(&(slot as u16).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_write_file(&mut self, slot: u16, str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
+        let mut out = vec![0x00];
+        out.push(str_idx);
+        out.extend_from_slice(&(slot as u16).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_exit(&mut self, _code: u8) -> IsaResult<Vec<u8>> {
+        // JP 0x0000 (warm boot) = 0xC3 0x00 0x00
+        Ok(vec![0xC3, 0x00, 0x00])
+    }
+    fn startup_blob(&self) -> &[u8] {
+        &[]
+    }
+    fn template(&self) -> TemplateInfo {
+        TemplateInfo {
+            format: BinaryFormat::FlatBinary,
+            entry_point: 0,
+            stack_size: 0x100,
+            data_section_offset: 0x200,
+            data_section_size: 0x1000,
+        }
+    }
+}
+
+// ── 6502 (8-bit, Commodore/NES, flat binary) ─────────────────────
+pub struct M6502Platform;
+
+impl M6502Platform {
+    pub fn new() -> Self { Self }
+}
+
+impl PlatformBackend for M6502Platform {
+    fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(vec![0xEA])
+    }
+    fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_set(slot, imm)
+    }
+    fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_get(dst, src)
+    }
+    fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_movrr(dst, src)
+    }
+    fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_add_imm(slot, imm)
+    }
+    fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_sub_imm(slot, imm)
+    }
+    fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_inc(slot)
+    }
+    fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_dec(slot)
+    }
+    fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_addv(dst, src)
+    }
+    fn emit_orv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_orv(dst, src)
+    }
+    fn emit_subv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_subv(dst, src)
+    }
+    fn emit_imul(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_imul(dst, src)
+    }
+    fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
+        foreign_cmp(a, b)
+    }
+    fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
+        foreign_ldb(dd, ss, oo)
+    }
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_data(dst, src, n)
+    }
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_state(dst, src, n)
+    }
+    fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
+        let mut out = vec![0xEA];
+        out.extend_from_slice(&(size as u16).to_le_bytes());
+        out.extend_from_slice(&(slot as u16).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_load_file(&mut self, slot: u16, str_idx: u8) -> IsaResult<Vec<u8>> {
+        let mut out = vec![0xEA];
+        out.push(str_idx);
+        out.extend_from_slice(&(slot as u16).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_write_file(&mut self, slot: u16, str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
+        let mut out = vec![0xEA];
+        out.push(str_idx);
+        out.extend_from_slice(&(slot as u16).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_exit(&mut self, _code: u8) -> IsaResult<Vec<u8>> {
+        // BRK = 0x00
+        Ok(vec![0x00])
+    }
+    fn startup_blob(&self) -> &[u8] {
+        &[]
+    }
+    fn template(&self) -> TemplateInfo {
+        TemplateInfo {
+            format: BinaryFormat::FlatBinary,
+            entry_point: 0,
+            stack_size: 0x100,
+            data_section_offset: 0x200,
+            data_section_size: 0x1000,
+        }
+    }
+}
+
+// ── M68k (Motorola 68000, Amiga/Mac Classic, flat binary) ────────
+pub struct M68kPlatform;
+
+impl M68kPlatform {
+    pub fn new() -> Self { Self }
+}
+
+impl PlatformBackend for M68kPlatform {
+    fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
+        // M68k NOP = 0x4E71 (big-endian)
+        Ok(vec![0x4E, 0x71])
+    }
+    fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_set(slot, imm)
+    }
+    fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_get(dst, src)
+    }
+    fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_movrr(dst, src)
+    }
+    fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_add_imm(slot, imm)
+    }
+    fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_sub_imm(slot, imm)
+    }
+    fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_inc(slot)
+    }
+    fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_dec(slot)
+    }
+    fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_addv(dst, src)
+    }
+    fn emit_orv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_orv(dst, src)
+    }
+    fn emit_subv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_subv(dst, src)
+    }
+    fn emit_imul(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_imul(dst, src)
+    }
+    fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
+        foreign_cmp(a, b)
+    }
+    fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
+        foreign_ldb(dd, ss, oo)
+    }
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_data(dst, src, n)
+    }
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_state(dst, src, n)
+    }
+    fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
+        let mut out = vec![0x4E, 0x71];
+        out.extend_from_slice(&size.to_le_bytes());
+        out.extend_from_slice(&(slot as u64).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_load_file(&mut self, slot: u16, str_idx: u8) -> IsaResult<Vec<u8>> {
+        let mut out = vec![0x4E, 0x71];
+        out.push(str_idx);
+        out.extend_from_slice(&(slot as u64).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_write_file(&mut self, slot: u16, str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
+        let mut out = vec![0x4E, 0x71];
+        out.push(str_idx);
+        out.extend_from_slice(&(slot as u64).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_exit(&mut self, _code: u8) -> IsaResult<Vec<u8>> {
+        // TRAP #0 = 0x4E40 (big-endian)
+        Ok(vec![0x4E, 0x40])
+    }
+    fn startup_blob(&self) -> &[u8] {
+        &[]
+    }
+    fn template(&self) -> TemplateInfo {
+        TemplateInfo {
+            format: BinaryFormat::FlatBinary,
+            entry_point: 0,
+            stack_size: 0x10000,
+            data_section_offset: 0x1000,
+            data_section_size: 0x38000,
         }
     }
 }

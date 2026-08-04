@@ -46,7 +46,7 @@ fn usage() -> ! {
     eprintln!(
         "yoyo —YOYO verifier (Rust DDC peer)\n\n\
          Usage:\n\
-           yoyo link [--target=win32|linux|stub|baremetal|cuda|android|apple|8051|x86|freedos|riscv64|mips|ppc64le|avr|arm32|wasm|macos-x64|serenity|loongarch|sparc|riscv32|arm64-win] [--posture=...] [--morph=...] <input.ty> <output>\n\
+           yoyo link [--target=win32|linux|stub|baremetal|cuda|android|apple|8051|x86|freedos|riscv64|mips|ppc64le|avr|arm32|wasm|macos-x64|serenity|loongarch|sparc|riscv32|arm64-win|freebsd|haiku|plan9|xtensa|z80|6502|m68k] [--posture=...] [--morph=...] <input.ty> <output>\n\
            yoyo diff <a.bin> <b.bin>\n\
            yoyo hash <file>\n\
            yoyo selftest\n\
@@ -422,6 +422,50 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
                 msg: e.to_string(),
             })?;
             println!("wrote ARM64 PE32+ {} ({} bytes)", rest[1], pe.bytes.len());
+        }
+        PlatformKind::FreeBSD => {
+            let elf = elf_link::link_elf(&out.code, &out.data)?;
+            fs::write(&rest[1], &elf.bytes).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote FreeBSD ELF64 {} ({} bytes)", rest[1], elf.bytes.len());
+        }
+        PlatformKind::Haiku => {
+            let elf = elf_link::link_elf(&out.code, &out.data)?;
+            fs::write(&rest[1], &elf.bytes).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote Haiku ELF64 {} ({} bytes)", rest[1], elf.bytes.len());
+        }
+        PlatformKind::Plan9 => {
+            fs::write(&rest[1], &out.code).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote Plan9 flat {} ({} bytes)", rest[1], out.code.len());
+        }
+        PlatformKind::Xtensa => {
+            fs::write(&rest[1], &out.code).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote Xtensa flat {} ({} bytes)", rest[1], out.code.len());
+        }
+        PlatformKind::Z80 => {
+            fs::write(&rest[1], &out.code).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote Z80 flat {} ({} bytes)", rest[1], out.code.len());
+        }
+        PlatformKind::M6502 => {
+            fs::write(&rest[1], &out.code).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote 6502 flat {} ({} bytes)", rest[1], out.code.len());
+        }
+        PlatformKind::M68k => {
+            fs::write(&rest[1], &out.code).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote M68k flat {} ({} bytes)", rest[1], out.code.len());
         }
     }
     Ok(())
