@@ -175,6 +175,28 @@ pub fn emit_wasm(tir: &[TirInst]) -> IsaResult<Vec<u8>> {
         out.extend_from_slice(&mem_body);
     }
 
+    // ── Export section (id 7) ──
+    // Export the function as "main" and the memory as "memory" so wasmtime can find them.
+    {
+        let name = b"main";
+        let mem_name = b"memory";
+        let mut export_body = Vec::new();
+        export_body.extend_from_slice(&encode_u32leb(2)); // export count = 2
+        // export func
+        export_body.extend_from_slice(&encode_u32leb(name.len() as u32));
+        export_body.extend_from_slice(name);
+        export_body.push(0x00); // export kind = func
+        export_body.extend_from_slice(&encode_u32leb(0)); // func index = 0
+        // export memory
+        export_body.extend_from_slice(&encode_u32leb(mem_name.len() as u32));
+        export_body.extend_from_slice(mem_name);
+        export_body.push(0x02); // export kind = memory
+        export_body.extend_from_slice(&encode_u32leb(0)); // memory index = 0
+        out.push(7); // section id 7 = Export
+        out.extend_from_slice(&encode_u32leb(export_body.len() as u32));
+        out.extend_from_slice(&export_body);
+    }
+
     // ── Code section (id 10) ──
     {
         let mut code_body = Vec::new();

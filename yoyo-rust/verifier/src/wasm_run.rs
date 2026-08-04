@@ -9,7 +9,7 @@
 use crate::simulator::SimExitReason;
 use crate::types::{IsaError, IsaResult};
 
-use wasmtime::{Config, Engine, Instance, Module, Store, Val};
+use wasmtime::{Config, Engine, ExternType, Instance, Module, Store, Val};
 
 /// Exit outcome of a Wasm execution.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,7 +57,7 @@ pub fn run_wasm(wasm_bytes: &[u8]) -> IsaResult<WasmRunResult> {
 
     let slot_count = determine_slot_count(&module)?;
 
-    let mut linker = wasmtime::Linker::new(&engine);
+    let linker = wasmtime::Linker::new(&engine);
     let mut store = Store::new(&engine, ());
     store
         .set_fuel(DEFAULT_FUEL)
@@ -127,7 +127,10 @@ pub fn run_wasm(wasm_bytes: &[u8]) -> IsaResult<WasmRunResult> {
 
 /// Number of i32 state slots = param count of the exported function.
 fn determine_slot_count(module: &Module) -> IsaResult<u32> {
-    let mut func_types = module.exports().filter_map(|ex| ex.into_func());
+    let mut func_types = module.exports().filter_map(|ex| match ex.ty() {
+        ExternType::Func(ft) => Some(ft),
+        _ => None,
+    });
     let func_type = func_types.next().ok_or_else(|| IsaError::IoError {
         msg: "no exported function found in Wasm module".to_string(),
     })?;
@@ -135,23 +138,25 @@ fn determine_slot_count(module: &Module) -> IsaResult<u32> {
 }
 
 fn dump_memory(store: &mut Store<()>, instance: &Instance) -> Vec<u8> {
-    instance
-        .get_memory(store, "memory")
-        .map(|mem| {
-            let sz = mem.data_size(store).unwrap_or(0);
+    let mem = instance.get_memory(&mut *store, "memory");
+    match mem {
+        Some(m) => {
+            let sz = m.data_size(&*store);
             let mut buf = vec![0u8; sz];
-            let data = mem.data_unchecked(store);
+            let data = m.data(&*store);
             buf.copy_from_slice(data);
             buf
-        })
-        .unwrap_or_default()
+        }
+        None => Vec::new(),
+    }
 }
 
 fn memory_pages(store: &mut Store<()>, instance: &Instance) -> u32 {
-    instance
-        .get_memory(store, "memory")
-        .map(|m| m.size(store).unwrap_or(0))
-        .unwrap_or(0)
+    let mem = instance.get_memory(&mut *store, "memory");
+    match mem {
+        Some(m) => m.size(&*store) as u32,
+        None => 0,
+    }
 }
 
 /// Call the entry function with N i32(0) params. Prefer an export named
@@ -161,35 +166,52 @@ fn call_entry(
     instance: &Instance,
     n_params: u32,
 ) -> Result<(), wasmtime::Error> {
-    let mut candidates: Vec<_> = instance
-        .exports(store)
-        .filter_map(|ex| ex.into_func().ok())
+    let exports: Vec<_> = instance
+        .exports(&mut *store)
+        .filter_map(|ex| {
+            let name = ex.name().to_string();
+            ex.into_func().map(|f| (name, f))
+        })
         .collect();
-    if candidates.is_empty() {
+    if exports.is_empty() {
         return Err(wasmtime::Error::msg(
             "no exported function found in Wasm module",
         ));
     }
-    let func = candidates
+    let (_, func) = exports
         .iter()
-        .find(|f| f.name(store) == Some("main"))
-        .unwrap_or(&candidates[0]);
-    let actual_params = func.params(store).count();
+        .find(|(name, _)| name == "main")
+        .unwrap_or(&exports[0]);
+    let actual_params = {
+        let ty = func.ty(&*store);
+        ty.params().count()
+    };
     let _ = n_params;
     let args: Vec<Val> = (0..actual_params).map(|_| Val::I32(0)).collect();
     let mut results = Vec::new();
     func.call(store, &args, &mut results)
 }
 
-fn classify_trap(trap: &wasmtime::Trap) -> TrapKind {
-    let msg = trap.to_string().to_lowercase();
+fn classify_trap(err: &wasmtime::Error) -> TrapKind {
+    // Try to extract the wasmtime Trap enum from the error.
+    if let Some(trap) = err.downcast_ref::<wasmtime::Trap>() {
+        return match trap {
+            wasmtime::Trap::UnreachableCodeReached => TrapKind::Unreachable,
+            wasmtime::Trap::OutOfFuel => TrapKind::OutOfFuel,
+            _ => TrapKind::Unknown {
+                msg: format!("{trap:?}"),
+            },
+        };
+    }
+    // Fallback: heuristics on the stringified message.
+    let msg = err.to_string().to_lowercase();
     if msg.contains("out of fuel") || msg.contains("fuel") {
         TrapKind::OutOfFuel
     } else if msg.contains("unreachable") {
         TrapKind::Unreachable
     } else {
         TrapKind::Unknown {
-            msg: trap.to_string(),
+            msg: err.to_string(),
         }
     }
 }

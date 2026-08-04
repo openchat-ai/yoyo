@@ -33,6 +33,7 @@ mod wasm_e2e;
 mod simulator;
 mod types;
 mod variable;
+mod wasm_run;
 
 use std::env;
 use std::fs;
@@ -52,6 +53,7 @@ fn usage() -> ! {
            yoyo render <input.ty>\n\
            yoyo simulate <input.ty>\n\
            yoyo wasm-validate <input.ty>\n\
+           yoyo run-wasm <input.ty>\n\
            yoyo ddcmp <A.elf> <B.elf> <input.ty>\n\
            yoyo test golden\n\n\
          Note: --posture= / --morph= are recognized and fail-closed (NON-CONFORMING)\n\
@@ -95,6 +97,7 @@ fn main() -> ExitCode {
         "ddcmp" => cmd_ddcmp(&args[1..]),
         "test" => cmd_test(&args[1..]),
         "wasm-validate" => cmd_wasm_validate(&args[1..]),
+        "run-wasm" => cmd_run_wasm(&args[1..]),
         _ => {
             eprintln!("unknown command '{cmd}'");
             usage();
@@ -541,6 +544,36 @@ fn cmd_wasm_validate(args: &[String]) -> Result<(), types::IsaError> {
         );
         return Err(types::IsaError::PlatformError {
             msg: "TIR simulation did not exit RET".to_string(),
+        });
+    }
+    Ok(())
+}
+
+fn cmd_run_wasm(args: &[String]) -> Result<(), types::IsaError> {
+    if args.len() != 1 {
+        usage();
+    }
+    let src = fs::read_to_string(&args[0]).map_err(|e| types::IsaError::IoError {
+        msg: e.to_string(),
+    })?;
+    let tir = executor::compile_ty_source_to_tir(&src)?;
+    let wasm = wasm_backend::emit_wasm(&tir)?;
+    let sim = simulator::simulate(&tir)?;
+
+    let wasm_result = wasm_run::run_wasm(&wasm)?;
+    wasm_run::print_result(&wasm_result);
+
+    println!(
+        "sim     : exit={} steps={}",
+        sim.exit_reason, sim.steps
+    );
+
+    let ddc = wasm_run::compare_with_sim(&wasm_result, &sim.exit_reason);
+    println!("DDC     : {ddc}");
+
+    if !ddc.starts_with("MATCH") {
+        return Err(types::IsaError::PlatformError {
+            msg: format!("DDC mismatch: {ddc}"),
         });
     }
     Ok(())
