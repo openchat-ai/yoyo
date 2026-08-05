@@ -58,7 +58,8 @@ fn usage() -> ! {
            yoyo wasm-validate <input.ty>\n\
            yoyo run-wasm <input.ty>\n\
            yoyo ddcmp <A.elf> <B.elf> <input.ty>\n\
-           yoyo test golden\n\n\
+           yoyo test golden\n\
+           yoyo info [--target=<target>]\n\n\
          Note: --posture= / --morph= are recognized and fail-closed (NON-CONFORMING)\n\
          until posture/morph backends land (PROMPT Part E.19 / E.16).\n\
           `test golden` currently runs G00鈥揋05 plus scoped G-SM, G-SM-CHAIN鈥-SM-CHAIN12, G-SM-INC, G-SM-DEC, G-SM-ADD-IMM, G-SM-SUB-IMM, G-SM-MOVRR, G-SM-ORV, G-SM-NOP, G-SM-RAW-BYTES, G-SM-IMUL, G-SM-SUBV, G-SM-CMP, G-SM-LDB-BODY, G-SM-SET-CONTROL, G-SM-GET, G-SM-LDB-OFF8-HANDLER, G-SM-LDB-OFF127-HANDLER, G-SM-LDB-OFFM128-HANDLER, G-SM-LDB-OFF64-HANDLER, G-SM-LDB-OFF16-HANDLER, G-SM-LDB-OFF32-HANDLER, G-SM-LDB-OFF96-HANDLER, G-SM-LDB-OFF112-HANDLER, G-SM-ADDV-SWAP, G-SM-ORV-SWAP, G-SM-SUBV-SWAP, G-SM-GET-ALT, G-SM-ADDV-H52, G-SM-SET-LARGE, G-SM-ORV-H52, G-SM-SUBV-H52, G-SM-IMUL-SWAP, G-SM-IMUL-H52, G-SM-CMP-SWAP, G-SM-GET-H52, G-SM-SET-DEADBEEF, G-SM-LDB-DST51, G-SM-JMP, G-SM-CALL, G-SM-JE, G-SM-JCC-ALL, and G-SM-IO (not full Appendix F).\n"
@@ -101,6 +102,7 @@ fn main() -> ExitCode {
         "test" => cmd_test(&args[1..]),
         "wasm-validate" => cmd_wasm_validate(&args[1..]),
         "run-wasm" => cmd_run_wasm(&args[1..]),
+        "info" => cmd_info(&args[1..]),
         _ => {
             eprintln!("unknown command '{cmd}'");
             usage();
@@ -745,6 +747,65 @@ fn cmd_run_wasm(args: &[String]) -> Result<(), types::IsaError> {
         return Err(types::IsaError::PlatformError {
             msg: format!("DDC mismatch: {ddc}"),
         });
+    }
+    Ok(())
+}
+
+fn cmd_info(args: &[String]) -> Result<(), types::IsaError> {
+    use crate::platform::{Endian, PlatformKind, parse_platform};
+    let all: Vec<PlatformKind> = vec![
+        PlatformKind::Win32, PlatformKind::Linux, PlatformKind::BareMetal,
+        PlatformKind::Stub, PlatformKind::Cuda, PlatformKind::Android,
+        PlatformKind::Apple, PlatformKind::Eight051, PlatformKind::X86,
+        PlatformKind::Freedos, PlatformKind::Riscv64, PlatformKind::Riscv32,
+        PlatformKind::Mips, PlatformKind::PowerPc64Le, PlatformKind::Avr,
+        PlatformKind::Arm32, PlatformKind::Wasm, PlatformKind::MachoX64,
+        PlatformKind::Serenity, PlatformKind::LoongArch, PlatformKind::Sparc,
+        PlatformKind::Aarch64Windows, PlatformKind::FreeBSD, PlatformKind::Haiku,
+        PlatformKind::Plan9, PlatformKind::Xtensa, PlatformKind::Z80,
+        PlatformKind::M6502, PlatformKind::M68k, PlatformKind::Msp430,
+        PlatformKind::Pic, PlatformKind::Stm8, PlatformKind::Rocm,
+        PlatformKind::Vulkan, PlatformKind::Evm, PlatformKind::Qiskit,
+    ];
+    // If --target= specified, show only that one
+    let target = if args.len() == 1 {
+        if let Some(s) = args[0].strip_prefix("--target=") {
+            Some(parse_platform(s)?)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+    let width = |p: &str| p.len().max(15);
+    println!("{:<15} | {:<6} | {:>3} | {:<10} | MMU | Hvd | Stk | Inst | Description", "Backend", "Endian", "Ptr", "ABI");
+    println!("{}", "-".repeat(90));
+    let endian_str = |e: Endian| match e { Endian::Little => "Little", Endian::Big => "Big" };
+    let abi_str = |a: crate::platform::Abi| match a {
+        crate::platform::Abi::Linux => "Linux",
+        crate::platform::Abi::Windows => "Windows",
+        crate::platform::Abi::Darwin => "Darwin",
+        crate::platform::Abi::BareMetal => "BareMetal",
+        crate::platform::Abi::Dos => "DOS",
+        crate::platform::Abi::Haiku => "Haiku",
+        crate::platform::Abi::Plan9 => "Plan9",
+        crate::platform::Abi::Serenity => "Serenity",
+        crate::platform::Abi::Stub => "Stub",
+        crate::platform::Abi::Gpu => "GPU",
+        crate::platform::Abi::Wasm => "Wasm",
+        crate::platform::Abi::Quantum => "Quantum",
+        crate::platform::Abi::Blockchain => "Blockchain",
+    };
+    for p in &all {
+        if let Some(t) = target { if *p != t { continue; } }
+        let a = p.properties();
+        let name = format!("{:?}", p).to_ascii_lowercase();
+        println!("{:<15} | {:<6} | {:>3} | {:<10} | {:>3} | {:>3} | {:>3} | {:>4} | {}",
+            name, endian_str(a.endian), a.pointer_width, abi_str(a.abi),
+            if a.has_mmu { "yes" } else { "no" },
+            if a.is_harvard { "yes" } else { "no" },
+            if a.has_stack { "yes" } else { "no" },
+            a.min_inst_size, a.description);
     }
     Ok(())
 }

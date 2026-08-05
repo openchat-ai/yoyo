@@ -3,6 +3,84 @@
 use crate::types::{IsaError, IsaResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Endian {
+    Little,
+    Big,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Abi {
+    Linux,
+    Windows,
+    Darwin,
+    BareMetal,
+    Dos,
+    Haiku,
+    Plan9,
+    Serenity,
+    Stub,
+    Gpu,
+    Wasm,
+    Quantum,
+    Blockchain,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ArchProperties {
+    pub endian: Endian,
+    pub pointer_width: u16,
+    pub abi: Abi,
+    pub has_mmu: bool,
+    pub is_harvard: bool,
+    pub has_stack: bool,
+    pub min_inst_size: u8,
+    pub description: &'static str,
+}
+
+impl PlatformKind {
+    pub fn properties(self) -> ArchProperties {
+        match self {
+            PlatformKind::Win32 => ArchProperties { endian: Endian::Little, pointer_width: 64, abi: Abi::Windows, has_mmu: true, is_harvard: false, has_stack: true, min_inst_size: 1, description: "Windows x64 (PE32+)" },
+            PlatformKind::Linux => ArchProperties { endian: Endian::Little, pointer_width: 64, abi: Abi::Linux, has_mmu: true, is_harvard: false, has_stack: true, min_inst_size: 1, description: "Linux x64 (ELF64)" },
+            PlatformKind::BareMetal => ArchProperties { endian: Endian::Little, pointer_width: 64, abi: Abi::BareMetal, has_mmu: false, is_harvard: false, has_stack: true, min_inst_size: 1, description: "x64 bare-metal" },
+            PlatformKind::Stub => ArchProperties { endian: Endian::Little, pointer_width: 64, abi: Abi::Stub, has_mmu: false, is_harvard: false, has_stack: true, min_inst_size: 1, description: "Stub (no-op)" },
+            PlatformKind::Cuda => ArchProperties { endian: Endian::Little, pointer_width: 64, abi: Abi::Gpu, has_mmu: false, is_harvard: true, has_stack: false, min_inst_size: 4, description: "NVIDIA CUDA (PTX)" },
+            PlatformKind::Android => ArchProperties { endian: Endian::Little, pointer_width: 64, abi: Abi::Linux, has_mmu: true, is_harvard: false, has_stack: true, min_inst_size: 4, description: "Android ARM64 (ELF64)" },
+            PlatformKind::Apple => ArchProperties { endian: Endian::Little, pointer_width: 64, abi: Abi::Darwin, has_mmu: true, is_harvard: false, has_stack: true, min_inst_size: 4, description: "Apple ARM64 (Mach-O64)" },
+            PlatformKind::Eight051 => ArchProperties { endian: Endian::Little, pointer_width: 8, abi: Abi::BareMetal, has_mmu: false, is_harvard: true, has_stack: true, min_inst_size: 1, description: "Intel 8051 / ESP" },
+            PlatformKind::X86 => ArchProperties { endian: Endian::Little, pointer_width: 32, abi: Abi::Windows, has_mmu: true, is_harvard: false, has_stack: true, min_inst_size: 1, description: "Windows x86-32 (PE32)" },
+            PlatformKind::Freedos => ArchProperties { endian: Endian::Little, pointer_width: 16, abi: Abi::Dos, has_mmu: false, is_harvard: false, has_stack: true, min_inst_size: 1, description: "FreeDOS x86-16 (COM)" },
+            PlatformKind::Riscv64 => ArchProperties { endian: Endian::Little, pointer_width: 64, abi: Abi::Linux, has_mmu: true, is_harvard: false, has_stack: true, min_inst_size: 4, description: "RISC-V RV64 (ELF64)" },
+            PlatformKind::Riscv32 => ArchProperties { endian: Endian::Little, pointer_width: 32, abi: Abi::Linux, has_mmu: true, is_harvard: false, has_stack: true, min_inst_size: 4, description: "RISC-V RV32 (ELF32)" },
+            PlatformKind::Mips => ArchProperties { endian: Endian::Big, pointer_width: 32, abi: Abi::Linux, has_mmu: true, is_harvard: false, has_stack: true, min_inst_size: 4, description: "MIPS big-endian (ELF32BE)" },
+            PlatformKind::PowerPc64Le => ArchProperties { endian: Endian::Little, pointer_width: 64, abi: Abi::Linux, has_mmu: true, is_harvard: false, has_stack: true, min_inst_size: 4, description: "PowerPC64 LE (ELF64)" },
+            PlatformKind::Avr => ArchProperties { endian: Endian::Little, pointer_width: 8, abi: Abi::BareMetal, has_mmu: false, is_harvard: true, has_stack: true, min_inst_size: 2, description: "AVR ATmega" },
+            PlatformKind::Arm32 => ArchProperties { endian: Endian::Little, pointer_width: 32, abi: Abi::Linux, has_mmu: true, is_harvard: false, has_stack: true, min_inst_size: 4, description: "ARMv7 EABI (ELF32)" },
+            PlatformKind::Wasm => ArchProperties { endian: Endian::Little, pointer_width: 32, abi: Abi::Wasm, has_mmu: false, is_harvard: true, has_stack: false, min_inst_size: 1, description: "WebAssembly (Wasm)" },
+            PlatformKind::MachoX64 => ArchProperties { endian: Endian::Little, pointer_width: 64, abi: Abi::Darwin, has_mmu: true, is_harvard: false, has_stack: true, min_inst_size: 1, description: "Apple Intel x64 (Mach-O64)" },
+            PlatformKind::Serenity => ArchProperties { endian: Endian::Little, pointer_width: 64, abi: Abi::Serenity, has_mmu: true, is_harvard: false, has_stack: true, min_inst_size: 1, description: "SerenityOS (SERE flat)" },
+            PlatformKind::LoongArch => ArchProperties { endian: Endian::Little, pointer_width: 64, abi: Abi::Linux, has_mmu: true, is_harvard: false, has_stack: true, min_inst_size: 4, description: "LoongArch64 (ELF64)" },
+            PlatformKind::Sparc => ArchProperties { endian: Endian::Big, pointer_width: 32, abi: Abi::Linux, has_mmu: true, is_harvard: false, has_stack: true, min_inst_size: 4, description: "SPARC v8 (ELF32BE)" },
+            PlatformKind::Aarch64Windows => ArchProperties { endian: Endian::Little, pointer_width: 64, abi: Abi::Windows, has_mmu: true, is_harvard: false, has_stack: true, min_inst_size: 4, description: "ARM64 Windows (PE32+)" },
+            PlatformKind::FreeBSD => ArchProperties { endian: Endian::Little, pointer_width: 64, abi: Abi::Linux, has_mmu: true, is_harvard: false, has_stack: true, min_inst_size: 1, description: "FreeBSD x64 (ELF64)" },
+            PlatformKind::Haiku => ArchProperties { endian: Endian::Little, pointer_width: 64, abi: Abi::Haiku, has_mmu: true, is_harvard: false, has_stack: true, min_inst_size: 1, description: "Haiku x64 (ELF64)" },
+            PlatformKind::Plan9 => ArchProperties { endian: Endian::Little, pointer_width: 64, abi: Abi::Plan9, has_mmu: true, is_harvard: false, has_stack: true, min_inst_size: 1, description: "Plan9 x64 (flat)" },
+            PlatformKind::Xtensa => ArchProperties { endian: Endian::Little, pointer_width: 32, abi: Abi::BareMetal, has_mmu: false, is_harvard: false, has_stack: true, min_inst_size: 3, description: "Xtensa LX6 (ESP32)" },
+            PlatformKind::Z80 => ArchProperties { endian: Endian::Little, pointer_width: 8, abi: Abi::BareMetal, has_mmu: false, is_harvard: false, has_stack: true, min_inst_size: 1, description: "Z80 8-bit" },
+            PlatformKind::M6502 => ArchProperties { endian: Endian::Little, pointer_width: 8, abi: Abi::BareMetal, has_mmu: false, is_harvard: true, has_stack: true, min_inst_size: 1, description: "MOS 6502" },
+            PlatformKind::M68k => ArchProperties { endian: Endian::Big, pointer_width: 32, abi: Abi::BareMetal, has_mmu: true, is_harvard: false, has_stack: true, min_inst_size: 2, description: "Motorola 68000" },
+            PlatformKind::Msp430 => ArchProperties { endian: Endian::Little, pointer_width: 16, abi: Abi::BareMetal, has_mmu: false, is_harvard: true, has_stack: true, min_inst_size: 2, description: "TI MSP430 16-bit MCU" },
+            PlatformKind::Pic => ArchProperties { endian: Endian::Little, pointer_width: 8, abi: Abi::BareMetal, has_mmu: false, is_harvard: true, has_stack: false, min_inst_size: 2, description: "Microchip PIC16" },
+            PlatformKind::Stm8 => ArchProperties { endian: Endian::Little, pointer_width: 8, abi: Abi::BareMetal, has_mmu: false, is_harvard: true, has_stack: true, min_inst_size: 1, description: "ST STM8 8-bit MCU" },
+            PlatformKind::Rocm => ArchProperties { endian: Endian::Little, pointer_width: 64, abi: Abi::Gpu, has_mmu: false, is_harvard: true, has_stack: false, min_inst_size: 4, description: "AMD ROCm/HIP (text)" },
+            PlatformKind::Vulkan => ArchProperties { endian: Endian::Little, pointer_width: 32, abi: Abi::Gpu, has_mmu: false, is_harvard: true, has_stack: false, min_inst_size: 4, description: "Vulkan Compute (SPIR-V)" },
+            PlatformKind::Evm => ArchProperties { endian: Endian::Big, pointer_width: 256, abi: Abi::Blockchain, has_mmu: false, is_harvard: true, has_stack: true, min_inst_size: 1, description: "Ethereum EVM" },
+            PlatformKind::Qiskit => ArchProperties { endian: Endian::Little, pointer_width: 0, abi: Abi::Quantum, has_mmu: false, is_harvard: false, has_stack: false, min_inst_size: 0, description: "IBM Qiskit (OpenQASM)" },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlatformKind {
     Win32,
     Linux,
