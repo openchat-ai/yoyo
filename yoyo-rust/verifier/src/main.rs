@@ -18,6 +18,9 @@ mod mips_elf_link;
 mod ppc_elf_link;
 mod arm32_elf_link;
 mod wasm_backend;
+mod rocm_backend;
+mod spirv_backend;
+mod qiskit_backend;
 mod macho_x64_link;
 mod loongarch_elf_link;
 mod sparc_elf_link;
@@ -46,7 +49,7 @@ fn usage() -> ! {
     eprintln!(
         "yoyo —YOYO verifier (Rust DDC peer)\n\n\
          Usage:\n\
-           yoyo link [--target=win32|linux|stub|baremetal|cuda|android|apple|8051|x86|freedos|riscv64|mips|ppc64le|avr|arm32|wasm|macos-x64|serenity|loongarch|sparc|riscv32|arm64-win|freebsd|haiku|plan9|xtensa|z80|6502|m68k] [--posture=...] [--morph=...] <input.ty> <output>\n\
+           yoyo link [--target=win32|linux|stub|baremetal|cuda|android|apple|8051|x86|freedos|riscv64|mips|ppc64le|avr|arm32|wasm|macos-x64|serenity|loongarch|sparc|riscv32|arm64-win|freebsd|haiku|plan9|xtensa|z80|6502|m68k|msp430|pic|stm8|rocm|vulkan|evm|qiskit] [--posture=...] [--morph=...] <input.ty> <output>\n\
            yoyo diff <a.bin> <b.bin>\n\
            yoyo hash <file>\n\
            yoyo selftest\n\
@@ -229,6 +232,105 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
         return Ok(());
     }
 
+    // ROCm uses a separate TIR→HIP C++ path (not x64 emit).
+    if target == PlatformKind::Rocm {
+        let tir = if input_ext == "tyb" || {
+            let data = std::fs::read(input_path).ok();
+            data.as_ref().map_or(false, |d| tyb_parser::is_tyb(d))
+        } {
+            let data = std::fs::read(input_path).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            executor::compile_tyb_source_to_tir(&data)?
+        } else {
+            let src = fs::read_to_string(input_path).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            executor::compile_ty_source_to_tir(&src)?
+        };
+        let hip = rocm_backend::emit_rocm(&tir)?;
+        println!(
+            "emit: {} ops → HIP ({} lines), entry H_{:02X}",
+            tir.len(),
+            hip.lines().count(),
+            tir.iter()
+                .find(|i| matches!(i.op, crate::tir::TirOp::Handler))
+                .and_then(|i| i.args.first().copied())
+                .unwrap_or(0)
+        );
+        fs::write(&rest[1], &hip).map_err(|e| types::IsaError::IoError {
+            msg: e.to_string(),
+        })?;
+        println!("wrote HIP {} ({} bytes)", rest[1], hip.len());
+        return Ok(());
+    }
+
+    // Vulkan uses a separate TIR→SPIR-V path (not x64 emit).
+    if target == PlatformKind::Vulkan {
+        let tir = if input_ext == "tyb" || {
+            let data = std::fs::read(input_path).ok();
+            data.as_ref().map_or(false, |d| tyb_parser::is_tyb(d))
+        } {
+            let data = std::fs::read(input_path).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            executor::compile_tyb_source_to_tir(&data)?
+        } else {
+            let src = fs::read_to_string(input_path).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            executor::compile_ty_source_to_tir(&src)?
+        };
+        let spv = spirv_backend::emit_spirv(&tir)?;
+        println!(
+            "emit: {} ops → SPIR-V ({} bytes), entry H_{:02X}",
+            tir.len(),
+            spv.len(),
+            tir.iter()
+                .find(|i| matches!(i.op, crate::tir::TirOp::Handler))
+                .and_then(|i| i.args.first().copied())
+                .unwrap_or(0)
+        );
+        fs::write(&rest[1], &spv).map_err(|e| types::IsaError::IoError {
+            msg: e.to_string(),
+        })?;
+        println!("wrote SPIR-V {} ({} bytes)", rest[1], spv.len());
+        return Ok(());
+    }
+
+    // Qiskit uses a separate TIR→OpenQASM path (not x64 emit).
+    if target == PlatformKind::Qiskit {
+        let tir = if input_ext == "tyb" || {
+            let data = std::fs::read(input_path).ok();
+            data.as_ref().map_or(false, |d| tyb_parser::is_tyb(d))
+        } {
+            let data = std::fs::read(input_path).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            executor::compile_tyb_source_to_tir(&data)?
+        } else {
+            let src = fs::read_to_string(input_path).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            executor::compile_ty_source_to_tir(&src)?
+        };
+        let qasm = qiskit_backend::emit_qiskit(&tir)?;
+        println!(
+            "emit: {} ops → OpenQASM ({} lines), entry H_{:02X}",
+            tir.len(),
+            qasm.lines().count(),
+            tir.iter()
+                .find(|i| matches!(i.op, crate::tir::TirOp::Handler))
+                .and_then(|i| i.args.first().copied())
+                .unwrap_or(0)
+        );
+        fs::write(&rest[1], &qasm).map_err(|e| types::IsaError::IoError {
+            msg: e.to_string(),
+        })?;
+        println!("wrote OpenQASM {} ({} bytes)", rest[1], qasm.len());
+        return Ok(());
+    }
+
     // SerenityOS uses x64 emit but writes SERE flat binary.
     if target == PlatformKind::Serenity {
         let out = if input_ext == "tyb" || {
@@ -392,7 +494,7 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
             })?;
             println!("wrote Mach-O64 x64 {} ({} bytes)", rest[1], mach.bytes.len());
         }
-        PlatformKind::Wasm | PlatformKind::Serenity => {
+        PlatformKind::Wasm | PlatformKind::Serenity | PlatformKind::Rocm | PlatformKind::Vulkan | PlatformKind::Qiskit => {
             unreachable!("Wasm and Serenity handled above before generic emit")
         }
         PlatformKind::LoongArch => {
@@ -466,6 +568,30 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
                 msg: e.to_string(),
             })?;
             println!("wrote M68k flat {} ({} bytes)", rest[1], out.code.len());
+        }
+        PlatformKind::Msp430 => {
+            fs::write(&rest[1], &out.code).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote MSP430 flat {} ({} bytes)", rest[1], out.code.len());
+        }
+        PlatformKind::Pic => {
+            fs::write(&rest[1], &out.code).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote PIC flat {} ({} bytes)", rest[1], out.code.len());
+        }
+        PlatformKind::Stm8 => {
+            fs::write(&rest[1], &out.code).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote STM8 flat {} ({} bytes)", rest[1], out.code.len());
+        }
+        PlatformKind::Evm => {
+            fs::write(&rest[1], &out.code).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote EVM flat {} ({} bytes)", rest[1], out.code.len());
         }
     }
     Ok(())

@@ -33,6 +33,13 @@ pub enum PlatformKind {
     Z80,
     M6502,
     M68k,
+    Msp430,
+    Pic,
+    Stm8,
+    Rocm,
+    Vulkan,
+    Evm,
+    Qiskit,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,6 +55,9 @@ pub enum BinaryFormat {
     Elf32LE,
     MachO64X64,
     Serenity,
+    HipText,
+    SpirV,
+    Qasm,
 }
 
 #[derive(Debug, Clone)]
@@ -316,6 +326,13 @@ pub fn select_platform(target: PlatformKind) -> Box<dyn PlatformBackend> {
         PlatformKind::Z80 => Box::new(Z80Platform::new()),
         PlatformKind::M6502 => Box::new(M6502Platform::new()),
         PlatformKind::M68k => Box::new(M68kPlatform::new()),
+        PlatformKind::Msp430 => Box::new(Msp430Platform::new()),
+        PlatformKind::Pic => Box::new(PicPlatform::new()),
+        PlatformKind::Stm8 => Box::new(Stm8Platform::new()),
+        PlatformKind::Rocm => Box::new(RocmPlatform::new()),
+        PlatformKind::Vulkan => Box::new(VulkanPlatform::new()),
+        PlatformKind::Evm => Box::new(EvmPlatform::new()),
+        PlatformKind::Qiskit => Box::new(QiskitPlatform::new()),
     }
 }
 
@@ -350,6 +367,13 @@ pub fn parse_platform(s: &str) -> IsaResult<PlatformKind> {
         "z80" | "z80-rom" => Ok(PlatformKind::Z80),
         "6502" | "m6502" | "commodore" => Ok(PlatformKind::M6502),
         "m68k" | "68000" | "m68000" | "amiga" => Ok(PlatformKind::M68k),
+        "msp430" | "ti-msp430" => Ok(PlatformKind::Msp430),
+        "pic" | "pic16" | "microchip" => Ok(PlatformKind::Pic),
+        "stm8" | "stm8s" | "stm8l" => Ok(PlatformKind::Stm8),
+        "rocm" | "hip" | "amd-gpu" | "gcn" => Ok(PlatformKind::Rocm),
+        "vulkan" | "spirv" | "vulkan-compute" => Ok(PlatformKind::Vulkan),
+        "evm" | "ethereum" | "solidity" => Ok(PlatformKind::Evm),
+        "qiskit" | "openqasm" | "quantum" => Ok(PlatformKind::Qiskit),
         _ => Err(IsaError::PlatformError {
             msg: format!("unknown platform '{s}'"),
         }),
@@ -2467,3 +2491,496 @@ impl PlatformBackend for M68kPlatform {
         }
     }
 }
+
+// ── MSP430 (16-bit TI MCU) ────────────────────────────────────────
+pub struct Msp430Platform;
+
+impl Msp430Platform {
+    pub fn new() -> Self { Self }
+}
+
+impl PlatformBackend for Msp430Platform {
+    fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
+        // MSP430 NOP = 0x03 (1 byte)
+        Ok(vec![0x03])
+    }
+    fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_set(slot, imm)
+    }
+    fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_get(dst, src)
+    }
+    fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_movrr(dst, src)
+    }
+    fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_add_imm(slot, imm)
+    }
+    fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_sub_imm(slot, imm)
+    }
+    fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_inc(slot)
+    }
+    fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_dec(slot)
+    }
+    fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_addv(dst, src)
+    }
+    fn emit_orv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_orv(dst, src)
+    }
+    fn emit_subv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_subv(dst, src)
+    }
+    fn emit_imul(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_imul(dst, src)
+    }
+    fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
+        foreign_cmp(a, b)
+    }
+    fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
+        foreign_ldb(dd, ss, oo)
+    }
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_data(dst, src, n)
+    }
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_state(dst, src, n)
+    }
+    fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
+        let mut out = vec![0x03];
+        out.extend_from_slice(&(size as u16).to_le_bytes());
+        out.extend_from_slice(&(slot as u16).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_load_file(&mut self, slot: u16, str_idx: u8) -> IsaResult<Vec<u8>> {
+        let mut out = vec![0x03];
+        out.push(str_idx);
+        out.extend_from_slice(&(slot as u16).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_write_file(&mut self, slot: u16, str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
+        let mut out = vec![0x03];
+        out.push(str_idx);
+        out.extend_from_slice(&(slot as u16).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_exit(&mut self, _code: u8) -> IsaResult<Vec<u8>> {
+        // 0x00 0x00 = undefined opcode → trap on MSP430
+        Ok(vec![0x00, 0x00])
+    }
+    fn startup_blob(&self) -> &[u8] {
+        &[]
+    }
+    fn template(&self) -> TemplateInfo {
+        TemplateInfo {
+            format: BinaryFormat::FlatBinary,
+            entry_point: 0,
+            stack_size: 0x400,
+            data_section_offset: 0x200,
+            data_section_size: 0x1000,
+        }
+    }
+}
+
+// ── PIC (8-bit Microchip MCU, mid-range) ──────────────────────────
+pub struct PicPlatform;
+
+impl PicPlatform {
+    pub fn new() -> Self { Self }
+}
+
+impl PlatformBackend for PicPlatform {
+    fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
+        // PIC NOP = 0x0000 (2 bytes, LE)
+        Ok(vec![0x00, 0x00])
+    }
+    fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_set(slot, imm)
+    }
+    fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_get(dst, src)
+    }
+    fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_movrr(dst, src)
+    }
+    fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_add_imm(slot, imm)
+    }
+    fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_sub_imm(slot, imm)
+    }
+    fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_inc(slot)
+    }
+    fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_dec(slot)
+    }
+    fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_addv(dst, src)
+    }
+    fn emit_orv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_orv(dst, src)
+    }
+    fn emit_subv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_subv(dst, src)
+    }
+    fn emit_imul(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_imul(dst, src)
+    }
+    fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
+        foreign_cmp(a, b)
+    }
+    fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
+        foreign_ldb(dd, ss, oo)
+    }
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_data(dst, src, n)
+    }
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_state(dst, src, n)
+    }
+    fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
+        let mut out = vec![0x00, 0x00];
+        out.extend_from_slice(&(size as u16).to_le_bytes());
+        out.extend_from_slice(&(slot as u16).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_load_file(&mut self, slot: u16, str_idx: u8) -> IsaResult<Vec<u8>> {
+        let mut out = vec![0x00, 0x00];
+        out.push(str_idx);
+        out.extend_from_slice(&(slot as u16).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_write_file(&mut self, slot: u16, str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
+        let mut out = vec![0x00, 0x00];
+        out.push(str_idx);
+        out.extend_from_slice(&(slot as u16).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_exit(&mut self, _code: u8) -> IsaResult<Vec<u8>> {
+        // SLEEP = 0x00FD (LE: FD 00)
+        Ok(vec![0xFD, 0x00])
+    }
+    fn startup_blob(&self) -> &[u8] {
+        &[]
+    }
+    fn template(&self) -> TemplateInfo {
+        TemplateInfo {
+            format: BinaryFormat::FlatBinary,
+            entry_point: 0,
+            stack_size: 0x20,
+            data_section_offset: 0x0C,
+            data_section_size: 0x100,
+        }
+    }
+}
+
+// ── STM8 (8-bit STMicro MCU) ──────────────────────────────────────
+pub struct Stm8Platform;
+
+impl Stm8Platform {
+    pub fn new() -> Self { Self }
+}
+
+impl PlatformBackend for Stm8Platform {
+    fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
+        // STM8 NOP = 0x9D (1 byte)
+        Ok(vec![0x9D])
+    }
+    fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_set(slot, imm)
+    }
+    fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_get(dst, src)
+    }
+    fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_movrr(dst, src)
+    }
+    fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_add_imm(slot, imm)
+    }
+    fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_sub_imm(slot, imm)
+    }
+    fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_inc(slot)
+    }
+    fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_dec(slot)
+    }
+    fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_addv(dst, src)
+    }
+    fn emit_orv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_orv(dst, src)
+    }
+    fn emit_subv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_subv(dst, src)
+    }
+    fn emit_imul(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_imul(dst, src)
+    }
+    fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
+        foreign_cmp(a, b)
+    }
+    fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
+        foreign_ldb(dd, ss, oo)
+    }
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_data(dst, src, n)
+    }
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_state(dst, src, n)
+    }
+    fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
+        let mut out = vec![0x9D];
+        out.extend_from_slice(&(size as u16).to_le_bytes());
+        out.extend_from_slice(&(slot as u16).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_load_file(&mut self, slot: u16, str_idx: u8) -> IsaResult<Vec<u8>> {
+        let mut out = vec![0x9D];
+        out.push(str_idx);
+        out.extend_from_slice(&(slot as u16).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_write_file(&mut self, slot: u16, str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
+        let mut out = vec![0x9D];
+        out.push(str_idx);
+        out.extend_from_slice(&(slot as u16).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_exit(&mut self, _code: u8) -> IsaResult<Vec<u8>> {
+        // 0x00 = RST (reset) — trap on STM8
+        Ok(vec![0x00])
+    }
+    fn startup_blob(&self) -> &[u8] {
+        &[]
+    }
+    fn template(&self) -> TemplateInfo {
+        TemplateInfo {
+            format: BinaryFormat::FlatBinary,
+            entry_point: 0,
+            stack_size: 0x400,
+            data_section_offset: 0x200,
+            data_section_size: 0x1000,
+        }
+    }
+}
+
+// ── ROCm/HIP (AMD GPU, text output, stub) ─────────────────────────
+pub struct RocmPlatform;
+
+impl RocmPlatform {
+    pub fn new() -> Self { Self }
+}
+
+impl PlatformBackend for RocmPlatform {
+    fn emit_alloc(&mut self, _slot: u16, _size: u64) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "ROCm backend has no inline alloc; use rocm_backend::emit_rocm instead".into(),
+        })
+    }
+    fn emit_load_file(&mut self, _slot: u16, _str_idx: u8) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "ROCm backend has no file I/O; use rocm_backend::emit_rocm instead".into(),
+        })
+    }
+    fn emit_write_file(&mut self, _slot: u16, _str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "ROCm backend has no file I/O; use rocm_backend::emit_rocm instead".into(),
+        })
+    }
+    fn emit_exit(&mut self, _code: u8) -> IsaResult<Vec<u8>> {
+        Ok(vec![0xFF])
+    }
+    fn startup_blob(&self) -> &[u8] {
+        &[]
+    }
+    fn template(&self) -> TemplateInfo {
+        TemplateInfo {
+            format: BinaryFormat::FlatBinary,
+            entry_point: 0,
+            stack_size: 0,
+            data_section_offset: 0,
+            data_section_size: 0,
+        }
+    }
+}
+
+// ── Vulkan Compute Shader (GPU, SPIR-V, stub) ─────────────────────
+pub struct VulkanPlatform;
+
+impl VulkanPlatform {
+    pub fn new() -> Self { Self }
+}
+
+impl PlatformBackend for VulkanPlatform {
+    fn emit_alloc(&mut self, _slot: u16, _size: u64) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "Vulkan backend has no inline alloc; use spirv_backend::emit_spirv instead".into(),
+        })
+    }
+    fn emit_load_file(&mut self, _slot: u16, _str_idx: u8) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "Vulkan backend has no file I/O; use spirv_backend::emit_spirv instead".into(),
+        })
+    }
+    fn emit_write_file(&mut self, _slot: u16, _str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "Vulkan backend has no file I/O; use spirv_backend::emit_spirv instead".into(),
+        })
+    }
+    fn emit_exit(&mut self, _code: u8) -> IsaResult<Vec<u8>> {
+        Ok(vec![0xFF])
+    }
+    fn startup_blob(&self) -> &[u8] {
+        &[]
+    }
+    fn template(&self) -> TemplateInfo {
+        TemplateInfo {
+            format: BinaryFormat::FlatBinary,
+            entry_point: 0,
+            stack_size: 0,
+            data_section_offset: 0,
+            data_section_size: 0,
+        }
+    }
+}
+
+// ── EVM (Ethereum Virtual Machine, flat binary) ───────────────────
+pub struct EvmPlatform;
+
+impl EvmPlatform {
+    pub fn new() -> Self { Self }
+}
+
+impl PlatformBackend for EvmPlatform {
+    fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
+        // EVM JUMPDEST = 0x5B (used as NOP placeholder)
+        Ok(vec![0x5B])
+    }
+    fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_set(slot, imm)
+    }
+    fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_get(dst, src)
+    }
+    fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_movrr(dst, src)
+    }
+    fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_add_imm(slot, imm)
+    }
+    fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        foreign_sub_imm(slot, imm)
+    }
+    fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_inc(slot)
+    }
+    fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        foreign_dec(slot)
+    }
+    fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_addv(dst, src)
+    }
+    fn emit_orv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_orv(dst, src)
+    }
+    fn emit_subv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_subv(dst, src)
+    }
+    fn emit_imul(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        foreign_imul(dst, src)
+    }
+    fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
+        foreign_cmp(a, b)
+    }
+    fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
+        foreign_ldb(dd, ss, oo)
+    }
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_data(dst, src, n)
+    }
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        foreign_memcpy_state(dst, src, n)
+    }
+    fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
+        let mut out = vec![0x5B];
+        out.extend_from_slice(&size.to_le_bytes());
+        out.extend_from_slice(&(slot as u64).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_load_file(&mut self, slot: u16, str_idx: u8) -> IsaResult<Vec<u8>> {
+        let mut out = vec![0x5B];
+        out.push(str_idx);
+        out.extend_from_slice(&(slot as u64).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_write_file(&mut self, slot: u16, str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
+        let mut out = vec![0x5B];
+        out.push(str_idx);
+        out.extend_from_slice(&(slot as u64).to_le_bytes());
+        Ok(out)
+    }
+    fn emit_exit(&mut self, _code: u8) -> IsaResult<Vec<u8>> {
+        // EVM STOP = 0x00
+        Ok(vec![0x00])
+    }
+    fn startup_blob(&self) -> &[u8] {
+        &[]
+    }
+    fn template(&self) -> TemplateInfo {
+        TemplateInfo {
+            format: BinaryFormat::FlatBinary,
+            entry_point: 0,
+            stack_size: 0x1000,
+            data_section_offset: 0,
+            data_section_size: 0x1000,
+        }
+    }
+}
+
+// ── Qiskit / OpenQASM (Quantum Computing, text output, stub) ──────
+pub struct QiskitPlatform;
+
+impl QiskitPlatform {
+    pub fn new() -> Self { Self }
+}
+
+impl PlatformBackend for QiskitPlatform {
+    fn emit_alloc(&mut self, _slot: u16, _size: u64) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "Qiskit backend has no inline alloc; use qiskit_backend::emit_qiskit instead".into(),
+        })
+    }
+    fn emit_load_file(&mut self, _slot: u16, _str_idx: u8) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "Qiskit backend has no file I/O; use qiskit_backend::emit_qiskit instead".into(),
+        })
+    }
+    fn emit_write_file(&mut self, _slot: u16, _str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError {
+            msg: "Qiskit backend has no file I/O; use qiskit_backend::emit_qiskit instead".into(),
+        })
+    }
+    fn emit_exit(&mut self, _code: u8) -> IsaResult<Vec<u8>> {
+        Ok(vec![0xFF])
+    }
+    fn startup_blob(&self) -> &[u8] {
+        &[]
+    }
+    fn template(&self) -> TemplateInfo {
+        TemplateInfo {
+            format: BinaryFormat::FlatBinary,
+            entry_point: 0,
+            stack_size: 0,
+            data_section_offset: 0,
+            data_section_size: 0,
+        }
+    }
+}
+
