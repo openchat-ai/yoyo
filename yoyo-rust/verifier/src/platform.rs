@@ -253,26 +253,117 @@ pub trait PlatformBackend {
         Ok(_bytes)
     }
 
-    // ── Branch emit (placeholder bytes; rel32 patched in emit_internal) ──
+    // ── Branch fixup abstraction ──
     fn emit_call_placeholder(&mut self) -> IsaResult<Vec<u8>> {
         use crate::assembler::{call_rel32 as x64_call};
         x64_call(0)
     }
-
     fn emit_jmp_placeholder(&mut self) -> IsaResult<Vec<u8>> {
         use crate::assembler::{jmp_rel32 as x64_jmp};
         x64_jmp(0)
     }
-
     fn emit_jcc_placeholder(&mut self, cc: u8) -> IsaResult<Vec<u8>> {
         use crate::assembler::{jcc_rel32 as x64_jcc};
         x64_jcc(cc, 0)
     }
-
     fn emit_ret(&mut self) -> IsaResult<Vec<u8>> {
         use crate::assembler::ret;
         Ok(ret())
     }
+
+    /// Return (bytes, BranchFixup). Default: x64 rel32.
+    fn emit_call_branch(&mut self) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        let bytes = self.emit_call_placeholder()?;
+        Ok((bytes, BranchFixup { field_offset: 1, field_size: 4, kind: FixupKind::Rel32 }))
+    }
+    fn emit_jmp_branch(&mut self) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        let bytes = self.emit_jmp_placeholder()?;
+        Ok((bytes, BranchFixup { field_offset: 1, field_size: 4, kind: FixupKind::Rel32 }))
+    }
+    fn emit_jcc_branch(&mut self, _cc: u8) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        let bytes = self.emit_jcc_placeholder(_cc)?;
+        Ok((bytes, BranchFixup { field_offset: 2, field_size: 4, kind: FixupKind::Rel32 }))
+    }
+    /// Patch branch bytes in `code` at `branch_start` so it jumps to `target`.
+    /// Default: x64 rel32 patch (4-byte LE signed offset).
+    fn patch_branch(&self, code: &mut [u8], branch_start: usize, fixup: &BranchFixup, target: u32) -> IsaResult<()> {
+        let field_addr = branch_start + fixup.field_offset;
+        match fixup.kind {
+            FixupKind::Rel32 => {
+                let rel = target as i32 - (field_addr as i32 + 4);
+                let bytes = (rel as u32).to_le_bytes();
+                code[field_addr..field_addr + 4].copy_from_slice(&bytes);
+            }
+            FixupKind::ArmImm26 => {
+                let diff = target as i32 - branch_start as i32;
+                let imm26 = (diff >> 2) & 0x3FFFFFF;
+                // The existing 4-byte instruction word at branch_start already has bits 31:26 = 0x94 (bl) or 0x14 (b)
+                // Keep the top bits, replace bits 25:0
+                let base = u32::from_le_bytes(code[branch_start..branch_start + 4].try_into().unwrap());
+                let patched = (base & 0xFC000000) | (imm26 as u32);
+                code[branch_start..branch_start + 4].copy_from_slice(&patched.to_le_bytes());
+            }
+            FixupKind::ArmImm19 => {
+                let diff = target as i32 - branch_start as i32;
+                let imm19 = ((diff >> 2) & 0x7FFFF) as u32;
+                let base = u32::from_le_bytes(code[branch_start..branch_start + 4].try_into().unwrap());
+                let patched = (base & 0xFF00001F) | (imm19 << 5);
+                code[branch_start..branch_start + 4].copy_from_slice(&patched.to_le_bytes());
+            }
+            FixupKind::RiscvJ => {
+                let diff = target as i32 - branch_start as i32;
+                let imm = diff as u32;
+                // J-type: imm[20] imm[10:1] imm[11] imm[19:12] xxxx
+                let imm20 = ((imm >> 12) & 0x7FFFF) as u32; // actually need to encode J-type
+                let i20 = (imm >> 20) & 1;
+                let i10_1 = (imm >> 1) & 0x3FF;
+                let i11 = (imm >> 11) & 1;
+                let i19_12 = (imm >> 12) & 0xFF;
+                let enc = (i20 << 31) | (i10_1 << 21) | (i11 << 20) | (i19_12 << 12);
+                let base = u32::from_le_bytes(code[branch_start..branch_start + 4].try_into().unwrap());
+                let patched = (base & 0x00000FFF) | enc;
+                code[branch_start..branch_start + 4].copy_from_slice(&patched.to_le_bytes());
+            }
+            FixupKind::RiscvB => {
+                let diff = target as i32 - branch_start as i32;
+                let imm = diff as u32;
+                // B-type: imm[12] imm[10:5] imm[4:1] imm[11] xxxx
+                let i12 = (imm >> 12) & 1;
+                let i10_5 = (imm >> 5) & 0x3F;
+                let i4_1 = (imm >> 1) & 0xF;
+                let i11 = (imm >> 11) & 1;
+                let enc = (i12 << 31) | (i10_5 << 25) | (i4_1 << 8) | (i11 << 7);
+                let base = u32::from_le_bytes(code[branch_start..branch_start + 4].try_into().unwrap());
+                let patched = (base & 0x1E00001F) | enc;
+                code[branch_start..branch_start + 4].copy_from_slice(&patched.to_le_bytes());
+            }
+            FixupKind::ArmImm24 => {
+                let diff = target as i32 - branch_start as i32 - 8;
+                let imm24 = (diff >> 2) & 0xFFFFFF;
+                let base = u32::from_le_bytes(code[branch_start..branch_start + 4].try_into().unwrap());
+                let patched = (base & 0xFF000000) | (imm24 as u32);
+                code[branch_start..branch_start + 4].copy_from_slice(&patched.to_le_bytes());
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BranchFixup {
+    pub field_offset: usize,
+    pub field_size: usize,
+    pub kind: FixupKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FixupKind {
+    Rel32,
+    ArmImm26,
+    ArmImm19,
+    RiscvJ,
+    RiscvB,
+    ArmImm24,
 }
 
 // ── Foreign-arch arithmetic helpers (marker format: NOP + type + operands) ──

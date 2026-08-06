@@ -4,7 +4,7 @@ use crate::assembler::{
     self, JCC_TABLE,
 };
 use crate::fixup::FixupTable;
-use crate::platform::{PlatformBackend, PlatformKind, select_platform};
+use crate::platform::{BranchFixup, PlatformBackend, PlatformKind, select_platform};
 use crate::tir::{instr_branch_kind, opcode_to_u8, BranchKind, TirInst, TirOp};
 use crate::ty_parser;
 use crate::types::{IsaError, IsaResult, CODE_BUF_CAP, FixedBuf};
@@ -31,8 +31,6 @@ pub fn emit(tir: &[TirInst], platform: PlatformKind) -> IsaResult<EmitOutput> {
 }
 
 /// Compile from SourceLine entries (used by selfhost path).
-/// This is the same emit pipeline, but takes pre-parsed SourceLine entries
-/// instead of TIR instructions.
 pub fn emit_from_lines(lines: &[ty_parser::SourceLine], platform: PlatformKind) -> IsaResult<EmitOutput> {
     let mut tir = Vec::new();
     for line in lines {
@@ -47,19 +45,23 @@ fn emit_internal(tir: &[TirInst], platform: PlatformKind, track_handlers: bool) 
     let mut code: Box<FixedBuf<CODE_BUF_CAP>> = FixedBuf::new_boxed();
     let mut data: Vec<u8> = Vec::new();
     let mut labels = FixupTable::new();
-    let mut pending_fixups: Vec<(usize, u16, BranchKind)> = Vec::new();
+    // (branch_start, hh, fixup)
+    struct PendingFixup {
+        branch_start: usize,
+        hh: u16,
+        fixup: BranchFixup,
+    }
+    let mut pending_fixups: Vec<PendingFixup> = Vec::new();
     let mut entry_hh: u16 = 0;
     let mut first_handler = true;
-    let mut current_hh: u16 = 0xFFFF; // sentinel: no handler open yet
+    let mut current_hh: u16 = 0xFFFF;
     let mut handler_offsets: Vec<(u16, u32, u32)> = Vec::new();
     let mut handler_start: u32 = 0;
 
-    // Pass 1: emit with placeholder rel32 = 0
     for inst in tir {
         let op = opcode_to_u8(inst.op);
         match instr_branch_kind(inst.op) {
             BranchKind::LabelDef => {
-                // Close previous handler if any
                 if current_hh != 0xFFFF {
                     handler_offsets.push((current_hh, handler_start, code.tell() as u32 - handler_start));
                 }
@@ -74,22 +76,17 @@ fn emit_internal(tir: &[TirInst], platform: PlatformKind, track_handlers: bool) 
             }
             BranchKind::Call | BranchKind::Jmp | BranchKind::Jcc { .. } => {
                 let hh = label_hh(&inst.args)?;
-                let start = code.tell();
-                let bytes = match instr_branch_kind(inst.op) {
-                    BranchKind::Call => backend.emit_call_placeholder()?,
-                    BranchKind::Jmp => backend.emit_jmp_placeholder()?,
+                let branch_start = code.tell();
+                let (bytes, fixup) = match instr_branch_kind(inst.op) {
+                    BranchKind::Call => backend.emit_call_branch()?,
+                    BranchKind::Jmp => backend.emit_jmp_branch()?,
                     BranchKind::Jcc { index } => {
-                        backend.emit_jcc_placeholder(JCC_TABLE[index as usize])?
+                        backend.emit_jcc_branch(JCC_TABLE[index as usize])?
                     }
                     _ => unreachable!(),
                 };
                 code.extend_from_slice(&bytes)?;
-                // rel32 starts at offset +1 for call/jmp, +2 for jcc
-                let rel_at = match instr_branch_kind(inst.op) {
-                    BranchKind::Jcc { .. } => start + 2,
-                    _ => start + 1,
-                };
-                pending_fixups.push((rel_at, hh, instr_branch_kind(inst.op)));
+                pending_fixups.push(PendingFixup { branch_start, hh, fixup });
             }
             BranchKind::Ret => {
                 code.extend_from_slice(&backend.emit_ret()?)?;
@@ -101,24 +98,22 @@ fn emit_internal(tir: &[TirInst], platform: PlatformKind, track_handlers: bool) 
         }
         let _ = op;
     }
-
-    // Pass 2: patch rel32
     let _code_len = code.tell();
-    // Close last handler
     if current_hh != 0xFFFF {
         handler_offsets.push((current_hh, handler_start, code.tell() as u32 - handler_start));
     }
-    for (rel_at, hh, kind) in pending_fixups {
+    // Pass 2: patch branches using per-arch patching
+    let mut code_slice = code.slice().to_vec();
+    for pf in &pending_fixups {
         let target = labels
-            .lookup(hh)
-            .ok_or(IsaError::LabelOutOfRange { hh })?;
-        let _ = kind;
-        let rel = target as i32 - (rel_at as i32 + 4);
-        code.patch_u32_le(rel_at, rel as u32)?;
+            .lookup(pf.hh)
+            .ok_or(IsaError::LabelOutOfRange { hh: pf.hh })?;
+        backend.patch_branch(&mut code_slice, pf.branch_start, &pf.fixup, target)?;
     }
+    code_slice.truncate(code_slice.len()); // ensure correct length
 
     Ok(EmitOutput {
-        code: code.slice().to_vec(),
+        code: code_slice,
         data,
         entry_hh,
         labels,
