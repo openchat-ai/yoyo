@@ -2,7 +2,7 @@
 //!
 //! Produces a working RISC-V Linux ELF64 executable wrapping emitted
 //! .text + .data. The startup stub at the start of .text uses an
-//! auipc/addi/jal sequence to set up x1 -> .data base (state pointer),
+//! auipc/addi/jal sequence to set up x5 (t0) -> .data base (state pointer),
 //! then jumps to user code.
 //!
 //! Data section size floor: 0x38000 (same as other ELF64 backends).
@@ -83,17 +83,17 @@ pub fn link_riscv_elf(code: &[u8], data: &[u8]) -> IsaResult<ElfRiscvImage> {
     write_u64(&mut img, phdr2_off + 48, PAGE_SIZE as u64);
 
     // ── Startup stub at start of .text ──
-    //   auipc x1, <page of data_va>
-    //   addi  x1, x1, <lo12 of data_va>
+    //   auipc x5, <page of data_va>
+    //   addi  x5, x5, <lo12 of data_va>
     //   jal   x0, <offset to user code>
     //   (pad with NOPs to 16 bytes)
     let text_off = text_file_off as usize;
     let user_code_va = text_va + startup_len as u64;
 
-    // auipc x1, imm20 — imm20 = data_va >> 12
-    img[text_off..text_off + 4].copy_from_slice(&riscv_auipc(1, data_va));
-    // addi x1, x1, lo12(data_va)
-    img[text_off + 4..text_off + 8].copy_from_slice(&riscv_addi(1, 1, data_va as i64 as i32));
+    // auipc x5, imm20 — imm20 = data_va >> 12
+    img[text_off..text_off + 4].copy_from_slice(&riscv_auipc(5, data_va));
+    // addi x5, x5, lo12(data_va)
+    img[text_off + 4..text_off + 8].copy_from_slice(&riscv_addi(5, 5, data_va as i64 as i32));
     // jal x0, imm20 — imm20 = PC-relative to user code
     // After addi, PC = text_va + 8; target = user_code_va
     let jal_target = (user_code_va as i64) - ((text_va + 8) as i64);
