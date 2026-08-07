@@ -1378,6 +1378,117 @@ impl PlatformBackend for FreedosPlatform {
     }
 }
 
+// ── RISC-V encoding helpers ──
+fn riscv_li_imm(rd: u32, imm: u64) -> Vec<u8> {
+    let mut out = Vec::new();
+    if imm == 0 {
+        // 32-bit zero: addi rd, x0, 0 = 0x00000013
+        let enc: u32 = 0x00000013 | (rd << 7);
+        out.extend_from_slice(&enc.to_le_bytes());
+        return out;
+    }
+    let mut written = false;
+    for shift in (0..64usize).step_by(12) {
+        let chunk = ((imm >> shift) & 0xFFF) as u32;
+        if chunk != 0 || shift == 0 {
+            if !written {
+                // LUI rd, imm20 (only for shift==0 non-zero upper bits)
+                // Actually use LUI for the top 20 bits, then ADDI for the lower 12
+                let hi = ((imm >> 12) + if (imm & 0x800) != 0 { 1 } else { 0 }) & 0xFFFFF;
+                let lo = imm as i32 as i16 as u32;
+                if hi != 0 {
+                    let enc: u32 = 0x00000037 | ((hi as u32) << 12) | (rd << 7);
+                    out.extend_from_slice(&enc.to_le_bytes());
+                }
+                if lo != 0 {
+                    let lo12 = lo & 0xFFF;
+                    let enc: u32 = 0x00000013 | (lo12 << 20) | (rd << 15) | (rd << 7);
+                    out.extend_from_slice(&enc.to_le_bytes());
+                } else if hi == 0 {
+                    let enc: u32 = 0x00000013 | (rd << 7);
+                    out.extend_from_slice(&enc.to_le_bytes());
+                }
+                written = true;
+            } else {
+                let enc: u32 = 0x00002013 | (chunk << 20) | (rd << 15) | (rd << 7); // addi rd, rd, chunk
+                out.extend_from_slice(&enc.to_le_bytes());
+                break;
+            }
+        }
+    }
+    out
+}
+
+fn riscv_ld(rd: u32, rs1: u32, imm12: u16) -> [u8; 4] {
+    let imm12 = (imm12 as u32) & 0xFFF;
+    let enc: u32 = 0x00003003 | (imm12 << 20) | (rs1 << 15) | (rd << 7);
+    enc.to_le_bytes()
+}
+
+fn riscv_lw(rd: u32, rs1: u32, imm12: u16) -> [u8; 4] {
+    let imm12 = (imm12 as u32) & 0xFFF;
+    let enc: u32 = 0x00002003 | (imm12 << 20) | (rs1 << 15) | (rd << 7);
+    enc.to_le_bytes()
+}
+
+fn riscv_sd(rs2: u32, rs1: u32, imm12: u16) -> [u8; 4] {
+    let imm12 = imm12 as u32;
+    let imm_lo = imm12 & 0x1F;
+    let imm_hi = (imm12 >> 5) & 0x7F;
+    let enc: u32 = 0x00002023 | (imm_hi << 25) | (rs2 << 20) | (rs1 << 15) | (imm_lo << 7);
+    enc.to_le_bytes()
+}
+
+fn riscv_sw(rs2: u32, rs1: u32, imm12: u16) -> [u8; 4] {
+    let imm12 = imm12 as u32;
+    let imm_lo = imm12 & 0x1F;
+    let imm_hi = (imm12 >> 5) & 0x7F;
+    let enc: u32 = 0x00002023 | (imm_hi << 25) | (rs2 << 20) | (rs1 << 15) | (imm_lo << 7);
+    enc.to_le_bytes()
+}
+
+fn riscv_add(rd: u32, rs1: u32, rs2: u32) -> [u8; 4] {
+    let enc: u32 = 0x00000033 | (rs2 << 20) | (rs1 << 15) | (rd << 7);
+    enc.to_le_bytes()
+}
+
+fn riscv_sub(rd: u32, rs1: u32, rs2: u32) -> [u8; 4] {
+    let enc: u32 = 0x40000033 | (rs2 << 20) | (rs1 << 15) | (rd << 7);
+    enc.to_le_bytes()
+}
+
+fn riscv_or(rd: u32, rs1: u32, rs2: u32) -> [u8; 4] {
+    let enc: u32 = 0x00006033 | (rs2 << 20) | (rs1 << 15) | (rd << 7);
+    enc.to_le_bytes()
+}
+
+fn riscv_mul(rd: u32, rs1: u32, rs2: u32) -> [u8; 4] {
+    let enc: u32 = 0x02000033 | (rs2 << 20) | (rs1 << 15) | (rd << 7);
+    enc.to_le_bytes()
+}
+
+fn riscv_lbu(rd: u32, rs1: u32, imm12: u16) -> [u8; 4] {
+    let imm12 = (imm12 as u32) & 0xFFF;
+    let enc: u32 = 0x00004003 | (imm12 << 20) | (rs1 << 15) | (rd << 7);
+    enc.to_le_bytes()
+}
+
+fn riscv_jcc_base(cc: u8) -> u32 {
+    match cc {
+        0x84 => 0x00A50A63, // JE  -> beq x10, x11
+        0x85 => 0x00A51A63, // JNE -> bne x10, x11
+        0x86 => 0x40A50A63, // JL  -> blt x10, x11
+        0x87 => 0x50A50A63, // JGE -> bge x10, x11
+        0x88 => 0x50A5A663, // JLE -> bge x11, x10 (swapped)
+        0x89 => 0x40A5A663, // JG  -> blt x11, x10 (swapped)
+        0x8A => 0x60A50A63, // JB  -> bltu x10, x11
+        0x8B => 0x70A50A63, // JAE -> bgeu x10, x11
+        0x8C => 0x70A5A663, // JBE -> bgeu x11, x10 (swapped)
+        0x8D => 0x60A5A663, // JA  -> bltu x11, x10 (swapped)
+        _ => 0x00A50A63,
+    }
+}
+
 // ── RISC-V RV64 (Linux ELF64) ─────────────────────────────────────
 const RISC64_NOP: [u8; 4] = [0x13, 0x00, 0x00, 0x00];
 
@@ -1394,77 +1505,142 @@ impl PlatformBackend for Riscv64Platform {
         Ok(RISC64_NOP.to_vec())
     }
     fn emit_ret(&mut self) -> IsaResult<Vec<u8>> {
-        Ok(0x00008067u32.to_le_bytes().to_vec()) // jr ra: rd=0, funct7=0x007, rs1=1(ra), 0x00008067
+        Ok(0x00008067u32.to_le_bytes().to_vec())
     }
     fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
-        foreign_set(slot, imm)
+        let mut out = riscv_li_imm(6, imm);
+        out.extend_from_slice(&riscv_sd(6, 5, slot));
+        Ok(out)
     }
     fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        foreign_get(dst, src)
+        let mut out = riscv_ld(6, 5, src).to_vec();
+        out.extend_from_slice(&riscv_sd(6, 5, dst));
+        Ok(out)
     }
     fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        foreign_movrr(dst, src)
+        self.emit_get(dst, src)
     }
     fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
-        foreign_add_imm(slot, imm)
+        let mut out = riscv_ld(6, 5, slot).to_vec();
+        if imm < 0x1000 {
+            out.extend_from_slice(&riscv_addi(6, 6, imm as u32));
+        } else {
+            out.extend_from_slice(&riscv_li_imm(7, imm));
+            out.extend_from_slice(&riscv_add(6, 6, 7));
+        }
+        out.extend_from_slice(&riscv_sd(6, 5, slot));
+        Ok(out)
     }
     fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
-        foreign_sub_imm(slot, imm)
+        let mut out = riscv_ld(6, 5, slot).to_vec();
+        if imm < 0x1000 {
+            out.extend_from_slice(&riscv_addi(6, 6, (imm as u32) | 0xFFFFF000)); // sub via addi negative
+        } else {
+            out.extend_from_slice(&riscv_li_imm(7, imm));
+            out.extend_from_slice(&riscv_sub(6, 6, 7));
+        }
+        out.extend_from_slice(&riscv_sd(6, 5, slot));
+        Ok(out)
     }
     fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
-        foreign_inc(slot)
+        let mut out = riscv_ld(6, 5, slot).to_vec();
+        out.extend_from_slice(&riscv_addi(6, 6, 1));
+        out.extend_from_slice(&riscv_sd(6, 5, slot));
+        Ok(out)
     }
     fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
-        foreign_dec(slot)
+        let mut out = riscv_ld(6, 5, slot).to_vec();
+        out.extend_from_slice(&riscv_addi(6, 6, 0xFFF)); // addi -1
+        out.extend_from_slice(&riscv_sd(6, 5, slot));
+        Ok(out)
     }
     fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        foreign_addv(dst, src)
+        let mut out = riscv_ld(6, 5, dst).to_vec();
+        out.extend_from_slice(&riscv_ld(7, 5, src));
+        out.extend_from_slice(&riscv_add(6, 6, 7));
+        out.extend_from_slice(&riscv_sd(6, 5, dst));
+        Ok(out)
     }
     fn emit_orv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        foreign_orv(dst, src)
+        let mut out = riscv_ld(6, 5, dst).to_vec();
+        out.extend_from_slice(&riscv_ld(7, 5, src));
+        out.extend_from_slice(&riscv_or(6, 6, 7));
+        out.extend_from_slice(&riscv_sd(6, 5, dst));
+        Ok(out)
     }
     fn emit_subv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        foreign_subv(dst, src)
+        let mut out = riscv_ld(6, 5, dst).to_vec();
+        out.extend_from_slice(&riscv_ld(7, 5, src));
+        out.extend_from_slice(&riscv_sub(6, 6, 7));
+        out.extend_from_slice(&riscv_sd(6, 5, dst));
+        Ok(out)
     }
     fn emit_imul(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        foreign_imul(dst, src)
+        let mut out = riscv_ld(6, 5, dst).to_vec();
+        out.extend_from_slice(&riscv_ld(7, 5, src));
+        out.extend_from_slice(&riscv_mul(6, 6, 7));
+        out.extend_from_slice(&riscv_sd(6, 5, dst));
+        Ok(out)
     }
     fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
-        foreign_cmp(a, b)
+        let mut out = riscv_ld(10, 5, a).to_vec(); // x10 = state[a]
+        out.extend_from_slice(&riscv_ld(11, 5, b)); // x11 = state[b]
+        Ok(out)
     }
     fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
-        foreign_ldb(dd, ss, oo)
+        let mut out = riscv_ld(6, 5, ss).to_vec(); // x6 = state[ss] (addr)
+        if oo != 0 {
+            out.extend_from_slice(&riscv_addi(6, 6, oo as u32));
+        }
+        out.extend_from_slice(&riscv_lbu(7, 6, 0)); // x7 = byte [x6]
+        out.extend_from_slice(&riscv_sd(7, 5, dd));
+        Ok(out)
     }
-    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
-        foreign_memcpy_data(dst, src, n)
+    fn emit_memcpy_data(&mut self, _dst: u16, _src: u16, _n: u16) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError { msg: "RISC-V: memcpy_data not yet implemented".into() })
     }
     fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
-        foreign_memcpy_state(dst, src, n)
+        if n > 64 {
+            return Err(IsaError::PlatformError { msg: "RISC-V memcpy_state: n > 64".into() });
+        }
+        let mut out = Vec::new();
+        for i in 0..n as u16 {
+            out.extend_from_slice(&riscv_ld(6, 5, src + i));
+            out.extend_from_slice(&riscv_sd(6, 5, dst + i));
+        }
+        Ok(out)
     }
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
-        let mut out = RISC64_NOP.to_vec();
-        out.extend_from_slice(&size.to_le_bytes());
-        out.extend_from_slice(&(slot as u64).to_le_bytes());
+        let mut out = riscv_li_imm(6, size);
+        out.extend_from_slice(&riscv_sd(6, 5, slot));
         Ok(out)
     }
     fn emit_load_file(&mut self, slot: u16, str_idx: u8) -> IsaResult<Vec<u8>> {
-        let mut out = RISC64_NOP.to_vec();
-        out.push(str_idx);
-        out.extend_from_slice(&(slot as u64).to_le_bytes());
+        let mut out = riscv_li_imm(6, str_idx as u64);
+        out.extend_from_slice(&riscv_sd(6, 5, slot));
         Ok(out)
     }
     fn emit_write_file(&mut self, slot: u16, str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
-        let mut out = RISC64_NOP.to_vec();
-        out.push(str_idx);
-        out.extend_from_slice(&(slot as u64).to_le_bytes());
+        let mut out = riscv_li_imm(6, str_idx as u64);
+        out.extend_from_slice(&riscv_sd(6, 5, slot));
         Ok(out)
     }
     fn emit_exit(&mut self, code: u8) -> IsaResult<Vec<u8>> {
         let mut out = vec![];
         out.extend_from_slice(&riscv_addi(7, 0, 93));
-        out.extend_from_slice(&riscv_addi(0, 0, code as i32));
+        out.extend_from_slice(&riscv_addi(0, 0, code as u32));
         out.extend_from_slice(&0x00000073u32.to_le_bytes());
         Ok(out)
+    }
+    fn emit_call_branch(&mut self) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        Ok((vec![0xEF, 0x00, 0x00, 0x00], BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::RiscvJ }))
+    }
+    fn emit_jmp_branch(&mut self) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        Ok((vec![0x6F, 0x00, 0x00, 0x00], BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::RiscvJ }))
+    }
+    fn emit_jcc_branch(&mut self, cc: u8) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        let enc = riscv_jcc_base(cc);
+        Ok((enc.to_le_bytes().to_vec(), BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::RiscvB }))
     }
     fn startup_blob(&self) -> &[u8] {
         &[]
@@ -1480,8 +1656,8 @@ impl PlatformBackend for Riscv64Platform {
     }
 }
 
-fn riscv_addi(rd: u32, rs1: u32, imm12: i32) -> [u8; 4] {
-    let imm12 = (imm12 & 0xFFF) as u32;
+fn riscv_addi(rd: u32, rs1: u32, imm12: u32) -> [u8; 4] {
+    let imm12 = imm12 & 0xFFF;
     let enc: u32 = 0x00000013 | (imm12 << 20) | (rs1 << 15) | (rd << 7);
     enc.to_le_bytes()
 }
@@ -1786,6 +1962,71 @@ impl PlatformBackend for AvrPlatform {
             data_section_size: 0x1000,
         }
     }
+}
+
+// ── ARM32 encoding helpers ──
+fn arm32_movw(rd: u32, imm16: u32) -> [u8; 4] {
+    let enc: u32 = 0xE3000000 | (rd << 12) | (imm16 & 0xFFFF);
+    enc.to_le_bytes()
+}
+fn arm32_movt(rd: u32, imm16: u32) -> [u8; 4] {
+    let enc: u32 = 0xE3400000 | (rd << 12) | (imm16 & 0xFFFF);
+    enc.to_le_bytes()
+}
+fn arm32_ldr(rd: u32, rn: u32, imm12: u16) -> [u8; 4] {
+    let enc: u32 = 0xE5900000 | (rd << 12) | (rn << 16) | (imm12 as u32);
+    enc.to_le_bytes()
+}
+fn arm32_str(rd: u32, rn: u32, imm12: u16) -> [u8; 4] {
+    let enc: u32 = 0xE5800000 | (rd << 12) | (rn << 16) | (imm12 as u32);
+    enc.to_le_bytes()
+}
+fn arm32_ldrb(rd: u32, rn: u32, imm12: u16) -> [u8; 4] {
+    let enc: u32 = 0xE5D00000 | (rd << 12) | (rn << 16) | (imm12 as u32);
+    enc.to_le_bytes()
+}
+fn arm32_add_imm(rd: u32, rn: u32, imm: u32) -> [u8; 4] {
+    let enc: u32 = 0xE2800000 | (rd << 12) | (rn << 16) | (imm & 0xFFF);
+    enc.to_le_bytes()
+}
+fn arm32_sub_imm(rd: u32, rn: u32, imm: u32) -> [u8; 4] {
+    let enc: u32 = 0xE2400000 | (rd << 12) | (rn << 16) | (imm & 0xFFF);
+    enc.to_le_bytes()
+}
+fn arm32_add_reg(rd: u32, rn: u32, rm: u32) -> [u8; 4] {
+    let enc: u32 = 0xE0800000 | (rd << 12) | (rn << 16) | rm;
+    enc.to_le_bytes()
+}
+fn arm32_sub_reg(rd: u32, rn: u32, rm: u32) -> [u8; 4] {
+    let enc: u32 = 0xE0400000 | (rd << 12) | (rn << 16) | rm;
+    enc.to_le_bytes()
+}
+fn arm32_mul(rd: u32, rn: u32, rm: u32) -> [u8; 4] {
+    let enc: u32 = 0xE0000090 | (rd << 16) | (rn << 8) | rm;
+    enc.to_le_bytes()
+}
+fn arm32_orr(rd: u32, rn: u32, rm: u32) -> [u8; 4] {
+    let enc: u32 = 0xE1800000 | (rd << 12) | (rn << 16) | rm;
+    enc.to_le_bytes()
+}
+fn arm32_cmp(rn: u32, rm: u32) -> [u8; 4] {
+    let enc: u32 = 0xE1500000 | (rn << 16) | rm;
+    enc.to_le_bytes()
+}
+fn arm32_jcc_cond(cc: u8) -> u32 {
+    match cc {
+        0x84 => 0x0, 0x85 => 0x1, 0x86 => 0xB, 0x87 => 0xA,
+        0x88 => 0xD, 0x89 => 0xC, 0x8A => 0x3, 0x8B => 0x2,
+        0x8C => 0x9, 0x8D => 0x8, _ => 0x0,
+    }
+}
+fn arm32_ldr_imm32(rd: u32, imm: u32) -> Vec<u8> {
+    let mut out = arm32_movw(rd, imm).to_vec();
+    let hi = imm >> 16;
+    if hi != 0 {
+        out.extend_from_slice(&arm32_movt(rd, hi));
+    }
+    out
 }
 
 // ── ARM32 (32-bit ARM / Android EABI) ────────────────────────────
@@ -2325,7 +2566,7 @@ impl PlatformBackend for Riscv32Platform {
     fn emit_exit(&mut self, code: u8) -> IsaResult<Vec<u8>> {
         let mut out = vec![];
         out.extend_from_slice(&riscv_addi(7, 0, 93));
-        out.extend_from_slice(&riscv_addi(0, 0, code as i32));
+        out.extend_from_slice(&riscv_addi(0, 0, code as u32));
         out.extend_from_slice(&0x00000073u32.to_le_bytes());
         Ok(out)
     }
