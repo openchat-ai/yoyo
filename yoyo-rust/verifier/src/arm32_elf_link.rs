@@ -36,7 +36,8 @@ pub fn link_arm32_elf(code: &[u8], data: &[u8]) -> IsaResult<Arm32ElfImage> {
 
     let hdr_file_size = align_up(ELF_EHDR_SIZE + phdr_count as u32 * ELF_PHDR_SIZE, PAGE_SIZE);
     let text_file_off = hdr_file_size;
-    let text_file_size = align_up(code.len() as u32 + 0x10, 0x10);
+    let startup_len = 16u32;
+    let text_file_size = align_up(code.len() as u32 + startup_len, 0x10);
     let text_mem_size = align_up(text_file_size, PAGE_SIZE);
 
     let data_file_off = text_file_off + text_file_size;
@@ -93,8 +94,36 @@ pub fn link_arm32_elf(code: &[u8], data: &[u8]) -> IsaResult<Arm32ElfImage> {
     write_u32(&mut img, phdr2_off + 24, 6); // p_flags = PF_R | PF_W
     write_u32(&mut img, phdr2_off + 28, PAGE_SIZE); // p_align
 
-    // ── Copy user code at text_file_off ──
-    let code_dst = text_file_off as usize;
+    // ── Build startup at start of .text ──
+    //   movw r8, #lo16(data_va)
+    //   movt r8, #hi16(data_va)
+    //   b <user_code>
+    //   NOP (4 bytes)
+    let code_dst = (text_file_off + startup_len) as usize;
+    let text_off = text_file_off as usize;
+    // movw r8, lo16(data_va)
+    {
+        let lo16 = data_va & 0xFFFF;
+        let enc: u32 = 0xE3000000 | (8 << 12) | lo16;
+        img[text_off..text_off + 4].copy_from_slice(&enc.to_le_bytes());
+    }
+    // movt r8, hi16(data_va)
+    {
+        let hi16 = data_va >> 16;
+        let enc: u32 = 0xE3400000 | (8 << 12) | hi16;
+        img[text_off + 4..text_off + 8].copy_from_slice(&enc.to_le_bytes());
+    }
+    // b <user_code>
+    {
+        let user_code_va = text_va + startup_len;
+        let offset = (user_code_va as i32) - ((text_va + 8) as i32);
+        let imm24 = ((offset >> 2) & 0xFFFFFF) as u32;
+        let enc: u32 = 0xEA000000 | imm24;
+        img[text_off + 8..text_off + 12].copy_from_slice(&enc.to_le_bytes());
+    }
+    // NOP
+    img[text_off + 12..text_off + 16].copy_from_slice(&[0x00, 0x00, 0xA0, 0xE1]);
+    // Copy user code
     img[code_dst..code_dst + code.len()].copy_from_slice(code);
 
     // ── Copy data ──

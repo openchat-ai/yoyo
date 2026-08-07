@@ -32,7 +32,7 @@ pub fn link_riscv32_elf(code: &[u8], data: &[u8]) -> IsaResult<ElfRiscv32Image> 
 
     let hdr_file_size = align_up(ELF_EHDR_SIZE + phdr_count as u32 * ELF_PHDR_SIZE, PAGE_SIZE);
     let text_file_off = hdr_file_size as u32;
-    let text_file_size = align_up(code.len() as u32, PAGE_SIZE);
+    let text_file_size = align_up(code.len() as u32 + 16, PAGE_SIZE);
     let text_mem_size = text_file_size;
 
     let data_file_off = text_file_off + text_file_size;
@@ -81,9 +81,26 @@ pub fn link_riscv32_elf(code: &[u8], data: &[u8]) -> IsaResult<ElfRiscv32Image> 
     write_u32(&mut img, phdr2_off + 24, 0x00000006); // p_flags = PF_R | PF_W
     write_u32(&mut img, phdr2_off + 28, PAGE_SIZE); // p_align
 
-    // ── Copy user code at start of .text (no startup preamble) ──
+    // ── Startup stub at start of .text ──
+    //   auipc x5, <page of data_va>
+    //   addi  x5, x5, <lo12 of data_va>
+    //   jal   x0, <offset to user code>
+    //   NOP pad (4 bytes) -> 16 bytes
     let text_off = text_file_off as usize;
-    img[text_off..text_off + code.len()].copy_from_slice(code);
+    let startup_len = 16u32;
+    let user_code_va = text_va + startup_len;
+    // auipc x5, imm20
+    img[text_off..text_off + 4].copy_from_slice(&riscv_auipc(5, data_va as u64));
+    // addi x5, x5, lo12(data_va)
+    img[text_off + 4..text_off + 8].copy_from_slice(&riscv_addi(5, 5, data_va & 0xFFF));
+    // jal x0, imm20 — PC-relative to user code
+    let jal_target = (user_code_va as i32) - ((text_va + 8) as i32);
+    img[text_off + 8..text_off + 12].copy_from_slice(&riscv_jal(0, jal_target));
+    // NOP pad
+    img[text_off + 12..text_off + 16].copy_from_slice(&[0x13, 0x00, 0x00, 0x00]);
+    // Copy user code after startup
+    let code_dst = text_off + startup_len as usize;
+    img[code_dst..code_dst + code.len()].copy_from_slice(code);
 
     // ── Copy data ──
     let data_off = data_file_off as usize;
@@ -95,6 +112,28 @@ pub fn link_riscv32_elf(code: &[u8], data: &[u8]) -> IsaResult<ElfRiscv32Image> 
 
 fn align_up(v: u32, a: u32) -> u32 {
     (v + a - 1) & !(a - 1)
+}
+
+fn riscv_auipc(rd: u32, addr: u64) -> [u8; 4] {
+    let imm20 = ((addr >> 12) & 0xFFFFF) as u32;
+    let enc: u32 = 0x000000F7 | (imm20 << 12) | (rd << 7);
+    enc.to_le_bytes()
+}
+
+fn riscv_addi(rd: u32, rs1: u32, imm12: u32) -> [u8; 4] {
+    let imm12 = imm12 & 0xFFF;
+    let enc: u32 = 0x00000013 | (imm12 << 20) | (rs1 << 15) | (rd << 7);
+    enc.to_le_bytes()
+}
+
+fn riscv_jal(rd: u32, imm20: i32) -> [u8; 4] {
+    let imm20 = imm20 as u32;
+    let b0 = ((imm20 >> 0) & 0x1) << 31;
+    let b1 = ((imm20 >> 1) & 0x1FF) << 21;
+    let b2 = ((imm20 >> 11) & 0x1) << 20;
+    let b3 = ((imm20 >> 12) & 0xFF) << 12;
+    let enc: u32 = 0x0000006F | b0 | b1 | b2 | b3 | (rd << 7);
+    enc.to_le_bytes()
 }
 
 fn write_u16(buf: &mut [u8], off: usize, v: u16) {

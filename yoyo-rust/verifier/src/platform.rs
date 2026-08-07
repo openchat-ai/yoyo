@@ -2043,73 +2043,140 @@ impl PlatformBackend for Arm32Platform {
         Ok(ARM32_NOP.to_vec())
     }
     fn emit_ret(&mut self) -> IsaResult<Vec<u8>> {
-        Ok(0xE12FFF1Eu32.to_le_bytes().to_vec()) // bx lr
+        Ok(0xE12FFF1Eu32.to_le_bytes().to_vec())
     }
     fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
-        foreign_set(slot, imm)
+        let mut out = arm32_ldr_imm32(0, imm as u32);
+        out.extend_from_slice(&arm32_str(0, 8, slot));
+        Ok(out)
     }
     fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        foreign_get(dst, src)
+        let mut out = arm32_ldr(0, 8, src).to_vec();
+        out.extend_from_slice(&arm32_str(0, 8, dst));
+        Ok(out)
     }
     fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        foreign_movrr(dst, src)
+        self.emit_get(dst, src)
     }
     fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
-        foreign_add_imm(slot, imm)
+        let mut out = arm32_ldr(0, 8, slot).to_vec();
+        if imm < 0x1000 {
+            out.extend_from_slice(&arm32_add_imm(0, 0, imm as u32));
+        } else {
+            out.extend_from_slice(&arm32_ldr_imm32(1, imm as u32));
+            out.extend_from_slice(&arm32_add_reg(0, 0, 1));
+        }
+        out.extend_from_slice(&arm32_str(0, 8, slot));
+        Ok(out)
     }
     fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
-        foreign_sub_imm(slot, imm)
+        let mut out = arm32_ldr(0, 8, slot).to_vec();
+        if imm < 0x1000 {
+            out.extend_from_slice(&arm32_sub_imm(0, 0, imm as u32));
+        } else {
+            out.extend_from_slice(&arm32_ldr_imm32(1, imm as u32));
+            out.extend_from_slice(&arm32_sub_reg(0, 0, 1));
+        }
+        out.extend_from_slice(&arm32_str(0, 8, slot));
+        Ok(out)
     }
     fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
-        foreign_inc(slot)
+        let mut out = arm32_ldr(0, 8, slot).to_vec();
+        out.extend_from_slice(&arm32_add_imm(0, 0, 1));
+        out.extend_from_slice(&arm32_str(0, 8, slot));
+        Ok(out)
     }
     fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
-        foreign_dec(slot)
+        let mut out = arm32_ldr(0, 8, slot).to_vec();
+        out.extend_from_slice(&arm32_sub_imm(0, 0, 1));
+        out.extend_from_slice(&arm32_str(0, 8, slot));
+        Ok(out)
     }
     fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        foreign_addv(dst, src)
+        let mut out = arm32_ldr(0, 8, dst).to_vec();
+        out.extend_from_slice(&arm32_ldr(1, 8, src));
+        out.extend_from_slice(&arm32_add_reg(0, 0, 1));
+        out.extend_from_slice(&arm32_str(0, 8, dst));
+        Ok(out)
     }
     fn emit_orv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        foreign_orv(dst, src)
+        let mut out = arm32_ldr(0, 8, dst).to_vec();
+        out.extend_from_slice(&arm32_ldr(1, 8, src));
+        out.extend_from_slice(&arm32_orr(0, 0, 1));
+        out.extend_from_slice(&arm32_str(0, 8, dst));
+        Ok(out)
     }
     fn emit_subv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        foreign_subv(dst, src)
+        let mut out = arm32_ldr(0, 8, dst).to_vec();
+        out.extend_from_slice(&arm32_ldr(1, 8, src));
+        out.extend_from_slice(&arm32_sub_reg(0, 0, 1));
+        out.extend_from_slice(&arm32_str(0, 8, dst));
+        Ok(out)
     }
     fn emit_imul(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        foreign_imul(dst, src)
+        let mut out = arm32_ldr(0, 8, dst).to_vec();
+        out.extend_from_slice(&arm32_ldr(1, 8, src));
+        out.extend_from_slice(&arm32_mul(0, 0, 1));
+        out.extend_from_slice(&arm32_str(0, 8, dst));
+        Ok(out)
     }
     fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
-        foreign_cmp(a, b)
+        let mut out = arm32_ldr(2, 8, a).to_vec();
+        out.extend_from_slice(&arm32_ldr(3, 8, b));
+        out.extend_from_slice(&arm32_cmp(2, 3));
+        Ok(out)
     }
     fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
-        foreign_ldb(dd, ss, oo)
+        let mut out = arm32_ldr(0, 8, ss).to_vec();
+        if oo != 0 {
+            out.extend_from_slice(&arm32_add_imm(0, 0, oo as u32));
+        }
+        out.extend_from_slice(&arm32_ldrb(1, 0, 0));
+        out.extend_from_slice(&arm32_str(1, 8, dd));
+        Ok(out)
     }
-    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
-        foreign_memcpy_data(dst, src, n)
+    fn emit_memcpy_data(&mut self, _dst: u16, _src: u16, _n: u16) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError { msg: "ARM32: memcpy_data not yet implemented".into() })
     }
     fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
-        foreign_memcpy_state(dst, src, n)
+        if n > 64 {
+            return Err(IsaError::PlatformError { msg: "ARM32 memcpy_state: n > 64".into() });
+        }
+        let mut out = Vec::new();
+        for i in 0..n as u16 {
+            out.extend_from_slice(&arm32_ldr(0, 8, src + i));
+            out.extend_from_slice(&arm32_str(0, 8, dst + i));
+        }
+        Ok(out)
     }
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
-        let mut out = ARM32_NOP.to_vec();
-        out.extend_from_slice(&(size as u32).to_le_bytes());
-        out.extend_from_slice(&(slot as u32).to_le_bytes());
+        let mut out = arm32_ldr_imm32(0, size as u32);
+        out.extend_from_slice(&arm32_str(0, 8, slot));
         Ok(out)
     }
     fn emit_load_file(&mut self, slot: u16, str_idx: u8) -> IsaResult<Vec<u8>> {
-        let mut out = ARM32_NOP.to_vec();
-        out.push(str_idx);
-        out.extend_from_slice(&(slot as u32).to_le_bytes());
+        let mut out = arm32_ldr_imm32(0, str_idx as u32);
+        out.extend_from_slice(&arm32_str(0, 8, slot));
         Ok(out)
     }
     fn emit_write_file(&mut self, slot: u16, str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
-        let mut out = ARM32_NOP.to_vec();
-        out.push(str_idx);
-        out.extend_from_slice(&(slot as u32).to_le_bytes());
+        let mut out = arm32_ldr_imm32(0, str_idx as u32);
+        out.extend_from_slice(&arm32_str(0, 8, slot));
         Ok(out)
     }
     fn emit_exit(&mut self, _code: u8) -> IsaResult<Vec<u8>> {
-        Ok(vec![0x00, 0x00, 0x00, 0xEF]) // swi #0
+        Ok(vec![0x00, 0x00, 0x00, 0xEF])
+    }
+    fn emit_call_branch(&mut self) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        Ok((vec![0x00, 0x00, 0x00, 0xEB], BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::ArmImm24 }))
+    }
+    fn emit_jmp_branch(&mut self) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        Ok((vec![0x00, 0x00, 0x00, 0xEA], BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::ArmImm24 }))
+    }
+    fn emit_jcc_branch(&mut self, cc: u8) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        let cond = arm32_jcc_cond(cc);
+        let enc: u32 = 0x0A000000 | (cond << 28);
+        Ok((enc.to_le_bytes().to_vec(), BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::ArmImm24 }))
     }
     fn startup_blob(&self) -> &[u8] {
         &[]
@@ -2498,69 +2565,124 @@ impl PlatformBackend for Riscv32Platform {
         Ok(RISCV32_NOP.to_vec())
     }
     fn emit_ret(&mut self) -> IsaResult<Vec<u8>> {
-        Ok(0x00008067u32.to_le_bytes().to_vec()) // jr ra
+        Ok(0x00008067u32.to_le_bytes().to_vec())
     }
     fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
-        foreign_set(slot, imm)
+        let mut out = riscv_li_imm(6, imm);
+        out.extend_from_slice(&riscv_sw(6, 5, slot));
+        Ok(out)
     }
     fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        foreign_get(dst, src)
+        let mut out = riscv_lw(6, 5, src).to_vec();
+        out.extend_from_slice(&riscv_sw(6, 5, dst));
+        Ok(out)
     }
     fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        foreign_movrr(dst, src)
+        self.emit_get(dst, src)
     }
     fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
-        foreign_add_imm(slot, imm)
+        let mut out = riscv_lw(6, 5, slot).to_vec();
+        if imm < 0x1000 {
+            out.extend_from_slice(&riscv_addi(6, 6, imm as u32));
+        } else {
+            out.extend_from_slice(&riscv_li_imm(7, imm));
+            out.extend_from_slice(&riscv_add(6, 6, 7));
+        }
+        out.extend_from_slice(&riscv_sw(6, 5, slot));
+        Ok(out)
     }
     fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
-        foreign_sub_imm(slot, imm)
+        let mut out = riscv_lw(6, 5, slot).to_vec();
+        if imm < 0x1000 {
+            out.extend_from_slice(&riscv_addi(6, 6, (imm as u32) | 0xFFFFF000));
+        } else {
+            out.extend_from_slice(&riscv_li_imm(7, imm));
+            out.extend_from_slice(&riscv_sub(6, 6, 7));
+        }
+        out.extend_from_slice(&riscv_sw(6, 5, slot));
+        Ok(out)
     }
     fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
-        foreign_inc(slot)
+        let mut out = riscv_lw(6, 5, slot).to_vec();
+        out.extend_from_slice(&riscv_addi(6, 6, 1));
+        out.extend_from_slice(&riscv_sw(6, 5, slot));
+        Ok(out)
     }
     fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
-        foreign_dec(slot)
+        let mut out = riscv_lw(6, 5, slot).to_vec();
+        out.extend_from_slice(&riscv_addi(6, 6, 0xFFF));
+        out.extend_from_slice(&riscv_sw(6, 5, slot));
+        Ok(out)
     }
     fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        foreign_addv(dst, src)
+        let mut out = riscv_lw(6, 5, dst).to_vec();
+        out.extend_from_slice(&riscv_lw(7, 5, src));
+        out.extend_from_slice(&riscv_add(6, 6, 7));
+        out.extend_from_slice(&riscv_sw(6, 5, dst));
+        Ok(out)
     }
     fn emit_orv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        foreign_orv(dst, src)
+        let mut out = riscv_lw(6, 5, dst).to_vec();
+        out.extend_from_slice(&riscv_lw(7, 5, src));
+        out.extend_from_slice(&riscv_or(6, 6, 7));
+        out.extend_from_slice(&riscv_sw(6, 5, dst));
+        Ok(out)
     }
     fn emit_subv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        foreign_subv(dst, src)
+        let mut out = riscv_lw(6, 5, dst).to_vec();
+        out.extend_from_slice(&riscv_lw(7, 5, src));
+        out.extend_from_slice(&riscv_sub(6, 6, 7));
+        out.extend_from_slice(&riscv_sw(6, 5, dst));
+        Ok(out)
     }
     fn emit_imul(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        foreign_imul(dst, src)
+        let mut out = riscv_lw(6, 5, dst).to_vec();
+        out.extend_from_slice(&riscv_lw(7, 5, src));
+        out.extend_from_slice(&riscv_mul(6, 6, 7));
+        out.extend_from_slice(&riscv_sw(6, 5, dst));
+        Ok(out)
     }
     fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
-        foreign_cmp(a, b)
+        let mut out = riscv_lw(10, 5, a).to_vec();
+        out.extend_from_slice(&riscv_lw(11, 5, b));
+        Ok(out)
     }
     fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
-        foreign_ldb(dd, ss, oo)
+        let mut out = riscv_lw(6, 5, ss).to_vec();
+        if oo != 0 {
+            out.extend_from_slice(&riscv_addi(6, 6, oo as u32));
+        }
+        out.extend_from_slice(&riscv_lbu(7, 6, 0));
+        out.extend_from_slice(&riscv_sw(7, 5, dd));
+        Ok(out)
     }
-    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
-        foreign_memcpy_data(dst, src, n)
+    fn emit_memcpy_data(&mut self, _dst: u16, _src: u16, _n: u16) -> IsaResult<Vec<u8>> {
+        Err(IsaError::PlatformError { msg: "RISC-V: memcpy_data not yet implemented".into() })
     }
     fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
-        foreign_memcpy_state(dst, src, n)
+        if n > 64 {
+            return Err(IsaError::PlatformError { msg: "RISC-V memcpy_state: n > 64".into() });
+        }
+        let mut out = Vec::new();
+        for i in 0..n as u16 {
+            out.extend_from_slice(&riscv_lw(6, 5, src + i));
+            out.extend_from_slice(&riscv_sw(6, 5, dst + i));
+        }
+        Ok(out)
     }
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
-        let mut out = RISCV32_NOP.to_vec();
-        out.extend_from_slice(&(size as u32).to_le_bytes());
-        out.extend_from_slice(&(slot as u32).to_le_bytes());
+        let mut out = riscv_li_imm(6, size);
+        out.extend_from_slice(&riscv_sw(6, 5, slot));
         Ok(out)
     }
     fn emit_load_file(&mut self, slot: u16, str_idx: u8) -> IsaResult<Vec<u8>> {
-        let mut out = RISCV32_NOP.to_vec();
-        out.push(str_idx);
-        out.extend_from_slice(&(slot as u32).to_le_bytes());
+        let mut out = riscv_li_imm(6, str_idx as u64);
+        out.extend_from_slice(&riscv_sw(6, 5, slot));
         Ok(out)
     }
     fn emit_write_file(&mut self, slot: u16, str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
-        let mut out = RISCV32_NOP.to_vec();
-        out.push(str_idx);
-        out.extend_from_slice(&(slot as u32).to_le_bytes());
+        let mut out = riscv_li_imm(6, str_idx as u64);
+        out.extend_from_slice(&riscv_sw(6, 5, slot));
         Ok(out)
     }
     fn emit_exit(&mut self, code: u8) -> IsaResult<Vec<u8>> {
@@ -2569,6 +2691,16 @@ impl PlatformBackend for Riscv32Platform {
         out.extend_from_slice(&riscv_addi(0, 0, code as u32));
         out.extend_from_slice(&0x00000073u32.to_le_bytes());
         Ok(out)
+    }
+    fn emit_call_branch(&mut self) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        Ok((vec![0xEF, 0x00, 0x00, 0x00], BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::RiscvJ }))
+    }
+    fn emit_jmp_branch(&mut self) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        Ok((vec![0x6F, 0x00, 0x00, 0x00], BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::RiscvJ }))
+    }
+    fn emit_jcc_branch(&mut self, cc: u8) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        let enc = riscv_jcc_base(cc);
+        Ok((enc.to_le_bytes().to_vec(), BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::RiscvB }))
     }
     fn startup_blob(&self) -> &[u8] {
         &[]
