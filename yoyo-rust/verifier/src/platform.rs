@@ -798,8 +798,74 @@ fn arm64_movz_w_imm16(rd: u32, imm16: u16) -> [u8; 4] {
 }
 
 const ARM64_NOP: [u8; 4] = [0x1F, 0x20, 0x03, 0xD5];
+const ARM64_RET: [u8; 4] = [0xC0, 0x03, 0x5F, 0xD6];
 
-const ARM64_RET: [u8; 4] = [0xC0, 0x03, 0x5F, 0xD6]; // ret = 0xD65F03C0 (LE)
+// ── ARM64 instruction encoding helpers ──
+fn arm64_mov_imm64(rd: u32, imm: u64) -> Vec<u8> {
+    let mut out = Vec::new();
+    let mut written = false;
+    for shift in (0..64).step_by(16) {
+        let chunk = (imm >> shift) & 0xFFFF;
+        if chunk != 0 || shift == 0 {
+            if !written {
+                let enc: u32 = 0x92800000 | rd | ((chunk as u32) << 5) | ((shift as u32 / 16) << 21);
+                out.extend_from_slice(&enc.to_le_bytes());
+                written = true;
+            } else {
+                let enc: u32 = 0x92800020 | rd | ((chunk as u32) << 5) | ((shift as u32 / 16) << 21);
+                out.extend_from_slice(&enc.to_le_bytes());
+            }
+        }
+    }
+    out
+}
+fn arm64_ldr_imm(rd: u32, rn: u32, imm12: u16) -> [u8; 4] {
+    let enc: u32 = 0xF9400000 | rd | (rn << 5) | ((imm12 as u32) << 10);
+    enc.to_le_bytes()
+}
+fn arm64_str_imm(rs: u32, rn: u32, imm12: u16) -> [u8; 4] {
+    let enc: u32 = 0xF9000000 | rs | (rn << 5) | ((imm12 as u32) << 10);
+    enc.to_le_bytes()
+}
+fn arm64_add_imm(rd: u32, rn: u32, imm12: u16) -> [u8; 4] {
+    let enc: u32 = 0x91000000 | rd | (rn << 5) | ((imm12 as u32) << 10);
+    enc.to_le_bytes()
+}
+fn arm64_sub_imm(rd: u32, rn: u32, imm12: u16) -> [u8; 4] {
+    let enc: u32 = 0xD1000000 | rd | (rn << 5) | ((imm12 as u32) << 10);
+    enc.to_le_bytes()
+}
+fn arm64_add_reg(rd: u32, rn: u32, rm: u32) -> [u8; 4] {
+    let enc: u32 = 0x8B000000 | rd | (rn << 5) | (rm << 16);
+    enc.to_le_bytes()
+}
+fn arm64_sub_reg(rd: u32, rn: u32, rm: u32) -> [u8; 4] {
+    let enc: u32 = 0xCB000000 | rd | (rn << 5) | (rm << 16);
+    enc.to_le_bytes()
+}
+fn arm64_mul_reg(rd: u32, rn: u32, rm: u32) -> [u8; 4] {
+    let enc: u32 = 0x9B007C00 | rd | (rn << 5) | (rm << 16);
+    enc.to_le_bytes()
+}
+fn arm64_orr_reg(rd: u32, rn: u32, rm: u32) -> [u8; 4] {
+    let enc: u32 = 0xAA000000 | rd | (rn << 5) | (rm << 16);
+    enc.to_le_bytes()
+}
+fn arm64_cmp(rd: u32, rn: u32) -> [u8; 4] {
+    let enc: u32 = 0xEB00001F | (rd << 5) | (rn << 16);
+    enc.to_le_bytes()
+}
+fn arm64_ldrb(rd: u32, rn: u32) -> [u8; 4] {
+    let enc: u32 = 0x39400000 | rd | (rn << 5);
+    enc.to_le_bytes()
+}
+fn arm64_jcc_cond(cc: u8) -> u32 {
+    match cc {
+        0x84 => 0x0, 0x85 => 0x1, 0x86 => 0xB, 0x87 => 0xA,
+        0x88 => 0xD, 0x89 => 0xC, 0x8A => 0x3, 0x8B => 0x2,
+        0x8C => 0x9, 0x8D => 0x8, _ => 0x0,
+    }
+}
 
 impl PlatformBackend for AndroidPlatform {
     fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
@@ -809,21 +875,18 @@ impl PlatformBackend for AndroidPlatform {
         Ok(ARM64_RET.to_vec())
     }
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
-        let mut out = ARM64_NOP.to_vec();
-        out.extend_from_slice(&(size as u64).to_le_bytes());
-        out.extend_from_slice(&(slot as u64).to_le_bytes());
+        let mut out = arm64_mov_imm64(9, size);
+        out.extend_from_slice(&arm64_str_imm(9, 15, slot));
         Ok(out)
     }
     fn emit_load_file(&mut self, slot: u16, str_idx: u8) -> IsaResult<Vec<u8>> {
-        let mut out = ARM64_NOP.to_vec();
-        out.extend_from_slice(&str_idx.to_le_bytes());
-        out.extend_from_slice(&(slot as u64).to_le_bytes());
+        let mut out = arm64_mov_imm64(9, str_idx as u64);
+        out.extend_from_slice(&arm64_str_imm(9, 15, slot));
         Ok(out)
     }
     fn emit_write_file(&mut self, slot: u16, str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
-        let mut out = ARM64_NOP.to_vec();
-        out.extend_from_slice(&str_idx.to_le_bytes());
-        out.extend_from_slice(&(slot as u64).to_le_bytes());
+        let mut out = arm64_mov_imm64(9, str_idx as u64);
+        out.extend_from_slice(&arm64_str_imm(9, 15, slot));
         Ok(out)
     }
     fn emit_exit(&mut self, code: u8) -> IsaResult<Vec<u8>> {
@@ -832,6 +895,121 @@ impl PlatformBackend for AndroidPlatform {
         out.extend_from_slice(&arm64_movz_w_imm16(0, code as u16));
         out.extend_from_slice(&[0x01, 0x00, 0x00, 0xD4]);
         Ok(out)
+    }
+    // ── Real ARM64 instruction overrides ──
+    fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_mov_imm64(9, imm);
+        out.extend_from_slice(&arm64_str_imm(9, 15, slot));
+        Ok(out)
+    }
+    fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, src).to_vec();
+        out.extend_from_slice(&arm64_str_imm(9, 15, dst));
+        Ok(out)
+    }
+    fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, src).to_vec();
+        out.extend_from_slice(&arm64_str_imm(9, 15, dst));
+        Ok(out)
+    }
+    fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, slot).to_vec();
+        if imm < 0x1000 {
+            out.extend_from_slice(&arm64_add_imm(9, 9, imm as u16));
+        } else {
+            out.extend_from_slice(&arm64_mov_imm64(10, imm));
+            out.extend_from_slice(&arm64_add_reg(9, 9, 10));
+        }
+        out.extend_from_slice(&arm64_str_imm(9, 15, slot));
+        Ok(out)
+    }
+    fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, slot).to_vec();
+        if imm < 0x1000 {
+            out.extend_from_slice(&arm64_sub_imm(9, 9, imm as u16));
+        } else {
+            out.extend_from_slice(&arm64_mov_imm64(10, imm));
+            out.extend_from_slice(&arm64_sub_reg(9, 9, 10));
+        }
+        out.extend_from_slice(&arm64_str_imm(9, 15, slot));
+        Ok(out)
+    }
+    fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, slot).to_vec();
+        out.extend_from_slice(&arm64_add_imm(9, 9, 1));
+        out.extend_from_slice(&arm64_str_imm(9, 15, slot));
+        Ok(out)
+    }
+    fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, slot).to_vec();
+        out.extend_from_slice(&arm64_sub_imm(9, 9, 1));
+        out.extend_from_slice(&arm64_str_imm(9, 15, slot));
+        Ok(out)
+    }
+    fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, dst).to_vec();
+        out.extend_from_slice(&arm64_ldr_imm(10, 15, src));
+        out.extend_from_slice(&arm64_add_reg(9, 9, 10));
+        out.extend_from_slice(&arm64_str_imm(9, 15, dst));
+        Ok(out)
+    }
+    fn emit_orv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, dst).to_vec();
+        out.extend_from_slice(&arm64_ldr_imm(10, 15, src));
+        out.extend_from_slice(&arm64_orr_reg(9, 9, 10));
+        out.extend_from_slice(&arm64_str_imm(9, 15, dst));
+        Ok(out)
+    }
+    fn emit_subv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, dst).to_vec();
+        out.extend_from_slice(&arm64_ldr_imm(10, 15, src));
+        out.extend_from_slice(&arm64_sub_reg(9, 9, 10));
+        out.extend_from_slice(&arm64_str_imm(9, 15, dst));
+        Ok(out)
+    }
+    fn emit_imul(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, dst).to_vec();
+        out.extend_from_slice(&arm64_ldr_imm(10, 15, src));
+        out.extend_from_slice(&arm64_mul_reg(9, 9, 10));
+        out.extend_from_slice(&arm64_str_imm(9, 15, dst));
+        Ok(out)
+    }
+    fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(10, 15, a).to_vec();
+        out.extend_from_slice(&arm64_ldr_imm(11, 15, b));
+        out.extend_from_slice(&arm64_cmp(10, 11));
+        Ok(out)
+    }
+    fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, ss).to_vec();
+        if oo != 0 {
+            out.extend_from_slice(&arm64_add_imm(9, 9, oo));
+        }
+        out.extend_from_slice(&arm64_ldrb(10, 9));
+        out.extend_from_slice(&arm64_str_imm(10, 15, dd));
+        Ok(out)
+    }
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        if n > 64 {
+            return Err(IsaError::PlatformError { msg: "ARM64 memcpy_state: n > 64".into() });
+        }
+        let mut out = Vec::new();
+        for i in 0..n as u16 {
+            out.extend_from_slice(&arm64_ldr_imm(9, 15, src + i));
+            out.extend_from_slice(&arm64_str_imm(9, 15, dst + i));
+        }
+        Ok(out)
+    }
+    fn emit_call_branch(&mut self) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        Ok((vec![0x00, 0x00, 0x00, 0x94], BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::ArmImm26 }))
+    }
+    fn emit_jmp_branch(&mut self) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        Ok((vec![0x00, 0x00, 0x00, 0x14], BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::ArmImm26 }))
+    }
+    fn emit_jcc_branch(&mut self, cc: u8) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        let cond = arm64_jcc_cond(cc);
+        let enc: u32 = 0x54000000 | (cond << 4);
+        Ok((enc.to_le_bytes().to_vec(), BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::ArmImm19 }))
     }
     fn startup_blob(&self) -> &[u8] {
         &[]
@@ -864,21 +1042,18 @@ impl PlatformBackend for ApplePlatform {
         Ok(ARM64_RET.to_vec())
     }
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
-        let mut out = ARM64_NOP.to_vec();
-        out.extend_from_slice(&(size as u64).to_le_bytes());
-        out.extend_from_slice(&(slot as u64).to_le_bytes());
+        let mut out = arm64_mov_imm64(9, size);
+        out.extend_from_slice(&arm64_str_imm(9, 15, slot));
         Ok(out)
     }
     fn emit_load_file(&mut self, slot: u16, str_idx: u8) -> IsaResult<Vec<u8>> {
-        let mut out = ARM64_NOP.to_vec();
-        out.extend_from_slice(&str_idx.to_le_bytes());
-        out.extend_from_slice(&(slot as u64).to_le_bytes());
+        let mut out = arm64_mov_imm64(9, str_idx as u64);
+        out.extend_from_slice(&arm64_str_imm(9, 15, slot));
         Ok(out)
     }
     fn emit_write_file(&mut self, slot: u16, str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
-        let mut out = ARM64_NOP.to_vec();
-        out.extend_from_slice(&str_idx.to_le_bytes());
-        out.extend_from_slice(&(slot as u64).to_le_bytes());
+        let mut out = arm64_mov_imm64(9, str_idx as u64);
+        out.extend_from_slice(&arm64_str_imm(9, 15, slot));
         Ok(out)
     }
     fn emit_exit(&mut self, code: u8) -> IsaResult<Vec<u8>> {
@@ -888,6 +1063,121 @@ impl PlatformBackend for ApplePlatform {
         out.extend_from_slice(&arm64_movz_w_imm16(0, code as u16));
         out.extend_from_slice(&[0x01, 0x00, 0x00, 0xD4]);
         Ok(out)
+    }
+    // ── Real ARM64 instruction overrides (Apple ARM64) ──
+    fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_mov_imm64(9, imm);
+        out.extend_from_slice(&arm64_str_imm(9, 15, slot));
+        Ok(out)
+    }
+    fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, src).to_vec();
+        out.extend_from_slice(&arm64_str_imm(9, 15, dst));
+        Ok(out)
+    }
+    fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, src).to_vec();
+        out.extend_from_slice(&arm64_str_imm(9, 15, dst));
+        Ok(out)
+    }
+    fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, slot).to_vec();
+        if imm < 0x1000 {
+            out.extend_from_slice(&arm64_add_imm(9, 9, imm as u16));
+        } else {
+            out.extend_from_slice(&arm64_mov_imm64(10, imm));
+            out.extend_from_slice(&arm64_add_reg(9, 9, 10));
+        }
+        out.extend_from_slice(&arm64_str_imm(9, 15, slot));
+        Ok(out)
+    }
+    fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, slot).to_vec();
+        if imm < 0x1000 {
+            out.extend_from_slice(&arm64_sub_imm(9, 9, imm as u16));
+        } else {
+            out.extend_from_slice(&arm64_mov_imm64(10, imm));
+            out.extend_from_slice(&arm64_sub_reg(9, 9, 10));
+        }
+        out.extend_from_slice(&arm64_str_imm(9, 15, slot));
+        Ok(out)
+    }
+    fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, slot).to_vec();
+        out.extend_from_slice(&arm64_add_imm(9, 9, 1));
+        out.extend_from_slice(&arm64_str_imm(9, 15, slot));
+        Ok(out)
+    }
+    fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, slot).to_vec();
+        out.extend_from_slice(&arm64_sub_imm(9, 9, 1));
+        out.extend_from_slice(&arm64_str_imm(9, 15, slot));
+        Ok(out)
+    }
+    fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, dst).to_vec();
+        out.extend_from_slice(&arm64_ldr_imm(10, 15, src));
+        out.extend_from_slice(&arm64_add_reg(9, 9, 10));
+        out.extend_from_slice(&arm64_str_imm(9, 15, dst));
+        Ok(out)
+    }
+    fn emit_orv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, dst).to_vec();
+        out.extend_from_slice(&arm64_ldr_imm(10, 15, src));
+        out.extend_from_slice(&arm64_orr_reg(9, 9, 10));
+        out.extend_from_slice(&arm64_str_imm(9, 15, dst));
+        Ok(out)
+    }
+    fn emit_subv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, dst).to_vec();
+        out.extend_from_slice(&arm64_ldr_imm(10, 15, src));
+        out.extend_from_slice(&arm64_sub_reg(9, 9, 10));
+        out.extend_from_slice(&arm64_str_imm(9, 15, dst));
+        Ok(out)
+    }
+    fn emit_imul(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, dst).to_vec();
+        out.extend_from_slice(&arm64_ldr_imm(10, 15, src));
+        out.extend_from_slice(&arm64_mul_reg(9, 9, 10));
+        out.extend_from_slice(&arm64_str_imm(9, 15, dst));
+        Ok(out)
+    }
+    fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(10, 15, a).to_vec();
+        out.extend_from_slice(&arm64_ldr_imm(11, 15, b));
+        out.extend_from_slice(&arm64_cmp(10, 11));
+        Ok(out)
+    }
+    fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, ss).to_vec();
+        if oo != 0 {
+            out.extend_from_slice(&arm64_add_imm(9, 9, oo));
+        }
+        out.extend_from_slice(&arm64_ldrb(10, 9));
+        out.extend_from_slice(&arm64_str_imm(10, 15, dd));
+        Ok(out)
+    }
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        if n > 64 {
+            return Err(IsaError::PlatformError { msg: "ARM64 memcpy_state: n > 64".into() });
+        }
+        let mut out = Vec::new();
+        for i in 0..n as u16 {
+            out.extend_from_slice(&arm64_ldr_imm(9, 15, src + i));
+            out.extend_from_slice(&arm64_str_imm(9, 15, dst + i));
+        }
+        Ok(out)
+    }
+    fn emit_call_branch(&mut self) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        Ok((vec![0x00, 0x00, 0x00, 0x94], BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::ArmImm26 }))
+    }
+    fn emit_jmp_branch(&mut self) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        Ok((vec![0x00, 0x00, 0x00, 0x14], BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::ArmImm26 }))
+    }
+    fn emit_jcc_branch(&mut self, cc: u8) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        let cond = arm64_jcc_cond(cc);
+        let enc: u32 = 0x54000000 | (cond << 4);
+        Ok((enc.to_le_bytes().to_vec(), BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::ArmImm19 }))
     }
     fn startup_blob(&self) -> &[u8] {
         &[]
@@ -2054,8 +2344,6 @@ impl PlatformBackend for Riscv32Platform {
 }
 
 // ── ARM64 Windows (AArch64 PE32+) ───────────────────────────────
-const AARCH64_WIN_NOP: [u8; 4] = [0x1F, 0x20, 0x03, 0xD5];
-
 pub struct Aarch64WindowsPlatform;
 
 impl Aarch64WindowsPlatform {
@@ -2064,32 +2352,141 @@ impl Aarch64WindowsPlatform {
 
 impl PlatformBackend for Aarch64WindowsPlatform {
     fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
-        Ok(AARCH64_WIN_NOP.to_vec())
+        Ok(ARM64_NOP.to_vec())
     }
     fn emit_ret(&mut self) -> IsaResult<Vec<u8>> {
         Ok(ARM64_RET.to_vec())
     }
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
-        let mut out = AARCH64_WIN_NOP.to_vec();
-        out.extend_from_slice(&size.to_le_bytes());
-        out.extend_from_slice(&(slot as u64).to_le_bytes());
+        let mut out = arm64_mov_imm64(9, size);
+        out.extend_from_slice(&arm64_str_imm(9, 15, slot));
         Ok(out)
     }
     fn emit_load_file(&mut self, slot: u16, str_idx: u8) -> IsaResult<Vec<u8>> {
-        let mut out = AARCH64_WIN_NOP.to_vec();
-        out.push(str_idx);
-        out.extend_from_slice(&(slot as u64).to_le_bytes());
+        let mut out = arm64_mov_imm64(9, str_idx as u64);
+        out.extend_from_slice(&arm64_str_imm(9, 15, slot));
         Ok(out)
     }
     fn emit_write_file(&mut self, slot: u16, str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
-        let mut out = AARCH64_WIN_NOP.to_vec();
-        out.push(str_idx);
-        out.extend_from_slice(&(slot as u64).to_le_bytes());
+        let mut out = arm64_mov_imm64(9, str_idx as u64);
+        out.extend_from_slice(&arm64_str_imm(9, 15, slot));
         Ok(out)
     }
     fn emit_exit(&mut self, _code: u8) -> IsaResult<Vec<u8>> {
-        // ret = 0xD65F03C0 (LE: C0 03 5F D6)
         Ok(vec![0xC0, 0x03, 0x5F, 0xD6])
+    }
+    // ── Real ARM64 instruction overrides (Aarch64 Windows) ──
+    fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_mov_imm64(9, imm);
+        out.extend_from_slice(&arm64_str_imm(9, 15, slot));
+        Ok(out)
+    }
+    fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, src).to_vec();
+        out.extend_from_slice(&arm64_str_imm(9, 15, dst));
+        Ok(out)
+    }
+    fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        self.emit_get(dst, src)
+    }
+    fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, slot).to_vec();
+        if imm < 0x1000 {
+            out.extend_from_slice(&arm64_add_imm(9, 9, imm as u16));
+        } else {
+            out.extend_from_slice(&arm64_mov_imm64(10, imm));
+            out.extend_from_slice(&arm64_add_reg(9, 9, 10));
+        }
+        out.extend_from_slice(&arm64_str_imm(9, 15, slot));
+        Ok(out)
+    }
+    fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, slot).to_vec();
+        if imm < 0x1000 {
+            out.extend_from_slice(&arm64_sub_imm(9, 9, imm as u16));
+        } else {
+            out.extend_from_slice(&arm64_mov_imm64(10, imm));
+            out.extend_from_slice(&arm64_sub_reg(9, 9, 10));
+        }
+        out.extend_from_slice(&arm64_str_imm(9, 15, slot));
+        Ok(out)
+    }
+    fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, slot).to_vec();
+        out.extend_from_slice(&arm64_add_imm(9, 9, 1));
+        out.extend_from_slice(&arm64_str_imm(9, 15, slot));
+        Ok(out)
+    }
+    fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, slot).to_vec();
+        out.extend_from_slice(&arm64_sub_imm(9, 9, 1));
+        out.extend_from_slice(&arm64_str_imm(9, 15, slot));
+        Ok(out)
+    }
+    fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, dst).to_vec();
+        out.extend_from_slice(&arm64_ldr_imm(10, 15, src));
+        out.extend_from_slice(&arm64_add_reg(9, 9, 10));
+        out.extend_from_slice(&arm64_str_imm(9, 15, dst));
+        Ok(out)
+    }
+    fn emit_orv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, dst).to_vec();
+        out.extend_from_slice(&arm64_ldr_imm(10, 15, src));
+        out.extend_from_slice(&arm64_orr_reg(9, 9, 10));
+        out.extend_from_slice(&arm64_str_imm(9, 15, dst));
+        Ok(out)
+    }
+    fn emit_subv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, dst).to_vec();
+        out.extend_from_slice(&arm64_ldr_imm(10, 15, src));
+        out.extend_from_slice(&arm64_sub_reg(9, 9, 10));
+        out.extend_from_slice(&arm64_str_imm(9, 15, dst));
+        Ok(out)
+    }
+    fn emit_imul(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, dst).to_vec();
+        out.extend_from_slice(&arm64_ldr_imm(10, 15, src));
+        out.extend_from_slice(&arm64_mul_reg(9, 9, 10));
+        out.extend_from_slice(&arm64_str_imm(9, 15, dst));
+        Ok(out)
+    }
+    fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(10, 15, a).to_vec();
+        out.extend_from_slice(&arm64_ldr_imm(11, 15, b));
+        out.extend_from_slice(&arm64_cmp(10, 11));
+        Ok(out)
+    }
+    fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
+        let mut out = arm64_ldr_imm(9, 15, ss).to_vec();
+        if oo != 0 {
+            out.extend_from_slice(&arm64_add_imm(9, 9, oo));
+        }
+        out.extend_from_slice(&arm64_ldrb(10, 9));
+        out.extend_from_slice(&arm64_str_imm(10, 15, dd));
+        Ok(out)
+    }
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        if n > 64 {
+            return Err(IsaError::PlatformError { msg: "ARM64 memcpy_state: n > 64".into() });
+        }
+        let mut out = Vec::new();
+        for i in 0..n as u16 {
+            out.extend_from_slice(&arm64_ldr_imm(9, 15, src + i));
+            out.extend_from_slice(&arm64_str_imm(9, 15, dst + i));
+        }
+        Ok(out)
+    }
+    fn emit_call_branch(&mut self) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        Ok((vec![0x00, 0x00, 0x00, 0x94], BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::ArmImm26 }))
+    }
+    fn emit_jmp_branch(&mut self) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        Ok((vec![0x00, 0x00, 0x00, 0x14], BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::ArmImm26 }))
+    }
+    fn emit_jcc_branch(&mut self, cc: u8) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        let cond = arm64_jcc_cond(cc);
+        let enc: u32 = 0x54000000 | (cond << 4);
+        Ok((enc.to_le_bytes().to_vec(), BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::ArmImm19 }))
     }
     fn startup_blob(&self) -> &[u8] {
         &[]
