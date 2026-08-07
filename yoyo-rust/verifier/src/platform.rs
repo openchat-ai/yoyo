@@ -344,6 +344,84 @@ pub trait PlatformBackend {
                 let patched = (base & 0xFF000000) | (imm24 as u32);
                 code[branch_start..branch_start + 4].copy_from_slice(&patched.to_le_bytes());
             }
+            FixupKind::MipsImm16 => {
+                // beq/bne: imm16 = (target - (branch_addr + 4)) / 4, signed
+                let diff = target as i32 - (branch_start as i32 + 4);
+                let imm16 = (diff >> 2) & 0xFFFF;
+                let base = u32::from_be_bytes(code[branch_start..branch_start + 4].try_into().unwrap());
+                let patched = (base & 0xFFFF0000) | (imm16 as u32);
+                code[branch_start..branch_start + 4].copy_from_slice(&patched.to_be_bytes());
+            }
+            FixupKind::MipsImm26 => {
+                // j/jal: target = (branch_addr & 0xF0000000) | (imm26 << 2)
+                let imm26 = (target >> 2) & 0x3FFFFFF;
+                let base = u32::from_be_bytes(code[branch_start..branch_start + 4].try_into().unwrap());
+                let patched = (base & 0xFC000000) | (imm26 as u32);
+                code[branch_start..branch_start + 4].copy_from_slice(&patched.to_be_bytes());
+            }
+            FixupKind::PpcImm24 => {
+                // b/bl: imm24 = (target - branch_addr) & 0x3FFFFFC
+                let diff = target as i32 - branch_start as i32;
+                let imm24 = (diff as u32) & 0x3FFFFFC;
+                let base = u32::from_le_bytes(code[branch_start..branch_start + 4].try_into().unwrap());
+                let li = base & 0x00000001; // preserve LK bit (call vs branch)
+                let patched = (base & 0xFC000001) | li | imm24;
+                code[branch_start..branch_start + 4].copy_from_slice(&patched.to_le_bytes());
+            }
+            FixupKind::PpcImm14 => {
+                // conditional branch (beq etc): imm14 = (target - branch_addr) & 0xFFFC
+                let diff = target as i32 - branch_start as i32;
+                let imm14 = (diff as u32) & 0xFFFC;
+                let base = u32::from_le_bytes(code[branch_start..branch_start + 4].try_into().unwrap());
+                let patched = (base & 0xFFFC0003) | imm14;
+                code[branch_start..branch_start + 4].copy_from_slice(&patched.to_le_bytes());
+            }
+            FixupKind::LoongImm26 => {
+                // b/bl: 26-bit signed PC-relative, offset = (target - branch_addr) / 4
+                let diff = target as i32 - branch_start as i32;
+                let imm26 = (diff >> 2) & 0x3FFFFFF;
+                let base = u32::from_le_bytes(code[branch_start..branch_start + 4].try_into().unwrap());
+                let patched = (base & 0xFC000000) | (imm26 as u32);
+                code[branch_start..branch_start + 4].copy_from_slice(&patched.to_le_bytes());
+            }
+            FixupKind::LoongImm16 => {
+                // beq/bne: 16-bit signed PC-relative, offset = (target - branch_addr) / 4
+                let diff = target as i32 - branch_start as i32;
+                let imm16 = (diff >> 2) & 0xFFFF;
+                let base = u32::from_le_bytes(code[branch_start..branch_start + 4].try_into().unwrap());
+                let patched = (base & 0xFFFF0000) | (imm16 as u32);
+                code[branch_start..branch_start + 4].copy_from_slice(&patched.to_le_bytes());
+            }
+            FixupKind::SparcImm22 => {
+                // SPARC branch: imm22 = (target - branch_addr) / 4, signed 22-bit
+                let diff = target as i32 - branch_start as i32;
+                let imm22 = (diff >> 2) & 0x3FFFFF;
+                let base = u32::from_be_bytes(code[branch_start..branch_start + 4].try_into().unwrap());
+                let patched = (base & 0xFFC00000) | (imm22 as u32);
+                code[branch_start..branch_start + 4].copy_from_slice(&patched.to_be_bytes());
+            }
+            FixupKind::SparcImm30 => {
+                // SPARC call: imm30 = (target - branch_start) / 4, signed 30-bit
+                let diff = target as i32 - branch_start as i32;
+                let imm30 = (diff >> 2) & 0x3FFFFFFF;
+                let base = u32::from_be_bytes(code[branch_start..branch_start + 4].try_into().unwrap());
+                let patched = (base & 0xC0000000) | (imm30 as u32);
+                code[branch_start..branch_start + 4].copy_from_slice(&patched.to_be_bytes());
+            }
+            FixupKind::XtensaImm18 => {
+                // Xtensa 3-byte j/j callx: signed 18-bit offset inline
+                let diff = target as i32 - branch_start as i32;
+                let imm18 = (diff as u32) & 0x3FFFF;
+                // 3-byte instruction: first byte carries bits, others carry imm18
+                // For j: opcode 0x6 (bits 23:16), imm18 in bits 17:0
+                let word = (code[branch_start] as u32)
+                    | ((code[branch_start + 1] as u32) << 8)
+                    | ((code[branch_start + 2] as u32) << 16);
+                let patched = (word & 0xFF0000) | (imm18 & 0xFFFF);
+                code[branch_start] = (patched & 0xFF) as u8;
+                code[branch_start + 1] = ((patched >> 8) & 0xFF) as u8;
+                code[branch_start + 2] = ((patched >> 16) & 0xFF) as u8;
+            }
         }
         Ok(())
     }
@@ -364,6 +442,15 @@ pub enum FixupKind {
     RiscvJ,
     RiscvB,
     ArmImm24,
+    MipsImm16,
+    MipsImm26,
+    PpcImm24,
+    PpcImm14,
+    LoongImm26,
+    LoongImm16,
+    SparcImm22,
+    SparcImm30,
+    XtensaImm18,
 }
 
 // ── Foreign-arch arithmetic helpers (marker format: NOP + type + operands) ──
