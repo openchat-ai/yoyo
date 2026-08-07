@@ -1,7 +1,9 @@
 //! Minimal PowerPC64 LE ELF64 linker (PROMPT-v3 Phase 1).
 //!
 //! Produces a working PPC64LE Linux ELF64 executable wrapping emitted
-//! .text + .data. No startup preamble — code starts directly at entry.
+//! .text + .data. The startup stub at the start of .text uses `addis` +
+//! `ori` to set up r13 → .data base (state pointer), then `b`s into
+//! user code. Multi-byte values are little-endian (ELFDATA2LSB).
 //!
 //! Data section size floor: 0x38000 (same as other backends).
 
@@ -30,7 +32,10 @@ pub fn link_ppc_elf(code: &[u8], data: &[u8]) -> IsaResult<ElfPpcImage> {
 
     let hdr_file_size = align_up(ELF_EHDR_SIZE + phdr_count as u32 * ELF_PHDR_SIZE, PAGE_SIZE);
     let text_file_off = hdr_file_size as u64;
-    let text_file_size = align_up(code.len() as u32, PAGE_SIZE) as u64;
+    // 4 × 4-byte PPC insns: addis r13, 0, hi16(data_va); ori r13, r13, lo16(data_va);
+    // b <user_code>; nop
+    let startup_len = 16u32;
+    let text_file_size = align_up(code.len() as u32 + startup_len, PAGE_SIZE) as u64;
     let text_mem_size = align_up(text_file_size as u32, PAGE_SIZE) as u64;
 
     let data_file_off = text_file_off + text_file_size;
@@ -78,9 +83,36 @@ pub fn link_ppc_elf(code: &[u8], data: &[u8]) -> IsaResult<ElfPpcImage> {
     write_u64(&mut img, phdr2_off + 40, data_mem_size);
     write_u64(&mut img, phdr2_off + 48, PAGE_SIZE as u64);
 
-    // ── Copy user code at start of .text (no startup preamble) ──
+    // ── Startup stub at start of .text ──
+    //   addis r13, 0, hi16(data_va)   ; r13 = (hi16 << 16)
+    //   ori   r13, r13, lo16(data_va) ; r13 |= lo16  → data base
+    //   b     <user_code>             ; branch to user code
+    //   nop
     let text_off = text_file_off as usize;
-    img[text_off..text_off + code.len()].copy_from_slice(code);
+    let user_code_va = text_va + startup_len as u64;
+
+    // addis r13, 0, hi16 — 0x3D60 | (hi16 << 16)
+    let data_hi16 = ((data_va >> 16) & 0xFFFF) as u32;
+    let addis_enc: u32 = 0x3D600000 | (data_hi16 << 16);
+    img[text_off..text_off + 4].copy_from_slice(&addis_enc.to_le_bytes());
+
+    // ori r13, r13, lo16 — 0x61 0x6D | lo16
+    let data_lo16 = (data_va & 0xFFFF) as u32;
+    let ori_enc: u32 = 0x616D0000 | (data_lo16 << 16);
+    img[text_off + 4..text_off + 8].copy_from_slice(&ori_enc.to_le_bytes());
+
+    // b <user_code> — 0x48000000 | (offset & 0x3FFFFFC)
+    // offset = user_code_va - (text_va + 8)  (PPC branch is relative to current instr)
+    let b_offset = (user_code_va as i64 - (text_va + 8) as i64) as u32;
+    let b_enc: u32 = 0x48000000 | (b_offset & 0x3FFFFFC);
+    img[text_off + 8..text_off + 12].copy_from_slice(&b_enc.to_le_bytes());
+
+    // nop
+    img[text_off + 12..text_off + 16].copy_from_slice(&[0x60, 0x00, 0x00, 0x00]);
+
+    // Copy user code
+    let code_dst = text_off + startup_len as usize;
+    img[code_dst..code_dst + code.len()].copy_from_slice(code);
 
     // ── Copy data ──
     let data_off = data_file_off as usize;

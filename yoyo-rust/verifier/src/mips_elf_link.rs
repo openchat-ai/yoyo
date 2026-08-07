@@ -2,7 +2,10 @@
 //!
 //! Produces a working MIPS BE Linux ELF32 executable wrapping emitted
 //! .text + .data. Big-endian byte order throughout (e_ident[5]=2).
-//! No startup preamble — code starts directly at entry.
+//!
+//! The startup stub at the start of .text uses `lui` + `ori` to set up
+//! t8 (r24) pointed at the .data base (state pointer), then `j`s into
+//! user code. All multi-byte constants are big-endian.
 //!
 //! Data section size floor: 0x38000 (same as other backends).
 
@@ -32,7 +35,10 @@ pub fn link_mips_elf(code: &[u8], data: &[u8]) -> IsaResult<ElfMipsImage> {
 
     let hdr_file_size = align_up(ELF_EHDR_SIZE + phdr_count as u32 * ELF_PHDR_SIZE, PAGE_SIZE);
     let text_file_off = hdr_file_size as u32;
-    let text_file_size = align_up(code.len() as u32, PAGE_SIZE);
+    // 4 × 4-byte MIPS insns: lui t8, hi(data_va); ori t8, t8, lo(data_va);
+    // j <user_code>; nop
+    let startup_len = 16u32;
+    let text_file_size = align_up(code.len() as u32 + startup_len, PAGE_SIZE);
     let text_mem_size = text_file_size;
 
     let data_file_off = text_file_off + text_file_size;
@@ -80,9 +86,35 @@ pub fn link_mips_elf(code: &[u8], data: &[u8]) -> IsaResult<ElfMipsImage> {
     write_u32_be(&mut img, phdr2_off + 24, 0x00000006); // p_flags = PF_R | PF_W
     write_u32_be(&mut img, phdr2_off + 28, PAGE_SIZE); // p_align
 
-    // ── Copy user code at start of .text (no startup preamble) ──
+    // ── Startup stub at start of .text ──
+    //   lui t8, hi16(data_va)        ; load upper 16 bits of data VA
+    //   ori t8, t8, lo16(data_va)   ; load lower 16 bits
+    //   j <user_code_offset>        ; jump to user code
+    //   nop                          ; delay slot
     let text_off = text_file_off as usize;
-    img[text_off..text_off + code.len()].copy_from_slice(code);
+    let user_code_va = text_va + startup_len;
+
+    // lui t8, hi16(data_va) — 0x3C180000 | (hi16 << 16)
+    let data_hi = (data_va >> 16) & 0xFFFF;
+    let lui_enc: u32 = 0x3C180000 | (data_hi << 16);
+    img[text_off..text_off + 4].copy_from_slice(&lui_enc.to_be_bytes());
+
+    // ori t8, t8, lo16(data_va) — 0x37180000 | lo16
+    let data_lo = data_va & 0xFFFF;
+    let ori_enc: u32 = 0x37180000 | data_lo;
+    img[text_off + 4..text_off + 8].copy_from_slice(&ori_enc.to_be_bytes());
+
+    // j <user_code> — 0x08000000 | (user_code_va >> 2)
+    // MIPS j is region-relative (top 4 bits of PC), but user_code is in same region
+    let j_enc: u32 = 0x08000000 | ((user_code_va >> 2) & 0x3FFFFFF);
+    img[text_off + 8..text_off + 12].copy_from_slice(&j_enc.to_be_bytes());
+
+    // nop (delay slot)
+    img[text_off + 12..text_off + 16].copy_from_slice(&[0x00, 0x00, 0x00, 0x00]);
+
+    // Copy user code
+    let code_dst = text_off + startup_len as usize;
+    img[code_dst..code_dst + code.len()].copy_from_slice(code);
 
     // ── Copy data ──
     let data_off = data_file_off as usize;
