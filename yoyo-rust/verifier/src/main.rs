@@ -5,6 +5,10 @@ mod cuda_backend;
 mod apple_backend;
 mod arm64_elf_link;
 mod arm64_interp;
+mod riscv_interp;
+mod riscv32_interp;
+mod mips_interp;
+mod ppc_interp;
 mod ddc;
 mod emit;
 mod executor;
@@ -971,16 +975,41 @@ fn cmd_test_ddc() -> Result<(), types::IsaError> {
     let wasm = wasm_backend::emit_wasm(&tir)?;
     let wasm_result = wasm_run::run_wasm(&wasm)?;
 
+    // 4. RISC-V RV64 interpreter
+    let out_riscv = emit::emit(&tir, PlatformKind::Riscv64)?;
+    let elf_riscv = riscv_elf_link::link_riscv_elf(&out_riscv.code, &out_riscv.data)?;
+    let exec_riscv = crate::riscv_interp::run_riscv_elf(&elf_riscv.bytes);
+    // 5. RISC-V RV32 interpreter
+    let out_riscv32 = emit::emit(&tir, PlatformKind::Riscv32)?;
+    let elf_riscv32 = riscv32_elf_link::link_riscv32_elf(&out_riscv32.code, &out_riscv32.data)?;
+    let exec_riscv32 = crate::riscv32_interp::run_riscv32_elf(&elf_riscv32.bytes);
+    // 6. MIPS interpreter
+    let out_mips = emit::emit(&tir, PlatformKind::Mips)?;
+    let elf_mips = mips_elf_link::link_mips_elf(&out_mips.code, &out_mips.data)?;
+    let exec_mips = crate::mips_interp::run_mips_elf(&elf_mips.bytes);
+    // 7. PPC interpreter
+    let out_ppc = emit::emit(&tir, PlatformKind::PowerPc64Le)?;
+    let elf_ppc = ppc_elf_link::link_ppc_elf(&out_ppc.code, &out_ppc.data)?;
+    let exec_ppc = crate::ppc_interp::run_ppc_elf(&elf_ppc.bytes);
+
     let sim_ok = sim.exit_reason == crate::simulator::SimExitReason::Ret;
     let exec_ok = exec.exit_reason == crate::arm64_interp::ExecExitReason::Ret;
     let wasm_ok = wasm_result.exit_reason == crate::wasm_run::WasmExitReason::Trap { kind: crate::wasm_run::TrapKind::Unreachable };
+    let riscv_ok = exec_riscv.exit_reason == crate::riscv_interp::ExecExitReason::Ret;
+    let riscv32_ok = exec_riscv32.exit_reason == crate::riscv32_interp::ExecExitReason::Ret;
+    let mips_ok = exec_mips.exit_reason == crate::mips_interp::ExecExitReason::Ret;
+    let ppc_ok = exec_ppc.exit_reason == crate::ppc_interp::ExecExitReason::Ret;
 
-    println!("DDC test: sim  exit={:?} steps={}", sim.exit_reason, sim.steps);
-    println!("DDC test: exec exit={:?} steps={}", exec.exit_reason, exec.steps);
-    println!("DDC test: wasm exit={:?} steps={}", wasm_result.exit_reason, wasm_result.steps);
+    println!("DDC test: sim   exit={:?} steps={}", sim.exit_reason, sim.steps);
+    println!("DDC test: exec  exit={:?} steps={}", exec.exit_reason, exec.steps);
+    println!("DDC test: wasm  exit={:?} steps={}", wasm_result.exit_reason, wasm_result.steps);
+    println!("DDC test: riscv exit={:?} steps={}", exec_riscv.exit_reason, exec_riscv.steps);
+    println!("DDC test: riscv32 exit={:?} steps={}", exec_riscv32.exit_reason, exec_riscv32.steps);
+    println!("DDC test: mips  exit={:?} steps={}", exec_mips.exit_reason, exec_mips.steps);
+    println!("DDC test: ppc   exit={:?} steps={}", exec_ppc.exit_reason, exec_ppc.steps);
 
-    if sim_ok && exec_ok && wasm_ok {
-        println!("DDC test: PASS (sim=Ret exec=Ret wasm=unreachable)");
+    if sim_ok && exec_ok && wasm_ok && riscv_ok && riscv32_ok && mips_ok && ppc_ok {
+        println!("DDC test: PASS (sim=Ret exec=Ret wasm=unreachable riscv=Ret riscv32=Ret mips=Ret ppc=Ret)");
         Ok(())
     } else {
         println!("DDC test: FAIL");

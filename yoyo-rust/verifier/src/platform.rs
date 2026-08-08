@@ -2916,6 +2916,10 @@ impl PlatformBackend for LoongArchPlatform {
     fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
         Ok(LOONGARCH_NOP.to_vec())
     }
+    fn emit_ret(&mut self) -> IsaResult<Vec<u8>> {
+        // LoongArch RET = jirl zero, ra, 0 = 0x4C000020 (LE)
+        Ok(vec![0x20, 0x00, 0x00, 0x4C])
+    }
     fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
         foreign_set(slot, imm)
     }
@@ -3682,6 +3686,10 @@ impl PlatformBackend for XtensaPlatform {
     fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
         Ok(XTENSA_NOP.to_vec())
     }
+    fn emit_ret(&mut self) -> IsaResult<Vec<u8>> {
+        // Xtensa RET = 0x0000F0 (3 bytes LE)
+        Ok(vec![0xF0, 0x00, 0x00])
+    }
     fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
         foreign_set(slot, imm)
     }
@@ -4208,8 +4216,12 @@ impl Msp430Platform {
 
 impl PlatformBackend for Msp430Platform {
     fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
-        // MSP430 NOP = 0x03 (1 byte)
-        Ok(vec![0x03])
+        // MSP430 NOP = 0x4303 (2 bytes)
+        Ok(vec![0x03, 0x43])
+    }
+    fn emit_ret(&mut self) -> IsaResult<Vec<u8>> {
+        // MSP430 RET = 0x4130 (2 bytes LE)
+        Ok(vec![0x30, 0x41])
     }
     fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
         foreign_set(slot, imm)
@@ -4304,6 +4316,10 @@ impl PlatformBackend for PicPlatform {
         // PIC NOP = 0x0000 (2 bytes, LE)
         Ok(vec![0x00, 0x00])
     }
+    fn emit_ret(&mut self) -> IsaResult<Vec<u8>> {
+        // PIC RETURN = 0x0004 (2 bytes LE)
+        Ok(vec![0x04, 0x00])
+    }
     fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
         foreign_set(slot, imm)
     }
@@ -4396,6 +4412,10 @@ impl PlatformBackend for Stm8Platform {
     fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
         // STM8 NOP = 0x9D (1 byte)
         Ok(vec![0x9D])
+    }
+    fn emit_ret(&mut self) -> IsaResult<Vec<u8>> {
+        // STM8 RET = 0x81 (1 byte)
+        Ok(vec![0x81])
     }
     fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
         foreign_set(slot, imm)
