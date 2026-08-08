@@ -59,7 +59,7 @@ fn usage() -> ! {
            yoyo wasm-validate <input.ty>\n\
            yoyo run-wasm <input.ty>\n\
            yoyo ddcmp <A.elf> <B.elf> <input.ty>\n\
-           yoyo test golden\n\
+           yoyo test golden|backends|ddc|all\n\
            yoyo exec <input.ty> [--target=android|apple]\n\
            yoyo info [--target=<target>]\n\n\
          Note: --posture= / --morph= are recognized and fail-closed (NON-CONFORMING)\n\
@@ -862,10 +862,130 @@ fn cmd_info(args: &[String]) -> Result<(), types::IsaError> {
 }
 
 fn cmd_test(args: &[String]) -> Result<(), types::IsaError> {
-    if args.len() != 1 || args[0] != "golden" {
+    if args.len() != 1 {
         usage();
     }
-    cmd_test_golden()
+    match args[0].as_str() {
+        "golden" => cmd_test_golden(),
+        "backends" => cmd_test_backends(),
+        "ddc" => cmd_test_ddc(),
+        "all" => {
+            cmd_test_golden()?;
+            cmd_test_backends()?;
+            cmd_test_ddc()
+        }
+        _ => usage(),
+    }
+}
+
+/// Compile + link a fixture for every platform backend and verify output is non-empty.
+fn cmd_test_backends() -> Result<(), types::IsaError> {
+    use crate::platform::PlatformKind;
+    let fixture = find_fixture("00_nop_ret.ty")?;
+    let src = fs::read_to_string(&fixture).map_err(|e| types::IsaError::IoError { msg: e.to_string() })?;
+    let tir = executor::compile_ty_source_to_tir(&src)?;
+    let mut failed = 0u32;
+    let mut total = 0u32;
+    let targets = [
+        PlatformKind::Win32, PlatformKind::Linux, PlatformKind::BareMetal,
+        PlatformKind::Stub, PlatformKind::Cuda, PlatformKind::Android,
+        PlatformKind::Apple, PlatformKind::Eight051, PlatformKind::X86,
+        PlatformKind::Freedos, PlatformKind::Riscv64, PlatformKind::Riscv32,
+        PlatformKind::Mips, PlatformKind::PowerPc64Le, PlatformKind::Avr,
+        PlatformKind::Arm32, PlatformKind::Wasm, PlatformKind::MachoX64,
+        PlatformKind::Serenity, PlatformKind::LoongArch, PlatformKind::Sparc,
+        PlatformKind::Aarch64Windows, PlatformKind::FreeBSD, PlatformKind::Haiku,
+        PlatformKind::Plan9, PlatformKind::Xtensa, PlatformKind::Z80,
+        PlatformKind::M6502, PlatformKind::M68k, PlatformKind::Msp430,
+        PlatformKind::Pic, PlatformKind::Stm8, PlatformKind::Rocm,
+        PlatformKind::Vulkan, PlatformKind::Evm, PlatformKind::Qiskit,
+    ];
+    for target in targets {
+        total += 1;
+        let name = format!("{:?}", target).to_ascii_lowercase();
+        match emit_target_bytes(target, &tir) {
+            Ok(bytes) if !bytes.is_empty() => {
+                println!("BACKEND {name}: PASS ({} bytes)", bytes.len());
+            }
+            Ok(_) => {
+                failed += 1;
+                eprintln!("BACKEND {name}: FAIL (empty output)");
+            }
+            Err(e) => {
+                failed += 1;
+                eprintln!("BACKEND {name}: FAIL —{e}");
+            }
+        }
+    }
+    println!("backend tests: {}/{} PASS", total - failed, total);
+    if failed > 0 { Err(types::IsaError::PlatformError { msg: format!("{failed} backend tests failed") }) } else { Ok(()) }
+}
+
+/// Compile + link a target, returning the output bytes.
+fn emit_target_bytes(target: crate::platform::PlatformKind, tir: &[crate::tir::TirInst]) -> Result<Vec<u8>, types::IsaError> {
+    use crate::platform::PlatformKind;
+    let out = emit::emit(tir, target)?;
+    match target {
+        PlatformKind::Android => Ok(arm64_elf_link::link_arm64_elf(&out.code, &out.data)?.bytes),
+        PlatformKind::Apple => Ok(apple_backend::link_macho64(&out.code, &out.data)?.bytes),
+        PlatformKind::Linux | PlatformKind::FreeBSD | PlatformKind::Haiku => Ok(elf_link::link_elf(&out.code, &out.data)?.bytes),
+        PlatformKind::Riscv64 => Ok(riscv_elf_link::link_riscv_elf(&out.code, &out.data)?.bytes),
+        PlatformKind::Riscv32 => Ok(riscv32_elf_link::link_riscv32_elf(&out.code, &out.data)?.bytes),
+        PlatformKind::Mips => Ok(mips_elf_link::link_mips_elf(&out.code, &out.data)?.bytes),
+        PlatformKind::PowerPc64Le => Ok(ppc_elf_link::link_ppc_elf(&out.code, &out.data)?.bytes),
+        PlatformKind::Arm32 => Ok(arm32_elf_link::link_arm32_elf(&out.code, &out.data)?.bytes),
+        PlatformKind::X86 => Ok(x86_link::link_x86(&out.code, &out.data)?.bytes),
+        PlatformKind::MachoX64 => Ok(macho_x64_link::link_macho_x64(&out.code, &out.data)?.bytes),
+        PlatformKind::Aarch64Windows => Ok(arm64_pe_link::link_arm64_pe(&out.code, &out.data)?.bytes),
+        PlatformKind::LoongArch => Ok(loongarch_elf_link::link_loongarch_elf(&out.code, &out.data)?.bytes),
+        PlatformKind::Sparc => Ok(sparc_elf_link::link_sparc_elf(&out.code, &out.data)?.bytes),
+        PlatformKind::Win32 => Ok(pe_link::link_pe(&out.code, &out.data)?.bytes),
+        PlatformKind::Wasm => Ok(wasm_backend::emit_wasm(tir)?),
+        PlatformKind::Cuda => Ok(cuda_backend::emit_cuda(tir)?.into_bytes()),
+        PlatformKind::Rocm => Ok(rocm_backend::emit_rocm(tir)?.into_bytes()),
+        PlatformKind::Vulkan => Ok(spirv_backend::emit_spirv(tir)?),
+        PlatformKind::Qiskit => Ok(qiskit_backend::emit_qiskit(tir)?.into_bytes()),
+        // Flat binary / no linker
+        PlatformKind::BareMetal | PlatformKind::Stub | PlatformKind::Eight051
+        | PlatformKind::Freedos | PlatformKind::Avr | PlatformKind::Serenity
+        | PlatformKind::Plan9 | PlatformKind::Xtensa | PlatformKind::Z80
+        | PlatformKind::M6502 | PlatformKind::M68k | PlatformKind::Msp430
+        | PlatformKind::Pic | PlatformKind::Stm8 | PlatformKind::Evm => Ok(out.code),
+    }
+}
+
+/// Cross-arch DDC consistency: ARM64 exec, Wasm, and TIR simulator must agree.
+fn cmd_test_ddc() -> Result<(), types::IsaError> {
+    use crate::platform::PlatformKind;
+    let fixture = find_fixture("00_nop_ret.ty")?;
+    let src = fs::read_to_string(&fixture).map_err(|e| types::IsaError::IoError { msg: e.to_string() })?;
+    let tir = executor::compile_ty_source_to_tir(&src)?;
+
+    // 1. TIR simulator
+    let sim = simulator::simulate(&tir)?;
+    // 2. ARM64 interpreter
+    let out = emit::emit(&tir, PlatformKind::Android)?;
+    let elf = arm64_elf_link::link_arm64_elf(&out.code, &out.data)?;
+    let exec = crate::arm64_interp::run_arm64_elf(&elf.bytes);
+    // 3. Wasm
+    let wasm = wasm_backend::emit_wasm(&tir)?;
+    let wasm_result = wasm_run::run_wasm(&wasm)?;
+
+    let sim_ok = sim.exit_reason == crate::simulator::SimExitReason::Ret;
+    let exec_ok = exec.exit_reason == crate::arm64_interp::ExecExitReason::Ret;
+    let wasm_ok = wasm_result.exit_reason == crate::wasm_run::WasmExitReason::Trap { kind: crate::wasm_run::TrapKind::Unreachable };
+
+    println!("DDC test: sim  exit={:?} steps={}", sim.exit_reason, sim.steps);
+    println!("DDC test: exec exit={:?} steps={}", exec.exit_reason, exec.steps);
+    println!("DDC test: wasm exit={:?} steps={}", wasm_result.exit_reason, wasm_result.steps);
+
+    if sim_ok && exec_ok && wasm_ok {
+        println!("DDC test: PASS (sim=Ret exec=Ret wasm=unreachable)");
+        Ok(())
+    } else {
+        println!("DDC test: FAIL");
+        Err(types::IsaError::PlatformError { msg: "DDC mismatch".into() })
+    }
 }
 
 /// Appendix F G00鈥揋05 plus W-selfhost-min G-SM + G-SM-CHAIN through G-SM-CHAIN12 + G-SM-INC + G-SM-DEC + G-SM-JMP + G-SM-CALL + G-SM-JE + G-SM-JCC-ALL + G-SM-IO. Fail-closed on mismatch / missing files.
@@ -4745,6 +4865,23 @@ fn repo_root() -> Result<std::path::PathBuf, types::IsaError> {
         .map_err(|e| types::IsaError::IoError {
             msg: format!("resolve repo root: {e}"),
         })
+}
+
+/// Find a golden test fixture by name, trying multiple possible paths.
+fn find_fixture(name: &str) -> Result<std::path::PathBuf, types::IsaError> {
+    let candidates = [
+        std::path::Path::new("../../yoyo/tests/golden").join(name),
+        std::path::Path::new("f:/yoyo/yoyo/tests/golden").join(name),
+        std::path::Path::new("yoyo/tests/golden").join(name),
+    ];
+    for p in &candidates {
+        if p.is_file() {
+            return Ok(p.clone());
+        }
+    }
+    Err(types::IsaError::IoError {
+        msg: format!("fixture '{name}' not found in any expected path"),
+    })
 }
 
 fn check_g00(root: &std::path::Path) -> Result<String, String> {
