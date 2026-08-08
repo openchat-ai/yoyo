@@ -2848,6 +2848,64 @@ impl PlatformBackend for MachoX64Platform {
 // ── LoongArch (LA64, ELF64 LE) ──────────────────────────────────
 const LOONGARCH_NOP: [u8; 4] = [0x00, 0x00, 0x00, 0x00];
 
+// LoongArch encoding helpers
+// lu12i.w rd, si20: opcode 0x14, bits 5:24 = si20, bits 0:4 = rd
+fn loong_lu12i_w(rd: u32, si20: u32) -> [u8; 4] {
+    ((0x14 << 22) | ((si20 & 0xFFFFF) << 5) | (rd & 0x1F)).to_le_bytes()
+}
+// ori rd, rj, ui12: opcode 0x038
+fn loong_ori(rd: u32, rj: u32, ui12: u32) -> [u8; 4] {
+    ((0x038 << 22) | ((ui12 & 0xFFF) << 10) | ((rj & 0x1F) << 5) | (rd & 0x1F)).to_le_bytes()
+}
+// addi.d rd, rj, si12: opcode 0x029
+fn loong_addi_d(rd: u32, rj: u32, si12: u32) -> [u8; 4] {
+    ((0x029 << 22) | ((si12 & 0xFFF) << 10) | ((rj & 0x1F) << 5) | (rd & 0x1F)).to_le_bytes()
+}
+// st.d rd, rj, si12: opcode 0x29D
+fn loong_st_d(rd: u32, rj: u32, si12: u32) -> [u8; 4] {
+    ((0x29D << 22) | ((si12 & 0xFFF) << 10) | ((rj & 0x1F) << 5) | (rd & 0x1F)).to_le_bytes()
+}
+// ld.d rd, rj, si12: opcode 0x28C
+fn loong_ld_d(rd: u32, rj: u32, si12: u32) -> [u8; 4] {
+    ((0x28C << 22) | ((si12 & 0xFFF) << 10) | ((rj & 0x1F) << 5) | (rd & 0x1F)).to_le_bytes()
+}
+// jirl rd, rj, offs16: opcode 0x13
+fn loong_jirl(rd: u32, rj: u32, offs16: u32) -> [u8; 4] {
+    ((0x13 << 22) | ((offs16 & 0xFFFF) << 10) | ((rj & 0x1F) << 5) | (rd & 0x1F)).to_le_bytes()
+}
+// b offs26: opcode 0x10
+fn loong_b(offs26: u32) -> [u8; 4] {
+    ((0x10 << 22) | (offs26 & 0x3FFFFFF)).to_le_bytes()
+}
+// bl offs26: opcode 0x11
+fn loong_bl(offs26: u32) -> [u8; 4] {
+    ((0x11 << 22) | (offs26 & 0x3FFFFFF)).to_le_bytes()
+}
+// beq rj, rd, offs16: opcode 0x16
+fn loong_beq(rj: u32, rd: u32, offs16: u32) -> [u8; 4] {
+    ((0x16 << 22) | ((offs16 & 0xFFFF) << 10) | ((rd & 0x1F) << 5) | (rj & 0x1F)).to_le_bytes()
+}
+// bne rj, rd, offs16: opcode 0x17
+fn loong_bne(rj: u32, rd: u32, offs16: u32) -> [u8; 4] {
+    ((0x17 << 22) | ((offs16 & 0xFFFF) << 10) | ((rd & 0x1F) << 5) | (rj & 0x1F)).to_le_bytes()
+}
+// Load 64-bit immediate into rd using lu12i.w + ori + addi.d chain
+fn loong_li(rd: u32, imm: u64) -> Vec<u8> {
+    let imm = imm as u32;
+    let mut out = loong_lu12i_w(rd, imm >> 12).to_vec();
+    let lo = imm & 0xFFF;
+    if lo != 0 {
+        out.extend_from_slice(&loong_ori(rd, rd, lo));
+    }
+    out
+}
+
+// LoongArch register numbers
+const LOONG_R0: u32 = 0;  // zero
+const LOONG_RA: u32 = 1;  // return address
+const LOONG_T0: u32 = 12; // state base
+const LOONG_T1: u32 = 13; // scratch
+
 pub struct LoongArchPlatform;
 
 impl LoongArchPlatform {
@@ -2941,6 +2999,45 @@ impl PlatformBackend for LoongArchPlatform {
 // ── SPARC v8 (32-bit BE, ELF32) ─────────────────────────────────
 const SPARC_NOP: [u8; 4] = [0x01, 0x00, 0x00, 0x00];
 
+// SPARC register numbers (global regs)
+const SPARC_G1: u32 = 1; // state base
+const SPARC_G2: u32 = 2; // scratch
+// SETHI rd, imm22: 0x01000000 | (rd<<25) | imm22
+fn sparc_sethi(rd: u32, imm22: u32) -> [u8; 4] {
+    (0x01000000u32 | (rd << 25) | (imm22 & 0x003FFFFF)).to_be_bytes()
+}
+// OR imm rd, rs1, simm13: op=2, rd, op3=0b000010, rs1, i=1, simm13
+fn sparc_or_imm(rd: u32, rs1: u32, simm13: u32) -> [u8; 4] {
+    (0x80202000u32 | (rd << 25) | (rs1 << 14) | (simm13 & 0x1FFF)).to_be_bytes()
+}
+// ST rd, [rs1 + simm13]: op=3, rd, op3=0b000100, rs1, i=1, simm13
+fn sparc_st(rd: u32, rs1: u32, simm13: u32) -> [u8; 4] {
+    (0xC0202000u32 | (rd << 25) | (rs1 << 14) | (simm13 & 0x1FFF)).to_be_bytes()
+}
+// LD [rs1 + simm13], rd: op=3, rd, op3=0b000000, rs1, i=1, simm13
+fn sparc_ld(rd: u32, rs1: u32, simm13: u32) -> [u8; 4] {
+    (0xC0002000u32 | (rd << 25) | (rs1 << 14) | (simm13 & 0x1FFF)).to_be_bytes()
+}
+// ret: jmpl %i7+8, %g0 = 0x81C3E008
+fn sparc_ret() -> [u8; 4] {
+    0x81C3E008u32.to_be_bytes()
+}
+// Bicc (branch): cond(28:25), op2=0b010, disp22
+fn sparc_bicc(cond: u32, disp22: u32) -> [u8; 4] {
+    ((cond << 25) | 0x800000u32 | (disp22 & 0x003FFFFF)).to_be_bytes()
+}
+// CALL: op=1, disp30
+fn sparc_call(disp30: u32) -> [u8; 4] {
+    (0x40000000u32 | (disp30 & 0x3FFFFFFF)).to_be_bytes()
+}
+// Load 32-bit immediate into g2 via SETHI + OR.
+fn sparc_li_g2(imm: u32) -> Vec<u8> {
+    let mut out = sparc_sethi(SPARC_G2, imm >> 10).to_vec();
+    let lo = imm & 0x3FF;
+    out.extend_from_slice(&sparc_or_imm(SPARC_G2, SPARC_G2, lo));
+    out
+}
+
 pub struct SparcPlatform;
 
 impl SparcPlatform {
@@ -2951,14 +3048,45 @@ impl PlatformBackend for SparcPlatform {
     fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
         Ok(SPARC_NOP.to_vec())
     }
+    fn emit_ret(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(sparc_ret().to_vec())
+    }
     fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
-        foreign_set(slot, imm)
+        let addr = 0x20000u32 + slot as u32 * 4; // data_va + slot*4
+        // Load imm into g2, load addr into g1, ST g2, [g1]
+        let mut out = sparc_li_g2(imm as u32);
+        let hi = addr >> 10;
+        let lo = addr & 0x3FF;
+        out.extend_from_slice(&sparc_sethi(SPARC_G1, hi));
+        if lo != 0 {
+            out.extend_from_slice(&sparc_or_imm(SPARC_G1, SPARC_G1, lo));
+        }
+        out.extend_from_slice(&sparc_st(SPARC_G2, SPARC_G1, 0));
+        Ok(out)
     }
     fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        foreign_get(dst, src)
+        let src_addr = 0x20000u32 + src as u32 * 4;
+        let dst_addr = 0x20000u32 + dst as u32 * 4;
+        // Load src addr into g1, LD g2, [g1], load dst addr into g1, ST g2, [g1]
+        let mut out = Vec::new();
+        let hi_src = src_addr >> 10;
+        let lo_src = src_addr & 0x3FF;
+        out.extend_from_slice(&sparc_sethi(SPARC_G1, hi_src));
+        if lo_src != 0 {
+            out.extend_from_slice(&sparc_or_imm(SPARC_G1, SPARC_G1, lo_src));
+        }
+        out.extend_from_slice(&sparc_ld(SPARC_G2, SPARC_G1, 0));
+        let hi_dst = dst_addr >> 10;
+        let lo_dst = dst_addr & 0x3FF;
+        out.extend_from_slice(&sparc_sethi(SPARC_G1, hi_dst));
+        if lo_dst != 0 {
+            out.extend_from_slice(&sparc_or_imm(SPARC_G1, SPARC_G1, lo_dst));
+        }
+        out.extend_from_slice(&sparc_st(SPARC_G2, SPARC_G1, 0));
+        Ok(out)
     }
     fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        foreign_movrr(dst, src)
+        self.emit_get(dst, src)
     }
     fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
         foreign_add_imm(slot, imm)
@@ -3695,16 +3823,48 @@ impl PlatformBackend for Z80Platform {
         self.emit_get(dst, src)
     }
     fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
-        foreign_add_imm(slot, imm)
+        let addr = Z80_STATE_BASE + slot * 2;
+        let imm = imm as u16;
+        let [lo, hi] = imm.to_le_bytes();
+        // LD HL, (addr); LD A, lo; ADD A, L; LD L, A; LD A, hi; ADC A, H; LD H, A; LD (addr), HL
+        let mut out = vec![0x2A];
+        out.extend_from_slice(&addr.to_le_bytes());
+        out.extend_from_slice(&[0x3E, lo, 0x85, 0x6F, 0x3E, hi, 0x8C, 0x67]);
+        out.extend_from_slice(&[0x22]);
+        out.extend_from_slice(&addr.to_le_bytes());
+        Ok(out)
     }
     fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
-        foreign_sub_imm(slot, imm)
+        let addr = Z80_STATE_BASE + slot * 2;
+        let imm = imm as u16;
+        let [lo, hi] = imm.to_le_bytes();
+        // LD HL, (addr); LD A, L; SUB lo; LD L, A; LD A, H; SBC hi; LD H, A; LD (addr), HL
+        let mut out = vec![0x2A];
+        out.extend_from_slice(&addr.to_le_bytes());
+        out.extend_from_slice(&[0x7D, 0xD6, lo, 0x6F, 0x7C, 0xDE, hi, 0x67]);
+        out.extend_from_slice(&[0x22]);
+        out.extend_from_slice(&addr.to_le_bytes());
+        Ok(out)
     }
     fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
-        foreign_inc(slot)
+        let addr = Z80_STATE_BASE + slot * 2;
+        // LD HL, (addr); INC HL; LD (addr), HL
+        let mut out = vec![0x2A];
+        out.extend_from_slice(&addr.to_le_bytes());
+        out.extend_from_slice(&[0x23]);
+        out.extend_from_slice(&[0x22]);
+        out.extend_from_slice(&addr.to_le_bytes());
+        Ok(out)
     }
     fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
-        foreign_dec(slot)
+        let addr = Z80_STATE_BASE + slot * 2;
+        // LD HL, (addr); DEC HL; LD (addr), HL
+        let mut out = vec![0x2A];
+        out.extend_from_slice(&addr.to_le_bytes());
+        out.extend_from_slice(&[0x2B]);
+        out.extend_from_slice(&[0x22]);
+        out.extend_from_slice(&addr.to_le_bytes());
+        Ok(out)
     }
     fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
         foreign_addv(dst, src)
@@ -3828,16 +3988,53 @@ impl PlatformBackend for M6502Platform {
         self.emit_get(dst, src)
     }
     fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
-        foreign_add_imm(slot, imm)
+        let addr = M6502_STATE_BASE + slot * 2;
+        // LDA addr; CLC; ADC #imm; STA addr
+        let mut out = m6502_lda_addr(addr);
+        out.push(0x18); // CLC
+        out.push(0x69); out.push(imm as u8); // ADC #imm
+        out.extend(m6502_sta_addr(addr));
+        Ok(out)
     }
     fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
-        foreign_sub_imm(slot, imm)
+        let addr = M6502_STATE_BASE + slot * 2;
+        // LDA addr; SEC; SBC #imm; STA addr
+        let mut out = m6502_lda_addr(addr);
+        out.push(0x38); // SEC
+        out.push(0xE9); out.push(imm as u8); // SBC #imm
+        out.extend(m6502_sta_addr(addr));
+        Ok(out)
     }
     fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
-        foreign_inc(slot)
+        let addr = M6502_STATE_BASE + slot * 2;
+        // INC addr (absolute)
+        let [lo, hi] = addr.to_le_bytes();
+        // INC addr; BNE skip; INC addr+1; skip:
+        // Actually simpler: LDA addr; CLC; ADC #1; STA addr; LDA addr+1; ADC #0; STA addr+1
+        let mut out = m6502_lda_addr(addr);
+        out.push(0x18); // CLC
+        out.push(0x69); out.push(0x01); // ADC #1
+        out.extend_from_slice(&[0x8D, lo, hi]); // STA addr
+        let addr_hi = M6502_STATE_BASE + slot * 2 + 1;
+        let [loh, hih] = addr_hi.to_le_bytes();
+        out.extend_from_slice(&[0xAD, loh, hih]); // LDA addr+1
+        out.push(0x69); out.push(0x00); // ADC #0 (carry from low byte)
+        out.extend_from_slice(&[0x8D, loh, hih]); // STA addr+1
+        Ok(out)
     }
     fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
-        foreign_dec(slot)
+        let addr = M6502_STATE_BASE + slot * 2;
+        // LDA addr; SEC; SBC #1; STA addr; LDA addr+1; SBC #0; STA addr+1
+        let mut out = m6502_lda_addr(addr);
+        out.push(0x38); // SEC
+        out.push(0xE9); out.push(0x01); // SBC #1
+        out.extend(m6502_sta_addr(addr));
+        let addr_hi = M6502_STATE_BASE + slot * 2 + 1;
+        let [loh, hih] = addr_hi.to_le_bytes();
+        out.extend_from_slice(&[0xAD, loh, hih]); // LDA addr+1
+        out.push(0xE9); out.push(0x00); // SBC #0 (borrow)
+        out.extend_from_slice(&[0x8D, loh, hih]); // STA addr+1
+        Ok(out)
     }
     fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
         foreign_addv(dst, src)
