@@ -147,8 +147,8 @@ pub fn link_macho64(code: &[u8], data: &[u8]) -> IsaResult<MachO64Image> {
     img[stub_off + 8..stub_off + 12].copy_from_slice(&arm64_adrp(16, user_code_va));
     // add x16, x16, user_code_va & 0xFFF
     img[stub_off + 12..stub_off + 16].copy_from_slice(&arm64_add_imm12(16, 16, user_code_va & 0xFFF));
-    // br x16 = 0x18004010
-    img[stub_off + 16..stub_off + 20].copy_from_slice(&0x18004010u32.to_le_bytes());
+    // br x16 = 0xD61F0200
+    img[stub_off + 16..stub_off + 20].copy_from_slice(&0xD61F0200u32.to_le_bytes());
 
     // user code
     let code_dst = stub_off + startup_len as usize;
@@ -246,6 +246,6 @@ mod tests {
             first_insn
         );
         // br x16 should be at offset +16 (5th instruction of the startup stub)
-        assert_eq!(&img.bytes[text_off + 16..text_off + 20], &0x18004010u32.to_le_bytes());
+        assert_eq!(&img.bytes[text_off + 16..text_off + 20], &0xD61F0200u32.to_le_bytes());
     }
 }

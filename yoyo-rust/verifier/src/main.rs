@@ -4,6 +4,7 @@ mod assembler;
 mod cuda_backend;
 mod apple_backend;
 mod arm64_elf_link;
+mod arm64_interp;
 mod ddc;
 mod emit;
 mod executor;
@@ -59,6 +60,7 @@ fn usage() -> ! {
            yoyo run-wasm <input.ty>\n\
            yoyo ddcmp <A.elf> <B.elf> <input.ty>\n\
            yoyo test golden\n\
+           yoyo exec <input.ty> [--target=android|apple]\n\
            yoyo info [--target=<target>]\n\n\
          Note: --posture= / --morph= are recognized and fail-closed (NON-CONFORMING)\n\
          until posture/morph backends land (PROMPT Part E.19 / E.16).\n\
@@ -102,6 +104,7 @@ fn main() -> ExitCode {
         "test" => cmd_test(&args[1..]),
         "wasm-validate" => cmd_wasm_validate(&args[1..]),
         "run-wasm" => cmd_run_wasm(&args[1..]),
+        "exec" => cmd_exec(&args[1..]),
         "info" => cmd_info(&args[1..]),
         _ => {
             eprintln!("unknown command '{cmd}'");
@@ -747,6 +750,54 @@ fn cmd_run_wasm(args: &[String]) -> Result<(), types::IsaError> {
         return Err(types::IsaError::PlatformError {
             msg: format!("DDC mismatch: {ddc}"),
         });
+    }
+    Ok(())
+}
+
+fn cmd_exec(args: &[String]) -> Result<(), types::IsaError> {
+    use crate::arm64_interp::run_arm64_elf;
+    use crate::executor::compile_ty_source_to_tir;
+    use crate::platform::PlatformKind;
+    use crate::simulator::simulate;
+    use crate::emit::emit;
+    let mut target = PlatformKind::Android;
+    let mut rest = Vec::new();
+    for a in args {
+        if let Some(t) = a.strip_prefix("--target=") {
+            target = crate::platform::parse_platform(t)?;
+        } else {
+            rest.push(a.clone());
+        }
+    }
+    if rest.len() != 1 {
+        usage();
+    }
+    let src = fs::read_to_string(&rest[0]).map_err(|e| types::IsaError::IoError { msg: e.to_string() })?;
+    let tir = compile_ty_source_to_tir(&src)?;
+    // Emit and link for ARM64
+    let out = emit::emit(&tir, PlatformKind::Android)?;
+    let elf = arm64_elf_link::link_arm64_elf(&out.code, &out.data)?;
+    // Run ARM64 interpreter
+    let exec_result = run_arm64_elf(&elf.bytes);
+    // Run TIR simulator
+    let sim_result = simulate(&tir)?;
+    // Compare
+    let ddc = if exec_result.exit_reason == crate::arm64_interp::ExecExitReason::Ret || 
+                 exec_result.state == sim_result.state {
+        "MATCH"
+    } else {
+        "MISMATCH"
+    };
+
+    println!("exec    : exit={:?} steps={} state={{{}}}",
+        exec_result.exit_reason, exec_result.steps,
+        exec_result.state.iter().map(|(k, v)| format!("{}: 0x{:x}", k, v)).collect::<Vec<_>>().join(", "));
+    println!("sim     : exit={:?} steps={} state={{{}}}",
+        sim_result.exit_reason, sim_result.steps,
+        sim_result.state.iter().map(|(k, v)| format!("{}: 0x{:x}", k, v)).collect::<Vec<_>>().join(", "));
+    println!("DDC     : {}", ddc);
+    if ddc == "MISMATCH" {
+        return Err(types::IsaError::PlatformError { msg: "DDC mismatch".into() });
     }
     Ok(())
 }

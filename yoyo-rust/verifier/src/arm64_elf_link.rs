@@ -96,8 +96,8 @@ pub fn link_arm64_elf(code: &[u8], data: &[u8]) -> IsaResult<ElfArm64Image> {
     img[text_off + 4..text_off + 8].copy_from_slice(&arm64_add_imm12(15, 15, data_va & 0xFFF));
     img[text_off + 8..text_off + 12].copy_from_slice(&arm64_adrp(16, user_code_va));
     img[text_off + 12..text_off + 16].copy_from_slice(&arm64_add_imm12(16, 16, user_code_va & 0xFFF));
-    // br x16 = 0x18004010
-    img[text_off + 16..text_off + 20].copy_from_slice(&0x18004010u32.to_le_bytes());
+    // br x16 = 0xD61F0200
+    img[text_off + 16..text_off + 20].copy_from_slice(&0xD61F0200u32.to_le_bytes());
 
     // Copy user code
     let code_dst = text_off + startup_len as usize;
