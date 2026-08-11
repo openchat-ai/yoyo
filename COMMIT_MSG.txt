@@ -1,0 +1,18 @@
+Item 5: MCU real instructions + cross-arch DDC expansion
+
+platform.rs: Implement real architecture-native instructions for all
+remaining backends previously using foreign_* stubs (LoongArch, PPC64LE,
+Xtensa, M68k, MSP430, PIC, STM8) plus complete 8051/AVR/SPARC/Z80/M6502.
+
+main.rs: Expand DDC test to 7 architectures (add riscv, riscv32, mips, ppc).
+
+New interpreter files: riscv_interp.rs, riscv32_interp.rs, mips_interp.rs,
+ppc_interp.rs — cross-arch DDC validation for RISC-V RV64, RV32, MIPS BE,
+PPC64 LE.
+
+Add emit_ret for LoongArch, Xtensa, MSP430, PIC, STM8.
+
+All 181 tests pass. 36/36 backends produce valid output.
+DDC: sim=Ret exec=Ret wasm=unreachable riscv=Ret riscv32=Ret mips=Ret ppc=Ret — MATCH.
+
+Co-authored-by: Cursor <cursoragent@cursor.com>

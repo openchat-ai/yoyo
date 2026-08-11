@@ -1,0 +1,5692 @@
+.version 7.0
+.target sm_50
+.address_size 64
+
+.visible .entry kernel_function(
+    .param .u64 .ptr .global .u64 *state_ptr
+)
+{
+    .reg .u64 %rd<256>;
+    .reg .pred %p<16>;
+    .reg .u8 %rb<16>;
+
+    ld.param.u64 %rd0, [state_ptr];
+
+H_00:
+    mov.u64 %rd1, 0;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_01:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    ld.global.u8 %rd2, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd2;
+    ret;
+
+H_02:
+    ret;
+
+H_03:
+    // RAW_BYTE 0x90
+    ret;
+
+H_04:
+    // RAW_BYTE 0x90
+    ret;
+
+H_05:
+    // RAW_BYTE 0x90
+    ret;
+
+H_06:
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    ret;
+
+H_07:
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    ret;
+
+H_08:
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    ret;
+
+H_09:
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    ret;
+
+H_0A:
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    ret;
+
+H_0B:
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    ret;
+
+H_0C:
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    ret;
+
+H_0D:
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    ret;
+
+H_0E:
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    ret;
+
+H_0F:
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    ret;
+
+H_10:
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    // RAW_BYTE 0x90
+    ret;
+
+H_11:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 1;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_12:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 1;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_13:
+    // JMP H_00
+    bra.uni H_00;
+    ret;
+
+H_14:
+    // CALL H_00
+    bra.uni H_00;
+    ret;
+
+H_15:
+    mov.u64 %rd1, 0;
+    st.global.u64 [%rd0 + 640], %rd1;
+    mov.u64 %rd2, 0;
+    st.global.u64 [%rd0 + 648], %rd2;
+    ld.global.u64 %rd3, [%rd0 + 640];
+    ld.global.u64 %rd4, [%rd0 + 648];
+    setp.eq.u64 %p0, %rd3, %rd4;
+    // JCC H_00
+    @%p0 bra.uni H_00;
+    ret;
+
+H_16:
+    mov.u64 %rd1, 0;
+    st.global.u64 [%rd0 + 640], %rd1;
+    mov.u64 %rd2, 0;
+    st.global.u64 [%rd0 + 648], %rd2;
+    ld.global.u64 %rd3, [%rd0 + 640];
+    ld.global.u64 %rd4, [%rd0 + 648];
+    setp.eq.u64 %p0, %rd3, %rd4;
+    // JCC H_00
+    @%p0 bra.uni H_00;
+    ret;
+
+H_17:
+    mov.u64 %rd1, 0;
+    st.global.u64 [%rd0 + 640], %rd1;
+    mov.u64 %rd2, 0;
+    st.global.u64 [%rd0 + 648], %rd2;
+    ld.global.u64 %rd3, [%rd0 + 640];
+    ld.global.u64 %rd4, [%rd0 + 648];
+    setp.eq.u64 %p0, %rd3, %rd4;
+    // JCC H_00
+    @%p0 bra.uni H_00;
+    ret;
+
+H_18:
+    mov.u64 %rd1, 0;
+    st.global.u64 [%rd0 + 640], %rd1;
+    mov.u64 %rd2, 0;
+    st.global.u64 [%rd0 + 648], %rd2;
+    ld.global.u64 %rd3, [%rd0 + 640];
+    ld.global.u64 %rd4, [%rd0 + 648];
+    setp.eq.u64 %p0, %rd3, %rd4;
+    // JCC H_00
+    @%p0 bra.uni H_00;
+    ret;
+
+H_19:
+    mov.u64 %rd1, 0;
+    st.global.u64 [%rd0 + 640], %rd1;
+    mov.u64 %rd2, 0;
+    st.global.u64 [%rd0 + 648], %rd2;
+    ld.global.u64 %rd3, [%rd0 + 640];
+    ld.global.u64 %rd4, [%rd0 + 648];
+    setp.eq.u64 %p0, %rd3, %rd4;
+    // JCC H_00
+    @%p0 bra.uni H_00;
+    ret;
+
+H_1A:
+    mov.u64 %rd1, 0;
+    st.global.u64 [%rd0 + 640], %rd1;
+    mov.u64 %rd2, 0;
+    st.global.u64 [%rd0 + 648], %rd2;
+    ld.global.u64 %rd3, [%rd0 + 640];
+    ld.global.u64 %rd4, [%rd0 + 648];
+    setp.eq.u64 %p0, %rd3, %rd4;
+    // JCC H_00
+    @%p0 bra.uni H_00;
+    ret;
+
+H_1B:
+    mov.u64 %rd1, 0;
+    st.global.u64 [%rd0 + 640], %rd1;
+    mov.u64 %rd2, 0;
+    st.global.u64 [%rd0 + 648], %rd2;
+    ld.global.u64 %rd3, [%rd0 + 640];
+    ld.global.u64 %rd4, [%rd0 + 648];
+    setp.eq.u64 %p0, %rd3, %rd4;
+    // JCC H_00
+    @%p0 bra.uni H_00;
+    ret;
+
+H_1C:
+    mov.u64 %rd1, 0;
+    st.global.u64 [%rd0 + 640], %rd1;
+    mov.u64 %rd2, 0;
+    st.global.u64 [%rd0 + 648], %rd2;
+    ld.global.u64 %rd3, [%rd0 + 640];
+    ld.global.u64 %rd4, [%rd0 + 648];
+    setp.eq.u64 %p0, %rd3, %rd4;
+    // JCC H_00
+    @%p0 bra.uni H_00;
+    ret;
+
+H_1D:
+    mov.u64 %rd1, 0;
+    st.global.u64 [%rd0 + 640], %rd1;
+    mov.u64 %rd2, 0;
+    st.global.u64 [%rd0 + 648], %rd2;
+    ld.global.u64 %rd3, [%rd0 + 640];
+    ld.global.u64 %rd4, [%rd0 + 648];
+    setp.eq.u64 %p0, %rd3, %rd4;
+    // JCC H_00
+    @%p0 bra.uni H_00;
+    ret;
+
+H_1E:
+    mov.u64 %rd1, 0;
+    st.global.u64 [%rd0 + 640], %rd1;
+    mov.u64 %rd2, 0;
+    st.global.u64 [%rd0 + 648], %rd2;
+    ld.global.u64 %rd3, [%rd0 + 640];
+    ld.global.u64 %rd4, [%rd0 + 648];
+    setp.eq.u64 %p0, %rd3, %rd4;
+    // JCC H_00
+    @%p0 bra.uni H_00;
+    ret;
+
+H_1F:
+    mov.u64 %rd1, 4096;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_20:
+    mov.u64 %rd1, 0;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_21:
+    mov.u64 %rd1, 0;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_22:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 3;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_23:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 3;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_24:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_25:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    ld.global.u64 %rd2, [%rd0 + 648];
+    or.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_26:
+    nop;
+    ret;
+
+H_27:
+    // RAW_BYTES 0xcc 0xdd
+    ret;
+
+H_28:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    ld.global.u64 %rd2, [%rd0 + 648];
+    mul.lo.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_29:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    ld.global.u64 %rd2, [%rd0 + 648];
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_2A:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    ld.global.u64 %rd2, [%rd0 + 648];
+    setp.eq.u64 %p0, %rd1, %rd2;
+    ret;
+
+H_2B:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    ld.global.u8 %rd2, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd2;
+    ret;
+
+H_2C:
+    mov.u64 %rd1, 0;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_2D:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_2E:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 8;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_2F:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 127;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_30:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 80;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_31:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 64;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_32:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 16;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_33:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 32;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_34:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 96;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_35:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 112;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_36:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    ld.global.u64 %rd2, [%rd0 + 640];
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_37:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    ld.global.u64 %rd2, [%rd0 + 640];
+    or.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_38:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    ld.global.u64 %rd2, [%rd0 + 640];
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_39:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_3A:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    ld.global.u64 %rd2, [%rd0 + 648];
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_3B:
+    mov.u64 %rd1, 3405691582;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_3C:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    ld.global.u64 %rd2, [%rd0 + 648];
+    or.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_3D:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    ld.global.u64 %rd2, [%rd0 + 648];
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_3E:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    ld.global.u64 %rd2, [%rd0 + 640];
+    mul.lo.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_3F:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    ld.global.u64 %rd2, [%rd0 + 648];
+    mul.lo.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_40:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    ld.global.u64 %rd2, [%rd0 + 640];
+    setp.eq.u64 %p0, %rd1, %rd2;
+    ret;
+
+H_41:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_42:
+    mov.u64 %rd1, 3735928559;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_43:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 8;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_44:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 1;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_45:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 1;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_46:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 7;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_47:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    ld.global.u64 %rd2, [%rd0 + 648];
+    setp.eq.u64 %p0, %rd1, %rd2;
+    ret;
+
+H_48:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    ld.global.u64 %rd2, [%rd0 + 656];
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_49:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_4A:
+    mov.u64 %rd1, 305419896;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_4B:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 8;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_4C:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 3;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_4D:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 1;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_4E:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 1;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_4F:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    ld.global.u64 %rd2, [%rd0 + 656];
+    or.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_50:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    ld.global.u64 %rd2, [%rd0 + 656];
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_51:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_52:
+    mov.u64 %rd1, 4027431614;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_53:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    ld.global.u64 %rd2, [%rd0 + 640];
+    setp.eq.u64 %p0, %rd1, %rd2;
+    ret;
+
+H_54:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 7;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_55:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 3;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_56:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 10;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_57:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 5;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_58:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    ld.global.u64 %rd2, [%rd0 + 640];
+    or.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_59:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    ld.global.u64 %rd2, [%rd0 + 640];
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_5A:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    ld.global.u64 %rd2, [%rd0 + 656];
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_5B:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    ld.global.u64 %rd2, [%rd0 + 656];
+    mul.lo.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_5C:
+    mov.u64 %rd1, 4277009102;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_5D:
+    mov.u64 %rd1, 2864434397;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_5E:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_5F:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    ld.global.u64 %rd2, [%rd0 + 656];
+    setp.eq.u64 %p0, %rd1, %rd2;
+    ret;
+
+H_60:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 16;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_61:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    ld.global.u64 %rd2, [%rd0 + 640];
+    mul.lo.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_62:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    ld.global.u64 %rd2, [%rd0 + 656];
+    or.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_63:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 15;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_64:
+    mov.u64 %rd1, 3203386110;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_65:
+    mov.u64 %rd1, 286331153;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_66:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 8;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_67:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 10;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_68:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 16;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_69:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 24;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_6A:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    ld.global.u64 %rd2, [%rd0 + 656];
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_6B:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    ld.global.u64 %rd2, [%rd0 + 640];
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_6C:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    ld.global.u64 %rd2, [%rd0 + 656];
+    setp.eq.u64 %p0, %rd1, %rd2;
+    ret;
+
+H_6D:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 24;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_6E:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 24;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_6F:
+    mov.u64 %rd1, 3237998080;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_70:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 8;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_71:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    ld.global.u64 %rd2, [%rd0 + 656];
+    mul.lo.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_72:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 20;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_73:
+    mov.u64 %rd1, 3237998080;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_74:
+    mov.u64 %rd1, 3735941133;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_75:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 20;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_76:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 10;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_77:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 32;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_78:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 32;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_79:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 20;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_7A:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 10;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_7B:
+    mov.u64 %rd1, 3735941133;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_7C:
+    mov.u64 %rd1, 4207869677;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_7D:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 30;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_7E:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 10;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_7F:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 40;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_80:
+    mov.u64 %rd1, 4207869677;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_81:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 30;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_82:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 5;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_83:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 40;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_84:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 40;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_85:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 48;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_86:
+    mov.u64 %rd1, 3131961357;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_87:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 30;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_88:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 20;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_89:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 48;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_8A:
+    mov.u64 %rd1, 3131961357;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_8B:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 20;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_8C:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 48;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_8D:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 56;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_8E:
+    mov.u64 %rd1, 195948557;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_8F:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 40;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_90:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 30;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_91:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 56;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_92:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 40;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_93:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 30;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_94:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 56;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_95:
+    mov.u64 %rd1, 4276994270;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_96:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 40;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_97:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 30;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_98:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 64;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_99:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 64;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_9A:
+    mov.u64 %rd1, 4276994270;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_9B:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 40;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_9C:
+    mov.u64 %rd1, 4276994270;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_9D:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 50;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_9E:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 40;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_9F:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 72;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_A0:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 72;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_A1:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 72;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_A2:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 50;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_A3:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 40;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_A4:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 80;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_A5:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 80;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_A6:
+    mov.u64 %rd1, 3405705229;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_A7:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 50;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_A8:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 50;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_A9:
+    mov.u64 %rd1, 3405705229;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_AA:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 50;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_AB:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 60;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_AC:
+    mov.u64 %rd1, 3405705229;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_AD:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 88;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_AE:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 60;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_AF:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 60;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_B0:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 88;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_B1:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 88;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_B2:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 60;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_B3:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 60;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_B4:
+    mov.u64 %rd1, 3735929054;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_B5:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 96;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_B6:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 96;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_B7:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 64;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_B8:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 64;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_B9:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 64;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_BA:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 60;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_BB:
+    mov.u64 %rd1, 3735929054;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_BC:
+    mov.u64 %rd1, 3735929054;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_BD:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 104;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_BE:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 104;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_BF:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 104;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_C0:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 72;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_C1:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 72;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_C2:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 64;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_C3:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 64;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_C4:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 72;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_C5:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 64;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_C6:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 112;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_C7:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 112;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_C8:
+    mov.u64 %rd1, 3235823838;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_C9:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 80;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_CA:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 72;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_CB:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 80;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_CC:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 80;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_CD:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 72;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_CE:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 72;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_CF:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 120;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_D0:
+    mov.u64 %rd1, 3235823838;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_D1:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 88;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_D2:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 80;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_D3:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 120;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_D4:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 88;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_D5:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 88;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_D6:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 80;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_D7:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 80;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_D8:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 120;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_D9:
+    mov.u64 %rd1, 3235823838;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_DA:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 96;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_DB:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 128;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_DC:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 96;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_DD:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 96;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_DE:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 88;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_DF:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 88;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_E0:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 128;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_E1:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 128;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_E2:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 88;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_E3:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 104;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_E4:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 104;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_E5:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 104;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_E6:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 96;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_E7:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 96;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_E8:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 96;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_E9:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 136;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_EA:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 136;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_EB:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 136;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_EC:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 112;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_ED:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 112;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_EE:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 112;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_EF:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 104;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_F0:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 104;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_F1:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 104;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_F2:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 144;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_F3:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 144;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_F4:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 144;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_F5:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 112;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_F6:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 112;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_F7:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 112;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_F8:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 120;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_F9:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 120;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_FA:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 120;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_FB:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 152;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_FC:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 152;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_FD:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 152;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_FE:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 120;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_FF:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 120;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_100:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 120;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_101:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 128;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_102:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 128;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_103:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 128;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_104:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 160;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_105:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 160;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_106:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 160;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_107:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 128;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_108:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 128;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_109:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 128;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_10A:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 136;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_10B:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 136;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_10C:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 136;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_10D:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 136;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_10E:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 136;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_10F:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 136;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_110:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 168;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_111:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 168;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_112:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 168;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_113:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 144;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_114:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 144;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_115:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 144;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_116:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 144;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_117:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 144;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_118:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 144;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_119:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 176;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_11A:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 176;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_11B:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 176;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_11C:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 152;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_11D:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 152;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_11E:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 152;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_11F:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 152;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_120:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 152;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_121:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 152;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_122:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 184;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_123:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 184;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_124:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 184;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_125:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 160;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_126:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 160;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_127:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 160;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_128:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 160;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_129:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 160;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_12A:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 160;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_12B:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 192;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_12C:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 192;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_12D:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 192;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_12E:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 168;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_12F:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 168;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_130:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 168;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_131:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 168;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_132:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 168;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_133:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 168;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_134:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 200;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_135:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 200;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_136:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 200;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_137:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 176;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_138:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 176;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_139:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 176;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_13A:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 176;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_13B:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 176;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_13C:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 176;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_13D:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 184;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_13E:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 184;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_13F:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 184;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_140:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 184;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_141:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 184;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_142:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 184;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_143:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 208;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_144:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 208;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_145:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 208;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_146:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 192;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_147:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 192;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_148:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 192;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_149:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 192;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_14A:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 192;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_14B:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 192;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_14C:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 216;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_14D:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 216;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_14E:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 216;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_14F:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 200;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_150:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 200;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_151:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 200;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_152:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 200;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_153:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 200;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_154:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 200;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_155:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 208;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_156:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 208;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_157:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 208;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_158:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 208;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_159:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 208;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_15A:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 208;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_15B:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 224;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_15C:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 224;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_15D:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 224;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_15E:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 216;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_15F:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 216;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_160:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 216;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_161:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 216;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_162:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 216;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_163:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 216;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_164:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 232;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_165:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 232;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_166:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 232;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_167:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 224;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_168:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 224;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_169:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 224;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_16A:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 224;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_16B:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 224;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_16C:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 224;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_16D:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 232;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_16E:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 232;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_16F:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 232;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_170:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 232;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_171:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 232;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_172:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 232;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_173:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 240;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_174:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 240;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_175:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 240;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_176:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 240;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_177:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 240;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_178:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 240;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_179:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 240;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_17A:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 240;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_17B:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 240;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_17C:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 248;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_17D:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 248;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_17E:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 248;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_17F:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 248;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_180:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 248;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_181:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 248;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_182:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 248;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_183:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 248;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_184:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 248;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_185:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 256;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_186:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 256;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_187:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 256;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_188:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 256;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_189:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 256;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_18A:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 256;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_18B:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 256;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_18C:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 256;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_18D:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 256;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_18E:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 264;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_18F:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 264;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_190:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 264;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_191:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 264;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_192:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 264;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_193:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 264;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_194:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 264;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_195:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 264;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_196:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 264;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_197:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 272;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_198:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 272;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_199:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 272;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_19A:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 272;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_19B:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 272;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_19C:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 272;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_19D:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 272;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_19E:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 272;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_19F:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 272;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_1A0:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 280;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_1A1:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 280;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_1A2:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 280;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_1A3:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 280;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_1A4:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 280;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_1A5:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 280;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_1A6:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 280;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_1A7:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 280;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_1A8:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 280;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_1A9:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 288;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_1AA:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 288;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_1AB:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 288;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_1AC:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 288;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_1AD:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 288;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_1AE:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 288;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_1AF:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 288;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_1B0:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 288;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_1B1:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 288;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_1B2:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 296;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_1B3:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 296;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_1B4:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 296;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_1B5:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 296;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_1B6:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 296;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_1B7:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 296;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_1B8:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 296;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_1B9:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 296;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_1BA:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 296;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_1BB:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 304;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_1BC:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 304;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_1BD:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 304;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_1BE:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 304;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_1BF:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 304;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_1C0:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 304;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_1C1:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 304;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_1C2:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 304;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_1C3:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 304;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_1C4:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 312;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_1C5:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 312;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_1C6:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 312;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_1C7:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 312;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_1C8:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 312;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_1C9:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 312;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_1CA:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 312;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_1CB:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 312;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_1CC:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 312;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_1CD:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 320;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_1CE:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 320;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_1CF:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 320;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_1D0:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 320;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_1D1:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 320;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_1D2:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 320;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_1D3:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 320;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_1D4:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 320;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_1D5:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 320;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_1D6:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 328;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_1D7:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 328;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_1D8:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 328;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_1D9:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 328;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_1DA:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 328;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_1DB:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 328;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_1DC:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 328;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_1DD:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 328;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_1DE:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 328;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_1DF:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 336;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_1E0:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 336;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_1E1:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 336;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_1E2:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 336;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_1E3:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 336;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_1E4:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 336;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_1E5:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 336;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_1E6:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 336;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_1E7:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 336;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_1E8:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 344;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_1E9:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 344;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_1EA:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 344;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_1EB:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 344;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_1EC:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 344;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_1ED:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 344;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_1EE:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 344;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_1EF:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 344;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_1F0:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 344;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_1F1:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 352;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_1F2:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 352;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_1F3:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 352;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_1F4:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 352;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_1F5:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 352;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_1F6:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 352;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_1F7:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 352;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_1F8:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 352;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_1F9:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 352;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_1FA:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 360;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_1FB:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 360;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_1FC:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 360;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_1FD:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 360;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_1FE:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 360;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_1FF:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 360;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_200:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 360;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_201:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 360;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_202:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 360;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_203:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 368;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_204:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 368;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_205:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 368;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_206:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 368;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_207:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 368;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_208:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 368;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_209:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 368;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_20A:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 368;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_20B:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 368;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_20C:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 376;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_20D:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 376;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_20E:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 376;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_20F:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 376;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_210:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 376;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_211:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 376;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_212:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 376;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_213:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 376;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_214:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 376;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_215:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 384;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_216:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 384;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_217:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 384;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_218:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 384;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_219:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 384;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_21A:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 384;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_21B:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 384;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_21C:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 384;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_21D:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 384;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_21E:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 392;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_21F:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 392;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_220:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 392;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_221:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 392;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_222:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 392;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_223:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 392;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_224:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 392;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_225:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 392;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_226:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 392;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_227:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 400;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_228:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 400;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_229:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 400;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_22A:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 400;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_22B:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 400;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_22C:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 400;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_22D:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 400;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_22E:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 400;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_22F:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 400;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_230:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 408;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_231:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 408;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_232:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 408;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_233:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 408;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_234:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 408;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_235:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 408;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_236:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 408;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_237:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 408;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_238:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 408;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_239:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 416;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_23A:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 416;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_23B:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 416;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_23C:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 416;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_23D:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 416;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_23E:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 416;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_23F:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 416;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_240:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 416;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_241:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 416;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_242:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 424;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_243:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 424;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_244:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 424;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_245:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 424;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_246:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 424;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_247:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 424;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_248:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 424;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_249:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 424;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_24A:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 424;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_24B:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 432;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_24C:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 432;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_24D:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 432;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_24E:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 432;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_24F:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 432;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_250:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 432;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_251:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 432;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_252:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 432;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_253:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 432;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_254:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 440;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_255:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 440;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_256:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 440;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_257:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 440;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_258:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 440;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_259:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 440;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_25A:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 440;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_25B:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 440;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_25C:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 440;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_25D:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 448;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_25E:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 448;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_25F:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 448;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_260:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 448;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_261:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 448;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_262:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 448;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_263:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 448;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_264:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 448;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_265:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 448;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_266:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 456;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_267:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 456;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_268:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 456;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_269:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 456;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_26A:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 456;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_26B:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 456;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_26C:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 456;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_26D:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 456;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_26E:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 456;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_26F:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 464;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_270:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 464;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_271:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 464;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_272:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 464;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_273:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 464;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_274:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 464;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_275:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 464;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_276:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 464;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_277:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 464;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_278:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 472;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_279:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 472;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_27A:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 472;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_27B:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 472;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_27C:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 472;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_27D:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 472;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_27E:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 472;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_27F:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 472;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_280:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 472;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_281:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 480;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_282:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 480;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_283:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 480;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_284:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 480;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_285:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 480;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_286:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 480;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_287:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 480;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_288:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 480;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_289:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 480;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_28A:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 488;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_28B:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 488;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_28C:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 488;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_28D:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 488;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_28E:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 488;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_28F:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 488;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_290:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 488;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_291:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 488;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_292:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 488;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_293:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 496;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_294:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 496;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_295:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 496;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_296:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 496;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_297:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 496;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_298:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 496;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_299:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 496;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_29A:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 496;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_29B:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 496;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_29C:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 504;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_29D:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 504;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_29E:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 504;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_29F:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 504;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_2A0:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 504;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_2A1:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 504;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_2A2:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 504;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_2A3:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 504;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_2A4:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 504;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_2A5:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 512;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_2A6:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 512;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_2A7:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 512;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_2A8:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 512;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_2A9:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 512;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_2AA:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 512;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_2AB:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 512;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_2AC:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 512;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_2AD:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 512;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_2AE:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 520;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_2AF:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 520;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_2B0:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 520;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_2B1:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 520;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_2B2:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 520;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_2B3:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 520;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_2B4:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 520;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_2B5:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 520;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_2B6:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 520;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_2B7:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 528;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_2B8:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 528;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_2B9:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 528;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_2BA:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 528;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_2BB:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 528;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_2BC:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 528;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_2BD:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 528;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_2BE:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 528;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_2BF:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 528;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_2C0:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 536;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_2C1:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 536;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_2C2:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 536;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_2C3:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 536;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_2C4:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 536;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_2C5:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 536;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_2C6:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 536;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_2C7:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 536;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_2C8:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 536;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_2C9:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 544;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_2CA:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 544;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_2CB:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 544;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_2CC:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 544;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_2CD:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 544;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_2CE:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 544;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_2CF:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 544;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_2D0:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 544;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_2D1:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 544;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_2D2:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 552;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_2D3:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 552;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_2D4:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 552;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_2D5:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 552;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_2D6:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 552;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_2D7:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 552;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_2D8:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 552;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_2D9:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 552;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_2DA:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 552;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_2DB:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 560;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_2DC:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 560;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_2DD:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 560;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_2DE:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 560;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_2DF:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 560;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_2E0:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 560;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_2E1:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 560;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_2E2:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 560;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_2E3:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 560;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_2E4:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 562;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_2E5:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 562;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 648], %rd3;
+    ret;
+
+H_2E6:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 562;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 656], %rd3;
+    ret;
+
+H_2E7:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 562;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_2E8:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 562;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_2E9:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 562;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_2EA:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 562;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_2EB:
+    // RAW_BYTE 0x90
+    ret;
+
+H_2EC:
+    // RAW_BYTE 0x90
+    ret;
+
+H_2ED:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    st.global.u64 [%rd0 + 768], %rd1;
+    ret;
+
+H_2EE:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_2EF:
+    mov.u64 %rd1, 4095;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_2F0:
+    mov.u64 %rd1, 65536;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_2F1:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    ld.global.u64 %rd2, [%rd0 + 784];
+    or.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_2F2:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    ld.global.u64 %rd2, [%rd0 + 656];
+    setp.eq.u64 %p0, %rd1, %rd2;
+    ret;
+
+H_2F3:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    ld.global.u64 %rd2, [%rd0 + 640];
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_2F4:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    ld.global.u64 %rd2, [%rd0 + 648];
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_2F5:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    ld.global.u64 %rd2, [%rd0 + 776];
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 768], %rd1;
+    ret;
+
+H_2F6:
+    ld.global.u64 %rd1, [%rd0 + 776];
+    ld.global.u64 %rd2, [%rd0 + 784];
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 776], %rd1;
+    ret;
+
+H_2F7:
+    ld.global.u64 %rd1, [%rd0 + 784];
+    ld.global.u64 %rd2, [%rd0 + 768];
+    setp.eq.u64 %p0, %rd1, %rd2;
+    ret;
+
+H_2F8:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 1;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 768], %rd1;
+    ret;
+
+H_2F9:
+    ld.global.u64 %rd1, [%rd0 + 776];
+    mov.u64 %rd2, 1;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 776], %rd1;
+    ret;
+
+H_2FA:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 1;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 768], %rd1;
+    ret;
+
+H_2FB:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    ld.global.u64 %rd2, [%rd0 + 656];
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 768], %rd1;
+    ret;
+
+H_2FC:
+    ld.global.u64 %rd1, [%rd0 + 784];
+    ld.global.u64 %rd2, [%rd0 + 640];
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 784], %rd1;
+    ret;
+
+H_2FD:
+    ld.global.u64 %rd1, [%rd0 + 784];
+    ld.global.u64 %rd2, [%rd0 + 768];
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 784], %rd1;
+    ret;
+
+H_2FE:
+    ld.global.u64 %rd1, [%rd0 + 784];
+    ld.global.u64 %rd2, [%rd0 + 640];
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 784], %rd1;
+    ret;
+
+H_2FF:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    ld.global.u64 %rd2, [%rd0 + 784];
+    mul.lo.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 768], %rd1;
+    ret;
+
+H_300:
+    ld.global.u64 %rd1, [%rd0 + 784];
+    ld.global.u64 %rd2, [%rd0 + 776];
+    mul.lo.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 784], %rd1;
+    ret;
+
+H_301:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    ld.global.u64 %rd2, [%rd0 + 784];
+    or.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 768], %rd1;
+    ret;
+
+H_302:
+    ld.global.u64 %rd1, [%rd0 + 776];
+    ld.global.u64 %rd2, [%rd0 + 768];
+    setp.eq.u64 %p0, %rd1, %rd2;
+    ret;
+
+H_303:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 128;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_304:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 129;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_305:
+    ld.global.u64 %rd1, [%rd0 + 768];
+    mov.u64 %rd2, 256;
+    add.u64 %rd1, %rd1, %rd2;
+    ld.global.u8 %rd3, [%rd1];
+    st.global.u64 [%rd0 + 640], %rd3;
+    ret;
+
+H_306:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 127;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_307:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 128;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_308:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 255;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_309:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 128;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_30A:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 129;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_30B:
+    ld.global.u64 %rd1, [%rd0 + 640];
+    mov.u64 %rd2, 255;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 640], %rd1;
+    ret;
+
+H_30C:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 1;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_30D:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 1;
+    add.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_30E:
+    ld.global.u64 %rd1, [%rd0 + 648];
+    mov.u64 %rd2, 1;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 648], %rd1;
+    ret;
+
+H_30F:
+    ld.global.u64 %rd1, [%rd0 + 656];
+    mov.u64 %rd2, 1;
+    sub.u64 %rd1, %rd1, %rd2;
+    st.global.u64 [%rd0 + 656], %rd1;
+    ret;
+
+H_310:
+    // JMP H_01
+    bra.uni H_01;
+    ret;
+
+H_311:
+    // JMP H_02
+    bra.uni H_02;
+    ret;
+
+H_312:
+    // CALL H_01
+    bra.uni H_01;
+    ret;
+
+H_313:
+    // CALL H_02
+    bra.uni H_02;
+    ret;
+}
