@@ -1476,8 +1476,8 @@ impl PlatformBackend for Eight051Platform {
         out.extend(e8051_mov_direct_a(d));
         Ok(out)
     }
-    fn emit_memcpy_data(&mut self, _dst: u16, _src: u16, _n: u16) -> IsaResult<Vec<u8>> {
-        Err(IsaError::PlatformError { msg: "8051 memcpy_data not implemented".into() })
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        self.emit_memcpy_state(dst, src, n)
     }
     fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
         let mut out = Vec::new();
@@ -1877,8 +1877,8 @@ impl PlatformBackend for Riscv64Platform {
         out.extend_from_slice(&riscv_sd(7, 5, dd));
         Ok(out)
     }
-    fn emit_memcpy_data(&mut self, _dst: u16, _src: u16, _n: u16) -> IsaResult<Vec<u8>> {
-        Err(IsaError::PlatformError { msg: "RISC-V: memcpy_data not yet implemented".into() })
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        self.emit_memcpy_state(dst, src, n)
     }
     fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
         if n > 64 {
@@ -2747,8 +2747,8 @@ impl PlatformBackend for AvrPlatform {
         out.extend_from_slice(&[0x90, 0x26, dlo, dhi]);
         Ok(out)
     }
-    fn emit_memcpy_data(&mut self, _dst: u16, _src: u16, _n: u16) -> IsaResult<Vec<u8>> {
-        Err(IsaError::PlatformError { msg: "AVR memcpy_data not implemented".into() })
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        self.emit_memcpy_state(dst, src, n)
     }
     fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
         let mut out = Vec::new();
@@ -2977,8 +2977,8 @@ impl PlatformBackend for Arm32Platform {
         out.extend_from_slice(&arm32_str(1, 8, dd));
         Ok(out)
     }
-    fn emit_memcpy_data(&mut self, _dst: u16, _src: u16, _n: u16) -> IsaResult<Vec<u8>> {
-        Err(IsaError::PlatformError { msg: "ARM32: memcpy_data not yet implemented".into() })
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        self.emit_memcpy_state(dst, src, n)
     }
     fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
         if n > 64 {
@@ -3659,8 +3659,8 @@ impl PlatformBackend for LoongArchPlatform {
         out.extend_from_slice(&loong_st_d(LOONG_T0, LOONG_T1, 0));
         Ok(out)
     }
-    fn emit_memcpy_data(&mut self, _dst: u16, _src: u16, _n: u16) -> IsaResult<Vec<u8>> {
-        Err(IsaError::PlatformError { msg: "LoongArch: memcpy_data not yet implemented".into() })
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        self.emit_memcpy_state(dst, src, n)
     }
     fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
         if n > 64 {
@@ -3954,8 +3954,8 @@ impl PlatformBackend for SparcPlatform {
         out.extend_from_slice(&sparc_stb(3, 1, 0));
         Ok(out)
     }
-    fn emit_memcpy_data(&mut self, _dst: u16, _src: u16, _n: u16) -> IsaResult<Vec<u8>> {
-        Err(IsaError::PlatformError { msg: "SPARC memcpy_data not implemented".into() })
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        self.emit_memcpy_state(dst, src, n)
     }
     fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
         let mut out = Vec::new();
@@ -4110,8 +4110,8 @@ impl PlatformBackend for Riscv32Platform {
         out.extend_from_slice(&riscv_sw(7, 5, dd));
         Ok(out)
     }
-    fn emit_memcpy_data(&mut self, _dst: u16, _src: u16, _n: u16) -> IsaResult<Vec<u8>> {
-        Err(IsaError::PlatformError { msg: "RISC-V: memcpy_data not yet implemented".into() })
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        self.emit_memcpy_state(dst, src, n)
     }
     fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
         if n > 64 {
@@ -4722,10 +4722,8 @@ impl PlatformBackend for XtensaPlatform {
         out.extend_from_slice(&xtensa_store_slot(4, dd));
         Ok(out)
     }
-    fn emit_memcpy_data(&mut self, _dst: u16, _src: u16, _n: u16) -> IsaResult<Vec<u8>> {
-        Err(IsaError::PlatformError {
-            msg: "Xtensa memcpy_data not implemented".into(),
-        })
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        self.emit_memcpy_state(dst, src, n)
     }
     fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
         let mut out = Vec::new();
@@ -4965,8 +4963,8 @@ impl PlatformBackend for Z80Platform {
         out.extend_from_slice(&[0x77, 0x22, dlo, dhi]);
         Ok(out)
     }
-    fn emit_memcpy_data(&mut self, _dst: u16, _src: u16, _n: u16) -> IsaResult<Vec<u8>> {
-        Err(IsaError::PlatformError { msg: "Z80 memcpy_data not implemented".into() })
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        self.emit_memcpy_state(dst, src, n)
     }
     fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
         let mut out = Vec::new();
@@ -5223,8 +5221,8 @@ impl PlatformBackend for M6502Platform {
         out.extend_from_slice(&[0x8D, dlo, dhi]);
         Ok(out)
     }
-    fn emit_memcpy_data(&mut self, _dst: u16, _src: u16, _n: u16) -> IsaResult<Vec<u8>> {
-        Err(IsaError::PlatformError { msg: "M6502 memcpy_data not implemented".into() })
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        self.emit_memcpy_state(dst, src, n)
     }
     fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
         let mut out = Vec::new();
@@ -5514,10 +5512,8 @@ impl PlatformBackend for M68kPlatform {
         out.extend_from_slice(&m68k_move_b_from_a0_disp(dd_disp));
         Ok(out)
     }
-    fn emit_memcpy_data(&mut self, _dst: u16, _src: u16, _n: u16) -> IsaResult<Vec<u8>> {
-        Err(IsaError::PlatformError {
-            msg: "M68k memcpy_data not implemented".into(),
-        })
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        self.emit_memcpy_state(dst, src, n)
     }
     fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
         let mut out = Vec::new();
@@ -5767,10 +5763,8 @@ impl PlatformBackend for Msp430Platform {
         out.extend_from_slice(&msp430_move_r_to_abs(0, dd_addr));
         Ok(out)
     }
-    fn emit_memcpy_data(&mut self, _dst: u16, _src: u16, _n: u16) -> IsaResult<Vec<u8>> {
-        Err(IsaError::PlatformError {
-            msg: "MSP430 memcpy_data not implemented".into(),
-        })
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        self.emit_memcpy_state(dst, src, n)
     }
     fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
         let mut out = Vec::new();
@@ -5940,15 +5934,18 @@ impl PlatformBackend for PicPlatform {
     fn emit_ldb(&mut self, _dd: u16, _ss: u16, _oo: u16) -> IsaResult<Vec<u8>> {
         Ok(pic_movf(0x00))
     }
-    fn emit_memcpy_data(&mut self, _dst: u16, _src: u16, _n: u16) -> IsaResult<Vec<u8>> {
-        Err(IsaError::PlatformError {
-            msg: "PIC memcpy_data not implemented".into(),
-        })
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        self.emit_memcpy_state(dst, src, n)
     }
-    fn emit_memcpy_state(&mut self, _dst: u16, _src: u16, _n: u16) -> IsaResult<Vec<u8>> {
-        Err(IsaError::PlatformError {
-            msg: "PIC memcpy_state not implemented".into(),
-        })
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        let mut out = Vec::new();
+        for i in 0..n {
+            let sa = PIC_STATE_BASE as u8 + ((src + i) & 0xFF) as u8;
+            let da = PIC_STATE_BASE as u8 + ((dst + i) & 0xFF) as u8;
+            out.extend_from_slice(&pic_movf(sa));
+            out.extend_from_slice(&pic_movwf(da));
+        }
+        Ok(out)
     }
     fn emit_alloc(&mut self, _slot: u16, _size: u64) -> IsaResult<Vec<u8>> {
         Ok(pic_movlw(0))
@@ -6162,10 +6159,8 @@ impl PlatformBackend for Stm8Platform {
         out.extend_from_slice(&stm8_st_a_addr(dd_addr));
         Ok(out)
     }
-    fn emit_memcpy_data(&mut self, _dst: u16, _src: u16, _n: u16) -> IsaResult<Vec<u8>> {
-        Err(IsaError::PlatformError {
-            msg: "STM8 memcpy_data not implemented".into(),
-        })
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        self.emit_memcpy_state(dst, src, n)
     }
     fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
         let mut out = Vec::new();
@@ -6468,8 +6463,8 @@ impl PlatformBackend for EvmPlatform {
         out.push(0x52); // MSTORE
         Ok(out)
     }
-    fn emit_memcpy_data(&mut self, _dst: u16, _src: u16, _n: u16) -> IsaResult<Vec<u8>> {
-        Err(IsaError::PlatformError { msg: "EVM memcpy_data not implemented".into() })
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        self.emit_memcpy_state(dst, src, n)
     }
     fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
         let mut out = Vec::new();
