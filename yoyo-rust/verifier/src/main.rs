@@ -12,6 +12,9 @@ mod ppc_interp;
 mod arm32_interp;
 mod sparc_interp;
 mod loongarch_interp;
+mod e8051_interp;
+mod avr_interp;
+mod x86_interp;
 mod ddc;
 mod emit;
 mod executor;
@@ -1008,6 +1011,17 @@ fn cmd_test_ddc() -> Result<(), types::IsaError> {
     let elf_loong = loongarch_elf_link::link_loongarch_elf(&out_loong.code, &out_loong.data)?;
     let exec_loong = crate::loongarch_interp::run_loongarch_elf(&elf_loong.bytes);
 
+    // 11. 8051 interpreter
+    let out_8051 = emit::emit(&tir, PlatformKind::Eight051)?;
+    let exec_8051 = crate::e8051_interp::run_8051(&out_8051.code);
+    // 12. AVR interpreter
+    let out_avr = emit::emit(&tir, PlatformKind::Avr)?;
+    let exec_avr = crate::avr_interp::run_avr(&out_avr.code);
+    // 13. x86-32 interpreter
+    let out_x86 = emit::emit(&tir, PlatformKind::X86)?;
+    let pe_x86 = x86_link::link_x86(&out_x86.code, &out_x86.data)?;
+    let exec_x86 = crate::x86_interp::run_x86_pe(&pe_x86.bytes);
+
     let sim_ok = sim.exit_reason == crate::simulator::SimExitReason::Ret;
     let exec_ok = exec.exit_reason == crate::arm64_interp::ExecExitReason::Ret;
     let wasm_ok = wasm_result.exit_reason == crate::wasm_run::WasmExitReason::Trap { kind: crate::wasm_run::TrapKind::Unreachable };
@@ -1018,6 +1032,9 @@ fn cmd_test_ddc() -> Result<(), types::IsaError> {
     let arm32_ok = exec_arm32.exit_reason == crate::arm32_interp::ExecExitReason::Ret;
     let sparc_ok = exec_sparc.exit_reason == crate::sparc_interp::ExecExitReason::Ret;
     let loong_ok = exec_loong.exit_reason == crate::loongarch_interp::ExecExitReason::Ret;
+    let e8051_ok = exec_8051.exit_reason == crate::e8051_interp::ExecExitReason::Ret;
+    let avr_ok = exec_avr.exit_reason == crate::avr_interp::ExecExitReason::Ret;
+    let x86_ok = exec_x86.exit_reason == crate::x86_interp::ExecExitReason::Ret;
 
     println!("DDC test: sim     exit={:?} steps={}", sim.exit_reason, sim.steps);
     println!("DDC test: exec    exit={:?} steps={}", exec.exit_reason, exec.steps);
@@ -1029,9 +1046,12 @@ fn cmd_test_ddc() -> Result<(), types::IsaError> {
     println!("DDC test: arm32   exit={:?} steps={}", exec_arm32.exit_reason, exec_arm32.steps);
     println!("DDC test: sparc   exit={:?} steps={}", exec_sparc.exit_reason, exec_sparc.steps);
     println!("DDC test: loong   exit={:?} steps={}", exec_loong.exit_reason, exec_loong.steps);
+    println!("DDC test: 8051    exit={:?} steps={}", exec_8051.exit_reason, exec_8051.steps);
+    println!("DDC test: avr     exit={:?} steps={}", exec_avr.exit_reason, exec_avr.steps);
+    println!("DDC test: x86     exit={:?} steps={}", exec_x86.exit_reason, exec_x86.steps);
 
-    if sim_ok && exec_ok && wasm_ok && riscv_ok && riscv32_ok && mips_ok && ppc_ok && arm32_ok && sparc_ok && loong_ok {
-        println!("DDC test: PASS (sim=Ret exec=Ret wasm=unreachable riscv=Ret riscv32=Ret mips=Ret ppc=Ret arm32=Ret sparc=Ret loong=Ret)");
+    if sim_ok && exec_ok && wasm_ok && riscv_ok && riscv32_ok && mips_ok && ppc_ok && arm32_ok && sparc_ok && loong_ok && e8051_ok && avr_ok && x86_ok {
+        println!("DDC test: PASS (sim=Ret exec=Ret wasm=unreachable riscv=Ret riscv32=Ret mips=Ret ppc=Ret arm32=Ret sparc=Ret loong=Ret 8051=Ret avr=Ret x86=Ret)");
         Ok(())
     } else {
         println!("DDC test: FAIL");
