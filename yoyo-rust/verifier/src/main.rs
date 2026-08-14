@@ -18,6 +18,9 @@ mod x86_interp;
 mod z80_interp;
 mod m6502_interp;
 mod m68k_interp;
+mod msp430_interp;
+mod freedos_interp;
+mod xtensa_interp;
 mod ddc;
 mod emit;
 mod executor;
@@ -1033,6 +1036,15 @@ fn cmd_test_ddc() -> Result<(), types::IsaError> {
     // 16. M68k
     let out_m68k = emit::emit(&tir, PlatformKind::M68k)?;
     let exec_m68k = crate::m68k_interp::run_m68k(&out_m68k.code);
+    // 17. MSP430
+    let out_msp430 = emit::emit(&tir, PlatformKind::Msp430)?;
+    let exec_msp430 = crate::msp430_interp::run_msp430(&out_msp430.code);
+    // 18. FreeDOS
+    let out_freedos = emit::emit(&tir, PlatformKind::Freedos)?;
+    let exec_freedos = crate::freedos_interp::run_freedos(&out_freedos.code);
+    // 19. Xtensa
+    let out_xtensa = emit::emit(&tir, PlatformKind::Xtensa)?;
+    let exec_xtensa = crate::xtensa_interp::run_xtensa(&out_xtensa.code);
 
     let sim_ok = sim.exit_reason == crate::simulator::SimExitReason::Ret;
     let exec_ok = exec.exit_reason == crate::arm64_interp::ExecExitReason::Ret;
@@ -1050,6 +1062,9 @@ fn cmd_test_ddc() -> Result<(), types::IsaError> {
     let z80_ok = exec_z80.exit_reason == crate::z80_interp::ExecExitReason::Ret;
     let m6502_ok = exec_6502.exit_reason == crate::m6502_interp::ExecExitReason::Ret;
     let m68k_ok = exec_m68k.exit_reason == crate::m68k_interp::ExecExitReason::Ret;
+    let msp430_ok = exec_msp430.exit_reason == crate::msp430_interp::ExecExitReason::Ret;
+    let freedos_ok = exec_freedos.exit_reason == crate::freedos_interp::ExecExitReason::Ret;
+    let xtensa_ok = exec_xtensa.exit_reason == crate::xtensa_interp::ExecExitReason::Ret;
 
     println!("DDC test: sim     exit={:?} steps={}", sim.exit_reason, sim.steps);
     println!("DDC test: exec    exit={:?} steps={}", exec.exit_reason, exec.steps);
@@ -1067,9 +1082,12 @@ fn cmd_test_ddc() -> Result<(), types::IsaError> {
     println!("DDC test: z80     exit={:?} steps={}", exec_z80.exit_reason, exec_z80.steps);
     println!("DDC test: 6502    exit={:?} steps={}", exec_6502.exit_reason, exec_6502.steps);
     println!("DDC test: m68k    exit={:?} steps={}", exec_m68k.exit_reason, exec_m68k.steps);
+    println!("DDC test: msp430  exit={:?} steps={}", exec_msp430.exit_reason, exec_msp430.steps);
+    println!("DDC test: freedos exit={:?} steps={}", exec_freedos.exit_reason, exec_freedos.steps);
+    println!("DDC test: xtensa  exit={:?} steps={}", exec_xtensa.exit_reason, exec_xtensa.steps);
 
-    if sim_ok && exec_ok && wasm_ok && riscv_ok && riscv32_ok && mips_ok && ppc_ok && arm32_ok && sparc_ok && loong_ok && e8051_ok && avr_ok && x86_ok && z80_ok && m6502_ok && m68k_ok {
-        println!("DDC test: PASS (sim=Ret exec=Ret wasm=unreachable riscv=Ret riscv32=Ret mips=Ret ppc=Ret arm32=Ret sparc=Ret loong=Ret 8051=Ret avr=Ret x86=Ret z80=Ret 6502=Ret m68k=Ret)");
+    if sim_ok && exec_ok && wasm_ok && riscv_ok && riscv32_ok && mips_ok && ppc_ok && arm32_ok && sparc_ok && loong_ok && e8051_ok && avr_ok && x86_ok && z80_ok && m6502_ok && m68k_ok && msp430_ok && freedos_ok && xtensa_ok {
+        println!("DDC test: PASS (sim=Ret exec=Ret wasm=unreachable riscv=Ret riscv32=Ret mips=Ret ppc=Ret arm32=Ret sparc=Ret loong=Ret 8051=Ret avr=Ret x86=Ret z80=Ret 6502=Ret m68k=Ret msp430=Ret freedos=Ret xtensa=Ret)");
         Ok(())
     } else {
         println!("DDC test: FAIL");
