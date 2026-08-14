@@ -15,6 +15,9 @@ mod loongarch_interp;
 mod e8051_interp;
 mod avr_interp;
 mod x86_interp;
+mod z80_interp;
+mod m6502_interp;
+mod m68k_interp;
 mod ddc;
 mod emit;
 mod executor;
@@ -1021,6 +1024,15 @@ fn cmd_test_ddc() -> Result<(), types::IsaError> {
     let out_x86 = emit::emit(&tir, PlatformKind::X86)?;
     let pe_x86 = x86_link::link_x86(&out_x86.code, &out_x86.data)?;
     let exec_x86 = crate::x86_interp::run_x86_pe(&pe_x86.bytes);
+    // 14. Z80
+    let out_z80 = emit::emit(&tir, PlatformKind::Z80)?;
+    let exec_z80 = crate::z80_interp::run_z80(&out_z80.code);
+    // 15. 6502
+    let out_6502 = emit::emit(&tir, PlatformKind::M6502)?;
+    let exec_6502 = crate::m6502_interp::run_m6502(&out_6502.code);
+    // 16. M68k
+    let out_m68k = emit::emit(&tir, PlatformKind::M68k)?;
+    let exec_m68k = crate::m68k_interp::run_m68k(&out_m68k.code);
 
     let sim_ok = sim.exit_reason == crate::simulator::SimExitReason::Ret;
     let exec_ok = exec.exit_reason == crate::arm64_interp::ExecExitReason::Ret;
@@ -1035,6 +1047,9 @@ fn cmd_test_ddc() -> Result<(), types::IsaError> {
     let e8051_ok = exec_8051.exit_reason == crate::e8051_interp::ExecExitReason::Ret;
     let avr_ok = exec_avr.exit_reason == crate::avr_interp::ExecExitReason::Ret;
     let x86_ok = exec_x86.exit_reason == crate::x86_interp::ExecExitReason::Ret;
+    let z80_ok = exec_z80.exit_reason == crate::z80_interp::ExecExitReason::Ret;
+    let m6502_ok = exec_6502.exit_reason == crate::m6502_interp::ExecExitReason::Ret;
+    let m68k_ok = exec_m68k.exit_reason == crate::m68k_interp::ExecExitReason::Ret;
 
     println!("DDC test: sim     exit={:?} steps={}", sim.exit_reason, sim.steps);
     println!("DDC test: exec    exit={:?} steps={}", exec.exit_reason, exec.steps);
@@ -1049,9 +1064,12 @@ fn cmd_test_ddc() -> Result<(), types::IsaError> {
     println!("DDC test: 8051    exit={:?} steps={}", exec_8051.exit_reason, exec_8051.steps);
     println!("DDC test: avr     exit={:?} steps={}", exec_avr.exit_reason, exec_avr.steps);
     println!("DDC test: x86     exit={:?} steps={}", exec_x86.exit_reason, exec_x86.steps);
+    println!("DDC test: z80     exit={:?} steps={}", exec_z80.exit_reason, exec_z80.steps);
+    println!("DDC test: 6502    exit={:?} steps={}", exec_6502.exit_reason, exec_6502.steps);
+    println!("DDC test: m68k    exit={:?} steps={}", exec_m68k.exit_reason, exec_m68k.steps);
 
-    if sim_ok && exec_ok && wasm_ok && riscv_ok && riscv32_ok && mips_ok && ppc_ok && arm32_ok && sparc_ok && loong_ok && e8051_ok && avr_ok && x86_ok {
-        println!("DDC test: PASS (sim=Ret exec=Ret wasm=unreachable riscv=Ret riscv32=Ret mips=Ret ppc=Ret arm32=Ret sparc=Ret loong=Ret 8051=Ret avr=Ret x86=Ret)");
+    if sim_ok && exec_ok && wasm_ok && riscv_ok && riscv32_ok && mips_ok && ppc_ok && arm32_ok && sparc_ok && loong_ok && e8051_ok && avr_ok && x86_ok && z80_ok && m6502_ok && m68k_ok {
+        println!("DDC test: PASS (sim=Ret exec=Ret wasm=unreachable riscv=Ret riscv32=Ret mips=Ret ppc=Ret arm32=Ret sparc=Ret loong=Ret 8051=Ret avr=Ret x86=Ret z80=Ret 6502=Ret m68k=Ret)");
         Ok(())
     } else {
         println!("DDC test: FAIL");
