@@ -21,6 +21,10 @@ mod m68k_interp;
 mod msp430_interp;
 mod freedos_interp;
 mod xtensa_interp;
+mod pic_interp;
+mod stm8_interp;
+mod evm_interp;
+mod plan9_interp;
 mod ddc;
 mod emit;
 mod executor;
@@ -970,129 +974,214 @@ fn emit_target_bytes(target: crate::platform::PlatformKind, tir: &[crate::tir::T
     }
 }
 
-/// Cross-arch DDC consistency: ARM64 exec, Wasm, and TIR simulator must agree.
+/// Cross-arch DDC consistency: each arch runs in its own `#[inline(never)]`
+/// helper so Windows debug stack frames stay small as path count grows.
 fn cmd_test_ddc() -> Result<(), types::IsaError> {
-    use crate::platform::PlatformKind;
     let fixture = find_fixture("00_nop_ret.ty")?;
     let src = fs::read_to_string(&fixture).map_err(|e| types::IsaError::IoError { msg: e.to_string() })?;
     let tir = executor::compile_ty_source_to_tir(&src)?;
 
-    // 1. TIR simulator
-    let sim = simulator::simulate(&tir)?;
-    // 2. ARM64 interpreter
-    let out = emit::emit(&tir, PlatformKind::Android)?;
-    let elf = arm64_elf_link::link_arm64_elf(&out.code, &out.data)?;
-    let exec = crate::arm64_interp::run_arm64_elf(&elf.bytes);
-    // 3. Wasm
-    let wasm = wasm_backend::emit_wasm(&tir)?;
-    let wasm_result = wasm_run::run_wasm(&wasm)?;
+    let sim_ok = ddc_sim(&tir)?;
+    let exec_ok = ddc_arm64(&tir)?;
+    let wasm_ok = ddc_wasm(&tir)?;
+    let riscv_ok = ddc_riscv64(&tir)?;
+    let riscv32_ok = ddc_riscv32(&tir)?;
+    let mips_ok = ddc_mips(&tir)?;
+    let ppc_ok = ddc_ppc(&tir)?;
+    let arm32_ok = ddc_arm32(&tir)?;
+    let sparc_ok = ddc_sparc(&tir)?;
+    let loong_ok = ddc_loong(&tir)?;
+    let e8051_ok = ddc_8051(&tir)?;
+    let avr_ok = ddc_avr(&tir)?;
+    let x86_ok = ddc_x86(&tir)?;
+    let z80_ok = ddc_z80(&tir)?;
+    let m6502_ok = ddc_6502(&tir)?;
+    let m68k_ok = ddc_m68k(&tir)?;
+    let msp430_ok = ddc_msp430(&tir)?;
+    let freedos_ok = ddc_freedos(&tir)?;
+    let xtensa_ok = ddc_xtensa(&tir)?;
+    let pic_ok = ddc_pic(&tir)?;
+    let stm8_ok = ddc_stm8(&tir)?;
+    let evm_ok = ddc_evm(&tir)?;
+    let plan9_ok = ddc_plan9(&tir)?;
 
-    // 4. RISC-V RV64 interpreter
-    let out_riscv = emit::emit(&tir, PlatformKind::Riscv64)?;
-    let elf_riscv = riscv_elf_link::link_riscv_elf(&out_riscv.code, &out_riscv.data)?;
-    let exec_riscv = crate::riscv_interp::run_riscv_elf(&elf_riscv.bytes);
-    // 5. RISC-V RV32 interpreter
-    let out_riscv32 = emit::emit(&tir, PlatformKind::Riscv32)?;
-    let elf_riscv32 = riscv32_elf_link::link_riscv32_elf(&out_riscv32.code, &out_riscv32.data)?;
-    let exec_riscv32 = crate::riscv32_interp::run_riscv32_elf(&elf_riscv32.bytes);
-    // 6. MIPS interpreter
-    let out_mips = emit::emit(&tir, PlatformKind::Mips)?;
-    let elf_mips = mips_elf_link::link_mips_elf(&out_mips.code, &out_mips.data)?;
-    let exec_mips = crate::mips_interp::run_mips_elf(&elf_mips.bytes);
-    // 7. PPC interpreter
-    let out_ppc = emit::emit(&tir, PlatformKind::PowerPc64Le)?;
-    let elf_ppc = ppc_elf_link::link_ppc_elf(&out_ppc.code, &out_ppc.data)?;
-    let exec_ppc = crate::ppc_interp::run_ppc_elf(&elf_ppc.bytes);
-
-    // 8. ARM32 interpreter
-    let out_arm32 = emit::emit(&tir, PlatformKind::Arm32)?;
-    let elf_arm32 = arm32_elf_link::link_arm32_elf(&out_arm32.code, &out_arm32.data)?;
-    let exec_arm32 = crate::arm32_interp::run_arm32_elf(&elf_arm32.bytes);
-    // 9. SPARC interpreter
-    let out_sparc = emit::emit(&tir, PlatformKind::Sparc)?;
-    let elf_sparc = sparc_elf_link::link_sparc_elf(&out_sparc.code, &out_sparc.data)?;
-    let exec_sparc = crate::sparc_interp::run_sparc_elf(&elf_sparc.bytes);
-    // 10. LoongArch interpreter
-    let out_loong = emit::emit(&tir, PlatformKind::LoongArch)?;
-    let elf_loong = loongarch_elf_link::link_loongarch_elf(&out_loong.code, &out_loong.data)?;
-    let exec_loong = crate::loongarch_interp::run_loongarch_elf(&elf_loong.bytes);
-
-    // 11. 8051 interpreter
-    let out_8051 = emit::emit(&tir, PlatformKind::Eight051)?;
-    let exec_8051 = crate::e8051_interp::run_8051(&out_8051.code);
-    // 12. AVR interpreter
-    let out_avr = emit::emit(&tir, PlatformKind::Avr)?;
-    let exec_avr = crate::avr_interp::run_avr(&out_avr.code);
-    // 13. x86-32 interpreter
-    let out_x86 = emit::emit(&tir, PlatformKind::X86)?;
-    let pe_x86 = x86_link::link_x86(&out_x86.code, &out_x86.data)?;
-    let exec_x86 = crate::x86_interp::run_x86_pe(&pe_x86.bytes);
-    // 14. Z80
-    let out_z80 = emit::emit(&tir, PlatformKind::Z80)?;
-    let exec_z80 = crate::z80_interp::run_z80(&out_z80.code);
-    // 15. 6502
-    let out_6502 = emit::emit(&tir, PlatformKind::M6502)?;
-    let exec_6502 = crate::m6502_interp::run_m6502(&out_6502.code);
-    // 16. M68k
-    let out_m68k = emit::emit(&tir, PlatformKind::M68k)?;
-    let exec_m68k = crate::m68k_interp::run_m68k(&out_m68k.code);
-    // 17. MSP430
-    let out_msp430 = emit::emit(&tir, PlatformKind::Msp430)?;
-    let exec_msp430 = crate::msp430_interp::run_msp430(&out_msp430.code);
-    // 18. FreeDOS
-    let out_freedos = emit::emit(&tir, PlatformKind::Freedos)?;
-    let exec_freedos = crate::freedos_interp::run_freedos(&out_freedos.code);
-    // 19. Xtensa
-    let out_xtensa = emit::emit(&tir, PlatformKind::Xtensa)?;
-    let exec_xtensa = crate::xtensa_interp::run_xtensa(&out_xtensa.code);
-
-    let sim_ok = sim.exit_reason == crate::simulator::SimExitReason::Ret;
-    let exec_ok = exec.exit_reason == crate::arm64_interp::ExecExitReason::Ret;
-    let wasm_ok = wasm_result.exit_reason == crate::wasm_run::WasmExitReason::Trap { kind: crate::wasm_run::TrapKind::Unreachable };
-    let riscv_ok = exec_riscv.exit_reason == crate::riscv_interp::ExecExitReason::Ret;
-    let riscv32_ok = exec_riscv32.exit_reason == crate::riscv32_interp::ExecExitReason::Ret;
-    let mips_ok = exec_mips.exit_reason == crate::mips_interp::ExecExitReason::Ret;
-    let ppc_ok = exec_ppc.exit_reason == crate::ppc_interp::ExecExitReason::Ret;
-    let arm32_ok = exec_arm32.exit_reason == crate::arm32_interp::ExecExitReason::Ret;
-    let sparc_ok = exec_sparc.exit_reason == crate::sparc_interp::ExecExitReason::Ret;
-    let loong_ok = exec_loong.exit_reason == crate::loongarch_interp::ExecExitReason::Ret;
-    let e8051_ok = exec_8051.exit_reason == crate::e8051_interp::ExecExitReason::Ret;
-    let avr_ok = exec_avr.exit_reason == crate::avr_interp::ExecExitReason::Ret;
-    let x86_ok = exec_x86.exit_reason == crate::x86_interp::ExecExitReason::Ret;
-    let z80_ok = exec_z80.exit_reason == crate::z80_interp::ExecExitReason::Ret;
-    let m6502_ok = exec_6502.exit_reason == crate::m6502_interp::ExecExitReason::Ret;
-    let m68k_ok = exec_m68k.exit_reason == crate::m68k_interp::ExecExitReason::Ret;
-    let msp430_ok = exec_msp430.exit_reason == crate::msp430_interp::ExecExitReason::Ret;
-    let freedos_ok = exec_freedos.exit_reason == crate::freedos_interp::ExecExitReason::Ret;
-    let xtensa_ok = exec_xtensa.exit_reason == crate::xtensa_interp::ExecExitReason::Ret;
-
-    println!("DDC test: sim     exit={:?} steps={}", sim.exit_reason, sim.steps);
-    println!("DDC test: exec    exit={:?} steps={}", exec.exit_reason, exec.steps);
-    println!("DDC test: wasm    exit={:?} steps={}", wasm_result.exit_reason, wasm_result.steps);
-    println!("DDC test: riscv   exit={:?} steps={}", exec_riscv.exit_reason, exec_riscv.steps);
-    println!("DDC test: riscv32 exit={:?} steps={}", exec_riscv32.exit_reason, exec_riscv32.steps);
-    println!("DDC test: mips    exit={:?} steps={}", exec_mips.exit_reason, exec_mips.steps);
-    println!("DDC test: ppc     exit={:?} steps={}", exec_ppc.exit_reason, exec_ppc.steps);
-    println!("DDC test: arm32   exit={:?} steps={}", exec_arm32.exit_reason, exec_arm32.steps);
-    println!("DDC test: sparc   exit={:?} steps={}", exec_sparc.exit_reason, exec_sparc.steps);
-    println!("DDC test: loong   exit={:?} steps={}", exec_loong.exit_reason, exec_loong.steps);
-    println!("DDC test: 8051    exit={:?} steps={}", exec_8051.exit_reason, exec_8051.steps);
-    println!("DDC test: avr     exit={:?} steps={}", exec_avr.exit_reason, exec_avr.steps);
-    println!("DDC test: x86     exit={:?} steps={}", exec_x86.exit_reason, exec_x86.steps);
-    println!("DDC test: z80     exit={:?} steps={}", exec_z80.exit_reason, exec_z80.steps);
-    println!("DDC test: 6502    exit={:?} steps={}", exec_6502.exit_reason, exec_6502.steps);
-    println!("DDC test: m68k    exit={:?} steps={}", exec_m68k.exit_reason, exec_m68k.steps);
-    println!("DDC test: msp430  exit={:?} steps={}", exec_msp430.exit_reason, exec_msp430.steps);
-    println!("DDC test: freedos exit={:?} steps={}", exec_freedos.exit_reason, exec_freedos.steps);
-    println!("DDC test: xtensa  exit={:?} steps={}", exec_xtensa.exit_reason, exec_xtensa.steps);
-
-    if sim_ok && exec_ok && wasm_ok && riscv_ok && riscv32_ok && mips_ok && ppc_ok && arm32_ok && sparc_ok && loong_ok && e8051_ok && avr_ok && x86_ok && z80_ok && m6502_ok && m68k_ok && msp430_ok && freedos_ok && xtensa_ok {
-        println!("DDC test: PASS (sim=Ret exec=Ret wasm=unreachable riscv=Ret riscv32=Ret mips=Ret ppc=Ret arm32=Ret sparc=Ret loong=Ret 8051=Ret avr=Ret x86=Ret z80=Ret 6502=Ret m68k=Ret msp430=Ret freedos=Ret xtensa=Ret)");
+    if sim_ok && exec_ok && wasm_ok && riscv_ok && riscv32_ok && mips_ok && ppc_ok && arm32_ok && sparc_ok && loong_ok && e8051_ok && avr_ok && x86_ok && z80_ok && m6502_ok && m68k_ok && msp430_ok && freedos_ok && xtensa_ok && pic_ok && stm8_ok && evm_ok && plan9_ok {
+        println!("DDC test: PASS (sim=Ret exec=Ret wasm=unreachable riscv=Ret riscv32=Ret mips=Ret ppc=Ret arm32=Ret sparc=Ret loong=Ret 8051=Ret avr=Ret x86=Ret z80=Ret 6502=Ret m68k=Ret msp430=Ret freedos=Ret xtensa=Ret pic=Ret stm8=Ret evm=Ret plan9=Ret)");
         Ok(())
     } else {
         println!("DDC test: FAIL");
         Err(types::IsaError::PlatformError { msg: "DDC mismatch".into() })
     }
+}
+
+#[inline(never)]
+fn ddc_sim(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let sim = simulator::simulate(tir)?;
+    println!("DDC test: sim     exit={:?} steps={}", sim.exit_reason, sim.steps);
+    Ok(sim.exit_reason == crate::simulator::SimExitReason::Ret)
+}
+#[inline(never)]
+fn ddc_arm64(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Android)?;
+    let elf = arm64_elf_link::link_arm64_elf(&out.code, &out.data)?;
+    let exec = crate::arm64_interp::run_arm64_elf(&elf.bytes);
+    println!("DDC test: exec    exit={:?} steps={}", exec.exit_reason, exec.steps);
+    Ok(exec.exit_reason == crate::arm64_interp::ExecExitReason::Ret)
+}
+#[inline(never)]
+fn ddc_wasm(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let wasm = wasm_backend::emit_wasm(tir)?;
+    let wasm_result = wasm_run::run_wasm(&wasm)?;
+    println!("DDC test: wasm    exit={:?} steps={}", wasm_result.exit_reason, wasm_result.steps);
+    Ok(wasm_result.exit_reason == crate::wasm_run::WasmExitReason::Trap { kind: crate::wasm_run::TrapKind::Unreachable })
+}
+#[inline(never)]
+fn ddc_riscv64(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Riscv64)?;
+    let elf = riscv_elf_link::link_riscv_elf(&out.code, &out.data)?;
+    let exec = crate::riscv_interp::run_riscv_elf(&elf.bytes);
+    println!("DDC test: riscv   exit={:?} steps={}", exec.exit_reason, exec.steps);
+    Ok(exec.exit_reason == crate::riscv_interp::ExecExitReason::Ret)
+}
+#[inline(never)]
+fn ddc_riscv32(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Riscv32)?;
+    let elf = riscv32_elf_link::link_riscv32_elf(&out.code, &out.data)?;
+    let exec = crate::riscv32_interp::run_riscv32_elf(&elf.bytes);
+    println!("DDC test: riscv32 exit={:?} steps={}", exec.exit_reason, exec.steps);
+    Ok(exec.exit_reason == crate::riscv32_interp::ExecExitReason::Ret)
+}
+#[inline(never)]
+fn ddc_mips(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Mips)?;
+    let elf = mips_elf_link::link_mips_elf(&out.code, &out.data)?;
+    let exec = crate::mips_interp::run_mips_elf(&elf.bytes);
+    println!("DDC test: mips    exit={:?} steps={}", exec.exit_reason, exec.steps);
+    Ok(exec.exit_reason == crate::mips_interp::ExecExitReason::Ret)
+}
+#[inline(never)]
+fn ddc_ppc(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::PowerPc64Le)?;
+    let elf = ppc_elf_link::link_ppc_elf(&out.code, &out.data)?;
+    let exec = crate::ppc_interp::run_ppc_elf(&elf.bytes);
+    println!("DDC test: ppc     exit={:?} steps={}", exec.exit_reason, exec.steps);
+    Ok(exec.exit_reason == crate::ppc_interp::ExecExitReason::Ret)
+}
+#[inline(never)]
+fn ddc_arm32(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Arm32)?;
+    let elf = arm32_elf_link::link_arm32_elf(&out.code, &out.data)?;
+    let exec = crate::arm32_interp::run_arm32_elf(&elf.bytes);
+    println!("DDC test: arm32   exit={:?} steps={}", exec.exit_reason, exec.steps);
+    Ok(exec.exit_reason == crate::arm32_interp::ExecExitReason::Ret)
+}
+#[inline(never)]
+fn ddc_sparc(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Sparc)?;
+    let elf = sparc_elf_link::link_sparc_elf(&out.code, &out.data)?;
+    let exec = crate::sparc_interp::run_sparc_elf(&elf.bytes);
+    println!("DDC test: sparc   exit={:?} steps={}", exec.exit_reason, exec.steps);
+    Ok(exec.exit_reason == crate::sparc_interp::ExecExitReason::Ret)
+}
+#[inline(never)]
+fn ddc_loong(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::LoongArch)?;
+    let elf = loongarch_elf_link::link_loongarch_elf(&out.code, &out.data)?;
+    let exec = crate::loongarch_interp::run_loongarch_elf(&elf.bytes);
+    println!("DDC test: loong   exit={:?} steps={}", exec.exit_reason, exec.steps);
+    Ok(exec.exit_reason == crate::loongarch_interp::ExecExitReason::Ret)
+}
+#[inline(never)]
+fn ddc_8051(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Eight051)?;
+    let exec = crate::e8051_interp::run_8051(&out.code);
+    println!("DDC test: 8051    exit={:?} steps={}", exec.exit_reason, exec.steps);
+    Ok(exec.exit_reason == crate::e8051_interp::ExecExitReason::Ret)
+}
+#[inline(never)]
+fn ddc_avr(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Avr)?;
+    let exec = crate::avr_interp::run_avr(&out.code);
+    println!("DDC test: avr     exit={:?} steps={}", exec.exit_reason, exec.steps);
+    Ok(exec.exit_reason == crate::avr_interp::ExecExitReason::Ret)
+}
+#[inline(never)]
+fn ddc_x86(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::X86)?;
+    let pe = x86_link::link_x86(&out.code, &out.data)?;
+    let exec = crate::x86_interp::run_x86_pe(&pe.bytes);
+    println!("DDC test: x86     exit={:?} steps={}", exec.exit_reason, exec.steps);
+    Ok(exec.exit_reason == crate::x86_interp::ExecExitReason::Ret)
+}
+#[inline(never)]
+fn ddc_z80(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Z80)?;
+    let exec = crate::z80_interp::run_z80(&out.code);
+    println!("DDC test: z80     exit={:?} steps={}", exec.exit_reason, exec.steps);
+    Ok(exec.exit_reason == crate::z80_interp::ExecExitReason::Ret)
+}
+#[inline(never)]
+fn ddc_6502(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::M6502)?;
+    let exec = crate::m6502_interp::run_m6502(&out.code);
+    println!("DDC test: 6502    exit={:?} steps={}", exec.exit_reason, exec.steps);
+    Ok(exec.exit_reason == crate::m6502_interp::ExecExitReason::Ret)
+}
+#[inline(never)]
+fn ddc_m68k(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::M68k)?;
+    let exec = crate::m68k_interp::run_m68k(&out.code);
+    println!("DDC test: m68k    exit={:?} steps={}", exec.exit_reason, exec.steps);
+    Ok(exec.exit_reason == crate::m68k_interp::ExecExitReason::Ret)
+}
+#[inline(never)]
+fn ddc_msp430(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Msp430)?;
+    let exec = crate::msp430_interp::run_msp430(&out.code);
+    println!("DDC test: msp430  exit={:?} steps={}", exec.exit_reason, exec.steps);
+    Ok(exec.exit_reason == crate::msp430_interp::ExecExitReason::Ret)
+}
+#[inline(never)]
+fn ddc_freedos(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Freedos)?;
+    let exec = crate::freedos_interp::run_freedos(&out.code);
+    println!("DDC test: freedos exit={:?} steps={}", exec.exit_reason, exec.steps);
+    Ok(exec.exit_reason == crate::freedos_interp::ExecExitReason::Ret)
+}
+#[inline(never)]
+fn ddc_xtensa(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Xtensa)?;
+    let exec = crate::xtensa_interp::run_xtensa(&out.code);
+    println!("DDC test: xtensa  exit={:?} steps={}", exec.exit_reason, exec.steps);
+    Ok(exec.exit_reason == crate::xtensa_interp::ExecExitReason::Ret)
+}
+#[inline(never)]
+fn ddc_pic(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Pic)?;
+    let exec = crate::pic_interp::run_pic(&out.code);
+    println!("DDC test: pic     exit={:?} steps={}", exec.exit_reason, exec.steps);
+    Ok(exec.exit_reason == crate::pic_interp::ExecExitReason::Ret)
+}
+#[inline(never)]
+fn ddc_stm8(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Stm8)?;
+    let exec = crate::stm8_interp::run_stm8(&out.code);
+    println!("DDC test: stm8    exit={:?} steps={}", exec.exit_reason, exec.steps);
+    Ok(exec.exit_reason == crate::stm8_interp::ExecExitReason::Ret)
+}
+#[inline(never)]
+fn ddc_evm(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Evm)?;
+    let exec = crate::evm_interp::run_evm(&out.code);
+    println!("DDC test: evm     exit={:?} steps={}", exec.exit_reason, exec.steps);
+    Ok(exec.exit_reason == crate::evm_interp::ExecExitReason::Ret)
+}
+#[inline(never)]
+fn ddc_plan9(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Plan9)?;
+    let exec = crate::plan9_interp::run_plan9(&out.code);
+    println!("DDC test: plan9   exit={:?} steps={}", exec.exit_reason, exec.steps);
+    Ok(exec.exit_reason == crate::plan9_interp::ExecExitReason::Ret)
 }
 
 /// Appendix F G00鈥揋05 plus W-selfhost-min G-SM + G-SM-CHAIN through G-SM-CHAIN12 + G-SM-INC + G-SM-DEC + G-SM-JMP + G-SM-CALL + G-SM-JE + G-SM-JCC-ALL + G-SM-IO. Fail-closed on mismatch / missing files.
