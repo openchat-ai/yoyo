@@ -888,7 +888,10 @@ fn cmd_test(args: &[String]) -> Result<(), types::IsaError> {
     match args[0].as_str() {
         "golden" => cmd_test_golden(),
         "backends" => cmd_test_backends(),
-        "ddc" => cmd_test_ddc(),
+        "ddc" => {
+            cmd_test_ddc()?;
+            cmd_test_ddc_arith()
+        }
         "all" => {
             cmd_test_golden()?;
             cmd_test_backends()?;
@@ -1182,6 +1185,55 @@ fn ddc_plan9(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
     let exec = crate::plan9_interp::run_plan9(&out.code);
     println!("DDC test: plan9   exit={:?} steps={}", exec.exit_reason, exec.steps);
     Ok(exec.exit_reason == crate::plan9_interp::ExecExitReason::Ret)
+}
+
+// ── 01_arith DDC (arithmetic: SET slot0=5, SET slot1=3, ADDV slot0+=slot1, RET) ──
+
+fn cmd_test_ddc_arith() -> Result<(), types::IsaError> {
+    let fixture = find_fixture("01_arith.ty")?;
+    let src = fs::read_to_string(&fixture).map_err(|e| types::IsaError::IoError { msg: e.to_string() })?;
+    let tir = executor::compile_ty_source_to_tir(&src)?;
+
+    // Simulator: ground truth, gets state values
+    let sim = simulator::simulate(&tir)?;
+    let slot0 = sim.state.get(&0).copied().unwrap_or(0);
+    let slot1 = sim.state.get(&1).copied().unwrap_or(0);
+    println!("01_arith DDC: sim    exit={:?} slot0={} slot1={} steps={}", sim.exit_reason, slot0, slot1, sim.steps);
+    let sim_ok = sim.exit_reason == simulator::SimExitReason::Ret && slot0 == 8 && slot1 == 3;
+
+    // ARM64
+    let out = emit::emit(&tir, platform::PlatformKind::Android)?;
+    let elf = arm64_elf_link::link_arm64_elf(&out.code, &out.data)?;
+    let exec = arm64_interp::run_arm64_elf(&elf.bytes);
+    let arm64_slot0 = exec.state.get(&0).copied().unwrap_or(0);
+    let arm64_slot1 = exec.state.get(&1).copied().unwrap_or(0);
+    println!("01_arith DDC: arm64  exit={:?} slot0={} slot1={} steps={}", exec.exit_reason, arm64_slot0, arm64_slot1, exec.steps);
+    let arm64_ok = exec.exit_reason == arm64_interp::ExecExitReason::Ret && arm64_slot0 == 8;
+
+    // RV64
+    let out = emit::emit(&tir, platform::PlatformKind::Riscv64)?;
+    let elf = riscv_elf_link::link_riscv_elf(&out.code, &out.data)?;
+    let exec = riscv_interp::run_riscv_elf(&elf.bytes);
+    let rv64_slot0 = exec.state.get(&0).copied().unwrap_or(0);
+    let rv64_slot1 = exec.state.get(&1).copied().unwrap_or(0);
+    println!("01_arith DDC: riscv64 exit={:?} slot0={} slot1={} steps={}", exec.exit_reason, rv64_slot0, rv64_slot1, exec.steps);
+    let rv64_ok = exec.exit_reason == riscv_interp::ExecExitReason::Ret && rv64_slot0 == 8;
+
+    // Plan9 (x64)
+    let out = emit::emit(&tir, platform::PlatformKind::Plan9)?;
+    let exec = plan9_interp::run_plan9(&out.code);
+    let plan9_slot0 = exec.state.get(&0).copied().unwrap_or(0);
+    let plan9_slot1 = exec.state.get(&1).copied().unwrap_or(0);
+    println!("01_arith DDC: plan9  exit={:?} slot0={} slot1={} steps={}", exec.exit_reason, plan9_slot0, plan9_slot1, exec.steps);
+    let plan9_ok = exec.exit_reason == plan9_interp::ExecExitReason::Ret && plan9_slot0 == 8;
+
+    if sim_ok && arm64_ok && rv64_ok && plan9_ok {
+        println!("01_arith DDC: PASS (sim=5+3=8 arm64=5+3=8 riscv64=5+3=8 plan9=5+3=8)");
+        Ok(())
+    } else {
+        eprintln!("01_arith DDC: FAIL");
+        Err(types::IsaError::PlatformError { msg: "01_arith DDC mismatch".into() })
+    }
 }
 
 /// Appendix F G00鈥揋05 plus W-selfhost-min G-SM + G-SM-CHAIN through G-SM-CHAIN12 + G-SM-INC + G-SM-DEC + G-SM-JMP + G-SM-CALL + G-SM-JE + G-SM-JCC-ALL + G-SM-IO. Fail-closed on mismatch / missing files.

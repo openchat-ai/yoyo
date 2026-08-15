@@ -133,15 +133,28 @@ impl Cpu {
             return None;
         }
 
-        // MOVZ / MOVK
-        if (insn >> 23) & 0x7F == 0b1101001 || (insn >> 23) & 0x7F == 0b1111001 {
-            let is_movk = (insn >> 23) & 0x7F == 0b1111001;
+        // MOVN / MOVZ / MOVK (64-bit, sf=1, bits 28-23 = 100101)
+        let top9 = (insn >> 23) as u16;
+        if (top9 & 0x3F) == 0x25 && (top9 & 0x100) != 0 {
+            // MOVN, MOVZ, or MOVK (64-bit, sf=1)
             let hw = (insn >> 21) & 0x3;
             let imm16 = (insn >> 5) & 0xFFFF;
             let rd = (insn & 0x1F) as usize;
             let val = (imm16 as u64) << (hw * 16);
-            if is_movk { *self.rw(rd) = (self.r(rd) & !(0xFFFFu64 << (hw * 16))) | val; }
-            else { *self.rw(rd) = val; }
+            let opc = (insn >> 29) & 0x3;
+            match opc {
+                0b00 => { // MOVN
+                    *self.rw(rd) = !val;
+                }
+                0b10 => { // MOVZ
+                    *self.rw(rd) = val;
+                }
+                0b11 => { // MOVK
+                    let mask = !(0xFFFFu64 << (hw * 16));
+                    *self.rw(rd) = (self.r(rd) & mask) | val;
+                }
+                _ => return Some(ExecExitReason::Fault { msg: format!("undecoded MOV* at 0x{:x}: 0x{:08x}", self.pc, insn) }),
+            }
             self.pc += 4; return None;
         }
 
@@ -170,14 +183,14 @@ impl Cpu {
 
         // LDR/STR (unsigned immediate, 64-bit)
         if (insn >> 24) == 0b11111001 {
-            let op = (insn >> 22) & 0x1; // 0=ldr, 1=str
+            let op = (insn >> 22) & 0x1; // 1=ldr, 0=str
             let size = (insn >> 30) & 0x3;
             let imm12 = (insn >> 10) & 0xFFF;
             let rn = ((insn >> 5) & 0x1F) as usize;
             let rt = (insn & 0x1F) as usize;
             let scale = byte_size(size);
             let addr = self.r(rn) + (imm12 as u64 * scale);
-            if op == 0 { *self.rw(rt) = self.load64(addr); }
+            if op == 1 { *self.rw(rt) = self.load64(addr); }
             else { self.store64(addr, self.r(rt)); }
             self.pc += 4; return None;
         }
@@ -193,11 +206,15 @@ impl Cpu {
         }
 
         // Register-register ops: ADD, SUB, MUL, ORR, CMP(SUBS)
-        // bits 31:24 = 0b10001011 (41) for ADD reg, 0b11001011 (CB) for SUB reg
-        // 0b10011011 (9B) for MUL, 0b10101011 (AB) for ORR, 0b11101011 (EB) for CMP(SUBS)
+        // bits 31:24 = 0x8B (41) for ADD reg, 0xCB (CB) for SUB reg
+        // 0x9B (9B) for MUL, 0xAB (AB) for ORR, 0xEB (EB) for CMP(SUBS)
+        // bits 23:22 = shift type (0=LSL), bits 15:10 = imm6 (0=no shift)
         let top8 = (insn >> 24) as u8;
         let top21 = (insn >> 11) as u32;
-        if top8 == 0x8B && (top21 & 0b11111111111) == 0b00001011000 {
+        let shift_type = (insn >> 22) & 0x3;
+        let imm6 = (insn >> 10) & 0x3F;
+        // ADD (shifted register, no shift)
+        if top8 == 0x8B && shift_type == 0 && imm6 == 0 {
             // ADD (shifted register)
             let rn = ((insn >> 5) & 0x1F) as usize;
             let rm = ((insn >> 16) & 0x1F) as usize;
@@ -205,7 +222,7 @@ impl Cpu {
             *self.rw(rd) = self.r(rn).wrapping_add(self.r(rm));
             self.pc += 4; return None;
         }
-        if top8 == 0xCB && (top21 & 0b11111111111) == 0b01001011000 {
+        if top8 == 0xCB && shift_type == 0 && imm6 == 0 {
             // SUB (shifted register)
             let rn = ((insn >> 5) & 0x1F) as usize;
             let rm = ((insn >> 16) & 0x1F) as usize;
@@ -213,15 +230,15 @@ impl Cpu {
             *self.rw(rd) = self.r(rn).wrapping_sub(self.r(rm));
             self.pc += 4; return None;
         }
-        if top8 == 0x9B && (top21 & 0b11111111111) == 0b00011011000 {
-            // MUL
+        if top8 == 0x9B && imm6 == 0 {
+            // MUL (x[31:21]=0x9B, op31:21=0b00011011000, bits 15:10 = 0 for MUL)
             let rn = ((insn >> 5) & 0x1F) as usize;
             let rm = ((insn >> 16) & 0x1F) as usize;
             let rd = (insn & 0x1F) as usize;
             *self.rw(rd) = self.r(rn).wrapping_mul(self.r(rm));
             self.pc += 4; return None;
         }
-        if top8 == 0xAB && (top21 & 0b11111111111) == 0b00101011000 {
+        if top8 == 0xAB && shift_type == 0 && imm6 == 0 {
             // ORR (shifted register)
             let rn = ((insn >> 5) & 0x1F) as usize;
             let rm = ((insn >> 16) & 0x1F) as usize;
@@ -229,7 +246,7 @@ impl Cpu {
             *self.rw(rd) = self.r(rn) | self.r(rm);
             self.pc += 4; return None;
         }
-        if top8 == 0xEB && (top21 & 0b11111111111) == 0b01101011000 {
+        if top8 == 0xEB && shift_type == 0 && imm6 == 0 {
             // CMP (SUBS xzr, rn, rm)
             let rn = ((insn >> 5) & 0x1F) as usize;
             let rm = ((insn >> 16) & 0x1F) as usize;

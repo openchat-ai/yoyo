@@ -810,11 +810,13 @@ fn arm64_mov_imm64(rd: u32, imm: u64) -> Vec<u8> {
         let chunk = (imm >> shift) & 0xFFFF;
         if chunk != 0 || shift == 0 {
             if !written {
-                let enc: u32 = 0x92800000 | rd | ((chunk as u32) << 5) | ((shift as u32 / 16) << 21);
+                // MOVZ rd, chunk, lsl shift
+                let enc: u32 = 0xD2800000 | rd | ((chunk as u32) << 5) | ((shift as u32 / 16) << 21);
                 out.extend_from_slice(&enc.to_le_bytes());
                 written = true;
             } else {
-                let enc: u32 = 0x92800020 | rd | ((chunk as u32) << 5) | ((shift as u32 / 16) << 21);
+                // MOVK rd, chunk, lsl shift
+                let enc: u32 = 0xF2800000 | rd | ((chunk as u32) << 5) | ((shift as u32 / 16) << 21);
                 out.extend_from_slice(&enc.to_le_bytes());
             }
         }
@@ -1585,7 +1587,7 @@ fn riscv_li_imm(rd: u32, imm: u64) -> Vec<u8> {
                 }
                 if lo != 0 {
                     let lo12 = lo & 0xFFF;
-                    let enc: u32 = 0x00000013 | (lo12 << 20) | (rd << 15) | (rd << 7);
+                    let enc: u32 = 0x00000013 | (lo12 << 20) | (0 << 15) | (rd << 7); // addi rd, x0, lo12
                     out.extend_from_slice(&enc.to_le_bytes());
                 } else if hi == 0 {
                     let enc: u32 = 0x00000013 | (rd << 7);
@@ -1692,91 +1694,91 @@ impl PlatformBackend for Riscv64Platform {
     }
     fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
         let mut out = riscv_li_imm(6, imm);
-        out.extend_from_slice(&riscv_sd(6, 5, slot));
+        out.extend_from_slice(&riscv_sd(6, 5, slot * 8));
         Ok(out)
     }
     fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        let mut out = riscv_ld(6, 5, src).to_vec();
-        out.extend_from_slice(&riscv_sd(6, 5, dst));
+        let mut out = riscv_ld(6, 5, src * 8).to_vec();
+        out.extend_from_slice(&riscv_sd(6, 5, dst * 8));
         Ok(out)
     }
     fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
         self.emit_get(dst, src)
     }
     fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
-        let mut out = riscv_ld(6, 5, slot).to_vec();
+        let mut out = riscv_ld(6, 5, slot * 8).to_vec();
         if imm < 0x1000 {
             out.extend_from_slice(&riscv_addi(6, 6, imm as u32));
         } else {
             out.extend_from_slice(&riscv_li_imm(7, imm));
             out.extend_from_slice(&riscv_add(6, 6, 7));
         }
-        out.extend_from_slice(&riscv_sd(6, 5, slot));
+        out.extend_from_slice(&riscv_sd(6, 5, slot * 8));
         Ok(out)
     }
     fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
-        let mut out = riscv_ld(6, 5, slot).to_vec();
+        let mut out = riscv_ld(6, 5, slot * 8).to_vec();
         if imm < 0x1000 {
             out.extend_from_slice(&riscv_addi(6, 6, (imm as u32) | 0xFFFFF000)); // sub via addi negative
         } else {
             out.extend_from_slice(&riscv_li_imm(7, imm));
             out.extend_from_slice(&riscv_sub(6, 6, 7));
         }
-        out.extend_from_slice(&riscv_sd(6, 5, slot));
+        out.extend_from_slice(&riscv_sd(6, 5, slot * 8));
         Ok(out)
     }
     fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
-        let mut out = riscv_ld(6, 5, slot).to_vec();
+        let mut out = riscv_ld(6, 5, slot * 8).to_vec();
         out.extend_from_slice(&riscv_addi(6, 6, 1));
-        out.extend_from_slice(&riscv_sd(6, 5, slot));
+        out.extend_from_slice(&riscv_sd(6, 5, slot * 8));
         Ok(out)
     }
     fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
-        let mut out = riscv_ld(6, 5, slot).to_vec();
+        let mut out = riscv_ld(6, 5, slot * 8).to_vec();
         out.extend_from_slice(&riscv_addi(6, 6, 0xFFF)); // addi -1
-        out.extend_from_slice(&riscv_sd(6, 5, slot));
+        out.extend_from_slice(&riscv_sd(6, 5, slot * 8));
         Ok(out)
     }
     fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        let mut out = riscv_ld(6, 5, dst).to_vec();
-        out.extend_from_slice(&riscv_ld(7, 5, src));
+        let mut out = riscv_ld(6, 5, dst * 8).to_vec();
+        out.extend_from_slice(&riscv_ld(7, 5, src * 8));
         out.extend_from_slice(&riscv_add(6, 6, 7));
-        out.extend_from_slice(&riscv_sd(6, 5, dst));
+        out.extend_from_slice(&riscv_sd(6, 5, dst * 8));
         Ok(out)
     }
     fn emit_orv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        let mut out = riscv_ld(6, 5, dst).to_vec();
-        out.extend_from_slice(&riscv_ld(7, 5, src));
+        let mut out = riscv_ld(6, 5, dst * 8).to_vec();
+        out.extend_from_slice(&riscv_ld(7, 5, src * 8));
         out.extend_from_slice(&riscv_or(6, 6, 7));
-        out.extend_from_slice(&riscv_sd(6, 5, dst));
+        out.extend_from_slice(&riscv_sd(6, 5, dst * 8));
         Ok(out)
     }
     fn emit_subv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        let mut out = riscv_ld(6, 5, dst).to_vec();
-        out.extend_from_slice(&riscv_ld(7, 5, src));
+        let mut out = riscv_ld(6, 5, dst * 8).to_vec();
+        out.extend_from_slice(&riscv_ld(7, 5, src * 8));
         out.extend_from_slice(&riscv_sub(6, 6, 7));
-        out.extend_from_slice(&riscv_sd(6, 5, dst));
+        out.extend_from_slice(&riscv_sd(6, 5, dst * 8));
         Ok(out)
     }
     fn emit_imul(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        let mut out = riscv_ld(6, 5, dst).to_vec();
-        out.extend_from_slice(&riscv_ld(7, 5, src));
+        let mut out = riscv_ld(6, 5, dst * 8).to_vec();
+        out.extend_from_slice(&riscv_ld(7, 5, src * 8));
         out.extend_from_slice(&riscv_mul(6, 6, 7));
-        out.extend_from_slice(&riscv_sd(6, 5, dst));
+        out.extend_from_slice(&riscv_sd(6, 5, dst * 8));
         Ok(out)
     }
     fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
-        let mut out = riscv_ld(10, 5, a).to_vec(); // x10 = state[a]
-        out.extend_from_slice(&riscv_ld(11, 5, b)); // x11 = state[b]
+        let mut out = riscv_ld(10, 5, a * 8).to_vec(); // x10 = state[a]
+        out.extend_from_slice(&riscv_ld(11, 5, b * 8)); // x11 = state[b]
         Ok(out)
     }
     fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
-        let mut out = riscv_ld(6, 5, ss).to_vec(); // x6 = state[ss] (addr)
+        let mut out = riscv_ld(6, 5, ss * 8).to_vec(); // x6 = state[ss] (addr)
         if oo != 0 {
             out.extend_from_slice(&riscv_addi(6, 6, oo as u32));
         }
         out.extend_from_slice(&riscv_lbu(7, 6, 0)); // x7 = byte [x6]
-        out.extend_from_slice(&riscv_sd(7, 5, dd));
+        out.extend_from_slice(&riscv_sd(7, 5, dd * 8));
         Ok(out)
     }
     fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
@@ -1788,24 +1790,24 @@ impl PlatformBackend for Riscv64Platform {
         }
         let mut out = Vec::new();
         for i in 0..n as u16 {
-            out.extend_from_slice(&riscv_ld(6, 5, src + i));
-            out.extend_from_slice(&riscv_sd(6, 5, dst + i));
+            out.extend_from_slice(&riscv_ld(6, 5, (src + i) * 8));
+            out.extend_from_slice(&riscv_sd(6, 5, (dst + i) * 8));
         }
         Ok(out)
     }
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
         let mut out = riscv_li_imm(6, size);
-        out.extend_from_slice(&riscv_sd(6, 5, slot));
+        out.extend_from_slice(&riscv_sd(6, 5, slot * 8));
         Ok(out)
     }
     fn emit_load_file(&mut self, slot: u16, str_idx: u8) -> IsaResult<Vec<u8>> {
         let mut out = riscv_li_imm(6, str_idx as u64);
-        out.extend_from_slice(&riscv_sd(6, 5, slot));
+        out.extend_from_slice(&riscv_sd(6, 5, slot * 8));
         Ok(out)
     }
     fn emit_write_file(&mut self, slot: u16, str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
         let mut out = riscv_li_imm(6, str_idx as u64);
-        out.extend_from_slice(&riscv_sd(6, 5, slot));
+        out.extend_from_slice(&riscv_sd(6, 5, slot * 8));
         Ok(out)
     }
     fn emit_exit(&mut self, code: u8) -> IsaResult<Vec<u8>> {

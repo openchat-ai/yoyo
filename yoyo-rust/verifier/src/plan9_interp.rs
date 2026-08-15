@@ -2,8 +2,9 @@
 //! (defaults to x86-64 NOP/RET via PlatformBackend) for DDC against the TIR simulator.
 //!
 //! Flat binary, entry=0. NOP=0x90, RET=0xC3, HLT=0xF4 treated as exit.
-//! Plan9Platform inherits x64 emit_set/get; slots via R15-relative state are not
-//! decoded here beyond nop_ret (sufficient for current DDC fixture).
+//! Decodes x86-64 REX.W-prefixed instructions emitted by the default x64 assembler:
+//!   MOVABS RAX, imm64 (48 B8), MOV [R15+disp], reg (49 89 ...), MOV reg, [R15+disp] (49 8B ...),
+//!   ADD RAX, RCX (48 01 C8), CALL/E9, JMP/E9.
 
 use std::collections::HashMap;
 
@@ -23,17 +24,23 @@ const INITIAL_SP: u64 = 0x8000;
 struct Cpu {
     rip: u64,
     rsp: u64,
+    rax: u64,
+    rcx: u64,
+    r15: u64,
     mem: Vec<u8>,
     steps: u64,
     step_limit: u64,
     call_depth: u32,
+    state: HashMap<u16, u64>,
 }
 
 impl Cpu {
     fn new(mem: Vec<u8>) -> Self {
         Self {
-            rip: 0, rsp: INITIAL_SP, mem,
-            steps: 0, step_limit: DEFAULT_STEP_LIMIT, call_depth: 0,
+            rip: 0, rsp: INITIAL_SP,
+            rax: 0, rcx: 0, r15: 0,
+            mem, steps: 0, step_limit: DEFAULT_STEP_LIMIT,
+            call_depth: 0, state: HashMap::new(),
         }
     }
 
@@ -75,6 +82,69 @@ impl Cpu {
         Some(v)
     }
 
+    fn fetch_imm32(&mut self) -> Option<u32> {
+        let mut v = 0u32;
+        for i in 0..4u32 {
+            v |= (self.fetch8()? as u32) << (i * 8);
+        }
+        Some(v)
+    }
+
+    /// The assembler's store_state emits: REX.WB=0x49, 0x89, ModRM(reg=src, r/m=R15), disp8
+    /// ModRM: mod=01(disp8), reg=src_low3, r/m=111 (R15 when B=1)
+    fn decode_store_state(&mut self, rex_w: bool, rex_b: bool, modrm: u8) -> Option<ExecExitReason> {
+        let mod_field = modrm >> 6;
+        let reg_field = (modrm >> 3) & 0x7;
+        let rm_field = modrm & 0x7;
+        if rm_field != 7 || !rex_b { return None; } // not R15 base
+        let base = if rex_b { self.r15 } else { 0 };
+        let disp = if mod_field == 0x01 {
+            self.fetch8()? as u32 as u64
+        } else if mod_field == 0x02 {
+            self.fetch_imm32()? as u64
+        } else {
+            return None;
+        };
+        let base_plus_disp = base.wrapping_add(disp);
+        // Determine source register from reg_field + rex.R
+        let src_val = match reg_field {
+            0 => self.rax, // RAX
+            1 => self.rcx, // RCX
+            _ => return None, // unsupported src reg
+        };
+        // Determine slot from disp
+        let slot = (disp / 8) as u16;
+        // Store to memory and track state
+        self.store64_le(base_plus_disp, src_val);
+        self.state.insert(slot, src_val);
+        None
+    }
+
+    /// The assembler's load_state emits: REX.WB=0x49, 0x8B, ModRM(reg=dst, r/m=R15), disp8
+    fn decode_load_state(&mut self, rex_w: bool, rex_b: bool, modrm: u8) -> Option<ExecExitReason> {
+        let mod_field = modrm >> 6;
+        let reg_field = ((modrm >> 3) & 0x7) | if rex_w { 0 } else { 0 };
+        let rm_field = modrm & 0x7;
+        if rm_field != 7 || !rex_b { return None; }
+        let base = if rex_b { self.r15 } else { 0 };
+        let disp = if mod_field == 0x01 {
+            self.fetch8()? as u32 as u64
+        } else if mod_field == 0x02 {
+            self.fetch_imm32()? as u64
+        } else {
+            return None;
+        };
+        let base_plus_disp = base.wrapping_add(disp);
+        let val = self.load64_le(base_plus_disp);
+        // Load into destination register
+        match reg_field {
+            0 => self.rax = val,
+            1 => self.rcx = val,
+            _ => return None,
+        }
+        None
+    }
+
     fn step(&mut self) -> Option<ExecExitReason> {
         if self.steps >= self.step_limit {
             return Some(ExecExitReason::StepLimit { steps: self.steps });
@@ -87,46 +157,104 @@ impl Cpu {
             return Some(ExecExitReason::Halted);
         };
 
-        match op {
-            0x90 => None, // NOP
-            0xC3 => { // RET
-                if self.call_depth == 0 || self.rsp == INITIAL_SP {
-                    return Some(ExecExitReason::Ret);
+        // REX.W prefix (0x48 = REX.W, 0x49 = REX.WB)
+        if op == 0x48 || op == 0x49 {
+            let rex = op;
+            let rex_w = (rex >> 3) & 1 == 1;
+            let rex_r = (rex >> 2) & 1 == 1;
+            let rex_b = rex & 1 == 1;
+            let Some(op2) = self.fetch8() else {
+                return Some(ExecExitReason::Fault { msg: "truncated after REX".into() });
+            };
+            match op2 {
+                0xB8..=0xBF => {
+                    // MOVABS r64, imm64 (opcode = 0xB8 + register)
+                    let reg = (op2 - 0xB8) | (if rex_b { 8 } else { 0 });
+                    let mut imm = 0u64;
+                    for i in 0..8u64 {
+                        let Some(b) = self.fetch8() else {
+                            return Some(ExecExitReason::Fault { msg: "truncated MOVABS".into() });
+                        };
+                        imm |= (b as u64) << (i * 8);
+                    }
+                    match reg {
+                        0 => self.rax = imm,
+                        1 => self.rcx = imm,
+                        _ => return Some(ExecExitReason::Fault { msg: format!("MOVABS to unsupported reg {}", reg) }),
+                    }
+                    None
                 }
-                self.call_depth -= 1;
-                self.rip = self.pop64();
-                None
+                0x89 => {
+                    // MOV r/m64, r64 — store_state
+                    let Some(modrm) = self.fetch8() else {
+                        return Some(ExecExitReason::Fault { msg: "truncated MOV store".into() });
+                    };
+                    self.decode_store_state(rex_w, rex_b, modrm)
+                }
+                0x8B => {
+                    // MOV r64, r/m64 — load_state
+                    let Some(modrm) = self.fetch8() else {
+                        return Some(ExecExitReason::Fault { msg: "truncated MOV load".into() });
+                    };
+                    self.decode_load_state(rex_w, rex_b, modrm)
+                }
+                0x01 => {
+                    // ADD r/m64, r64 (RAX = RAX + RCX)
+                    let Some(modrm) = self.fetch8() else {
+                        return Some(ExecExitReason::Fault { msg: "truncated ADD".into() });
+                    };
+                    let mod_field = modrm >> 6;
+                    let reg_field = (modrm >> 3) & 0x7;
+                    let rm_field = modrm & 0x7;
+                    if mod_field == 0x03 {
+                        // register form
+                        let src = reg_field | (if rex_r { 8 } else { 0 });
+                        let dst = rm_field | (if rex_b { 8 } else { 0 });
+                        let src_val = match src { 0 => self.rax, 1 => self.rcx, _ => 0 };
+                        let dst_val = match dst { 0 => self.rax, 1 => self.rcx, _ => 0 };
+                        let result = dst_val.wrapping_add(src_val);
+                        match dst { 0 => self.rax = result, 1 => self.rcx = result, _ => {} }
+                    }
+                    None
+                }
+                _ => Some(ExecExitReason::Fault {
+                    msg: format!("undecoded REX instruction at 0x{:04x}: {:02x} {:02x}", self.rip.wrapping_sub(2), rex, op2),
+                }),
             }
-            0xF4 => Some(ExecExitReason::Ret), // HLT → exit
-            0xE8 => { // CALL rel32
-                let mut disp = 0u32;
-                for i in 0..4u32 {
-                    let Some(b) = self.fetch8() else {
+        } else {
+            match op {
+                0x90 => None, // NOP
+                0xC3 => { // RET
+                    if self.call_depth == 0 || self.rsp == INITIAL_SP {
+                        return Some(ExecExitReason::Ret);
+                    }
+                    self.call_depth -= 1;
+                    self.rip = self.pop64();
+                    None
+                }
+                0xF4 => Some(ExecExitReason::Ret), // HLT → exit
+                0xE8 => { // CALL rel32
+                    let Some(disp) = self.fetch_imm32() else {
                         return Some(ExecExitReason::Fault { msg: "truncated CALL".into() });
                     };
-                    disp |= (b as u32) << (i * 8);
+                    let next = self.rip;
+                    self.push64(next);
+                    self.call_depth += 1;
+                    self.rip = next.wrapping_add(disp as i32 as i64 as u64);
+                    None
                 }
-                let next = self.rip;
-                self.push64(next);
-                self.call_depth += 1;
-                self.rip = next.wrapping_add(disp as i32 as i64 as u64);
-                None
-            }
-            0xE9 => { // JMP rel32
-                let mut disp = 0u32;
-                for i in 0..4u32 {
-                    let Some(b) = self.fetch8() else {
+                0xE9 => { // JMP rel32
+                    let Some(disp) = self.fetch_imm32() else {
                         return Some(ExecExitReason::Fault { msg: "truncated JMP".into() });
                     };
-                    disp |= (b as u32) << (i * 8);
+                    let next = self.rip;
+                    self.rip = next.wrapping_add(disp as i32 as i64 as u64);
+                    None
                 }
-                let next = self.rip;
-                self.rip = next.wrapping_add(disp as i32 as i64 as u64);
-                None
+                _ => Some(ExecExitReason::Fault {
+                    msg: format!("undecoded Plan9/x64 insn at 0x{:04x}: {:02x}", self.rip.wrapping_sub(1), op),
+                }),
             }
-            _ => Some(ExecExitReason::Fault {
-                msg: format!("undecoded Plan9/x64 insn at 0x{:04x}: {:02x}", self.rip.wrapping_sub(1), op),
-            }),
         }
     }
 
@@ -141,14 +269,16 @@ impl Cpu {
 }
 
 /// Run a flat Plan9 (x64) binary. Bytes loaded at 0x0000, RIP=0.
+/// R15 is set to 0x20000 (beyond code+stack) as the state base, matching the
+/// x64 assembler's R15-relative state addressing.
 pub fn run_plan9(bytes: &[u8]) -> ExecResult {
-    let mut mem = vec![0u8; 0x10000];
+    let mut mem = vec![0u8; 0x40000];
     let n = bytes.len().min(mem.len());
     mem[..n].copy_from_slice(&bytes[..n]);
 
     let mut cpu = Cpu::new(mem);
+    cpu.r15 = 0x20000;
     let exit_reason = cpu.run();
 
-    // Plan9 inherits x64 state layout; nop_ret leaves all slots zero.
-    ExecResult { exit_reason, steps: cpu.steps, state: HashMap::new() }
+    ExecResult { exit_reason, steps: cpu.steps, state: cpu.state }
 }

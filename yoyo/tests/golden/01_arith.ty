@@ -1,0 +1,8 @@
+; G01 — SET slot0=5, SET slot1=3, ADDV slot0+=slot1, RET
+; State after: slot0=8, slot1=3
+
+40 00
+  30 00 05
+  30 01 03
+  68 00 01
+  FF
