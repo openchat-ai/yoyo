@@ -1,0 +1,13 @@
+; G02 — CMP+JE branch: SET slot0=5, SET slot1=5, CMP, JE true_target,
+;        SET slot0=0 (fail), RET, true_target: RET
+; If JE works, slot0=5. If JE fails (falls through), slot0=0.
+
+40 00
+  30 00 05
+  30 01 05
+  65 00 01
+  71 01
+  30 00 00
+  FF
+40 01
+  FF
