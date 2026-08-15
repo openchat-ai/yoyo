@@ -3927,12 +3927,12 @@ impl PlatformBackend for Riscv32Platform {
     }
     fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
         let mut out = riscv_li_imm(6, imm);
-        out.extend_from_slice(&riscv_sw(6, 5, slot));
+        out.extend_from_slice(&riscv_sw(6, 5, slot * 4));
         Ok(out)
     }
     fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        let mut out = riscv_lw(6, 5, src).to_vec();
-        out.extend_from_slice(&riscv_sw(6, 5, dst));
+        let mut out = riscv_lw(6, 5, src * 4).to_vec();
+        out.extend_from_slice(&riscv_sw(6, 5, dst * 4));
         Ok(out)
     }
     fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {

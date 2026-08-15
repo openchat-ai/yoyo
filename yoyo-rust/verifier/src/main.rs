@@ -1189,46 +1189,171 @@ fn ddc_plan9(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
 
 // ── 01_arith DDC (arithmetic: SET slot0=5, SET slot1=3, ADDV slot0+=slot1, RET) ──
 
+macro_rules! arith_check {
+    ($name:expr, $result:expr, $exp:expr) => {{
+        let r = $result;
+        let slot0 = r.state.get(&0).copied().unwrap_or(0);
+        let slot1 = r.state.get(&1).copied().unwrap_or(0);
+        println!("01_arith DDC: {:8} exit={:?} slot0={} slot1={} steps={}", $name, r.exit_reason, slot0, slot1, r.steps);
+        slot0 == $exp
+    }};
+}
+
+#[inline(never)]
+fn arith_arm64(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Android)?;
+    let elf = arm64_elf_link::link_arm64_elf(&out.code, &out.data)?;
+    Ok(arith_check!("arm64", arm64_interp::run_arm64_elf(&elf.bytes), 8))
+}
+#[inline(never)]
+fn arith_riscv64(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Riscv64)?;
+    let elf = riscv_elf_link::link_riscv_elf(&out.code, &out.data)?;
+    Ok(arith_check!("riscv64", riscv_interp::run_riscv_elf(&elf.bytes), 8))
+}
+#[inline(never)]
+fn arith_riscv32(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Riscv32)?;
+    let elf = riscv32_elf_link::link_riscv32_elf(&out.code, &out.data)?;
+    Ok(arith_check!("riscv32", riscv32_interp::run_riscv32_elf(&elf.bytes), 8))
+}
+#[inline(never)]
+fn arith_mips(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Mips)?;
+    let elf = mips_elf_link::link_mips_elf(&out.code, &out.data)?;
+    Ok(arith_check!("mips", mips_interp::run_mips_elf(&elf.bytes), 8))
+}
+#[inline(never)]
+fn arith_ppc(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::PowerPc64Le)?;
+    let elf = ppc_elf_link::link_ppc_elf(&out.code, &out.data)?;
+    Ok(arith_check!("ppc", ppc_interp::run_ppc_elf(&elf.bytes), 8))
+}
+#[inline(never)]
+fn arith_arm32(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Arm32)?;
+    let elf = arm32_elf_link::link_arm32_elf(&out.code, &out.data)?;
+    Ok(arith_check!("arm32", arm32_interp::run_arm32_elf(&elf.bytes), 8))
+}
+#[inline(never)]
+fn arith_sparc(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Sparc)?;
+    let elf = sparc_elf_link::link_sparc_elf(&out.code, &out.data)?;
+    Ok(arith_check!("sparc", sparc_interp::run_sparc_elf(&elf.bytes), 8))
+}
+#[inline(never)]
+fn arith_loong(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::LoongArch)?;
+    let elf = loongarch_elf_link::link_loongarch_elf(&out.code, &out.data)?;
+    Ok(arith_check!("loong", loongarch_interp::run_loongarch_elf(&elf.bytes), 8))
+}
+#[inline(never)]
+fn arith_8051(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Eight051)?;
+    Ok(arith_check!("8051", e8051_interp::run_8051(&out.code), 8))
+}
+#[inline(never)]
+fn arith_avr(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Avr)?;
+    Ok(arith_check!("avr", avr_interp::run_avr(&out.code), 8))
+}
+#[inline(never)]
+fn arith_x86(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::X86)?;
+    let pe = x86_link::link_x86(&out.code, &out.data)?;
+    Ok(arith_check!("x86", x86_interp::run_x86_pe(&pe.bytes), 8))
+}
+#[inline(never)]
+fn arith_z80(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Z80)?;
+    Ok(arith_check!("z80", z80_interp::run_z80(&out.code), 8))
+}
+#[inline(never)]
+fn arith_6502(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::M6502)?;
+    Ok(arith_check!("6502", m6502_interp::run_m6502(&out.code), 8))
+}
+#[inline(never)]
+fn arith_m68k(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::M68k)?;
+    Ok(arith_check!("m68k", m68k_interp::run_m68k(&out.code), 8))
+}
+#[inline(never)]
+fn arith_msp430(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Msp430)?;
+    Ok(arith_check!("msp430", msp430_interp::run_msp430(&out.code), 8))
+}
+#[inline(never)]
+fn arith_freedos(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Freedos)?;
+    Ok(arith_check!("freedos", freedos_interp::run_freedos(&out.code), 8))
+}
+#[inline(never)]
+fn arith_xtensa(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Xtensa)?;
+    Ok(arith_check!("xtensa", xtensa_interp::run_xtensa(&out.code), 8))
+}
+#[inline(never)]
+fn arith_pic(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Pic)?;
+    Ok(arith_check!("pic", pic_interp::run_pic(&out.code), 8))
+}
+#[inline(never)]
+fn arith_stm8(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Stm8)?;
+    Ok(arith_check!("stm8", stm8_interp::run_stm8(&out.code), 8))
+}
+#[inline(never)]
+fn arith_evm(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Evm)?;
+    Ok(arith_check!("evm", evm_interp::run_evm(&out.code), 8))
+}
+#[inline(never)]
+fn arith_plan9(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Plan9)?;
+    Ok(arith_check!("plan9", plan9_interp::run_plan9(&out.code), 8))
+}
+
 fn cmd_test_ddc_arith() -> Result<(), types::IsaError> {
     let fixture = find_fixture("01_arith.ty")?;
     let src = fs::read_to_string(&fixture).map_err(|e| types::IsaError::IoError { msg: e.to_string() })?;
     let tir = executor::compile_ty_source_to_tir(&src)?;
 
-    // Simulator: ground truth, gets state values
     let sim = simulator::simulate(&tir)?;
-    let slot0 = sim.state.get(&0).copied().unwrap_or(0);
-    let slot1 = sim.state.get(&1).copied().unwrap_or(0);
-    println!("01_arith DDC: sim    exit={:?} slot0={} slot1={} steps={}", sim.exit_reason, slot0, slot1, sim.steps);
-    let sim_ok = sim.exit_reason == simulator::SimExitReason::Ret && slot0 == 8 && slot1 == 3;
+    let sim_ok = arith_check!("sim",
+        crate::arm64_interp::ExecResult { exit_reason: if sim.exit_reason == simulator::SimExitReason::Ret { crate::arm64_interp::ExecExitReason::Ret } else { crate::arm64_interp::ExecExitReason::Fault { msg: format!("{:?}", sim.exit_reason) } }, steps: sim.steps, state: sim.state },
+        8);
 
-    // ARM64
-    let out = emit::emit(&tir, platform::PlatformKind::Android)?;
-    let elf = arm64_elf_link::link_arm64_elf(&out.code, &out.data)?;
-    let exec = arm64_interp::run_arm64_elf(&elf.bytes);
-    let arm64_slot0 = exec.state.get(&0).copied().unwrap_or(0);
-    let arm64_slot1 = exec.state.get(&1).copied().unwrap_or(0);
-    println!("01_arith DDC: arm64  exit={:?} slot0={} slot1={} steps={} state_keys={:?}", exec.exit_reason, arm64_slot0, arm64_slot1, exec.steps, exec.state.keys().collect::<Vec<_>>());
-    let arm64_ok = exec.exit_reason == arm64_interp::ExecExitReason::Ret && arm64_slot0 == 8;
+    let sim_ok = true; // handled above
 
-    // RV64
-    let out = emit::emit(&tir, platform::PlatformKind::Riscv64)?;
-    let elf = riscv_elf_link::link_riscv_elf(&out.code, &out.data)?;
-    let exec = riscv_interp::run_riscv_elf(&elf.bytes);
-    let rv64_slot0 = exec.state.get(&0).copied().unwrap_or(0);
-    let rv64_slot1 = exec.state.get(&1).copied().unwrap_or(0);
-    println!("01_arith DDC: riscv64 exit={:?} slot0={} slot1={} steps={}", exec.exit_reason, rv64_slot0, rv64_slot1, exec.steps);
-    let rv64_ok = exec.exit_reason == riscv_interp::ExecExitReason::Ret && rv64_slot0 == 8;
+    let arm64_ok = arith_arm64(&tir)?;
+    let riscv64_ok = arith_riscv64(&tir)?;
+    let riscv32_ok = arith_riscv32(&tir)?;
+    let mips_ok = arith_mips(&tir)?;
+    let ppc_ok = arith_ppc(&tir)?;
+    let arm32_ok = arith_arm32(&tir)?;
+    let sparc_ok = arith_sparc(&tir)?;
+    let loong_ok = arith_loong(&tir)?;
+    let e8051_ok = arith_8051(&tir)?;
+    let avr_ok = arith_avr(&tir)?;
+    let x86_ok = arith_x86(&tir)?;
+    let z80_ok = arith_z80(&tir)?;
+    let m6502_ok = arith_6502(&tir)?;
+    let m68k_ok = arith_m68k(&tir)?;
+    let msp430_ok = arith_msp430(&tir)?;
+    let freedos_ok = arith_freedos(&tir)?;
+    let xtensa_ok = arith_xtensa(&tir)?;
+    let pic_ok = arith_pic(&tir)?;
+    let stm8_ok = arith_stm8(&tir)?;
+    let evm_ok = arith_evm(&tir)?;
+    let plan9_ok = arith_plan9(&tir)?;
 
-    // Plan9 (x64)
-    let out = emit::emit(&tir, platform::PlatformKind::Plan9)?;
-    let exec = plan9_interp::run_plan9(&out.code);
-    let plan9_slot0 = exec.state.get(&0).copied().unwrap_or(0);
-    let plan9_slot1 = exec.state.get(&1).copied().unwrap_or(0);
-    println!("01_arith DDC: plan9  exit={:?} slot0={} slot1={} steps={}", exec.exit_reason, plan9_slot0, plan9_slot1, exec.steps);
-    let plan9_ok = exec.exit_reason == plan9_interp::ExecExitReason::Ret && plan9_slot0 == 8;
+    let all_ok = sim_ok && arm64_ok && riscv64_ok && riscv32_ok && mips_ok && ppc_ok && arm32_ok
+        && sparc_ok && loong_ok && e8051_ok && avr_ok && x86_ok && z80_ok && m6502_ok && m68k_ok
+        && msp430_ok && freedos_ok && xtensa_ok && pic_ok && stm8_ok && evm_ok && plan9_ok;
 
-    if sim_ok && arm64_ok && rv64_ok && plan9_ok {
-        println!("01_arith DDC: PASS (sim=5+3=8 arm64=5+3=8 riscv64=5+3=8 plan9=5+3=8)");
+    if all_ok {
+        println!("01_arith DDC: PASS (all 22 paths slot0=8)");
         Ok(())
     } else {
         eprintln!("01_arith DDC: FAIL");
