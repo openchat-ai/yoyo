@@ -1207,7 +1207,7 @@ fn cmd_test_ddc_arith() -> Result<(), types::IsaError> {
     let exec = arm64_interp::run_arm64_elf(&elf.bytes);
     let arm64_slot0 = exec.state.get(&0).copied().unwrap_or(0);
     let arm64_slot1 = exec.state.get(&1).copied().unwrap_or(0);
-    println!("01_arith DDC: arm64  exit={:?} slot0={} slot1={} steps={}", exec.exit_reason, arm64_slot0, arm64_slot1, exec.steps);
+    println!("01_arith DDC: arm64  exit={:?} slot0={} slot1={} steps={} state_keys={:?}", exec.exit_reason, arm64_slot0, arm64_slot1, exec.steps, exec.state.keys().collect::<Vec<_>>());
     let arm64_ok = exec.exit_reason == arm64_interp::ExecExitReason::Ret && arm64_slot0 == 8;
 
     // RV64
