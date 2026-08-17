@@ -147,7 +147,8 @@ impl Cpu {
         }
 
         // LDR rd, [rn, #imm12]: 0xE5900000 | (rd << 12) | (rn << 16) | imm12
-        if (insn & 0x0F200000) == 0x05100000 {
+        if (insn & 0x0F000000) == 0x05000000 && (insn & 0x00100000) == 0x00100000 {
+            // bits 27-24 = 0101 (data transfer), bit 20 = 1 (L=load), bit 22 = 0 (B=word)
             let imm12 = insn & 0xFFF;
             let u_bit = (insn >> 23) & 1;
             let addr = if u_bit == 1 { self.r(rn) as u64 + imm12 as u64 } else { self.r(rn) as u64 - imm12 as u64 };
@@ -156,7 +157,8 @@ impl Cpu {
         }
 
         // STR rd, [rn, #imm12]: 0xE5800000 | (rd << 12) | (rn << 16) | imm12
-        if (insn & 0x0F200000) == 0x05000000 {
+        if (insn & 0x0F000000) == 0x05000000 && (insn & 0x00100000) == 0x00000000 {
+            // bits 27-24 = 0101, bit 20 = 0 (L=store), bit 22 = 0 (B=word)
             let imm12 = insn & 0xFFF;
             let u_bit = (insn >> 23) & 1;
             let addr = if u_bit == 1 { self.r(rn) as u64 + imm12 as u64 } else { self.r(rn) as u64 - imm12 as u64 };

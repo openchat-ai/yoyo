@@ -67,32 +67,32 @@ impl Cpu {
             return Some(ExecExitReason::Ret);
         }
 
-        // LUI (0x3C)
-        if op == 0x3C {
+        // LUI (op=0x0F)
+        if op == 0x0F {
             let imm16 = (insn & 0xFFFF) as u32;
             self.set_reg(rt, (imm16 as u64) << 16);
             self.pc += 4;
             return None;
         }
 
-        // ORI (0x34)
-        if op == 0x34 {
+        // ORI (op=0x0D)
+        if op == 0x0D {
             let imm16 = (insn & 0xFFFF) as u64;
             self.set_reg(rt, self.r(rs) | imm16);
             self.pc += 4;
             return None;
         }
 
-        // ADDIU (0x24)
-        if op == 0x24 {
+        // ADDIU (op=0x09)
+        if op == 0x09 {
             let imm16 = ((insn & 0xFFFF) as i32) << 16 >> 16; // sign-extend 16-bit
             self.set_reg(rt, (self.r(rs) as i64 + imm16 as i64) as u64);
             self.pc += 4;
             return None;
         }
 
-        // LW (0x8C)
-        if op == 0x8C {
+        // LW (op=0x23)
+        if op == 0x23 {
             let imm16 = ((insn & 0xFFFF) as i32) << 16 >> 16;
             let addr = (self.r(rs) as i64 + imm16 as i64) as u64;
             self.set_reg(rt, self.load32_be(addr) as u64);
@@ -100,8 +100,8 @@ impl Cpu {
             return None;
         }
 
-        // SW (0xAC)
-        if op == 0xAC {
+        // SW (op=0x2B)
+        if op == 0x2B {
             let imm16 = ((insn & 0xFFFF) as i32) << 16 >> 16;
             let addr = (self.r(rs) as i64 + imm16 as i64) as u64;
             self.store32_be(addr, self.r(rt) as u32);
@@ -109,8 +109,8 @@ impl Cpu {
             return None;
         }
 
-        // LBU (0x90)
-        if op == 0x90 {
+        // LBU (op=0x24)
+        if op == 0x24 {
             let imm16 = ((insn & 0xFFFF) as i32) << 16 >> 16;
             let addr = (self.r(rs) as i64 + imm16 as i64) as u64;
             self.set_reg(rt, self.mem_get(addr) as u64);

@@ -176,19 +176,19 @@ impl Cpu {
         // Opcode 31 (0x1F) �?ALU register instructions
         if op == 0x1F {
             match xo {
-                0x0A => { // ADD (0x7C000214)
+                0x100 => { // ADD (ppc_add: XO=0x100)
                     *self.rw(rd) = self.r(ra).wrapping_add(self.r(rb));
                     self.pc += 4; return None;
                 }
-                0x01 => { // SUBF (0x7C000050)
+                0x028 => { // SUBF (ppc_subf: XO=0x28)
                     *self.rw(rd) = self.r(rb).wrapping_sub(self.r(ra));
                     self.pc += 4; return None;
                 }
-                0x1B => { // OR (0x7C000378)
+                0x1BC => { // OR (ppc_or: XO=0x1BC)
                     *self.rw(ra) = self.r(ra) | self.r(rb);
                     self.pc += 4; return None;
                 }
-                0x0D => { // MULLD (0x7C0001D2)
+                0x0E9 => { // MULLD (ppc_mulld: XO=0x0E9)
                     *self.rw(rd) = self.r(ra).wrapping_mul(self.r(rb));
                     self.pc += 4; return None;
                 }

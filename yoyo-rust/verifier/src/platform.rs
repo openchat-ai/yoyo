@@ -2793,92 +2793,92 @@ impl PlatformBackend for Arm32Platform {
     }
     fn emit_set(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
         let mut out = arm32_ldr_imm32(0, imm as u32);
-        out.extend_from_slice(&arm32_str(0, 8, slot));
+        out.extend_from_slice(&arm32_str(0, 8, slot * 4));
         Ok(out)
     }
     fn emit_get(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        let mut out = arm32_ldr(0, 8, src).to_vec();
-        out.extend_from_slice(&arm32_str(0, 8, dst));
+        let mut out = arm32_ldr(0, 8, src * 4).to_vec();
+        out.extend_from_slice(&arm32_str(0, 8, dst * 4));
         Ok(out)
     }
     fn emit_movrr(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
         self.emit_get(dst, src)
     }
     fn emit_add_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
-        let mut out = arm32_ldr(0, 8, slot).to_vec();
+        let mut out = arm32_ldr(0, 8, slot * 4).to_vec();
         if imm < 0x1000 {
             out.extend_from_slice(&arm32_add_imm(0, 0, imm as u32));
         } else {
             out.extend_from_slice(&arm32_ldr_imm32(1, imm as u32));
             out.extend_from_slice(&arm32_add_reg(0, 0, 1));
         }
-        out.extend_from_slice(&arm32_str(0, 8, slot));
+        out.extend_from_slice(&arm32_str(0, 8, slot * 4));
         Ok(out)
     }
     fn emit_sub_imm(&mut self, slot: u16, imm: u64) -> IsaResult<Vec<u8>> {
-        let mut out = arm32_ldr(0, 8, slot).to_vec();
+        let mut out = arm32_ldr(0, 8, slot * 4).to_vec();
         if imm < 0x1000 {
             out.extend_from_slice(&arm32_sub_imm(0, 0, imm as u32));
         } else {
             out.extend_from_slice(&arm32_ldr_imm32(1, imm as u32));
             out.extend_from_slice(&arm32_sub_reg(0, 0, 1));
         }
-        out.extend_from_slice(&arm32_str(0, 8, slot));
+        out.extend_from_slice(&arm32_str(0, 8, slot * 4));
         Ok(out)
     }
     fn emit_inc(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
-        let mut out = arm32_ldr(0, 8, slot).to_vec();
+        let mut out = arm32_ldr(0, 8, slot * 4).to_vec();
         out.extend_from_slice(&arm32_add_imm(0, 0, 1));
-        out.extend_from_slice(&arm32_str(0, 8, slot));
+        out.extend_from_slice(&arm32_str(0, 8, slot * 4));
         Ok(out)
     }
     fn emit_dec(&mut self, slot: u16) -> IsaResult<Vec<u8>> {
-        let mut out = arm32_ldr(0, 8, slot).to_vec();
+        let mut out = arm32_ldr(0, 8, slot * 4).to_vec();
         out.extend_from_slice(&arm32_sub_imm(0, 0, 1));
-        out.extend_from_slice(&arm32_str(0, 8, slot));
+        out.extend_from_slice(&arm32_str(0, 8, slot * 4));
         Ok(out)
     }
     fn emit_addv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        let mut out = arm32_ldr(0, 8, dst).to_vec();
-        out.extend_from_slice(&arm32_ldr(1, 8, src));
+        let mut out = arm32_ldr(0, 8, dst * 4).to_vec();
+        out.extend_from_slice(&arm32_ldr(1, 8, src * 4));
         out.extend_from_slice(&arm32_add_reg(0, 0, 1));
-        out.extend_from_slice(&arm32_str(0, 8, dst));
+        out.extend_from_slice(&arm32_str(0, 8, dst * 4));
         Ok(out)
     }
     fn emit_orv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        let mut out = arm32_ldr(0, 8, dst).to_vec();
-        out.extend_from_slice(&arm32_ldr(1, 8, src));
+        let mut out = arm32_ldr(0, 8, dst * 4).to_vec();
+        out.extend_from_slice(&arm32_ldr(1, 8, src * 4));
         out.extend_from_slice(&arm32_orr(0, 0, 1));
-        out.extend_from_slice(&arm32_str(0, 8, dst));
+        out.extend_from_slice(&arm32_str(0, 8, dst * 4));
         Ok(out)
     }
     fn emit_subv(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        let mut out = arm32_ldr(0, 8, dst).to_vec();
-        out.extend_from_slice(&arm32_ldr(1, 8, src));
+        let mut out = arm32_ldr(0, 8, dst * 4).to_vec();
+        out.extend_from_slice(&arm32_ldr(1, 8, src * 4));
         out.extend_from_slice(&arm32_sub_reg(0, 0, 1));
-        out.extend_from_slice(&arm32_str(0, 8, dst));
+        out.extend_from_slice(&arm32_str(0, 8, dst * 4));
         Ok(out)
     }
     fn emit_imul(&mut self, dst: u16, src: u16) -> IsaResult<Vec<u8>> {
-        let mut out = arm32_ldr(0, 8, dst).to_vec();
-        out.extend_from_slice(&arm32_ldr(1, 8, src));
+        let mut out = arm32_ldr(0, 8, dst * 4).to_vec();
+        out.extend_from_slice(&arm32_ldr(1, 8, src * 4));
         out.extend_from_slice(&arm32_mul(0, 0, 1));
-        out.extend_from_slice(&arm32_str(0, 8, dst));
+        out.extend_from_slice(&arm32_str(0, 8, dst * 4));
         Ok(out)
     }
     fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
-        let mut out = arm32_ldr(2, 8, a).to_vec();
-        out.extend_from_slice(&arm32_ldr(3, 8, b));
+        let mut out = arm32_ldr(2, 8, a * 4).to_vec();
+        out.extend_from_slice(&arm32_ldr(3, 8, b * 4));
         out.extend_from_slice(&arm32_cmp(2, 3));
         Ok(out)
     }
     fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
-        let mut out = arm32_ldr(0, 8, ss).to_vec();
+        let mut out = arm32_ldr(0, 8, ss * 4).to_vec();
         if oo != 0 {
             out.extend_from_slice(&arm32_add_imm(0, 0, oo as u32));
         }
         out.extend_from_slice(&arm32_ldrb(1, 0, 0));
-        out.extend_from_slice(&arm32_str(1, 8, dd));
+        out.extend_from_slice(&arm32_str(1, 8, dd * 4));
         Ok(out)
     }
     fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
@@ -2890,24 +2890,24 @@ impl PlatformBackend for Arm32Platform {
         }
         let mut out = Vec::new();
         for i in 0..n as u16 {
-            out.extend_from_slice(&arm32_ldr(0, 8, src + i));
+            out.extend_from_slice(&arm32_ldr(0, 8, (src + i) * 4));
             out.extend_from_slice(&arm32_str(0, 8, dst + i));
         }
         Ok(out)
     }
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
         let mut out = arm32_ldr_imm32(0, size as u32);
-        out.extend_from_slice(&arm32_str(0, 8, slot));
+        out.extend_from_slice(&arm32_str(0, 8, slot * 4));
         Ok(out)
     }
     fn emit_load_file(&mut self, slot: u16, str_idx: u8) -> IsaResult<Vec<u8>> {
         let mut out = arm32_ldr_imm32(0, str_idx as u32);
-        out.extend_from_slice(&arm32_str(0, 8, slot));
+        out.extend_from_slice(&arm32_str(0, 8, slot * 4));
         Ok(out)
     }
     fn emit_write_file(&mut self, slot: u16, str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
         let mut out = arm32_ldr_imm32(0, str_idx as u32);
-        out.extend_from_slice(&arm32_str(0, 8, slot));
+        out.extend_from_slice(&arm32_str(0, 8, slot * 4));
         Ok(out)
     }
     fn emit_exit(&mut self, _code: u8) -> IsaResult<Vec<u8>> {
