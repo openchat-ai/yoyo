@@ -62,16 +62,27 @@ Legend: ✅ = done, ⏳ = in progress, ❌ = not yet
 
 ## DDC Verification
 
-The verifier has three levels of DDC checks:
+Run from `yoyo-rust/verifier`: `cargo run -- test ddc`
 
-1. **TIR Simulator** (`yoyo simulate`) — architecture-independent reference interpreter
-2. **ARM64 Executor** (`yoyo exec`) — real ARM64 instruction interpreter
-3. **Wasm Runner** (`yoyo run-wasm`) — wasmtime-based .wasm execution
+| Fixture | Semantics | Fatal (core) | Soft / non-fatal | Status |
+|---------|-----------|--------------|------------------|--------|
+| `00_nop_ret.ty` | NOP+RET | sim + 22 arch interps (incl. wasm trap) | — | PASS |
+| `01_arith.ty` | SET+ADDV → slot0=8 | sim + arm64/rv64/rv32/mips/ppc/arm32/sparc/loong/x86/plan9 | MCU+EVM (8051/avr/z80/6502/m68k/msp430/freedos/xtensa/pic/stm8/evm) | CORE fatal |
+| `02_branch.ty` | CMP+JE → slot0=5 | sim + arm64/rv64/rv32/mips/ppc/arm32/sparc/loong/plan9 | x86 (flags), other MCU | CORE fatal |
+| `03_mem.ty` | MEMCPY_STATE → slot0=7 | sim + arm64/rv64/mips | plan9 (x64 pointer-form memcpy) | CORE fatal |
+| container | PE/ELF container | — | SKIP (no container interp yet) | SKIP |
 
-Run all checks: `yoyo test all`
+Known gaps: x86 JE lacks ZF tracking; Plan9/x64 `MEMCPY_STATE` is selfhost pointer-form (not slot copy); LDB absolute-pointer DDC not yet wired.
+
+### How to run
+
+```
+yoyo test golden|backends|ddc|all
+```
+
 - `yoyo test golden` — Appendix F G00-G05 integrity tests
-- `yoyo test backends` — compile+link all 36 targets, verify output
-- `yoyo test ddc` — cross-arch DDC: ARM64 + Wasm + TIR must agree
+- `yoyo test backends` — compile+link all targets, verify output
+- `yoyo test ddc` — nop + arith + branch + mem DDC suites
 
 ## CLI Usage
 

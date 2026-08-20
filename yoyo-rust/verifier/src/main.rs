@@ -1325,6 +1325,7 @@ fn cmd_test_ddc_arith() -> Result<(), types::IsaError> {
     let sim = simulator::simulate(&tir)?;
     let sim_slot0 = sim.state.get(&0).copied().unwrap_or(0);
     println!("01_arith DDC: sim      exit={:?} slot0={} slot1={} steps={}", sim.exit_reason, sim_slot0, sim.state.get(&1).copied().unwrap_or(0), sim.steps);
+    let sim_ok = sim.exit_reason == simulator::SimExitReason::Ret && sim_slot0 == 8;
 
     let arm64_ok = arith_arm64(&tir)?;
     let riscv64_ok = arith_riscv64(&tir)?;
@@ -1348,11 +1349,27 @@ fn cmd_test_ddc_arith() -> Result<(), types::IsaError> {
     let evm_ok = arith_evm(&tir)?;
     let plan9_ok = arith_plan9(&tir)?;
 
-    let passing = [arm64_ok, riscv64_ok, riscv32_ok, mips_ok, ppc_ok, arm32_ok, sparc_ok, loong_ok, e8051_ok, avr_ok, x86_ok, z80_ok, m6502_ok, m68k_ok, msp430_ok, freedos_ok, xtensa_ok, pic_ok, stm8_ok, evm_ok, plan9_ok];
-    let pass_count = passing.iter().filter(|&&x| x).count();
-    let total = passing.len();
-    println!("01_arith DDC: {pass_count}/{total} paths PASS (slot0=8)");
-    println!("01_arith DDC: NON-FATAL — pre-existing emit bugs in some backends");
+    // Core ELF + plan9 + x86: fatal
+    let core = [sim_ok, arm64_ok, riscv64_ok, riscv32_ok, mips_ok, ppc_ok, arm32_ok, sparc_ok, loong_ok, x86_ok, plan9_ok];
+    let core_pass = core.iter().filter(|&&x| x).count();
+    let core_total = core.len();
+
+    // MCU / exotic: soft (reported, non-fatal)
+    let soft = [e8051_ok, avr_ok, z80_ok, m6502_ok, m68k_ok, msp430_ok, freedos_ok, xtensa_ok, pic_ok, stm8_ok, evm_ok];
+    let soft_pass = soft.iter().filter(|&&x| x).count();
+    let soft_total = soft.len();
+
+    println!("01_arith DDC: {core_pass}/{core_total} CORE PASS + {soft_pass}/{soft_total} soft PASS (slot0=8)");
+    if soft_pass != soft_total {
+        println!("01_arith DDC: soft MCU gaps are non-fatal");
+    }
+    if core_pass != core_total {
+        return Err(types::IsaError::ParseError {
+            line: 0,
+            msg: format!("01_arith DDC: only {core_pass}/{core_total} core paths PASS (need sim+ELF majors+x86+plan9 slot0=8)"),
+        });
+    }
+    println!("01_arith DDC: ALL {core_total} CORE PATHS PASS (fatal)");
     Ok(())
 }
 
