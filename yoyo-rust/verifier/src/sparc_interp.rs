@@ -24,11 +24,12 @@ struct Cpu {
     mem: Vec<u8>,
     steps: u64,
     step_limit: u64,
+    icc_z: bool,
 }
 
 impl Cpu {
     fn new(mem: Vec<u8>, entry: u64) -> Self {
-        Self { regs: [0; 32], pc: entry, mem, steps: 0, step_limit: DEFAULT_STEP_LIMIT }
+        Self { regs: [0; 32], pc: entry, mem, steps: 0, step_limit: DEFAULT_STEP_LIMIT, icc_z: false }
     }
 
     fn r(&self, n: usize) -> u64 { self.regs[n] }
@@ -107,28 +108,16 @@ impl Cpu {
         if op == 0 && ((insn >> 22) & 0x7) == 2 {
             let cond = (insn >> 25) & 0xF;
             let disp22 = insn & 0x3FFFFF;
-            let disp = ((disp22 as i32) << 10) >> 10;
+            let disp = ((disp22 as i32) << 10) >> 10; // signed word offset
             let taken = match cond {
-                0 => false,  // BN (never)
-                1 => self.r(rs1) == 0, // BE (rs1 holds comparison result)
-                2 => false,  // BLE (approximate)
-                3 => self.r(rs1) != 0, // BNE
-                4 => false,  // BL (approximate)
-                5 => false,  // BGE (approx)
-                6 => false,  // BLU (approx)
-                7 => false,  // BGU (approx)
-                8 => true,   // BA (always)
-                9 => false,  // BN (again)
-                10 => false, // BGE (rs1 >= 0, sign)
-                11 => false, // BL (rs1 < 0, sign)
-                12 => false, // BGT (high)
-                13 => false, // BLEU (low)
-                14 => false, // BVC
-                15 => false, // BVS
+                0 => false,           // BN
+                1 => self.icc_z,      // BE
+                2 => !self.icc_z,     // BNE
+                8 => true,            // BA
                 _ => false,
             };
             if taken {
-                self.pc = (self.pc as i64 + disp as i64) as u64;
+                self.pc = (self.pc as i64 + ((disp as i64) << 2)) as u64;
             } else {
                 self.pc += 4;
             }
@@ -195,7 +184,9 @@ impl Cpu {
                     self.pc += 4; return None;
                 }
                 0x14 => { // SUBcc
-                    let _result = (self.r(rs1) as i64 - imm_val) as u64;
+                    let result = (self.r(rs1) as i64 - imm_val) as u64;
+                    if rd != 0 { *self.rw(rd) = result; }
+                    self.icc_z = result == 0;
                     self.pc += 4; return None;
                 }
                 _ => {}

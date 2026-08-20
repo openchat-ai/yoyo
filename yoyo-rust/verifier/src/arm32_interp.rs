@@ -25,11 +25,12 @@ struct Cpu {
     mem: Vec<u8>,
     steps: u64,
     step_limit: u64,
+    z: bool,
 }
 
 impl Cpu {
     fn new(mem: Vec<u8>, entry: u64) -> Self {
-        Self { regs: [0; 16], pc: entry, mem, steps: 0, step_limit: DEFAULT_STEP_LIMIT }
+        Self { regs: [0; 16], pc: entry, mem, steps: 0, step_limit: DEFAULT_STEP_LIMIT, z: false }
     }
 
     fn r(&self, n: usize) -> u32 { self.regs[n] as u32 }
@@ -80,40 +81,22 @@ impl Cpu {
             return None;
         }
 
-        // B (branch) / BL (branch with link): cond=0xE, opcode=0x5 (BL = 0x5, B = 0x5 with L=0)
-        // Actually B: cond=0xE, 1, 0, 1, 0, L=0, imm24
-        // BL: cond=0xE, 1, 0, 1, 0, L=1, imm24
-        // B: 0xEA000000 | imm24; BL: 0xEB000000 | imm24
-        if (insn & 0x0F000000) == 0x0A000000 {
+        // B / BL / B{cond}: bits[27:24]=0xA (B) or with L. Cond in bits[31:28].
+        if ((insn >> 24) & 0xE) == 0xA {
             let l_bit = (insn >> 24) & 1;
-            let imm24 = insn & 0xFFFFFF;
-            let disp = ((imm24 as i32) << 8) >> 6; // sign-extend 24-bit, then multiply by 4
-            // Actually ARM branch offset is imm24 << 2, sign-extended
-            let disp = ((imm24 << 2) as i32) << 6 >> 6;
-            let target = (self.pc as i64 + 8 + disp as i64) as u64;
-            if l_bit == 1 {
-                *self.rw(14) = self.pc + 4; // lr = return address
-            }
-            self.pc = target;
-            return None;
-        }
-
-        // B{cond} (conditional branch): 0x0A000000 | (cond << 28) | imm24
-        // But B{cond} uses cond != 0xE, and the encoding is cond:28, 1, 0, 1, 0, imm24
-        if ((insn >> 24) & 0xF) == 0xA && cond != 0xE {
             let imm24 = insn & 0xFFFFFF;
             let disp = ((imm24 << 2) as i32) << 6 >> 6;
             let target = (self.pc as i64 + 8 + disp as i64) as u64;
             let taken = match cond {
-                0 => self.r(rd) == 0,      // BEQ
-                1 => self.r(rd) != 0,      // BNE
-                10 => (self.r(rd) as i32) >= 0, // BGE (not actually used with CMP result)
-                11 => (self.r(rd) as i32) < 0,  // BLT
-                12 => false, // BGT (approximate)
-                13 => false, // BLE (approximate)
+                0xE | 0xF => true, // AL / NV(deprecated→always here)
+                0x0 => self.z,      // EQ
+                0x1 => !self.z,     // NE
                 _ => false,
             };
             if taken {
+                if l_bit == 1 {
+                    *self.rw(14) = self.pc + 4;
+                }
                 self.pc = target;
             } else {
                 self.pc += 4;
@@ -205,11 +188,11 @@ impl Cpu {
             self.pc += 4; return None;
         }
 
-        // CMP rn, rm: 0xE1500000 | (rn << 16) | rm
-        if (insn & 0x0FE00010) == 0x01500000 {
+        // CMP rn, rm: 0xE1500000 | (rn << 16) | rm — sets Z from (rn - rm)
+        // Mask must include bit20 (S=1); 0x0FE00000 alone drops bit20 so == 0x01500000 never holds.
+        if (insn & 0x0FF00010) == 0x01500000 {
             let result = self.r(rn).wrapping_sub(self.r(rm));
-            // Store result in r0 (or a scratch) for branch to check
-            *self.rw(0) = result as u64;
+            self.z = result == 0;
             self.pc += 4; return None;
         }
 

@@ -104,6 +104,30 @@ impl Cpu {
             self.pc += 4; return None;
         }
 
+        // beq/bne use 6-bit opcode at [31:26] (010110 / 010111); check before 10-bit op match
+        let op6 = (insn >> 26) & 0x3F;
+        if op6 == 0x16 {
+            // beq rj, rd, offs16 — rj[9:5], rd[4:0]
+            let rj2 = ((insn >> 5) & 0x1F) as usize;
+            let rd2 = (insn & 0x1F) as usize;
+            if self.r(rj2) == self.r(rd2) {
+                self.pc = (self.pc as i64 + (offs16 << 2)) as u64;
+            } else {
+                self.pc += 4;
+            }
+            return None;
+        }
+        if op6 == 0x17 {
+            let rj2 = ((insn >> 5) & 0x1F) as usize;
+            let rd2 = (insn & 0x1F) as usize;
+            if self.r(rj2) != self.r(rd2) {
+                self.pc = (self.pc as i64 + (offs16 << 2)) as u64;
+            } else {
+                self.pc += 4;
+            }
+            return None;
+        }
+
         match op {
             0x038 => { // ori rd, rj, ui12
                 let ui12 = (insn >> 10) & 0xFFF;
@@ -144,26 +168,7 @@ impl Cpu {
                 self.pc = (self.pc as i64 + (offs26 << 2)) as u64;
                 return None;
             }
-            0x16 => { // beq rj, rd, offs16 (offs16 << 2)
-                let rj2 = rj;
-                let rd2 = rd;
-                if self.r(rj2) == self.r(rd2) {
-                    self.pc = (self.pc as i64 + (offs16 << 2)) as u64;
-                } else {
-                    self.pc += 4;
-                }
-                return None;
-            }
-            0x17 => { // bne rj, rd, offs16 (offs16 << 2)
-                let rj2 = rj;
-                let rd2 = rd;
-                if self.r(rj2) != self.r(rd2) {
-                    self.pc = (self.pc as i64 + (offs16 << 2)) as u64;
-                } else {
-                    self.pc += 4;
-                }
-                return None;
-            }
+            // 0x16/0x17 beq/bne handled above via op6
             _ => {}
         }
 

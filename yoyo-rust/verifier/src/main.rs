@@ -1375,11 +1375,67 @@ fn branch_riscv64(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
     Ok(r.exit_reason == riscv_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 5)
 }
 #[inline(never)]
+fn branch_riscv32(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Riscv32)?;
+    let elf = riscv32_elf_link::link_riscv32_elf(&out.code, &out.data)?;
+    let r = riscv32_interp::run_riscv32_elf(&elf.bytes);
+    println!("02_branch DDC: riscv32 exit={:?} slot0={} steps={}", r.exit_reason, r.state.get(&0).copied().unwrap_or(0), r.steps);
+    Ok(r.exit_reason == riscv32_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 5)
+}
+#[inline(never)]
+fn branch_mips(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Mips)?;
+    let elf = mips_elf_link::link_mips_elf(&out.code, &out.data)?;
+    let r = mips_interp::run_mips_elf(&elf.bytes);
+    println!("02_branch DDC: mips   exit={:?} slot0={} steps={}", r.exit_reason, r.state.get(&0).copied().unwrap_or(0), r.steps);
+    Ok(r.exit_reason == mips_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 5)
+}
+#[inline(never)]
+fn branch_ppc(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::PowerPc64Le)?;
+    let elf = ppc_elf_link::link_ppc_elf(&out.code, &out.data)?;
+    let r = ppc_interp::run_ppc_elf(&elf.bytes);
+    println!("02_branch DDC: ppc    exit={:?} slot0={} steps={}", r.exit_reason, r.state.get(&0).copied().unwrap_or(0), r.steps);
+    Ok(r.exit_reason == ppc_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 5)
+}
+#[inline(never)]
+fn branch_arm32(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Arm32)?;
+    let elf = arm32_elf_link::link_arm32_elf(&out.code, &out.data)?;
+    let r = arm32_interp::run_arm32_elf(&elf.bytes);
+    println!("02_branch DDC: arm32  exit={:?} slot0={} steps={}", r.exit_reason, r.state.get(&0).copied().unwrap_or(0), r.steps);
+    Ok(r.exit_reason == arm32_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 5)
+}
+#[inline(never)]
+fn branch_sparc(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Sparc)?;
+    let elf = sparc_elf_link::link_sparc_elf(&out.code, &out.data)?;
+    let r = sparc_interp::run_sparc_elf(&elf.bytes);
+    println!("02_branch DDC: sparc  exit={:?} slot0={} steps={}", r.exit_reason, r.state.get(&0).copied().unwrap_or(0), r.steps);
+    Ok(r.exit_reason == sparc_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 5)
+}
+#[inline(never)]
+fn branch_loong(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::LoongArch)?;
+    let elf = loongarch_elf_link::link_loongarch_elf(&out.code, &out.data)?;
+    let r = loongarch_interp::run_loongarch_elf(&elf.bytes);
+    println!("02_branch DDC: loong  exit={:?} slot0={} steps={}", r.exit_reason, r.state.get(&0).copied().unwrap_or(0), r.steps);
+    Ok(r.exit_reason == loongarch_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 5)
+}
+#[inline(never)]
 fn branch_plan9(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
     let out = emit::emit(tir, platform::PlatformKind::Plan9)?;
     let r = plan9_interp::run_plan9(&out.code);
     println!("02_branch DDC: plan9  exit={:?} slot0={} steps={}", r.exit_reason, r.state.get(&0).copied().unwrap_or(0), r.steps);
     Ok(r.exit_reason == plan9_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 5)
+}
+#[inline(never)]
+fn branch_x86(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::X86)?;
+    let pe = x86_link::link_x86(&out.code, &out.data)?;
+    let r = x86_interp::run_x86_pe(&pe.bytes);
+    println!("02_branch DDC: x86    exit={:?} slot0={} steps={}", r.exit_reason, r.state.get(&0).copied().unwrap_or(0), r.steps);
+    Ok(r.exit_reason == x86_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 5)
 }
 
 fn cmd_test_ddc_branch() -> Result<(), types::IsaError> {
@@ -1393,20 +1449,33 @@ fn cmd_test_ddc_branch() -> Result<(), types::IsaError> {
     let sim_ok = sim.exit_reason == simulator::SimExitReason::Ret && slot0 == 5;
     if sim_ok { println!("02_branch DDC: sim    PASS"); }
 
+    // Core ELF + plan9 (fatal)
     let arm64_ok = branch_arm64(&tir)?;
     let riscv64_ok = branch_riscv64(&tir)?;
+    let riscv32_ok = branch_riscv32(&tir)?;
+    let mips_ok = branch_mips(&tir)?;
+    let ppc_ok = branch_ppc(&tir)?;
+    let arm32_ok = branch_arm32(&tir)?;
+    let sparc_ok = branch_sparc(&tir)?;
+    let loong_ok = branch_loong(&tir)?;
     let plan9_ok = branch_plan9(&tir)?;
 
-    let passing = [sim_ok, arm64_ok, riscv64_ok, plan9_ok];
-    let pass_count = passing.iter().filter(|&&x| x).count();
-    println!("02_branch DDC: {pass_count}/4 paths PASS (slot0=5)");
-    if pass_count != 4 {
+    let core = [sim_ok, arm64_ok, riscv64_ok, riscv32_ok, mips_ok, ppc_ok, arm32_ok, sparc_ok, loong_ok, plan9_ok];
+    let core_pass = core.iter().filter(|&&x| x).count();
+    let core_total = core.len();
+    println!("02_branch DDC: {core_pass}/{core_total} CORE paths PASS (slot0=5)");
+
+    // Soft / non-fatal (MCU + x86 until flags solid)
+    let x86_ok = branch_x86(&tir).unwrap_or(false);
+    println!("02_branch DDC: soft x86={} (non-fatal)", if x86_ok { "PASS" } else { "FAIL" });
+
+    if core_pass != core_total {
         return Err(types::IsaError::ParseError {
             line: 0,
-            msg: format!("02_branch DDC: only {pass_count}/4 core paths PASS (need sim+arm64+riscv64+plan9 slot0=5)"),
+            msg: format!("02_branch DDC: only {core_pass}/{core_total} core paths PASS (need sim+arm64+riscv64+riscv32+mips+ppc+arm32+sparc+loong+plan9 slot0=5)"),
         });
     }
-    println!("02_branch DDC: ALL 4 CORE PATHS PASS");
+    println!("02_branch DDC: ALL {core_total} CORE PATHS PASS");
     Ok(())
 }
 

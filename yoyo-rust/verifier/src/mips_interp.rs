@@ -174,22 +174,22 @@ impl Cpu {
             return None;
         }
 
-        // BEQ (0x10)
-        if op == 0x10 {
+        // BEQ (opcode 000100 = 0x04) — imm relative to delay slot (PC+4); skip delay-slot exec
+        if op == 0x04 {
             let imm16 = ((insn & 0xFFFF) as i32) << 16 >> 16;
             if self.r(rs) == self.r(rt) {
-                self.pc = (self.pc as i64 + (imm16 as i64) << 2) as u64;
+                self.pc = (self.pc as i64 + 4 + ((imm16 as i64) << 2)) as u64;
             } else {
                 self.pc += 4;
             }
             return None;
         }
 
-        // BNE (0x14)
-        if op == 0x14 {
+        // BNE (opcode 000101 = 0x05)
+        if op == 0x05 {
             let imm16 = ((insn & 0xFFFF) as i32) << 16 >> 16;
             if self.r(rs) != self.r(rt) {
-                self.pc = (self.pc as i64 + (imm16 as i64) << 2) as u64;
+                self.pc = (self.pc as i64 + 4 + ((imm16 as i64) << 2)) as u64;
             } else {
                 self.pc += 4;
             }

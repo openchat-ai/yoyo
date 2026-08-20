@@ -370,11 +370,11 @@ pub trait PlatformBackend {
                 code[branch_start..branch_start + 4].copy_from_slice(&patched.to_le_bytes());
             }
             FixupKind::PpcImm14 => {
-                // conditional branch (beq etc): imm14 = (target - branch_addr) & 0xFFFC
+                // conditional branch (beq etc): BD at bits[15:2]; preserve BO/BI and AA/LK
                 let diff = target as i32 - branch_start as i32;
                 let imm14 = (diff as u32) & 0xFFFC;
                 let base = u32::from_le_bytes(code[branch_start..branch_start + 4].try_into().unwrap());
-                let patched = (base & 0xFFFC0003) | imm14;
+                let patched = (base & 0xFFFF0003) | imm14;
                 code[branch_start..branch_start + 4].copy_from_slice(&patched.to_le_bytes());
             }
             FixupKind::LoongImm26 => {
@@ -386,11 +386,11 @@ pub trait PlatformBackend {
                 code[branch_start..branch_start + 4].copy_from_slice(&patched.to_le_bytes());
             }
             FixupKind::LoongImm16 => {
-                // beq/bne: 16-bit signed PC-relative, offset = (target - branch_addr) / 4
+                // beq/bne: offs16 at bits[25:10]; preserve opcode[31:26] and rj/rd[9:0]
                 let diff = target as i32 - branch_start as i32;
                 let imm16 = (diff >> 2) & 0xFFFF;
                 let base = u32::from_le_bytes(code[branch_start..branch_start + 4].try_into().unwrap());
-                let patched = (base & 0xFFFF0000) | (imm16 as u32);
+                let patched = (base & 0xFC0003FF) | ((imm16 as u32) << 10);
                 code[branch_start..branch_start + 4].copy_from_slice(&patched.to_le_bytes());
             }
             FixupKind::SparcImm22 => {
@@ -2523,9 +2523,16 @@ impl PlatformBackend for PowerPc64LePlatform {
         // b = 0x48000000 | (imm24 << 2) 闁?placeholder
         Ok((vec![0x00, 0x00, 0x00, 0x48], BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::PpcImm24 }))
     }
-    fn emit_jcc_branch(&mut self, _cc: u8) -> IsaResult<(Vec<u8>, BranchFixup)> {
-        // Approximation: unconditional branch (always-true for all JCC)
-        Ok((vec![0x00, 0x00, 0x00, 0x48], BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::PpcImm24 }))
+    fn emit_jcc_branch(&mut self, cc: u8) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        // After emit_cmp: CR0 set. JE/JNE use bc on CR0.EQ (BI=2).
+        // BO=12 (01100): branch if condition true; BO=4 (00100): branch if false.
+        let (bo, bi): (u32, u32) = match cc {
+            0x84 => (12, 2), // JE  -> beq (CR0.EQ set)
+            0x85 => (4, 2),  // JNE -> bne (CR0.EQ clear)
+            _ => (20, 0),    // always (BO=20 = branch always)
+        };
+        let enc: u32 = (16 << 26) | (bo << 21) | (bi << 16);
+        Ok((enc.to_le_bytes().to_vec(), BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::PpcImm14 }))
     }
     fn startup_blob(&self) -> &[u8] {
         &[]
@@ -2612,8 +2619,9 @@ fn sparc_ldub(rd: u32, rs1: u32, imm: u32) -> [u8; 4] {
 fn sparc_stb(rd: u32, rs1: u32, imm: u32) -> [u8; 4] {
     (0xC0202100u32 | (rd << 25) | (rs1 << 14) | (imm & 0x1FFF)).to_be_bytes()
 }
-fn sparc_subcc(_rd: u32, rs1: u32, rs2: u32) -> [u8; 4] {
-    (0x80001000u32 | (rs1 << 14) | (rs2 << 19) | 0x00200000).to_be_bytes()
+fn sparc_subcc(rd: u32, rs1: u32, rs2: u32) -> [u8; 4] {
+    // op=2, op3=0x14 (SUBcc): 10 rd 010100 rs1 i=0 rs2
+    (0x80A00000u32 | (rd << 25) | (rs1 << 14) | (rs2 & 0x1F)).to_be_bytes()
 }
 fn sparc_li_g1(imm: u32) -> Vec<u8> {
     let mut out = sparc_sethi(SPARC_G1, imm >> 10).to_vec();
@@ -3477,21 +3485,20 @@ fn loong_bl(offs26: u32) -> Vec<u8> {
     enc.to_le_bytes().to_vec()
 }
 // LoongArch branch if equal: beq rj, rd, offs16
+// Real ISA: opcode[31:26]=010110, offs[25:10], rj[9:5], rd[4:0]
 fn loong_beq(rj: u32, rd: u32, offs16: u32) -> [u8; 4] {
-    let enc = 0x00000000u32
-        | (0x16 << 22)
+    let enc = (0x16u32 << 26)
         | ((offs16 & 0xFFFF) << 10)
-        | ((rd & 0x1F) << 5)
-        | (rj & 0x1F);
+        | ((rj & 0x1F) << 5)
+        | (rd & 0x1F);
     enc.to_le_bytes()
 }
 // LoongArch branch if not equal: bne rj, rd, offs16
 fn loong_bne(rj: u32, rd: u32, offs16: u32) -> [u8; 4] {
-    let enc = 0x00000000u32
-        | (0x17 << 22)
+    let enc = (0x17u32 << 26)
         | ((offs16 & 0xFFFF) << 10)
-        | ((rd & 0x1F) << 5)
-        | (rj & 0x1F);
+        | ((rj & 0x1F) << 5)
+        | (rd & 0x1F);
     enc.to_le_bytes()
 }
 
@@ -3648,6 +3655,7 @@ impl PlatformBackend for LoongArchPlatform {
         Ok(out)
     }
     fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
+        // Load slot a → T0 (r12), slot b → T2 (r14) for subsequent beq/bne
         let a_off = loongarch_slot_addr_64(a);
         let b_off = loongarch_slot_addr_64(b);
         let mut out = loong_li_upper(LOONG_T1, 0x120010000u64);
@@ -3655,8 +3663,7 @@ impl PlatformBackend for LoongArchPlatform {
         out.extend_from_slice(&loong_ld_d(LOONG_T0, LOONG_T1, 0));
         out.extend_from_slice(&loong_li_upper(LOONG_T1, 0x120010000u64));
         out.extend_from_slice(&loong_addi_d(LOONG_T1, LOONG_T1, b_off as i32));
-        out.extend_from_slice(&loong_ld_d(LOONG_T0, LOONG_T0, 0));
-        out.extend_from_slice(&loong_slt(13, LOONG_T0, LOONG_T0));
+        out.extend_from_slice(&loong_ld_d(LOONG_T2, LOONG_T1, 0));
         Ok(out)
     }
     fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
@@ -3734,8 +3741,11 @@ impl PlatformBackend for LoongArchPlatform {
         Ok((loong_b(0), BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::LoongImm26 }))
     }
     fn emit_jcc_branch(&mut self, cc: u8) -> IsaResult<(Vec<u8>, BranchFixup)> {
-        // Emit BEQIU r13,r0,bit,offset placeholder
-        let enc = loong_beqiu(0, 0, 13);
+        // CMP left T0=a, T2=b. JE/JNE → beq/bne rj=T0, rd=T2
+        let enc = match cc {
+            0x85 => loong_bne(LOONG_T0, LOONG_T2, 0),
+            _ => loong_beq(LOONG_T0, LOONG_T2, 0), // JE and others → beq
+        };
         Ok((enc.to_vec(), BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::LoongImm16 }))
     }
     fn startup_blob(&self) -> &[u8] {
@@ -4006,6 +4016,23 @@ impl PlatformBackend for SparcPlatform {
     fn emit_exit(&mut self, _code: u8) -> IsaResult<Vec<u8>> {
         // ta 0x00 = 0x91D02000 (BE)
         Ok(vec![0x91, 0xD0, 0x20, 0x00])
+    }
+    fn emit_call_branch(&mut self) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        // call: op=1, disp30
+        Ok((vec![0x40, 0x00, 0x00, 0x00], BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::SparcImm30 }))
+    }
+    fn emit_jmp_branch(&mut self) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        // BA (always): cond=8
+        Ok((sparc_bicc(8, 0).to_vec(), BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::SparcImm22 }))
+    }
+    fn emit_jcc_branch(&mut self, cc: u8) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        // After SUBcc: ICC set. BE=1, BNE=2
+        let cond = match cc {
+            0x84 => 1u32, // JE  -> BE
+            0x85 => 2u32, // JNE -> BNE
+            _ => 8u32,    // approx → BA
+        };
+        Ok((sparc_bicc(cond, 0).to_vec(), BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::SparcImm22 }))
     }
     fn startup_blob(&self) -> &[u8] {
         &[]
