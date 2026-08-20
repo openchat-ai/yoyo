@@ -1479,10 +1479,69 @@ fn cmd_test_ddc_branch() -> Result<(), types::IsaError> {
     Ok(())
 }
 
-// ── 03_mem DDC (LDB: load byte from memory slot then ret) placeholder ──
+// ── 03_mem DDC (MEMCPY_STATE: SET slot1=7, copy → slot0, RET; expect slot0=7) ──
+
+#[inline(never)]
+fn mem_arm64(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Android)?;
+    let elf = arm64_elf_link::link_arm64_elf(&out.code, &out.data)?;
+    let r = arm64_interp::run_arm64_elf(&elf.bytes);
+    println!("03_mem DDC: arm64  exit={:?} slot0={} steps={}", r.exit_reason, r.state.get(&0).copied().unwrap_or(0), r.steps);
+    Ok(r.exit_reason == arm64_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 7)
+}
+#[inline(never)]
+fn mem_riscv64(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Riscv64)?;
+    let elf = riscv_elf_link::link_riscv_elf(&out.code, &out.data)?;
+    let r = riscv_interp::run_riscv_elf(&elf.bytes);
+    println!("03_mem DDC: riscv64 exit={:?} slot0={} steps={}", r.exit_reason, r.state.get(&0).copied().unwrap_or(0), r.steps);
+    Ok(r.exit_reason == riscv_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 7)
+}
+#[inline(never)]
+fn mem_mips(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Mips)?;
+    let elf = mips_elf_link::link_mips_elf(&out.code, &out.data)?;
+    let r = mips_interp::run_mips_elf(&elf.bytes);
+    println!("03_mem DDC: mips   exit={:?} slot0={} steps={}", r.exit_reason, r.state.get(&0).copied().unwrap_or(0), r.steps);
+    Ok(r.exit_reason == mips_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 7)
+}
+#[inline(never)]
+fn mem_plan9(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Plan9)?;
+    let r = plan9_interp::run_plan9(&out.code);
+    println!("03_mem DDC: plan9  exit={:?} slot0={} steps={}", r.exit_reason, r.state.get(&0).copied().unwrap_or(0), r.steps);
+    Ok(r.exit_reason == plan9_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 7)
+}
 
 fn cmd_test_ddc_mem() -> Result<(), types::IsaError> {
-    println!("03_mem DDC: SKIP (no fixture yet)");
+    let fixture = find_fixture("03_mem.ty")?;
+    let src = fs::read_to_string(&fixture).map_err(|e| types::IsaError::IoError { msg: e.to_string() })?;
+    let tir = executor::compile_ty_source_to_tir(&src)?;
+
+    let sim = simulator::simulate(&tir)?;
+    let slot0 = sim.state.get(&0).copied().unwrap_or(0);
+    println!("03_mem DDC: sim    exit={:?} slot0={} steps={}", sim.exit_reason, slot0, sim.steps);
+    let sim_ok = sim.exit_reason == simulator::SimExitReason::Ret && slot0 == 7;
+    if sim_ok { println!("03_mem DDC: sim    PASS"); }
+
+    let arm64_ok = mem_arm64(&tir)?;
+    let riscv64_ok = mem_riscv64(&tir)?;
+    let mips_ok = mem_mips(&tir)?;
+
+    let core = [sim_ok, arm64_ok, riscv64_ok, mips_ok];
+    let core_pass = core.iter().filter(|&&x| x).count();
+    println!("03_mem DDC: {core_pass}/4 CORE paths PASS (slot0=7)");
+
+    let plan9_ok = mem_plan9(&tir).unwrap_or(false);
+    println!("03_mem DDC: soft plan9={} (non-fatal; x64 memcpy_state is pointer-form)", if plan9_ok { "PASS" } else { "FAIL" });
+
+    if core_pass != 4 {
+        return Err(types::IsaError::ParseError {
+            line: 0,
+            msg: format!("03_mem DDC: only {core_pass}/4 core paths PASS (need sim+arm64+riscv64+mips slot0=7)"),
+        });
+    }
+    println!("03_mem DDC: ALL 4 CORE PATHS PASS");
     Ok(())
 }
 

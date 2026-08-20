@@ -1,0 +1,8 @@
+; G03 — MEMCPY_STATE: SET slot1=7, copy slot1→slot0 (n=1), RET
+; Expect slot0=7 after MEMCPY_STATE dst=0 src=1 n=1.
+; Exercises 0x85 emit/interp (slot-to-slot) for DDC; LDB pointer form is deferred.
+
+40 00
+  30 01 07
+  85 00 01 01
+  FF

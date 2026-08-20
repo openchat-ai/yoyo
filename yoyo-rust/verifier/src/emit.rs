@@ -151,8 +151,8 @@ fn emit_one(
         TirOp::Orv => backend.emit_orv(a(0) as u16, a(1) as u16),
         TirOp::Subv => backend.emit_subv(a(0) as u16, a(1) as u16),
         TirOp::Ldb => backend.emit_ldb(a(0) as u16, a(1) as u16, a(2) as u16),
-        TirOp::MemcpyData => backend.emit_memcpy_data(a(1) as u16, a(0) as u16, a(2) as u16),
-        TirOp::MemcpyState => backend.emit_memcpy_state(a(1) as u16, a(0) as u16, a(2) as u16),
+        TirOp::MemcpyData => backend.emit_memcpy_data(a(0) as u16, a(1) as u16, a(2) as u16),
+        TirOp::MemcpyState => backend.emit_memcpy_state(a(0) as u16, a(1) as u16, a(2) as u16),
         TirOp::RawByte => backend.emit_raw_byte(a(0) as u8),
         TirOp::RawBytes => backend.emit_raw_bytes(inst.args.iter().map(|v| *v as u8).collect()),
         TirOp::Handler | TirOp::Call | TirOp::Jmp | TirOp::Je | TirOp::Jne | TirOp::Jl
