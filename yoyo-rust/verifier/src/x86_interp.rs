@@ -112,11 +112,16 @@ impl Cpu {
                 *self.rw(8) = self.r(8).wrapping_add(5);
                 None
             }
-            0x89 => { // MOV [addr], reg (modrm based)
+            0x89 => { // MOV r/m32, reg
                 let modrm = self.mem_get(self.r(8).wrapping_add(1));
                 let reg = ((modrm >> 3) & 7) as usize;
                 if (modrm & 0xC7) == 0x05 { // [disp32]
                     let addr = self.load32(self.r(8).wrapping_add(2));
+                    self.store32(addr, self.r(reg));
+                    *self.rw(8) = self.r(8).wrapping_add(6);
+                } else if (modrm & 0xC7) == 0x87 { // [edi+disp32]
+                    let disp = self.load32(self.r(8).wrapping_add(2));
+                    let addr = self.r(5).wrapping_add(disp); // EDI = regs[5]
                     self.store32(addr, self.r(reg));
                     *self.rw(8) = self.r(8).wrapping_add(6);
                 } else {
@@ -124,15 +129,73 @@ impl Cpu {
                 }
                 None
             }
-            0x8B => { // MOV reg, [addr] (modrm based)
+            0x8B => { // MOV reg, r/m32
                 let modrm = self.mem_get(self.r(8).wrapping_add(1));
                 let reg = ((modrm >> 3) & 7) as usize;
                 if (modrm & 0xC7) == 0x05 { // [disp32]
                     let addr = self.load32(self.r(8).wrapping_add(2));
                     *self.rw(reg) = self.load32(addr);
                     *self.rw(8) = self.r(8).wrapping_add(6);
+                } else if (modrm & 0xC7) == 0x87 { // [edi+disp32]
+                    let disp = self.load32(self.r(8).wrapping_add(2));
+                    let addr = self.r(5).wrapping_add(disp);
+                    *self.rw(reg) = self.load32(addr);
+                    *self.rw(8) = self.r(8).wrapping_add(6);
                 } else {
                     return Some(ExecExitReason::Fault { msg: format!("undecoded 0x8B modrm 0x{:02x} at 0x{:x}", modrm, self.r(8)) });
+                }
+                None
+            }
+            0x03 => { // ADD reg, r/m32
+                let modrm = self.mem_get(self.r(8).wrapping_add(1));
+                let reg = ((modrm >> 3) & 7) as usize;
+                if (modrm & 0xC7) == 0x87 { // [edi+disp32]
+                    let disp = self.load32(self.r(8).wrapping_add(2));
+                    let addr = self.r(5).wrapping_add(disp);
+                    *self.rw(reg) = self.r(reg).wrapping_add(self.load32(addr));
+                    *self.rw(8) = self.r(8).wrapping_add(6);
+                } else if (modrm & 0xC7) == 0x05 {
+                    let addr = self.load32(self.r(8).wrapping_add(2));
+                    *self.rw(reg) = self.r(reg).wrapping_add(self.load32(addr));
+                    *self.rw(8) = self.r(8).wrapping_add(6);
+                } else {
+                    return Some(ExecExitReason::Fault { msg: format!("undecoded 0x03 modrm 0x{:02x} at 0x{:x}", modrm, self.r(8)) });
+                }
+                None
+            }
+            0x0B => { // OR reg, r/m32
+                let modrm = self.mem_get(self.r(8).wrapping_add(1));
+                let reg = ((modrm >> 3) & 7) as usize;
+                if (modrm & 0xC7) == 0x87 {
+                    let disp = self.load32(self.r(8).wrapping_add(2));
+                    let addr = self.r(5).wrapping_add(disp);
+                    *self.rw(reg) = self.r(reg) | self.load32(addr);
+                    *self.rw(8) = self.r(8).wrapping_add(6);
+                } else {
+                    return Some(ExecExitReason::Fault { msg: format!("undecoded 0x0B modrm 0x{:02x} at 0x{:x}", modrm, self.r(8)) });
+                }
+                None
+            }
+            0x2B => { // SUB reg, r/m32
+                let modrm = self.mem_get(self.r(8).wrapping_add(1));
+                let reg = ((modrm >> 3) & 7) as usize;
+                if (modrm & 0xC7) == 0x87 {
+                    let disp = self.load32(self.r(8).wrapping_add(2));
+                    let addr = self.r(5).wrapping_add(disp);
+                    *self.rw(reg) = self.r(reg).wrapping_sub(self.load32(addr));
+                    *self.rw(8) = self.r(8).wrapping_add(6);
+                } else {
+                    return Some(ExecExitReason::Fault { msg: format!("undecoded 0x2B modrm 0x{:02x} at 0x{:x}", modrm, self.r(8)) });
+                }
+                None
+            }
+            0x3B => { // CMP reg, r/m32
+                let modrm = self.mem_get(self.r(8).wrapping_add(1));
+                if (modrm & 0xC7) == 0x87 {
+                    let _disp = self.load32(self.r(8).wrapping_add(2));
+                    *self.rw(8) = self.r(8).wrapping_add(6);
+                } else {
+                    return Some(ExecExitReason::Fault { msg: format!("undecoded 0x3B modrm 0x{:02x} at 0x{:x}", modrm, self.r(8)) });
                 }
                 None
             }
@@ -148,7 +211,7 @@ impl Cpu {
                 *self.rw(8) = self.r(8).wrapping_add(5);
                 None
             }
-            0xFF => { // INC [addr] / DEC [addr] (modrm based)
+            0xFF => { // INC / DEC r/m32
                 let modrm = self.mem_get(self.r(8).wrapping_add(1));
                 if modrm == 0x05 { // INC [disp32]
                     let addr = self.load32(self.r(8).wrapping_add(2));
@@ -160,13 +223,25 @@ impl Cpu {
                     let val = self.load32(addr).wrapping_sub(1);
                     self.store32(addr, val);
                     *self.rw(8) = self.r(8).wrapping_add(6);
-                } else if modrm == 0x2D { // IMUL [disp32]
+                } else if modrm == 0x87 { // INC [edi+disp32]
+                    let disp = self.load32(self.r(8).wrapping_add(2));
+                    let addr = self.r(5).wrapping_add(disp);
+                    let val = self.load32(addr).wrapping_add(1);
+                    self.store32(addr, val);
+                    *self.rw(8) = self.r(8).wrapping_add(6);
+                } else if modrm == 0x8F { // DEC [edi+disp32]
+                    let disp = self.load32(self.r(8).wrapping_add(2));
+                    let addr = self.r(5).wrapping_add(disp);
+                    let val = self.load32(addr).wrapping_sub(1);
+                    self.store32(addr, val);
+                    *self.rw(8) = self.r(8).wrapping_add(6);
+                } else if modrm == 0x2D { // IMUL [disp32] (legacy)
                     let addr = self.load32(self.r(8).wrapping_add(2));
                     let val = self.load32(addr) as i32;
                     let result = (self.r(0) as i32).wrapping_mul(val);
                     let (lo, _hi) = (result as i64).overflowing_mul(1);
                     *self.rw(0) = lo as u32;
-                    *self.rw(3) = (result >> 31) as u32; // sign extend
+                    *self.rw(3) = (result >> 31) as u32;
                     *self.rw(8) = self.r(8).wrapping_add(6);
                 } else {
                     return Some(ExecExitReason::Fault { msg: format!("undecoded 0xFF modrm 0x{:02x} at 0x{:x}", modrm, self.r(8)) });
@@ -231,6 +306,20 @@ impl Cpu {
                             *self.rw(8) = self.r(8).wrapping_add(7);
                         } else {
                             return Some(ExecExitReason::Fault { msg: format!("undecoded 0F B6 modrm 0x{:02x} at 0x{:x}", modrm, self.r(8)) });
+                        }
+                        None
+                    }
+                    0xAF => { // IMUL reg, r/m32
+                        let modrm = self.mem_get(self.r(8).wrapping_add(2));
+                        let reg = ((modrm >> 3) & 7) as usize;
+                        if (modrm & 0xC7) == 0x87 {
+                            let disp = self.load32(self.r(8).wrapping_add(3));
+                            let addr = self.r(5).wrapping_add(disp);
+                            let prod = (self.r(reg) as i32).wrapping_mul(self.load32(addr) as i32);
+                            *self.rw(reg) = prod as u32;
+                            *self.rw(8) = self.r(8).wrapping_add(7);
+                        } else {
+                            return Some(ExecExitReason::Fault { msg: format!("undecoded 0F AF modrm 0x{:02x} at 0x{:x}", modrm, self.r(8)) });
                         }
                         None
                     }

@@ -164,6 +164,18 @@ impl Cpu {
                 *self.rw(0) = self.r(0).wrapping_add(imm);
                 None
             }
+            0x03 => { // ADD AX, r/m16 — only [imm16] form (modrm 0x06)
+                let modrm = self.fetch8();
+                if modrm == 0x06 {
+                    let addr = self.fetch16_le();
+                    *self.rw(0) = self.r(0).wrapping_add(self.load16_le(addr));
+                } else {
+                    return Some(ExecExitReason::Fault {
+                        msg: format!("undecoded 0x03 modrm=0x{:02x} at ip=0x{:04x}", modrm, self.ip),
+                    });
+                }
+                None
+            }
             0x2D => { // SUB AX, imm16
                 let imm = self.fetch16_le();
                 *self.rw(0) = self.r(0).wrapping_sub(imm);

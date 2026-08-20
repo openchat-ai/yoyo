@@ -118,29 +118,29 @@ impl Cpu {
             return None;
         }
 
-        // ADD rd, rr: 0x0C00 | (rd<<4) | rr | 0x0E
-        if (insn & 0xFC0F) == 0x0C0E {
-            let rn = (insn >> 4) & 0x1F;
-            let rm = insn & 0x1F;
-            *self.rw(rn as usize) = self.r(rn as usize).wrapping_add(self.r(rm as usize));
+        // ADD rd, rr: 0x1C00 | (rd<<4) | rr
+        if (insn & 0xFE00) == 0x1C00 {
+            let rn = ((insn >> 4) & 0x1F) as usize;
+            let rm = (insn & 0x1F) as usize;
+            *self.rw(rn) = self.r(rn).wrapping_add(self.r(rm));
             self.pc = pc.wrapping_add(1);
             return None;
         }
 
-        // SUB rd, rr: 0x0C00 | (rd<<4) | rr | 0x06
-        if (insn & 0xFC0F) == 0x0C06 {
-            let rn = (insn >> 4) & 0x1F;
-            let rm = insn & 0x1F;
-            *self.rw(rn as usize) = self.r(rn as usize).wrapping_sub(self.r(rm as usize));
+        // SUB rd, rr: 0x1800 | (rd<<4) | rr
+        if (insn & 0xFE00) == 0x1800 {
+            let rn = ((insn >> 4) & 0x1F) as usize;
+            let rm = (insn & 0x1F) as usize;
+            *self.rw(rn) = self.r(rn).wrapping_sub(self.r(rm));
             self.pc = pc.wrapping_add(1);
             return None;
         }
 
-        // OR rd, rr: 0x0C00 | (rd<<4) | rr | 0x02
-        if (insn & 0xFC0F) == 0x0C02 {
-            let rn = (insn >> 4) & 0x1F;
-            let rm = insn & 0x1F;
-            *self.rw(rn as usize) = self.r(rn as usize) | self.r(rm as usize);
+        // OR rd, rr: 0x1400 | (rd<<4) | rr
+        if (insn & 0xFE00) == 0x1400 {
+            let rn = ((insn >> 4) & 0x1F) as usize;
+            let rm = (insn & 0x1F) as usize;
+            *self.rw(rn) = self.r(rn) | self.r(rm);
             self.pc = pc.wrapping_add(1);
             return None;
         }
@@ -194,18 +194,20 @@ impl Cpu {
             return None;
         }
 
-        // LDS rd, addr: 0x9000 | (rd<<4) | 0x0000 + 2 more bytes for addr16
-        if insn == (0x9000 | ((rd as u16) << 4)) && addr + 4 <= self.mem.len() {
+        // LDS rd, addr: 1001 000d dddd 0000 | addr16
+        if (insn & 0xFE0F) == 0x9000 && addr + 4 <= self.mem.len() {
+            let reg = ((insn >> 4) & 0x1F) as usize;
             let addr16 = u16::from_le_bytes(self.mem[addr + 2..addr + 4].try_into().unwrap());
-            *self.rw(rd) = self.load16(addr16);
+            *self.rw(reg) = self.load16(addr16);
             self.pc = pc.wrapping_add(2);
             return None;
         }
 
-        // STS addr, rr: 0x9200 | ((rr as u16) << 4) + 2 more bytes for addr16
-        if insn == (0x9200 | ((rr as u16) << 4)) && addr + 4 <= self.mem.len() {
+        // STS addr, rr: 1001 001r rrrr 0000 | addr16
+        if (insn & 0xFE0F) == 0x9200 && addr + 4 <= self.mem.len() {
+            let reg = ((insn >> 4) & 0x1F) as usize;
             let addr16 = u16::from_le_bytes(self.mem[addr + 2..addr + 4].try_into().unwrap());
-            self.store16(addr16, self.r(rr));
+            self.store16(addr16, self.r(reg));
             self.pc = pc.wrapping_add(2);
             return None;
         }

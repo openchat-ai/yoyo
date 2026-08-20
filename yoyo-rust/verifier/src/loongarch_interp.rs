@@ -21,21 +21,21 @@ const DEFAULT_STEP_LIMIT: u64 = 1_000_000;
 struct Cpu {
     regs: [u64; 32],
     pc: u64,
-    mem: Vec<u8>,
+    mem: HashMap<u64, u8>,
     steps: u64,
     step_limit: u64,
 }
 
 impl Cpu {
-    fn new(mem: Vec<u8>, entry: u64) -> Self {
-        Self { regs: [0; 32], pc: entry, mem, steps: 0, step_limit: DEFAULT_STEP_LIMIT }
+    fn new(entry: u64) -> Self {
+        Self { regs: [0; 32], pc: entry, mem: HashMap::new(), steps: 0, step_limit: DEFAULT_STEP_LIMIT }
     }
 
     fn r(&self, n: usize) -> u64 { if n == 0 { 0 } else { self.regs[n] } }
     fn set_reg(&mut self, n: usize, v: u64) { if n != 0 { self.regs[n] = v; } }
 
-    fn mem_get(&self, addr: u64) -> u8 { let a = addr as usize; if a < self.mem.len() { self.mem[a] } else { 0 } }
-    fn mem_set(&mut self, addr: u64, v: u8) { let a = addr as usize; if a >= self.mem.len() { self.mem.resize(a + 1, 0); } self.mem[a] = v; }
+    fn mem_get(&self, addr: u64) -> u8 { self.mem.get(&addr).copied().unwrap_or(0) }
+    fn mem_set(&mut self, addr: u64, v: u8) { self.mem.insert(addr, v); }
 
     fn load64(&self, addr: u64) -> u64 {
         let mut v = 0u64;
@@ -47,16 +47,26 @@ impl Cpu {
         for i in 0..8 { self.mem_set(addr + i, ((val >> (i * 8)) & 0xFF) as u8); }
     }
 
+    fn load_insn(&self, addr: u64) -> Option<u32> {
+        let b0 = self.mem.get(&addr)?;
+        let b1 = self.mem.get(&(addr + 1)).copied().unwrap_or(0);
+        let b2 = self.mem.get(&(addr + 2)).copied().unwrap_or(0);
+        let b3 = self.mem.get(&(addr + 3)).copied().unwrap_or(0);
+        Some(u32::from_le_bytes([*b0, b1, b2, b3]))
+    }
+
     fn step(&mut self) -> Option<ExecExitReason> {
         if self.steps >= self.step_limit { return Some(ExecExitReason::StepLimit { steps: self.steps }); }
-        if self.pc as usize + 4 > self.mem.len() { return Some(ExecExitReason::Halted); }
-        let insn = u32::from_le_bytes(self.mem[self.pc as usize..self.pc as usize + 4].try_into().unwrap());
+        let Some(insn) = self.load_insn(self.pc) else {
+            return Some(ExecExitReason::Halted);
+        };
         self.steps += 1;
 
         let op = (insn >> 22) & 0x3FF;
         let rd = (insn & 0x1F) as usize;
         let rj = ((insn >> 5) & 0x1F) as usize;
-        let rk = ((insn >> 27) & 0x1F) as usize;
+        let rk = ((insn >> 10) & 0x1F) as usize; // 3R form: rk at bits[14:10]
+        let op15 = (insn >> 15) & 0x1FFFF;
         let si12 = (((insn >> 10) & 0xFFF) as i32) << 20 >> 20;
         let si12 = si12 as i64;
         let offs16 = (((insn >> 10) & 0xFFFF) as i32) << 16 >> 16;
@@ -83,12 +93,18 @@ impl Cpu {
             return None;
         }
 
+        // lu12i.w: opcode bits[31:25]=0x0A, si20 in [24:5] — check before generic op match
+        // because si20 high bits overlap a 10-bit (insn>>22) field.
+        if ((insn >> 25) & 0x7F) == 0x0A {
+            let si20 = (insn >> 5) & 0xFFFFF;
+            // Sign-extend the 32-bit {si20,12'b0} to 64-bit (LoongArch lu12i.w)
+            let v32 = si20 << 12;
+            let v = v32 as i32 as i64 as u64;
+            self.set_reg(rd, v);
+            self.pc += 4; return None;
+        }
+
         match op {
-            0x14 => { // lu12i.w rd, si20
-                let si20 = (insn >> 5) & 0xFFFFF;
-                self.set_reg(rd, (si20 as u64) << 12);
-                self.pc += 4; return None;
-            }
             0x038 => { // ori rd, rj, ui12
                 let ui12 = (insn >> 10) & 0xFFF;
                 self.set_reg(rd, self.r(rj) | ui12 as u64);
@@ -111,30 +127,6 @@ impl Cpu {
             0x28D => { // ld.b rd, rj, si12
                 let addr = (self.r(rj) as i64 + si12) as u64;
                 self.set_reg(rd, self.mem_get(addr) as u64);
-                self.pc += 4; return None;
-            }
-            0x04 => { // add.d rd, rj, rk
-                self.set_reg(rd, self.r(rj).wrapping_add(self.r(rk)));
-                self.pc += 4; return None;
-            }
-            0x05 => { // sub.d rd, rj, rk
-                self.set_reg(rd, self.r(rj).wrapping_sub(self.r(rk)));
-                self.pc += 4; return None;
-            }
-            0x19 => { // or rd, rj, rk
-                self.set_reg(rd, self.r(rj) | self.r(rk));
-                self.pc += 4; return None;
-            }
-            0x0B => { // mul.d rd, rj, rk
-                self.set_reg(rd, self.r(rj).wrapping_mul(self.r(rk)));
-                self.pc += 4; return None;
-            }
-            0x1D => { // slt rd, rj, rk (signed)
-                self.set_reg(rd, if (self.r(rj) as i64) < (self.r(rk) as i64) { 1 } else { 0 });
-                self.pc += 4; return None;
-            }
-            0x1E => { // sltu rd, rj, rk
-                self.set_reg(rd, if self.r(rj) < self.r(rk) { 1 } else { 0 });
                 self.pc += 4; return None;
             }
             0x13 => { // jirl rd, rj, offs16 (offs16 << 2 for byte offset)
@@ -175,6 +167,42 @@ impl Cpu {
             _ => {}
         }
 
+        // 3R ALU: opcode in bits[31:15]
+        match op15 {
+            0x21 => { // add.d
+                self.set_reg(rd, self.r(rj).wrapping_add(self.r(rk)));
+                self.pc += 4; return None;
+            }
+            0x23 => { // sub.d
+                self.set_reg(rd, self.r(rj).wrapping_sub(self.r(rk)));
+                self.pc += 4; return None;
+            }
+            0x2A => { // or
+                self.set_reg(rd, self.r(rj) | self.r(rk));
+                self.pc += 4; return None;
+            }
+            0x39 => { // mul.d
+                self.set_reg(rd, self.r(rj).wrapping_mul(self.r(rk)));
+                self.pc += 4; return None;
+            }
+            0x24 => { // slt
+                self.set_reg(rd, if (self.r(rj) as i64) < (self.r(rk) as i64) { 1 } else { 0 });
+                self.pc += 4; return None;
+            }
+            0x25 => { // sltu
+                self.set_reg(rd, if self.r(rj) < self.r(rk) { 1 } else { 0 });
+                self.pc += 4; return None;
+            }
+            _ => {}
+        }
+
+        // slli.d rd, rj, ui6: opcode[31:16]=0x0041, ui6 in bits[15:10]
+        if ((insn >> 16) & 0xFFFF) == 0x0041 {
+            let ui6 = ((insn >> 10) & 0x3F) as u32;
+            self.set_reg(rd, self.r(rj) << (ui6 & 63));
+            self.pc += 4; return None;
+        }
+
         Some(ExecExitReason::Fault { msg: format!("undecoded insn at 0x{:x}: 0x{:08x}", self.pc, insn) })
     }
 
@@ -189,6 +217,7 @@ impl Cpu {
 }
 
 /// Parse ELF64, find .text and .data segments, set up initial state, and run.
+/// Uses sparse HashMap memory — LoongArch VAs are ~0x120000000 (too large for a flat Vec).
 pub fn run_loongarch_elf(elf_bytes: &[u8]) -> ExecResult {
     if elf_bytes.len() < 64 || &elf_bytes[0..4] != b"\x7fELF" {
         return ExecResult { exit_reason: ExecExitReason::Fault { msg: "not an ELF".into() }, steps: 0, state: HashMap::new() };
@@ -197,35 +226,8 @@ pub fn run_loongarch_elf(elf_bytes: &[u8]) -> ExecResult {
     let e_phnum = u16::from_le_bytes(elf_bytes[56..58].try_into().unwrap()) as usize;
     let e_entry = u64::from_le_bytes(elf_bytes[24..32].try_into().unwrap());
 
-    let mut max_addr = 0u64;
-    for i in 0..e_phnum {
-        let off = e_phoff + i * 56;
-        if off + 48 > elf_bytes.len() { break; }
-        let p_type = u32::from_le_bytes(elf_bytes[off..off + 4].try_into().unwrap());
-        if p_type != 1 { continue; }
-        let p_vaddr = u64::from_le_bytes(elf_bytes[off + 16..off + 24].try_into().unwrap());
-        let p_memsz = u64::from_le_bytes(elf_bytes[off + 40..off + 48].try_into().unwrap());
-        let end = p_vaddr + p_memsz;
-        if end > max_addr { max_addr = end; }
-    }
+    let mut cpu = Cpu::new(e_entry);
 
-    let mem_size = max_addr as usize + 0x1000;
-    let mut mem = vec![0u8; mem_size];
-
-    for i in 0..e_phnum {
-        let off = e_phoff + i * 56;
-        if off + 48 > elf_bytes.len() { break; }
-        let p_type = u32::from_le_bytes(elf_bytes[off..off + 4].try_into().unwrap());
-        if p_type != 1 { continue; }
-        let p_offset = u64::from_le_bytes(elf_bytes[off + 8..off + 16].try_into().unwrap()) as usize;
-        let p_vaddr = u64::from_le_bytes(elf_bytes[off + 16..off + 24].try_into().unwrap()) as usize;
-        let p_filesz = u64::from_le_bytes(elf_bytes[off + 32..off + 40].try_into().unwrap()) as usize;
-        if p_offset + p_filesz <= elf_bytes.len() {
-            mem[p_vaddr..p_vaddr + p_filesz].copy_from_slice(&elf_bytes[p_offset..p_offset + p_filesz]);
-        }
-    }
-
-    // Find data VA from the second PT_LOAD segment (PF_R|PF_W = 6)
     let mut data_va = 0u64;
     for i in 0..e_phnum {
         let off = e_phoff + i * 56;
@@ -233,23 +235,26 @@ pub fn run_loongarch_elf(elf_bytes: &[u8]) -> ExecResult {
         let p_type = u32::from_le_bytes(elf_bytes[off..off + 4].try_into().unwrap());
         if p_type != 1 { continue; }
         let p_flags = u32::from_le_bytes(elf_bytes[off + 4..off + 8].try_into().unwrap());
+        let p_offset = u64::from_le_bytes(elf_bytes[off + 8..off + 16].try_into().unwrap()) as usize;
+        let p_vaddr = u64::from_le_bytes(elf_bytes[off + 16..off + 24].try_into().unwrap());
+        let p_filesz = u64::from_le_bytes(elf_bytes[off + 32..off + 40].try_into().unwrap()) as usize;
         if p_flags == 6 {
-            data_va = u64::from_le_bytes(elf_bytes[off + 16..off + 24].try_into().unwrap());
+            data_va = p_vaddr;
+        }
+        if p_offset + p_filesz <= elf_bytes.len() {
+            for j in 0..p_filesz {
+                cpu.mem_set(p_vaddr + j as u64, elf_bytes[p_offset + j]);
+            }
         }
     }
 
-    // No startup preamble — code starts at entry
-    let mut cpu = Cpu::new(mem, e_entry);
     let exit_reason = cpu.run();
 
     let mut state = HashMap::new();
-    let base = data_va as usize;
     for slot in 0..256u16 {
-        let addr = base + slot as usize * 8;
-        if addr + 8 <= cpu.mem.len() {
-            let val = u64::from_le_bytes(cpu.mem[addr..addr + 8].try_into().unwrap());
-            if val != 0 { state.insert(slot, val); }
-        }
+        let addr = data_va + slot as u64 * 8;
+        let val = cpu.load64(addr);
+        if val != 0 { state.insert(slot, val); }
     }
 
     ExecResult { exit_reason, steps: cpu.steps, state }

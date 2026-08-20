@@ -122,9 +122,9 @@ impl Cpu {
             let word = u32::from_le_bytes(b4);
             let op = word >> 26;
             if Self::is_known_4byte_op(op) {
-                let ra = ((word >> 23) & 0x1F) as usize;
-                let rd = ((word >> 20) & 0x1F) as usize;
-                let rb = ((word >> 15) & 0x1F) as usize;
+                let ra = ((word >> 23) & 0x7) as usize;
+                let rd = ((word >> 20) & 0x7) as usize;
+                let rb = ((word >> 15) & 0x7) as usize;
                 match op {
                     0x0D => { // ADD: rd = ra + rb
                         *self.rw(rd) = self.r(ra).wrapping_add(self.r(rb));

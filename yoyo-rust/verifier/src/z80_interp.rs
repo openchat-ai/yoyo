@@ -188,6 +188,8 @@ impl Cpu {
             0x7D => { self.a = self.l; None } // LD A, L
             0x67 => { self.h = self.a; None } // LD H, A
             0x6F => { self.l = self.a; None } // LD L, A
+            0x44 => { self.b = self.h; None } // LD B, H
+            0x4D => { self.c = self.l; None } // LD C, L
             0x77 => { // LD (HL), A
                 self.mem_set(self.hl(), self.a);
                 None

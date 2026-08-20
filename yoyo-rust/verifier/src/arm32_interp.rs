@@ -121,17 +121,17 @@ impl Cpu {
             return None;
         }
 
-        // MOVW rd, #imm16: 0xE3000000 | (rd << 12) | imm16
+        // MOVW rd, #imm16: bits[19:16]=imm[15:12], bits[11:0]=imm[11:0]
         if (insn & 0x0FF00000) == 0x03000000 {
-            let imm16 = ((insn >> 16) & 0xF) | ((insn & 0xFFF) << 4);
+            let imm16 = (((insn >> 16) & 0xF) << 12) | (insn & 0xFFF);
             let rd = ((insn >> 12) & 0xF) as usize;
             *self.rw(rd) = imm16 as u64;
             self.pc += 4; return None;
         }
 
-        // MOVT rd, #imm16: 0xE3400000 | (rd << 12) | imm16
+        // MOVT rd, #imm16: same imm16 split as MOVW
         if (insn & 0x0FF00000) == 0x03400000 {
-            let imm16 = ((insn >> 16) & 0xF) | ((insn & 0xFFF) << 4);
+            let imm16 = (((insn >> 16) & 0xF) << 12) | (insn & 0xFFF);
             let rd = ((insn >> 12) & 0xF) as usize;
             *self.rw(rd) = (self.r(rd) & 0xFFFF) as u64 | ((imm16 as u64) << 16);
             self.pc += 4; return None;

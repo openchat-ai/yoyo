@@ -57,7 +57,8 @@ impl Cpu {
         let rd = ((insn >> 25) & 0x1F) as usize;
         let rs1 = ((insn >> 14) & 0x1F) as usize;
         let i_bit = (insn >> 13) & 1;
-        let rs2_or_imm = if i_bit == 1 { insn & 0x1FFF } else { (insn >> 19) & 0x1F };
+        // Register form: rs2 in bits[4:0]; immediate form: simm13 in bits[12:0]
+        let rs2_or_imm = if i_bit == 1 { insn & 0x1FFF } else { insn & 0x1F };
 
         // NOP (sethi 0, %g0) = 0x01000000
         if insn == 0x01000000 || insn == 0x00000000 {

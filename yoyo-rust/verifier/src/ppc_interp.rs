@@ -137,9 +137,9 @@ impl Cpu {
             return None;
         }
 
-        // ORI (opcode 24 = 0x18, first byte 0x60)
+        // ORI (opcode 24 = 0x18): ori rA, rS, UIMM → rA = rS | UIMM (rS in bits 21:16 = rd)
         if op == 0x18 {
-            *self.rw(ra) = self.r(ra) | (imm16 as u64);
+            *self.rw(ra) = self.r(rd) | (imm16 as u64);
             self.pc += 4;
             return None;
         }

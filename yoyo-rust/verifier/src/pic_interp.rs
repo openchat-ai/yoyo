@@ -83,31 +83,57 @@ impl Cpu {
             return Some(ExecExitReason::Ret);
         }
 
-        // PicPlatform helpers dump the 8-bit operand as a LE u16 word (no real opcode).
-        // Treat non-zero low byte / zero high as W load (MOVLW-ish).
+        // YOYO PIC encoding: hi=op tag, lo=operand (see PicPlatform helpers)
         let lo = (word & 0xFF) as u8;
         let hi = (word >> 8) as u8;
-        if hi == 0 {
-            self.w = lo;
-            // Also mirror into state when address falls in state window
-            if (lo as u16) >= PIC_STATE_BASE && (lo as u16) < PIC_STATE_BASE + N_SLOTS {
-                // no-op: movlw doesn't store
-            }
-            self.pc = pc.wrapping_add(2);
-            return None;
-        }
-
-        // GOTO/CALL placeholders: bytes [hi, lo] of addr (pic_goto/pic_call)
-        // Word = (lo << 8) | hi when stored as [hi, lo]... actually:
-        // pic_goto: let [lo, hi] = addr.to_le_bytes(); vec![hi, lo]
-        // so mem = [hi, lo], LE word = lo | (hi<<8) = addr. Swap interpretation:
-        let target = word; // already equals original addr for pic_goto encoding
-        if self.call_depth > 0 || word > 0x00FF {
-            // Treat as absolute jump within image
-            if (target as usize) < self.mem.len() {
-                self.pc = target;
+        let addr = PIC_STATE_BASE.wrapping_add(lo as u16);
+        match hi {
+            0x00 => { // MOVLW
+                self.w = lo;
+                self.pc = pc.wrapping_add(2);
                 return None;
             }
+            0x01 => { // MOVWF
+                self.mem_set(addr, self.w);
+                self.pc = pc.wrapping_add(2);
+                return None;
+            }
+            0x02 => { // MOVF
+                self.w = self.mem_get(addr);
+                self.pc = pc.wrapping_add(2);
+                return None;
+            }
+            0x03 => { // ADDWF → mem[addr] += W
+                let v = self.mem_get(addr).wrapping_add(self.w);
+                self.mem_set(addr, v);
+                self.pc = pc.wrapping_add(2);
+                return None;
+            }
+            0x04 => { // SUBWF → mem[addr] -= W
+                let v = self.mem_get(addr).wrapping_sub(self.w);
+                self.mem_set(addr, v);
+                self.pc = pc.wrapping_add(2);
+                return None;
+            }
+            0x05 => { // ORWF
+                let v = self.mem_get(addr) | self.w;
+                self.mem_set(addr, v);
+                self.pc = pc.wrapping_add(2);
+                return None;
+            }
+            0x06 => { // INCF
+                let v = self.mem_get(addr).wrapping_add(1);
+                self.mem_set(addr, v);
+                self.pc = pc.wrapping_add(2);
+                return None;
+            }
+            0x07 => { // DECF
+                let v = self.mem_get(addr).wrapping_sub(1);
+                self.mem_set(addr, v);
+                self.pc = pc.wrapping_add(2);
+                return None;
+            }
+            _ => {}
         }
 
         Some(ExecExitReason::Fault {

@@ -184,20 +184,20 @@ impl Cpu {
         let rs = ((w >> 5) & 0x1F) as usize;
         let op_lo = w & 0xF01F;
 
-        // INC: 0x0434 | (r<<10)
-        if (w & !0x7C00) == 0x0434 {
+        // INC: 0x0034 | (r<<10)
+        if (w & !0x7C00) == 0x0034 {
             *self.rw(rd) = self.r(rd).wrapping_add(1);
             self.pc = pc.wrapping_add(2);
             return None;
         }
-        // DEC: 0x0433 | (r<<10)
-        if (w & !0x7C00) == 0x0433 {
+        // DEC: 0x0033 | (r<<10)
+        if (w & !0x7C00) == 0x0033 {
             *self.rw(rd) = self.r(rd).wrapping_sub(1);
             self.pc = pc.wrapping_add(2);
             return None;
         }
         match op_lo {
-            0x1010 => { // ADD Rs, Rd
+            0x8010 => { // ADD Rs, Rd
                 *self.rw(rd) = self.r(rd).wrapping_add(self.r(rs));
                 self.pc = pc.wrapping_add(2);
                 None
@@ -207,17 +207,17 @@ impl Cpu {
                 self.pc = pc.wrapping_add(2);
                 None
             }
-            0x1050 => { // OR Rs, Rd
+            0x8050 => { // OR Rs, Rd
                 *self.rw(rd) = self.r(rd) | self.r(rs);
                 self.pc = pc.wrapping_add(2);
                 None
             }
-            0x1000 => { // CMP Rs, Rd (flags ignored for DDC)
+            0x8000 => { // CMP Rs, Rd (flags ignored for DDC)
                 let _ = self.r(rd).wrapping_sub(self.r(rs));
                 self.pc = pc.wrapping_add(2);
                 None
             }
-            0x0000 => { // MUL Rs, Rd: word = rd<<10 | rs<<5
+            0x0007 => { // MUL Rs, Rd
                 let prod = (self.r(rd) as u32).wrapping_mul(self.r(rs) as u32) as u16;
                 *self.rw(rd) = prod;
                 self.pc = pc.wrapping_add(2);
