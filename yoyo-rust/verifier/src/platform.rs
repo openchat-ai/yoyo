@@ -334,7 +334,8 @@ pub trait PlatformBackend {
                 let i11 = (imm >> 11) & 1;
                 let enc = (i12 << 31) | (i10_5 << 25) | (i4_1 << 8) | (i11 << 7);
                 let base = u32::from_le_bytes(code[branch_start..branch_start + 4].try_into().unwrap());
-                let patched = (base & 0x1E00001F) | enc;
+                // Preserve opcode[6:0], funct3[14:12], rs1[19:15], rs2[24:20]
+                let patched = (base & 0x01FFF07F) | enc;
                 code[branch_start..branch_start + 4].copy_from_slice(&patched.to_le_bytes());
             }
             FixupKind::ArmImm24 => {
@@ -1012,7 +1013,8 @@ impl PlatformBackend for AndroidPlatform {
     }
     fn emit_jcc_branch(&mut self, cc: u8) -> IsaResult<(Vec<u8>, BranchFixup)> {
         let cond = arm64_jcc_cond(cc);
-        let enc: u32 = 0x54000000 | (cond << 4);
+        // B.cond: cond in bits[3:0], bit4=0, imm19 in bits[23:5]
+        let enc: u32 = 0x54000000 | (cond & 0xF);
         Ok((enc.to_le_bytes().to_vec(), BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::ArmImm19 }))
     }
     fn startup_blob(&self) -> &[u8] {
@@ -1180,7 +1182,8 @@ impl PlatformBackend for ApplePlatform {
     }
     fn emit_jcc_branch(&mut self, cc: u8) -> IsaResult<(Vec<u8>, BranchFixup)> {
         let cond = arm64_jcc_cond(cc);
-        let enc: u32 = 0x54000000 | (cond << 4);
+        // B.cond: cond in bits[3:0], bit4=0, imm19 in bits[23:5]
+        let enc: u32 = 0x54000000 | (cond & 0xF);
         Ok((enc.to_le_bytes().to_vec(), BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::ArmImm19 }))
     }
     fn startup_blob(&self) -> &[u8] {
@@ -1800,18 +1803,19 @@ fn riscv_lbu(rd: u32, rs1: u32, imm12: u16) -> [u8; 4] {
 }
 
 fn riscv_jcc_base(cc: u8) -> u32 {
+    // B-type with rs1=x10, rs2=x11 (or swapped), imm=0; RiscvB patch fills imm.
     match cc {
-        0x84 => 0x00A50A63, // JE  -> beq x10, x11
-        0x85 => 0x00A51A63, // JNE -> bne x10, x11
-        0x86 => 0x40A50A63, // JL  -> blt x10, x11
-        0x87 => 0x50A50A63, // JGE -> bge x10, x11
-        0x88 => 0x50A5A663, // JLE -> bge x11, x10 (swapped)
-        0x89 => 0x40A5A663, // JG  -> blt x11, x10 (swapped)
-        0x8A => 0x60A50A63, // JB  -> bltu x10, x11
-        0x8B => 0x70A50A63, // JAE -> bgeu x10, x11
-        0x8C => 0x70A5A663, // JBE -> bgeu x11, x10 (swapped)
-        0x8D => 0x60A5A663, // JA  -> bltu x11, x10 (swapped)
-        _ => 0x00A50A63,
+        0x84 => 0x00B50063, // JE  -> beq x10, x11
+        0x85 => 0x00B51063, // JNE -> bne x10, x11
+        0x86 => 0x00B54063, // JL  -> blt x10, x11
+        0x87 => 0x00B55063, // JGE -> bge x10, x11
+        0x88 => 0x00A5D863, // JLE -> bge x11, x10 (swapped)
+        0x89 => 0x00A5C863, // JG  -> blt x11, x10 (swapped)
+        0x8A => 0x00B56063, // JB  -> bltu x10, x11
+        0x8B => 0x00B57063, // JAE -> bgeu x10, x11
+        0x8C => 0x00A5F863, // JBE -> bgeu x11, x10 (swapped)
+        0x8D => 0x00A5E863, // JA  -> bltu x11, x10 (swapped)
+        _ => 0x00B50063,
     }
 }
 
@@ -4324,7 +4328,8 @@ impl PlatformBackend for Aarch64WindowsPlatform {
     }
     fn emit_jcc_branch(&mut self, cc: u8) -> IsaResult<(Vec<u8>, BranchFixup)> {
         let cond = arm64_jcc_cond(cc);
-        let enc: u32 = 0x54000000 | (cond << 4);
+        // B.cond: cond in bits[3:0], bit4=0, imm19 in bits[23:5]
+        let enc: u32 = 0x54000000 | (cond & 0xF);
         Ok((enc.to_le_bytes().to_vec(), BranchFixup { field_offset: 0, field_size: 4, kind: FixupKind::ArmImm19 }))
     }
     fn startup_blob(&self) -> &[u8] {

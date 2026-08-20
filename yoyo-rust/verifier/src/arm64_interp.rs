@@ -101,18 +101,18 @@ impl Cpu {
         }
         if top6 == 0b000101 || top6 == 0b100101 {
             let imm26 = ((insn & 0x3FFFFFF) as i32) << 6 >> 6;
-            let target = (self.pc as i64 + (imm26 as i64) << 2) as u64;
+            let target = (self.pc as i64 + ((imm26 as i64) << 2)) as u64;
             if top6 == 0b100101 { self.regs[30] = self.pc + 4; }
             self.pc = target;
             return None;
         }
 
-        // B.cond
+        // B.cond — cond in bits[3:0], bit4 must be 0, imm19 in bits[23:5]
         if insn >> 24 == 0b01010100 {
-            let cond = (insn >> 4) & 0xF;
+            let cond = insn & 0xF;
             let imm19 = ((insn >> 5) & 0x7FFFF) as i32;
             let imm19 = (imm19 << 13) >> 13;
-            if self.cond_true(cond) { self.pc = (self.pc as i64 + (imm19 as i64) << 2) as u64; }
+            if self.cond_true(cond) { self.pc = (self.pc as i64 + ((imm19 as i64) << 2)) as u64; }
             else { self.pc += 4; }
             return None;
         }

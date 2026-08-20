@@ -4,7 +4,7 @@
 //! Flat binary, entry=0. NOP=0x90, RET=0xC3, HLT=0xF4 treated as exit.
 //! Decodes x86-64 REX.W-prefixed instructions emitted by the default x64 assembler:
 //!   MOVABS RAX, imm64 (48 B8), MOV [R15+disp], reg (49 89 ...), MOV reg, [R15+disp] (49 8B ...),
-//!   ADD RAX, RCX (48 01 C8), CALL/E9, JMP/E9.
+//!   ADD RAX, RCX (48 01 C8), CMP RAX, RCX (48 39 C8), Jcc/0F 8x, CALL/E8, JMP/E9.
 
 use std::collections::HashMap;
 
@@ -21,12 +21,21 @@ pub struct ExecResult {
 const DEFAULT_STEP_LIMIT: u64 = 1_000_000;
 const INITIAL_SP: u64 = 0x8000;
 
+#[derive(Debug, Default, Clone, Copy)]
+struct Flags {
+    zf: bool,
+    sf: bool,
+    cf: bool,
+    of: bool,
+}
+
 struct Cpu {
     rip: u64,
     rsp: u64,
     rax: u64,
     rcx: u64,
     r15: u64,
+    flags: Flags,
     mem: Vec<u8>,
     steps: u64,
     step_limit: u64,
@@ -39,6 +48,7 @@ impl Cpu {
         Self {
             rip: 0, rsp: INITIAL_SP,
             rax: 0, rcx: 0, r15: 0,
+            flags: Flags::default(),
             mem, steps: 0, step_limit: DEFAULT_STEP_LIMIT,
             call_depth: 0, state: HashMap::new(),
         }
@@ -90,9 +100,41 @@ impl Cpu {
         Some(v)
     }
 
+    fn reg64(&self, idx: u8) -> u64 {
+        match idx {
+            0 => self.rax,
+            1 => self.rcx,
+            _ => 0,
+        }
+    }
+
+    fn set_flags_sub(&mut self, a: u64, b: u64) {
+        let result = a.wrapping_sub(b);
+        self.flags.zf = a == b;
+        self.flags.sf = (result >> 63) != 0;
+        self.flags.cf = a < b;
+        self.flags.of = ((a ^ b) & (a ^ result)) >> 63 != 0;
+    }
+
+    fn jcc_taken(&self, cc: u8) -> bool {
+        match cc {
+            0x84 => self.flags.zf,                                           // JE/JZ
+            0x85 => !self.flags.zf,                                          // JNE/JNZ
+            0x8C => self.flags.sf != self.flags.of,                          // JL/JNGE
+            0x8D => self.flags.sf == self.flags.of,                          // JGE/JNL
+            0x8E => self.flags.zf || self.flags.sf != self.flags.of,         // JLE/JNG
+            0x8F => !self.flags.zf && self.flags.sf == self.flags.of,        // JG/JNLE
+            0x82 => self.flags.cf,                                           // JB/JNAE
+            0x83 => !self.flags.cf,                                          // JAE/JNB
+            0x86 => self.flags.cf || self.flags.zf,                          // JBE/JNA
+            0x87 => !self.flags.cf && !self.flags.zf,                        // JA/JNBE
+            _ => false,
+        }
+    }
+
     /// The assembler's store_state emits: REX.WB=0x49, 0x89, ModRM(reg=src, r/m=R15), disp8
     /// ModRM: mod=01(disp8), reg=src_low3, r/m=111 (R15 when B=1)
-    fn decode_store_state(&mut self, rex_w: bool, rex_b: bool, modrm: u8) -> Option<ExecExitReason> {
+    fn decode_store_state(&mut self, _rex_w: bool, rex_b: bool, modrm: u8) -> Option<ExecExitReason> {
         let mod_field = modrm >> 6;
         let reg_field = (modrm >> 3) & 0x7;
         let rm_field = modrm & 0x7;
@@ -121,9 +163,9 @@ impl Cpu {
     }
 
     /// The assembler's load_state emits: REX.WB=0x49, 0x8B, ModRM(reg=dst, r/m=R15), disp8
-    fn decode_load_state(&mut self, rex_w: bool, rex_b: bool, modrm: u8) -> Option<ExecExitReason> {
+    fn decode_load_state(&mut self, _rex_w: bool, rex_b: bool, modrm: u8) -> Option<ExecExitReason> {
         let mod_field = modrm >> 6;
-        let reg_field = ((modrm >> 3) & 0x7) | if rex_w { 0 } else { 0 };
+        let reg_field = (modrm >> 3) & 0x7;
         let rm_field = modrm & 0x7;
         if rm_field != 7 || !rex_b { return None; }
         let base = if rex_b { self.r15 } else { 0 };
@@ -217,6 +259,24 @@ impl Cpu {
                     }
                     None
                 }
+                0x39 => {
+                    // CMP r/m64, r64 — sets flags from dst - src (e.g. 48 39 C8 = cmp rax, rcx)
+                    let Some(modrm) = self.fetch8() else {
+                        return Some(ExecExitReason::Fault { msg: "truncated CMP".into() });
+                    };
+                    let mod_field = modrm >> 6;
+                    let reg_field = (modrm >> 3) & 0x7;
+                    let rm_field = modrm & 0x7;
+                    if mod_field != 0x03 {
+                        return Some(ExecExitReason::Fault {
+                            msg: format!("undecoded CMP modrm 0x{:02x}", modrm),
+                        });
+                    }
+                    let src = reg_field | (if rex_r { 8 } else { 0 });
+                    let dst = rm_field | (if rex_b { 8 } else { 0 });
+                    self.set_flags_sub(self.reg64(dst), self.reg64(src));
+                    None
+                }
                 _ => Some(ExecExitReason::Fault {
                     msg: format!("undecoded REX instruction at 0x{:04x}: {:02x} {:02x}", self.rip.wrapping_sub(2), rex, op2),
                 }),
@@ -233,6 +293,26 @@ impl Cpu {
                     None
                 }
                 0xF4 => Some(ExecExitReason::Ret), // HLT → exit
+                0x0F => {
+                    // Two-byte opcodes: Jcc rel32 (0F 8x)
+                    let Some(cc) = self.fetch8() else {
+                        return Some(ExecExitReason::Fault { msg: "truncated after 0F".into() });
+                    };
+                    if (0x80..=0x8F).contains(&cc) {
+                        let Some(disp) = self.fetch_imm32() else {
+                            return Some(ExecExitReason::Fault { msg: "truncated Jcc".into() });
+                        };
+                        let next = self.rip;
+                        if self.jcc_taken(cc) {
+                            self.rip = next.wrapping_add(disp as i32 as i64 as u64);
+                        }
+                        None
+                    } else {
+                        Some(ExecExitReason::Fault {
+                            msg: format!("undecoded 0F {:02x} at 0x{:04x}", cc, self.rip.wrapping_sub(2)),
+                        })
+                    }
+                }
                 0xE8 => { // CALL rel32
                     let Some(disp) = self.fetch_imm32() else {
                         return Some(ExecExitReason::Fault { msg: "truncated CALL".into() });

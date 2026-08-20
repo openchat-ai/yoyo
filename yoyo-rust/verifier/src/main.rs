@@ -1397,9 +1397,16 @@ fn cmd_test_ddc_branch() -> Result<(), types::IsaError> {
     let riscv64_ok = branch_riscv64(&tir)?;
     let plan9_ok = branch_plan9(&tir)?;
 
-    let pass_count = [arm64_ok, riscv64_ok, plan9_ok].iter().filter(|&&x| x).count();
+    let passing = [sim_ok, arm64_ok, riscv64_ok, plan9_ok];
+    let pass_count = passing.iter().filter(|&&x| x).count();
     println!("02_branch DDC: {pass_count}/4 paths PASS (slot0=5)");
-    println!("02_branch DDC: NON-FATAL — pre-existing branch emit/decode gaps");
+    if pass_count != 4 {
+        return Err(types::IsaError::ParseError {
+            line: 0,
+            msg: format!("02_branch DDC: only {pass_count}/4 core paths PASS (need sim+arm64+riscv64+plan9 slot0=5)"),
+        });
+    }
+    println!("02_branch DDC: ALL 4 CORE PATHS PASS");
     Ok(())
 }
 
