@@ -1581,6 +1581,23 @@ impl PlatformBackend for X86Platform {
         out.extend_from_slice(&(b as u32 * 4).to_le_bytes());
         Ok(out)
     }
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        self.emit_memcpy_state(dst, src, n)
+    }
+    /// Slot-to-slot MEMCPY_STATE (ISA/simulator), not pointer-form.
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        if n > 64 {
+            return Err(IsaError::PlatformError { msg: "x86 memcpy_state: n > 64".into() });
+        }
+        let mut out = Vec::new();
+        for i in 0..n {
+            out.extend_from_slice(&[0x8B, 0x87]); // mov eax, [edi+src]
+            out.extend_from_slice(&((src + i) as u32 * 4).to_le_bytes());
+            out.extend_from_slice(&[0x89, 0x87]); // mov [edi+dst], eax
+            out.extend_from_slice(&((dst + i) as u32 * 4).to_le_bytes());
+        }
+        Ok(out)
+    }
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
         self.emit_set(slot, size)
     }
@@ -3056,7 +3073,7 @@ impl PlatformBackend for Arm32Platform {
         let mut out = Vec::new();
         for i in 0..n as u16 {
             out.extend_from_slice(&arm32_ldr(0, 8, (src + i) * 4));
-            out.extend_from_slice(&arm32_str(0, 8, dst + i));
+            out.extend_from_slice(&arm32_str(0, 8, (dst + i) * 4));
         }
         Ok(out)
     }
@@ -4523,6 +4540,24 @@ impl Plan9Platform {
 }
 
 impl PlatformBackend for Plan9Platform {
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        self.emit_memcpy_state(dst, src, n)
+    }
+    /// Slot-to-slot MEMCPY_STATE (simulator/ISA semantics), not x64 pointer-form.
+    /// Emits load_state(src+i)/store_state(dst+i) via RAX — plan9_interp decodes those.
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        use crate::assembler::{load_state, store_state};
+        use crate::types::Reg;
+        if n > 64 {
+            return Err(IsaError::PlatformError { msg: "Plan9 memcpy_state: n > 64".into() });
+        }
+        let mut out = Vec::new();
+        for i in 0..n {
+            out.extend(load_state(src + i, Reg::Rax)?);
+            out.extend(store_state(dst + i, Reg::Rax)?);
+        }
+        Ok(out)
+    }
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
         let mut out = vec![0x90];
         out.extend_from_slice(&size.to_le_bytes());

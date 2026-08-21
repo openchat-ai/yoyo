@@ -18,8 +18,17 @@ pub struct ExecResult {
 
 const DEFAULT_STEP_LIMIT: u64 = 1_000_000;
 
+#[derive(Debug, Default, Clone, Copy)]
+struct Flags {
+    zf: bool,
+    sf: bool,
+    cf: bool,
+    of: bool,
+}
+
 struct Cpu {
     regs: [u32; 9], // EAX=0, EBX=1, ECX=2, EDX=3, ESI=4, EDI=5, EBP=6, ESP=7, EIP=8
+    flags: Flags,
     mem: Vec<u8>,
     steps: u64,
     step_limit: u64,
@@ -29,11 +38,36 @@ impl Cpu {
     fn new(mem: Vec<u8>, eip: u32) -> Self {
         let mut r = [0u32; 9];
         r[8] = eip;
-        Self { regs: r, mem, steps: 0, step_limit: DEFAULT_STEP_LIMIT }
+        Self { regs: r, flags: Flags::default(), mem, steps: 0, step_limit: DEFAULT_STEP_LIMIT }
     }
 
     fn r(&self, n: usize) -> u32 { self.regs[n] }
     fn rw(&mut self, n: usize) -> &mut u32 { &mut self.regs[n] }
+
+    /// Set ZF/SF/CF/OF from a subtraction (a - b), matching CMP semantics.
+    fn set_flags_sub(&mut self, a: u32, b: u32) {
+        let result = a.wrapping_sub(b);
+        self.flags.zf = a == b;
+        self.flags.sf = (result >> 31) != 0;
+        self.flags.cf = a < b;
+        self.flags.of = ((a ^ b) & (a ^ result)) >> 31 != 0;
+    }
+
+    fn jcc_taken(&self, cc: u8) -> bool {
+        match cc {
+            0x84 => self.flags.zf,                                           // JE/JZ
+            0x85 => !self.flags.zf,                                          // JNE/JNZ
+            0x8C => self.flags.sf != self.flags.of,                          // JL/JNGE
+            0x8D => self.flags.sf == self.flags.of,                          // JGE/JNL
+            0x8E => self.flags.zf || self.flags.sf != self.flags.of,         // JLE/JNG
+            0x8F => !self.flags.zf && self.flags.sf == self.flags.of,        // JG/JNLE
+            0x82 => self.flags.cf,                                           // JB/JNAE
+            0x83 => !self.flags.cf,                                          // JAE/JNB
+            0x86 => self.flags.cf || self.flags.zf,                          // JBE/JNA
+            0x87 => !self.flags.cf && !self.flags.zf,                        // JA/JNBE
+            _ => false,
+        }
+    }
 
     fn mem_get(&self, addr: u32) -> u8 {
         let a = addr as usize;
@@ -189,10 +223,19 @@ impl Cpu {
                 }
                 None
             }
-            0x3B => { // CMP reg, r/m32
+            0x3B => { // CMP reg, r/m32 — sets flags from reg - mem
                 let modrm = self.mem_get(self.r(8).wrapping_add(1));
-                if (modrm & 0xC7) == 0x87 {
-                    let _disp = self.load32(self.r(8).wrapping_add(2));
+                let reg = ((modrm >> 3) & 7) as usize;
+                if (modrm & 0xC7) == 0x87 { // [edi+disp32]
+                    let disp = self.load32(self.r(8).wrapping_add(2));
+                    let addr = self.r(5).wrapping_add(disp);
+                    let mem_val = self.load32(addr);
+                    self.set_flags_sub(self.r(reg), mem_val);
+                    *self.rw(8) = self.r(8).wrapping_add(6);
+                } else if (modrm & 0xC7) == 0x05 { // [disp32]
+                    let addr = self.load32(self.r(8).wrapping_add(2));
+                    let mem_val = self.load32(addr);
+                    self.set_flags_sub(self.r(reg), mem_val);
                     *self.rw(8) = self.r(8).wrapping_add(6);
                 } else {
                     return Some(ExecExitReason::Fault { msg: format!("undecoded 0x3B modrm 0x{:02x} at 0x{:x}", modrm, self.r(8)) });
@@ -284,11 +327,18 @@ impl Cpu {
                 }
                 None
             }
-            0x39 => { // CMP [addr], EAX
+            0x39 => { // CMP r/m32, EAX — sets flags from mem - EAX
                 let modrm = self.mem_get(self.r(8).wrapping_add(1));
                 if (modrm & 0xC7) == 0x05 {
                     let addr = self.load32(self.r(8).wrapping_add(2));
-                    let _val = self.load32(addr).wrapping_sub(self.r(0));
+                    let mem_val = self.load32(addr);
+                    self.set_flags_sub(mem_val, self.r(0));
+                    *self.rw(8) = self.r(8).wrapping_add(6);
+                } else if (modrm & 0xC7) == 0x87 {
+                    let disp = self.load32(self.r(8).wrapping_add(2));
+                    let addr = self.r(5).wrapping_add(disp);
+                    let mem_val = self.load32(addr);
+                    self.set_flags_sub(mem_val, self.r(0));
                     *self.rw(8) = self.r(8).wrapping_add(6);
                 } else {
                     return Some(ExecExitReason::Fault { msg: format!("undecoded 0x39 modrm 0x{:02x} at 0x{:x}", modrm, self.r(8)) });
@@ -323,38 +373,15 @@ impl Cpu {
                         }
                         None
                     }
-                    0x84 => { // JE rel32
+                    0x84 | 0x85 | 0x8C | 0x8D | 0x8E | 0x8F | 0x82 | 0x83 | 0x86 | 0x87 => {
+                        // Jcc rel32 — honor EFLAGS set by CMP (and similar)
                         let rel = self.load32(self.r(8).wrapping_add(2)) as i32;
-                        // JE jumps if ZF=1, but we don't track flags.
-                        // For emitted code, CMP with JE means "jump if equal".
-                        // We approximate by checking if the comparison result was 0.
-                        // Since we don't track flags, we always fall through.
-                        *self.rw(8) = self.r(8).wrapping_add(6);
-                        None
-                    }
-                    0x85 => { // JNE rel32
-                        let rel = self.load32(self.r(8).wrapping_add(2)) as i32;
-                        *self.rw(8) = self.r(8).wrapping_add(6);
-                        None
-                    }
-                    0x8C => { // JL rel32
-                        let rel = self.load32(self.r(8).wrapping_add(2)) as i32;
-                        *self.rw(8) = self.r(8).wrapping_add(6);
-                        None
-                    }
-                    0x8F => { // JG rel32
-                        let rel = self.load32(self.r(8).wrapping_add(2)) as i32;
-                        *self.rw(8) = self.r(8).wrapping_add(6);
-                        None
-                    }
-                    0x8D => { // JGE rel32
-                        let rel = self.load32(self.r(8).wrapping_add(2)) as i32;
-                        *self.rw(8) = self.r(8).wrapping_add(6);
-                        None
-                    }
-                    0x8E => { // JLE rel32
-                        let rel = self.load32(self.r(8).wrapping_add(2)) as i32;
-                        *self.rw(8) = self.r(8).wrapping_add(6);
+                        let next = self.r(8).wrapping_add(6);
+                        if self.jcc_taken(op2) {
+                            *self.rw(8) = (next as i32).wrapping_add(rel) as u32;
+                        } else {
+                            *self.rw(8) = next;
+                        }
                         None
                     }
                     _ => {

@@ -1466,7 +1466,7 @@ fn cmd_test_ddc_branch() -> Result<(), types::IsaError> {
     let sim_ok = sim.exit_reason == simulator::SimExitReason::Ret && slot0 == 5;
     if sim_ok { println!("02_branch DDC: sim    PASS"); }
 
-    // Core ELF + plan9 (fatal)
+    // Core ELF + plan9 + x86 (fatal; x86 now tracks ZF on CMP/JE)
     let arm64_ok = branch_arm64(&tir)?;
     let riscv64_ok = branch_riscv64(&tir)?;
     let riscv32_ok = branch_riscv32(&tir)?;
@@ -1476,20 +1476,17 @@ fn cmd_test_ddc_branch() -> Result<(), types::IsaError> {
     let sparc_ok = branch_sparc(&tir)?;
     let loong_ok = branch_loong(&tir)?;
     let plan9_ok = branch_plan9(&tir)?;
+    let x86_ok = branch_x86(&tir)?;
 
-    let core = [sim_ok, arm64_ok, riscv64_ok, riscv32_ok, mips_ok, ppc_ok, arm32_ok, sparc_ok, loong_ok, plan9_ok];
+    let core = [sim_ok, arm64_ok, riscv64_ok, riscv32_ok, mips_ok, ppc_ok, arm32_ok, sparc_ok, loong_ok, plan9_ok, x86_ok];
     let core_pass = core.iter().filter(|&&x| x).count();
     let core_total = core.len();
     println!("02_branch DDC: {core_pass}/{core_total} CORE paths PASS (slot0=5)");
 
-    // Soft / non-fatal (MCU + x86 until flags solid)
-    let x86_ok = branch_x86(&tir).unwrap_or(false);
-    println!("02_branch DDC: soft x86={} (non-fatal)", if x86_ok { "PASS" } else { "FAIL" });
-
     if core_pass != core_total {
         return Err(types::IsaError::ParseError {
             line: 0,
-            msg: format!("02_branch DDC: only {core_pass}/{core_total} core paths PASS (need sim+arm64+riscv64+riscv32+mips+ppc+arm32+sparc+loong+plan9 slot0=5)"),
+            msg: format!("02_branch DDC: only {core_pass}/{core_total} core paths PASS (need sim+arm64+riscv64+riscv32+mips+ppc+arm32+sparc+loong+plan9+x86 slot0=5)"),
         });
     }
     println!("02_branch DDC: ALL {core_total} CORE PATHS PASS");
@@ -1515,6 +1512,14 @@ fn mem_riscv64(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
     Ok(r.exit_reason == riscv_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 7)
 }
 #[inline(never)]
+fn mem_riscv32(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Riscv32)?;
+    let elf = riscv32_elf_link::link_riscv32_elf(&out.code, &out.data)?;
+    let r = riscv32_interp::run_riscv32_elf(&elf.bytes);
+    println!("03_mem DDC: riscv32 exit={:?} slot0={} steps={}", r.exit_reason, r.state.get(&0).copied().unwrap_or(0), r.steps);
+    Ok(r.exit_reason == riscv32_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 7)
+}
+#[inline(never)]
 fn mem_mips(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
     let out = emit::emit(tir, platform::PlatformKind::Mips)?;
     let elf = mips_elf_link::link_mips_elf(&out.code, &out.data)?;
@@ -1523,11 +1528,51 @@ fn mem_mips(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
     Ok(r.exit_reason == mips_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 7)
 }
 #[inline(never)]
+fn mem_ppc(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::PowerPc64Le)?;
+    let elf = ppc_elf_link::link_ppc_elf(&out.code, &out.data)?;
+    let r = ppc_interp::run_ppc_elf(&elf.bytes);
+    println!("03_mem DDC: ppc    exit={:?} slot0={} steps={}", r.exit_reason, r.state.get(&0).copied().unwrap_or(0), r.steps);
+    Ok(r.exit_reason == ppc_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 7)
+}
+#[inline(never)]
+fn mem_arm32(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Arm32)?;
+    let elf = arm32_elf_link::link_arm32_elf(&out.code, &out.data)?;
+    let r = arm32_interp::run_arm32_elf(&elf.bytes);
+    println!("03_mem DDC: arm32  exit={:?} slot0={} steps={}", r.exit_reason, r.state.get(&0).copied().unwrap_or(0), r.steps);
+    Ok(r.exit_reason == arm32_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 7)
+}
+#[inline(never)]
+fn mem_sparc(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Sparc)?;
+    let elf = sparc_elf_link::link_sparc_elf(&out.code, &out.data)?;
+    let r = sparc_interp::run_sparc_elf(&elf.bytes);
+    println!("03_mem DDC: sparc  exit={:?} slot0={} steps={}", r.exit_reason, r.state.get(&0).copied().unwrap_or(0), r.steps);
+    Ok(r.exit_reason == sparc_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 7)
+}
+#[inline(never)]
+fn mem_loong(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::LoongArch)?;
+    let elf = loongarch_elf_link::link_loongarch_elf(&out.code, &out.data)?;
+    let r = loongarch_interp::run_loongarch_elf(&elf.bytes);
+    println!("03_mem DDC: loong  exit={:?} slot0={} steps={}", r.exit_reason, r.state.get(&0).copied().unwrap_or(0), r.steps);
+    Ok(r.exit_reason == loongarch_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 7)
+}
+#[inline(never)]
 fn mem_plan9(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
     let out = emit::emit(tir, platform::PlatformKind::Plan9)?;
     let r = plan9_interp::run_plan9(&out.code);
     println!("03_mem DDC: plan9  exit={:?} slot0={} steps={}", r.exit_reason, r.state.get(&0).copied().unwrap_or(0), r.steps);
     Ok(r.exit_reason == plan9_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 7)
+}
+#[inline(never)]
+fn mem_x86(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::X86)?;
+    let pe = x86_link::link_x86(&out.code, &out.data)?;
+    let r = x86_interp::run_x86_pe(&pe.bytes);
+    println!("03_mem DDC: x86    exit={:?} slot0={} steps={}", r.exit_reason, r.state.get(&0).copied().unwrap_or(0), r.steps);
+    Ok(r.exit_reason == x86_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 7)
 }
 
 fn cmd_test_ddc_mem() -> Result<(), types::IsaError> {
@@ -1543,22 +1588,27 @@ fn cmd_test_ddc_mem() -> Result<(), types::IsaError> {
 
     let arm64_ok = mem_arm64(&tir)?;
     let riscv64_ok = mem_riscv64(&tir)?;
+    let riscv32_ok = mem_riscv32(&tir)?;
     let mips_ok = mem_mips(&tir)?;
+    let ppc_ok = mem_ppc(&tir)?;
+    let arm32_ok = mem_arm32(&tir)?;
+    let sparc_ok = mem_sparc(&tir)?;
+    let loong_ok = mem_loong(&tir)?;
+    let plan9_ok = mem_plan9(&tir)?;
+    let x86_ok = mem_x86(&tir)?;
 
-    let core = [sim_ok, arm64_ok, riscv64_ok, mips_ok];
+    let core = [sim_ok, arm64_ok, riscv64_ok, riscv32_ok, mips_ok, ppc_ok, arm32_ok, sparc_ok, loong_ok, plan9_ok, x86_ok];
     let core_pass = core.iter().filter(|&&x| x).count();
-    println!("03_mem DDC: {core_pass}/4 CORE paths PASS (slot0=7)");
+    let core_total = core.len();
+    println!("03_mem DDC: {core_pass}/{core_total} CORE paths PASS (slot0=7)");
 
-    let plan9_ok = mem_plan9(&tir).unwrap_or(false);
-    println!("03_mem DDC: soft plan9={} (non-fatal; x64 memcpy_state is pointer-form)", if plan9_ok { "PASS" } else { "FAIL" });
-
-    if core_pass != 4 {
+    if core_pass != core_total {
         return Err(types::IsaError::ParseError {
             line: 0,
-            msg: format!("03_mem DDC: only {core_pass}/4 core paths PASS (need sim+arm64+riscv64+mips slot0=7)"),
+            msg: format!("03_mem DDC: only {core_pass}/{core_total} core paths PASS (need sim+arm64+riscv64+riscv32+mips+ppc+arm32+sparc+loong+plan9+x86 slot0=7)"),
         });
     }
-    println!("03_mem DDC: ALL 4 CORE PATHS PASS");
+    println!("03_mem DDC: ALL {core_total} CORE PATHS PASS");
     Ok(())
 }
 

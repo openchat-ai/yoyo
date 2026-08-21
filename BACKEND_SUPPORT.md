@@ -68,11 +68,11 @@ Run from `yoyo-rust/verifier`: `cargo run -- test ddc`
 |---------|-----------|--------------|------------------|--------|
 | `00_nop_ret.ty` | NOP+RET | sim + 22 arch interps (incl. wasm trap) | — | PASS |
 | `01_arith.ty` | SET+ADDV → slot0=8 | sim + arm64/rv64/rv32/mips/ppc/arm32/sparc/loong/x86/plan9 | MCU+EVM (8051/avr/z80/6502/m68k/msp430/freedos/xtensa/pic/stm8/evm) | CORE fatal |
-| `02_branch.ty` | CMP+JE → slot0=5 | sim + arm64/rv64/rv32/mips/ppc/arm32/sparc/loong/plan9 | x86 (flags), other MCU | CORE fatal |
-| `03_mem.ty` | MEMCPY_STATE → slot0=7 | sim + arm64/rv64/mips | plan9 (x64 pointer-form memcpy) | CORE fatal |
+| `02_branch.ty` | CMP+JE → slot0=5 | sim + arm64/rv64/rv32/mips/ppc/arm32/sparc/loong/plan9/x86 | other MCU | CORE fatal |
+| `03_mem.ty` | MEMCPY_STATE → slot0=7 | sim + arm64/rv64/rv32/mips/ppc/arm32/sparc/loong/plan9/x86 | MCU | CORE fatal |
 | container | PE/ELF container | — | SKIP (no container interp yet) | SKIP |
 
-Known gaps: x86 JE lacks ZF tracking; Plan9/x64 `MEMCPY_STATE` is selfhost pointer-form (not slot copy); LDB absolute-pointer DDC not yet wired.
+Known gaps: default Win/Linux x64 `MEMCPY_STATE` assembler path remains selfhost pointer-form (Plan9/x86 DDC override slot-copy); LDB absolute-pointer DDC not yet wired; container DDC skipped.
 
 ### How to run
 
