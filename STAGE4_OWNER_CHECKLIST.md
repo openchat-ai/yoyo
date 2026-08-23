@@ -1,7 +1,15 @@
 # Stage 4 负责人看板
 
 > **用途**：YOYO 项目负责人每日扫一眼——命令绿不绿、勾没勾。不必懂底层实现。  
-> **基线**：commits 至 `24057e2`（Item 7j/7k：x86 ZF+JE branch DDC；Plan9/x86 slot-form MEMCPY_STATE）。
+> **基线**：commits 至 `62a9f2d`（Item 8c：Stage 4 毕业 A/B/C 全绿）。
+
+## 🎓 Stage 4 已毕业
+
+```text
+[x] A  [x] B  [x] C   →  下一主线：Stage 5（见下方预置任务）
+```
+
+> **关于「打钩」**：本文件用 Markdown 写法 `- [x]` / `- [ ]`。在**源码视图**里看到的是方括号字母；用 **Markdown 预览**（右上角预览图标）才会显示为可勾选符号。`[x]` = 已勾，`[ ]` = 未勾。
 
 ---
 
@@ -37,7 +45,7 @@
 ### 单轨：`继续`
 
 1. MCP 右侧打开本看板
-2. 在 **master**（`F:\yoyo`）按 **A → B → C** 找第一个未勾项（当前下一项：**B**）
+2. 在 **master**（`F:\yoyo`）按 **A → B → C** 找第一个未勾项；**Stage 4 已毕业** → 改做 **Stage 5 预置任务** 第一项
 3. 按「对 AI 说什么」实现 + `cargo run -- test ddc` 验收
 4. 绿了才勾 `[x]`；**不 push**；commit 仅当你明确说要 commit
 
@@ -123,28 +131,14 @@ cargo run -- test backends  # 期望 36/36 PASS
 - [x] **03_mem MEMCPY_STATE DDC** — 11/11 core fatal（含 Plan9/x86 slot-form 覆盖 7k）
 - [x] **Golden** — 739/739 PASS
 - [x] **Backends** — 36/36 编译链接冒烟 PASS
-- [x] **BACKEND_SUPPORT.md DDC matrix** — 已更新至 7i 状态（01–03 core fatal 表）
+- [x] **BACKEND_SUPPORT.md DDC matrix** — 含 8a–8c（container PASS、04_ldb_ptr）
+- [x] **A：Win/Linux 生产路径对齐** — Item 8a；13/13 core fatal（含 win32/linux）
+- [x] **B：Container DDC** — Item 8b；PE+ELF PASS，不再 SKIP
+- [x] **C：LDB 指针内存 DDC** — Item 8c；`04_ldb_ptr` sim/PE/ELF PASS
 
+### Stage 4 毕业三门（已全部完成 ✅）
 
-
-### 待做 — Stage 4 毕业三门（A / B / C）
-
-> 三项全部 `[x]` 后，才可勾选 Stage 5 预置任务。
-
-- [x] **A：Win/Linux 生产路径对齐**  
-  默认 x64（win32/linux）`MEMCPY_STATE` 走 slot-form（与 Plan9/x86 DDC override 一致）；01–03 的 Win/Linux 纳入 **core fatal**（不再靠旁路 override 兜底）。
-
-- [x] **B：Container DDC**  
-  取消 container 行的 SKIP；至少 PE + ELF 上实现 **NOP+RET** 最小 container 解释执行并纳入 `cargo run -- test ddc`。
-
-- [x] **C：LDB 指针内存 DDC**  
-  新增 LDB absolute-pointer 内存 fixture；Win + Linux container 路径 DDC PASS（与 B 联动）。
-
-**毕业判定（三门齐绿）：**
-
-```text
-[x] A  [x] B  [x] C   →  全部打勾 = Stage 4 毕业，可启动 Stage 5
-```
+> A/B/C 均已 `[x]`，本节仅作记录；**新任务请看 Stage 5**。
 
 ---
 
@@ -220,11 +214,11 @@ Stage 4 看板抽检：golden 或 backends 失败（贴完整输出）。
 
 
 
-## Stage 5 预置任务（A/B/C 勾完后才做）
+## Stage 5 预置任务（当前主线）
 
-> 以下全部 `[ ]`——**禁止**在 Stage 4 未毕业前宣称完成。
+> Stage 4 已毕业。以下第一项未勾 = 发 **`继续`** 时 AI 的默认目标。
 
-- [ ] **test all 一键** — `cargo run -- test all`（golden + backends + ddc）CI 级绿
+- [x] **test all 一键** — `cargo run -- test all`（golden + backends + ddc）CI 级绿
 - [ ] **Windows M2→M3 自举** — gen2.exe 编译 input.ky → gen3 不 AV（`0xC0000005`）；见 `AGENTS.md` Windows 链路
 - [ ] **3-chain section-ddc 持续绿** — JS==Rust==Python asm peer 字节 EQUAL（SHA 监控）
 - [ ] **gen1≡gen2 持续绿** — `.ty`==`.tyb` 三端 DDC EQUAL

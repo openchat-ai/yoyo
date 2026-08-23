@@ -881,6 +881,15 @@ fn cmd_info(args: &[String]) -> Result<(), types::IsaError> {
     Ok(())
 }
 
+fn cmd_test_ddc_suite() -> Result<(), types::IsaError> {
+    cmd_test_ddc()?;
+    cmd_test_ddc_arith()?;
+    cmd_test_ddc_branch()?;
+    cmd_test_ddc_mem()?;
+    cmd_test_ddc_container()?;
+    cmd_test_ddc_ldb()
+}
+
 fn cmd_test(args: &[String]) -> Result<(), types::IsaError> {
     if args.len() != 1 {
         usage();
@@ -888,18 +897,11 @@ fn cmd_test(args: &[String]) -> Result<(), types::IsaError> {
     match args[0].as_str() {
         "golden" => cmd_test_golden(),
         "backends" => cmd_test_backends(),
-        "ddc" => {
-            cmd_test_ddc()?;
-            cmd_test_ddc_arith()?;
-            cmd_test_ddc_branch()?;
-            cmd_test_ddc_mem()?;
-            cmd_test_ddc_container()?;
-            cmd_test_ddc_ldb()
-        }
+        "ddc" => cmd_test_ddc_suite(),
         "all" => {
             cmd_test_golden()?;
             cmd_test_backends()?;
-            cmd_test_ddc()
+            cmd_test_ddc_suite()
         }
         _ => usage(),
     }
