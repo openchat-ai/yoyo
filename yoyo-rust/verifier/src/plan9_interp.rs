@@ -240,6 +240,32 @@ impl Cpu {
                     };
                     self.decode_load_state(rex_w, rex_b, modrm)
                 }
+                0x8D => {
+                    // LEA r64, [r15+disp] — fixture init: lea rax,[r15+8]
+                    let Some(modrm) = self.fetch8() else {
+                        return Some(ExecExitReason::Fault { msg: "truncated LEA".into() });
+                    };
+                    let mod_field = modrm >> 6;
+                    let reg_field = (modrm >> 3) & 0x7;
+                    let rm_field = modrm & 0x7;
+                    if reg_field != 0 || rm_field != 7 || !rex_b {
+                        return Some(ExecExitReason::Fault {
+                            msg: format!("undecoded LEA modrm 0x{:02x}", modrm),
+                        });
+                    }
+                    let disp = if mod_field == 0x01 {
+                        self.fetch8()? as u32 as u64
+                    } else if mod_field == 0x02 {
+                        self.fetch_imm32()? as u64
+                    } else {
+                        return Some(ExecExitReason::Fault {
+                            msg: format!("undecoded LEA modrm 0x{:02x}", modrm),
+                        });
+                    };
+                    let addr = self.r15.wrapping_add(disp);
+                    self.rax = addr;
+                    None
+                }
                 0x01 => {
                     // ADD r/m64, r64 (RAX = RAX + RCX)
                     let Some(modrm) = self.fetch8() else {
@@ -276,6 +302,75 @@ impl Cpu {
                     let dst = rm_field | (if rex_b { 8 } else { 0 });
                     self.set_flags_sub(self.reg64(dst), self.reg64(src));
                     None
+                }
+                0x83 => {
+                    // ADD/SUB/... r64, imm8 — LDB offset uses 48 83 C0 imm (ADD rax, imm8)
+                    let Some(modrm) = self.fetch8() else {
+                        return Some(ExecExitReason::Fault { msg: "truncated 83".into() });
+                    };
+                    let mod_field = modrm >> 6;
+                    let reg_field = (modrm >> 3) & 0x7;
+                    let rm_field = modrm & 0x7;
+                    if mod_field != 0x03 || reg_field != 0 || rm_field != 0 {
+                        return Some(ExecExitReason::Fault {
+                            msg: format!("undecoded 83 modrm 0x{:02x}", modrm),
+                        });
+                    }
+                    let Some(imm) = self.fetch8() else {
+                        return Some(ExecExitReason::Fault { msg: "truncated 83 imm8".into() });
+                    };
+                    self.rax = self.rax.wrapping_add(imm as i8 as i64 as u64);
+                    None
+                }
+                0x81 => {
+                    // ADD r64, imm32 — LDB large offset uses 48 81 C0 imm32
+                    let Some(modrm) = self.fetch8() else {
+                        return Some(ExecExitReason::Fault { msg: "truncated 81".into() });
+                    };
+                    let mod_field = modrm >> 6;
+                    let reg_field = (modrm >> 3) & 0x7;
+                    let rm_field = modrm & 0x7;
+                    if mod_field != 0x03 || reg_field != 0 || rm_field != 0 {
+                        return Some(ExecExitReason::Fault {
+                            msg: format!("undecoded 81 modrm 0x{:02x}", modrm),
+                        });
+                    }
+                    let Some(imm) = self.fetch_imm32() else {
+                        return Some(ExecExitReason::Fault { msg: "truncated 81 imm32".into() });
+                    };
+                    self.rax = self.rax.wrapping_add(imm as i32 as i64 as u64);
+                    None
+                }
+                0x0F => {
+                    // Two-byte after REX — movzx for LDB (48 0F B6 00 = movzx rax, byte [rax])
+                    let Some(op3) = self.fetch8() else {
+                        return Some(ExecExitReason::Fault { msg: "truncated after REX 0F".into() });
+                    };
+                    if op3 == 0xB6 {
+                        let Some(modrm) = self.fetch8() else {
+                            return Some(ExecExitReason::Fault { msg: "truncated movzx".into() });
+                        };
+                        let mod_field = modrm >> 6;
+                        let reg_field = (modrm >> 3) & 0x7;
+                        let rm_field = modrm & 0x7;
+                        if reg_field != 0 {
+                            return Some(ExecExitReason::Fault {
+                                msg: format!("movzx to non-rax reg modrm 0x{:02x}", modrm),
+                            });
+                        }
+                        if mod_field == 0 && rm_field == 0 {
+                            self.rax = self.mem_get(self.rax) as u64;
+                        } else {
+                            return Some(ExecExitReason::Fault {
+                                msg: format!("undecoded movzx modrm 0x{:02x}", modrm),
+                            });
+                        }
+                        None
+                    } else {
+                        Some(ExecExitReason::Fault {
+                            msg: format!("undecoded REX 0F {:02x} at 0x{:04x}", op3, self.rip.wrapping_sub(3)),
+                        })
+                    }
                 }
                 _ => Some(ExecExitReason::Fault {
                     msg: format!("undecoded REX instruction at 0x{:04x}: {:02x} {:02x}", self.rip.wrapping_sub(2), rex, op2),

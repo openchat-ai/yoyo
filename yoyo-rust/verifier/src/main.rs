@@ -893,7 +893,8 @@ fn cmd_test(args: &[String]) -> Result<(), types::IsaError> {
             cmd_test_ddc_arith()?;
             cmd_test_ddc_branch()?;
             cmd_test_ddc_mem()?;
-            cmd_test_ddc_container()
+            cmd_test_ddc_container()?;
+            cmd_test_ddc_ldb()
         }
         "all" => {
             cmd_test_golden()?;
@@ -1697,6 +1698,67 @@ fn cmd_test_ddc_container() -> Result<(), types::IsaError> {
         Err(types::IsaError::PlatformError {
             msg: format!(
                 "container DDC: PE {} ELF {}",
+                if pe_ok { "PASS" } else { "FAIL" },
+                if elf_ok { "PASS" } else { "FAIL" },
+            ),
+        })
+    }
+}
+
+// ── 04_ldb_ptr DDC (LDB pointer-form: state[ss] as address, Win+Linux container) ──
+
+#[inline(never)]
+fn ldb_container_pe(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Win32)?;
+    let pe = pe_link::link_pe(&out.code, &out.data)?;
+    let r = plan9_interp::run_x64_pe(&pe.bytes);
+    println!(
+        "04_ldb DDC: PE    exit={:?} slot0={} steps={}",
+        r.exit_reason,
+        r.state.get(&0).copied().unwrap_or(0),
+        r.steps
+    );
+    Ok(r.exit_reason == plan9_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 7)
+}
+
+#[inline(never)]
+fn ldb_container_elf(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Linux)?;
+    let elf = elf_link::link_elf(&out.code, &out.data)?;
+    let r = plan9_interp::run_x64_elf(&elf.bytes);
+    println!(
+        "04_ldb DDC: ELF   exit={:?} slot0={} steps={}",
+        r.exit_reason,
+        r.state.get(&0).copied().unwrap_or(0),
+        r.steps
+    );
+    Ok(r.exit_reason == plan9_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 7)
+}
+
+fn cmd_test_ddc_ldb() -> Result<(), types::IsaError> {
+    let fixture = find_fixture("04_ldb_ptr.ty")?;
+    let src = fs::read_to_string(&fixture).map_err(|e| types::IsaError::IoError { msg: e.to_string() })?;
+    let tir = executor::compile_ty_source_to_tir(&src)?;
+
+    let sim = simulator::simulate(&tir)?;
+    let slot0 = sim.state.get(&0).copied().unwrap_or(0);
+    println!("04_ldb DDC: sim    exit={:?} slot0={} steps={}", sim.exit_reason, slot0, sim.steps);
+    let sim_ok = sim.exit_reason == simulator::SimExitReason::Ret && slot0 == 7;
+    if sim_ok {
+        println!("04_ldb DDC: sim    PASS");
+    }
+
+    let pe_ok = ldb_container_pe(&tir)?;
+    let elf_ok = ldb_container_elf(&tir)?;
+
+    if sim_ok && pe_ok && elf_ok {
+        println!("04_ldb DDC: sim PASS, PE PASS, ELF PASS — ALL PASS");
+        Ok(())
+    } else {
+        Err(types::IsaError::PlatformError {
+            msg: format!(
+                "04_ldb DDC: sim {} PE {} ELF {}",
+                if sim_ok { "PASS" } else { "FAIL" },
                 if pe_ok { "PASS" } else { "FAIL" },
                 if elf_ok { "PASS" } else { "FAIL" },
             ),
