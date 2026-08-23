@@ -137,13 +137,13 @@ cargo run -- test backends  # 期望 36/36 PASS
 - [x] **B：Container DDC**  
   取消 container 行的 SKIP；至少 PE + ELF 上实现 **NOP+RET** 最小 container 解释执行并纳入 `cargo run -- test ddc`。
 
-- [ ] **C：LDB 指针内存 DDC**  
+- [x] **C：LDB 指针内存 DDC**  
   新增 LDB absolute-pointer 内存 fixture；Win + Linux container 路径 DDC PASS（与 B 联动）。
 
 **毕业判定（三门齐绿）：**
 
 ```text
-[x] A  [x] B  [ ] C   →  全部打勾 = Stage 4 毕业，可启动 Stage 5
+[x] A  [x] B  [x] C   →  全部打勾 = Stage 4 毕业，可启动 Stage 5
 ```
 
 ---
