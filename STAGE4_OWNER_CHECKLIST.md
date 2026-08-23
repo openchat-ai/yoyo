@@ -1,0 +1,236 @@
+# Stage 4 负责人看板
+
+> **用途**：YOYO 项目负责人每日扫一眼——命令绿不绿、勾没勾。不必懂底层实现。  
+> **基线**：commits 至 `24057e2`（Item 7j/7k：x86 ZF+JE branch DDC；Plan9/x86 slot-form MEMCPY_STATE）。
+
+---
+
+## 如何打开看板
+
+
+| 方式           | 操作                                         |
+| ------------ | ------------------------------------------ |
+| **完整路径**     | `F:\yoyo\STAGE4_OWNER_CHECKLIST.md`        |
+| **Cursor 内** | `Ctrl+P` → 输入 `STAGE4_OWNER` → 回车          |
+| **资源管理器**    | 打开 `F:\yoyo\`，双击本文件                        |
+| **命令行打开**    | `cursor F:\yoyo\STAGE4_OWNER_CHECKLIST.md` |
+
+
+相关矩阵文档：`[BACKEND_SUPPORT.md](./BACKEND_SUPPORT.md)`（DDC 表 + 已知缺口）。
+
+---
+
+## 零指令自动执行
+
+> **你不必每次说「做 B」** — 发一个字即可，AI 自己读看板、挑下一项、干完、勾框。
+
+### 怎么触发
+
+| 方式 | 操作 |
+| ---- | ---- |
+| **最简** | 在 Agent 里发：`继续` 或 `开工` 或 `auto`（甚至空发也行） |
+| **右侧看板** | Agent 每次「继续」时自动在 **Glass 右侧面板**打开本文件（MCP `open_resource`） |
+| **默认** | 打开本仓库 Agent 即加载规则 `.cursor/rules/stage4-auto-owner.mdc`，任意消息都会先读本看板 |
+| **定时（可选）** | Agent 里 `/loop 1d 继续 Stage4 自动负责人` — 每天自动跑一轮（见 Cursor loop 技能） |
+
+### AI 会自动做什么
+
+1. MCP 右侧打开 `STAGE4_OWNER_CHECKLIST.md`（`file:///F:/yoyo/STAGE4_OWNER_CHECKLIST.md`）
+2. 按 **A → B → C** 找第一个未勾项（当前下一项：**B**）
+3. 按本文件「对 AI 说什么」里对应话术实现 + 跑 `cargo run -- test ddc` 验收
+4. 绿了才把 `[ ]` 改成 `[x]`，并简短汇报：命令、绿/红、勾了哪一格
+5. **不 push**；commit 仅当你明确说要 commit
+
+### 你仍只需盯两个信号
+
+- 终端：`test ddc` 退出码 `0`、无 `FAIL`/`FATAL`
+- 看板：待做区 checkbox 有没有少勾
+
+---
+
+## 每日例行（固定）
+
+在 PowerShell 中执行：
+
+```powershell
+cd F:\yoyo\yoyo-rust\verifier
+cargo run -- test ddc
+```
+
+### 「绿」是什么意思
+
+
+| 输出信号                          | 含义             | 你要做什么                                       |
+| ----------------------------- | -------------- | ------------------------------------------- |
+| 退出码 `0`                       | DDC 套件全过       | 不用动；看板「已完成」区保持 `[x]`                        |
+| 含 `PASS`、无 `FAIL` / `FATAL`   | 各 fixture 语义一致 | 同上                                          |
+| 退出码非 `0` 或出现 `FAIL` / `FATAL` | 某条 DDC 路径断了    | **不要自己改代码** → 复制下方「对 AI 说什么」话术，把完整终端输出贴给 AI |
+| 含 `SKIP`（仅 container）         | 预期内跳过项         | Stage 4 毕业前 container 仍是 SKIP；不算回归          |
+
+
+**扩展抽检（每周一次即可，非每日必跑）：**
+
+```powershell
+cd F:\yoyo\yoyo-rust\verifier
+cargo run -- test golden    # 期望 739/739 PASS
+cargo run -- test backends  # 期望 36/36 PASS
+```
+
+---
+
+
+
+## Stage 4 毕业看板
+
+
+
+### 已完成 ✅
+
+- [x] **00_nop_ret DDC** — 23 paths PASS（sim + 22 arch interps，含 wasm trap）
+- [x] **01_arith DDC** — 11/11 core fatal + MCU soft（SET+ADDV → slot0=8；Item 7i 起 core fatal）
+- [x] **02_branch DDC** — 11/11 core fatal（CMP+JE → slot0=5；含 x86 ZF 修复 7j）
+- [x] **03_mem MEMCPY_STATE DDC** — 11/11 core fatal（含 Plan9/x86 slot-form 覆盖 7k）
+- [x] **Golden** — 739/739 PASS
+- [x] **Backends** — 36/36 编译链接冒烟 PASS
+- [x] **BACKEND_SUPPORT.md DDC matrix** — 已更新至 7i 状态（01–03 core fatal 表）
+
+
+
+### 待做 — Stage 4 毕业三门（A / B / C）
+
+> 三项全部 `[x]` 后，才可勾选 Stage 5 预置任务。
+
+- [x] **A：Win/Linux 生产路径对齐**  
+  默认 x64（win32/linux）`MEMCPY_STATE` 走 slot-form（与 Plan9/x86 DDC override 一致）；01–03 的 Win/Linux 纳入 **core fatal**（不再靠旁路 override 兜底）。
+
+- [ ] **B：Container DDC**  
+  取消 container 行的 SKIP；至少 PE + ELF 上实现 **NOP+RET** 最小 container 解释执行并纳入 `cargo run -- test ddc`。
+
+- [ ] **C：LDB 指针内存 DDC**  
+  新增 LDB absolute-pointer 内存 fixture；Win + Linux container 路径 DDC PASS（与 B 联动）。
+
+**毕业判定（三门齐绿）：**
+
+```text
+[x] A  [ ] B  [ ] C   →  全部打勾 = Stage 4 毕业，可启动 Stage 5
+```
+
+---
+
+
+
+## 对 AI 说什么（复制粘贴话术）
+
+
+
+### 每日 DDC 红了
+
+```text
+F:\yoyo STAGE4 负责人看板：cargo run -- test ddc 失败。
+请根据完整终端输出定位回归，修到 00–03 全 PASS；container SKIP 可暂保留。
+约束：最小 diff；修完在 BACKEND_SUPPORT.md 更新 DDC 表若语义变；不要 push。
+```
+
+
+
+### 任务 A — Win/Linux MEMCPY_STATE 生产路径
+
+```text
+Stage 4 毕业项 A：默认 win32/linux x64 的 MEMCPY_STATE 改为 slot-form emit（对齐 Plan9/x86 DDC override），
+01_arith / 02_branch / 03_mem 的 Win+Linux 纳入 core fatal。
+验收：cd F:\yoyo\yoyo-rust\verifier && cargo run -- test ddc 退出码 0；
+BACKEND_SUPPORT.md Known gaps 删掉「default Win/Linux pointer-form」一句。
+```
+
+
+
+### 任务 B — Container DDC
+
+```text
+Stage 4 毕业项 B：实现 container DDC（取消 SKIP）。
+最小范围：PE + ELF 上对 NOP+RET fixture 做 container 解释执行，纳入 test ddc。
+验收：ddc 输出 container 行 PASS；BACKEND_SUPPORT.md 表 Status 从 SKIP 改 PASS。
+```
+
+
+
+### 任务 C — LDB 指针内存 + container
+
+```text
+Stage 4 毕业项 C：新增 LDB absolute-pointer 内存 DDC fixture；
+Win + Linux container 路径 PASS（依赖 B 的 container 基础设施）。
+验收：fixture 进 test ddc；03_mem 或独立 04_ldb 文档化；三门 A/B/C 可在同一 PR 但看板分项勾选。
+```
+
+
+
+### Golden / Backends 回归
+
+```text
+Stage 4 看板抽检：golden 或 backends 失败（贴完整输出）。
+请修到 golden 739/739、backends 36/36，且不破坏 ddc 全绿。
+```
+
+---
+
+
+
+## Stage 5 预置任务（A/B/C 勾完后才做）
+
+> 以下全部 `[ ]`——**禁止**在 Stage 4 未毕业前宣称完成。
+
+- [ ] **test all 一键** — `cargo run -- test all`（golden + backends + ddc）CI 级绿
+- [ ] **Windows M2→M3 自举** — gen2.exe 编译 input.ky → gen3 不 AV（`0xC0000005`）；见 `AGENTS.md` Windows 链路
+- [ ] **3-chain section-ddc 持续绿** — JS==Rust==Python asm peer 字节 EQUAL（SHA 监控）
+- [ ] **gen1≡gen2 持续绿** — `.ty`==`.tyb` 三端 DDC EQUAL
+- [ ] **全架构 DDC 扩展** — MCU soft → 按需升格 fatal；RISC-V/LoongArch 等 ⏳ 后端补 interpreter
+- [ ] **selfhost startup 完整实现** — Item 17 HOLD：M1.exe 运行时读 `.tyb` → 复制 handler → 写 PE
+- [ ] **Freeze + Lock 复验** — 走 Lock Protocol 8-step；pin 与 `yoyo/tests/yoyo.ty.lock` 一致
+- [ ] **文档收口** — `PROMPT-v3.md` Week 轴与看板状态同步；删掉过时 Known gaps
+
+---
+
+
+
+## 任务从哪来（四层来源）
+
+```text
+                    ┌─────────────────────┐
+                    │  ① 本看板 STAGE4    │  ← 负责人每日唯一入口
+                    │     OWNER_CHECKLIST │
+                    └──────────┬──────────┘
+                               │
+         ┌─────────────────────┼─────────────────────┐
+         ▼                     ▼                     ▼
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│ ② 每日命令输出   │  │ ③ BACKEND_      │  │ ④ PROMPT-v3     │
+│ test ddc/golden │  │ SUPPORT.md      │  │ Week 轴 +       │
+│ 绿/红即任务     │  │ DDC matrix 缺口 │  │ git log 7a–7k   │
+└─────────────────┘  └─────────────────┘  └─────────────────┘
+```
+
+
+| 层   | 来源                       | 谁维护          | 你怎么用                |
+| --- | ------------------------ | ------------ | ------------------- |
+| ①   | 本文件                      | AI 按毕业进度更新勾选 | 每天打开，看 `[ ]`        |
+| ②   | `cargo run -- test *`    | 代码真相         | 红了就贴输出给 AI          |
+| ③   | `BACKEND_SUPPORT.md`     | 与 ② 同步       | 查「Known gaps」= 待办灵感 |
+| ④   | `PROMPT-v3.md` / commits | 规格与历史        | Stage 5 大项对齐 Week 轴 |
+
+
+---
+
+
+
+## 负责人原则
+
+1. **不懂底层 OK** — 你不需要读 `emit.rs`、不需要懂 REX prefix。
+2. **只看两个信号** — 终端退出码 / 输出里有没有 `FAIL`；看板 checkbox 有没有漏勾。
+3. **红了不自己动手** — 复制「对 AI 说什么」+ 完整日志；让 AI 修完再跑同一条命令验收。
+4. **毕业有顺序** — 先 A/B/C（Stage 4），再 Stage 5 列表；不要跳关。
+5. **SKIP 要知情** — 目前仅 **container** 允许 SKIP；其它 fixture 出现 SKIP 视为未完成或回归。
+6. **不替 AI push** — 本地绿了即可；发布由你另行决定。
+
+---
+
+*最后更新：2026-08-23 · 基线 commit* `24057e2`

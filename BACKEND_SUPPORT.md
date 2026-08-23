@@ -2,6 +2,8 @@
 
 ## Overview
 
+**负责人看板**：[`STAGE4_OWNER_CHECKLIST.md`](../STAGE4_OWNER_CHECKLIST.md)（每日 `cargo run -- test ddc` + Stage 4 毕业勾选）。
+
 The YOYO verifier can cross-compile `.ty` programs to **36 target platforms** across 5 categories:
 8-bit MCUs, 32-bit/64-bit CPUs, GPUs, blockchain VMs, and quantum computing.
 
@@ -67,12 +69,12 @@ Run from `yoyo-rust/verifier`: `cargo run -- test ddc`
 | Fixture | Semantics | Fatal (core) | Soft / non-fatal | Status |
 |---------|-----------|--------------|------------------|--------|
 | `00_nop_ret.ty` | NOP+RET | sim + 22 arch interps (incl. wasm trap) | — | PASS |
-| `01_arith.ty` | SET+ADDV → slot0=8 | sim + arm64/rv64/rv32/mips/ppc/arm32/sparc/loong/x86/plan9 | MCU+EVM (8051/avr/z80/6502/m68k/msp430/freedos/xtensa/pic/stm8/evm) | CORE fatal |
-| `02_branch.ty` | CMP+JE → slot0=5 | sim + arm64/rv64/rv32/mips/ppc/arm32/sparc/loong/plan9/x86 | other MCU | CORE fatal |
-| `03_mem.ty` | MEMCPY_STATE → slot0=7 | sim + arm64/rv64/rv32/mips/ppc/arm32/sparc/loong/plan9/x86 | MCU | CORE fatal |
+| `01_arith.ty` | SET+ADDV → slot0=8 | sim + arm64/rv64/rv32/mips/ppc/arm32/sparc/loong/x86/plan9/win32/linux | MCU+EVM (8051/avr/z80/6502/m68k/msp430/freedos/xtensa/pic/stm8/evm) | CORE fatal |
+| `02_branch.ty` | CMP+JE → slot0=5 | sim + arm64/rv64/rv32/mips/ppc/arm32/sparc/loong/plan9/x86/win32/linux | other MCU | CORE fatal |
+| `03_mem.ty` | MEMCPY_STATE → slot0=7 | sim + arm64/rv64/rv32/mips/ppc/arm32/sparc/loong/plan9/x86/win32/linux | MCU | CORE fatal |
 | container | PE/ELF container | — | SKIP (no container interp yet) | SKIP |
 
-Known gaps: default Win/Linux x64 `MEMCPY_STATE` assembler path remains selfhost pointer-form (Plan9/x86 DDC override slot-copy); LDB absolute-pointer DDC not yet wired; container DDC skipped.
+Known gaps: LDB absolute-pointer DDC not yet wired; container DDC skipped.
 
 ### How to run
 

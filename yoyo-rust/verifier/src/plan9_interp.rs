@@ -348,6 +348,141 @@ impl Cpu {
     }
 }
 
+/// Run x64 code at `entry` with state base `r15` in a pre-built memory image.
+pub fn run_x64_at(mut mem: Vec<u8>, entry: u64, r15: u64) -> ExecResult {
+    let need = (entry as usize).saturating_add(0x10000).max(r15 as usize + 0x40000);
+    if mem.len() < need {
+        mem.resize(need, 0);
+    }
+    let mut cpu = Cpu::new(mem);
+    cpu.rip = entry;
+    cpu.r15 = r15;
+    let exit_reason = cpu.run();
+    ExecResult { exit_reason, steps: cpu.steps, state: cpu.state }
+}
+
+/// Startup stub size in pe_link / elf_link images (lea r15 + jmp + nop).
+const LINKER_STARTUP_LEN: u64 = 13;
+
+fn load_pe_for_interp(pe: &[u8]) -> Result<(Vec<u8>, u64, u64), String> {
+    if pe.len() < 0x40 || &pe[0..2] != b"MZ" {
+        return Err("invalid PE: missing MZ".into());
+    }
+    let lfanew = u32::from_le_bytes(pe[0x3C..0x40].try_into().map_err(|_| "bad e_lfanew")?) as usize;
+    if lfanew + 0xF8 > pe.len() || &pe[lfanew..lfanew + 4] != b"PE\0\0" {
+        return Err("invalid PE signature".into());
+    }
+    let coff = lfanew + 4;
+    let num_sections = u16::from_le_bytes(pe[coff + 2..coff + 4].try_into().unwrap()) as usize;
+    let size_opt = u16::from_le_bytes(pe[coff + 16..coff + 18].try_into().unwrap()) as usize;
+    let opt = coff + 20;
+    let entry_rva = u32::from_le_bytes(pe[opt + 16..opt + 20].try_into().unwrap()) as u64;
+    let image_base = u64::from_le_bytes(pe[opt + 24..opt + 32].try_into().unwrap());
+    let size_of_image = u32::from_le_bytes(pe[opt + 56..opt + 60].try_into().unwrap()) as usize;
+    let section_table = opt + size_opt;
+
+    let mut mem = vec![0u8; image_base as usize + size_of_image];
+    let mut data_rva = 0u64;
+    for i in 0..num_sections {
+        let sec = section_table + i * 40;
+        if sec + 40 > pe.len() {
+            break;
+        }
+        let name = &pe[sec..sec + 8];
+        let virt_size = u32::from_le_bytes(pe[sec + 8..sec + 12].try_into().unwrap()) as usize;
+        let virt_addr = u32::from_le_bytes(pe[sec + 12..sec + 16].try_into().unwrap()) as u64;
+        let raw_size = u32::from_le_bytes(pe[sec + 16..sec + 20].try_into().unwrap()) as usize;
+        let raw_ptr = u32::from_le_bytes(pe[sec + 20..sec + 24].try_into().unwrap()) as usize;
+        let copy_n = raw_size.min(virt_size).min(pe.len().saturating_sub(raw_ptr));
+        if copy_n > 0 && raw_ptr < pe.len() {
+            let dst = image_base + virt_addr;
+            let dst_off = dst as usize;
+            let end = dst_off + copy_n;
+            if end <= mem.len() {
+                mem[dst_off..end].copy_from_slice(&pe[raw_ptr..raw_ptr + copy_n]);
+            }
+        }
+        if name.starts_with(b".data") {
+            data_rva = virt_addr;
+        }
+    }
+    if data_rva == 0 {
+        return Err("PE: no .data section".into());
+    }
+    let entry = image_base + entry_rva + LINKER_STARTUP_LEN;
+    let r15 = image_base + data_rva;
+    Ok((mem, entry, r15))
+}
+
+fn load_elf_for_interp(elf: &[u8]) -> Result<(Vec<u8>, u64, u64), String> {
+    if elf.len() < 64 || &elf[0..4] != b"\x7fELF" || elf[4] != 2 {
+        return Err("invalid ELF64".into());
+    }
+    let e_phoff = u64::from_le_bytes(elf[32..40].try_into().map_err(|_| "bad e_phoff")?);
+    let e_phnum = u16::from_le_bytes(elf[56..58].try_into().unwrap()) as usize;
+    let mut mem = vec![0u8; 0x500000];
+    let mut data_va = 0u64;
+    let mut text_va = 0u64;
+    for i in 0..e_phnum {
+        let ph = e_phoff as usize + i * 56;
+        if ph + 56 > elf.len() {
+            break;
+        }
+        let p_type = u32::from_le_bytes(elf[ph..ph + 4].try_into().unwrap());
+        if p_type != 1 {
+            continue; // PT_LOAD
+        }
+        let p_offset = u64::from_le_bytes(elf[ph + 8..ph + 16].try_into().unwrap()) as usize;
+        let p_vaddr = u64::from_le_bytes(elf[ph + 16..ph + 24].try_into().unwrap());
+        let p_filesz = u64::from_le_bytes(elf[ph + 32..ph + 40].try_into().unwrap()) as usize;
+        let copy_n = p_filesz.min(elf.len().saturating_sub(p_offset));
+        if copy_n > 0 {
+            let dst = p_vaddr as usize;
+            let end = dst + copy_n;
+            if end > mem.len() {
+                mem.resize(end, 0);
+            }
+            mem[dst..end].copy_from_slice(&elf[p_offset..p_offset + copy_n]);
+        }
+        if text_va == 0 || p_vaddr < text_va {
+            text_va = p_vaddr;
+        }
+        if p_vaddr > text_va {
+            data_va = p_vaddr;
+        }
+    }
+    if data_va == 0 {
+        return Err("ELF: no data PT_LOAD".into());
+    }
+    let e_entry = u64::from_le_bytes(elf[24..32].try_into().unwrap());
+    let entry = e_entry + LINKER_STARTUP_LEN;
+    Ok((mem, entry, data_va))
+}
+
+/// Run a PE32+ x64 image produced by pe_link (Win32 production path).
+pub fn run_x64_pe(pe_bytes: &[u8]) -> ExecResult {
+    match load_pe_for_interp(pe_bytes) {
+        Ok((mem, entry, r15)) => run_x64_at(mem, entry, r15),
+        Err(msg) => ExecResult {
+            exit_reason: ExecExitReason::Fault { msg },
+            steps: 0,
+            state: HashMap::new(),
+        },
+    }
+}
+
+/// Run an ELF64 x64 image produced by elf_link (Linux production path).
+pub fn run_x64_elf(elf_bytes: &[u8]) -> ExecResult {
+    match load_elf_for_interp(elf_bytes) {
+        Ok((mem, entry, r15)) => run_x64_at(mem, entry, r15),
+        Err(msg) => ExecResult {
+            exit_reason: ExecExitReason::Fault { msg },
+            steps: 0,
+            state: HashMap::new(),
+        },
+    }
+}
+
 /// Run a flat Plan9 (x64) binary. Bytes loaded at 0x0000, RIP=0.
 /// R15 is set to 0x20000 (beyond code+stack) as the state base, matching the
 /// x64 assembler's R15-relative state addressing.
@@ -355,10 +490,5 @@ pub fn run_plan9(bytes: &[u8]) -> ExecResult {
     let mut mem = vec![0u8; 0x40000];
     let n = bytes.len().min(mem.len());
     mem[..n].copy_from_slice(&bytes[..n]);
-
-    let mut cpu = Cpu::new(mem);
-    cpu.r15 = 0x20000;
-    let exit_reason = cpu.run();
-
-    ExecResult { exit_reason, steps: cpu.steps, state: cpu.state }
+    run_x64_at(mem, 0, 0x20000)
 }

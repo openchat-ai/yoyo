@@ -1316,6 +1316,18 @@ fn arith_plan9(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
     let out = emit::emit(tir, platform::PlatformKind::Plan9)?;
     Ok(arith_check!("plan9", plan9_interp::run_plan9(&out.code), 8))
 }
+#[inline(never)]
+fn arith_win32(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Win32)?;
+    let pe = pe_link::link_pe(&out.code, &out.data)?;
+    Ok(arith_check!("win32", plan9_interp::run_x64_pe(&pe.bytes), 8))
+}
+#[inline(never)]
+fn arith_linux(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Linux)?;
+    let elf = elf_link::link_elf(&out.code, &out.data)?;
+    Ok(arith_check!("linux", plan9_interp::run_x64_elf(&elf.bytes), 8))
+}
 
 fn cmd_test_ddc_arith() -> Result<(), types::IsaError> {
     let fixture = find_fixture("01_arith.ty")?;
@@ -1348,9 +1360,11 @@ fn cmd_test_ddc_arith() -> Result<(), types::IsaError> {
     let stm8_ok = arith_stm8(&tir)?;
     let evm_ok = arith_evm(&tir)?;
     let plan9_ok = arith_plan9(&tir)?;
+    let win32_ok = arith_win32(&tir)?;
+    let linux_ok = arith_linux(&tir)?;
 
-    // Core ELF + plan9 + x86: fatal
-    let core = [sim_ok, arm64_ok, riscv64_ok, riscv32_ok, mips_ok, ppc_ok, arm32_ok, sparc_ok, loong_ok, x86_ok, plan9_ok];
+    // Core ELF + plan9 + x86 + win32/linux production x64: fatal
+    let core = [sim_ok, arm64_ok, riscv64_ok, riscv32_ok, mips_ok, ppc_ok, arm32_ok, sparc_ok, loong_ok, x86_ok, plan9_ok, win32_ok, linux_ok];
     let core_pass = core.iter().filter(|&&x| x).count();
     let core_total = core.len();
 
@@ -1366,7 +1380,7 @@ fn cmd_test_ddc_arith() -> Result<(), types::IsaError> {
     if core_pass != core_total {
         return Err(types::IsaError::ParseError {
             line: 0,
-            msg: format!("01_arith DDC: only {core_pass}/{core_total} core paths PASS (need sim+ELF majors+x86+plan9 slot0=8)"),
+            msg: format!("01_arith DDC: only {core_pass}/{core_total} core paths PASS (need sim+ELF majors+x86+plan9+win32+linux slot0=8)"),
         });
     }
     println!("01_arith DDC: ALL {core_total} CORE PATHS PASS (fatal)");
@@ -1454,6 +1468,22 @@ fn branch_x86(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
     println!("02_branch DDC: x86    exit={:?} slot0={} steps={}", r.exit_reason, r.state.get(&0).copied().unwrap_or(0), r.steps);
     Ok(r.exit_reason == x86_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 5)
 }
+#[inline(never)]
+fn branch_win32(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Win32)?;
+    let pe = pe_link::link_pe(&out.code, &out.data)?;
+    let r = plan9_interp::run_x64_pe(&pe.bytes);
+    println!("02_branch DDC: win32  exit={:?} slot0={} steps={}", r.exit_reason, r.state.get(&0).copied().unwrap_or(0), r.steps);
+    Ok(r.exit_reason == plan9_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 5)
+}
+#[inline(never)]
+fn branch_linux(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Linux)?;
+    let elf = elf_link::link_elf(&out.code, &out.data)?;
+    let r = plan9_interp::run_x64_elf(&elf.bytes);
+    println!("02_branch DDC: linux  exit={:?} slot0={} steps={}", r.exit_reason, r.state.get(&0).copied().unwrap_or(0), r.steps);
+    Ok(r.exit_reason == plan9_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 5)
+}
 
 fn cmd_test_ddc_branch() -> Result<(), types::IsaError> {
     let fixture = find_fixture("02_branch.ty")?;
@@ -1477,8 +1507,10 @@ fn cmd_test_ddc_branch() -> Result<(), types::IsaError> {
     let loong_ok = branch_loong(&tir)?;
     let plan9_ok = branch_plan9(&tir)?;
     let x86_ok = branch_x86(&tir)?;
+    let win32_ok = branch_win32(&tir)?;
+    let linux_ok = branch_linux(&tir)?;
 
-    let core = [sim_ok, arm64_ok, riscv64_ok, riscv32_ok, mips_ok, ppc_ok, arm32_ok, sparc_ok, loong_ok, plan9_ok, x86_ok];
+    let core = [sim_ok, arm64_ok, riscv64_ok, riscv32_ok, mips_ok, ppc_ok, arm32_ok, sparc_ok, loong_ok, plan9_ok, x86_ok, win32_ok, linux_ok];
     let core_pass = core.iter().filter(|&&x| x).count();
     let core_total = core.len();
     println!("02_branch DDC: {core_pass}/{core_total} CORE paths PASS (slot0=5)");
@@ -1486,7 +1518,7 @@ fn cmd_test_ddc_branch() -> Result<(), types::IsaError> {
     if core_pass != core_total {
         return Err(types::IsaError::ParseError {
             line: 0,
-            msg: format!("02_branch DDC: only {core_pass}/{core_total} core paths PASS (need sim+arm64+riscv64+riscv32+mips+ppc+arm32+sparc+loong+plan9+x86 slot0=5)"),
+            msg: format!("02_branch DDC: only {core_pass}/{core_total} core paths PASS (need sim+arm64+riscv64+riscv32+mips+ppc+arm32+sparc+loong+plan9+x86+win32+linux slot0=5)"),
         });
     }
     println!("02_branch DDC: ALL {core_total} CORE PATHS PASS");
@@ -1574,6 +1606,22 @@ fn mem_x86(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
     println!("03_mem DDC: x86    exit={:?} slot0={} steps={}", r.exit_reason, r.state.get(&0).copied().unwrap_or(0), r.steps);
     Ok(r.exit_reason == x86_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 7)
 }
+#[inline(never)]
+fn mem_win32(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Win32)?;
+    let pe = pe_link::link_pe(&out.code, &out.data)?;
+    let r = plan9_interp::run_x64_pe(&pe.bytes);
+    println!("03_mem DDC: win32  exit={:?} slot0={} steps={}", r.exit_reason, r.state.get(&0).copied().unwrap_or(0), r.steps);
+    Ok(r.exit_reason == plan9_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 7)
+}
+#[inline(never)]
+fn mem_linux(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Linux)?;
+    let elf = elf_link::link_elf(&out.code, &out.data)?;
+    let r = plan9_interp::run_x64_elf(&elf.bytes);
+    println!("03_mem DDC: linux  exit={:?} slot0={} steps={}", r.exit_reason, r.state.get(&0).copied().unwrap_or(0), r.steps);
+    Ok(r.exit_reason == plan9_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 7)
+}
 
 fn cmd_test_ddc_mem() -> Result<(), types::IsaError> {
     let fixture = find_fixture("03_mem.ty")?;
@@ -1596,8 +1644,10 @@ fn cmd_test_ddc_mem() -> Result<(), types::IsaError> {
     let loong_ok = mem_loong(&tir)?;
     let plan9_ok = mem_plan9(&tir)?;
     let x86_ok = mem_x86(&tir)?;
+    let win32_ok = mem_win32(&tir)?;
+    let linux_ok = mem_linux(&tir)?;
 
-    let core = [sim_ok, arm64_ok, riscv64_ok, riscv32_ok, mips_ok, ppc_ok, arm32_ok, sparc_ok, loong_ok, plan9_ok, x86_ok];
+    let core = [sim_ok, arm64_ok, riscv64_ok, riscv32_ok, mips_ok, ppc_ok, arm32_ok, sparc_ok, loong_ok, plan9_ok, x86_ok, win32_ok, linux_ok];
     let core_pass = core.iter().filter(|&&x| x).count();
     let core_total = core.len();
     println!("03_mem DDC: {core_pass}/{core_total} CORE paths PASS (slot0=7)");
@@ -1605,7 +1655,7 @@ fn cmd_test_ddc_mem() -> Result<(), types::IsaError> {
     if core_pass != core_total {
         return Err(types::IsaError::ParseError {
             line: 0,
-            msg: format!("03_mem DDC: only {core_pass}/{core_total} core paths PASS (need sim+arm64+riscv64+riscv32+mips+ppc+arm32+sparc+loong+plan9+x86 slot0=7)"),
+            msg: format!("03_mem DDC: only {core_pass}/{core_total} core paths PASS (need sim+arm64+riscv64+riscv32+mips+ppc+arm32+sparc+loong+plan9+x86+win32+linux slot0=7)"),
         });
     }
     println!("03_mem DDC: ALL {core_total} CORE PATHS PASS");

@@ -640,6 +640,20 @@ impl PlatformBackend for Win32Platform {
         out.push(0xC3);
         Ok(out)
     }
+    /// Slot-to-slot MEMCPY_STATE (ISA/simulator semantics), not pointer-form rep movsb.
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        use crate::assembler::{load_state, store_state};
+        use crate::types::Reg;
+        if n > 64 {
+            return Err(IsaError::PlatformError { msg: "Win32 memcpy_state: n > 64".into() });
+        }
+        let mut out = Vec::new();
+        for i in 0..n {
+            out.extend(load_state(src + i, Reg::Rax)?);
+            out.extend(store_state(dst + i, Reg::Rax)?);
+        }
+        Ok(out)
+    }
     fn startup_blob(&self) -> &[u8] {
         &self.startup
     }
@@ -691,6 +705,20 @@ impl PlatformBackend for LinuxPlatform {
             0xBF, code, 0, 0, 0,
             0x0F, 0x05,
         ])
+    }
+    /// Slot-to-slot MEMCPY_STATE (ISA/simulator semantics), not pointer-form rep movsb.
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        use crate::assembler::{load_state, store_state};
+        use crate::types::Reg;
+        if n > 64 {
+            return Err(IsaError::PlatformError { msg: "Linux memcpy_state: n > 64".into() });
+        }
+        let mut out = Vec::new();
+        for i in 0..n {
+            out.extend(load_state(src + i, Reg::Rax)?);
+            out.extend(store_state(dst + i, Reg::Rax)?);
+        }
+        Ok(out)
     }
     fn startup_blob(&self) -> &[u8] {
         &[]
