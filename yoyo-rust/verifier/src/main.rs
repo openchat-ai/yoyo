@@ -1662,10 +1662,29 @@ fn cmd_test_ddc_mem() -> Result<(), types::IsaError> {
     Ok(())
 }
 
-// ── Container format DDC: Win32 (PE32+ x64) NOP+RET via plan9/p9 ──
+// ── Container format DDC: Win32 (PE32+ x64) NOP+RET via plan9_interp ──
+
+#[inline(never)]
+fn container_pe(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Win32)?;
+    let pe = pe_link::link_pe(&out.code, &out.data)?;
+    let r = plan9_interp::run_x64_pe(&pe.bytes);
+    println!("container DDC: PE    exit={:?} steps={}", r.exit_reason, r.steps);
+    Ok(r.exit_reason == plan9_interp::ExecExitReason::Ret)
+}
 
 fn cmd_test_ddc_container() -> Result<(), types::IsaError> {
-    println!("container DDC: SKIP (no container interpreter yet)");
+    let fixture = find_fixture("00_nop_ret.ty")?;
+    let src = fs::read_to_string(&fixture).map_err(|e| types::IsaError::IoError { msg: e.to_string() })?;
+    let tir = executor::compile_ty_source_to_tir(&src)?;
+
+    let pe_ok = container_pe(&tir)?;
+    if pe_ok {
+        println!("container DDC: PE PASS");
+    } else {
+        return Err(types::IsaError::PlatformError { msg: "container DDC: PE FAIL".into() });
+    }
+    println!("container DDC: ELF pending (B-ELF board)");
     Ok(())
 }
 
