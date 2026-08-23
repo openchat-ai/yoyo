@@ -362,7 +362,16 @@ impl Simulator {
                 let oo = a(2)?;
                 let base = self.state.get(&ss).copied().unwrap_or(0) as usize;
                 let addr = base.saturating_add(oo as usize);
-                let v = if addr < self.data.len() {
+                let v = if addr % 8 == 0 {
+                    let slot = (addr / 8) as u16;
+                    if self.state.contains_key(&slot) {
+                        self.state.get(&slot).copied().unwrap_or(0) & 0xFF
+                    } else if addr < self.data.len() {
+                        self.data[addr] as u64
+                    } else {
+                        0
+                    }
+                } else if addr < self.data.len() {
                     self.data[addr] as u64
                 } else {
                     0

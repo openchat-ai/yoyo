@@ -1,0 +1,10 @@
+; G04 — LDB absolute-pointer memory DDC
+; SET slot1=7; lea rax,[r15+8]; mov [r15+0x300],rax (slot0x60=ptr to slot1); LDB slot0; RET
+; Expect slot0=7 (state[0x60] holds absolute ptr r15+8, LDB loads byte from slot1).
+
+40 00
+  30 01 07
+  30 60 08
+  A1 49 8D 87 08 00 00 00 49 89 87 00 03 00 00
+  80 00 60 00
+  FF
