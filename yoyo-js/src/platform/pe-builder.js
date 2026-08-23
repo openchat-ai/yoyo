@@ -37,8 +37,12 @@ function buildPe(code, data, dataNeed) {
   img.writeBigUInt64LE(IMAGE_BASE, opt + 24);
   img.writeUInt32LE(sectionAlign, opt + 32);
   img.writeUInt32LE(fileAlign, opt + 36);
-  img.writeUInt16LE(6, opt + 40);
-  img.writeUInt16LE(6, opt + 44);
+  img.writeUInt16LE(6, opt + 40); // MajorOperatingSystemVersion
+  img.writeUInt16LE(0, opt + 42); // MinorOperatingSystemVersion
+  img.writeUInt16LE(0, opt + 44); // MajorImageVersion
+  img.writeUInt16LE(0, opt + 46); // MinorImageVersion
+  img.writeUInt16LE(6, opt + 48); // MajorSubsystemVersion
+  img.writeUInt16LE(0, opt + 50); // MinorSubsystemVersion
   img.writeUInt32LE(sizeOfImage, opt + 56);
   img.writeUInt32LE(headersRaw, opt + 60);
   img.writeUInt16LE(3, opt + 68);

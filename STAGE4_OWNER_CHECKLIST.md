@@ -220,7 +220,7 @@ Stage 4 看板抽检：golden 或 backends 失败（贴完整输出）。
 
 - [x] **test all 一键** — `cargo run -- test all`（golden + backends + ddc）CI 级绿
 - [ ] **Windows M2→M3 自举** — gen2.exe 编译 input.ky → gen3 不 AV（`0xC0000005`）；见 `AGENTS.md` Windows 链路
-- [ ] **3-chain section-ddc 持续绿** — JS==Rust==Python asm peer 字节 EQUAL（SHA 监控）
+- [x] **3-chain section-ddc 持续绿** — JS==Rust==Python asm peer 字节 EQUAL（SHA 监控）
 - [ ] **gen1≡gen2 持续绿** — `.ty`==`.tyb` 三端 DDC EQUAL
 - [ ] **全架构 DDC 扩展** — MCU soft → 按需升格 fatal；RISC-V/LoongArch 等 ⏳ 后端补 interpreter
 - [ ] **selfhost startup 完整实现** — Item 17 HOLD：M1.exe 运行时读 `.tyb` → 复制 handler → 写 PE

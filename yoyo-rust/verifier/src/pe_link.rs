@@ -72,8 +72,12 @@ fn link_pe_impl(code: &[u8], data: &[u8], startup_code: &[u8], is_selfhost: bool
     write_u64(&mut img, opt + 24, 0x140000000); // ImageBase
     write_u32(&mut img, opt + 32, section_align);
     write_u32(&mut img, opt + 36, file_align);
-    write_u16(&mut img, opt + 40, 6); // MajorOS
-    write_u16(&mut img, opt + 44, 6); // MajorSubsystem
+    write_u16(&mut img, opt + 40, 6); // MajorOperatingSystemVersion
+    write_u16(&mut img, opt + 42, 0); // MinorOperatingSystemVersion
+    write_u16(&mut img, opt + 44, 0); // MajorImageVersion
+    write_u16(&mut img, opt + 46, 0); // MinorImageVersion
+    write_u16(&mut img, opt + 48, 6); // MajorSubsystemVersion
+    write_u16(&mut img, opt + 50, 0); // MinorSubsystemVersion
     write_u32(&mut img, opt + 56, size_of_image);
     write_u32(&mut img, opt + 60, size_of_headers);
     write_u16(&mut img, opt + 68, 3); // Subsystem = CONSOLE
