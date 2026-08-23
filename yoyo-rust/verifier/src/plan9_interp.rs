@@ -377,11 +377,11 @@ fn load_pe_for_interp(pe: &[u8]) -> Result<(Vec<u8>, u64, u64), String> {
     let size_opt = u16::from_le_bytes(pe[coff + 16..coff + 18].try_into().unwrap()) as usize;
     let opt = coff + 20;
     let entry_rva = u32::from_le_bytes(pe[opt + 16..opt + 20].try_into().unwrap()) as u64;
-    let image_base = u64::from_le_bytes(pe[opt + 24..opt + 32].try_into().unwrap());
     let size_of_image = u32::from_le_bytes(pe[opt + 56..opt + 60].try_into().unwrap()) as usize;
     let section_table = opt + size_opt;
 
-    let mut mem = vec![0u8; image_base as usize + size_of_image];
+    // Flat RVA map (like ELF loader): skip ImageBase to avoid multi-GB allocations.
+    let mut mem = vec![0u8; size_of_image.max(0x500000)];
     let mut data_rva = 0u64;
     for i in 0..num_sections {
         let sec = section_table + i * 40;
@@ -395,12 +395,12 @@ fn load_pe_for_interp(pe: &[u8]) -> Result<(Vec<u8>, u64, u64), String> {
         let raw_ptr = u32::from_le_bytes(pe[sec + 20..sec + 24].try_into().unwrap()) as usize;
         let copy_n = raw_size.min(virt_size).min(pe.len().saturating_sub(raw_ptr));
         if copy_n > 0 && raw_ptr < pe.len() {
-            let dst = image_base + virt_addr;
-            let dst_off = dst as usize;
+            let dst_off = virt_addr as usize;
             let end = dst_off + copy_n;
-            if end <= mem.len() {
-                mem[dst_off..end].copy_from_slice(&pe[raw_ptr..raw_ptr + copy_n]);
+            if end > mem.len() {
+                mem.resize(end, 0);
             }
+            mem[dst_off..end].copy_from_slice(&pe[raw_ptr..raw_ptr + copy_n]);
         }
         if name.starts_with(b".data") {
             data_rva = virt_addr;
@@ -409,8 +409,9 @@ fn load_pe_for_interp(pe: &[u8]) -> Result<(Vec<u8>, u64, u64), String> {
     if data_rva == 0 {
         return Err("PE: no .data section".into());
     }
-    let entry = image_base + entry_rva + LINKER_STARTUP_LEN;
-    let r15 = image_base + data_rva;
+    // Startup stub sets R15=data; we skip it and set R15 directly (same as ELF path).
+    let entry = entry_rva + LINKER_STARTUP_LEN;
+    let r15 = data_rva;
     Ok((mem, entry, r15))
 }
 

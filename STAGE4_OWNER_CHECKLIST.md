@@ -28,18 +28,49 @@
 
 | 方式 | 操作 |
 | ---- | ---- |
-| **最简** | 在 Agent 里发：`继续` 或 `开工` 或 `auto`（甚至空发也行） |
-| **右侧看板** | Agent 每次「继续」时自动在 **Glass 右侧面板**打开本文件（MCP `open_resource`） |
-| **默认** | 打开本仓库 Agent 即加载规则 `.cursor/rules/stage4-auto-owner.mdc`，任意消息都会先读本看板 |
+| **单轨（默认）** | `继续` / `开工` / `auto` — master 上按 A→B→C 下一项顺序做 |
+| **两板并行** | `继续 两板` 或 `继续两板` — PE + ELF 两路 worktree 并行（见下） |
+| **右侧看板** | Agent 每次触发时自动在 **Glass 右侧面板**打开本文件（MCP `open_resource`） |
+| **默认** | 打开本仓库 Agent 即加载规则 `.cursor/rules/stage4-auto-owner.mdc` |
 | **定时（可选）** | Agent 里 `/loop 1d 继续 Stage4 自动负责人` — 每天自动跑一轮（见 Cursor loop 技能） |
 
-### AI 会自动做什么
+### 单轨：`继续`
+
+1. MCP 右侧打开本看板
+2. 在 **master**（`F:\yoyo`）按 **A → B → C** 找第一个未勾项（当前下一项：**B**）
+3. 按「对 AI 说什么」实现 + `cargo run -- test ddc` 验收
+4. 绿了才勾 `[x]`；**不 push**；commit 仅当你明确说要 commit
+
+### 两板并行：`继续 两板`
+
+**适用**：B 项 Container DDC — PE 与 ELF 可并行，互不阻塞。
+
+| 角色 | 位置 | 做什么 |
+| ---- | ---- | ------ |
+| **你** | 负责人 | 发 `继续 两板`；看 coordinator 汇报；合并冲突时扫一眼 |
+| **Coordinator** | `F:\yoyo` master | 建 worktree、派两路 agent、两路都绿后 merge + 勾 B |
+| **Agent PE** | `F:\yoyo-worktrees\stage4-pe` | 仅 PE32+ x64 container NOP+RET |
+| **Agent ELF** | `F:\yoyo-worktrees\stage4-elf` | 仅 ELF64 x64 container NOP+RET |
+
+**自动流程**：
+
+1. `& F:\yoyo\scripts\stage4-two-board.ps1` — 创建/确认 worktree（可重复运行）
+2. Coordinator **并行**启动 PE + ELF 两路子 agent（background）
+3. 各 agent 在自家 worktree 跑 `cargo run -- test ddc`，汇报绿/红
+4. **两路都绿** → `& F:\yoyo\scripts\stage4-two-board-merge.ps1` 合并进 master → master 上 ddc 全绿 → 勾 B `[x]`
+5. **仅一路绿** → 汇报状态，**不勾 B**，不 merge
+
+**半自动（你可能要看一眼）**：
+
+- **Merge 冲突**：PE/ELF 都改了同一 verifier 文件时，merge 脚本会停住；在 master 解决冲突后 `git add` + `git commit`，再跑 ddc
+- **看板**：只有 coordinator 在 master 改本文件；worktree 里 agent 不改看板
+
+### AI 会自动做什么（单轨与两板共通）
 
 1. MCP 右侧打开 `STAGE4_OWNER_CHECKLIST.md`（`file:///F:/yoyo/STAGE4_OWNER_CHECKLIST.md`）
-2. 按 **A → B → C** 找第一个未勾项（当前下一项：**B**）
-3. 按本文件「对 AI 说什么」里对应话术实现 + 跑 `cargo run -- test ddc` 验收
-4. 绿了才把 `[ ]` 改成 `[x]`，并简短汇报：命令、绿/红、勾了哪一格
-5. **不 push**；commit 仅当你明确说要 commit
+2. 按触发词选单轨或两板（见上）
+3. 绿了才勾框，并简短汇报：命令、绿/红、勾了哪一格
+4. **不 push**；commit 仅当你明确说要 commit
 
 ### 你仍只需盯两个信号
 
@@ -103,7 +134,7 @@ cargo run -- test backends  # 期望 36/36 PASS
 - [x] **A：Win/Linux 生产路径对齐**  
   默认 x64（win32/linux）`MEMCPY_STATE` 走 slot-form（与 Plan9/x86 DDC override 一致）；01–03 的 Win/Linux 纳入 **core fatal**（不再靠旁路 override 兜底）。
 
-- [ ] **B：Container DDC**  
+- [x] **B：Container DDC**  
   取消 container 行的 SKIP；至少 PE + ELF 上实现 **NOP+RET** 最小 container 解释执行并纳入 `cargo run -- test ddc`。
 
 - [ ] **C：LDB 指针内存 DDC**  
@@ -112,7 +143,7 @@ cargo run -- test backends  # 期望 36/36 PASS
 **毕业判定（三门齐绿）：**
 
 ```text
-[x] A  [ ] B  [ ] C   →  全部打勾 = Stage 4 毕业，可启动 Stage 5
+[x] A  [x] B  [ ] C   →  全部打勾 = Stage 4 毕业，可启动 Stage 5
 ```
 
 ---
@@ -150,6 +181,20 @@ BACKEND_SUPPORT.md Known gaps 删掉「default Win/Linux pointer-form」一句�
 Stage 4 毕业项 B：实现 container DDC（取消 SKIP）。
 最小范围：PE + ELF 上对 NOP+RET fixture 做 container 解释执行，纳入 test ddc。
 验收：ddc 输出 container 行 PASS；BACKEND_SUPPORT.md 表 Status 从 SKIP 改 PASS。
+```
+
+**两板并行时**（coordinator 派子 agent，各 agent 只跑自家话术）：
+
+```text
+Stage 4 B-PE（worktree F:\yoyo-worktrees\stage4-pe，分支 stage4/container-pe）：
+仅实现 PE32+ x64 container NOP+RET 最小解释执行；cargo run -- test ddc 侧重 container PE 路径 PASS。
+禁止改 ELF、禁止改 STAGE4_OWNER_CHECKLIST.md；可在 stage4/container-pe 上 commit；不 push。
+```
+
+```text
+Stage 4 B-ELF（worktree F:\yoyo-worktrees\stage4-elf，分支 stage4/container-elf）：
+仅实现 ELF64 x64 container NOP+RET 最小解释执行；cargo run -- test ddc 侧重 container ELF 路径 PASS。
+禁止改 PE、禁止改 STAGE4_OWNER_CHECKLIST.md；可在 stage4/container-elf 上 commit；不 push。
 ```
 
 

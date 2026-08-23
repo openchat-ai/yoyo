@@ -72,9 +72,9 @@ Run from `yoyo-rust/verifier`: `cargo run -- test ddc`
 | `01_arith.ty` | SET+ADDV → slot0=8 | sim + arm64/rv64/rv32/mips/ppc/arm32/sparc/loong/x86/plan9/win32/linux | MCU+EVM (8051/avr/z80/6502/m68k/msp430/freedos/xtensa/pic/stm8/evm) | CORE fatal |
 | `02_branch.ty` | CMP+JE → slot0=5 | sim + arm64/rv64/rv32/mips/ppc/arm32/sparc/loong/plan9/x86/win32/linux | other MCU | CORE fatal |
 | `03_mem.ty` | MEMCPY_STATE → slot0=7 | sim + arm64/rv64/rv32/mips/ppc/arm32/sparc/loong/plan9/x86/win32/linux | MCU | CORE fatal |
-| container | PE/ELF container | — | SKIP (no container interp yet) | SKIP |
+| container | PE/ELF container NOP+RET | PE32+ x64 + ELF64 x64 via plan9_interp | — | PASS |
 
-Known gaps: LDB absolute-pointer DDC not yet wired; container DDC skipped.
+Known gaps: LDB absolute-pointer DDC not yet wired.
 
 ### How to run
 
