@@ -4,10 +4,15 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "YOYO verifier + linker (Rust DDC peer)"
+default-run = "yoyo"
 
 [[bin]]
 name = "yoyo"
 path = "src/main.rs"
+
+[[bin]]
+name = "yoyo-sh"
+path = "src/bin/yoyo-sh.rs"
 
 [lib]
 name = "verifier"

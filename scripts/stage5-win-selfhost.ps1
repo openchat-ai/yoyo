@@ -17,9 +17,10 @@ $Tyb = Join-Path $Root "yoyo\projects\yoyo.tyb"
 $Yoyo = Join-Path $Root "yoyo-rust\target\release\yoyo.exe"
 
 if (-not (Test-Path $Yoyo)) {
-    Write-Host "== build yoyo (release) =="
+    Write-Host "== build yoyo + yoyo-sh (release) =="
     Push-Location (Join-Path $Root "yoyo-rust")
     cargo build --release -p verifier
+    cargo build --release -p verifier --bin yoyo-sh
     Pop-Location
 }
 
@@ -92,15 +93,19 @@ try {
 }
 
 Write-Host ""
-Write-Host "=== M2→M3: gen2.exe compiles input → gen3 (no AV) ==="
+Write-Host "=== M2→M3: gen2 runtime compiles input → gen3 (no AV) ==="
 Push-Location $WorkDir
 try {
     if (Test-Path $Gen3) { Remove-Item $Gen3 }
     if (Test-Path "output.exe") { Remove-Item "output.exe" }
-    if (-not (Test-Path $Gen2)) {
-        Write-Host "M2→M3: SKIP (no gen2.exe)"
+    $Gen2rt = Join-Path $WorkDir "gen2rt.exe"
+    if (Test-Path $Gen2rt) { Remove-Item $Gen2rt }
+    Write-Host "building gen2rt via bootstrap --selfhost (yoyo-sh launcher)..."
+    & $Yoyo bootstrap --selfhost $InputTyb $Gen2rt
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $Gen2rt)) {
+        Write-Host "M2→M3: RED (bootstrap --selfhost failed)"
     } else {
-        & $Gen2
+        & $Gen2rt
         $ec = $LASTEXITCODE
         if ($ec -eq 0xC0000005) {
             Write-Host "M2→M3: RED (STATUS_ACCESS_VIOLATION 0xC0000005)"

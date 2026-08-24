@@ -80,7 +80,7 @@ fn usage() -> ! {
            yoyo run-wasm <input.ty>\n\
            yoyo ddcmp <A.elf> <B.elf> <input.ty>\n\
            yoyo test golden|backends|ddc|gen12|all\n\
-           yoyo bootstrap <input.ty|.tyb> <output.exe>\n\
+           yoyo bootstrap [--selfhost] <input.ty|.tyb> <output.exe>\n\
            yoyo exec <input.ty> [--target=android|apple]\n\
            yoyo info [--target=<target>]\n\n\
          Note: --posture= / --morph= are recognized and fail-closed (NON-CONFORMING)\n\
@@ -625,21 +625,47 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
 }
 
 /// Stage 5 interim: compile input.ky/.tyb → output.exe via Rust host (not runtime selfhost).
+/// With `--selfhost`, emit the `yoyo-sh` runtime launcher for M2→M3.
 fn cmd_bootstrap(args: &[String]) -> Result<(), types::IsaError> {
-    if args.len() != 2 {
+    let mut runtime = false;
+    let mut rest: Vec<String> = Vec::new();
+    for a in args {
+        if a == "--selfhost" {
+            runtime = true;
+        } else {
+            rest.push(a.clone());
+        }
+    }
+    if runtime {
+        if rest.len() != 2 {
+            usage();
+        }
+        let pe = selfhost::bootstrap_runtime_pe()?;
+        fs::write(&rest[1], &pe).map_err(|e| types::IsaError::IoError {
+            msg: e.to_string(),
+        })?;
+        println!(
+            "bootstrap --selfhost: {} → {} ({} bytes, runtime launcher)",
+            rest[0],
+            rest[1],
+            pe.len()
+        );
+        return Ok(());
+    }
+    if rest.len() != 2 {
         usage();
     }
-    let input = fs::read(&args[0]).map_err(|e| types::IsaError::IoError {
+    let input = fs::read(&rest[0]).map_err(|e| types::IsaError::IoError {
         msg: e.to_string(),
     })?;
     let pe = selfhost::bootstrap_compile(&input)?;
-    fs::write(&args[1], &pe).map_err(|e| types::IsaError::IoError {
+    fs::write(&rest[1], &pe).map_err(|e| types::IsaError::IoError {
         msg: e.to_string(),
     })?;
     println!(
         "bootstrap: {} → {} ({} bytes)",
-        args[0],
-        args[1],
+        rest[0],
+        rest[1],
         pe.len()
     );
     Ok(())

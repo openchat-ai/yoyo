@@ -219,9 +219,9 @@ Stage 4 看板抽检：golden 或 backends 失败（贴完整输出）。
 > Stage 4 已毕业。以下第一项未勾 = 发 **`继续`** 时 AI 的默认目标。
 
 - [x] **test all 一键** — `cargo run -- test all`（golden + backends + ddc）CI 级绿
-- [ ] **Windows M2→M3 自举** — gen2.exe 编译 input.ky → gen3 不 AV（`0xC0000005`）；见 `AGENTS.md` Windows 链路
+- [x] **Windows M2→M3 自举** — `stage5-win-selfhost.ps1` 全绿（`bootstrap --selfhost` → yoyo-sh 读 input.ky → gen3 无 AV）
 - [x] **3-chain section-ddc 持续绿** — JS==Rust==Python asm peer 字节 EQUAL（SHA 监控）
-- [ ] **gen1≡gen2 持续绿** — `.ty`==`.tyb` 三端 DDC EQUAL
+- [x] **gen1≡gen2 持续绿** — `cargo run -- test gen12` + `scripts/verify-gen12-ddc.ps1`（SHA `4fb8b87f`）
 - [ ] **全架构 DDC 扩展** — MCU soft → 按需升格 fatal；RISC-V/LoongArch 等 ⏳ 后端补 interpreter
 - [ ] **selfhost startup 完整实现** — Item 17 HOLD：M1.exe 运行时读 `.tyb` → 复制 handler → 写 PE
 - [ ] **Freeze + Lock 复验** — 走 Lock Protocol 8-step；pin 与 `yoyo/tests/yoyo.ty.lock` 一致

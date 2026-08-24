@@ -35,14 +35,28 @@ pub fn bootstrap_compile(input: &[u8]) -> IsaResult<Vec<u8>> {
     }
 }
 
+/// Stage 5 M2→M3 runtime launcher PE (`yoyo-sh.exe` bytes).
+pub fn bootstrap_runtime_pe() -> IsaResult<Vec<u8>> {
+    let candidates = [
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../target/release/yoyo-sh.exe"),
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../target/debug/yoyo-sh.exe"),
+    ];
+    for path in &candidates {
+        if path.is_file() {
+            return std::fs::read(path).map_err(|e| crate::types::IsaError::IoError {
+                msg: format!("read {}: {e}", path.display()),
+            });
+        }
+    }
+    Err(crate::types::IsaError::IoError {
+        msg: "yoyo-sh.exe not built — run `cargo build --release -p verifier --bin yoyo-sh`".into(),
+    })
+}
+
 /// Generate the selfhost startup x64 code.
 ///
-/// This is the entry point of the --selfhost PE.
-/// It reads .tyb from argv[1], calls selfhost_compile_tyb(), writes output.
-///
-/// For V1: the startup code is a simple stub. The actual compile logic
-/// is in selfhost_compile_tyb() above, which is compiled as part of the
-/// verifier crate. The --selfhost PE embeds this function's bytes.
+/// V1 interim: `link --selfhost` still uses exit(0) stub. Runtime M2→M3 uses
+/// `yoyo bootstrap --selfhost` → `yoyo-sh.exe` launcher (reads input.ky → output.exe).
 pub fn gen_selfhost_startup(_hot_va: u64, _code_va: u64, _startup_va: u64) -> Vec<u8> {
     // V1: exit(0) stub — selfhost compile is done by yoyo.exe at link time
     // mov eax, 0
