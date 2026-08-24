@@ -22,7 +22,7 @@ const INITIAL_SP: u16 = 0xFFFE;
 
 struct Cpu {
     a: u8,
-    f: u8, // flags; bit 0 = C (carry)
+    f: u8, // flags; bit 0 = C (carry), bit 1 = Z (zero)
     b: u8,
     c: u8,
     d: u8,
@@ -58,6 +58,10 @@ impl Cpu {
     fn carry(&self) -> u8 { self.f & 1 }
     fn set_carry(&mut self, c: bool) {
         if c { self.f |= 1; } else { self.f &= !1; }
+    }
+    fn zero(&self) -> bool { (self.f & 2) != 0 }
+    fn set_zero(&mut self, z: bool) {
+        if z { self.f |= 2; } else { self.f &= !2; }
     }
 
     fn mem_get(&self, addr: u16) -> u8 {
@@ -224,8 +228,18 @@ impl Cpu {
                 self.a |= self.mem_get(self.hl());
                 None
             }
-            0xB8 => { let _ = self.fetch8(); None } // CP B — platform misuses; skip imm
-            0xB9 => { let _ = self.fetch8(); None } // CP C — platform misuses; skip imm
+            0x7E => { // LD A,(HL)
+                self.a = self.mem_get(self.hl());
+                None
+            }
+            0xBE => { // CP (HL)
+                let val = self.mem_get(self.hl());
+                self.set_zero(self.a == val);
+                self.set_carry(self.a < val);
+                None
+            }
+            0xB8 => { let _ = self.fetch8(); None } // CP B — legacy stub
+            0xB9 => { let _ = self.fetch8(); None } // CP C — legacy stub
             0x86 => { // ADD A, (HL) — platform uses with following oo byte as offset marker
                 let oo = self.fetch8();
                 let addr = self.hl().wrapping_add(oo as u16);
@@ -276,7 +290,10 @@ impl Cpu {
             }
             0x28 | 0x20 => { // JR Z / JR NZ rel
                 let rel = self.fetch8() as i8 as i16;
-                self.pc = (self.pc as i16).wrapping_add(rel) as u16;
+                let take = if opcode == 0x28 { self.zero() } else { !self.zero() };
+                if take {
+                    self.pc = (self.pc as i16).wrapping_add(rel) as u16;
+                }
                 None
             }
             0x7F => { /* LD A, A */ None }

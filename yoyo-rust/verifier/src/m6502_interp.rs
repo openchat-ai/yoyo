@@ -240,6 +240,14 @@ impl Cpu {
                 self.set_zn(r);
                 None
             }
+            0xCD => { // CMP abs
+                let addr = self.fetch16_le();
+                let imm = self.mem_get(addr);
+                let (r, b) = self.a.overflowing_sub(imm);
+                self.set_carry(!b);
+                self.set_zn(r);
+                None
+            }
             0xE0 => { // CPX #imm
                 let imm = self.fetch8();
                 let (r, b) = self.x.overflowing_sub(imm);
@@ -254,9 +262,13 @@ impl Cpu {
                 self.set_zn(v);
                 None
             }
-            0xF0 | 0xD0 => { // BEQ / BNE rel — always take for platform stubs
+            0xF0 | 0xD0 => { // BEQ / BNE rel
                 let rel = self.fetch8() as i8 as i16;
-                self.pc = (self.pc as i16).wrapping_add(rel) as u16;
+                let z = (self.p & 0x02) != 0;
+                let take = if opcode == 0xF0 { z } else { !z };
+                if take {
+                    self.pc = (self.pc as i16).wrapping_add(rel) as u16;
+                }
                 None
             }
             _ => {

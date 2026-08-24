@@ -50,6 +50,7 @@ mod arm64_pe_link;
 mod self_test;
 mod selfhost;
 mod startup;
+mod win32_selfhost;
 mod tir;
 mod ty_parser;
 mod tyb_parser;
@@ -415,8 +416,7 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
         PlatformKind::Win32 => {
             let pe = if selfhost {
                 let hot = selfhost::build_hot(&out.handler_offsets);
-                let startup = selfhost::gen_selfhost_startup(0, 0, 0);
-                pe_link::link_pe_selfhost(&out.code, &out.data, &hot, &startup)?
+                pe_link::link_pe_selfhost(&out.code, &out.data, &hot)?
             } else {
                 pe_link::link_pe(&out.code, &out.data)?
             };
@@ -625,7 +625,7 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
 }
 
 /// Stage 5 interim: compile input.ky/.tyb → output.exe via Rust host (not runtime selfhost).
-/// With `--selfhost`, emit the `yoyo-sh` runtime launcher for M2→M3.
+/// With `--selfhost`, emit PE with embedded Win32 startup + `yoyo_runtime.dll` sidecar.
 fn cmd_bootstrap(args: &[String]) -> Result<(), types::IsaError> {
     let mut runtime = false;
     let mut rest: Vec<String> = Vec::new();
@@ -636,19 +636,41 @@ fn cmd_bootstrap(args: &[String]) -> Result<(), types::IsaError> {
             rest.push(a.clone());
         }
     }
+    if rest.len() != 2 {
+        usage();
+    }
     if runtime {
-        if rest.len() != 2 {
-            usage();
-        }
-        let pe = selfhost::bootstrap_runtime_pe()?;
+        let input = fs::read(&rest[0]).map_err(|e| types::IsaError::IoError {
+            msg: e.to_string(),
+        })?;
+        let pe = if tyb_parser::is_tyb(&input) {
+            selfhost::bootstrap_selfhost_runtime(&input)?
+        } else {
+            let src = std::str::from_utf8(&input).map_err(|e| types::IsaError::ParseError {
+                line: 0,
+                msg: format!("bootstrap --selfhost input not UTF-8 .ty: {e}"),
+            })?;
+            let out = executor::compile_ty_source(src, PlatformKind::Win32)?;
+            let hot = selfhost::build_hot(&out.handler_offsets);
+            selfhost::link_pe_selfhost_runtime(&out.code, &out.data, &hot)?
+        };
         fs::write(&rest[1], &pe).map_err(|e| types::IsaError::IoError {
             msg: e.to_string(),
         })?;
+        let dll_path = std::path::Path::new(&rest[1])
+            .parent()
+            .unwrap_or(std::path::Path::new("."))
+            .join(win32_selfhost::RUNTIME_DLL_NAME);
+        let dll = selfhost::runtime_dll_bytes()?;
+        fs::write(&dll_path, &dll).map_err(|e| types::IsaError::IoError {
+            msg: format!("write {}: {e}", dll_path.display()),
+        })?;
         println!(
-            "bootstrap --selfhost: {} → {} ({} bytes, runtime launcher)",
+            "bootstrap --selfhost: {} → {} ({} bytes, embedded startup + {})",
             rest[0],
             rest[1],
-            pe.len()
+            pe.len(),
+            win32_selfhost::RUNTIME_DLL_NAME
         );
         return Ok(());
     }
@@ -1505,9 +1527,12 @@ fn cmd_test_ddc_arith() -> Result<(), types::IsaError> {
     let soft_pass = soft.iter().filter(|&&x| x).count();
     let soft_total = soft.len();
 
-    println!("01_arith DDC: {core_pass}/{core_total} CORE PASS + {soft_pass}/{soft_total} soft PASS (slot0=8)");
+    println!("01_arith DDC: {core_pass}/{core_total} CORE PASS + {soft_pass}/{soft_total} MCU PASS (slot0=8)");
     if soft_pass != soft_total {
-        println!("01_arith DDC: soft MCU gaps are non-fatal");
+        return Err(types::IsaError::ParseError {
+            line: 0,
+            msg: format!("01_arith DDC: only {soft_pass}/{soft_total} MCU paths PASS (need all 11 MCU slot0=8)"),
+        });
     }
     if core_pass != core_total {
         return Err(types::IsaError::ParseError {
@@ -1515,7 +1540,7 @@ fn cmd_test_ddc_arith() -> Result<(), types::IsaError> {
             msg: format!("01_arith DDC: only {core_pass}/{core_total} core paths PASS (need sim+ELF majors+x86+plan9+win32+linux slot0=8)"),
         });
     }
-    println!("01_arith DDC: ALL {core_total} CORE PATHS PASS (fatal)");
+    println!("01_arith DDC: ALL {core_total} CORE + {soft_total} MCU PATHS PASS (fatal)");
     Ok(())
 }
 
@@ -1617,6 +1642,83 @@ fn branch_linux(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
     Ok(r.exit_reason == plan9_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 5)
 }
 
+macro_rules! branch_check {
+    ($name:expr, $result:expr, $exp:expr, $ret:pat) => {{
+        let r = $result;
+        let slot0 = r.state.get(&0).copied().unwrap_or(0);
+        let ok = matches!(r.exit_reason, $ret) && slot0 == $exp;
+        println!("02_branch DDC: {:8} exit={:?} slot0={} steps={}", $name, r.exit_reason, slot0, r.steps);
+        ok
+    }};
+}
+
+#[inline(never)]
+fn branch_8051(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Eight051)?;
+    Ok(branch_check!("8051", e8051_interp::run_8051(&out.code), 5, e8051_interp::ExecExitReason::Ret))
+}
+
+#[inline(never)]
+fn branch_avr(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Avr)?;
+    Ok(branch_check!("avr", avr_interp::run_avr(&out.code), 5, avr_interp::ExecExitReason::Ret))
+}
+
+#[inline(never)]
+fn branch_z80(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Z80)?;
+    Ok(branch_check!("z80", z80_interp::run_z80(&out.code), 5, z80_interp::ExecExitReason::Ret))
+}
+
+#[inline(never)]
+fn branch_6502(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::M6502)?;
+    Ok(branch_check!("6502", m6502_interp::run_m6502(&out.code), 5, m6502_interp::ExecExitReason::Ret))
+}
+
+#[inline(never)]
+fn branch_m68k(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::M68k)?;
+    Ok(branch_check!("m68k", m68k_interp::run_m68k(&out.code), 5, m68k_interp::ExecExitReason::Ret))
+}
+
+#[inline(never)]
+fn branch_msp430(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Msp430)?;
+    Ok(branch_check!("msp430", msp430_interp::run_msp430(&out.code), 5, msp430_interp::ExecExitReason::Ret))
+}
+
+#[inline(never)]
+fn branch_freedos(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Freedos)?;
+    Ok(branch_check!("freedos", freedos_interp::run_freedos(&out.code), 5, freedos_interp::ExecExitReason::Ret))
+}
+
+#[inline(never)]
+fn branch_xtensa(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Xtensa)?;
+    Ok(branch_check!("xtensa", xtensa_interp::run_xtensa(&out.code), 5, xtensa_interp::ExecExitReason::Ret))
+}
+
+#[inline(never)]
+fn branch_pic(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Pic)?;
+    Ok(branch_check!("pic", pic_interp::run_pic(&out.code), 5, pic_interp::ExecExitReason::Ret))
+}
+
+#[inline(never)]
+fn branch_stm8(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Stm8)?;
+    Ok(branch_check!("stm8", stm8_interp::run_stm8(&out.code), 5, stm8_interp::ExecExitReason::Ret))
+}
+
+#[inline(never)]
+fn branch_evm(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Evm)?;
+    Ok(branch_check!("evm", evm_interp::run_evm(&out.code), 5, evm_interp::ExecExitReason::Ret))
+}
+
+
 fn cmd_test_ddc_branch() -> Result<(), types::IsaError> {
     let fixture = find_fixture("02_branch.ty")?;
     let src = fs::read_to_string(&fixture).map_err(|e| types::IsaError::IoError { msg: e.to_string() })?;
@@ -1642,10 +1744,39 @@ fn cmd_test_ddc_branch() -> Result<(), types::IsaError> {
     let win32_ok = branch_win32(&tir)?;
     let linux_ok = branch_linux(&tir)?;
 
+    let e8051_ok = branch_8051(&tir)?;
+    let avr_ok = branch_avr(&tir)?;
+    let z80_ok = branch_z80(&tir)?;
+    let m6502_ok = branch_6502(&tir)?;
+    let m68k_ok = branch_m68k(&tir)?;
+    let msp430_ok = branch_msp430(&tir)?;
+    let freedos_ok = branch_freedos(&tir)?;
+    let xtensa_ok = branch_xtensa(&tir)?;
+    let pic_ok = branch_pic(&tir)?;
+    let stm8_ok = branch_stm8(&tir)?;
+    let evm_ok = branch_evm(&tir)?;
+
     let core = [sim_ok, arm64_ok, riscv64_ok, riscv32_ok, mips_ok, ppc_ok, arm32_ok, sparc_ok, loong_ok, plan9_ok, x86_ok, win32_ok, linux_ok];
     let core_pass = core.iter().filter(|&&x| x).count();
     let core_total = core.len();
     println!("02_branch DDC: {core_pass}/{core_total} CORE paths PASS (slot0=5)");
+
+    let soft = [e8051_ok, avr_ok, z80_ok, m6502_ok, m68k_ok, msp430_ok, freedos_ok, xtensa_ok, pic_ok, stm8_ok, evm_ok];
+    let soft_pass = soft.iter().filter(|&&x| x).count();
+    let soft_total = soft.len();
+    println!("02_branch DDC: {soft_pass}/{soft_total} MCU soft PASS (slot0=5)");
+    if soft_pass != soft_total {
+        println!("02_branch DDC: soft MCU gaps are non-fatal");
+    }
+
+    let promoted = [e8051_ok, avr_ok, z80_ok, m6502_ok];
+    let promoted_pass = promoted.iter().filter(|&&x| x).count();
+    if promoted_pass != promoted.len() {
+        return Err(types::IsaError::ParseError {
+            line: 0,
+            msg: format!("02_branch DDC: promoted MCU only {promoted_pass}/{} PASS (need 8051+avr+z80+6502 slot0=5)", promoted.len()),
+        });
+    }
 
     if core_pass != core_total {
         return Err(types::IsaError::ParseError {
@@ -1653,7 +1784,7 @@ fn cmd_test_ddc_branch() -> Result<(), types::IsaError> {
             msg: format!("02_branch DDC: only {core_pass}/{core_total} core paths PASS (need sim+arm64+riscv64+riscv32+mips+ppc+arm32+sparc+loong+plan9+x86+win32+linux slot0=5)"),
         });
     }
-    println!("02_branch DDC: ALL {core_total} CORE PATHS PASS");
+    println!("02_branch DDC: ALL {core_total} CORE PATHS PASS + {promoted_pass}/{} promoted MCU fatal", promoted.len());
     Ok(())
 }
 
@@ -1755,6 +1886,83 @@ fn mem_linux(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
     Ok(r.exit_reason == plan9_interp::ExecExitReason::Ret && r.state.get(&0).copied().unwrap_or(0) == 7)
 }
 
+macro_rules! mem_check {
+    ($name:expr, $result:expr, $exp:expr, $ret:pat) => {{
+        let r = $result;
+        let slot0 = r.state.get(&0).copied().unwrap_or(0);
+        let ok = matches!(r.exit_reason, $ret) && slot0 == $exp;
+        println!("03_mem DDC: {:8} exit={:?} slot0={} steps={}", $name, r.exit_reason, slot0, r.steps);
+        ok
+    }};
+}
+
+#[inline(never)]
+fn mem_8051(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Eight051)?;
+    Ok(mem_check!("8051", e8051_interp::run_8051(&out.code), 7, e8051_interp::ExecExitReason::Ret))
+}
+
+#[inline(never)]
+fn mem_avr(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Avr)?;
+    Ok(mem_check!("avr", avr_interp::run_avr(&out.code), 7, avr_interp::ExecExitReason::Ret))
+}
+
+#[inline(never)]
+fn mem_z80(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Z80)?;
+    Ok(mem_check!("z80", z80_interp::run_z80(&out.code), 7, z80_interp::ExecExitReason::Ret))
+}
+
+#[inline(never)]
+fn mem_6502(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::M6502)?;
+    Ok(mem_check!("6502", m6502_interp::run_m6502(&out.code), 7, m6502_interp::ExecExitReason::Ret))
+}
+
+#[inline(never)]
+fn mem_m68k(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::M68k)?;
+    Ok(mem_check!("m68k", m68k_interp::run_m68k(&out.code), 7, m68k_interp::ExecExitReason::Ret))
+}
+
+#[inline(never)]
+fn mem_msp430(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Msp430)?;
+    Ok(mem_check!("msp430", msp430_interp::run_msp430(&out.code), 7, msp430_interp::ExecExitReason::Ret))
+}
+
+#[inline(never)]
+fn mem_freedos(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Freedos)?;
+    Ok(mem_check!("freedos", freedos_interp::run_freedos(&out.code), 7, freedos_interp::ExecExitReason::Ret))
+}
+
+#[inline(never)]
+fn mem_xtensa(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Xtensa)?;
+    Ok(mem_check!("xtensa", xtensa_interp::run_xtensa(&out.code), 7, xtensa_interp::ExecExitReason::Ret))
+}
+
+#[inline(never)]
+fn mem_pic(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Pic)?;
+    Ok(mem_check!("pic", pic_interp::run_pic(&out.code), 7, pic_interp::ExecExitReason::Ret))
+}
+
+#[inline(never)]
+fn mem_stm8(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Stm8)?;
+    Ok(mem_check!("stm8", stm8_interp::run_stm8(&out.code), 7, stm8_interp::ExecExitReason::Ret))
+}
+
+#[inline(never)]
+fn mem_evm(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::Evm)?;
+    Ok(mem_check!("evm", evm_interp::run_evm(&out.code), 7, evm_interp::ExecExitReason::Ret))
+}
+
+
 fn cmd_test_ddc_mem() -> Result<(), types::IsaError> {
     let fixture = find_fixture("03_mem.ty")?;
     let src = fs::read_to_string(&fixture).map_err(|e| types::IsaError::IoError { msg: e.to_string() })?;
@@ -1779,10 +1987,39 @@ fn cmd_test_ddc_mem() -> Result<(), types::IsaError> {
     let win32_ok = mem_win32(&tir)?;
     let linux_ok = mem_linux(&tir)?;
 
+    let e8051_ok = mem_8051(&tir)?;
+    let avr_ok = mem_avr(&tir)?;
+    let z80_ok = mem_z80(&tir)?;
+    let m6502_ok = mem_6502(&tir)?;
+    let m68k_ok = mem_m68k(&tir)?;
+    let msp430_ok = mem_msp430(&tir)?;
+    let freedos_ok = mem_freedos(&tir)?;
+    let xtensa_ok = mem_xtensa(&tir)?;
+    let pic_ok = mem_pic(&tir)?;
+    let stm8_ok = mem_stm8(&tir)?;
+    let evm_ok = mem_evm(&tir)?;
+
     let core = [sim_ok, arm64_ok, riscv64_ok, riscv32_ok, mips_ok, ppc_ok, arm32_ok, sparc_ok, loong_ok, plan9_ok, x86_ok, win32_ok, linux_ok];
     let core_pass = core.iter().filter(|&&x| x).count();
     let core_total = core.len();
     println!("03_mem DDC: {core_pass}/{core_total} CORE paths PASS (slot0=7)");
+
+    let soft = [e8051_ok, avr_ok, z80_ok, m6502_ok, m68k_ok, msp430_ok, freedos_ok, xtensa_ok, pic_ok, stm8_ok, evm_ok];
+    let soft_pass = soft.iter().filter(|&&x| x).count();
+    let soft_total = soft.len();
+    println!("03_mem DDC: {soft_pass}/{soft_total} MCU soft PASS (slot0=7)");
+    if soft_pass != soft_total {
+        println!("03_mem DDC: soft MCU gaps are non-fatal");
+    }
+
+    let promoted = [e8051_ok, avr_ok, z80_ok, m6502_ok];
+    let promoted_pass = promoted.iter().filter(|&&x| x).count();
+    if promoted_pass != promoted.len() {
+        return Err(types::IsaError::ParseError {
+            line: 0,
+            msg: format!("03_mem DDC: promoted MCU only {promoted_pass}/{} PASS (need 8051+avr+z80+6502 slot0=7)", promoted.len()),
+        });
+    }
 
     if core_pass != core_total {
         return Err(types::IsaError::ParseError {
@@ -1790,7 +2027,7 @@ fn cmd_test_ddc_mem() -> Result<(), types::IsaError> {
             msg: format!("03_mem DDC: only {core_pass}/{core_total} core paths PASS (need sim+arm64+riscv64+riscv32+mips+ppc+arm32+sparc+loong+plan9+x86+win32+linux slot0=7)"),
         });
     }
-    println!("03_mem DDC: ALL {core_total} CORE PATHS PASS");
+    println!("03_mem DDC: ALL {core_total} CORE PATHS PASS + {promoted_pass}/{} promoted MCU fatal", promoted.len());
     Ok(())
 }
 

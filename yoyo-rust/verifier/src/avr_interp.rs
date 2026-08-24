@@ -26,11 +26,12 @@ struct Cpu {
     mem: Vec<u8>,
     steps: u64,
     step_limit: u64,
+    z: bool,
 }
 
 impl Cpu {
     fn new(mem: Vec<u8>) -> Self {
-        Self { regs: [0; 32], pc: 0, mem, steps: 0, step_limit: DEFAULT_STEP_LIMIT }
+        Self { regs: [0; 32], pc: 0, mem, steps: 0, step_limit: DEFAULT_STEP_LIMIT, z: false }
     }
 
     fn r(&self, n: usize) -> u16 { self.regs[n] }
@@ -118,6 +119,16 @@ impl Cpu {
             return None;
         }
 
+        // CP rd, rr: platform marker 0xB000 | (rd<<5) | rr
+        if (insn & 0xF800) == 0xB000 {
+            let rn = ((insn >> 5) & 0x1F) as usize;
+            let rm = (insn & 0x1F) as usize;
+            let result = self.r(rn).wrapping_sub(self.r(rm));
+            self.z = result == 0;
+            self.pc = pc.wrapping_add(1);
+            return None;
+        }
+
         // ADD rd, rr: 0x1C00 | (rd<<4) | rr
         if (insn & 0xFE00) == 0x1C00 {
             let rn = ((insn >> 4) & 0x1F) as usize;
@@ -165,12 +176,17 @@ impl Cpu {
             return None;
         }
 
-        // CP rd, rr: 0x0C00 | (rd<<4) | rr | 0x0A
-        if (insn & 0xFC0F) == 0x0C0A {
-            let rn = (insn >> 4) & 0x1F;
-            let rm = insn & 0x1F;
-            let _result = self.r(rn as usize).wrapping_sub(self.r(rm as usize));
-            self.pc = pc.wrapping_add(1);
+        // BREQ/BRNE (BRBS/BRBC on Z): 1111 0Bkk kkkk k001
+        if (insn & 0xF800) == 0xF000 && (insn & 0x7) == 1 {
+            let k = ((insn >> 3) & 0x7F) as u8;
+            let signed_k = if k & 0x40 != 0 { (k as i8) | !0x7F } else { k as i8 };
+            let is_ne = (insn & 0x0400) != 0; // BRBC vs BRBS
+            let take = if is_ne { !self.z } else { self.z };
+            if take {
+                self.pc = (pc as i16).wrapping_add(signed_k as i16).wrapping_add(1) as u16;
+            } else {
+                self.pc = pc.wrapping_add(1);
+            }
             return None;
         }
 

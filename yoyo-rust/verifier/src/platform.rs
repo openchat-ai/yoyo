@@ -434,6 +434,16 @@ pub trait PlatformBackend {
                 let addr = target as u16;
                 code[field_addr..field_addr + 2].copy_from_slice(&addr.to_le_bytes());
             }
+            FixupKind::AvrBrRel7 => {
+                // AVR BREQ/BRNE: 7-bit signed word offset in bits[9:3], PC+1 in words
+                let next_pc = branch_start + 2;
+                let diff_words = (target as i32 - next_pc as i32) / 2;
+                let k = (diff_words as i8 as u16) & 0x7F;
+                let base = u16::from_le_bytes(code[branch_start..branch_start + 2].try_into().unwrap());
+                // Preserve opcode/condition bits (incl. BRBS vs BRBC); only patch k in bits[9:3]
+                let patched = (base & 0xFC07) | (k << 3);
+                code[branch_start..branch_start + 2].copy_from_slice(&patched.to_le_bytes());
+            }
         }
         Ok(())
     }
@@ -465,6 +475,7 @@ pub enum FixupKind {
     XtensaImm18,
     ByteRel8,
     AbsAddr16,
+    AvrBrRel7,
 }
 
 pub fn select_platform(target: PlatformKind) -> Box<dyn PlatformBackend> {
@@ -1394,8 +1405,12 @@ impl PlatformBackend for Eight051Platform {
     }
     fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
         let addr_a = E8051_STATE_BASE + a as u8;
-        // MOV A, addr_a
-        Ok(e8051_mov_a_direct(addr_a))
+        let addr_b = E8051_STATE_BASE + b as u8;
+        let mut out = vec![0xC3]; // CLR C
+        out.extend(e8051_mov_a_direct(addr_a));
+        out.push(0x95); // SUBB A, direct
+        out.push(addr_b);
+        Ok(out)
     }
     fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
         let d = E8051_STATE_BASE + dd as u8;
@@ -1452,41 +1467,11 @@ impl PlatformBackend for Eight051Platform {
         Ok((e8051_ljmp(0), BranchFixup { field_offset: 1, field_size: 2, kind: FixupKind::AbsAddr16 }))
     }
     fn emit_jcc_branch(&mut self, cc: u8) -> IsaResult<(Vec<u8>, BranchFixup)> {
-        // After emit_cmp, A holds the value of slot a.
-        // CJNE A, addr_b, rel: jump if A != addr_b
-        // For JE: jump if NOT equal -> skip forward (fall through to next instruction if equal)
-        // For JNE: jump if NOT equal -> target
-        // addr_b must be in the fixup. We embed it right after CJNE opcode.
-        // But we don't know addr_b at this point. We need the CMP to have set up both operands.
-        // ACTUALLY: emit_cmp only loads A from slot a. We need addr_b here.
-        // The problem is we don't know which slot b is at this point.
-        // 
-        // SIMPLEST: Emit a placeholder. CJNE A, 0x30, rel8 (3 bytes).
-        // The slot b address is not available here. We need to encode it.
-        // 
-        // Alternative: Store the slot b address in the CMP bytes and have JCC reference it.
-        // But the JCC doesn't get the slot b parameter.
-        //
-        // SIMPLEST WORKAROUND: The JCC only works for JE/JNE. For these, we know
-        // that emit_cmp loaded A from slot a. We need to compare with slot b.
-        // But we don't know slot b here.
-        //
-        // ACTUALLY: Let me look at how other backends handle this. The ARM64 backend
-        // loads both a and b in emit_cmp, then uses the registers in emit_jcc.
-        // For 8051, we can emit a NOP placeholder in emit_jcc and fix it up later.
-        // But we don't have the "b" parameter in emit_jcc.
-        //
-        // SIMPLEST: For JCC, just emit a placeholder CJNE that compares A with 0x30
-        // (slot 0). This is obviously wrong for slots != 0, but it's the simplest
-        // approach. The user accepts that only JE/JNE behavior is correct.
-        //
-        // Actually, even simpler: emit SJMP rel8 (2 bytes) with FixupKind::ByteRel8.
-        // This is always "jump if true" (unconditional). For JE/JNE we need conditional.
-        //
-        // FINAL SIMPLEST APPROACH: For 8051 JCC, just emit SJMP placeholder.
-        // This makes all JCCs unconditional. Not correct but it's what the task asks for.
-        let _ = cc;
-        Ok((e8051_sjmp(0), BranchFixup { field_offset: 1, field_size: 1, kind: FixupKind::ByteRel8 }))
+        match cc {
+            0x84 => Ok((vec![0x60, 0x00], BranchFixup { field_offset: 1, field_size: 1, kind: FixupKind::ByteRel8 })), // JZ — JE
+            0x85 => Ok((vec![0x70, 0x00], BranchFixup { field_offset: 1, field_size: 1, kind: FixupKind::ByteRel8 })), // JNZ — JNE
+            _ => Ok((e8051_sjmp(0), BranchFixup { field_offset: 1, field_size: 1, kind: FixupKind::ByteRel8 })),
+        }
     }
     fn startup_blob(&self) -> &[u8] {
         &[]
@@ -1725,6 +1710,37 @@ impl PlatformBackend for FreedosPlatform {
         out.push(0xA3);
         out.extend_from_slice(&da.to_le_bytes());
         Ok(out)
+    }
+    fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
+        let aa = 0x0200u16 + a * 2;
+        let ba = 0x0200u16 + b * 2;
+        let mut out = vec![0xA1];
+        out.extend_from_slice(&aa.to_le_bytes());
+        out.extend_from_slice(&[0x3B, 0x06]);
+        out.extend_from_slice(&ba.to_le_bytes());
+        Ok(out)
+    }
+    fn emit_memcpy_data(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        self.emit_memcpy_state(dst, src, n)
+    }
+    fn emit_memcpy_state(&mut self, dst: u16, src: u16, n: u16) -> IsaResult<Vec<u8>> {
+        let mut out = Vec::new();
+        for i in 0..n {
+            let sa = 0x0200u16 + (src + i) * 2;
+            let da = 0x0200u16 + (dst + i) * 2;
+            out.extend_from_slice(&[0xA1]);
+            out.extend_from_slice(&sa.to_le_bytes());
+            out.extend_from_slice(&[0xA3]);
+            out.extend_from_slice(&da.to_le_bytes());
+        }
+        Ok(out)
+    }
+    fn emit_jcc_branch(&mut self, cc: u8) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        match cc {
+            0x84 => Ok((vec![0x74, 0x00], BranchFixup { field_offset: 1, field_size: 1, kind: FixupKind::ByteRel8 })), // JE
+            0x85 => Ok((vec![0x75, 0x00], BranchFixup { field_offset: 1, field_size: 1, kind: FixupKind::ByteRel8 })), // JNE
+            _ => Ok((vec![0xEB, 0x00], BranchFixup { field_offset: 1, field_size: 1, kind: FixupKind::ByteRel8 })),
+        }
     }
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
         self.emit_set(slot, size)
@@ -2618,7 +2634,8 @@ fn avr_dec_r(r: u8) -> Vec<u8> {
     enc.to_le_bytes().to_vec()
 }
 fn avr_cp_r(rd: u8, rr: u8) -> Vec<u8> {
-    let enc: u16 = 0x0C00 | ((rd as u16) << 4) | (rr as u16) | 0x0A;
+    // Platform CP marker: 0xB000 | (rd<<5) | rr (supports r0-r31)
+    let enc: u16 = 0xB000 | ((rd as u16) << 5) | (rr as u16);
     enc.to_le_bytes().to_vec()
 }
 fn avr_sbr_r(ri: u8, k: u8) -> Vec<u8> {
@@ -2703,6 +2720,16 @@ fn avr_jmp(addr: u16) -> Vec<u8> {
     // JMP is 4 bytes: 0x940C addrh addrl (absolute jump)
     let [lo, hi] = addr.to_le_bytes();
     vec![0x0C, 0x94, lo, hi]
+}
+fn avr_breq(rel_words: i8) -> Vec<u8> {
+    // BREQ = BRBS Z: 1111 00kk kkkk k001
+    let k = (rel_words as u16) & 0x7F;
+    (0xF001u16 | (k << 3)).to_le_bytes().to_vec()
+}
+fn avr_brne(rel_words: i8) -> Vec<u8> {
+    // BRNE = BRBC Z: 1111 01kk kkkk k001
+    let k = (rel_words as u16) & 0x7F;
+    (0xF401u16 | (k << 3)).to_le_bytes().to_vec()
 }
 fn avr_call(addr: u16) -> Vec<u8> {
     // CALL is 4 bytes: 0x940E addrh addrl
@@ -2862,9 +2889,8 @@ impl PlatformBackend for AvrPlatform {
         for i in 0..n {
             let sa = AVR_SRAM_BASE + (src + i) * 2;
             let da = AVR_SRAM_BASE + (dst + i) * 2;
-            let [slo, shi] = sa.to_le_bytes();
-            let [dlo, dhi] = da.to_le_bytes();
-            out.extend_from_slice(&[0x90, 0x20, slo, shi, 0x93, 0x20, dlo, dhi]);
+            out.extend(avr_lds(16, sa));
+            out.extend(avr_sts(da, 16));
         }
         Ok(out)
     }
@@ -2895,9 +2921,12 @@ impl PlatformBackend for AvrPlatform {
     fn emit_jmp_branch(&mut self) -> IsaResult<(Vec<u8>, BranchFixup)> {
         Ok((avr_jmp(0), BranchFixup { field_offset: 2, field_size: 2, kind: FixupKind::AbsAddr16 }))
     }
-    fn emit_jcc_branch(&mut self, _cc: u8) -> IsaResult<(Vec<u8>, BranchFixup)> {
-        // Emit JMP placeholder (unconditional)
-        Ok((avr_jmp(0), BranchFixup { field_offset: 2, field_size: 2, kind: FixupKind::AbsAddr16 }))
+    fn emit_jcc_branch(&mut self, cc: u8) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        match cc {
+            0x84 => Ok((avr_breq(0), BranchFixup { field_offset: 0, field_size: 2, kind: FixupKind::AvrBrRel7 })),
+            0x85 => Ok((avr_brne(0), BranchFixup { field_offset: 0, field_size: 2, kind: FixupKind::AvrBrRel7 })),
+            _ => Ok((avr_jmp(0), BranchFixup { field_offset: 2, field_size: 2, kind: FixupKind::AbsAddr16 })),
+        }
     }
     fn startup_blob(&self) -> &[u8] {
         &[]
@@ -5057,9 +5086,11 @@ impl PlatformBackend for Z80Platform {
         let ba = Z80_STATE_BASE + b * 2;
         let [alo, ahi] = aa.to_le_bytes();
         let [blo, bhi] = ba.to_le_bytes();
-        let mut out = vec![0x2A, alo, ahi];
-        out.push(0xB8); out.push(blo);
-        out.push(0xB9); out.push(bhi);
+        // LD HL,addr_a; LD A,(HL); LD HL,addr_b; CP (HL)
+        let mut out = vec![0x21, alo, ahi];
+        out.push(0x7E);
+        out.extend_from_slice(&[0x21, blo, bhi]);
+        out.push(0xBE);
         Ok(out)
     }
     fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
@@ -5113,8 +5144,12 @@ impl PlatformBackend for Z80Platform {
     fn emit_jmp_branch(&mut self) -> IsaResult<(Vec<u8>, BranchFixup)> {
         Ok((z80_jp_addr(0), BranchFixup { field_offset: 1, field_size: 2, kind: FixupKind::AbsAddr16 }))
     }
-    fn emit_jcc_branch(&mut self, _cc: u8) -> IsaResult<(Vec<u8>, BranchFixup)> {
-        Ok((z80_jp_addr(0), BranchFixup { field_offset: 1, field_size: 2, kind: FixupKind::AbsAddr16 }))
+    fn emit_jcc_branch(&mut self, cc: u8) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        match cc {
+            0x84 => Ok((vec![0x28, 0x00], BranchFixup { field_offset: 1, field_size: 1, kind: FixupKind::ByteRel8 })), // JR Z — JE
+            0x85 => Ok((vec![0x20, 0x00], BranchFixup { field_offset: 1, field_size: 1, kind: FixupKind::ByteRel8 })), // JR NZ — JNE
+            _ => Ok((z80_jp_addr(0), BranchFixup { field_offset: 1, field_size: 2, kind: FixupKind::AbsAddr16 })),
+        }
     }
     fn startup_blob(&self) -> &[u8] {
         &[]
@@ -5313,10 +5348,10 @@ impl PlatformBackend for M6502Platform {
     }
     fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
         let aa = M6502_STATE_BASE + a * 2;
-        let [blo, bhi] = (M6502_STATE_BASE + b * 2).to_le_bytes();
+        let ba = M6502_STATE_BASE + b * 2;
         let mut out = m6502_lda_addr(aa);
-        out.extend_from_slice(&[0xC9, blo]);
-        out.push(0xE0); out.push(bhi);
+        let [blo, bhi] = ba.to_le_bytes();
+        out.extend_from_slice(&[0xCD, blo, bhi]); // CMP abs
         Ok(out)
     }
     fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
@@ -5372,9 +5407,12 @@ impl PlatformBackend for M6502Platform {
     fn emit_jmp_branch(&mut self) -> IsaResult<(Vec<u8>, BranchFixup)> {
         Ok((m6502_jmp_addr(0), BranchFixup { field_offset: 1, field_size: 2, kind: FixupKind::AbsAddr16 }))
     }
-    fn emit_jcc_branch(&mut self, _cc: u8) -> IsaResult<(Vec<u8>, BranchFixup)> {
-        // Emit JMP placeholder (unconditional approximation for all JCC)
-        Ok((m6502_jmp_addr(0), BranchFixup { field_offset: 1, field_size: 2, kind: FixupKind::AbsAddr16 }))
+    fn emit_jcc_branch(&mut self, cc: u8) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        match cc {
+            0x84 => Ok((vec![0xF0, 0x00], BranchFixup { field_offset: 1, field_size: 1, kind: FixupKind::ByteRel8 })), // BEQ — JE
+            0x85 => Ok((vec![0xD0, 0x00], BranchFixup { field_offset: 1, field_size: 1, kind: FixupKind::ByteRel8 })), // BNE
+            _ => Ok((m6502_jmp_addr(0), BranchFixup { field_offset: 1, field_size: 2, kind: FixupKind::AbsAddr16 })),
+        }
     }
     fn startup_blob(&self) -> &[u8] {
         &[]

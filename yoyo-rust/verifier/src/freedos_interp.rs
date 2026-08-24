@@ -30,6 +30,7 @@ struct Cpu {
     steps: u64,
     step_limit: u64,
     call_depth: u32,
+    zf: bool,
 }
 
 impl Cpu {
@@ -39,6 +40,7 @@ impl Cpu {
         Self {
             regs, ip: COM_ENTRY, mem,
             steps: 0, step_limit: DEFAULT_STEP_LIMIT, call_depth: 0,
+            zf: false,
         }
     }
 
@@ -173,6 +175,33 @@ impl Cpu {
                     return Some(ExecExitReason::Fault {
                         msg: format!("undecoded 0x03 modrm=0x{:02x} at ip=0x{:04x}", modrm, self.ip),
                     });
+                }
+                None
+            }
+            0x3B => { // CMP AX, [imm16] (modrm 0x06)
+                let modrm = self.fetch8();
+                if modrm == 0x06 {
+                    let addr = self.fetch16_le();
+                    let mem_val = self.load16_le(addr);
+                    self.zf = self.r(0) == mem_val;
+                } else {
+                    return Some(ExecExitReason::Fault {
+                        msg: format!("undecoded 0x3B modrm=0x{:02x} at ip=0x{:04x}", modrm, self.ip),
+                    });
+                }
+                None
+            }
+            0x74 => { // JE rel8
+                let rel = self.fetch8() as i8 as i16;
+                if self.zf {
+                    self.ip = (self.ip as i16).wrapping_add(rel) as u16;
+                }
+                None
+            }
+            0x75 => { // JNE rel8
+                let rel = self.fetch8() as i8 as i16;
+                if !self.zf {
+                    self.ip = (self.ip as i16).wrapping_add(rel) as u16;
                 }
                 None
             }
