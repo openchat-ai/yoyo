@@ -1,4 +1,4 @@
-# YOYO: Engineering Specification (v3.3.10)
+# YOYO: Engineering Specification (v3.3.11)
 
 ## Master Table of Contents / 总目录（按阅读路径）
 
@@ -65,10 +65,18 @@
 > **日常入口。** 规格语义仍在下方 Parts；施工顺序 = 本 Week 轴。Status 仅允许：**GREEN (DONE)** / **RED** / **SCOPE-CUT** / **HOLD**。勿再维护 `STATUS.md` / `docs/PROGRESS-MAP.md`（已并入此处）。
 
 ### 你现在在哪
-`yoyo.ty` = **788 handlers / 4170 lines**（850 行注释已恢复）；Rust golden **739/739 PASS**· executor **8/8 PASS**；JS==Rust==Python 三端字节级相等（3-chain DDC EQUAL，SHA-256: `4fb8b87f`）。W-START body-extend-001..106 全部 GREEN；MEMCPY real emit + LEA scale fix + executor expand + DDC fix；P2 imm 边界 + P1 多 slot 变体补齐；`.tyb` 纸带格式（8B 记录）就绪；`--selfhost` HOT 自举框架就绪；pin `0275802d2b4459e6…`（Decision #25）。
+**Stage 4 已毕业**（A/B/C 全绿 · 看板 `STAGE4_OWNER_CHECKLIST.md`）→ **Stage 5 当前主线**（7/8 项已绿；剩 Freeze+Lock）。
+
+`yoyo.ty` = **788 handlers / 4170 lines**；Rust golden **739/739 PASS** · backends **36/36 PASS** · `cargo run -- test all` **CI 级绿**；JS==Rust==Python 三端字节级相等（3-chain section-ddc EQUAL，SHA-256: `4fb8b87f`）；gen1≡gen2 持续绿（`test gen12` + `verify-gen12-ddc.ps1`）。
+
+**DDC**：`00_nop_ret` 23 paths · `01_arith`/`02_branch`/`03_mem` 各 **11/11 core fatal**（含 win32/linux + **11 MCU fatal**）· `04_ldb_ptr` sim+container PASS · container PE+ELF PASS（不再 SKIP）。
+
+**自举**：Windows M2→M3 全绿（`stage5-win-selfhost.ps1` · gen2rt embedded startup → output.exe）；selfhost startup 完整实现（gen2rt 零参 → output.exe + `yoyo_runtime.dll` sidecar）。pin `0275802d2b4459e6…`（Decision #25）。
 
 ### 仍红（big list）
-（无 — 所有里程碑已达成）
+| 项 | 说明 |
+|----|------|
+| **Freeze + Lock 复验** | Lock Protocol 8-step；pin 须与 `yoyo/tests/yoyo.ty.lock` 一致 — **未勾**（Stage 5 唯一剩余） |
 
 ### W-START NODE（EXPERIMENTAL · body-extend 扩写完成 · 2026-07-24 点火 · 2026-07-28 收束 · ≠ freeze）
 `EXPERIMENTAL · NON-GREEN · Rust-first · OUT-OF-v0.1-body（SCOPE-CUT 边界外点火）` — 详表 `docs/auxdocs/selfhost-start-node.md`
@@ -76,7 +84,7 @@
 - **Workflow Hard Rule (non-normative; behavior, not law)** — default-first: 下一拍明显时直接执行默认 + 上一个子代理参数，**不再列选项问 A/B/C**；仅在 (a) 工具链缺、(b) 观测到 peer 分叉、(c) lock pin 想改但无既有 log、(d) PROMPT 要改 NORMATIVE（如 bump version）时才停下问；每拍成功仍产 `docs/auxdocs/<attempt|topic>-N-log.md`；不复述 dashboard/审计汇总，只接上一拍摘要 + 1 行下一拍。
 - Checklist（压缩）：冷启复验文首+pin · Lock/Relock 一致（无 LOCKED 不谈 freeze）· scope 标签 · D-1/平台分叉 fail-closed · stub/RAW_BYTE 不宣称 C-ddc / Morph / freeze / gen1≡gen2
 - 「尝试已开始」= 可复现 Rust 入口（cmd+log+scope tag）+ checklist（**attempt-level 全绿**；见 `docs/auxdocs/selfhost-attempt-N1-log.md`）
-- 「自举 GREEN」= 仍红项（full body · Freeze+Lock）— **START NODE 一律不豁免**；Freeze = end gate（Part 5）；full body 仍在 W5.5 **SCOPE-CUT**；3-chain section-ddc 已达成（Python asm peer EQUAL）；gen1≡gen2 已达成（`.ty`==`.tyb` 三端一致）
+- 「自举 GREEN」= Freeze+Lock 复验仍 **HOLD**（Stage 5 最后一关）；M2→M3 + selfhost startup 已 **GREEN**；full body 仍在 W5.5 **SCOPE-CUT**；3-chain section-ddc 已达成；gen1≡gen2 已达成
 - body-extend 连续扩写（EXPERIMENTAL · ≠ stub 34）：控制面 `docs/auxdocs/body-extend-queue.md` — scratch≤8 并发 / Relock 单写 / **矩阵满即停（matrix coverage gate）**；现 **788 handlers** · pin `0275802d2b4459e6…`（Decision #25）· body-extend-106 DONE（P2 imm 边界 + P1 多 slot）
 - 入口（最小，不真编）：`cd f:\yoyo; .\scripts\verify-asm.ps1; node .\yoyo-js\scripts\golden.js; .\scripts\verify-selfhost.ps1; cd f:\yoyo\yoyo-rust; cargo run -p verifier --bin yoyo -- test golden`
 - attempt-level 4 critical-path：#1 pin re-verify ✅ / #4 D-1+WSL 路径 ✅ / #5 不假 pin ✅ / #7 harness 18+25+2 DDC EQUAL ✅
@@ -85,7 +93,7 @@
 | peer | 覆盖 | 验证命令 |
 |------|------|---------|
 | JS (M0) | G00–G05 + INC/DEC/JMP + body-extend 全套 | `node .\yoyo-js\scripts\golden.js` |
-| Rust | **739/739 golden**（G00–G05 + G-SM 全量 + JCC-ALL + IO + MEMCPY） | `cargo run -p verifier --bin yoyo -- test golden` |
+| Rust | **739/739 golden** · **test all** · **DDC 全绿** | `cargo run -p verifier --bin yoyo -- test golden` · `test ddc` · `test all` |
 | Python (asm peer) | 788 handlers, 3-chain DDC EQUAL (SHA-256: 4fb8b87f) | `python yoyo-asm\asm.py yoyo\projects\yoyo.ty out.exe` |
 | Rust `.tyb` | 788 handlers, paper-tape DDC EQUAL (SHA-256: 4fb8b87f) | `yoyo.exe link --target=win32 yoyo.tyb out.exe` |
 | asm | INC/DEC（经 WSL 编译+运行） | `.\scripts\verify-asm.ps1` |
@@ -99,7 +107,7 @@ body 今日 = **788 handlers / 4170 lines**（W-START 扩写后）。扩写勿�
 - **D-3** `0x84/0x85`：两端真实 `rep movsb` emit；DDC EQUAL；JS REX.R + Rust 参数顺序 + pin byte-17 均已修平（body-extend-105）。
 - **D-4**：gen1≡gen2 — 三端 DDC EQUAL，`.ty`==`.tyb`（SHA-256: 4fb8b87f），**GREEN**
 
-### 下一拍待决（Next ops · 2026-07-28）
+### 下一拍待决（Next ops · 2026-08-24）
 | # | pick | rationale（1 行） | Status |
 |---|------|-------------------|--------|
 | 1 | `0x66 INC slot` | H_17 + G-SM-INC | **GREEN (DONE)** |
@@ -118,8 +126,12 @@ body 今日 = **788 handlers / 4170 lines**（W-START 扩写后）。扩写勿�
 | 14 | `.tyb` 纸带格式 | 8B 记录，argc-dep 布局，Rust tyb_parser，DDC EQUAL | **GREEN (DONE)** |
 | 15 | `--selfhost` HOT 自举框架 | emit.rs handler_offsets + pe_link selfhost + selfhost.rs | **GREEN (DONE)** |
 | 16 | gen1≡gen2 | `.ty`==`.tyb` 产出一致 (SHA-256: 4fb8b87f)，三端 DDC EQUAL，selfhost 单元测试通过 | **GREEN (DONE)** |
-| 17 | selfhost startup 完整实现 | M1.exe 运行时读 .tyb → 复制 handler → 写 PE | **HOLD** |
-| 18 | 冻结编译器 | 走 Lock Protocol 8-step 声明 freeze at M3 | **GREEN (DONE)** |
+| 17 | selfhost startup 完整实现 | gen2rt 零参 → output.exe（embedded startup + sidecar） | **GREEN (DONE)** |
+| 18 | 冻结编译器 | Lock Protocol 8-step；pin 与 `yoyo.ty.lock` 一致 | **HOLD** |
+| 19 | Stage 4 A/B/C 毕业 | Win/Linux slot-form · container PE+ELF · LDB ptr DDC | **GREEN (DONE)** |
+| 20 | `test all` 一键 | golden + backends + ddc CI 级绿 | **GREEN (DONE)** |
+| 21 | Windows M2→M3 | `stage5-win-selfhost.ps1` 全绿 | **GREEN (DONE)** |
+| 22 | 全架构 MCU DDC | 01/02/03 各 11/11 MCU fatal | **GREEN (DONE)** |
 
 ### DDC 修复备注
 #D-1 修复：Rust Win32Platform `emit_alloc`/`emit_load_file`/`emit_write_file` 从 VirtualAlloc 参数设置改为 movabs+store，与 JS M0 编译器匹配。DDC 恢复到 EQUAL。真实平台实现（VirtualAlloc IAT / syscall）延迟到 Phase 2。
@@ -135,8 +147,9 @@ cd f:\yoyo\yoyo-rust; cargo test -p verifier --bin yoyo
 cd f:\yoyo; .\scripts\verify-selfhost.ps1
 node .\scripts\verify-yoyo-ty.mjs
 node .\yoyo-js\scripts\golden.js
-cd f:\yoyo\yoyo-rust; cargo run -p verifier --bin yoyo -- test golden
-.\scripts\verify-asm.ps1           # 需 WSL
+cd f:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
+cd f:\yoyo\yoyo-rust\verifier; cargo run -- test all
+cd f:\yoyo; .\scripts\stage5-win-selfhost.ps1
 node .\scripts\check-foundations.mjs
 node .\scripts\check-plans.mjs
 node .\scripts\check-cites.mjs
@@ -250,6 +263,25 @@ node .\scripts\check-sugar.mjs
 | # | id | 任务 | Status |
 |---|-----|------|--------|
 | 1 | W-START | Rust-first self-host START NODE · **EXPERIMENTAL · 尝试已开始 2026-07-24**（attempt-N1 dispatch；minimal probes；**非** freeze / **非** 自举 GREEN；详表 `docs/auxdocs/selfhost-attempt-N1-log.md`） | **EXPERIMENTAL** |
+
+### Stage 4 — DDC 毕业（2026-08 · 看板 A/B/C）
+| # | id | 任务 | Status |
+|---|-----|------|--------|
+| 1 | S4-A | Win/Linux MEMCPY_STATE slot-form emit；01–03 core fatal 含 win32/linux | **GREEN (DONE)** |
+| 2 | S4-B | Container DDC — PE32+ x64 + ELF64 x64 NOP+RET PASS（取消 SKIP） | **GREEN (DONE)** |
+| 3 | S4-C | LDB 指针内存 DDC — `04_ldb_ptr` sim + container PASS | **GREEN (DONE)** |
+
+### Stage 5 — 自举 + 全架构 DDC（当前主线 · 看板 Stage 5 预置任务）
+| # | id | 任务 | Status |
+|---|-----|------|--------|
+| 1 | S5.1 | `test all` 一键（golden + backends + ddc）CI 级绿 | **GREEN (DONE)** |
+| 2 | S5.2 | Windows M2→M3 自举 — `stage5-win-selfhost.ps1` 全绿 | **GREEN (DONE)** |
+| 3 | S5.3 | 3-chain section-ddc 持续绿 — JS==Rust==Python asm EQUAL | **GREEN (DONE)** |
+| 4 | S5.4 | gen1≡gen2 持续绿 — `test gen12` SHA `4fb8b87f` | **GREEN (DONE)** |
+| 5 | S5.5 | 全架构 DDC 扩展 — 01/02/03 各 11/11 MCU fatal | **GREEN (DONE)** |
+| 6 | S5.6 | selfhost startup 完整实现 — gen2rt → output.exe | **GREEN (DONE)** |
+| 7 | S5.7 | Freeze + Lock 复验 — Lock Protocol 8-step | **HOLD** |
+| 8 | S5.8 | 文档收口 — PROMPT Week 轴 ↔ 看板 ↔ BACKEND_SUPPORT | **GREEN (DONE)** |
 
 ---
 
@@ -1131,11 +1163,16 @@ isa! { r#"
 
 **Why u64 not a real ternary type**: (1) compiler internals use u64; (2) 38 ops suffice; (3) packing is paper advantage; (4) type safety misses logic bugs; (5) audit surface growth; (6) ISA frozen post-Phase 1. Trit is convention, not type.
 
-# YOYO: Engineering Specification (v3.3.10)
+# YOYO: Engineering Specification (v3.3.11)
 
 > A self-hosting **compiler-specialized ISA / DDC toolchain** with **auditable** Thompson-style backdoor *detection* (not a formal proof), **4-project architecture**, **3-chain DDC verification**, **yoyo.ty lockdown**, and **protocol-gated morphology** (Part E). This document is the **single source of truth** for rebuilding YOYO from scratch.
 >
-> **Week axis (v3.3.10)** — **日常进度只看文首『当前进度 · Week 轴』**；下文 Parts 是规范参考，不是阅读/施工顺序。 Do **not** treat BOOK I–VIII or Part order as the work queue. Agents: one Week at a time — not “run whole PROMPT.”
+> **Week axis (v3.3.11)** — **日常进度只看文首『当前进度 · Week 轴』**；下文 Parts 是规范参考，不是阅读/施工顺序。 Do **not** treat BOOK I–VIII or Part order as the work queue. Agents: one Week at a time — not “run whole PROMPT.”
+>
+> **v3.3.11 changelog** (**nav / progress dashboard only** — **no** NORMATIVE semantic change):
+> - Stage 4 毕业（A/B/C）+ Stage 5 进度同步（test all · M2→M3 · section-ddc · gen12 · MCU fatal · selfhost startup）
+> - selfhost startup #17 HOLD → **GREEN**；Freeze+Lock #18 改 **HOLD**（看板未勾）
+> - 新增 Stage 4 / Stage 5 Week 表；`BACKEND_SUPPORT.md` Known gaps 收口
 >
 > **v3.3.10 changelog** (**nav / progress dashboard only** — **no** NORMATIVE semantic change):
 > - W-START NODE HOLD → **EXPERIMENTAL · 尝试已开始**（attempt-N1 dispatch；minimal probes；≠ 自举 GREEN；attempt-level checklist 全绿；`docs/auxdocs/selfhost-attempt-N1-log.md`）
@@ -1212,10 +1249,18 @@ isa! { r#"
 > **日常入口。** 规格语义仍在下方 Parts；施工顺序 = 本 Week 轴。Status 仅允许：**GREEN (DONE)** / **RED** / **SCOPE-CUT** / **HOLD**。勿再维护 `STATUS.md` / `docs/PROGRESS-MAP.md`（已并入此处）。
 
 ### 你现在在哪
-`yoyo.ty` = **788 handlers / 4170 lines**（850 行注释已恢复）；Rust golden **739/739 PASS**· executor **8/8 PASS**；JS==Rust==Python 三端字节级相等（3-chain DDC EQUAL，SHA-256: `4fb8b87f`）。W-START body-extend-001..106 全部 GREEN；MEMCPY real emit + LEA scale fix + executor expand + DDC fix；P2 imm 边界 + P1 多 slot 变体补齐；`.tyb` 纸带格式（8B 记录）就绪；`--selfhost` HOT 自举框架就绪；pin `0275802d2b4459e6…`（Decision #25）。
+**Stage 4 已毕业**（A/B/C 全绿 · 看板 `STAGE4_OWNER_CHECKLIST.md`）→ **Stage 5 当前主线**（7/8 项已绿；剩 Freeze+Lock）。
+
+`yoyo.ty` = **788 handlers / 4170 lines**；Rust golden **739/739 PASS** · backends **36/36 PASS** · `cargo run -- test all` **CI 级绿**；JS==Rust==Python 三端字节级相等（3-chain section-ddc EQUAL，SHA-256: `4fb8b87f`）；gen1≡gen2 持续绿（`test gen12` + `verify-gen12-ddc.ps1`）。
+
+**DDC**：`00_nop_ret` 23 paths · `01_arith`/`02_branch`/`03_mem` 各 **11/11 core fatal**（含 win32/linux + **11 MCU fatal**）· `04_ldb_ptr` sim+container PASS · container PE+ELF PASS（不再 SKIP）。
+
+**自举**：Windows M2→M3 全绿（`stage5-win-selfhost.ps1` · gen2rt embedded startup → output.exe）；selfhost startup 完整实现（gen2rt 零参 → output.exe + `yoyo_runtime.dll` sidecar）。pin `0275802d2b4459e6…`（Decision #25）。
 
 ### 仍红（big list）
-（无 — 所有里程碑已达成）
+| 项 | 说明 |
+|----|------|
+| **Freeze + Lock 复验** | Lock Protocol 8-step；pin 须与 `yoyo/tests/yoyo.ty.lock` 一致 — **未勾**（Stage 5 唯一剩余） |
 
 ### W-START NODE（EXPERIMENTAL · body-extend 扩写完成 · 2026-07-24 点火 · 2026-07-28 收束 · ≠ freeze）
 `EXPERIMENTAL · NON-GREEN · Rust-first · OUT-OF-v0.1-body（SCOPE-CUT 边界外点火）` — 详表 `docs/auxdocs/selfhost-start-node.md`
@@ -1223,7 +1268,7 @@ isa! { r#"
 - **Workflow Hard Rule (non-normative; behavior, not law)** — default-first: 下一拍明显时直接执行默认 + 上一个子代理参数，**不再列选项问 A/B/C**；仅在 (a) 工具链缺、(b) 观测到 peer 分叉、(c) lock pin 想改但无既有 log、(d) PROMPT 要改 NORMATIVE（如 bump version）时才停下问；每拍成功仍产 `docs/auxdocs/<attempt|topic>-N-log.md`；不复述 dashboard/审计汇总，只接上一拍摘要 + 1 行下一拍。
 - Checklist（压缩）：冷启复验文首+pin · Lock/Relock 一致（无 LOCKED 不谈 freeze）· scope 标签 · D-1/平台分叉 fail-closed · stub/RAW_BYTE 不宣称 C-ddc / Morph / freeze / gen1≡gen2
 - 「尝试已开始」= 可复现 Rust 入口（cmd+log+scope tag）+ checklist（**attempt-level 全绿**；见 `docs/auxdocs/selfhost-attempt-N1-log.md`）
-- 「自举 GREEN」= 仍红项（full body · Freeze+Lock）— **START NODE 一律不豁免**；Freeze = end gate（Part 5）；full body 仍在 W5.5 **SCOPE-CUT**；3-chain section-ddc 已达成（Python asm peer EQUAL）；gen1≡gen2 已达成（`.ty`==`.tyb` 三端一致）
+- 「自举 GREEN」= Freeze+Lock 复验仍 **HOLD**（Stage 5 最后一关）；M2→M3 + selfhost startup 已 **GREEN**；full body 仍在 W5.5 **SCOPE-CUT**；3-chain section-ddc 已达成；gen1≡gen2 已达成
 - body-extend 连续扩写（EXPERIMENTAL · ≠ stub 34）：控制面 `docs/auxdocs/body-extend-queue.md` — scratch≤8 并发 / Relock 单写 / **矩阵满即停（matrix coverage gate）**；现 **788 handlers** · pin `0275802d2b4459e6…`（Decision #25）· body-extend-106 DONE（P2 imm 边界 + P1 多 slot）
 - 入口（最小，不真编）：`cd f:\yoyo; .\scripts\verify-asm.ps1; node .\yoyo-js\scripts\golden.js; .\scripts\verify-selfhost.ps1; cd f:\yoyo\yoyo-rust; cargo run -p verifier --bin yoyo -- test golden`
 - attempt-level 4 critical-path：#1 pin re-verify ✅ / #4 D-1+WSL 路径 ✅ / #5 不假 pin ✅ / #7 harness 18+25+2 DDC EQUAL ✅
@@ -1232,7 +1277,7 @@ isa! { r#"
 | peer | 覆盖 | 验证命令 |
 |------|------|---------|
 | JS (M0) | G00–G05 + INC/DEC/JMP + body-extend 全套 | `node .\yoyo-js\scripts\golden.js` |
-| Rust | **739/739 golden**（G00–G05 + G-SM 全量 + JCC-ALL + IO + MEMCPY） | `cargo run -p verifier --bin yoyo -- test golden` |
+| Rust | **739/739 golden** · **test all** · **DDC 全绿** | `cargo run -p verifier --bin yoyo -- test golden` · `test ddc` · `test all` |
 | Python (asm peer) | 788 handlers, 3-chain DDC EQUAL (SHA-256: 4fb8b87f) | `python yoyo-asm\asm.py yoyo\projects\yoyo.ty out.exe` |
 | Rust `.tyb` | 788 handlers, paper-tape DDC EQUAL (SHA-256: 4fb8b87f) | `yoyo.exe link --target=win32 yoyo.tyb out.exe` |
 | asm | INC/DEC（经 WSL 编译+运行） | `.\scripts\verify-asm.ps1` |
@@ -1246,7 +1291,7 @@ body 今日 = **788 handlers / 4170 lines**（W-START 扩写后）。扩写勿�
 - **D-3** `0x84/0x85`：两端真实 `rep movsb` emit；DDC EQUAL；JS REX.R + Rust 参数顺序 + pin byte-17 均已修平（body-extend-105）。
 - **D-4**：gen1≡gen2 — 三端 DDC EQUAL，`.ty`==`.tyb`（SHA-256: 4fb8b87f），**GREEN**
 
-### 下一拍待决（Next ops · 2026-07-28）
+### 下一拍待决（Next ops · 2026-08-24）
 | # | pick | rationale（1 行） | Status |
 |---|------|-------------------|--------|
 | 1 | `0x66 INC slot` | H_17 + G-SM-INC | **GREEN (DONE)** |
@@ -1265,8 +1310,12 @@ body 今日 = **788 handlers / 4170 lines**（W-START 扩写后）。扩写勿�
 | 14 | `.tyb` 纸带格式 | 8B 记录，argc-dep 布局，Rust tyb_parser，DDC EQUAL | **GREEN (DONE)** |
 | 15 | `--selfhost` HOT 自举框架 | emit.rs handler_offsets + pe_link selfhost + selfhost.rs | **GREEN (DONE)** |
 | 16 | gen1≡gen2 | `.ty`==`.tyb` 产出一致 (SHA-256: 4fb8b87f)，三端 DDC EQUAL，selfhost 单元测试通过 | **GREEN (DONE)** |
-| 17 | selfhost startup 完整实现 | M1.exe 运行时读 .tyb → 复制 handler → 写 PE | **HOLD** |
-| 18 | 冻结编译器 | 走 Lock Protocol 8-step 声明 freeze at M3 | **GREEN (DONE)** |
+| 17 | selfhost startup 完整实现 | gen2rt 零参 → output.exe（embedded startup + sidecar） | **GREEN (DONE)** |
+| 18 | 冻结编译器 | Lock Protocol 8-step；pin 与 `yoyo.ty.lock` 一致 | **HOLD** |
+| 19 | Stage 4 A/B/C 毕业 | Win/Linux slot-form · container PE+ELF · LDB ptr DDC | **GREEN (DONE)** |
+| 20 | `test all` 一键 | golden + backends + ddc CI 级绿 | **GREEN (DONE)** |
+| 21 | Windows M2→M3 | `stage5-win-selfhost.ps1` 全绿 | **GREEN (DONE)** |
+| 22 | 全架构 MCU DDC | 01/02/03 各 11/11 MCU fatal | **GREEN (DONE)** |
 
 ### DDC 修复备注
 #D-1 修复：Rust Win32Platform `emit_alloc`/`emit_load_file`/`emit_write_file` 从 VirtualAlloc 参数设置改为 movabs+store，与 JS M0 编译器匹配。DDC 恢复到 EQUAL。真实平台实现（VirtualAlloc IAT / syscall）延迟到 Phase 2。
@@ -1282,8 +1331,9 @@ cd f:\yoyo\yoyo-rust; cargo test -p verifier --bin yoyo
 cd f:\yoyo; .\scripts\verify-selfhost.ps1
 node .\scripts\verify-yoyo-ty.mjs
 node .\yoyo-js\scripts\golden.js
-cd f:\yoyo\yoyo-rust; cargo run -p verifier --bin yoyo -- test golden
-.\scripts\verify-asm.ps1           # 需 WSL
+cd f:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
+cd f:\yoyo\yoyo-rust\verifier; cargo run -- test all
+cd f:\yoyo; .\scripts\stage5-win-selfhost.ps1
 node .\scripts\check-foundations.mjs
 node .\scripts\check-plans.mjs
 node .\scripts\check-cites.mjs
@@ -1397,6 +1447,25 @@ node .\scripts\check-sugar.mjs
 | # | id | 任务 | Status |
 |---|-----|------|--------|
 | 1 | W-START | Rust-first self-host START NODE · **EXPERIMENTAL · 尝试已开始 2026-07-24**（attempt-N1 dispatch；minimal probes；**非** freeze / **非** 自举 GREEN；详表 `docs/auxdocs/selfhost-attempt-N1-log.md`） | **EXPERIMENTAL** |
+
+### Stage 4 — DDC 毕业（2026-08 · 看板 A/B/C）
+| # | id | 任务 | Status |
+|---|-----|------|--------|
+| 1 | S4-A | Win/Linux MEMCPY_STATE slot-form emit；01–03 core fatal 含 win32/linux | **GREEN (DONE)** |
+| 2 | S4-B | Container DDC — PE32+ x64 + ELF64 x64 NOP+RET PASS（取消 SKIP） | **GREEN (DONE)** |
+| 3 | S4-C | LDB 指针内存 DDC — `04_ldb_ptr` sim + container PASS | **GREEN (DONE)** |
+
+### Stage 5 — 自举 + 全架构 DDC（当前主线 · 看板 Stage 5 预置任务）
+| # | id | 任务 | Status |
+|---|-----|------|--------|
+| 1 | S5.1 | `test all` 一键（golden + backends + ddc）CI 级绿 | **GREEN (DONE)** |
+| 2 | S5.2 | Windows M2→M3 自举 — `stage5-win-selfhost.ps1` 全绿 | **GREEN (DONE)** |
+| 3 | S5.3 | 3-chain section-ddc 持续绿 — JS==Rust==Python asm EQUAL | **GREEN (DONE)** |
+| 4 | S5.4 | gen1≡gen2 持续绿 — `test gen12` SHA `4fb8b87f` | **GREEN (DONE)** |
+| 5 | S5.5 | 全架构 DDC 扩展 — 01/02/03 各 11/11 MCU fatal | **GREEN (DONE)** |
+| 6 | S5.6 | selfhost startup 完整实现 — gen2rt → output.exe | **GREEN (DONE)** |
+| 7 | S5.7 | Freeze + Lock 复验 — Lock Protocol 8-step | **HOLD** |
+| 8 | S5.8 | 文档收口 — PROMPT Week 轴 ↔ 看板 ↔ BACKEND_SUPPORT | **GREEN (DONE)** |
 
 ---
 

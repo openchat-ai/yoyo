@@ -2,7 +2,7 @@
 
 ## Overview
 
-**负责人看板**：[`STAGE4_OWNER_CHECKLIST.md`](../STAGE4_OWNER_CHECKLIST.md)（每日 `cargo run -- test ddc` + Stage 4 毕业勾选）。
+**负责人看板**：[`STAGE4_OWNER_CHECKLIST.md`](../STAGE4_OWNER_CHECKLIST.md) — Stage 4 已毕业（A/B/C）；Stage 5 主线见看板「预置任务」。日常验收：`cargo run -- test ddc` 或 `cargo run -- test all`。
 
 The YOYO verifier can cross-compile `.ty` programs to **36 target platforms** across 5 categories:
 8-bit MCUs, 32-bit/64-bit CPUs, GPUs, blockchain VMs, and quantum computing.
@@ -75,17 +75,19 @@ Run from `yoyo-rust/verifier`: `cargo run -- test ddc`
 | `04_ldb_ptr.ty` | LDB pointer-form → slot0=7 | sim + Win32 PE + Linux ELF container | — | PASS |
 | container | PE/ELF container NOP+RET | PE32+ x64 + ELF64 x64 via plan9_interp | — | PASS |
 
-Known gaps: none for Stage 4 DDC graduation fixtures.
+Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container all PASS). Remaining Stage 5 work is process-only (Freeze + Lock 复验), not backend/DDC coverage.
 
 ### How to run
 
 ```
-yoyo test golden|backends|ddc|all
+yoyo test golden|backends|ddc|all|gen12
 ```
 
-- `yoyo test golden` — Appendix F G00-G05 integrity tests
-- `yoyo test backends` — compile+link all targets, verify output
+- `yoyo test golden` — Appendix F G00-G05 integrity tests (739/739)
+- `yoyo test backends` — compile+link all 36 targets, verify output
 - `yoyo test ddc` — nop + arith + branch + mem + ldb + container DDC suites
+- `yoyo test all` — golden + backends + ddc (CI-level one-shot)
+- `yoyo test gen12` — gen1≡gen2 SHA monitor (`4fb8b87f`)
 
 ## CLI Usage
 
@@ -95,7 +97,7 @@ yoyo simulate <input.ty>
 yoyo run-wasm <input.ty>
 yoyo exec <input.ty> [--target=android|apple]
 yoyo ddcmp <A.elf> <B.elf> <input.ty>
-yoyo test golden|backends|ddc|all
+yoyo test golden|backends|ddc|all|gen12
 yoyo info [--target=<target>]
 yoyo diff <a.bin> <b.bin>
 yoyo hash <file>
