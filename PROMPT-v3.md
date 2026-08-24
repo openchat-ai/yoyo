@@ -65,18 +65,19 @@
 > **日常入口。** 规格语义仍在下方 Parts；施工顺序 = 本 Week 轴。Status 仅允许：**GREEN (DONE)** / **RED** / **SCOPE-CUT** / **HOLD**。勿再维护 `STATUS.md` / `docs/PROGRESS-MAP.md`（已并入此处）。
 
 ### 你现在在哪
-**Stage 4 已毕业**（A/B/C 全绿 · 看板 `STAGE4_OWNER_CHECKLIST.md`）→ **Stage 5 当前主线**（7/8 项已绿；剩 Freeze+Lock）。
+**Stage 4 已毕业**（A/B/C 全绿 · 看板 `STAGE4_OWNER_CHECKLIST.md`）→ **Stage 5 已毕业**（8/8 项全绿 · 2026-08-24 Freeze+Lock 复验）。
 
 `yoyo.ty` = **788 handlers / 4170 lines**；Rust golden **739/739 PASS** · backends **36/36 PASS** · `cargo run -- test all` **CI 级绿**；JS==Rust==Python 三端字节级相等（3-chain section-ddc EQUAL，SHA-256: `4fb8b87f`）；gen1≡gen2 持续绿（`test gen12` + `verify-gen12-ddc.ps1`）。
 
 **DDC**：`00_nop_ret` 23 paths · `01_arith`/`02_branch`/`03_mem` 各 **11/11 core fatal**（含 win32/linux + **11 MCU fatal**）· `04_ldb_ptr` sim+container PASS · container PE+ELF PASS（不再 SKIP）。
 
-**自举**：Windows M2→M3 全绿（`stage5-win-selfhost.ps1` · gen2rt embedded startup → output.exe）；selfhost startup 完整实现（gen2rt 零参 → output.exe + `yoyo_runtime.dll` sidecar）。pin `0275802d2b4459e6…`（Decision #25）。
+**自举**：Windows M2→M3 全绿（`stage5-win-selfhost.ps1` · gen2rt embedded startup → output.exe）；selfhost startup 完整实现（gen2rt 零参 → output.exe + `yoyo_runtime.dll` sidecar）。pin `0275802d2b4459e6…`（Decision #25）· **Freeze at M3**（Decision #26 · Lock Protocol 8-step 复验 2026-08-24）。
 
 ### 仍红（big list）
 | 项 | 说明 |
 |----|------|
-| **Freeze + Lock 复验** | Lock Protocol 8-step；pin 须与 `yoyo/tests/yoyo.ty.lock` 一致 — **未勾**（Stage 5 唯一剩余） |
+| ~~Freeze + Lock 复验~~ | Lock Protocol 8-step；pin `0275802d2b4459e6…` 与 `yoyo/tests/yoyo.ty.lock` 一致 — **GREEN (DONE)** |
+| ~~文档收口~~ | PROMPT Week 轴 ↔ 看板 ↔ BACKEND_SUPPORT 同步 — **GREEN (DONE)** |
 
 ### W-START NODE（EXPERIMENTAL · body-extend 扩写完成 · 2026-07-24 点火 · 2026-07-28 收束 · ≠ freeze）
 `EXPERIMENTAL · NON-GREEN · Rust-first · OUT-OF-v0.1-body（SCOPE-CUT 边界外点火）` — 详表 `docs/auxdocs/selfhost-start-node.md`
@@ -84,7 +85,7 @@
 - **Workflow Hard Rule (non-normative; behavior, not law)** — default-first: 下一拍明显时直接执行默认 + 上一个子代理参数，**不再列选项问 A/B/C**；仅在 (a) 工具链缺、(b) 观测到 peer 分叉、(c) lock pin 想改但无既有 log、(d) PROMPT 要改 NORMATIVE（如 bump version）时才停下问；每拍成功仍产 `docs/auxdocs/<attempt|topic>-N-log.md`；不复述 dashboard/审计汇总，只接上一拍摘要 + 1 行下一拍。
 - Checklist（压缩）：冷启复验文首+pin · Lock/Relock 一致（无 LOCKED 不谈 freeze）· scope 标签 · D-1/平台分叉 fail-closed · stub/RAW_BYTE 不宣称 C-ddc / Morph / freeze / gen1≡gen2
 - 「尝试已开始」= 可复现 Rust 入口（cmd+log+scope tag）+ checklist（**attempt-level 全绿**；见 `docs/auxdocs/selfhost-attempt-N1-log.md`）
-- 「自举 GREEN」= Freeze+Lock 复验仍 **HOLD**（Stage 5 最后一关）；M2→M3 + selfhost startup 已 **GREEN**；full body 仍在 W5.5 **SCOPE-CUT**；3-chain section-ddc 已达成；gen1≡gen2 已达成
+- 「自举 GREEN」= Freeze+Lock 复验 **GREEN (DONE)**（Stage 5 全绿 · 2026-08-24）；M2→M3 + selfhost startup 已 **GREEN**；full body 仍在 W5.5 **SCOPE-CUT**；3-chain section-ddc 已达成；gen1≡gen2 已达成
 - body-extend 连续扩写（EXPERIMENTAL · ≠ stub 34）：控制面 `docs/auxdocs/body-extend-queue.md` — scratch≤8 并发 / Relock 单写 / **矩阵满即停（matrix coverage gate）**；现 **788 handlers** · pin `0275802d2b4459e6…`（Decision #25）· body-extend-106 DONE（P2 imm 边界 + P1 多 slot）
 - 入口（最小，不真编）：`cd f:\yoyo; .\scripts\verify-asm.ps1; node .\yoyo-js\scripts\golden.js; .\scripts\verify-selfhost.ps1; cd f:\yoyo\yoyo-rust; cargo run -p verifier --bin yoyo -- test golden`
 - attempt-level 4 critical-path：#1 pin re-verify ✅ / #4 D-1+WSL 路径 ✅ / #5 不假 pin ✅ / #7 harness 18+25+2 DDC EQUAL ✅
@@ -280,7 +281,7 @@ node .\scripts\check-sugar.mjs
 | 4 | S5.4 | gen1≡gen2 持续绿 — `test gen12` SHA `4fb8b87f` | **GREEN (DONE)** |
 | 5 | S5.5 | 全架构 DDC 扩展 — 01/02/03 各 11/11 MCU fatal | **GREEN (DONE)** |
 | 6 | S5.6 | selfhost startup 完整实现 — gen2rt → output.exe | **GREEN (DONE)** |
-| 7 | S5.7 | Freeze + Lock 复验 — Lock Protocol 8-step | **HOLD** |
+| 7 | S5.7 | Freeze + Lock 复验 — Lock Protocol 8-step | **GREEN (DONE)** |
 | 8 | S5.8 | 文档收口 — PROMPT Week 轴 ↔ 看板 ↔ BACKEND_SUPPORT | **GREEN (DONE)** |
 
 ---
@@ -1249,18 +1250,19 @@ isa! { r#"
 > **日常入口。** 规格语义仍在下方 Parts；施工顺序 = 本 Week 轴。Status 仅允许：**GREEN (DONE)** / **RED** / **SCOPE-CUT** / **HOLD**。勿再维护 `STATUS.md` / `docs/PROGRESS-MAP.md`（已并入此处）。
 
 ### 你现在在哪
-**Stage 4 已毕业**（A/B/C 全绿 · 看板 `STAGE4_OWNER_CHECKLIST.md`）→ **Stage 5 当前主线**（7/8 项已绿；剩 Freeze+Lock）。
+**Stage 4 已毕业**（A/B/C 全绿 · 看板 `STAGE4_OWNER_CHECKLIST.md`）→ **Stage 5 已毕业**（8/8 项全绿 · 2026-08-24 Freeze+Lock 复验）。
 
 `yoyo.ty` = **788 handlers / 4170 lines**；Rust golden **739/739 PASS** · backends **36/36 PASS** · `cargo run -- test all` **CI 级绿**；JS==Rust==Python 三端字节级相等（3-chain section-ddc EQUAL，SHA-256: `4fb8b87f`）；gen1≡gen2 持续绿（`test gen12` + `verify-gen12-ddc.ps1`）。
 
 **DDC**：`00_nop_ret` 23 paths · `01_arith`/`02_branch`/`03_mem` 各 **11/11 core fatal**（含 win32/linux + **11 MCU fatal**）· `04_ldb_ptr` sim+container PASS · container PE+ELF PASS（不再 SKIP）。
 
-**自举**：Windows M2→M3 全绿（`stage5-win-selfhost.ps1` · gen2rt embedded startup → output.exe）；selfhost startup 完整实现（gen2rt 零参 → output.exe + `yoyo_runtime.dll` sidecar）。pin `0275802d2b4459e6…`（Decision #25）。
+**自举**：Windows M2→M3 全绿（`stage5-win-selfhost.ps1` · gen2rt embedded startup → output.exe）；selfhost startup 完整实现（gen2rt 零参 → output.exe + `yoyo_runtime.dll` sidecar）。pin `0275802d2b4459e6…`（Decision #25）· **Freeze at M3**（Decision #26 · Lock Protocol 8-step 复验 2026-08-24）。
 
 ### 仍红（big list）
 | 项 | 说明 |
 |----|------|
-| **Freeze + Lock 复验** | Lock Protocol 8-step；pin 须与 `yoyo/tests/yoyo.ty.lock` 一致 — **未勾**（Stage 5 唯一剩余） |
+| ~~Freeze + Lock 复验~~ | Lock Protocol 8-step；pin `0275802d2b4459e6…` 与 `yoyo/tests/yoyo.ty.lock` 一致 — **GREEN (DONE)** |
+| ~~文档收口~~ | PROMPT Week 轴 ↔ 看板 ↔ BACKEND_SUPPORT 同步 — **GREEN (DONE)** |
 
 ### W-START NODE（EXPERIMENTAL · body-extend 扩写完成 · 2026-07-24 点火 · 2026-07-28 收束 · ≠ freeze）
 `EXPERIMENTAL · NON-GREEN · Rust-first · OUT-OF-v0.1-body（SCOPE-CUT 边界外点火）` — 详表 `docs/auxdocs/selfhost-start-node.md`
@@ -1268,7 +1270,7 @@ isa! { r#"
 - **Workflow Hard Rule (non-normative; behavior, not law)** — default-first: 下一拍明显时直接执行默认 + 上一个子代理参数，**不再列选项问 A/B/C**；仅在 (a) 工具链缺、(b) 观测到 peer 分叉、(c) lock pin 想改但无既有 log、(d) PROMPT 要改 NORMATIVE（如 bump version）时才停下问；每拍成功仍产 `docs/auxdocs/<attempt|topic>-N-log.md`；不复述 dashboard/审计汇总，只接上一拍摘要 + 1 行下一拍。
 - Checklist（压缩）：冷启复验文首+pin · Lock/Relock 一致（无 LOCKED 不谈 freeze）· scope 标签 · D-1/平台分叉 fail-closed · stub/RAW_BYTE 不宣称 C-ddc / Morph / freeze / gen1≡gen2
 - 「尝试已开始」= 可复现 Rust 入口（cmd+log+scope tag）+ checklist（**attempt-level 全绿**；见 `docs/auxdocs/selfhost-attempt-N1-log.md`）
-- 「自举 GREEN」= Freeze+Lock 复验仍 **HOLD**（Stage 5 最后一关）；M2→M3 + selfhost startup 已 **GREEN**；full body 仍在 W5.5 **SCOPE-CUT**；3-chain section-ddc 已达成；gen1≡gen2 已达成
+- 「自举 GREEN」= Freeze+Lock 复验 **GREEN (DONE)**（Stage 5 全绿 · 2026-08-24）；M2→M3 + selfhost startup 已 **GREEN**；full body 仍在 W5.5 **SCOPE-CUT**；3-chain section-ddc 已达成；gen1≡gen2 已达成
 - body-extend 连续扩写（EXPERIMENTAL · ≠ stub 34）：控制面 `docs/auxdocs/body-extend-queue.md` — scratch≤8 并发 / Relock 单写 / **矩阵满即停（matrix coverage gate）**；现 **788 handlers** · pin `0275802d2b4459e6…`（Decision #25）· body-extend-106 DONE（P2 imm 边界 + P1 多 slot）
 - 入口（最小，不真编）：`cd f:\yoyo; .\scripts\verify-asm.ps1; node .\yoyo-js\scripts\golden.js; .\scripts\verify-selfhost.ps1; cd f:\yoyo\yoyo-rust; cargo run -p verifier --bin yoyo -- test golden`
 - attempt-level 4 critical-path：#1 pin re-verify ✅ / #4 D-1+WSL 路径 ✅ / #5 不假 pin ✅ / #7 harness 18+25+2 DDC EQUAL ✅
@@ -1464,7 +1466,7 @@ node .\scripts\check-sugar.mjs
 | 4 | S5.4 | gen1≡gen2 持续绿 — `test gen12` SHA `4fb8b87f` | **GREEN (DONE)** |
 | 5 | S5.5 | 全架构 DDC 扩展 — 01/02/03 各 11/11 MCU fatal | **GREEN (DONE)** |
 | 6 | S5.6 | selfhost startup 完整实现 — gen2rt → output.exe | **GREEN (DONE)** |
-| 7 | S5.7 | Freeze + Lock 复验 — Lock Protocol 8-step | **HOLD** |
+| 7 | S5.7 | Freeze + Lock 复验 — Lock Protocol 8-step | **GREEN (DONE)** |
 | 8 | S5.8 | 文档收口 — PROMPT Week 轴 ↔ 看板 ↔ BACKEND_SUPPORT | **GREEN (DONE)** |
 
 ---

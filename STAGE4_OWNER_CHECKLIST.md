@@ -214,9 +214,9 @@ Stage 4 看板抽检：golden 或 backends 失败（贴完整输出）。
 
 
 
-## Stage 5 预置任务（当前主线）
+## Stage 5 预置任务（Stage 5 已毕业 ✅）
 
-> Stage 4 已毕业。以下第一项未勾 = 发 **`继续`** 时 AI 的默认目标。
+> Stage 4 已毕业。Stage 5 **8/8 全绿**（2026-08-24 Freeze+Lock 复验 + 文档收口）。
 
 - [x] **test all 一键** — `cargo run -- test all`（golden + backends + ddc）CI 级绿
 - [x] **Windows M2→M3 自举** — `stage5-win-selfhost.ps1` 全绿（gen2rt embedded startup → output.exe，无 AV）
@@ -224,8 +224,8 @@ Stage 4 看板抽检：golden 或 backends 失败（贴完整输出）。
 - [x] **gen1≡gen2 持续绿** — `cargo run -- test gen12` + `scripts/verify-gen12-ddc.ps1`（SHA `4fb8b87f`）
 - [x] **全架构 DDC 扩展** — 01/02/03 均 11/11 MCU fatal；`test all` 绿
 - [x] **selfhost startup 完整实现** — gen2rt 零参 → output.exe（embedded startup + yoyo_runtime.dll sidecar）
-- [ ] **Freeze + Lock 复验** — 走 Lock Protocol 8-step；pin 与 `yoyo/tests/yoyo.ty.lock` 一致
-- [ ] **文档收口** — `PROMPT-v3.md` Week 轴与看板状态同步；删掉过时 Known gaps
+- [x] **Freeze + Lock 复验** — 走 Lock Protocol 8-step；pin 与 `yoyo/tests/yoyo.ty.lock` 一致
+- [x] **文档收口** — `PROMPT-v3.md` Week 轴与看板状态同步；删掉过时 Known gaps
 
 ---
 
@@ -272,4 +272,4 @@ Stage 4 看板抽检：golden 或 backends 失败（贴完整输出）。
 
 ---
 
-*最后更新：2026-08-23 · 基线 commit* `24057e2`
+*最后更新：2026-08-24 · 基线 commit* `94908e5`
