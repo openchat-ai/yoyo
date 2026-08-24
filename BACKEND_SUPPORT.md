@@ -34,20 +34,20 @@ cargo run -- link --target=qiskit input.ty output.qasm   # IBM Quantum
 | Apple | apple | ARM64 | Mach-O64 | LE | 64 | ✅ | ✅ |
 | ARM64 Windows | arm64-win | ARM64 | PE32+ | LE | 64 | ✅ | ✅ |
 | ARM32 | arm32 | ARM32 | ELF32 | LE | 32 | ✅ | ❌ |
-| RISC-V RV64 | riscv64 | RV64 | ELF64 | LE | 64 | ✅ | ⏳ |
-| RISC-V RV32 | riscv32 | RV32 | ELF32 | LE | 32 | ✅ | ⏳ |
+| RISC-V RV64 | riscv64 | RV64 | ELF64 | LE | 64 | ✅ | ✅ |
+| RISC-V RV32 | riscv32 | RV32 | ELF32 | LE | 32 | ✅ | ✅ |
 | MIPS | mips | MIPS32 | ELF32BE | BE | 32 | ✅ | ⏳ |
 | PPC64 LE | ppc64le | PPC64 | ELF64 | LE | 64 | ✅ | ⏳ |
-| LoongArch | loongarch | LA64 | ELF64 | LE | 64 | ⏳ | ❌ |
-| SPARC v8 | sparc | SPARCv8 | ELF32BE | BE | 32 | ⏳ | ❌ |
+| LoongArch | loongarch | LA64 | ELF64 | LE | 64 | ✅ | ✅ |
+| SPARC v8 | sparc | SPARCv8 | ELF32BE | BE | 32 | ✅ | ✅ |
 | x86-32 | x86 | x86-32 | PE32 | LE | 32 | ✅ (stub) | ❌ |
 | FreeDOS | freedos | x86-16 | COM | LE | 16 | ✅ (stub) | ❌ |
 | BareMetal | baremetal | x64 | Flat | LE | 64 | ✅ (stub) | ❌ |
 | Stub | stub | x64 | Flat | LE | 64 | ✅ (stub) | ❌ |
 | 8051 | 8051 | 8051 | Flat | LE | 8 | ✅ | ❌ |
-| Z80 | z80 | Z80 | Flat | LE | 8 | ⏳ | ❌ |
-| 6502 | 6502 | 6502 | Flat | LE | 8 | ⏳ | ❌ |
-| AVR | avr | AVR | Flat | LE | 8 | ⏳ | ❌ |
+| Z80 | z80 | Z80 | Flat | LE | 8 | ✅ | ❌ |
+| 6502 | 6502 | 6502 | Flat | LE | 8 | ✅ | ❌ |
+| AVR | avr | AVR | Flat | LE | 8 | ✅ | ❌ |
 | Xtensa | xtensa | Xtensa | Flat | LE | 32 | ❌ | ❌ |
 | MSP430 | msp430 | MSP430 | Flat | LE | 16 | ❌ | ❌ |
 | PIC | pic | PIC16 | Flat | LE | 8 | ❌ | ❌ |
