@@ -27,11 +27,12 @@ struct Cpu {
     steps: u64,
     step_limit: u64,
     call_depth: u32,
+    cmp_eq: bool,
 }
 
 impl Cpu {
     fn new(mem: Vec<u8>) -> Self {
-        Self { w: 0, pc: 0, mem, steps: 0, step_limit: DEFAULT_STEP_LIMIT, call_depth: 0 }
+        Self { w: 0, pc: 0, mem, steps: 0, step_limit: DEFAULT_STEP_LIMIT, call_depth: 0, cmp_eq: false }
     }
 
     fn mem_get(&self, addr: u16) -> u8 {
@@ -112,6 +113,7 @@ impl Cpu {
             0x04 => { // SUBWF → mem[addr] -= W
                 let v = self.mem_get(addr).wrapping_sub(self.w);
                 self.mem_set(addr, v);
+                self.cmp_eq = v == 0;
                 self.pc = pc.wrapping_add(2);
                 return None;
             }
@@ -131,6 +133,38 @@ impl Cpu {
                 let v = self.mem_get(addr).wrapping_sub(1);
                 self.mem_set(addr, v);
                 self.pc = pc.wrapping_add(2);
+                return None;
+            }
+            0x08 => { // GOTO abs16 at next word
+                let next_pc = pc.wrapping_add(2);
+                if (next_pc as usize) + 2 > self.mem.len() {
+                    return Some(ExecExitReason::Fault { msg: "PIC GOTO truncated".into() });
+                }
+                let target = u16::from_le_bytes([self.mem[next_pc as usize], self.mem[next_pc as usize + 1]]);
+                self.pc = target;
+                return None;
+            }
+            0x0A => { // CALL abs16 at next word (YOYO flat: bump depth, jump)
+                let next_pc = pc.wrapping_add(2);
+                if (next_pc as usize) + 2 > self.mem.len() {
+                    return Some(ExecExitReason::Fault { msg: "PIC CALL truncated".into() });
+                }
+                let target = u16::from_le_bytes([self.mem[next_pc as usize], self.mem[next_pc as usize + 1]]);
+                self.call_depth += 1;
+                self.pc = target;
+                return None;
+            }
+            0x09 => { // JCC (JE) abs16 at next word when cmp_eq
+                let next_pc = pc.wrapping_add(2);
+                if (next_pc as usize) + 2 > self.mem.len() {
+                    return Some(ExecExitReason::Fault { msg: "PIC JCC truncated".into() });
+                }
+                if self.cmp_eq {
+                    let target = u16::from_le_bytes([self.mem[next_pc as usize], self.mem[next_pc as usize + 1]]);
+                    self.pc = target;
+                } else {
+                    self.pc = next_pc.wrapping_add(2);
+                }
                 return None;
             }
             _ => {}

@@ -1715,7 +1715,11 @@ fn branch_stm8(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
 #[inline(never)]
 fn branch_evm(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
     let out = emit::emit(tir, platform::PlatformKind::Evm)?;
-    Ok(branch_check!("evm", evm_interp::run_evm(&out.code), 5, evm_interp::ExecExitReason::Ret))
+    let r = evm_interp::run_evm(&out.code);
+    let slot0 = r.state.get(&0).copied().unwrap_or(0);
+    let ok = matches!(r.exit_reason, evm_interp::ExecExitReason::Ret | evm_interp::ExecExitReason::Halted) && slot0 == 5;
+    println!("02_branch DDC: {:8} exit={:?} slot0={} steps={}", "evm", r.exit_reason, slot0, r.steps);
+    Ok(ok)
 }
 
 
@@ -1764,17 +1768,14 @@ fn cmd_test_ddc_branch() -> Result<(), types::IsaError> {
     let soft = [e8051_ok, avr_ok, z80_ok, m6502_ok, m68k_ok, msp430_ok, freedos_ok, xtensa_ok, pic_ok, stm8_ok, evm_ok];
     let soft_pass = soft.iter().filter(|&&x| x).count();
     let soft_total = soft.len();
-    println!("02_branch DDC: {soft_pass}/{soft_total} MCU soft PASS (slot0=5)");
-    if soft_pass != soft_total {
-        println!("02_branch DDC: soft MCU gaps are non-fatal");
-    }
+    println!("02_branch DDC: {soft_pass}/{soft_total} MCU PASS (slot0=5)");
 
-    let promoted = [e8051_ok, avr_ok, z80_ok, m6502_ok];
+    let promoted = [e8051_ok, avr_ok, z80_ok, m6502_ok, m68k_ok, msp430_ok, freedos_ok, xtensa_ok, pic_ok, stm8_ok, evm_ok];
     let promoted_pass = promoted.iter().filter(|&&x| x).count();
     if promoted_pass != promoted.len() {
         return Err(types::IsaError::ParseError {
             line: 0,
-            msg: format!("02_branch DDC: promoted MCU only {promoted_pass}/{} PASS (need 8051+avr+z80+6502 slot0=5)", promoted.len()),
+            msg: format!("02_branch DDC: only {promoted_pass}/{promoted_total} MCU paths PASS (need all 11 MCU slot0=5)", promoted_total = promoted.len()),
         });
     }
 
@@ -1784,7 +1785,7 @@ fn cmd_test_ddc_branch() -> Result<(), types::IsaError> {
             msg: format!("02_branch DDC: only {core_pass}/{core_total} core paths PASS (need sim+arm64+riscv64+riscv32+mips+ppc+arm32+sparc+loong+plan9+x86+win32+linux slot0=5)"),
         });
     }
-    println!("02_branch DDC: ALL {core_total} CORE PATHS PASS + {promoted_pass}/{} promoted MCU fatal", promoted.len());
+    println!("02_branch DDC: ALL {core_total} CORE + {promoted_total} MCU PATHS PASS (fatal)", promoted_total = promoted.len());
     Ok(())
 }
 
@@ -2007,17 +2008,11 @@ fn cmd_test_ddc_mem() -> Result<(), types::IsaError> {
     let soft = [e8051_ok, avr_ok, z80_ok, m6502_ok, m68k_ok, msp430_ok, freedos_ok, xtensa_ok, pic_ok, stm8_ok, evm_ok];
     let soft_pass = soft.iter().filter(|&&x| x).count();
     let soft_total = soft.len();
-    println!("03_mem DDC: {soft_pass}/{soft_total} MCU soft PASS (slot0=7)");
+    println!("03_mem DDC: {soft_pass}/{soft_total} MCU PASS (slot0=7)");
     if soft_pass != soft_total {
-        println!("03_mem DDC: soft MCU gaps are non-fatal");
-    }
-
-    let promoted = [e8051_ok, avr_ok, z80_ok, m6502_ok];
-    let promoted_pass = promoted.iter().filter(|&&x| x).count();
-    if promoted_pass != promoted.len() {
         return Err(types::IsaError::ParseError {
             line: 0,
-            msg: format!("03_mem DDC: promoted MCU only {promoted_pass}/{} PASS (need 8051+avr+z80+6502 slot0=7)", promoted.len()),
+            msg: format!("03_mem DDC: only {soft_pass}/{soft_total} MCU paths PASS (need all 11 MCU slot0=7)"),
         });
     }
 
@@ -2027,7 +2022,7 @@ fn cmd_test_ddc_mem() -> Result<(), types::IsaError> {
             msg: format!("03_mem DDC: only {core_pass}/{core_total} core paths PASS (need sim+arm64+riscv64+riscv32+mips+ppc+arm32+sparc+loong+plan9+x86+win32+linux slot0=7)"),
         });
     }
-    println!("03_mem DDC: ALL {core_total} CORE PATHS PASS + {promoted_pass}/{} promoted MCU fatal", promoted.len());
+    println!("03_mem DDC: ALL {core_total} CORE + {soft_total} MCU PATHS PASS (fatal)");
     Ok(())
 }
 

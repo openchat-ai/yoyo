@@ -110,10 +110,18 @@ impl Cpu {
             return Some(ExecExitReason::Ret);
         }
 
-        // Branch placeholders: 03 00 0A (call), 03 00 06 (jmp) — 3-byte, absolute-ish unused for nop_ret
-        if b3[0] == 0x03 && b3[1] == 0x00 && (b3[2] == 0x0A || b3[2] == 0x06) {
-            // Treat as no-op advance (unpatched); avoid infinite loop by advancing
-            self.pc = pc.wrapping_add(3);
+        // XtensaImm18 patched j/jcc/callx: byte2=0x06 (jmp/jcc) or 0x0A (call)
+        if b3[2] == 0x06 || b3[2] == 0x0A {
+            let imm18 = (b3[0] as u32) | ((b3[1] as u32) << 8);
+            let diff = if imm18 & 0x20000 != 0 {
+                (imm18 | 0xFFFC0000) as i32
+            } else {
+                imm18 as i32
+            };
+            if b3[2] == 0x0A {
+                self.call_depth += 1;
+            }
+            self.pc = (pc as i32).wrapping_add(diff) as u32;
             return None;
         }
 

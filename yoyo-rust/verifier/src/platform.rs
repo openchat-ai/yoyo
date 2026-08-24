@@ -6008,15 +6008,17 @@ fn pic_movlb(bank: u8) -> Vec<u8> {
     let [hi, lo] = (bank as u16).to_le_bytes();
 vec![hi, lo]
 }
-// GOTO addr16
-fn pic_goto(addr: u16) -> Vec<u8> {
-    let [lo, hi] = addr.to_le_bytes();
-    vec![hi, lo]
+// GOTO abs16 — YOYO tag 0x08 + target word (patched at offset 2)
+fn pic_goto(_addr: u16) -> Vec<u8> {
+    vec![0x00, 0x08, 0x00, 0x00]
 }
-// CALL addr16
-fn pic_call(addr: u16) -> Vec<u8> {
-    let [lo, hi] = addr.to_le_bytes();
-    vec![hi, lo]
+// CALL abs16 — YOYO tag 0x0A + target word (patched at offset 2)
+fn pic_call(_addr: u16) -> Vec<u8> {
+    vec![0x00, 0x0A, 0x00, 0x00]
+}
+// JCC (JE) abs16 — YOYO tag 0x09 + target word (patched at offset 2)
+fn pic_jcc(_addr: u16) -> Vec<u8> {
+    vec![0x00, 0x09, 0x00, 0x00]
 }
 
 pub struct PicPlatform;
@@ -6079,8 +6081,10 @@ impl PlatformBackend for PicPlatform {
     fn emit_imul(&mut self, _dst: u16, _src: u16) -> IsaResult<Vec<u8>> {
         Ok(pic_addwf(0x00))
     }
-    fn emit_cmp(&mut self, _a: u16, _b: u16) -> IsaResult<Vec<u8>> {
-        Ok(pic_subwf(0x00))
+    fn emit_cmp(&mut self, a: u16, b: u16) -> IsaResult<Vec<u8>> {
+        let mut out = pic_movf(a as u8);
+        out.extend(pic_subwf(b as u8));
+        Ok(out)
     }
     fn emit_ldb(&mut self, _dd: u16, _ss: u16, _oo: u16) -> IsaResult<Vec<u8>> {
         Ok(pic_movf(0x00))
@@ -6111,13 +6115,16 @@ impl PlatformBackend for PicPlatform {
         Ok(vec![0xFD, 0x00])
     }
     fn emit_call_branch(&mut self) -> IsaResult<(Vec<u8>, BranchFixup)> {
-        Ok((pic_call(0), BranchFixup { field_offset: 0, field_size: 2, kind: FixupKind::AbsAddr16 }))
+        Ok((pic_call(0), BranchFixup { field_offset: 2, field_size: 2, kind: FixupKind::AbsAddr16 }))
     }
     fn emit_jmp_branch(&mut self) -> IsaResult<(Vec<u8>, BranchFixup)> {
-        Ok((pic_goto(0), BranchFixup { field_offset: 0, field_size: 2, kind: FixupKind::AbsAddr16 }))
+        Ok((pic_goto(0), BranchFixup { field_offset: 2, field_size: 2, kind: FixupKind::AbsAddr16 }))
     }
-    fn emit_jcc_branch(&mut self, _cc: u8) -> IsaResult<(Vec<u8>, BranchFixup)> {
-        Ok((pic_goto(0), BranchFixup { field_offset: 0, field_size: 2, kind: FixupKind::AbsAddr16 }))
+    fn emit_jcc_branch(&mut self, cc: u8) -> IsaResult<(Vec<u8>, BranchFixup)> {
+        match cc {
+            0x84 => Ok((pic_jcc(0), BranchFixup { field_offset: 2, field_size: 2, kind: FixupKind::AbsAddr16 })),
+            _ => Ok((pic_goto(0), BranchFixup { field_offset: 2, field_size: 2, kind: FixupKind::AbsAddr16 })),
+        }
     }
     fn startup_blob(&self) -> &[u8] {
         &[]
