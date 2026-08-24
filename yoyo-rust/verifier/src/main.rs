@@ -79,7 +79,7 @@ fn usage() -> ! {
            yoyo wasm-validate <input.ty>\n\
            yoyo run-wasm <input.ty>\n\
            yoyo ddcmp <A.elf> <B.elf> <input.ty>\n\
-           yoyo test golden|backends|ddc|all\n\
+           yoyo test golden|backends|ddc|gen12|all\n\
            yoyo bootstrap <input.ty|.tyb> <output.exe>\n\
            yoyo exec <input.ty> [--target=android|apple]\n\
            yoyo info [--target=<target>]\n\n\
@@ -913,6 +913,84 @@ fn cmd_test_ddc_suite() -> Result<(), types::IsaError> {
     cmd_test_ddc_ldb()
 }
 
+/// Stage 5 GEN12: gen1≡gen2 — `.ty` link vs `.tyb` bootstrap/link, .text DDC EQUAL.
+fn cmd_test_gen12() -> Result<(), types::IsaError> {
+    let root = repo_root()?;
+    let ty = root.join("yoyo/projects/yoyo.ty");
+    let tyb = root.join("yoyo/projects/yoyo.tyb");
+    if !ty.is_file() {
+        return Err(types::IsaError::IoError {
+            msg: format!("missing {}", ty.display()),
+        });
+    }
+    if !tyb.is_file() {
+        return Err(types::IsaError::IoError {
+            msg: format!(
+                "missing {} — run: python scripts/ty2tyb.py",
+                tyb.display()
+            ),
+        });
+    }
+
+    let src = fs::read_to_string(&ty).map_err(|e| types::IsaError::IoError {
+        msg: e.to_string(),
+    })?;
+    let tyb_data = fs::read(&tyb).map_err(|e| types::IsaError::IoError {
+        msg: e.to_string(),
+    })?;
+
+    let out_ty = executor::compile_ty_source(&src, PlatformKind::Win32)?;
+    let gen1 = pe_link::link_pe(&out_ty.code, &out_ty.data)?.bytes;
+
+    let gen2 = selfhost::bootstrap_compile(&tyb_data)?;
+
+    let out_tyb = executor::compile_tyb_source(&tyb_data, PlatformKind::Win32)?;
+    let gen2_link = pe_link::link_pe(&out_tyb.code, &out_tyb.data)?.bytes;
+
+    let pairs: [(&str, &[u8], &str, &[u8]); 2] = [
+        ("gen1(.ty link)", &gen1, "gen2(.tyb bootstrap)", &gen2),
+        ("gen1(.ty link)", &gen1, "gen2b(.tyb link)", &gen2_link),
+    ];
+
+    let mut all_ok = true;
+    let mut sha: Option<String> = None;
+
+    for (name_a, a, name_b, b) in pairs {
+        let report = ddc::compare_pe_text(a, b)?;
+        println!(
+            "GEN12: {name_a} vs {name_b}: compared_bytes={}",
+            report.compared_bytes
+        );
+        println!("  hash_a: {}", report.hash_a);
+        println!("  hash_b: {}", report.hash_b);
+        if report.equal {
+            println!("  DDC: EQUAL");
+            if sha.is_none() {
+                sha = Some(report.hash_a.clone());
+            } else if sha.as_ref() != Some(&report.hash_a) {
+                all_ok = false;
+            }
+        } else {
+            println!("  DDC: DIFFER");
+            all_ok = false;
+        }
+    }
+
+    if let Some(ref h) = sha {
+        println!("SHA-256 (.text): {h}");
+        println!("SHA prefix: {}", &h[..8.min(h.len())]);
+    }
+
+    if all_ok {
+        println!("gen1≡gen2 (.ty==.tyb DDC): PASS");
+        Ok(())
+    } else {
+        Err(types::IsaError::PlatformError {
+            msg: "gen12 DDC mismatch".into(),
+        })
+    }
+}
+
 fn cmd_test(args: &[String]) -> Result<(), types::IsaError> {
     if args.len() != 1 {
         usage();
@@ -921,10 +999,12 @@ fn cmd_test(args: &[String]) -> Result<(), types::IsaError> {
         "golden" => cmd_test_golden(),
         "backends" => cmd_test_backends(),
         "ddc" => cmd_test_ddc_suite(),
+        "gen12" => cmd_test_gen12(),
         "all" => {
             cmd_test_golden()?;
             cmd_test_backends()?;
-            cmd_test_ddc_suite()
+            cmd_test_ddc_suite()?;
+            cmd_test_gen12()
         }
         _ => usage(),
     }
