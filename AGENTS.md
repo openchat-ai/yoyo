@@ -2,6 +2,11 @@
 
 > 自动迁移自 ~/.config/opencode/AGENTS.md (yoyo 调试/自举/调试工具)。编辑请改此文件或原全局文件。
 
+## Stage 4 负责人看板（零指令）
+
+- **看板**：`STAGE4_OWNER_CHECKLIST.md` — 每日 DDC 绿/红 + A/B/C 毕业勾选
+- **自动规则**：`.cursor/rules/stage4-auto-owner.mdc` — `继续` 单轨 master；`继续 两板` PE+ELF 并行 worktree（`scripts/stage4-two-board.ps1`）
+
 ## "Pre-existing bug" 调查：先用最小测试隔离，再判断是代码还是用法 (2026-06-30)
 
 ### 背景
