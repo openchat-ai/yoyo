@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["verifier", "libyoyo", "verifier/isa-proc", "platform"]
+members = ["verifier", "libyoyo", "verifier/isa-proc", "platform", "yoyo-runtime"]
 default-members = ["verifier", "libyoyo"]
 
 [workspace.package]

@@ -1,6 +1,6 @@
-# stage5-win-selfhost.ps1 — Windows M1→M2→M3 self-host chain monitor
+﻿# stage5-win-selfhost.ps1 — Windows M1→M2→M3 self-host chain monitor
 # M1→M2 interim: yoyo bootstrap (Rust host compiler, not runtime selfhost in gen1.exe)
-# M2→M3: gen2.exe must compile input at runtime (--selfhost startup still stub → RED)
+# M2→M3: gen2rt.exe embedded startup → LoadLibraryA(yoyo_runtime.dll) → compile input → output.exe
 param(
     [switch]$SkipBuild
 )
@@ -15,12 +15,15 @@ New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
 $Ty = Join-Path $Root "yoyo\projects\yoyo.ty"
 $Tyb = Join-Path $Root "yoyo\projects\yoyo.tyb"
 $Yoyo = Join-Path $Root "yoyo-rust\target\release\yoyo.exe"
+$RuntimeDllBuilt = Join-Path $Root "yoyo-rust\target\release\yoyo_runtime.dll"
 
-if (-not (Test-Path $Yoyo)) {
-    Write-Host "== build yoyo + yoyo-sh (release) =="
+if (-not (Test-Path $Yoyo) -or -not (Test-Path $RuntimeDllBuilt)) {
+    Write-Host "== build yoyo + yoyo-runtime (release) =="
     Push-Location (Join-Path $Root "yoyo-rust")
     cargo build --release -p verifier
-    cargo build --release -p verifier --bin yoyo-sh
+    if ($LASTEXITCODE -ne 0) { throw "verifier build failed" }
+    cargo build --release -p yoyo-runtime
+    if ($LASTEXITCODE -ne 0) { throw "yoyo-runtime build failed" }
     Pop-Location
 }
 
@@ -35,6 +38,7 @@ $Gen2 = Join-Path $WorkDir "gen2.exe"
 $Gen3 = Join-Path $WorkDir "gen3.exe"
 $InputTyb = Join-Path $WorkDir "input.tyb"
 $InputKy = Join-Path $WorkDir "input.ky"
+$RuntimeDll = Join-Path $WorkDir "yoyo_runtime.dll"
 
 Copy-Item -Force $Tyb $InputTyb
 Copy-Item -Force $Ty $InputKy
@@ -83,7 +87,7 @@ try {
         if ((Test-Path "output.exe") -and $ec -eq 0) {
             Write-Host "gen1 runtime selfhost: GREEN"
         } else {
-            Write-Host "gen1 runtime selfhost: RED (exit=$ec, no output.exe — need --selfhost startup + 0x50/0x51)"
+            Write-Host "gen1 runtime selfhost: RED (exit=$ec, no output.exe — need embedded startup + 0x50/0x51)"
         }
     } else {
         Write-Host "gen1 runtime selfhost: SKIP (no gen1.exe)"
@@ -93,17 +97,20 @@ try {
 }
 
 Write-Host ""
-Write-Host "=== M2→M3: gen2 runtime compiles input → gen3 (no AV) ==="
+Write-Host "=== M2→M3: gen2rt embedded startup compiles input → gen3 (no AV) ==="
 Push-Location $WorkDir
 try {
     if (Test-Path $Gen3) { Remove-Item $Gen3 }
     if (Test-Path "output.exe") { Remove-Item "output.exe" }
     $Gen2rt = Join-Path $WorkDir "gen2rt.exe"
     if (Test-Path $Gen2rt) { Remove-Item $Gen2rt }
-    Write-Host "building gen2rt via bootstrap --selfhost (yoyo-sh launcher)..."
+    if (Test-Path $RuntimeDll) { Remove-Item $RuntimeDll }
+    Write-Host "building gen2rt via bootstrap --selfhost (embedded startup + yoyo_runtime.dll sidecar)..."
     & $Yoyo bootstrap --selfhost $InputTyb $Gen2rt
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path $Gen2rt)) {
         Write-Host "M2→M3: RED (bootstrap --selfhost failed)"
+    } elseif (-not (Test-Path $RuntimeDll)) {
+        Write-Host "M2→M3: RED (missing yoyo_runtime.dll sidecar)"
     } else {
         & $Gen2rt
         $ec = $LASTEXITCODE
@@ -112,7 +119,7 @@ try {
         } elseif ((Test-Path "output.exe") -and $ec -eq 0) {
             Copy-Item -Force "output.exe" $Gen3
             $m2m3Green = $true
-            Write-Host "M2→M3: GREEN (gen3=$((Get-Item $Gen3).Length) bytes)"
+            Write-Host "M2→M3: GREEN (gen3=$((Get-Item $Gen3).Length) bytes, embedded startup)"
         } else {
             Write-Host "M2→M3: RED (exit=$ec, no output.exe)"
         }

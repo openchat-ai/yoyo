@@ -35,36 +35,21 @@ pub fn bootstrap_compile(input: &[u8]) -> IsaResult<Vec<u8>> {
     }
 }
 
-/// Stage 5 M2→M3 runtime launcher PE (`yoyo-sh.exe` bytes).
-pub fn bootstrap_runtime_pe() -> IsaResult<Vec<u8>> {
-    let candidates = [
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../target/release/yoyo-sh.exe"),
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../target/debug/yoyo-sh.exe"),
-    ];
-    for path in &candidates {
-        if path.is_file() {
-            return std::fs::read(path).map_err(|e| crate::types::IsaError::IoError {
-                msg: format!("read {}: {e}", path.display()),
-            });
-        }
-    }
-    Err(crate::types::IsaError::IoError {
-        msg: "yoyo-sh.exe not built — run `cargo build --release -p verifier --bin yoyo-sh`".into(),
-    })
+/// Link emitted code as Win32 PE with embedded runtime selfhost startup + HOT table.
+pub fn link_pe_selfhost_runtime(code: &[u8], data: &[u8], hot_table: &[u8]) -> IsaResult<Vec<u8>> {
+    Ok(pe_link::link_pe_selfhost(code, data, hot_table)?.bytes)
 }
 
-/// Generate the selfhost startup x64 code.
-///
-/// V1 interim: `link --selfhost` still uses exit(0) stub. Runtime M2→M3 uses
-/// `yoyo bootstrap --selfhost` → `yoyo-sh.exe` launcher (reads input.ky → output.exe).
-pub fn gen_selfhost_startup(_hot_va: u64, _code_va: u64, _startup_va: u64) -> Vec<u8> {
-    // V1: exit(0) stub — selfhost compile is done by yoyo.exe at link time
-    // mov eax, 0
-    // ret
-    let mut code: Vec<u8> = Vec::new();
-    code.extend_from_slice(&[0xB8, 0x00, 0x00, 0x00, 0x00]); // mov eax, 0
-    code.push(0xC3); // ret
-    code
+/// Prebuilt `yoyo_runtime.dll` bytes (for sidecar extraction at bootstrap).
+pub fn runtime_dll_bytes() -> IsaResult<Vec<u8>> {
+    crate::win32_selfhost::runtime_dll_bytes()
+}
+
+/// Stage 5 M2→M3: compile `.tyb` input and link PE with runtime selfhost startup.
+pub fn bootstrap_selfhost_runtime(input_tyb: &[u8]) -> IsaResult<Vec<u8>> {
+    let out = executor::compile_tyb_source(input_tyb, PlatformKind::Win32)?;
+    let hot = build_hot(&out.handler_offsets);
+    link_pe_selfhost_runtime(&out.code, &out.data, &hot)
 }
 
 /// Build the HOT table from handler offset data.

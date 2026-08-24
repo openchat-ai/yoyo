@@ -3,6 +3,7 @@
 //! Data section size floor: 0x38000 (Phase 2 root-cause fix).
 
 use crate::types::IsaResult;
+use crate::win32_selfhost;
 
 /// IMAGE_DOS_HEADER + PE signature offset convention.
 const OUTPUT_DATA_NEED: u32 = 0x38000;
@@ -14,20 +15,47 @@ pub struct PeImage {
 /// Wrap raw x64 code (+ optional data) in a PE32+ image.
 /// Entry: sets up R15 → .data (state base), then jumps to `code`.
 pub fn link_pe(code: &[u8], data: &[u8]) -> IsaResult<PeImage> {
-    link_pe_impl(code, data, &[], false)
+    link_pe_impl(code, data, false, 0, 0)
 }
 
-/// Wrap raw x64 code with selfhost startup + HOT table in a PE32+ image.
-/// Entry: selfhost_startup (reads .tyb, compiles, writes output).
-pub fn link_pe_selfhost(code: &[u8], data: &[u8], hot_table: &[u8], startup_code: &[u8]) -> IsaResult<PeImage> {
+/// Wrap raw x64 code with Win32 runtime selfhost startup + HOT table.
+/// Entry: lea r15 → jmp startup → LoadLibraryA(yoyo_runtime.dll) → compile → ExitProcess.
+pub fn link_pe_selfhost(code: &[u8], data: &[u8], hot_table: &[u8]) -> IsaResult<PeImage> {
+    let section_align: u32 = 0x1000;
+    let text_rva = section_align;
+    let body_len = win32_selfhost::STARTUP_BODY_SIZE;
+    let est_code_len = body_len + code.len() + hot_table.len();
+    let text_vs = align_up(est_code_len as u32 + 0x40, section_align);
+    let data_rva = text_rva + text_vs;
+
+    let (extended_data, meta) = win32_selfhost::build_selfhost_metadata(data, data_rva)?;
+    let startup_body = win32_selfhost::gen_selfhost_startup(
+        meta.dll_name_rva,
+        meta.iat_rva,
+        meta.export_name_rva,
+    );
+
     let mut full_code = Vec::new();
-    full_code.extend_from_slice(startup_code);
+    full_code.extend_from_slice(&startup_body);
     full_code.extend_from_slice(code);
     full_code.extend_from_slice(hot_table);
-    link_pe_impl(&full_code, data, startup_code, true)
+
+    link_pe_impl(
+        &full_code,
+        &extended_data,
+        true,
+        meta.import_dir_rva,
+        meta.import_dir_size,
+    )
 }
 
-fn link_pe_impl(code: &[u8], data: &[u8], startup_code: &[u8], is_selfhost: bool) -> IsaResult<PeImage> {
+fn link_pe_impl(
+    code: &[u8],
+    data: &[u8],
+    is_selfhost: bool,
+    import_dir_rva: u32,
+    import_dir_size: u32,
+) -> IsaResult<PeImage> {
     let section_align: u32 = 0x1000;
     let file_align: u32 = 0x200;
 
@@ -145,6 +173,12 @@ fn link_pe_impl(code: &[u8], data: &[u8], startup_code: &[u8], is_selfhost: bool
 
     // Entry point = text_rva (startup)
     write_u32(&mut img, opt + 16, text_rva);
+
+    if is_selfhost && import_dir_rva != 0 {
+        // Data directory[1] = Import Table (offset 120 from optional header start).
+        write_u32(&mut img, opt + 120, import_dir_rva);
+        write_u32(&mut img, opt + 124, import_dir_size);
+    }
 
     Ok(PeImage { bytes: img })
 }

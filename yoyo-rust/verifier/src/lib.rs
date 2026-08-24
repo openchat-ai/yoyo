@@ -16,3 +16,4 @@ pub mod ty_parser;
 pub mod tyb_parser;
 pub mod types;
 pub mod variable;
+pub mod win32_selfhost;

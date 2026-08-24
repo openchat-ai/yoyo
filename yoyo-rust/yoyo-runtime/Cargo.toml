@@ -1,0 +1,13 @@
+[package]
+name = "yoyo-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Stage 5 Win32 in-process selfhost runtime (embedded DLL)"
+
+[lib]
+name = "yoyo_runtime"
+crate-type = ["cdylib"]
+
+[dependencies]
+verifier = { path = "../verifier" }

@@ -1750,6 +1750,13 @@ name = "yoyo-platform"
 version = "0.3.0"
 
 [[package]]
+name = "yoyo-runtime"
+version = "0.3.0"
+dependencies = [
+ "verifier",
+]
+
+[[package]]
 name = "zmij"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
