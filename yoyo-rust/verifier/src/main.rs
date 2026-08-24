@@ -80,6 +80,7 @@ fn usage() -> ! {
            yoyo run-wasm <input.ty>\n\
            yoyo ddcmp <A.elf> <B.elf> <input.ty>\n\
            yoyo test golden|backends|ddc|all\n\
+           yoyo bootstrap <input.ty|.tyb> <output.exe>\n\
            yoyo exec <input.ty> [--target=android|apple]\n\
            yoyo info [--target=<target>]\n\n\
          Note: --posture= / --morph= are recognized and fail-closed (NON-CONFORMING)\n\
@@ -111,6 +112,7 @@ fn main() -> ExitCode {
     let cmd = args[0].as_str();
     let result = match cmd {
         "link" => cmd_link(&args[1..], &budget),
+        "bootstrap" => cmd_bootstrap(&args[1..]),
         "diff" => cmd_diff(&args[1..]),
         "hash" => cmd_hash(&args[1..]),
         "selftest" => {
@@ -619,6 +621,27 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
             println!("wrote EVM flat {} ({} bytes)", rest[1], out.code.len());
         }
     }
+    Ok(())
+}
+
+/// Stage 5 interim: compile input.ky/.tyb → output.exe via Rust host (not runtime selfhost).
+fn cmd_bootstrap(args: &[String]) -> Result<(), types::IsaError> {
+    if args.len() != 2 {
+        usage();
+    }
+    let input = fs::read(&args[0]).map_err(|e| types::IsaError::IoError {
+        msg: e.to_string(),
+    })?;
+    let pe = selfhost::bootstrap_compile(&input)?;
+    fs::write(&args[1], &pe).map_err(|e| types::IsaError::IoError {
+        msg: e.to_string(),
+    })?;
+    println!(
+        "bootstrap: {} → {} ({} bytes)",
+        args[0],
+        args[1],
+        pe.len()
+    );
     Ok(())
 }
 

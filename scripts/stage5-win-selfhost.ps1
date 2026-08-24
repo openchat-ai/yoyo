@@ -1,0 +1,125 @@
+# stage5-win-selfhost.ps1 — Windows M1→M2→M3 self-host chain monitor
+# M1→M2 interim: yoyo bootstrap (Rust host compiler, not runtime selfhost in gen1.exe)
+# M2→M3: gen2.exe must compile input at runtime (--selfhost startup still stub → RED)
+param(
+    [switch]$SkipBuild
+)
+
+$ErrorActionPreference = "Stop"
+$Root = Split-Path -Parent $PSScriptRoot
+Set-Location $Root
+
+$WorkDir = Join-Path $Root "scripts\_stage5-win"
+New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
+
+$Ty = Join-Path $Root "yoyo\projects\yoyo.ty"
+$Tyb = Join-Path $Root "yoyo\projects\yoyo.tyb"
+$Yoyo = Join-Path $Root "yoyo-rust\target\release\yoyo.exe"
+
+if (-not (Test-Path $Yoyo)) {
+    Write-Host "== build yoyo (release) =="
+    Push-Location (Join-Path $Root "yoyo-rust")
+    cargo build --release -p verifier
+    Pop-Location
+}
+
+if (-not (Test-Path $Tyb)) {
+    Write-Host "== ty2tyb =="
+    python (Join-Path $Root "scripts\ty2tyb.py")
+    if (-not (Test-Path $Tyb)) { throw "ty2tyb failed: missing $Tyb" }
+}
+
+$Gen1 = Join-Path $WorkDir "gen1.exe"
+$Gen2 = Join-Path $WorkDir "gen2.exe"
+$Gen3 = Join-Path $WorkDir "gen3.exe"
+$InputTyb = Join-Path $WorkDir "input.tyb"
+$InputKy = Join-Path $WorkDir "input.ky"
+
+Copy-Item -Force $Tyb $InputTyb
+Copy-Item -Force $Ty $InputKy
+
+if (-not $SkipBuild) {
+    Write-Host "== M0: yoyo link (gen1 reference) =="
+    & $Yoyo link --target=win32 $Ty $Gen1
+    if ($LASTEXITCODE -ne 0) { throw "gen1 link failed (exit $LASTEXITCODE)" }
+}
+
+$m1m2Green = $false
+$m2m3Green = $false
+
+Write-Host ""
+Write-Host "=== M1→M2: bootstrap input.tyb → gen2.exe (interim) ==="
+Push-Location $WorkDir
+try {
+    if (Test-Path $Gen2) { Remove-Item $Gen2 }
+    & $Yoyo bootstrap $InputTyb $Gen2
+    if ($LASTEXITCODE -eq 0 -and (Test-Path $Gen2)) {
+        $m1m2Green = $true
+        Write-Host "M1→M2 bootstrap: GREEN (gen2=$((Get-Item $Gen2).Length) bytes)"
+        if (Test-Path $Gen1) {
+            & $Yoyo diff $Gen1 $Gen2 2>&1 | ForEach-Object { Write-Host $_ }
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "gen1 ≡ gen2 (.text DDC): EQUAL"
+            } else {
+                Write-Host "gen1 ≡ gen2 (.text DDC): DIFF (expected until emit parity)"
+            }
+        }
+    } else {
+        Write-Host "M1→M2 bootstrap: RED"
+    }
+} finally {
+    Pop-Location
+}
+
+Write-Host ""
+Write-Host "=== M1→M2: gen1.exe runtime (true selfhost — entry H_00 SET+RET) ==="
+Push-Location $WorkDir
+try {
+    if (Test-Path "output.exe") { Remove-Item "output.exe" }
+    if (Test-Path $Gen1) {
+        & $Gen1
+        $ec = $LASTEXITCODE
+        if ((Test-Path "output.exe") -and $ec -eq 0) {
+            Write-Host "gen1 runtime selfhost: GREEN"
+        } else {
+            Write-Host "gen1 runtime selfhost: RED (exit=$ec, no output.exe — need --selfhost startup + 0x50/0x51)"
+        }
+    } else {
+        Write-Host "gen1 runtime selfhost: SKIP (no gen1.exe)"
+    }
+} finally {
+    Pop-Location
+}
+
+Write-Host ""
+Write-Host "=== M2→M3: gen2.exe compiles input → gen3 (no AV) ==="
+Push-Location $WorkDir
+try {
+    if (Test-Path $Gen3) { Remove-Item $Gen3 }
+    if (Test-Path "output.exe") { Remove-Item "output.exe" }
+    if (-not (Test-Path $Gen2)) {
+        Write-Host "M2→M3: SKIP (no gen2.exe)"
+    } else {
+        & $Gen2
+        $ec = $LASTEXITCODE
+        if ($ec -eq 0xC0000005) {
+            Write-Host "M2→M3: RED (STATUS_ACCESS_VIOLATION 0xC0000005)"
+        } elseif ((Test-Path "output.exe") -and $ec -eq 0) {
+            Copy-Item -Force "output.exe" $Gen3
+            $m2m3Green = $true
+            Write-Host "M2→M3: GREEN (gen3=$((Get-Item $Gen3).Length) bytes)"
+        } else {
+            Write-Host "M2→M3: RED (exit=$ec, no output.exe)"
+        }
+    }
+} finally {
+    Pop-Location
+}
+
+Write-Host ""
+Write-Host "=== summary ==="
+Write-Host "M1→M2 bootstrap: $(if ($m1m2Green) { 'GREEN' } else { 'RED' })"
+Write-Host "M2→M3 runtime:   $(if ($m2m3Green) { 'GREEN' } else { 'RED' })"
+Write-Host "Stage 5 checkbox:  $(if ($m2m3Green) { 'may check [x]' } else { 'keep [ ] — partial bootstrap only' })"
+
+if ($m2m3Green) { exit 0 } else { exit 1 }

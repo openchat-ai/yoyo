@@ -20,6 +20,21 @@ pub fn selfhost_compile_tyb(tyb_data: &[u8]) -> IsaResult<Vec<u8>> {
     Ok(pe.bytes)
 }
 
+/// Compile `.ty` text or `.tyb` binary to Win32 PE bytes.
+/// Used by `yoyo bootstrap` for Stage 5 M1→M2 interim (external compiler, not runtime selfhost).
+pub fn bootstrap_compile(input: &[u8]) -> IsaResult<Vec<u8>> {
+    if crate::tyb_parser::is_tyb(input) {
+        selfhost_compile_tyb(input)
+    } else {
+        let src = std::str::from_utf8(input).map_err(|e| crate::types::IsaError::ParseError {
+            line: 0,
+            msg: format!("bootstrap input not valid UTF-8 .ty: {e}"),
+        })?;
+        let out = executor::compile_ty_source(src, PlatformKind::Win32)?;
+        Ok(pe_link::link_pe(&out.code, &out.data)?.bytes)
+    }
+}
+
 /// Generate the selfhost startup x64 code.
 ///
 /// This is the entry point of the --selfhost PE.
