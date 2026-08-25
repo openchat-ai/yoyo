@@ -63,15 +63,17 @@ alwaysApply: true
    - **Hooks 做不到**：`workspaceOpen` / `sessionStart` 无法打开 Glass 右栏，仅 Agent 规则 + MCP 可实现
 1. **读取看板**：`STAGE4_OWNER_CHECKLIST.md`（完整路径 `F:\yoyo\STAGE4_OWNER_CHECKLIST.md`）
 2. **选下一项**（严格顺序，跳过已 `[x]`）：
-   - Stage 4 毕业三门：**A → B → C**（见「待做 — Stage 4 毕业三门」）
-   - 仅当 A/B/C 全部 `[x]` 后，才可处理「Stage 5 预置任务」中第一个 `[ ]`
+   - Stage 4 毕业三门：**A → B → C**（见「Stage 4 毕业三门」）
+   - A/B/C 全 `[x]` 后 → **Stage 5** 预置任务第一项
+   - Stage 5 全 `[x]` 后 → **Stage 6** 预置任务第一项
+   - Stage 6 全 `[x]` 后 → **Stage 7** 预置任务第一项
 3. **执行该项**：实现 + 验收；看板「对 AI 说什么」话术为任务规格，用户**不必**点名 A/B/C
 4. **验收命令**（PowerShell）：
    ```powershell
    cd F:\yoyo\yoyo-rust\verifier
    cargo run -- test ddc
    ```
-   - 任务涉及 golden/backends 时加跑：`cargo run -- test golden`、`cargo run -- test backends`
+   - 任务涉及 golden/backends/lock/selfhost 时加跑对应命令（见看板该项验收）
 5. **绿了才勾框**：仅当验收通过，将看板对应 `- [ ]` 改为 `- [x]`，并同步「毕业判定」行与 `BACKEND_SUPPORT.md`（若语义变）
 6. **默认不 push、不 commit**（除非用户明确要求 commit）
 
@@ -79,7 +81,7 @@ alwaysApply: true
 
 用户是验收负责人，不需要底层细节。仅报告：
 
-- 执行了哪一项（A/B/C 或 Stage 5 子项名称）
+- 执行了哪一项（A/B/C 或 Stage 5/6/7 子项名称）
 - 跑了什么命令、退出码 / 绿或红
 - 勾了哪个 checkbox
 - 若 blocked：一句话原因 + 需要用户做什么
@@ -95,6 +97,11 @@ alwaysApply: true
 | A | Win/Linux MEMCPY_STATE slot-form + core fatal |
 | B | Container DDC（PE+ELF NOP+RET，取消 SKIP） |
 | C | LDB 指针内存 DDC + container 路径 |
+| S7-1 | Stage 7 维护节拍（test all + win selfhost + lock + JS golden） |
+| S7-2 | JS golden MEMCPY 真实 emit（去 stub） |
+| S7-3 | Windows 无 sidecar 自举 |
+| S7-4 | Linux M2→M3 自举链 |
+| S7-5 | 定制 MCU 后端脚手架 |
 
 ## 约束
 

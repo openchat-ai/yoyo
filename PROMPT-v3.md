@@ -65,7 +65,7 @@
 > **日常入口。** 规格语义仍在下方 Parts；施工顺序 = 本 Week 轴。Status 仅允许：**GREEN (DONE)** / **RED** / **SCOPE-CUT** / **HOLD**。勿再维护 `STATUS.md` / `docs/PROGRESS-MAP.md`（已并入此处）。
 
 ### 你现在在哪
-**Stage 4 已毕业**（A/B/C 全绿 · 看板 `STAGE4_OWNER_CHECKLIST.md`）→ **Stage 5 已毕业**（8/8 项全绿 · 2026-08-24 Freeze+Lock 复验）。
+**Stage 4 已毕业**（A/B/C 全绿 · 看板 `STAGE4_OWNER_CHECKLIST.md`）→ **Stage 5 已毕业**（8/8 · 2026-08-24）→ **Stage 6 已毕业**（3/3 · 2026-08-25）→ **当前主线：Stage 7**（peer 对齐 + 自举深化 · 看板 Stage 7 预置任务）。
 
 `yoyo.ty` = **788 handlers / 4170 lines**；Rust golden **739/739 PASS** · backends **36/36 PASS** · `cargo run -- test all` **CI 级绿**；JS==Rust==Python 三端字节级相等（3-chain section-ddc EQUAL，SHA-256: `4fb8b87f`）；gen1≡gen2 持续绿（`test gen12` + `verify-gen12-ddc.ps1`）。
 
@@ -284,6 +284,22 @@ node .\scripts\check-sugar.mjs
 | 6 | S5.6 | selfhost startup 完整实现 — gen2rt → output.exe | **GREEN (DONE)** |
 | 7 | S5.7 | Freeze + Lock 复验 — Lock Protocol 8-step | **GREEN (DONE)** |
 | 8 | S5.8 | 文档收口 — PROMPT Week 轴 ↔ 看板 ↔ BACKEND_SUPPORT | **GREEN (DONE)** |
+
+### Stage 6 — 维护 + Phase 2（看板 Stage 6 预置任务）
+| # | id | 任务 | Status |
+|---|-----|------|--------|
+| 1 | S6.1 | 日常维护复验 — `test all` + `stage5-win-selfhost.ps1` | **GREEN (DONE)** |
+| 2 | S6.2 | D-2 MOVRR Phase 2 — JS/Rust `emit_movrr` 独立路由 | **GREEN (DONE)** |
+| 3 | S6.3 | Lock pin 常驻监控 — `test lock` + CI + `verify-lock-pin.ps1` | **GREEN (DONE)** |
+
+### Stage 7 — peer 对齐 + 自举深化（当前主线 · 看板 Stage 7 预置任务）
+| # | id | 任务 | Status |
+|---|-----|------|--------|
+| 1 | S7.1 | Stage 7 维护节拍 — test all + win selfhost + lock + JS golden 每周全绿 | **RED** |
+| 2 | S7.2 | JS golden MEMCPY 真实 emit — 去 `stub=C3` 语义缺口 | **RED** |
+| 3 | S7.3 | Windows 无 sidecar 自举 — runtime 嵌入 PE | **RED** |
+| 4 | S7.4 | Linux M2→M3 自举链 — `stage5-linux-selfhost` 脚本全绿 | **RED** |
+| 5 | S7.5 | 定制 MCU 后端脚手架 — BACKEND_SUPPORT hook + backends 冒烟 | **RED** |
 
 ---
 
@@ -1252,7 +1268,7 @@ isa! { r#"
 > **日常入口。** 规格语义仍在下方 Parts；施工顺序 = 本 Week 轴。Status 仅允许：**GREEN (DONE)** / **RED** / **SCOPE-CUT** / **HOLD**。勿再维护 `STATUS.md` / `docs/PROGRESS-MAP.md`（已并入此处）。
 
 ### 你现在在哪
-**Stage 4 已毕业**（A/B/C 全绿 · 看板 `STAGE4_OWNER_CHECKLIST.md`）→ **Stage 5 已毕业**（8/8 项全绿 · 2026-08-24 Freeze+Lock 复验）。
+**Stage 4 已毕业**（A/B/C 全绿 · 看板 `STAGE4_OWNER_CHECKLIST.md`）→ **Stage 5 已毕业**（8/8 · 2026-08-24）→ **Stage 6 已毕业**（3/3 · 2026-08-25）→ **当前主线：Stage 7**（peer 对齐 + 自举深化 · 看板 Stage 7 预置任务）。
 
 `yoyo.ty` = **788 handlers / 4170 lines**；Rust golden **739/739 PASS** · backends **36/36 PASS** · `cargo run -- test all` **CI 级绿**；JS==Rust==Python 三端字节级相等（3-chain section-ddc EQUAL，SHA-256: `4fb8b87f`）；gen1≡gen2 持续绿（`test gen12` + `verify-gen12-ddc.ps1`）。
 
@@ -1471,6 +1487,22 @@ node .\scripts\check-sugar.mjs
 | 6 | S5.6 | selfhost startup 完整实现 — gen2rt → output.exe | **GREEN (DONE)** |
 | 7 | S5.7 | Freeze + Lock 复验 — Lock Protocol 8-step | **GREEN (DONE)** |
 | 8 | S5.8 | 文档收口 — PROMPT Week 轴 ↔ 看板 ↔ BACKEND_SUPPORT | **GREEN (DONE)** |
+
+### Stage 6 — 维护 + Phase 2（看板 Stage 6 预置任务）
+| # | id | 任务 | Status |
+|---|-----|------|--------|
+| 1 | S6.1 | 日常维护复验 — `test all` + `stage5-win-selfhost.ps1` | **GREEN (DONE)** |
+| 2 | S6.2 | D-2 MOVRR Phase 2 — JS/Rust `emit_movrr` 独立路由 | **GREEN (DONE)** |
+| 3 | S6.3 | Lock pin 常驻监控 — `test lock` + CI + `verify-lock-pin.ps1` | **GREEN (DONE)** |
+
+### Stage 7 — peer 对齐 + 自举深化（当前主线 · 看板 Stage 7 预置任务）
+| # | id | 任务 | Status |
+|---|-----|------|--------|
+| 1 | S7.1 | Stage 7 维护节拍 — test all + win selfhost + lock + JS golden 每周全绿 | **RED** |
+| 2 | S7.2 | JS golden MEMCPY 真实 emit — 去 `stub=C3` 语义缺口 | **RED** |
+| 3 | S7.3 | Windows 无 sidecar 自举 — runtime 嵌入 PE | **RED** |
+| 4 | S7.4 | Linux M2→M3 自举链 — `stage5-linux-selfhost` 脚本全绿 | **RED** |
+| 5 | S7.5 | 定制 MCU 后端脚手架 — BACKEND_SUPPORT hook + backends 冒烟 | **RED** |
 
 ---
 

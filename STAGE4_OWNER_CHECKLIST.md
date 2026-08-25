@@ -6,7 +6,7 @@
 ## 🎓 Stage 4 已毕业
 
 ```text
-[x] A  [x] B  [x] C   →  Stage 5 已毕业 → **下一主线：Stage 6**（见下方预置任务）
+[x] A  [x] B  [x] C   →  Stage 5 已毕业 → Stage 6 已毕业 → **下一主线：Stage 7**（见下方预置任务）
 ```
 
 > **关于「打钩」**：本文件用 Markdown 写法 `- [x]` / `- [ ]`。在**源码视图**里看到的是方括号字母；用 **Markdown 预览**（右上角预览图标）才会显示为可勾选符号。`[x]` = 已勾，`[ ]` = 未勾。
@@ -45,7 +45,7 @@
 ### 单轨：`继续`
 
 1. MCP 右侧打开本看板
-2. 在 **master**（`F:\yoyo`）按 **A → B → C** 找第一个未勾项；**Stage 4 已毕业** → 改做 **Stage 5 预置任务** 第一项
+2. 在 **master**（`F:\yoyo`）按毕业顺序找第一个未勾项：**A→B→C**（Stage 4）→ **Stage 5** → **Stage 6** → **Stage 7** 预置任务第一项
 3. 按「对 AI 说什么」实现 + `cargo run -- test ddc` 验收
 4. 绿了才勾 `[x]`；**不 push**；commit 仅当你明确说要 commit
 
@@ -229,9 +229,9 @@ Stage 4 看板抽检：golden 或 backends 失败（贴完整输出）。
 
 ---
 
-## Stage 6 预置任务（维护 + Phase 2）
+## Stage 6 预置任务（维护 + Phase 2 · 已毕业 ✅）
 
-> Stage 5 已毕业。Stage 6 以 **CI 级维持绿** + **PROMPT-v3 下一拍** 为主；不启动 SCOPE-CUT 大项（full body / libyoyo）。
+> Stage 5 已毕业。Stage 6 **3/3 全绿**（2026-08-25 Lock pin 常驻监控）。
 
 - [x] **日常维护复验** — `cargo run -- test all` + `.\scripts\stage5-win-selfhost.ps1` 每周至少一轮全绿；红了即回归任务
 - [x] **D-2 MOVRR Phase 2** — `0x64` 独立语义对齐（JS/Rust `emit_movrr` 解耦 GET；规范与 golden 已更新）
@@ -274,10 +274,22 @@ Stage 4 看板抽检：golden 或 backends 失败（贴完整输出）。
 1. **不懂底层 OK** — 你不需要读 `emit.rs`、不需要懂 REX prefix。
 2. **只看两个信号** — 终端退出码 / 输出里有没有 `FAIL`；看板 checkbox 有没有漏勾。
 3. **红了不自己动手** — 复制「对 AI 说什么」+ 完整日志；让 AI 修完再跑同一条命令验收。
-4. **毕业有顺序** — 先 A/B/C（Stage 4），再 Stage 5 列表；不要跳关。
+4. **毕业有顺序** — 先 A/B/C（Stage 4），再 Stage 5 → Stage 6 → Stage 7；不要跳关。
 5. **SKIP 要知情** — 目前仅 **container** 允许 SKIP；其它 fixture 出现 SKIP 视为未完成或回归。
 6. **不替 AI push** — 本地绿了即可；发布由你另行决定。
 
 ---
 
-*最后更新：2026-08-25 · Lock pin 常驻监控完成 · Stage 6 毕业*
+## Stage 7 预置任务（peer 对齐 + 自举深化）
+
+> Stage 6 已毕业。Stage 7 以 **3-peer 诚实对齐** + **自举链深化** 为主；仍不启动 SCOPE-CUT 大项（full body / libyoyo migration · W5.5）。
+
+- [ ] **Stage 7 维护节拍** — 每周一轮全栈复验全绿：`cargo run -- test all` + `.\scripts\stage5-win-selfhost.ps1` + `.\scripts\verify-lock-pin.ps1` + `node .\yoyo-js\scripts\golden.js`；红了即回归任务，不勾
+- [ ] **JS golden MEMCPY 真实 emit** — JS `encodeOp(0x84/0x85)` 对齐 Rust `rep movsb`；stub fixture 改真实 expected hex；验收：`node .\yoyo-js\scripts\golden.js` 退出码 0，MEMCPY 项无 `stub=C3; semantic gap`
+- [ ] **Windows 无 sidecar 自举** — `bootstrap --selfhost` 产出单文件 gen2rt（runtime 嵌入 PE，不依赖旁路 `yoyo_runtime.dll`）；验收：`.\scripts\stage5-win-selfhost.ps1` M2→M3 全绿且 workdir 无 sidecar DLL
+- [ ] **Linux M2→M3 自举链** — 新增 `scripts/stage5-linux-selfhost.sh`（或 WSL 等价），gen2.elf embedded startup → gen3.elf 无挂死/AV；验收：脚本退出码 0 + `output.elf` 存在
+- [ ] **定制 MCU 后端脚手架** — 为芯片/定制 ISA 工作预留：`BACKEND_SUPPORT.md` 登记 hook 步骤 + 最小 stub target 纳入 `test backends`；验收：`cargo run -- test backends` 仍 36/36 PASS，新 target 冒烟 PASS 且 DDC 表有行
+
+---
+
+*最后更新：2026-08-25 · Stage 7 预置任务立项 · Stage 6 已毕业*
