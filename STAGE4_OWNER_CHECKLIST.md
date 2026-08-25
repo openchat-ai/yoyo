@@ -233,7 +233,7 @@ Stage 4 看板抽检：golden 或 backends 失败（贴完整输出）。
 
 > Stage 5 已毕业。Stage 6 以 **CI 级维持绿** + **PROMPT-v3 下一拍** 为主；不启动 SCOPE-CUT 大项（full body / libyoyo）。
 
-- [ ] **日常维护复验** — `cargo run -- test all` + `.\scripts\stage5-win-selfhost.ps1` 每周至少一轮全绿；红了即回归任务
+- [x] **日常维护复验** — `cargo run -- test all` + `.\scripts\stage5-win-selfhost.ps1` 每周至少一轮全绿；红了即回归任务
 - [ ] **D-2 MOVRR Phase 2** — `0x64` 独立语义对齐（今日等于 GET；JS/Rust 字节与规范解耦）
 - [ ] **Lock pin 常驻监控** — 解除 PROMPT #18 HOLD：pin 与 `yoyo/tests/yoyo.ty.lock` 漂移时 fail-closed 告警（非 Relock）
 
