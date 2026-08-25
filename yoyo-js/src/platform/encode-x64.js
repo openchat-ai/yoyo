@@ -71,7 +71,10 @@ function encodeOp(op, args, branchPlaceholder) {
   if (op === 0x30) {
     return [...movabsRax(a(1)), ...storeState(a(0), 0, 0)];
   }
-  if (op === 0x60 || op === 0x64) {
+  if (op === 0x60) {
+    return [...loadState(a(1), 0, 0), ...storeState(a(0), 0, 0)];
+  }
+  if (op === 0x64) {
     return [...loadState(a(1), 0, 0), ...storeState(a(0), 0, 0)];
   }
   if (op === 0x61) {

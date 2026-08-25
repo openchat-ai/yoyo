@@ -7227,9 +7227,9 @@ fn check_selfhost_min_sub_imm(root: &std::path::Path) -> Result<String, String> 
     ))
 }
 
-/// Body-extend-003: D-2 `0x64 MOVRR dst src` aliases GET in both peers.
+/// Body-extend-003: D-2 `0x64 MOVRR dst src` — independent emit route (Phase 2).
 fn check_selfhost_min_movrr(root: &std::path::Path) -> Result<String, String> {
-    use crate::assembler::{emit_get, ret};
+    use crate::assembler::{emit_movrr, ret};
     let fixture_path = root.join("yoyo/tests/golden/selfhost_min_movrr.ty");
     let exp_path = root.join("yoyo/tests/golden/expected/selfhost_min_movrr.code.hex");
     let canonical_path = root.join("yoyo/projects/yoyo.ty");
@@ -7242,12 +7242,12 @@ fn check_selfhost_min_movrr(root: &std::path::Path) -> Result<String, String> {
     if fixture.code != expected { return Err(format!("fixture mismatch: got {} want {}", hex_encode(&fixture.code), hex_encode(&expected))); }
     let canonical_src = fs::read_to_string(&canonical_path).map_err(|e| e.to_string())?;
     let compiled = executor::compile_one_handler(&canonical_src, 0x24, PlatformKind::Stub).map_err(|e| e.to_string())?;
-    let mut want = emit_get(0x50, 0x51).map_err(|e| e.to_string())?;
+    let mut want = emit_movrr(0x50, 0x51).map_err(|e| e.to_string())?;
     want.extend(ret());
     if compiled.code != want || compiled.code != expected {
         return Err(format!("M_rust canonical H_24 mismatch: got {} want {}", hex_encode(&compiled.code), hex_encode(&expected)));
     }
-    Ok(format!("M_rust read yoyo.ty H_24 and emitted {} via GET alias", hex_encode(&compiled.code)))
+    Ok(format!("M_rust read yoyo.ty H_24 and emitted {} via MOVRR", hex_encode(&compiled.code)))
 }
 
 /// Body-extend-004: H_31 `0x69 ORV dst src` —bitwise OR. Mirrors MOVRR

@@ -37,7 +37,7 @@ FF RET | ret(0) | H_00..H_740 | DONE | YES | 所有 handler 结尾
 30 SET | slot imm (2-arg, imm8) | H_00,H_02,H_03 | DONE | YES | imm ∈ [-128,127] imm8 形式
 30 SET | slot imm (2-arg, imm32) | H_745,H_746 (大 imm) | DONE | NO | imm32 大 imm (0xfff/0x10000); body-extend-102 填齐
 60 GET | dst src (2-arg) | H_01,H_04 + 8 total | DONE | YES |
-64 MOVRR | dst src (2-arg) | H_xxx (1 total) | PARTIAL | NO | D-2: 等同 GET, Phase 2 cleanup
+64 MOVRR | dst src (2-arg) | H_xxx (1 total) | PARTIAL | NO | D-2 Phase 2 GREEN: 独立 emit_movrr 路由
 # ==== 算术 (立即数) =====================================
 62 ADD-IMM | slot imm (2-arg, imm8) | H_xxx | DONE | YES | imm ∈ [-128,127]
 62 ADD-IMM | slot imm (2-arg, imm32) | H_xxx | DONE | NO | imm 阶梯(230/232 等)
@@ -99,7 +99,7 @@ A1 RAW_BYTES | imm×N | 1 total | DONE | NO | emit 多个绝对字节
 # P2 | 70 JMP / 41 CALL | 多目标 hh | 自举分发/函数调用; 现有各 1 handler
 # P3 | 62 ADD-IMM / 61 SUB-IMM imm 阶梯(>232) | imm32 | 仅变体实验, 自举不需要(imm 阶梯非语义必需)
 # P3 | 80 LDB imm 阶梯(>232) | imm32 | 仅变体实验
-# P3 | 64 MOVRR | dst src | D-2 Phase 2 cleanup, 等同 GET
+# P3 | 64 MOVRR | dst src | D-2 Phase 2 GREEN (emit_movrr 独立路由)
 # P3 | A0/A1/00 NOP | - | 非自举核心; 占位/对齐
 # P3 | 10/12/13 DATA/STR/RAW | var-arg | 数据段, 非 .text emit; 不属 body emit 矩阵
 

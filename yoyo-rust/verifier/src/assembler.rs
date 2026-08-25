@@ -202,6 +202,13 @@ pub fn emit_get(dst: u16, src: u16) -> IsaResult<Vec<u8>> {
     Ok(out)
 }
 
+/// Convenience: MOVRR dst = src (0x64 — independent route from GET; same slot copy semantics)
+pub fn emit_movrr(dst: u16, src: u16) -> IsaResult<Vec<u8>> {
+    let mut out = load_state(src, Reg::Rax)?;
+    out.extend(store_state(dst, Reg::Rax)?);
+    Ok(out)
+}
+
 /// Convenience: ADDV dst += src
 pub fn emit_addv(dst: u16, src: u16) -> IsaResult<Vec<u8>> {
     let mut out = load_state(dst, Reg::Rax)?;
@@ -487,6 +494,14 @@ mod tests {
     fn emit_get_composes() {
         let b = emit_get(1, 0).unwrap();
         assert!(b.len() >= 8);
+    }
+
+    #[test]
+    fn emit_movrr_independent_from_get() {
+        let get = emit_get(0x50, 0x51).unwrap();
+        let movrr = emit_movrr(0x50, 0x51).unwrap();
+        assert_eq!(get, movrr, "MOVRR and GET share slot-copy semantics");
+        assert!(movrr.len() >= 8);
     }
 
     #[test]

@@ -173,8 +173,8 @@ pub trait PlatformBackend {
     }
 
     fn emit_movrr(&mut self, _dst: u16, _src: u16) -> IsaResult<Vec<u8>> {
-        use crate::assembler::{emit_get as x64_get};
-        x64_get(_dst, _src)
+        use crate::assembler::{emit_movrr as x64_movrr};
+        x64_movrr(_dst, _src)
     }
 
     fn emit_add_imm(&mut self, _slot: u16, _imm: u64) -> IsaResult<Vec<u8>> {

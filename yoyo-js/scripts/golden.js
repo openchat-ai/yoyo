@@ -449,7 +449,12 @@ function checkADDIMM() {
 }
 
 /**
- * MOVRR: body-extend-003 single op emission, D-2 alias of GET.
+ * MOVRR: body-extend-003 single op emission, 0x64 independent route (D-2 Phase 2).
+ * Both peers compose identical bytes via separate emit paths:
+ *   JS:   loadState(src) + storeState(dst) + 0xC3  (encodeOp 0x64 branch)
+ *   Rust: emit_movrr(dst, src) + ret()
+ *   0x64 = MOVRR dst, src (PROMPT Part 4.1 / isa_table.txt).
+ * Same slot-copy semantics as GET (0x60) but routed independently from emit_get.
  */
 function checkMOVRR() {
   const tyPath = path.join(GOLDEN_DIR, 'selfhost_min_movrr.ty');
@@ -465,7 +470,7 @@ function checkMOVRR() {
   const load51 = Buffer.from([0x49, 0x8b, 0x87, 0x88, 0x02, 0x00, 0x00]);
   const store50 = Buffer.from([0x49, 0x89, 0x87, 0x80, 0x02, 0x00, 0x00]);
   if (!got.includes(load51) || !got.includes(store50) || got[got.length - 1] !== 0xc3) {
-    return { id: 'MOVRR', ok: false, detail: 'MOVRR must be GET-shaped load(src)+store(dst)+RET' };
+    return { id: 'MOVRR', ok: false, detail: 'MOVRR must be load(src)+store(dst)+RET shape' };
   }
   const fixture = compileCode(parseTy(readUtf8(tyPath)));
   if (!fixture.equals(expected)) return { id: 'MOVRR', ok: false, detail: `fixture mismatch: got ${hexOf(fixture)} want ${hexOf(expected)}` };
@@ -1779,14 +1784,12 @@ function checkSETCONTROL() {
 
 /**
  * GET: body-extend-006 H_39 `0x60 GET`, 2-arg state-slot copy. Mirrors
- * MOVRR template but exercises the GET opcode directly (0x60, not 0x64
- * alias). Both peers compose identical bytes via the same x86-64
- * primitives:
- *   JS:   loadState(0x51,rax) + storeState(0x50,rax) + 0xC3
- *   Rust: emit_get(0x50, 0x51) + ret()
+ * MOVRR template but exercises the GET opcode directly (0x60, not 0x64).
+ * Both peers compose identical bytes via separate emit paths:
+ *   JS:   loadState(src) + storeState(dst) + 0xC3  (encodeOp 0x60 branch)
+ *   Rust: emit_get(dst, src) + ret()
  *   0x60 = GET dst, src (PROMPT Part 4.1 / isa_table.txt).
- * No D-1/D-2/D-3 aliasing; 2-arg opcode; identical 15B pin to MOVRR (D-2
- * alias shares emit_get primitive).
+ * D-2 Phase 2: MOVRR (0x64) routes through emit_movrr; GET (0x60) through emit_get.
  * Pin: 498b878802000049898780020000c3 (15B).
  */
 function checkGET() {

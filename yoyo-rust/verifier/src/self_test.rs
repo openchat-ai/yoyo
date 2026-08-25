@@ -1439,9 +1439,9 @@ fn add_imm_slot_check() -> IsaResult<()> {
     Ok(())
 }
 
-/// D-2 MOVRR currently aliases GET: load source, store destination.
+/// D-2 MOVRR Phase 2: independent emit_movrr route (same slot-copy semantics as GET).
 fn movrr_slot_check() -> IsaResult<()> {
-    use crate::assembler::emit_get;
+    use crate::assembler::emit_movrr;
     const DST: u16 = 0x50;
     const SRC: u16 = 0x51;
     let tir = vec![
@@ -1450,7 +1450,7 @@ fn movrr_slot_check() -> IsaResult<()> {
         lower_op_checked(0xFF, &[], 3)?,
     ];
     let out = emit::emit(&tir, PlatformKind::Stub)?;
-    let mut want = emit_get(DST, SRC)?;
+    let mut want = emit_movrr(DST, SRC)?;
     want.extend(assembler::ret());
     if out.code != want || out.code.len() != 15 {
         return Err(IsaError::ParseError { line: 0, msg: format!("MOVRR slot stub mismatch: got {:02X?} want {:02X?}", out.code, want) });
@@ -1797,11 +1797,10 @@ fn set_control_slot_check() -> IsaResult<()> {
 
 /// body-extend-006 H_39: `0x60 GET dst src`, 2-arg state-slot copy.
 /// Pin: 498b878802000049898780020000c3 (15B). Mirrors movrr_slot_check
-/// template (which uses 0x64 alias and emit_get) but exercises the GET
-/// opcode directly. Both peers' emit_get is shared between 0x60 GET and
-/// 0x64 MOVRR (D-2 alias); no divergence possible since the primitive
-/// path is identical. No D-1/D-2/D-3 aliasing concern: this is the
-/// canonical GET opcode, distinct from the MOVRR alias surface.
+/// template (which uses 0x64 MOVRR and emit_movrr) but exercises the GET
+/// opcode directly. Both peers route GET through emit_get and MOVRR through
+/// emit_movrr (D-2 Phase 2 decoupling); bytes match for this pin but the
+/// opcode surfaces are distinct.
 fn get_slot_check() -> IsaResult<()> {
     use crate::assembler::emit_get;
     const DST: u16 = 0x50;

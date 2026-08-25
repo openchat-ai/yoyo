@@ -104,7 +104,7 @@
 ### ISA / cross-peer gaps（NON-NORMATIVE · 自 W4.1 收纳）
 body 今日 = **788 handlers / 4170 lines**（W-START 扩写后）。扩写勿静默碰下列面（非 Week 红，但是诚实缺口）：
 - **D-1** `0x20/0x50/0x51`：JS 三码合流 movabs+store；Rust 走 `PlatformBackend`（Stub=movabs+store / Win=movabs+store）→ **peer 字节可分叉**；`yoyo.ty` 已练（H_2B-H_2D）。
-- **D-2** `0x64 MOVRR`：两端今日等于 GET（JS load+store；Rust `emit_get`）；规范独立语义未强制 — Phase 2 cleanup。
+- **D-2** `0x64 MOVRR`：**GREEN (Phase 2)** — JS/Rust 独立路由（`emit_movrr` / encodeOp 0x64 分支）；与 GET 同语义 `S[dst]←S[src]`，不再 alias emit_get。
 - **D-3** `0x84/0x85`：两端真实 `rep movsb` emit；DDC EQUAL；JS REX.R + Rust 参数顺序 + pin byte-17 均已修平（body-extend-105）。
 - **D-4**：gen1≡gen2 — 三端 DDC EQUAL，`.ty`==`.tyb`（SHA-256: 4fb8b87f），**GREEN**
 
@@ -728,7 +728,7 @@ All **38** core instructions use Layer-M ids in `0x00`–`0xFF`.
 | 0x61 | SUB | 2 | Arith | `state[slot] ← state[slot] - imm` (imm as add/sub encoding rules) |
 | 0x62 | ADD | 2 | Arith | `state[slot] ← state[slot] + imm` |
 | 0x63 | IMUL | 2 | Arith | `state[dst] ← state[dst] * state[src]` (signed imul) |
-| 0x64 | MOVRR | 2 | Move | alias of GET |
+| 0x64 | MOVRR | 2 | Move | `state[dst] ← state[src]` (independent route from GET) |
 | 0x65 | CMP | 2 | Flags | `cmp state[a], state[b]` → sets EFLAGS; **no store** |
 | 0x66 | INC | 1 | Arith | `state[slot]++` |
 | 0x67 | DEC | 1 | Arith | `state[slot]--` |
@@ -909,7 +909,8 @@ For each op: **Pre** = preconditions; **Δ** = state/memory/flag transform; **Fa
 | NOP | — | no architectural effect (`90`) | — |
 | DATA/STR/RAW | — | append to DataSeg | — |
 | SET | slot≤255 | S[slot]←imm | SlotOutOfRange |
-| GET/MOVRR | slots≤255 | S[dst]←S[src] | SlotOutOfRange |
+| GET | slots≤255 | S[dst]←S[src] | SlotOutOfRange |
+| MOVRR | slots≤255 | S[dst]←S[src] | SlotOutOfRange |
 | ADD/SUB | slot≤255; imm fits add/sub encoding | S[slot]±←imm; flags | ImmOutOfRange / Slot |
 | ADDV/SUBV | — | S[dst]±←S[src]; flags | Slot |
 | ORV | — | S[dst]←S[dst]\|S[src]; flags | Slot |
@@ -1289,7 +1290,7 @@ isa! { r#"
 ### ISA / cross-peer gaps（NON-NORMATIVE · 自 W4.1 收纳）
 body 今日 = **788 handlers / 4170 lines**（W-START 扩写后）。扩写勿静默碰下列面（非 Week 红，但是诚实缺口）：
 - **D-1** `0x20/0x50/0x51`：JS 三码合流 movabs+store；Rust 走 `PlatformBackend`（Stub=movabs+store / Win=movabs+store）→ **peer 字节可分叉**；`yoyo.ty` 已练（H_2B-H_2D）。
-- **D-2** `0x64 MOVRR`：两端今日等于 GET（JS load+store；Rust `emit_get`）；规范独立语义未强制 — Phase 2 cleanup。
+- **D-2** `0x64 MOVRR`：**GREEN (Phase 2)** — JS/Rust 独立路由（`emit_movrr` / encodeOp 0x64 分支）；与 GET 同语义 `S[dst]←S[src]`，不再 alias emit_get。
 - **D-3** `0x84/0x85`：两端真实 `rep movsb` emit；DDC EQUAL；JS REX.R + Rust 参数顺序 + pin byte-17 均已修平（body-extend-105）。
 - **D-4**：gen1≡gen2 — 三端 DDC EQUAL，`.ty`==`.tyb`（SHA-256: 4fb8b87f），**GREEN**
 
