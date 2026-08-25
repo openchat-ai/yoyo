@@ -38,6 +38,10 @@ jobs:
         working-directory: yoyo-rust/verifier
         run: cargo run -- test gen12
 
+      - name: Lock pin monitor (yoyo.ty vs yoyo.ty.lock)
+        working-directory: yoyo-rust/verifier
+        run: cargo run -- test lock
+
       - name: YOYO info
         working-directory: yoyo-rust/verifier
         run: cargo run -- info

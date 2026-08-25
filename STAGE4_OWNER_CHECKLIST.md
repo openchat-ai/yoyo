@@ -235,7 +235,7 @@ Stage 4 看板抽检：golden 或 backends 失败（贴完整输出）。
 
 - [x] **日常维护复验** — `cargo run -- test all` + `.\scripts\stage5-win-selfhost.ps1` 每周至少一轮全绿；红了即回归任务
 - [x] **D-2 MOVRR Phase 2** — `0x64` 独立语义对齐（JS/Rust `emit_movrr` 解耦 GET；规范与 golden 已更新）
-- [ ] **Lock pin 常驻监控** — 解除 PROMPT #18 HOLD：pin 与 `yoyo/tests/yoyo.ty.lock` 漂移时 fail-closed 告警（非 Relock）
+- [x] **Lock pin 常驻监控** — 解除 PROMPT #18 HOLD：`cargo run -- test lock` + CI + `scripts/verify-lock-pin.ps1`；pin 漂移 fail-closed（非 Relock）
 
 ---
 
@@ -280,4 +280,4 @@ Stage 4 看板抽检：golden 或 backends 失败（贴完整输出）。
 
 ---
 
-*最后更新：2026-08-25 · D-2 MOVRR Phase 2 完成 · 下一项：Lock pin 常驻监控*
+*最后更新：2026-08-25 · Lock pin 常驻监控完成 · Stage 6 毕业*

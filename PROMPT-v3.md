@@ -128,7 +128,7 @@ body 今日 = **788 handlers / 4170 lines**（W-START 扩写后）。扩写勿�
 | 15 | `--selfhost` HOT 自举框架 | emit.rs handler_offsets + pe_link selfhost + selfhost.rs | **GREEN (DONE)** |
 | 16 | gen1≡gen2 | `.ty`==`.tyb` 产出一致 (SHA-256: 4fb8b87f)，三端 DDC EQUAL，selfhost 单元测试通过 | **GREEN (DONE)** |
 | 17 | selfhost startup 完整实现 | gen2rt 零参 → output.exe（embedded startup + sidecar） | **GREEN (DONE)** |
-| 18 | 冻结编译器 | Lock Protocol 8-step；pin 与 `yoyo.ty.lock` 一致 | **HOLD** |
+| 18 | 冻结编译器 | Lock Protocol 8-step；pin 与 `yoyo.ty.lock` 一致；常驻 `test lock` + CI | **GREEN (DONE)** |
 | 19 | Stage 4 A/B/C 毕业 | Win/Linux slot-form · container PE+ELF · LDB ptr DDC | **GREEN (DONE)** |
 | 20 | `test all` 一键 | golden + backends + ddc CI 级绿 | **GREEN (DONE)** |
 | 21 | Windows M2→M3 | `stage5-win-selfhost.ps1` 全绿 | **GREEN (DONE)** |
@@ -150,6 +150,7 @@ node .\scripts\verify-yoyo-ty.mjs
 node .\yoyo-js\scripts\golden.js
 cd f:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 cd f:\yoyo\yoyo-rust\verifier; cargo run -- test all
+cd f:\yoyo; .\scripts\verify-lock-pin.ps1
 cd f:\yoyo; .\scripts\stage5-win-selfhost.ps1
 node .\scripts\check-foundations.mjs
 node .\scripts\check-plans.mjs
@@ -1173,7 +1174,7 @@ isa! { r#"
 >
 > **v3.3.11 changelog** (**nav / progress dashboard only** — **no** NORMATIVE semantic change):
 > - Stage 4 毕业（A/B/C）+ Stage 5 进度同步（test all · M2→M3 · section-ddc · gen12 · MCU fatal · selfhost startup）
-> - selfhost startup #17 HOLD → **GREEN**；Freeze+Lock #18 改 **HOLD**（看板未勾）
+> - selfhost startup #17 HOLD → **GREEN**；Freeze+Lock #18 **GREEN**（常驻 `test lock` + CI）
 > - 新增 Stage 4 / Stage 5 Week 表；`BACKEND_SUPPORT.md` Known gaps 收口
 >
 > **v3.3.10 changelog** (**nav / progress dashboard only** — **no** NORMATIVE semantic change):
@@ -1314,7 +1315,7 @@ body 今日 = **788 handlers / 4170 lines**（W-START 扩写后）。扩写勿�
 | 15 | `--selfhost` HOT 自举框架 | emit.rs handler_offsets + pe_link selfhost + selfhost.rs | **GREEN (DONE)** |
 | 16 | gen1≡gen2 | `.ty`==`.tyb` 产出一致 (SHA-256: 4fb8b87f)，三端 DDC EQUAL，selfhost 单元测试通过 | **GREEN (DONE)** |
 | 17 | selfhost startup 完整实现 | gen2rt 零参 → output.exe（embedded startup + sidecar） | **GREEN (DONE)** |
-| 18 | 冻结编译器 | Lock Protocol 8-step；pin 与 `yoyo.ty.lock` 一致 | **HOLD** |
+| 18 | 冻结编译器 | Lock Protocol 8-step；pin 与 `yoyo.ty.lock` 一致；常驻 `test lock` + CI | **GREEN (DONE)** |
 | 19 | Stage 4 A/B/C 毕业 | Win/Linux slot-form · container PE+ELF · LDB ptr DDC | **GREEN (DONE)** |
 | 20 | `test all` 一键 | golden + backends + ddc CI 级绿 | **GREEN (DONE)** |
 | 21 | Windows M2→M3 | `stage5-win-selfhost.ps1` 全绿 | **GREEN (DONE)** |
@@ -1336,6 +1337,7 @@ node .\scripts\verify-yoyo-ty.mjs
 node .\yoyo-js\scripts\golden.js
 cd f:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 cd f:\yoyo\yoyo-rust\verifier; cargo run -- test all
+cd f:\yoyo; .\scripts\verify-lock-pin.ps1
 cd f:\yoyo; .\scripts\stage5-win-selfhost.ps1
 node .\scripts\check-foundations.mjs
 node .\scripts\check-plans.mjs

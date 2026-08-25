@@ -80,7 +80,7 @@ fn usage() -> ! {
            yoyo wasm-validate <input.ty>\n\
            yoyo run-wasm <input.ty>\n\
            yoyo ddcmp <A.elf> <B.elf> <input.ty>\n\
-           yoyo test golden|backends|ddc|gen12|all\n\
+           yoyo test golden|backends|ddc|gen12|lock|all\n\
            yoyo bootstrap [--selfhost] <input.ty|.tyb> <output.exe>\n\
            yoyo exec <input.ty> [--target=android|apple]\n\
            yoyo info [--target=<target>]\n\n\
@@ -1039,6 +1039,58 @@ fn cmd_test_gen12() -> Result<(), types::IsaError> {
     }
 }
 
+/// Fail-closed pin monitor: `yoyo/projects/yoyo.ty` sha256 must match `yoyo/tests/yoyo.ty.lock`.
+/// Does not auto-relock — drift is a hard failure (PROMPT #18 / Decision #13).
+fn cmd_test_lock() -> Result<(), types::IsaError> {
+    let root = repo_root()?;
+    let ty_path = root.join("yoyo/projects/yoyo.ty");
+    let lock_path = root.join("yoyo/tests/yoyo.ty.lock");
+
+    let ty_bytes = fs::read(&ty_path).map_err(|e| types::IsaError::IoError {
+        msg: format!("read {}: {e}", ty_path.display()),
+    })?;
+    let lock_text = fs::read_to_string(&lock_path).map_err(|e| types::IsaError::IoError {
+        msg: format!("read {}: {e}", lock_path.display()),
+    })?;
+
+    let expected = parse_lock_sha256(&lock_text).map_err(|msg| types::IsaError::PlatformError {
+        msg,
+    })?;
+    let actual = ddc::sha256_hex(&ty_bytes);
+
+    if actual != expected {
+        eprintln!("LOCK PIN DRIFT: yoyo.ty sha256 mismatch (fail-closed, not auto-relock)");
+        eprintln!("  expected (yoyo.ty.lock): {expected}");
+        eprintln!("  actual  (yoyo.ty):       {actual}");
+        return Err(types::IsaError::PlatformError {
+            msg: "yoyo.ty lock pin drift".into(),
+        });
+    }
+
+    println!("LOCK PIN: PASS sha256={}…", &actual[..16.min(actual.len())]);
+    if let Some(signer) = parse_lock_field(&lock_text, "signer") {
+        println!("  signed: {signer}");
+    }
+    if let Some(date) = parse_lock_field(&lock_text, "date") {
+        println!("  date: {date}");
+    }
+    Ok(())
+}
+
+fn parse_lock_sha256(lock_text: &str) -> Result<String, String> {
+    parse_lock_field(lock_text, "sha256")
+        .filter(|s| s.len() == 64 && s.chars().all(|c| c.is_ascii_hexdigit()))
+        .ok_or_else(|| "yoyo.ty.lock: missing or invalid sha256 field".into())
+}
+
+fn parse_lock_field(lock_text: &str, field: &str) -> Option<String> {
+    let needle = format!("\"{field}\": \"");
+    let start = lock_text.find(&needle)?;
+    let rest = &lock_text[start + needle.len()..];
+    let end = rest.find('"')?;
+    Some(rest[..end].to_string())
+}
+
 fn cmd_test(args: &[String]) -> Result<(), types::IsaError> {
     if args.len() != 1 {
         usage();
@@ -1048,7 +1100,9 @@ fn cmd_test(args: &[String]) -> Result<(), types::IsaError> {
         "backends" => cmd_test_backends(),
         "ddc" => cmd_test_ddc_suite(),
         "gen12" => cmd_test_gen12(),
+        "lock" => cmd_test_lock(),
         "all" => {
+            cmd_test_lock()?;
             cmd_test_golden()?;
             cmd_test_backends()?;
             cmd_test_ddc_suite()?;
