@@ -6,7 +6,7 @@
 ## 🎓 Stage 4 已毕业
 
 ```text
-[x] A  [x] B  [x] C   →  下一主线：Stage 5（见下方预置任务）
+[x] A  [x] B  [x] C   →  Stage 5 已毕业 → **下一主线：Stage 6**（见下方预置任务）
 ```
 
 > **关于「打钩」**：本文件用 Markdown 写法 `- [x]` / `- [ ]`。在**源码视图**里看到的是方括号字母；用 **Markdown 预览**（右上角预览图标）才会显示为可勾选符号。`[x]` = 已勾，`[ ]` = 未勾。
@@ -229,7 +229,15 @@ Stage 4 看板抽检：golden 或 backends 失败（贴完整输出）。
 
 ---
 
+## Stage 6 预置任务（维护 + Phase 2）
 
+> Stage 5 已毕业。Stage 6 以 **CI 级维持绿** + **PROMPT-v3 下一拍** 为主；不启动 SCOPE-CUT 大项（full body / libyoyo）。
+
+- [ ] **日常维护复验** — `cargo run -- test all` + `.\scripts\stage5-win-selfhost.ps1` 每周至少一轮全绿；红了即回归任务
+- [ ] **D-2 MOVRR Phase 2** — `0x64` 独立语义对齐（今日等于 GET；JS/Rust 字节与规范解耦）
+- [ ] **Lock pin 常驻监控** — 解除 PROMPT #18 HOLD：pin 与 `yoyo/tests/yoyo.ty.lock` 漂移时 fail-closed 告警（非 Relock）
+
+---
 
 ## 任务从哪来（四层来源）
 
@@ -272,4 +280,4 @@ Stage 4 看板抽检：golden 或 backends 失败（贴完整输出）。
 
 ---
 
-*最后更新：2026-08-24 · 基线 commit* `94908e5`
+*最后更新：2026-08-25 · 基线 commit* `3f20da1` · Stage 6 预置任务已开立
