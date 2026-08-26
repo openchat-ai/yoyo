@@ -1,6 +1,6 @@
 ﻿# stage5-win-selfhost.ps1 — Windows M1→M2→M3 self-host chain monitor
 # M1→M2 interim: yoyo bootstrap (Rust host compiler, not runtime selfhost in gen1.exe)
-# M2→M3: gen2rt.exe embedded startup → LoadLibraryA(yoyo_runtime.dll) → compile input → output.exe
+# M2→M3: gen2rt.exe single-file (runtime embedded in PE; extract to %TEMP% at run) → compile input → output.exe
 param(
     [switch]$SkipBuild
 )
