@@ -97,7 +97,7 @@ try {
 }
 
 Write-Host ""
-Write-Host "=== M2→M3: gen2rt embedded startup compiles input → gen3 (no AV) ==="
+Write-Host "=== M2→M3: gen2rt embedded startup compiles input → gen3 (no AV, no sidecar) ==="
 Push-Location $WorkDir
 try {
     if (Test-Path $Gen3) { Remove-Item $Gen3 }
@@ -105,12 +105,12 @@ try {
     $Gen2rt = Join-Path $WorkDir "gen2rt.exe"
     if (Test-Path $Gen2rt) { Remove-Item $Gen2rt }
     if (Test-Path $RuntimeDll) { Remove-Item $RuntimeDll }
-    Write-Host "building gen2rt via bootstrap --selfhost (embedded startup + yoyo_runtime.dll sidecar)..."
+    Write-Host "building gen2rt via bootstrap --selfhost (single-file, runtime embedded in PE)..."
     & $Yoyo bootstrap --selfhost $InputTyb $Gen2rt
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path $Gen2rt)) {
         Write-Host "M2→M3: RED (bootstrap --selfhost failed)"
-    } elseif (-not (Test-Path $RuntimeDll)) {
-        Write-Host "M2→M3: RED (missing yoyo_runtime.dll sidecar)"
+    } elseif (Test-Path $RuntimeDll) {
+        Write-Host "M2→M3: RED (unexpected yoyo_runtime.dll sidecar in workdir)"
     } else {
         & $Gen2rt
         $ec = $LASTEXITCODE
@@ -119,7 +119,7 @@ try {
         } elseif ((Test-Path "output.exe") -and $ec -eq 0) {
             Copy-Item -Force "output.exe" $Gen3
             $m2m3Green = $true
-            Write-Host "M2→M3: GREEN (gen3=$((Get-Item $Gen3).Length) bytes, embedded startup)"
+            Write-Host "M2→M3: GREEN (gen3=$((Get-Item $Gen3).Length) bytes, embedded startup, no sidecar)"
         } else {
             Write-Host "M2→M3: RED (exit=$ec, no output.exe)"
         }

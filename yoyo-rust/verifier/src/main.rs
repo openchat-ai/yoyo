@@ -417,7 +417,8 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
         PlatformKind::Win32 => {
             let pe = if selfhost {
                 let hot = selfhost::build_hot(&out.handler_offsets);
-                pe_link::link_pe_selfhost(&out.code, &out.data, &hot)?
+                let dll = selfhost::runtime_dll_bytes()?;
+                pe_link::link_pe_selfhost(&out.code, &out.data, &hot, &dll)?
             } else {
                 pe_link::link_pe(&out.code, &out.data)?
             };
@@ -694,25 +695,19 @@ fn cmd_bootstrap(args: &[String]) -> Result<(), types::IsaError> {
             })?;
             let out = executor::compile_ty_source(src, PlatformKind::Win32)?;
             let hot = selfhost::build_hot(&out.handler_offsets);
-            selfhost::link_pe_selfhost_runtime(&out.code, &out.data, &hot)?
+            let dll = selfhost::runtime_dll_bytes()?;
+            selfhost::link_pe_selfhost_runtime(&out.code, &out.data, &hot, &dll)?
         };
         fs::write(&rest[1], &pe).map_err(|e| types::IsaError::IoError {
             msg: e.to_string(),
         })?;
-        let dll_path = std::path::Path::new(&rest[1])
-            .parent()
-            .unwrap_or(std::path::Path::new("."))
-            .join(win32_selfhost::RUNTIME_DLL_NAME);
-        let dll = selfhost::runtime_dll_bytes()?;
-        fs::write(&dll_path, &dll).map_err(|e| types::IsaError::IoError {
-            msg: format!("write {}: {e}", dll_path.display()),
-        })?;
+        let dll_len = selfhost::runtime_dll_bytes()?.len();
         println!(
-            "bootstrap --selfhost: {} → {} ({} bytes, embedded startup + {})",
+            "bootstrap --selfhost: {} → {} ({} bytes, embedded startup + runtime {} bytes in PE)",
             rest[0],
             rest[1],
             pe.len(),
-            win32_selfhost::RUNTIME_DLL_NAME
+            dll_len
         );
         return Ok(());
     }

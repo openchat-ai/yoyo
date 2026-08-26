@@ -19,21 +19,32 @@ pub fn link_pe(code: &[u8], data: &[u8]) -> IsaResult<PeImage> {
 }
 
 /// Wrap raw x64 code with Win32 runtime selfhost startup + HOT table.
-/// Entry: lea r15 → jmp startup → LoadLibraryA(yoyo_runtime.dll) → compile → ExitProcess.
-pub fn link_pe_selfhost(code: &[u8], data: &[u8], hot_table: &[u8]) -> IsaResult<PeImage> {
+/// Entry: extract embedded runtime to %TEMP% → LoadLibraryA → compile → ExitProcess.
+pub fn link_pe_selfhost(
+    code: &[u8],
+    data: &[u8],
+    hot_table: &[u8],
+    embedded_dll: &[u8],
+) -> IsaResult<PeImage> {
     let section_align: u32 = 0x1000;
     let text_rva = section_align;
-    let body_len = win32_selfhost::STARTUP_BODY_SIZE;
+    let dummy_meta = win32_selfhost::SelfhostMeta {
+        temp_name_rva: 0,
+        export_name_rva: 0,
+        dll_embed_rva: 0,
+        dll_embed_size: embedded_dll.len() as u32,
+        iat_rva: 0,
+        import_dir_rva: 0,
+        import_dir_size: 40,
+    };
+    let body_len = win32_selfhost::gen_selfhost_startup(&dummy_meta).len();
     let est_code_len = body_len + code.len() + hot_table.len();
     let text_vs = align_up(est_code_len as u32 + 0x40, section_align);
     let data_rva = text_rva + text_vs;
 
-    let (extended_data, meta) = win32_selfhost::build_selfhost_metadata(data, data_rva)?;
-    let startup_body = win32_selfhost::gen_selfhost_startup(
-        meta.dll_name_rva,
-        meta.iat_rva,
-        meta.export_name_rva,
-    );
+    let (extended_data, meta) =
+        win32_selfhost::build_selfhost_metadata(data, data_rva, embedded_dll)?;
+    let startup_body = win32_selfhost::gen_selfhost_startup(&meta);
 
     let mut full_code = Vec::new();
     full_code.extend_from_slice(&startup_body);

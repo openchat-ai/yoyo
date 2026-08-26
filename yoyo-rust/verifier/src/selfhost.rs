@@ -38,20 +38,26 @@ pub fn bootstrap_compile(input: &[u8]) -> IsaResult<Vec<u8>> {
 }
 
 /// Link emitted code as Win32 PE with embedded runtime selfhost startup + HOT table.
-pub fn link_pe_selfhost_runtime(code: &[u8], data: &[u8], hot_table: &[u8]) -> IsaResult<Vec<u8>> {
-    Ok(pe_link::link_pe_selfhost(code, data, hot_table)?.bytes)
+pub fn link_pe_selfhost_runtime(
+    code: &[u8],
+    data: &[u8],
+    hot_table: &[u8],
+    embedded_dll: &[u8],
+) -> IsaResult<Vec<u8>> {
+    Ok(pe_link::link_pe_selfhost(code, data, hot_table, embedded_dll)?.bytes)
 }
 
-/// Prebuilt `yoyo_runtime.dll` bytes (for sidecar extraction at bootstrap).
+/// Prebuilt `yoyo_runtime.dll` bytes (embedded in PE .data at link time).
 pub fn runtime_dll_bytes() -> IsaResult<Vec<u8>> {
     crate::win32_selfhost::runtime_dll_bytes()
 }
 
-/// Stage 5 M2→M3: compile `.tyb` input and link PE with runtime selfhost startup.
+/// Stage 5 M2→M3: compile `.tyb` input and link PE with embedded runtime selfhost startup.
 pub fn bootstrap_selfhost_runtime(input_tyb: &[u8]) -> IsaResult<Vec<u8>> {
+    let dll = runtime_dll_bytes()?;
     let out = executor::compile_tyb_source(input_tyb, PlatformKind::Win32)?;
     let hot = build_hot(&out.handler_offsets);
-    link_pe_selfhost_runtime(&out.code, &out.data, &hot)
+    link_pe_selfhost_runtime(&out.code, &out.data, &hot, &dll)
 }
 
 /// Compile `.tyb` to Linux ELF64 bytes (M1→M2 interim, Rust host compiler).

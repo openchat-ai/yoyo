@@ -297,7 +297,7 @@ node .\scripts\check-sugar.mjs
 |---|-----|------|--------|
 | 1 | S7.1 | Stage 7 维护节拍 — test all + win selfhost + lock + JS golden 每周全绿 | **RED** |
 | 2 | S7.2 | JS golden MEMCPY 真实 emit — 去 `stub=C3` 语义缺口 | **RED** |
-| 3 | S7.3 | Windows 无 sidecar 自举 — runtime 嵌入 PE | **RED** |
+| 3 | S7.3 | Windows 无 sidecar 自举 — runtime 嵌入 PE | **GREEN** |
 | 4 | S7.4 | Linux M2→M3 自举链 — `stage5-linux-selfhost` 脚本全绿 | **RED** |
 | 5 | S7.5 | 定制 MCU 后端脚手架 — BACKEND_SUPPORT hook + backends 冒烟 | **RED** |
 
@@ -1500,7 +1500,7 @@ node .\scripts\check-sugar.mjs
 |---|-----|------|--------|
 | 1 | S7.1 | Stage 7 维护节拍 — test all + win selfhost + lock + JS golden 每周全绿 | **RED** |
 | 2 | S7.2 | JS golden MEMCPY 真实 emit — 去 `stub=C3` 语义缺口 | **RED** |
-| 3 | S7.3 | Windows 无 sidecar 自举 — runtime 嵌入 PE | **RED** |
+| 3 | S7.3 | Windows 无 sidecar 自举 — runtime 嵌入 PE | **GREEN** |
 | 4 | S7.4 | Linux M2→M3 自举链 — `stage5-linux-selfhost` 脚本全绿 | **RED** |
 | 5 | S7.5 | 定制 MCU 后端脚手架 — BACKEND_SUPPORT hook + backends 冒烟 | **RED** |
 
