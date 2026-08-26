@@ -23,6 +23,7 @@ mod freedos_interp;
 mod xtensa_interp;
 mod pic_interp;
 mod stm8_interp;
+mod custom_mcu_interp;
 mod evm_interp;
 mod plan9_interp;
 mod ddc;
@@ -622,6 +623,12 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
             })?;
             println!("wrote EVM flat {} ({} bytes)", rest[1], out.code.len());
         }
+        PlatformKind::CustomMcu => {
+            fs::write(&rest[1], &out.code).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            println!("wrote custom MCU flat {} ({} bytes)", rest[1], out.code.len());
+        }
     }
     Ok(())
 }
@@ -949,6 +956,7 @@ fn cmd_info(args: &[String]) -> Result<(), types::IsaError> {
         PlatformKind::M6502, PlatformKind::M68k, PlatformKind::Msp430,
         PlatformKind::Pic, PlatformKind::Stm8, PlatformKind::Rocm,
         PlatformKind::Vulkan, PlatformKind::Evm, PlatformKind::Qiskit,
+        PlatformKind::CustomMcu,
     ];
     // If --target= specified, show only that one
     let target = if args.len() == 1 {
@@ -1174,6 +1182,7 @@ fn cmd_test_backends() -> Result<(), types::IsaError> {
         PlatformKind::M6502, PlatformKind::M68k, PlatformKind::Msp430,
         PlatformKind::Pic, PlatformKind::Stm8, PlatformKind::Rocm,
         PlatformKind::Vulkan, PlatformKind::Evm, PlatformKind::Qiskit,
+        PlatformKind::CustomMcu,
     ];
     for target in targets {
         total += 1;
@@ -1225,7 +1234,8 @@ fn emit_target_bytes(target: crate::platform::PlatformKind, tir: &[crate::tir::T
         | PlatformKind::Freedos | PlatformKind::Avr | PlatformKind::Serenity
         | PlatformKind::Plan9 | PlatformKind::Xtensa | PlatformKind::Z80
         | PlatformKind::M6502 | PlatformKind::M68k | PlatformKind::Msp430
-        | PlatformKind::Pic | PlatformKind::Stm8 | PlatformKind::Evm => Ok(out.code),
+        | PlatformKind::Pic | PlatformKind::Stm8 | PlatformKind::Evm
+        | PlatformKind::CustomMcu => Ok(out.code),
     }
 }
 
@@ -1259,9 +1269,10 @@ fn cmd_test_ddc() -> Result<(), types::IsaError> {
     let stm8_ok = ddc_stm8(&tir)?;
     let evm_ok = ddc_evm(&tir)?;
     let plan9_ok = ddc_plan9(&tir)?;
+    let custom_mcu_ok = ddc_custom_mcu(&tir)?;
 
-    if sim_ok && exec_ok && wasm_ok && riscv_ok && riscv32_ok && mips_ok && ppc_ok && arm32_ok && sparc_ok && loong_ok && e8051_ok && avr_ok && x86_ok && z80_ok && m6502_ok && m68k_ok && msp430_ok && freedos_ok && xtensa_ok && pic_ok && stm8_ok && evm_ok && plan9_ok {
-        println!("DDC test: PASS (sim=Ret exec=Ret wasm=unreachable riscv=Ret riscv32=Ret mips=Ret ppc=Ret arm32=Ret sparc=Ret loong=Ret 8051=Ret avr=Ret x86=Ret z80=Ret 6502=Ret m68k=Ret msp430=Ret freedos=Ret xtensa=Ret pic=Ret stm8=Ret evm=Ret plan9=Ret)");
+    if sim_ok && exec_ok && wasm_ok && riscv_ok && riscv32_ok && mips_ok && ppc_ok && arm32_ok && sparc_ok && loong_ok && e8051_ok && avr_ok && x86_ok && z80_ok && m6502_ok && m68k_ok && msp430_ok && freedos_ok && xtensa_ok && pic_ok && stm8_ok && evm_ok && plan9_ok && custom_mcu_ok {
+        println!("DDC test: PASS (sim=Ret exec=Ret wasm=unreachable riscv=Ret riscv32=Ret mips=Ret ppc=Ret arm32=Ret sparc=Ret loong=Ret 8051=Ret avr=Ret x86=Ret z80=Ret 6502=Ret m68k=Ret msp430=Ret freedos=Ret xtensa=Ret pic=Ret stm8=Ret evm=Ret plan9=Ret custom_mcu=Ret)");
         Ok(())
     } else {
         println!("DDC test: FAIL");
@@ -1437,6 +1448,13 @@ fn ddc_plan9(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
     let exec = crate::plan9_interp::run_plan9(&out.code);
     println!("DDC test: plan9   exit={:?} steps={}", exec.exit_reason, exec.steps);
     Ok(exec.exit_reason == crate::plan9_interp::ExecExitReason::Ret)
+}
+#[inline(never)]
+fn ddc_custom_mcu(tir: &[tir::TirInst]) -> Result<bool, types::IsaError> {
+    let out = emit::emit(tir, platform::PlatformKind::CustomMcu)?;
+    let exec = crate::custom_mcu_interp::run_custom_mcu(&out.code);
+    println!("DDC test: custom_mcu exit={:?} steps={}", exec.exit_reason, exec.steps);
+    Ok(exec.exit_reason == crate::custom_mcu_interp::ExecExitReason::Ret)
 }
 
 // ── 01_arith DDC (arithmetic: SET slot0=5, SET slot1=3, ADDV slot0+=slot1, RET) ──

@@ -76,6 +76,7 @@ impl PlatformKind {
             PlatformKind::Vulkan => ArchProperties { endian: Endian::Little, pointer_width: 32, abi: Abi::Gpu, has_mmu: false, is_harvard: true, has_stack: false, min_inst_size: 4, description: "Vulkan Compute (SPIR-V)" },
             PlatformKind::Evm => ArchProperties { endian: Endian::Big, pointer_width: 256, abi: Abi::Blockchain, has_mmu: false, is_harvard: true, has_stack: true, min_inst_size: 1, description: "Ethereum EVM" },
             PlatformKind::Qiskit => ArchProperties { endian: Endian::Little, pointer_width: 0, abi: Abi::Quantum, has_mmu: false, is_harvard: false, has_stack: false, min_inst_size: 0, description: "IBM Qiskit (OpenQASM)" },
+            PlatformKind::CustomMcu => ArchProperties { endian: Endian::Little, pointer_width: 8, abi: Abi::BareMetal, has_mmu: false, is_harvard: true, has_stack: true, min_inst_size: 1, description: "Custom MCU scaffold (copy & replace)" },
         }
     }
 }
@@ -118,6 +119,8 @@ pub enum PlatformKind {
     Vulkan,
     Evm,
     Qiskit,
+    /// Scaffold for chip-specific / custom ISA backends — copy `CustomMcuPlatform` and extend.
+    CustomMcu,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -516,6 +519,7 @@ pub fn select_platform(target: PlatformKind) -> Box<dyn PlatformBackend> {
         PlatformKind::Vulkan => Box::new(VulkanPlatform::new()),
         PlatformKind::Evm => Box::new(EvmPlatform::new()),
         PlatformKind::Qiskit => Box::new(QiskitPlatform::new()),
+        PlatformKind::CustomMcu => Box::new(CustomMcuPlatform::new()),
     }
 }
 
@@ -557,6 +561,7 @@ pub fn parse_platform(s: &str) -> IsaResult<PlatformKind> {
         "vulkan" | "spirv" | "vulkan-compute" => Ok(PlatformKind::Vulkan),
         "evm" | "ethereum" | "solidity" => Ok(PlatformKind::Evm),
         "qiskit" | "openqasm" | "quantum" => Ok(PlatformKind::Qiskit),
+        "custom-mcu" | "mcu-custom" | "custommcu" => Ok(PlatformKind::CustomMcu),
         _ => Err(IsaError::PlatformError {
             msg: format!("unknown platform '{s}'"),
         }),
@@ -612,6 +617,51 @@ impl PlatformBackend for StubPlatform {
 }
 
 // 闁冲厜鍋撻柍鍏夊亾 Win32 闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋撻柍鍏夊亾闁冲厜鍋?
+/// Scaffold backend for custom MCU / chip ISA work. NOP=0x00, RET=0xC3 — see `custom_mcu_interp.rs`.
+pub struct CustomMcuPlatform;
+
+const CUSTOM_MCU_NOP_BYTE: u8 = 0x00;
+const CUSTOM_MCU_RET_BYTE: u8 = 0xC3;
+
+impl CustomMcuPlatform {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl PlatformBackend for CustomMcuPlatform {
+    fn emit_nop(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(vec![CUSTOM_MCU_NOP_BYTE])
+    }
+    fn emit_ret(&mut self) -> IsaResult<Vec<u8>> {
+        Ok(vec![CUSTOM_MCU_RET_BYTE])
+    }
+    fn emit_alloc(&mut self, _slot: u16, _size: u64) -> IsaResult<Vec<u8>> {
+        Ok(vec![])
+    }
+    fn emit_load_file(&mut self, _slot: u16, _str_idx: u8) -> IsaResult<Vec<u8>> {
+        Ok(vec![])
+    }
+    fn emit_write_file(&mut self, _slot: u16, _str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
+        Ok(vec![])
+    }
+    fn emit_exit(&mut self, _code: u8) -> IsaResult<Vec<u8>> {
+        Ok(vec![CUSTOM_MCU_RET_BYTE])
+    }
+    fn startup_blob(&self) -> &[u8] {
+        &[]
+    }
+    fn template(&self) -> TemplateInfo {
+        TemplateInfo {
+            format: BinaryFormat::FlatBinary,
+            entry_point: 0,
+            stack_size: 0x100,
+            data_section_offset: 0,
+            data_section_size: 0x100,
+        }
+    }
+}
+
 pub struct Win32Platform {
     startup: Vec<u8>,
 }

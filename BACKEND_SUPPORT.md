@@ -4,7 +4,7 @@
 
 **负责人看板**：[`STAGE4_OWNER_CHECKLIST.md`](../STAGE4_OWNER_CHECKLIST.md) — Stage 4 已毕业（A/B/C）；Stage 5 主线见看板「预置任务」。日常验收：`cargo run -- test ddc` 或 `cargo run -- test all`。
 
-The YOYO verifier can cross-compile `.ty` programs to **36 target platforms** across 5 categories:
+The YOYO verifier can cross-compile `.ty` programs to **37 target platforms** across 5 categories:
 8-bit MCUs, 32-bit/64-bit CPUs, GPUs, blockchain VMs, and quantum computing.
 
 ## Quick Start
@@ -17,6 +17,7 @@ cargo run -- link --target=wasm input.ty output.wasm     # WebAssembly
 cargo run -- link --target=8051 input.ty output.bin      # Intel 8051
 cargo run -- link --target=evm input.ty output.evm       # Ethereum
 cargo run -- link --target=qiskit input.ty output.qasm   # IBM Quantum
+cargo run -- link --target=custom-mcu input.ty output.bin  # Custom MCU scaffold
 ```
 
 ## Full Backend Matrix
@@ -59,6 +60,7 @@ cargo run -- link --target=qiskit input.ty output.qasm   # IBM Quantum
 | WebAssembly | wasm | Wasm | Wasm | LE | 32 | ✅ | ✅ |
 | EVM | evm | EVM | Flat | BE | 256 | ✅ | ❌ |
 | Qiskit | qiskit | OpenQASM | Text | LE | 0 | ✅ (text) | ❌ |
+| Custom MCU | custom-mcu | Custom | Flat | LE | 8 | ✅ (scaffold) | ✅ |
 
 Legend: ✅ = done, ⏳ = in progress, ❌ = not yet
 
@@ -68,14 +70,15 @@ Run from `yoyo-rust/verifier`: `cargo run -- test ddc`
 
 | Fixture | Semantics | Fatal (core) | Soft / non-fatal | Status |
 |---------|-----------|--------------|------------------|--------|
-| `00_nop_ret.ty` | NOP+RET | sim + 22 arch interps (incl. wasm trap) | — | PASS |
+| `00_nop_ret.ty` | NOP+RET | sim + 23 arch interps (incl. wasm trap + **custom_mcu** scaffold) | — | PASS |
 | `01_arith.ty` | SET+ADDV → slot0=8 | sim + arm64/rv64/rv32/mips/ppc/arm32/sparc/loong/x86/plan9/win32/linux + **11 MCU fatal** (8051/avr/z80/6502/m68k/msp430/freedos/xtensa/pic/stm8/evm) | — | PASS |
 | `02_branch.ty` | CMP+JE → slot0=5 | sim + arm64/rv64/rv32/mips/ppc/arm32/sparc/loong/plan9/x86/win32/linux + **11 MCU fatal** | — | PASS |
 | `03_mem.ty` | MEMCPY_STATE → slot0=7 | sim + arm64/rv64/rv32/mips/ppc/arm32/sparc/loong/plan9/x86/win32/linux + **11 MCU fatal** | — | PASS |
 | `04_ldb_ptr.ty` | LDB pointer-form → slot0=7 | sim + Win32 PE + Linux ELF container | — | PASS |
 | container | PE/ELF container NOP+RET | PE32+ x64 + ELF64 x64 via plan9_interp | — | PASS |
+| `custom_mcu` scaffold | NOP+RET smoke (`--target=custom-mcu`) | flat binary + `custom_mcu_interp` | — | PASS |
 
-Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container all PASS). Remaining Stage 5 work is process-only (Freeze + Lock 复验), not backend/DDC coverage.
+Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container all PASS). `custom-mcu` is a **copy-and-replace scaffold** for chip-specific work — extend emit + interp before promoting to full MCU DDC fatal.
 
 ### How to run
 
@@ -84,7 +87,7 @@ yoyo test golden|backends|ddc|all|gen12
 ```
 
 - `yoyo test golden` — Appendix F G00-G05 integrity tests (739/739)
-- `yoyo test backends` — compile+link all 36 targets, verify output
+- `yoyo test backends` — compile+link all 37 targets, verify output
 - `yoyo test ddc` — nop + arith + branch + mem + ldb + container DDC suites
 - `yoyo test all` — golden + backends + ddc (CI-level one-shot)
 - `yoyo test gen12` — gen1≡gen2 SHA monitor (`4fb8b87f`)
@@ -111,7 +114,7 @@ yoyo render <input.ty>
                                   ↓
                      emit.rs (per-arch dispatch)
                                   ↓
-              platform backends (36 targets)
+              platform backends (37 targets)
                                   ↓
                     linker (ELF/PE/Mach-O/Wasm)
                                   ↓
@@ -127,6 +130,32 @@ yoyo render <input.ty>
 5. Add to `yoyo info` list
 6. Add to `yoyo test backends` iteration
 7. Add to this document
+
+## Adding a Custom MCU Backend
+
+Use the built-in **`custom-mcu`** scaffold when bringing up a new chip or proprietary ISA. It already links NOP+RET, passes `yoyo test backends`, and has a smoke DDC path via `custom_mcu_interp`.
+
+### Hook steps (copy & replace)
+
+1. **Fork the scaffold** — duplicate `CustomMcuPlatform` in `platform.rs` (or rename variant to your chip, e.g. `MyChip`).
+2. **Define opcode bytes** — override `emit_nop`, `emit_ret`, then `emit_set` / `emit_get` / branches as needed (see `Stm8Platform` or `AvrPlatform` for full MCU examples).
+3. **Add interpreter** — copy `custom_mcu_interp.rs` → `mychip_interp.rs`; decode loop must match your emit encodings for DDC.
+4. **Wire dispatch** — `select_platform`, `parse_platform` (`--target=mychip`), `cmd_link` (flat `.bin`), `emit_target_bytes`, `cmd_test_backends`, `cmd_info`.
+5. **DDC promotion** — start with `00_nop_ret` smoke (`ddc_custom_mcu` pattern); add `01_arith`/`02_branch`/`03_mem` helpers when interpreter reads state slots.
+6. **Document** — add a row to the matrix above and update the DDC table in this file.
+
+### Scaffold encoding (default)
+
+| Op | Byte | Notes |
+|----|------|-------|
+| NOP | `0x00` | 1-byte placeholder |
+| RET | `0xC3` | must match `custom_mcu_interp` |
+
+```bash
+cd yoyo-rust/verifier
+cargo run -- link --target=custom-mcu ../../yoyo/tests/golden/00_nop_ret.ty /tmp/out.bin
+cargo run -- test backends   # expect custommcu PASS
+```
 
 ## DDC / Cross-Architecture Validation
 

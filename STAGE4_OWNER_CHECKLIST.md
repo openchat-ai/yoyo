@@ -112,7 +112,7 @@ cargo run -- test ddc
 ```powershell
 cd F:\yoyo\yoyo-rust\verifier
 cargo run -- test golden    # 期望 739/739 PASS
-cargo run -- test backends  # 期望 36/36 PASS
+cargo run -- test backends  # 期望 37/37 PASS
 ```
 
 ---
@@ -130,7 +130,7 @@ cargo run -- test backends  # 期望 36/36 PASS
 - [x] **02_branch DDC** — 11/11 core fatal（CMP+JE → slot0=5；含 x86 ZF 修复 7j）
 - [x] **03_mem MEMCPY_STATE DDC** — 11/11 core fatal（含 Plan9/x86 slot-form 覆盖 7k）
 - [x] **Golden** — 739/739 PASS
-- [x] **Backends** — 36/36 编译链接冒烟 PASS
+- [x] **Backends** — 37/37 编译链接冒烟 PASS
 - [x] **BACKEND_SUPPORT.md DDC matrix** — 含 8a–8c（container PASS、04_ldb_ptr）
 - [x] **A：Win/Linux 生产路径对齐** — Item 8a；13/13 core fatal（含 win32/linux）
 - [x] **B：Container DDC** — Item 8b；PE+ELF PASS，不再 SKIP
@@ -288,8 +288,8 @@ Stage 4 看板抽检：golden 或 backends 失败（贴完整输出）。
 - [x] **JS golden MEMCPY 真实 emit** — JS `encodeOp(0x84/0x85)` 对齐 Rust `rep movsb`；stub fixture 改真实 expected hex；验收：`node .\yoyo-js\scripts\golden.js` 退出码 0，MEMCPY 项无 `stub=C3; semantic gap`
 - [x] **Windows 无 sidecar 自举** — `bootstrap --selfhost` 产出单文件 gen2rt（runtime 嵌入 PE，不依赖旁路 `yoyo_runtime.dll`）；验收：`.\scripts\stage5-win-selfhost.ps1` M2→M3 全绿且 workdir 无 sidecar DLL
 - [x] **Linux M2→M3 自举链** — 新增 `scripts/stage5-linux-selfhost.sh`（或 WSL 等价），gen2.elf embedded startup → gen3.elf 无挂死/AV；验收：脚本退出码 0 + `output.elf` 存在
-- [ ] **定制 MCU 后端脚手架** — 为芯片/定制 ISA 工作预留：`BACKEND_SUPPORT.md` 登记 hook 步骤 + 最小 stub target 纳入 `test backends`；验收：`cargo run -- test backends` 仍 36/36 PASS，新 target 冒烟 PASS 且 DDC 表有行
+- [x] **定制 MCU 后端脚手架** — `custom-mcu` stub（NOP=0x00/RET=0xC3）+ `custom_mcu_interp` + BACKEND_SUPPORT hook 文档；验收：`cargo run -- test backends` 37/37 PASS，`00_nop_ret` 含 custom_mcu DDC 行 PASS
 
 ---
 
-*最后更新：2026-08-26 · Stage 7 S7.3 Windows 无 sidecar 自举绿（嵌入 PE→%TEMP% LoadLibrary）· 下一主线：定制 MCU 脚手架 · Stage 6 已毕业*
+*最后更新：2026-08-26 · Stage 7 **5/5 全绿** · 定制 MCU 脚手架绿 · Stage 7 已毕业*
