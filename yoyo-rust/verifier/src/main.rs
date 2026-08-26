@@ -51,6 +51,7 @@ mod self_test;
 mod selfhost;
 mod startup;
 mod win32_selfhost;
+mod linux_selfhost;
 mod tir;
 mod ty_parser;
 mod tyb_parser;
@@ -81,7 +82,7 @@ fn usage() -> ! {
            yoyo run-wasm <input.ty>\n\
            yoyo ddcmp <A.elf> <B.elf> <input.ty>\n\
            yoyo test golden|backends|ddc|gen12|lock|all\n\
-           yoyo bootstrap [--selfhost] <input.ty|.tyb> <output.exe>\n\
+           yoyo bootstrap [--selfhost] [--target=win32|linux] <input.ty|.tyb> <output>\n\
            yoyo exec <input.ty> [--target=android|apple]\n\
            yoyo info [--target=<target>]\n\n\
          Note: --posture= / --morph= are recognized and fail-closed (NON-CONFORMING)\n\
@@ -624,14 +625,17 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
     Ok(())
 }
 
-/// Stage 5 interim: compile input.ky/.tyb → output.exe via Rust host (not runtime selfhost).
-/// With `--selfhost`, emit PE with embedded Win32 startup + `yoyo_runtime.dll` sidecar.
+/// Stage 5 interim: compile input.ky/.tyb → output via Rust host (not runtime selfhost).
+/// With `--selfhost`, emit single-file PE/ELF with embedded startup (+ runtime on Linux).
 fn cmd_bootstrap(args: &[String]) -> Result<(), types::IsaError> {
     let mut runtime = false;
+    let mut target = platform::PlatformKind::Win32;
     let mut rest: Vec<String> = Vec::new();
     for a in args {
         if a == "--selfhost" {
             runtime = true;
+        } else if let Some(t) = a.strip_prefix("--target=") {
+            target = platform::parse_platform(t)?;
         } else {
             rest.push(a.clone());
         }
@@ -639,10 +643,48 @@ fn cmd_bootstrap(args: &[String]) -> Result<(), types::IsaError> {
     if rest.len() != 2 {
         usage();
     }
+    if rest[1].ends_with(".elf") {
+        target = platform::PlatformKind::Linux;
+    }
+    let is_linux = matches!(target, platform::PlatformKind::Linux);
+
     if runtime {
         let input = fs::read(&rest[0]).map_err(|e| types::IsaError::IoError {
             msg: e.to_string(),
         })?;
+        if is_linux {
+            let elf = if tyb_parser::is_tyb(&input) {
+                selfhost::bootstrap_selfhost_runtime_linux(&input)?
+            } else {
+                let src = std::str::from_utf8(&input).map_err(|e| types::IsaError::ParseError {
+                    line: 0,
+                    msg: format!("bootstrap --selfhost input not UTF-8 .ty: {e}"),
+                })?;
+                let out = executor::compile_ty_source(src, platform::PlatformKind::Linux)?;
+                let hot = selfhost::build_hot(&out.handler_offsets);
+                selfhost::link_elf_selfhost_runtime(&out.code, &out.data, &hot)?
+            };
+            fs::write(&rest[1], &elf).map_err(|e| types::IsaError::IoError {
+                msg: e.to_string(),
+            })?;
+            let so_path = std::path::Path::new(&rest[1])
+                .parent()
+                .unwrap_or(std::path::Path::new("."))
+                .join(linux_selfhost::RUNTIME_SO_NAME);
+            let so = selfhost::runtime_so_bytes()?;
+            fs::write(&so_path, &so).map_err(|e| types::IsaError::IoError {
+                msg: format!("write {}: {e}", so_path.display()),
+            })?;
+            println!(
+                "bootstrap --selfhost: {} → {} ({} bytes, embedded startup + {})",
+                rest[0],
+                rest[1],
+                elf.len(),
+                linux_selfhost::RUNTIME_SO_NAME
+            );
+            return Ok(());
+        }
+
         let pe = if tyb_parser::is_tyb(&input) {
             selfhost::bootstrap_selfhost_runtime(&input)?
         } else {
@@ -680,15 +722,19 @@ fn cmd_bootstrap(args: &[String]) -> Result<(), types::IsaError> {
     let input = fs::read(&rest[0]).map_err(|e| types::IsaError::IoError {
         msg: e.to_string(),
     })?;
-    let pe = selfhost::bootstrap_compile(&input)?;
-    fs::write(&rest[1], &pe).map_err(|e| types::IsaError::IoError {
+    let out_bytes = if is_linux {
+        selfhost::bootstrap_compile_linux(&input)?
+    } else {
+        selfhost::bootstrap_compile(&input)?
+    };
+    fs::write(&rest[1], &out_bytes).map_err(|e| types::IsaError::IoError {
         msg: e.to_string(),
     })?;
     println!(
         "bootstrap: {} → {} ({} bytes)",
         rest[0],
         rest[1],
-        pe.len()
+        out_bytes.len()
     );
     Ok(())
 }

@@ -1,11 +1,27 @@
-//! In-process selfhost runtime — loaded by gen2.exe startup stub.
-//! Reads `input.tyb` (or `input.ky`), compiles via verifier, writes `output.exe`.
+//! In-process selfhost runtime — loaded by gen2 startup stub.
+//! Reads `input.tyb` (or `input.ky`), compiles via verifier, writes `output.exe` / `output.elf`.
 
 use std::ffi::CStr;
 use std::os::raw::c_char;
 
+#[cfg(target_os = "linux")]
+fn compile_input(input: &[u8]) -> Result<Vec<u8>, i32> {
+    verifier::selfhost::bootstrap_compile_linux(input).map_err(|_| 1)
+}
+
+#[cfg(not(target_os = "linux"))]
 fn compile_input(input: &[u8]) -> Result<Vec<u8>, i32> {
     verifier::selfhost::bootstrap_compile(input).map_err(|_| 1)
+}
+
+#[cfg(target_os = "linux")]
+fn default_output_name() -> &'static str {
+    "output.elf"
+}
+
+#[cfg(not(target_os = "linux"))]
+fn default_output_name() -> &'static str {
+    "output.exe"
 }
 
 fn read_input() -> Result<Vec<u8>, i32> {
@@ -17,18 +33,18 @@ fn read_input() -> Result<Vec<u8>, i32> {
     Err(2)
 }
 
-/// Main entry — called from embedded PE startup via LoadLibrary export.
+/// Main entry — called from embedded startup via LoadLibrary/dlopen export.
 #[no_mangle]
 pub extern "C" fn yoyo_runtime_selfhost_main() -> i32 {
     let input = match read_input() {
         Ok(d) => d,
         Err(e) => return e,
     };
-    let pe = match compile_input(&input) {
+    let out = match compile_input(&input) {
         Ok(p) => p,
         Err(e) => return e,
     };
-    if std::fs::write("output.exe", &pe).is_err() {
+    if std::fs::write(default_output_name(), &out).is_err() {
         return 3;
     }
     0
@@ -55,11 +71,11 @@ pub unsafe extern "C" fn yoyo_runtime_selfhost_paths(
         Ok(d) => d,
         Err(_) => return 2,
     };
-    let pe = match compile_input(&input) {
+    let out = match compile_input(&input) {
         Ok(p) => p,
         Err(e) => return e,
     };
-    if std::fs::write(out_path, &pe).is_err() {
+    if std::fs::write(out_path, &out).is_err() {
         return 3;
     }
     0
