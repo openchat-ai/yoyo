@@ -284,12 +284,12 @@ Stage 4 看板抽检：golden 或 backends 失败（贴完整输出）。
 
 > Stage 6 已毕业。Stage 7 以 **3-peer 诚实对齐** + **自举链深化** 为主；仍不启动 SCOPE-CUT 大项（full body / libyoyo migration · W5.5）。
 
-- [ ] **Stage 7 维护节拍** — 每周一轮全栈复验全绿：`cargo run -- test all` + `.\scripts\stage5-win-selfhost.ps1` + `.\scripts\verify-lock-pin.ps1` + `node .\yoyo-js\scripts\golden.js`；红了即回归任务，不勾
-- [ ] **JS golden MEMCPY 真实 emit** — JS `encodeOp(0x84/0x85)` 对齐 Rust `rep movsb`；stub fixture 改真实 expected hex；验收：`node .\yoyo-js\scripts\golden.js` 退出码 0，MEMCPY 项无 `stub=C3; semantic gap`
+- [x] **Stage 7 维护节拍** — 每周一轮全栈复验全绿：`cargo run -- test all` + `.\scripts\stage5-win-selfhost.ps1` + `.\scripts\verify-lock-pin.ps1` + `node .\yoyo-js\scripts\golden.js`；红了即回归任务，不勾
+- [x] **JS golden MEMCPY 真实 emit** — JS `encodeOp(0x84/0x85)` 对齐 Rust `rep movsb`；stub fixture 改真实 expected hex；验收：`node .\yoyo-js\scripts\golden.js` 退出码 0，MEMCPY 项无 `stub=C3; semantic gap`
 - [ ] **Windows 无 sidecar 自举** — `bootstrap --selfhost` 产出单文件 gen2rt（runtime 嵌入 PE，不依赖旁路 `yoyo_runtime.dll`）；验收：`.\scripts\stage5-win-selfhost.ps1` M2→M3 全绿且 workdir 无 sidecar DLL
 - [ ] **Linux M2→M3 自举链** — 新增 `scripts/stage5-linux-selfhost.sh`（或 WSL 等价），gen2.elf embedded startup → gen3.elf 无挂死/AV；验收：脚本退出码 0 + `output.elf` 存在
 - [ ] **定制 MCU 后端脚手架** — 为芯片/定制 ISA 工作预留：`BACKEND_SUPPORT.md` 登记 hook 步骤 + 最小 stub target 纳入 `test backends`；验收：`cargo run -- test backends` 仍 36/36 PASS，新 target 冒烟 PASS 且 DDC 表有行
 
 ---
 
-*最后更新：2026-08-25 · Stage 7 预置任务立项 · Stage 6 已毕业*
+*最后更新：2026-08-26 · Stage 7 S7-1/S7-2 两板并行绿 · Stage 6 已毕业*

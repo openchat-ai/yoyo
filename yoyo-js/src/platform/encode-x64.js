@@ -12,7 +12,6 @@ function loadState(slot, destLow3, destRex) {
   const disp = (slot & 0xff) * 8;
   const r = rex(1, destRex, 0, 1);
   const modrmReg = (destLow3 & 7) << 3;
-  console.error(`loadState slot=${slot} destLow3=${destLow3} destRex=${destRex} -> disp=${disp} rex=${r.toString(16)} modrmReg=${modrmReg.toString(16)} -> modrm=${(modrmReg|0x80|0x07).toString(16)}`);
   if (disp <= 127) return [r, 0x8b, modrmReg | 0x40 | 0x07, disp];
   const d = Buffer.alloc(4); d.writeUInt32LE(disp, 0);
   return [r, 0x8b, modrmReg | 0x80 | 0x07, ...d];

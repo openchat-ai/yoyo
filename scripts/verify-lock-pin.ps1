@@ -10,8 +10,14 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "== Lock pin (verifier test lock) =="
 Push-Location yoyo-rust\verifier
-cargo run -- test lock
-$code = $LASTEXITCODE
+$prevEap = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+try {
+  cargo run -- test lock 2>&1 | Out-Host
+  $code = $LASTEXITCODE
+} finally {
+  $ErrorActionPreference = $prevEap
+}
 Pop-Location
 if ($code -ne 0) { exit $code }
 
