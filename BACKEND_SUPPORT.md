@@ -80,17 +80,44 @@ Run from `yoyo-rust/verifier`: `cargo run -- test ddc`
 
 Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container all PASS). `custom-mcu` is a **copy-and-replace scaffold** for chip-specific work — extend emit + interp before promoting to full MCU DDC fatal.
 
+### Platform I/O (Stage 8-A · D-1 closed for production)
+
+| Backend | `0x20` ALLOC | `0x50` LOAD_FILE | `0x51` WRITE_FILE | Notes |
+|---------|--------------|------------------|-------------------|-------|
+| **Win32** | VirtualAlloc via kernel32 IAT `[r15+0]` | CreateFileA + ReadFile + CloseHandle | CreateFileA + WriteFile + CloseHandle | `pe_link` prepends IAT blob; emit in `platform_io.rs` |
+| **Linux** | mmap syscall | open/read/close | open/write/close | inline x64 syscalls in `platform_io.rs` |
+| **Stub** | movabs+store | movabs+store | movabs+store | cross-peer golden / G-SM-IO DDC (JS peer may differ) |
+| **Plan9 / FreeBSD / Haiku / Serenity** | movabs+store | movabs+store | movabs+store | x64 hosted peers; real OS I/O deferred |
+
+**D-1 (2026-08-27):** Rust **Win32 + Linux** production link paths no longer use movabs+store placeholders for I/O opcodes. **Stub** remains deterministic for golden fixtures. JS chain may still emit movabs+store — intentional cross-peer divergence until JS migration.
+
+**Trust-chain observability:** gen12 `.text` SHA updated when I/O handlers change (`e92520ea…` as of Stage 8-A). Self-host bootstrap (gen1≡gen2) still EQUAL; I/O syscall/IAT bytes are inside the compared `.text` window.
+
+### Full body compiler (Stage 8-B · W5.5 body)
+
+| Path | What it validates | DDC scope |
+|------|-------------------|-----------|
+| **`test gen12`** | `.ty` link ≡ `.tyb` bootstrap (788 handlers) | `.text` 17920 bytes, SHA `e92520ea…` |
+| **`test fullbody`** | Handler count ≥700 (fail-closed vs W-SM scoped=34); `.ty`/`.tyb` bootstrap; gen2rt runtime → `output.exe` | Same gen12 `.text` window + runtime gen3 parity |
+| **`stage5-win-selfhost.ps1`** | M1→M2 bootstrap + M2→M3 embedded startup | gen1≡gen2 EQUAL; gen3 from full-body compile |
+| **`stage8-extended-selfhost.ps1/.sh`** | M2→M3→M4 embedded chain (Stage 8-C) | gen4≡gen3_direct `.text` DDC EQUAL; same gen12 window as fullbody |
+
+**DDC coverage boundary (honest):** gen12/fullbody monitor the **788-handler emit body** (handler `.text`), not the embedded Rust startup stub in gen2rt/gen3rt (separate bytes). Golden G-SM fixtures still test W-selfhost-min opcode shapes; fullbody gate ensures production compile uses the complete body, not scoped H_05–H_16 subset only.
+
+**Pre-existing gap (not C blocker):** gen1 H_00 entry runtime selfhost remains RED — true in-process compiler without embedded startup. M3→M4 uses same embedded genNrt path as M2→M3 (host `bootstrap --selfhost` wrapper, not gen3-in-process).
+
 ### How to run
 
 ```
-yoyo test golden|backends|ddc|all|gen12
+yoyo test golden|backends|ddc|all|gen12|fullbody
 ```
 
 - `yoyo test golden` — Appendix F G00-G05 integrity tests (739/739)
 - `yoyo test backends` — compile+link all 37 targets, verify output
 - `yoyo test ddc` — nop + arith + branch + mem + ldb + container DDC suites
-- `yoyo test all` — golden + backends + ddc (CI-level one-shot)
-- `yoyo test gen12` — gen1≡gen2 SHA monitor (`4fb8b87f`)
+- `yoyo test all` — golden + backends + ddc + gen12 + fullbody (CI-level one-shot)
+- `yoyo test gen12` — gen1≡gen2 SHA monitor (`e92520ea`, Stage 8-A I/O emit)
+- `yoyo test fullbody` — full 788-handler body compile + runtime smoke (Stage 8-B)
 
 ## CLI Usage
 
@@ -100,7 +127,7 @@ yoyo simulate <input.ty>
 yoyo run-wasm <input.ty>
 yoyo exec <input.ty> [--target=android|apple]
 yoyo ddcmp <A.elf> <B.elf> <input.ty>
-yoyo test golden|backends|ddc|all|gen12
+yoyo test golden|backends|ddc|all|gen12|fullbody
 yoyo info [--target=<target>]
 yoyo diff <a.bin> <b.bin>
 yoyo hash <file>

@@ -674,25 +674,13 @@ impl Win32Platform {
 
 impl PlatformBackend for Win32Platform {
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
-        use crate::assembler::{movabs, store_state};
-        use crate::types::Reg;
-        let mut out = movabs(Reg::Rax, size)?;
-        out.extend(store_state(slot, Reg::Rax)?);
-        Ok(out)
+        crate::platform_io::emit_win32_alloc(slot, size)
     }
     fn emit_load_file(&mut self, slot: u16, str_idx: u8) -> IsaResult<Vec<u8>> {
-        use crate::assembler::{movabs, store_state};
-        use crate::types::Reg;
-        let mut out = movabs(Reg::Rax, str_idx as u64)?;
-        out.extend(store_state(slot, Reg::Rax)?);
-        Ok(out)
+        crate::platform_io::emit_win32_load_file(slot, str_idx)
     }
-    fn emit_write_file(&mut self, slot: u16, str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
-        use crate::assembler::{movabs, store_state};
-        use crate::types::Reg;
-        let mut out = movabs(Reg::Rax, str_idx as u64)?;
-        out.extend(store_state(slot, Reg::Rax)?);
-        Ok(out)
+    fn emit_write_file(&mut self, slot: u16, str_idx: u8, sz_slot: u16) -> IsaResult<Vec<u8>> {
+        crate::platform_io::emit_win32_write_file(slot, str_idx, sz_slot)
     }
     fn emit_exit(&mut self, code: u8) -> IsaResult<Vec<u8>> {
         use crate::assembler::movabs;
@@ -740,25 +728,13 @@ impl LinuxPlatform {
 
 impl PlatformBackend for LinuxPlatform {
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
-        use crate::assembler::{movabs, store_state};
-        use crate::types::Reg;
-        let mut out = movabs(Reg::Rax, size)?;
-        out.extend(store_state(slot, Reg::Rax)?);
-        Ok(out)
+        crate::platform_io::emit_linux_alloc(slot, size)
     }
-    fn emit_load_file(&mut self, slot: u16, _str_idx: u8) -> IsaResult<Vec<u8>> {
-        use crate::assembler::{movabs, store_state};
-        use crate::types::Reg;
-        let mut out = movabs(Reg::Rax, 0)?;
-        out.extend(store_state(slot, Reg::Rax)?);
-        Ok(out)
+    fn emit_load_file(&mut self, slot: u16, str_idx: u8) -> IsaResult<Vec<u8>> {
+        crate::platform_io::emit_linux_load_file(slot, str_idx)
     }
-    fn emit_write_file(&mut self, slot: u16, _str_idx: u8, _sz: u16) -> IsaResult<Vec<u8>> {
-        use crate::assembler::{movabs, store_state};
-        use crate::types::Reg;
-        let mut out = movabs(Reg::Rax, 0)?;
-        out.extend(store_state(slot, Reg::Rax)?);
-        Ok(out)
+    fn emit_write_file(&mut self, slot: u16, str_idx: u8, sz_slot: u16) -> IsaResult<Vec<u8>> {
+        crate::platform_io::emit_linux_write_file(slot, str_idx, sz_slot)
     }
     fn emit_exit(&mut self, code: u8) -> IsaResult<Vec<u8>> {
         Ok(vec![

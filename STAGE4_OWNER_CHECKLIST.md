@@ -293,3 +293,16 @@ Stage 4 看板抽检：golden 或 backends 失败（贴完整输出）。
 ---
 
 *最后更新：2026-08-26 · Stage 7 **5/5 全绿** · 定制 MCU 脚手架绿 · Stage 7 已毕业*
+
+---
+
+## v0.1 已发布 → v0.2 下一主线
+
+> Stage 4–7 勾选 **保持不变**，勿回改。v0.2 范围与 Stage 8 看板：
+
+| 文档 | 用途 |
+| ---- | ---- |
+| [`SCOPE-v0.2.md`](./SCOPE-v0.2.md) | v0.2 一页纸：IN/OUT、毕业门禁、与 W5.5 SCOPE-CUT 关系 |
+| [`STAGE8_OWNER_CHECKLIST.md`](./STAGE8_OWNER_CHECKLIST.md) | Stage 8  actionable 看板（A→D）；发 `继续` 从 **A** 起 |
+
+**v0.1 发布边界**：[`RELEASE-v0.1.md`](./RELEASE-v0.1.md)

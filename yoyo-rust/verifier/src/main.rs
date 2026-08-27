@@ -33,6 +33,7 @@ mod fixup;
 mod elf_link;
 mod pe_link;
 mod platform;
+mod platform_io;
 mod render;
 mod x86_link;
 mod riscv_elf_link;
@@ -82,7 +83,7 @@ fn usage() -> ! {
            yoyo wasm-validate <input.ty>\n\
            yoyo run-wasm <input.ty>\n\
            yoyo ddcmp <A.elf> <B.elf> <input.ty>\n\
-           yoyo test golden|backends|ddc|gen12|lock|all\n\
+           yoyo test golden|backends|ddc|gen12|fullbody|lock|all\n\
            yoyo bootstrap [--selfhost] [--target=win32|linux] <input.ty|.tyb> <output>\n\
            yoyo exec <input.ty> [--target=android|apple]\n\
            yoyo info [--target=<target>]\n\n\
@@ -1088,6 +1089,130 @@ fn cmd_test_gen12() -> Result<(), types::IsaError> {
     }
 }
 
+/// Stage 8-B FULLBODY: full `yoyo.ty` body (not W-SM scoped subset) compiles self-host
+/// input and produces a runnable gen binary; `.text` bytes are in gen12 DDC scope.
+fn cmd_test_fullbody() -> Result<(), types::IsaError> {
+    use std::process::Command;
+
+    const MIN_FULL_BODY_HANDLERS: usize = 700;
+    const W_SM_SCOPED_HANDLERS: usize = 34;
+
+    let root = repo_root()?;
+    let ty = root.join("yoyo/projects/yoyo.ty");
+    let tyb = root.join("yoyo/projects/yoyo.tyb");
+    if !ty.is_file() || !tyb.is_file() {
+        return Err(types::IsaError::IoError {
+            msg: "missing yoyo/projects/yoyo.ty or yoyo.tyb".into(),
+        });
+    }
+
+    let src = fs::read_to_string(&ty).map_err(|e| types::IsaError::IoError {
+        msg: e.to_string(),
+    })?;
+    let tyb_data = fs::read(&tyb).map_err(|e| types::IsaError::IoError {
+        msg: e.to_string(),
+    })?;
+
+    let out = executor::compile_ty_source(&src, PlatformKind::Win32)?;
+    let n_handlers = out.handler_offsets.len();
+    println!("FULLBODY: handlers={n_handlers} (min {MIN_FULL_BODY_HANDLERS}, W-SM scoped={W_SM_SCOPED_HANDLERS})");
+    if n_handlers < MIN_FULL_BODY_HANDLERS {
+        return Err(types::IsaError::PlatformError {
+            msg: format!(
+                "full body handler count {n_handlers} < {MIN_FULL_BODY_HANDLERS} — looks like scoped subset only"
+            ),
+        });
+    }
+
+    let gen1 = pe_link::link_pe(&out.code, &out.data)?.bytes;
+    let gen2 = selfhost::bootstrap_compile(&tyb_data)?;
+
+    let report = ddc::compare_pe_text(&gen1, &gen2)?;
+    println!(
+        "FULLBODY: gen1(.ty) vs gen2(.tyb bootstrap): compared_bytes={}",
+        report.compared_bytes
+    );
+    println!("  hash: {}", report.hash_a);
+    if !report.equal {
+        return Err(types::IsaError::PlatformError {
+            msg: "fullbody gen1≡gen2 DDC mismatch".into(),
+        });
+    }
+    println!("  DDC: EQUAL");
+
+    let gen2_ty = selfhost::bootstrap_compile(src.as_bytes())?;
+    let report_ty = ddc::compare_pe_text(&gen1, &gen2_ty)?;
+    if !report_ty.equal {
+        return Err(types::IsaError::PlatformError {
+            msg: "fullbody .ty text bootstrap DDC mismatch".into(),
+        });
+    }
+    println!("FULLBODY: .ty text bootstrap DDC EQUAL");
+
+    #[cfg(windows)]
+    {
+        let gen2rt = selfhost::bootstrap_selfhost_runtime(&tyb_data)?;
+        let work = std::env::temp_dir().join(format!("yoyo-fullbody-{}", std::process::id()));
+        fs::create_dir_all(&work).map_err(|e| types::IsaError::IoError {
+            msg: e.to_string(),
+        })?;
+        let gen2rt_path = work.join("gen2rt.exe");
+        fs::write(&gen2rt_path, &gen2rt).map_err(|e| types::IsaError::IoError {
+            msg: e.to_string(),
+        })?;
+        fs::copy(&tyb, work.join("input.tyb")).map_err(|e| types::IsaError::IoError {
+            msg: e.to_string(),
+        })?;
+
+        let output = work.join("output.exe");
+        if output.is_file() {
+            let _ = fs::remove_file(&output);
+        }
+
+        let status = Command::new(&gen2rt_path)
+            .current_dir(&work)
+            .status()
+            .map_err(|e| types::IsaError::IoError {
+                msg: format!("run gen2rt: {e}"),
+            })?;
+        if !status.success() {
+            return Err(types::IsaError::PlatformError {
+                msg: format!("fullbody gen2rt exit {}", status),
+            });
+        }
+        if !output.is_file() {
+            return Err(types::IsaError::PlatformError {
+                msg: "fullbody gen2rt produced no output.exe".into(),
+            });
+        }
+
+        let gen3 = fs::read(&output).map_err(|e| types::IsaError::IoError {
+            msg: e.to_string(),
+        })?;
+        let report3 = ddc::compare_pe_text(&gen2, &gen3)?;
+        if !report3.equal {
+            return Err(types::IsaError::PlatformError {
+                msg: "fullbody gen3 runtime DDC mismatch".into(),
+            });
+        }
+        println!(
+            "FULLBODY: gen2rt runtime → output.exe DDC EQUAL ({} bytes)",
+            gen3.len()
+        );
+    }
+
+    #[cfg(not(windows))]
+    {
+        println!("FULLBODY: runtime gen2rt smoke SKIP (non-Windows host)");
+    }
+
+    println!(
+        "FULLBODY: PASS — full body {n_handlers} handlers in gen12 DDC window ({} bytes)",
+        report.compared_bytes
+    );
+    Ok(())
+}
+
 /// Fail-closed pin monitor: `yoyo/projects/yoyo.ty` sha256 must match `yoyo/tests/yoyo.ty.lock`.
 /// Does not auto-relock — drift is a hard failure (PROMPT #18 / Decision #13).
 fn cmd_test_lock() -> Result<(), types::IsaError> {
@@ -1149,13 +1274,15 @@ fn cmd_test(args: &[String]) -> Result<(), types::IsaError> {
         "backends" => cmd_test_backends(),
         "ddc" => cmd_test_ddc_suite(),
         "gen12" => cmd_test_gen12(),
+        "fullbody" => cmd_test_fullbody(),
         "lock" => cmd_test_lock(),
         "all" => {
             cmd_test_lock()?;
             cmd_test_golden()?;
             cmd_test_backends()?;
             cmd_test_ddc_suite()?;
-            cmd_test_gen12()
+            cmd_test_gen12()?;
+            cmd_test_fullbody()
         }
         _ => usage(),
     }

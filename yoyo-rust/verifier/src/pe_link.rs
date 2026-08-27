@@ -2,11 +2,84 @@
 //! Produces a valid Win10-compatible executable wrapping emitted .text + .data.
 //! Data section size floor: 0x38000 (Phase 2 root-cause fix).
 
+use crate::platform_io;
 use crate::types::IsaResult;
 use crate::win32_selfhost;
 
 /// IMAGE_DOS_HEADER + PE signature offset convention.
 const OUTPUT_DATA_NEED: u32 = 0x38000;
+
+const KERNEL32_IO_FUNCS: &[&str] = &[
+    "VirtualAlloc",
+    "CreateFileA",
+    "ReadFile",
+    "WriteFile",
+    "CloseHandle",
+];
+
+/// Prepend kernel32 IAT at r15+0 for Stage 8 platform I/O emit.
+fn prepend_win32_io_iat(user_data: &[u8], data_rva: u32) -> (Vec<u8>, u32, u32) {
+    let n = KERNEL32_IO_FUNCS.len();
+    let desc_size = 40usize;
+    let kernel32_name = b"kernel32.dll\0";
+    let iat_slots_off = 0usize; // r15+0 .. r15+40
+
+    let mut hint_names: Vec<Vec<u8>> = Vec::new();
+    for name in KERNEL32_IO_FUNCS {
+        let mut hn = Vec::new();
+        hn.extend_from_slice(&0u16.to_le_bytes());
+        hn.extend_from_slice(name.as_bytes());
+        hn.push(0);
+        while hn.len() % 2 != 0 {
+            hn.push(0);
+        }
+        hint_names.push(hn);
+    }
+
+    let desc_off = (n + 1) * 8;
+    let kern_off = desc_off + desc_size;
+    let hn_start = kern_off + kernel32_name.len();
+    let mut hn_off = hn_start;
+    let mut hn_rvas: Vec<u32> = Vec::new();
+    for hn in &hint_names {
+        hn_rvas.push(data_rva + hn_off as u32);
+        hn_off += hn.len();
+    }
+
+    let ilt_off = hn_off;
+    let header_end = ilt_off + (n + 1) * 8;
+    let pad = align_up_usize(header_end, 16);
+    let mut blob = vec![0u8; pad + user_data.len()];
+    let user_base = pad;
+
+    write_u32(&mut blob, desc_off, data_rva + ilt_off as u32);
+    write_u32(&mut blob, desc_off + 12, data_rva + kern_off as u32);
+    write_u32(&mut blob, desc_off + 16, data_rva + iat_slots_off as u32);
+
+    blob[kern_off..kern_off + kernel32_name.len()].copy_from_slice(kernel32_name);
+
+    let mut off = hn_start;
+    for hn in &hint_names {
+        blob[off..off + hn.len()].copy_from_slice(hn);
+        off += hn.len();
+    }
+
+    for (i, &hn_rva) in hn_rvas.iter().enumerate() {
+        write_u64(&mut blob, ilt_off + i * 8, hn_rva as u64);
+        write_u64(&mut blob, iat_slots_off + i * 8, hn_rva as u64);
+    }
+
+    blob[user_base..user_base + user_data.len()].copy_from_slice(user_data);
+    (
+        blob,
+        data_rva + desc_off as u32,
+        desc_size as u32,
+    )
+}
+
+fn align_up_usize(v: usize, a: usize) -> usize {
+    (v + a - 1) & !(a - 1)
+}
 
 pub struct PeImage {
     pub bytes: Vec<u8>,
@@ -15,7 +88,14 @@ pub struct PeImage {
 /// Wrap raw x64 code (+ optional data) in a PE32+ image.
 /// Entry: sets up R15 → .data (state base), then jumps to `code`.
 pub fn link_pe(code: &[u8], data: &[u8]) -> IsaResult<PeImage> {
-    link_pe_impl(code, data, false, 0, 0)
+    let section_align: u32 = 0x1000;
+    let text_rva = section_align;
+    let est_text = code.len() as u32 + 0x40;
+    let text_vs = align_up(est_text, section_align);
+    let data_rva = text_rva + text_vs;
+    let (extended, import_dir_rva, import_dir_size) = prepend_win32_io_iat(data, data_rva);
+    let _ = platform_io::WIN32_IAT_DATA_RESERVE;
+    link_pe_impl(code, &extended, true, import_dir_rva, import_dir_size)
 }
 
 /// Wrap raw x64 code with Win32 runtime selfhost startup + HOT table.
@@ -42,8 +122,9 @@ pub fn link_pe_selfhost(
     let text_vs = align_up(est_code_len as u32 + 0x40, section_align);
     let data_rva = text_rva + text_vs;
 
+    let (io_data, _io_imp_rva, _io_imp_sz) = prepend_win32_io_iat(data, data_rva);
     let (extended_data, meta) =
-        win32_selfhost::build_selfhost_metadata(data, data_rva, embedded_dll)?;
+        win32_selfhost::build_selfhost_metadata(&io_data, data_rva, embedded_dll)?;
     let startup_body = win32_selfhost::gen_selfhost_startup(&meta);
 
     let mut full_code = Vec::new();

@@ -65,13 +65,13 @@
 > **日常入口。** 规格语义仍在下方 Parts；施工顺序 = 本 Week 轴。Status 仅允许：**GREEN (DONE)** / **RED** / **SCOPE-CUT** / **HOLD**。勿再维护 `STATUS.md` / `docs/PROGRESS-MAP.md`（已并入此处）。
 
 ### 你现在在哪
-**Stage 4 已毕业**（A/B/C 全绿 · 看板 `STAGE4_OWNER_CHECKLIST.md`）→ **Stage 5 已毕业**（8/8 · 2026-08-24）→ **Stage 6 已毕业**（3/3 · 2026-08-25）→ **Stage 7 已毕业**（5/5 · 2026-08-26 · custom-mcu 脚手架）。
+**Stage 4 已毕业**（A/B/C 全绿 · 看板 `STAGE4_OWNER_CHECKLIST.md`）→ **Stage 5 已毕业**（8/8 · 2026-08-24）→ **Stage 6 已毕业**（3/3 · 2026-08-25）→ **Stage 7 已毕业**（5/5 · 2026-08-26 · custom-mcu 脚手架）→ **Stage 8 已毕业**（A/B/C/D 全绿 · 2026-08-27 · v0.2 毕业门禁 · 看板 `STAGE8_OWNER_CHECKLIST.md`）。
 
 `yoyo.ty` = **788 handlers / 4170 lines**；Rust golden **739/739 PASS** · backends **36/36 PASS** · `cargo run -- test all` **CI 级绿**；JS==Rust==Python 三端字节级相等（3-chain section-ddc EQUAL，SHA-256: `4fb8b87f`）；gen1≡gen2 持续绿（`test gen12` + `verify-gen12-ddc.ps1`）。
 
 **DDC**：`00_nop_ret` 23 paths · `01_arith`/`02_branch`/`03_mem` 各 **11/11 core fatal**（含 win32/linux + **11 MCU fatal**）· `04_ldb_ptr` sim+container PASS · container PE+ELF PASS（不再 SKIP）。
 
-**自举**：Windows M2→M3 全绿（`stage5-win-selfhost.ps1` · gen2rt embedded startup → output.exe）；selfhost startup 完整实现（gen2rt 零参 → output.exe + `yoyo_runtime.dll` sidecar）。pin `0275802d2b4459e6…`（Decision #25）· **Freeze at M3**（Decision #26 · Lock Protocol 8-step 复验 2026-08-24）。
+**自举**：Windows M2→M3 全绿（`stage5-win-selfhost.ps1` · gen2rt embedded startup → output.exe）；**M2→M3→M4** 全绿（`stage8-extended-selfhost.ps1/.sh` · gen4≡gen3_direct DDC EQUAL · gen12 SHA `e92520ea`）。full body 788 handlers · `test fullbody` 绿。真实平台 I/O（D-1 关闭 · `platform_io.rs`）。pin `0275802d2b4459e6…`（Decision #25 · Stage 8 未改源码）· **Freeze at M3**（Decision #26 · Lock Protocol 8-step 复验 2026-08-27 graduation gate）。
 
 ### 仍红（big list）
 | 项 | 说明 |
@@ -1268,13 +1268,13 @@ isa! { r#"
 > **日常入口。** 规格语义仍在下方 Parts；施工顺序 = 本 Week 轴。Status 仅允许：**GREEN (DONE)** / **RED** / **SCOPE-CUT** / **HOLD**。勿再维护 `STATUS.md` / `docs/PROGRESS-MAP.md`（已并入此处）。
 
 ### 你现在在哪
-**Stage 4 已毕业**（A/B/C 全绿 · 看板 `STAGE4_OWNER_CHECKLIST.md`）→ **Stage 5 已毕业**（8/8 · 2026-08-24）→ **Stage 6 已毕业**（3/3 · 2026-08-25）→ **Stage 7 已毕业**（5/5 · 2026-08-26 · custom-mcu 脚手架）。
+**Stage 4 已毕业**（A/B/C 全绿 · 看板 `STAGE4_OWNER_CHECKLIST.md`）→ **Stage 5 已毕业**（8/8 · 2026-08-24）→ **Stage 6 已毕业**（3/3 · 2026-08-25）→ **Stage 7 已毕业**（5/5 · 2026-08-26 · custom-mcu 脚手架）→ **Stage 8 已毕业**（A/B/C/D 全绿 · 2026-08-27 · v0.2 毕业门禁 · 看板 `STAGE8_OWNER_CHECKLIST.md`）。
 
 `yoyo.ty` = **788 handlers / 4170 lines**；Rust golden **739/739 PASS** · backends **36/36 PASS** · `cargo run -- test all` **CI 级绿**；JS==Rust==Python 三端字节级相等（3-chain section-ddc EQUAL，SHA-256: `4fb8b87f`）；gen1≡gen2 持续绿（`test gen12` + `verify-gen12-ddc.ps1`）。
 
 **DDC**：`00_nop_ret` 23 paths · `01_arith`/`02_branch`/`03_mem` 各 **11/11 core fatal**（含 win32/linux + **11 MCU fatal**）· `04_ldb_ptr` sim+container PASS · container PE+ELF PASS（不再 SKIP）。
 
-**自举**：Windows M2→M3 全绿（`stage5-win-selfhost.ps1` · gen2rt embedded startup → output.exe）；selfhost startup 完整实现（gen2rt 零参 → output.exe + `yoyo_runtime.dll` sidecar）。pin `0275802d2b4459e6…`（Decision #25）· **Freeze at M3**（Decision #26 · Lock Protocol 8-step 复验 2026-08-24）。
+**自举**：Windows M2→M3 全绿（`stage5-win-selfhost.ps1` · gen2rt embedded startup → output.exe）；**M2→M3→M4** 全绿（`stage8-extended-selfhost.ps1/.sh` · gen4≡gen3_direct DDC EQUAL · gen12 SHA `e92520ea`）。full body 788 handlers · `test fullbody` 绿。真实平台 I/O（D-1 关闭 · `platform_io.rs`）。pin `0275802d2b4459e6…`（Decision #25 · Stage 8 未改源码）· **Freeze at M3**（Decision #26 · Lock Protocol 8-step 复验 2026-08-27 graduation gate）。
 
 ### 仍红（big list）
 | 项 | 说明 |

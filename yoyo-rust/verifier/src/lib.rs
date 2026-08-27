@@ -8,6 +8,7 @@ pub mod fixup;
 pub mod elf_link;
 pub mod pe_link;
 pub mod platform;
+pub mod platform_io;
 pub mod render;
 pub mod selfhost;
 pub mod self_test;

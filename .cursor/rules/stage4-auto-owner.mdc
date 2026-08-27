@@ -67,6 +67,7 @@ alwaysApply: true
    - A/B/C 全 `[x]` 后 → **Stage 5** 预置任务第一项
    - Stage 5 全 `[x]` 后 → **Stage 6** 预置任务第一项
    - Stage 6 全 `[x]` 后 → **Stage 7** 预置任务第一项
+   - Stage 7 全 `[x]` 后 → **Stage 8 / v0.2** 见 `STAGE8_OWNER_CHECKLIST.md` + `SCOPE-v0.2.md`（A→D）
 3. **执行该项**：实现 + 验收；看板「对 AI 说什么」话术为任务规格，用户**不必**点名 A/B/C
 4. **验收命令**（PowerShell）：
    ```powershell
@@ -102,9 +103,14 @@ alwaysApply: true
 | S7-3 | Windows 无 sidecar 自举 |
 | S7-4 | Linux M2→M3 自举链 |
 | S7-5 | 定制 MCU 后端脚手架 |
+| S8-A | libyoyo 真实平台 I/O（D-1 关闭） |
+| S8-B | Full body 编译器路径（W5.5 body） |
+| S8-C | 扩展自举链 M2→M3→M4（Win + Linux） |
+| S8-D | v0.2 毕业门禁 + Relock + 文档收口 |
 
 ## 约束
 
 - 最小 diff；Rust 链为主（`yoyo-rust/verifier`）
 - PowerShell：用 `&` 直接调用，避免 `Start-Process | Out-Null` pipe 误判退出码
 - 红了：修到绿再勾，不把半成品标完成
+- Stage 8 / v0.2 北星 = **打破后门魔咒**（DDC+Lock 扩面，非单纯加功能）
