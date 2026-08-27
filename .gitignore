@@ -12,6 +12,15 @@ yoyo-js/node_modules/
 .DS_Store
 
 # Temp / scratch / build artifacts
+scripts/_*.txt
+scripts/_stage5-*/
+build-out.txt
+build_log.txt
+target-selfhost-build.log
+yoyo-rust/target-coord/
+yoyo-rust/target-selfhost/
+__pycache__/
+*.pyc
 _scratch_*
 _ddc_*
 _h43_*
