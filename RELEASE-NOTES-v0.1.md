@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-27  
 **Tag:** `v0.1.0`  
-**Commit:** _(filled after release commit)_
+**Commit:** `b7d34e86946bd0f877c7b545ed3173a4711abfea`
 
 ---
 
