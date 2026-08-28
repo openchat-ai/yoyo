@@ -11,7 +11,8 @@ YOYO 的存在理由 **不是造语言**，而是 **用 DDC + Lock 在实践中�
 ## 🎯 Stage 12 进度
 
 ```text
-[ ] A  [ ] B  [ ] C  [ ] D   →  见 SCOPE-v0.6.md
+[x] A  [x] B  [x] C  [x] D   →  v0.6 已毕业（2026-08-28）· 见 SCOPE-v0.6.md / RELEASE-v0.6.md
+                              → 下一主线 v0.7：SCOPE-v0.7.md + STAGE13_OWNER_CHECKLIST.md
 ```
 
 > **关于「打钩」**：`- [x]` = 已勾，`- [ ]` = 未勾。Markdown 预览才显示为 checkbox 符号。
@@ -49,7 +50,7 @@ YOYO 的存在理由 **不是造语言**，而是 **用 DDC + Lock 在实践中�
 
 **不要跳关**：B 可与 A 技术并行，但勾选顺序仍 A→B；D 依赖 A/B/C。
 
-**下一项** = **A**（三 peer I/O）。
+**下一关** = 已毕业 → 见 `STAGE13_OWNER_CHECKLIST.md`（v0.7）。
 
 ---
 
@@ -68,6 +69,10 @@ cd F:\yoyo
 .\scripts\stage11-loadlibrary-host.ps1
 .\scripts\stage10-runtime-surface.ps1
 .\scripts\stage10-asm-peer-io.ps1
+.\scripts\stage12-three-peer-io.ps1
+.\scripts\stage12-selfhost-body-section-ddc.ps1
+.\scripts\stage12-v05-regress.ps1
+# alias: .\scripts\stage12-regression.ps1
 .\scripts\stage9-pure-m4.ps1
 .\scripts\verify-lock-pin.ps1
 # WSL: bash scripts/stage10-linux-pure-m4.sh
@@ -79,10 +84,10 @@ cd F:\yoyo
 
 ### 待做
 
-- [ ] **A：三 peer I/O** — Rust/JS/asm 生产 I/O 路径契约对齐；消除残余 stub / 平台分叉盲区 · **信任链**：须可脚本验收 exit 0；不得退化 stage10-asm-peer-io / stage9-js-peer-io
-- [ ] **B：selfhost body section-ddc** — 自举 body（或扩大可比窗口）纳入 section-ddc；缩小窗外「仍绿」盲区 · **信任链**：须可脚本验收；诚实写仍 DIFF 的部分
-- [ ] **C：v0.5 回归不退化** — stage11/stage10/stage9/fullbody/lock/gen12 门禁保持绿；必要时加固观测脚本
-- [ ] **D：v0.6 毕业门禁** — A/B/C 全绿 + Lock 复验（改源则 Relock）+ `SCOPE-v0.6.md` 毕业判定 + `RELEASE-v0.6.md` · **信任链**：RELEASE 诚实写 DDC=detection 非 proof；逐项写如何加强 DDC/Lock
+- [x] **A：三 peer I/O** — Rust/JS/asm 生产 I/O 路径契约对齐；消除残余 stub / 平台分叉盲区 · **信任链**（2026-08-28）：`scripts/stage12-three-peer-io.ps1` GREEN（fail-closed；内嵌 stage10-asm + stage9-js）；win32+linux `0x20/0x50/0x51` **Rust=JS=asm** byte-equal（linux LOAD/WRITE 关闭 stage10 仅查 ALLOC 盲区）；stub G-SM-IO 17B；unknown OS→stub 钉住；`cargo run -- test all` + `test lock` 绿；**诚实仍分叉**：Plan9/FreeBSD/Haiku/Serenity 生产 I/O、full `.text` peer DIFF（B 已收 selfhost-body 窗口）、Rust runtime + LoadLibrary/libdl
+- [x] **B：selfhost body section-ddc** — 自举 body（或扩大可比窗口）纳入 section-ddc；缩小窗外「仍绿」盲区 · **信任链**（2026-08-28）：`scripts/stage12-selfhost-body-section-ddc.ps1` GREEN（alias `stage12-section-ddc.ps1`）；`yoyo test body-ddc` gen1≡gen2 window EQUAL（17805B）；三 peer `diff --selfhost-body` JS=Rust=asm EQUAL（startup+post-H_00；≥17013）；Rust stub_tail_nonzero=159 pinned；`test lock`+`test gen12` 绿；**诚实仍 DIFF**：H_00 entry slot；Rust-only H_00 extract stub；full `.text` peer compare；embedded runtime DLL / `.data`；LoadLibrary/libdl
+- [x] **C：v0.5 回归不退化** — stage11/stage10/stage9/fullbody/lock/gen12 门禁保持绿；必要时加固观测脚本 · **信任链**（2026-08-28）：`scripts/stage12-v05-regress.ps1` GREEN（alias `stage12-regression.ps1`；fail-closed 串行；`&` not Start-Process；无并行 cargo）；`scripts/_stage12-v05-regress/summary.txt` ALL_GREEN — `cargo run --release -- test all/lock/gen12/fullbody` + `verify-lock-pin`（pin `0275802d…`）+ stage11-rt/ll + stage10-rt/asm + stage9-js/m4 + stage12 A/B + WSL `stage10-linux-pure-m4` **EXIT=0**；stage11/10 report WriteAllText（避 PS5.1 Set-Content flake）；gen12 SHA prefix `d782166d`（18432B）；**诚实不变**：Rust runtime + LoadLibrary/libdl；full `.text` peer 仍可 DIFF（B selfhost-body 窗 EQUAL）
+- [x] **D：v0.6 毕业门禁** — A/B/C 全绿 + Lock 复验（pin 未改 · 无 Relock）+ `SCOPE-v0.6.md` 毕业判定 + `RELEASE-v0.6.md` / `RELEASE-NOTES-v0.6.md`（2026-08-28）· **信任链**：Decision #25 pin 仍权威；`stage12-v05-regress.ps1 -SkipBuild` ALL_GREEN；三 peer I/O + selfhost-body **17805** B；gen12 `d782166d` / 18432B；RELEASE 诚实写 DDC=detection、仍 Rust runtime + LoadLibrary/libdl、full `.text` 可 DIFF、非 Win/Linux stub OS
 
 ### 可选 · 低优先级（不挡 v0.6 毕业）
 

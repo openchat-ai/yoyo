@@ -16,6 +16,10 @@ scripts/_*.txt
 scripts/_stage5-*/
 scripts/_stage8-*/
 scripts/_stage9-*/
+scripts/_stage10*/
+scripts/_stage11*/
+scripts/_stage12*/
+scripts/_stage13*/
 build-out.txt
 build_log.txt
 target-selfhost-build.log

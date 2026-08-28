@@ -89,7 +89,7 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Stub** | movabs+store | movabs+store | movabs+store | G-SM-IO / golden; JS default encode stays stub |
 | **Plan9 / FreeBSD / Haiku / Serenity** | movabs+store | movabs+store | movabs+store | x64 hosted peers; real OS I/O deferred |
 
-**D-1 (2026-08-27 / Stage 9-B 2026-08-28 / Stage 10-C 2026-08-28):** Rust **Win32 + Linux** production link paths no longer use movabs+store placeholders for I/O opcodes. **Stub** remains deterministic for golden fixtures (G-SM-IO). **JS peer (Stage 9-B):** production `yoyo-js` PE path uses `setEmitPlatform('win32')` + `platform-io.js` matching Rust `platform_io.rs` byte-for-byte; golden default stays `stub`. Gate: `scripts/stage9-js-peer-io.ps1` + golden `PEER-IO-WIN32` / `PEER-IO-LINUX` / `PEER-IO-STUB`. **Asm peer (Stage 10-C):** `yoyo-asm/platform_io.py` + `asm.py` `--target=win32|linux|stub` — win32 `0x20/0x50/0x51` byte-equal Rust; linux ALLOC syscall path peer-checked. Gate: `scripts/stage10-asm-peer-io.ps1`.
+**D-1 (2026-08-27 / Stage 9-B 2026-08-28 / Stage 10-C 2026-08-28 / Stage 12-A 2026-08-28):** Rust **Win32 + Linux** production link paths no longer use movabs+store placeholders for I/O opcodes. **Stub** remains deterministic for golden fixtures (G-SM-IO). **JS peer (Stage 9-B):** production `yoyo-js` PE path uses `setEmitPlatform('win32')` + `platform-io.js` matching Rust `platform_io.rs` byte-for-byte; golden default stays `stub`. Gate: `scripts/stage9-js-peer-io.ps1` + golden `PEER-IO-WIN32` / `PEER-IO-LINUX` / `PEER-IO-STUB`. **Asm peer (Stage 10-C):** `yoyo-asm/platform_io.py` + `asm.py` `--target=win32|linux|stub` — win32 `0x20/0x50/0x51` byte-equal Rust; linux ALLOC syscall path peer-checked. Gate: `scripts/stage10-asm-peer-io.ps1`. **三 peer (Stage 12-A):** `scripts/stage12-three-peer-io.ps1` — win32+linux `0x20/0x50/0x51` **Rust=JS=asm** (closes linux LOAD/WRITE blind zone); unknown OS → stub pinned.
 
 **Trust-chain observability:** gen12 `.text` SHA as of Stage 11-B (H_00 cwd-relative LoadLibrary stub): **`d782166d…`** · **18432** bytes (was `27a79388…` at Stage 11-A; `43ffde58…` at Stage 10-A / v0.4 @ DLL 231936B; `b609a735…` at Stage 9 / v0.3 @ 485888B). Self-host bootstrap (gen1≡gen2) still EQUAL; I/O syscall/IAT + H_00 extract stub bytes are inside the compared `.text` window. **Stage 9-B / 10-C:** JS↔Rust↔asm win32 I/O handler bodies EQUAL on minimal fixtures; stub remains for G-SM-IO.
 
@@ -144,6 +144,42 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Comparable scope** | win32 ALLOC/LOAD/WRITE handler bytes asm==Rust (==JS); linux ALLOC not stub + `0F 05` |
 | **Gate** | `scripts/stage10-asm-peer-io.ps1` (embeds stage9-js-peer-io) |
 | **Still divergent** | full `yoyo.ty` section-ddc may DIFF (H_00 / IAT width / embedded runtime) |
+
+### Stage 12-A — 三 peer I/O（win32 + linux 全路径）
+
+| Item | Detail |
+|------|--------|
+| **Scope** | Rust / JS / asm production I/O contract; close remaining peer blind zones |
+| **Comparable** | win32+linux `0x20/0x50/0x51` handler bytes **Rust=JS=asm**; linux LOAD/WRITE now byte-equal (was ALLOC-only in Stage 10-C) |
+| **Stub** | G-SM-IO 17B movabs+store; unknown OS (e.g. freebsd) → stub (honest fork pinned) |
+| **Gate** | `scripts/stage12-three-peer-io.ps1` (embeds stage10 → stage9) |
+| **Still honest forks** | Plan9/FreeBSD/Haiku/Serenity real I/O; full `yoyo.ty` `.text` still DIFF (H_00/stub); Rust runtime + LoadLibrary/libdl |
+
+### Stage 12-B — selfhost body section-ddc（扩大三 peer 可比窗口）
+
+| Item | Detail |
+|------|--------|
+| **Scope** | Shrink "whole `.text` DIFF ⇒ outside still green" blind spot on full `yoyo.ty` |
+| **Comparable** | PE startup + post-H_00 shared handlers：`yoyo diff --selfhost-body` **JS=Rust=asm** EQUAL（17805B；floor ≥17013） |
+| **Rust pin** | `yoyo test body-ddc` gen1≡gen2 window EQUAL；H_00 extract stub_tail_nonzero ≥100（observed 159） |
+| **Gate** | `scripts/stage12-selfhost-body-section-ddc.ps1`（alias `stage12-section-ddc.ps1`） |
+| **Still honest DIFF** | H_00 entry slot；Rust-only extract stub；full `.text` peer compare；embedded runtime DLL / `.data`；LoadLibrary/libdl |
+
+### Stage 12-C — v0.5 回归不退化
+
+| Item | Detail |
+|------|--------|
+| **Gate** | `scripts/stage12-v05-regress.ps1`（alias `stage12-regression.ps1`；fail-closed 串行；`&` not Start-Process） |
+| **Covers** | cargo test all/lock/gen12/fullbody + verify-lock-pin + stage11-rt/ll + stage10-rt/asm + stage9-js/m4 + stage12 A/B + WSL linux-pure-m4 |
+| **Status** | ALL_GREEN（2026-08-28）；gen12 SHA `d782166d…` · 18432B；pin `0275802d…` unchanged |
+
+### Stage 12-D — v0.6 毕业
+
+| Item | Detail |
+|------|--------|
+| **Docs** | `RELEASE-v0.6.md` · `RELEASE-NOTES-v0.6.md` · `SCOPE-v0.6.md` 毕业判定 |
+| **Lock** | Decision #25 pin **unchanged** — no Relock（Stage 12 未改 `yoyo.ty`） |
+| **Next** | Stage 13 / v0.7：`SCOPE-v0.7.md` + `STAGE13_OWNER_CHECKLIST.md`（seed/link host · 跨平台 parity） |
 
 ### Full body compiler (Stage 8-B · W5.5 body)
 

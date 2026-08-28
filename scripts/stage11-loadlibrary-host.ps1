@@ -399,7 +399,8 @@ $report = [ordered]@{
     )
 }
 $reportPath = Join-Path $WorkDir "loadlibrary-host.json"
-($report | ConvertTo-Json -Depth 5) | Set-Content -Encoding utf8 $reportPath
+# WriteAllText avoids PS5.1 Set-Content -Encoding utf8 flake (GetContentWriterArgumentError on locked/0-byte file).
+[System.IO.File]::WriteAllText($reportPath, ($report | ConvertTo-Json -Depth 5))
 Write-Host "report: $reportPath"
 
 Write-Host ""

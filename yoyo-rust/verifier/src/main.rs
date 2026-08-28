@@ -75,7 +75,7 @@ fn usage() -> ! {
         "yoyo —YOYO verifier (Rust DDC peer)\n\n\
          Usage:\n\
            yoyo link [--target=win32|linux|stub|baremetal|cuda|android|apple|8051|x86|freedos|riscv64|mips|ppc64le|avr|arm32|wasm|macos-x64|serenity|loongarch|sparc|riscv32|arm64-win|freebsd|haiku|plan9|xtensa|z80|6502|m68k|msp430|pic|stm8|rocm|vulkan|evm|qiskit] [--posture=...] [--morph=...] <input.ty> <output>\n\
-           yoyo diff <a.bin> <b.bin>\n\
+           yoyo diff [--selfhost-body] <a.bin> <b.bin>\n\
            yoyo hash <file>\n\
            yoyo selftest\n\
            yoyo render <input.ty>\n\
@@ -83,7 +83,7 @@ fn usage() -> ! {
            yoyo wasm-validate <input.ty>\n\
            yoyo run-wasm <input.ty>\n\
            yoyo ddcmp <A.elf> <B.elf> <input.ty>\n\
-           yoyo test golden|backends|ddc|gen12|fullbody|lock|all\n\
+           yoyo test golden|backends|ddc|gen12|fullbody|lock|body-ddc|all\n\
            yoyo bootstrap [--selfhost] [--target=win32|linux] <input.ty|.tyb> <output>\n\
            yoyo exec <input.ty> [--target=android|apple]\n\
            yoyo info [--target=<target>]\n\n\
@@ -743,12 +743,48 @@ fn cmd_bootstrap(args: &[String]) -> Result<(), types::IsaError> {
 }
 
 fn cmd_diff(args: &[String]) -> Result<(), types::IsaError> {
-    if args.len() != 2 {
+    let mut selfhost_body = false;
+    let mut paths: Vec<&str> = Vec::new();
+    for a in args {
+        if a == "--selfhost-body" {
+            selfhost_body = true;
+        } else if a.starts_with('-') {
+            usage();
+        } else {
+            paths.push(a.as_str());
+        }
+    }
+    if paths.len() != 2 {
         usage();
     }
-    let a = fs::read(&args[0]).map_err(|e| types::IsaError::IoError { msg: e.to_string() })?;
-    let b = fs::read(&args[1]).map_err(|e| types::IsaError::IoError { msg: e.to_string() })?;
-    let report = ddc::compare_pe_text(&a, &b)?;
+    let a = fs::read(paths[0]).map_err(|e| types::IsaError::IoError { msg: e.to_string() })?;
+    let b = fs::read(paths[1]).map_err(|e| types::IsaError::IoError { msg: e.to_string() })?;
+    let report = if selfhost_body {
+        let ta = ddc::pe_text_section(&a)?;
+        let tb = ddc::pe_text_section(&b)?;
+        let emit = ddc::infer_shared_emit_code_len(&ta, &tb);
+        println!(
+            "selfhost-body: emit_code_bytes={emit} (min trimmed; skips H_00 slot)"
+        );
+        let stub_a = ddc::h00_stub_tail(&ta, emit);
+        let stub_b = ddc::h00_stub_tail(&tb, emit);
+        let stub_a_nz = stub_a
+            .iter()
+            .rposition(|&b| b != 0)
+            .map(|i| i + 1)
+            .unwrap_or(0);
+        let stub_b_nz = stub_b
+            .iter()
+            .rposition(|&b| b != 0)
+            .map(|i| i + 1)
+            .unwrap_or(0);
+        println!(
+            "selfhost-body: stub_tail_nonzero a={stub_a_nz} b={stub_b_nz} (honest DIFF if Rust-only)"
+        );
+        ddc::compare_pe_selfhost_body(&a, &b, emit)?
+    } else {
+        ddc::compare_pe_text(&a, &b)?
+    };
     println!("compared_bytes: {}", report.compared_bytes);
     println!("hash_a: {}", report.hash_a);
     println!("hash_b: {}", report.hash_b);
@@ -1213,6 +1249,90 @@ fn cmd_test_fullbody() -> Result<(), types::IsaError> {
     Ok(())
 }
 
+/// Stage 12-B: selfhost-body section-ddc on full `yoyo.ty` (Rust gen1≡gen2).
+/// Enlarges observability past whole-`.text` three-peer DIFF: compares PE startup +
+/// post-H_00 shared handlers; fail-closed requires Rust H_00 extract stub present.
+fn cmd_test_body_ddc() -> Result<(), types::IsaError> {
+    const MIN_H00_STUB_NONZERO: usize = 100;
+
+    let root = repo_root()?;
+    let ty = root.join("yoyo/projects/yoyo.ty");
+    let tyb = root.join("yoyo/projects/yoyo.tyb");
+    if !ty.is_file() || !tyb.is_file() {
+        return Err(types::IsaError::IoError {
+            msg: "missing yoyo/projects/yoyo.ty or yoyo.tyb".into(),
+        });
+    }
+
+    let src = fs::read_to_string(&ty).map_err(|e| types::IsaError::IoError {
+        msg: e.to_string(),
+    })?;
+    let tyb_data = fs::read(&tyb).map_err(|e| types::IsaError::IoError {
+        msg: e.to_string(),
+    })?;
+
+    let out = executor::compile_ty_source(&src, PlatformKind::Win32)?;
+    let emit_code = out.code.len();
+    println!(
+        "BODY-DDC: emit_code_bytes={emit_code} handlers={}",
+        out.handler_offsets.len()
+    );
+    if emit_code < ddc::MIN_SHARED_HANDLER_BYTES + ddc::H00_SLOT_LEN {
+        return Err(types::IsaError::PlatformError {
+            msg: format!("BODY-DDC: emit too small ({emit_code}) — not full selfhost body"),
+        });
+    }
+
+    let gen1 = pe_link::link_pe_win32(&out.code, &out.data, &out.handler_offsets)?.bytes;
+    let gen2 = selfhost::bootstrap_compile(&tyb_data)?;
+
+    let text1 = ddc::pe_text_section(&gen1)?;
+    let text2 = ddc::pe_text_section(&gen2)?;
+    // Shared emit excludes Rust-only H_00 stub (present on both gen1/gen2 equally —
+    // use compile emit_code, not trimmed text, so stub stays outside this window).
+    let report = ddc::compare_pe_selfhost_body(&gen1, &gen2, emit_code)?;
+    println!(
+        "BODY-DDC: gen1 vs gen2 selfhost-body compared_bytes={}",
+        report.compared_bytes
+    );
+    println!("  hash: {}", report.hash_a);
+    if !report.equal {
+        return Err(types::IsaError::PlatformError {
+            msg: "BODY-DDC: gen1≡gen2 selfhost-body mismatch".into(),
+        });
+    }
+    println!("  DDC: EQUAL");
+
+    let stub = ddc::h00_stub_tail(&text1, emit_code);
+    let stub_nz = stub
+        .iter()
+        .rposition(|&b| b != 0)
+        .map(|i| i + 1)
+        .unwrap_or(0);
+    println!(
+        "BODY-DDC: H_00 stub tail after emit: raw={} nonzero_span={stub_nz}",
+        stub.len()
+    );
+    if stub_nz < MIN_H00_STUB_NONZERO {
+        return Err(types::IsaError::PlatformError {
+            msg: format!(
+                "BODY-DDC: Rust H_00 extract stub missing/too small ({stub_nz} < {MIN_H00_STUB_NONZERO})"
+            ),
+        });
+    }
+    // Full .text still covers stub (gen12 window); pin sizes for trust-chain docs.
+    println!(
+        "BODY-DDC: full .text lens gen1={} gen2={} (includes H_00 stub; peers may DIFF here)",
+        text1.len(),
+        text2.len()
+    );
+    println!(
+        "BODY-DDC: PASS — selfhost body window {}B EQUAL; H_00 stub {stub_nz}B pinned (honest: stub/.data DLL still outside three-peer EQUAL)",
+        report.compared_bytes
+    );
+    Ok(())
+}
+
 /// Fail-closed pin monitor: `yoyo/projects/yoyo.ty` sha256 must match `yoyo/tests/yoyo.ty.lock`.
 /// Does not auto-relock — drift is a hard failure (PROMPT #18 / Decision #13).
 fn cmd_test_lock() -> Result<(), types::IsaError> {
@@ -1276,6 +1396,7 @@ fn cmd_test(args: &[String]) -> Result<(), types::IsaError> {
         "gen12" => cmd_test_gen12(),
         "fullbody" => cmd_test_fullbody(),
         "lock" => cmd_test_lock(),
+        "body-ddc" => cmd_test_body_ddc(),
         "all" => {
             cmd_test_lock()?;
             cmd_test_golden()?;
