@@ -302,7 +302,45 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Lock** | Decision #25 pin **unchanged** — no Relock（Stage 15 未改 `yoyo.ty`） |
 | **Accept** | `stage14-lock-harden.ps1 -SkipBuild` PINNED · `stage15-v08-regress.ps1 -SkipBuild` ALL_GREEN（2026-08-29 01:40:31） |
 | **Honest** | HOLE_INVENTORY ACTIVE closed=0 cut=7；DDC=detection；OW-\* Rust runtime / LoadLibrary / seed；full `.text` DIFF |
-| **Next** | Stage 16 / v1.0：`SCOPE-v1.0.md` + `STAGE16_OWNER_CHECKLIST.md`（全关或 SCOPE-CUT 定稿 · RELEASE · tag） |
+| **Next** | Stage 16 / v1.0 DONE → ROADMAP endpoint |
+
+### Stage 16-A — SCOPE-CUT FINAL (hole inventory)
+
+| Item | Detail |
+|------|--------|
+| **Scope** | Elevate v0.9 ACTIVE inventory to v1.0 FINAL `CLOSED\|CUT` per OW-\*/REL-\* (no fake CLOSED) |
+| **Doc** | `SCOPE-CUT-v1.0-hole-inventory.md` |
+| **Gate** | `scripts/stage16-scope-cut-finalize.ps1`（alias `stage16-a.ps1`） |
+| **Status** | GREEN 2026-08-29 · `HOLE_INVENTORY_V10 status=FINAL closed=0 cut=7` · no Relock |
+| **Still CUT** | OW-H00 / OW-STUB / OW-RT / OW-IAT / OW-SEED / REL-FULLTEXT / REL-STUBOS |
+
+### Stage 16-B — detection wording / RELEASE boundary
+
+| Item | Detail |
+|------|--------|
+| **Scope** | Outward detection-only banlist + CUT cite in RELEASE (Thompson-proof / fake closed / fake EQUAL fail-closed) |
+| **Docs** | `DETECTION-BANLIST-v1.0.md` · `RELEASE-v1.0.md` |
+| **Gate** | `scripts/stage16-detection-wording.ps1`（alias `stage16-b.ps1`） |
+| **Status** | GREEN 2026-08-29 · banlist ACTIVE · RELEASE graduated at D |
+
+### Stage 16-C — v0.9 regression must not regress
+
+| Item | Detail |
+|------|--------|
+| **Scope** | Fail-closed serial keep-green: stage15 A/B/C + stage14–9 + fullbody/lock/gen12 + Stage 16 A/B + WSL |
+| **Gate** | `scripts/stage16-v09-regress.ps1`（alias `stage16-c.ps1`） |
+| **Hard cargo** | wait zero cargo → ≤1 release build → post-build named `-SkipBuild` only；**零并行 cargo** |
+| **Status** | ALL_GREEN 2026-08-29 · D re-verify stamp **02:14:21** · `stage16-v09-regress.ps1 -SkipBuild` exit 0 · **no Relock** |
+
+### Stage 16-D — v1.0 毕业（ROADMAP endpoint）
+
+| Item | Detail |
+|------|--------|
+| **Docs** | `RELEASE-v1.0.md` · `RELEASE-NOTES-v1.0.md` · `SCOPE-v1.0.md` 毕业判定 · `SCOPE-CUT-v1.0-hole-inventory.md` · `DETECTION-BANLIST-v1.0.md` |
+| **Lock** | Decision #25 pin **unchanged** — no Relock（Stage 16 未改 `yoyo.ty`） |
+| **Accept** | `verify-lock-pin` · `stage14-lock-harden.ps1 -SkipBuild` PINNED · `stage16-v09-regress.ps1 -SkipBuild` ALL_GREEN（2026-08-29 02:14:21） |
+| **Honest** | HOLE_INVENTORY_V10 FINAL closed=0 cut=7；DDC=detection；七项仍 CUT（无假 CLOSED）；Rust runtime / LoadLibrary / seed |
+| **Next** | **ROADMAP DONE** — no Stage 17；`AUTO_TO_1.0.md` COMPLETED + ACTIVE=0 |
 
 ### Full body compiler (Stage 8-B · W5.5 body)
 
