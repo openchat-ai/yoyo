@@ -61,9 +61,10 @@ pub fn bootstrap_selfhost_runtime(input_tyb: &[u8]) -> IsaResult<Vec<u8>> {
 }
 
 /// Compile `.tyb` to Linux ELF64 bytes (M1→M2 interim, Rust host compiler).
+/// Stage 10-B: full-body images use H_00 runtime path (embedded .so + trampoline).
 pub fn selfhost_compile_tyb_linux(tyb_data: &[u8]) -> IsaResult<Vec<u8>> {
     let out = executor::compile_tyb_source(tyb_data, PlatformKind::Linux)?;
-    Ok(elf_link::link_elf(&out.code, &out.data)?.bytes)
+    Ok(elf_link::link_elf_linux(&out.code, &out.data, &out.handler_offsets)?.bytes)
 }
 
 /// Compile `.ty` text or `.tyb` binary to Linux ELF64 bytes.
@@ -76,7 +77,7 @@ pub fn bootstrap_compile_linux(input: &[u8]) -> IsaResult<Vec<u8>> {
             msg: format!("bootstrap input not valid UTF-8 .ty: {e}"),
         })?;
         let out = executor::compile_ty_source(src, PlatformKind::Linux)?;
-        Ok(elf_link::link_elf(&out.code, &out.data)?.bytes)
+        Ok(elf_link::link_elf_linux(&out.code, &out.data, &out.handler_offsets)?.bytes)
     }
 }
 

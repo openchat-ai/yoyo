@@ -12,6 +12,7 @@ YOYO 的存在理由 **不是造语言**，而是 **用 DDC + Lock 在实践中�
 
 ```text
 [x] A  [x] B  [x] C  [x] D   →  v0.3 已毕业（2026-08-28）· 见 SCOPE-v0.3.md / RELEASE-v0.3.md
+                              → 下一主线 v0.4：SCOPE-v0.4.md + STAGE10_OWNER_CHECKLIST.md
 ```
 
 > **关于「打钩」**：`- [x]` = 已勾，`- [ ]` = 未勾。Markdown 预览才显示为 checkbox 符号。
@@ -26,7 +27,8 @@ YOYO 的存在理由 **不是造语言**，而是 **用 DDC + Lock 在实践中�
 | **Cursor 内** | `Ctrl+P` → `STAGE9_OWNER` |
 | **规格一页纸** | `F:\yoyo\SCOPE-v0.3.md` |
 
-相关：`STAGE8_OWNER_CHECKLIST.md`（v0.2 已毕业）、`STAGE4_OWNER_CHECKLIST.md`（Stage 4–7 历史）、`BACKEND_SUPPORT.md`、`RELEASE-v0.2.md`。
+相关：`STAGE10_OWNER_CHECKLIST.md`（v0.4 主线）、`STAGE8_OWNER_CHECKLIST.md`（v0.2 已毕业）、`STAGE4_OWNER_CHECKLIST.md`（Stage 4–7 历史）、`BACKEND_SUPPORT.md`、`RELEASE-v0.2.md`、`RELEASE-v0.3.md`。  
+**→ 1.0**：`SCOPE-v1.0.md` · `ROADMAP-TO-1.0.md` · `AUTO_TO_1.0.md`。
 
 ---
 
@@ -171,6 +173,21 @@ cd F:\yoyo
 ```
 
 红了先回归，再继续未勾的 Stage 9 项。
+
+### 维护记录
+
+- 2026-08-28：v0.3.0 后维护全绿（test all/lock/gen12/fullbody + lock-pin + stage5/8/9 脚本 + WSL stage8；pin `0275802d` / gen12 `b609a735`）
+
+---
+
+## v0.3 已毕业 → v0.4 下一主线
+
+> Stage 9 勾选 **保持不变**，勿回改。发 `继续` 走 Stage 10：
+
+| 文档 | 用途 |
+| ---- | ---- |
+| [`SCOPE-v0.4.md`](./SCOPE-v0.4.md) | v0.4 一页纸：北星、IN/OUT、与 v0.3 剩余面关系、毕业门禁 |
+| [`STAGE10_OWNER_CHECKLIST.md`](./STAGE10_OWNER_CHECKLIST.md) | Stage 10 actionable 看板（A→D）；从 **A（runtime.dll 面）** 起 |
 
 ---
 

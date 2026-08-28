@@ -12,7 +12,7 @@ YOYO 的存在理由 **不是造语言**，而是 **用 DDC + Lock 在实践中�
 
 ```text
 [x] A  [x] B  [x] C  [x] D   →  v0.2 毕业见 SCOPE-v0.2.md + RELEASE-v0.2.md
-                              → 下一主线 v0.3：SCOPE-v0.3.md + STAGE9_OWNER_CHECKLIST.md
+                              → v0.3 已毕业：SCOPE-v0.3.md + STAGE9 · 下一主线 v0.4：SCOPE-v0.4.md + STAGE10
 ```
 
 > **关于「打钩」**：`- [x]` = 已勾，`- [ ]` = 未勾。Markdown 预览才显示为 checkbox 符号。
@@ -27,7 +27,7 @@ YOYO 的存在理由 **不是造语言**，而是 **用 DDC + Lock 在实践中�
 | **Cursor 内** | `Ctrl+P` → `STAGE8_OWNER` |
 | **规格一页纸** | `F:\yoyo\SCOPE-v0.2.md` |
 
-相关：`STAGE4_OWNER_CHECKLIST.md`（Stage 4–7 历史）、`STAGE9_OWNER_CHECKLIST.md`（v0.3 下一主线）、`BACKEND_SUPPORT.md`、`RELEASE-v0.1.md`、`RELEASE-v0.2.md`。
+相关：`STAGE4_OWNER_CHECKLIST.md`（Stage 4–7 历史）、`STAGE9_OWNER_CHECKLIST.md`（v0.3 已毕业）、`STAGE10_OWNER_CHECKLIST.md`（v0.4 下一主线）、`BACKEND_SUPPORT.md`、`RELEASE-v0.1.md`、`RELEASE-v0.2.md`、`RELEASE-v0.3.md`。
 
 ---
 
@@ -154,11 +154,12 @@ A/B/C 均已绿；走 Lock Protocol 8-step Relock（full body pin 更新）；ve
 
 ---
 
-## v0.2 已毕业 → v0.3 下一主线
+## v0.2 已毕业 → v0.3 已毕业 → v0.4 下一主线
 
-> Stage 8 勾选 **保持不变**，勿回改。发 `继续` 走 Stage 9：
+> Stage 8 勾选 **保持不变**，勿回改。发 `继续` 走 Stage 10：
 
 | 文档 | 用途 |
 | ---- | ---- |
-| [`SCOPE-v0.3.md`](./SCOPE-v0.3.md) | v0.3 一页纸：北星、IN/OUT、与 v0.2 缺口关系、毕业门禁 |
-| [`STAGE9_OWNER_CHECKLIST.md`](./STAGE9_OWNER_CHECKLIST.md) | Stage 9 actionable 看板（A→D）；从 **A（gen1 H_00）** 起 |
+| [`SCOPE-v0.4.md`](./SCOPE-v0.4.md) | v0.4 一页纸：北星、IN/OUT、与 v0.3 剩余面关系、毕业门禁 |
+| [`STAGE10_OWNER_CHECKLIST.md`](./STAGE10_OWNER_CHECKLIST.md) | Stage 10 actionable 看板（A→D）；从 **A（runtime.dll 面）** 起 |
+| [`SCOPE-v0.3.md`](./SCOPE-v0.3.md) / [`STAGE9_OWNER_CHECKLIST.md`](./STAGE9_OWNER_CHECKLIST.md) | v0.3 历史（勿回改勾选） |

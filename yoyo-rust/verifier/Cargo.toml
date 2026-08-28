@@ -18,10 +18,17 @@ path = "src/bin/yoyo-sh.rs"
 name = "verifier"
 path = "src/lib.rs"
 
+[features]
+default = ["full-backends", "wasm-runtime"]
+# All 37 emit backends (yoyo CLI / DDC peers). Off for yoyo-runtime cdylib.
+full-backends = []
+# wasmtime instantiate path (yoyo CLI only; not needed in embedded runtime DLL).
+wasm-runtime = ["dep:wasmtime"]
+
 [dependencies]
 isa-proc = { workspace = true }
 libyoyo = { workspace = true }
 yoyo-platform = { workspace = true }
 sha2 = "0.10"
 hex = "0.4"
-wasmtime = { version = "40", features = ["cranelift"] }
+wasmtime = { version = "40", features = ["cranelift"], optional = true }

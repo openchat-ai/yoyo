@@ -54,7 +54,7 @@ $textSha = ""
 
 Write-Host ""
 Write-Host "=== Stage 9-C: seed gen1 via yoyo link (H_00 path, NOT bootstrap --selfhost) ==="
-if (Test-Path $Gen1) { Remove-Item $Gen1 }
+Remove-Item $Gen1 -Force -ErrorAction SilentlyContinue
 & $Yoyo link --target=win32 $Ty $Gen1
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $Gen1)) {
     Write-Host "Stage 9-C: RED (gen1 link failed)"
@@ -148,7 +148,7 @@ Write-Host "  gen4 = gen3 H_00 runtime output (no genNrt entry wrapper)"
 Write-Host "Remaining host surface (honest):"
 Write-Host "  - host link/bootstrap seed + gen3_direct reference"
 Write-Host "  - embedded yoyo_runtime.dll (Rust compile) inside each genN"
-Write-Host "  - Linux M4 still uses bootstrap --selfhost (no ELF H_00 path yet)"
+Write-Host "  - Linux pure M4: see scripts/stage10-linux-pure-m4.sh (ELF H_00; Stage 10-B)"
 if ($textSha) {
     Write-Host "  gen4 .text SHA256 prefix: $textSha"
 } elseif ($trustSha) {

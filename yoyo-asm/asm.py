@@ -14,6 +14,28 @@ import sys
 import os
 import hashlib
 
+# Ensure yoyo-asm/ is importable when run as `python yoyo-asm/asm.py` from repo root.
+_ASM_DIR = os.path.dirname(os.path.abspath(__file__))
+if _ASM_DIR not in sys.path:
+    sys.path.insert(0, _ASM_DIR)
+
+# Platform I/O (0x20/0x50/0x51) — Stage 10-C peer of platform_io.rs / platform-io.js
+from platform_io import encode_io_op
+
+# Default matches JS golden: stub. Production PE path sets win32 via --target=.
+_emit_platform = "stub"
+
+
+def set_emit_platform(p):
+    global _emit_platform
+    if p not in ("stub", "win32", "linux"):
+        raise ValueError("emit_platform must be stub|win32|linux")
+    _emit_platform = p
+
+
+def get_emit_platform():
+    return _emit_platform
+
 
 # ── x64 primitive encoders (independent implementation) ──────────────
 
@@ -199,15 +221,8 @@ def encode_op(op, args, branch_placeholder=False):
         # movabs rax, imm + store_state slot, rax
         return movabs_rax(a(1)) + store_state_rax(a(0))
 
-    if op == 0x20:  # ALLOC slot size
-        # movabs rax, size + store_state slot, rax
-        return movabs_rax(a(1)) + store_state_rax(a(0))
-
-    if op == 0x50:  # LOAD_FILE slot str_idx
-        return movabs_rax(a(1)) + store_state_rax(a(0))
-
-    if op == 0x51:  # WRITE_FILE slot str_idx sz
-        return movabs_rax(a(1)) + store_state_rax(a(0))
+    if op in (0x20, 0x50, 0x51):  # ALLOC / LOAD_FILE / WRITE_FILE
+        return encode_io_op(op, args, _emit_platform)
 
     if op == 0x60 or op == 0x64:  # GET / MOVRR dst src
         return load_state_rax(a(1)) + store_state_rax(a(0))
@@ -317,11 +332,15 @@ def parse_ty(source):
 
 # ── Compiler: two-pass emit + fixup ─────────────────────────────────
 
-def compile_lines(lines):
+def compile_lines(lines, platform=None):
     """
     Compile parsed .ty lines to code bytes + data bytes.
     Two-pass: emit with placeholder rel32, then fixup.
+    platform: optional stub|win32|linux for 0x20/0x50/0x51 (else current set_emit_platform).
     """
+    if platform is not None:
+        set_emit_platform(platform)
+
     code = bytearray()
     data = bytearray()
     labels = {}
@@ -506,6 +525,10 @@ def main():
     with open(in_file, 'r', encoding='utf-8') as f:
         src = f.read()
 
+    # I/O emit platform: win32/linux use real IAT/syscall; stub keeps movabs+store.
+    io_platform = target if target in ("stub", "win32", "linux") else "stub"
+    set_emit_platform(io_platform)
+
     lines = parse_ty(src)
     code, data, labels = compile_lines(lines)
 
@@ -514,12 +537,18 @@ def main():
         os.makedirs(os.path.dirname(os.path.abspath(out_file)) or '.', exist_ok=True)
         with open(out_file, 'wb') as f:
             f.write(pe)
-        print(f"yoyo-asm: {in_file} → {out_file} ({len(pe)} bytes, code={len(code)}, data={len(data)})")
+        print(f"yoyo-asm: {in_file} → {out_file} ({len(pe)} bytes, code={len(code)}, data={len(data)}, io={io_platform})")
     elif target == "stub":
         os.makedirs(os.path.dirname(os.path.abspath(out_file)) or '.', exist_ok=True)
         with open(out_file, 'wb') as f:
             f.write(code)
         print(f"yoyo-asm: {in_file} → {out_file} ({len(code)} bytes, stub)")
+    elif target == "linux":
+        # Emit code bytes only (ELF builder not required for Stage 10-C peer gate).
+        os.makedirs(os.path.dirname(os.path.abspath(out_file)) or '.', exist_ok=True)
+        with open(out_file, 'wb') as f:
+            f.write(code)
+        print(f"yoyo-asm: {in_file} → {out_file} ({len(code)} bytes, linux-io code blob)")
     else:
         print(f"error: target '{target}' not yet supported", file=sys.stderr)
         sys.exit(1)

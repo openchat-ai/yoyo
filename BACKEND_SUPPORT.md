@@ -89,9 +89,19 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Stub** | movabs+store | movabs+store | movabs+store | G-SM-IO / golden; JS default encode stays stub |
 | **Plan9 / FreeBSD / Haiku / Serenity** | movabs+store | movabs+store | movabs+store | x64 hosted peers; real OS I/O deferred |
 
-**D-1 (2026-08-27 / Stage 9-B 2026-08-28):** Rust **Win32 + Linux** production link paths no longer use movabs+store placeholders for I/O opcodes. **Stub** remains deterministic for golden fixtures (G-SM-IO). **JS peer (Stage 9-B):** production `yoyo-js` PE path uses `setEmitPlatform('win32')` + `platform-io.js` matching Rust `platform_io.rs` byte-for-byte; golden default stays `stub`. Gate: `scripts/stage9-js-peer-io.ps1` + golden `PEER-IO-WIN32` / `PEER-IO-LINUX` / `PEER-IO-STUB`.
+**D-1 (2026-08-27 / Stage 9-B 2026-08-28 / Stage 10-C 2026-08-28):** Rust **Win32 + Linux** production link paths no longer use movabs+store placeholders for I/O opcodes. **Stub** remains deterministic for golden fixtures (G-SM-IO). **JS peer (Stage 9-B):** production `yoyo-js` PE path uses `setEmitPlatform('win32')` + `platform-io.js` matching Rust `platform_io.rs` byte-for-byte; golden default stays `stub`. Gate: `scripts/stage9-js-peer-io.ps1` + golden `PEER-IO-WIN32` / `PEER-IO-LINUX` / `PEER-IO-STUB`. **Asm peer (Stage 10-C):** `yoyo-asm/platform_io.py` + `asm.py` `--target=win32|linux|stub` — win32 `0x20/0x50/0x51` byte-equal Rust; linux ALLOC syscall path peer-checked. Gate: `scripts/stage10-asm-peer-io.ps1`.
 
-**Trust-chain observability:** gen12 `.text` SHA as of Stage 9-A H_00 path: **`b609a735…`** · **18432** bytes (was `e92520ea…` / 17920 at Stage 8-A). Self-host bootstrap (gen1≡gen2) still EQUAL; I/O syscall/IAT + H_00 extract stub bytes are inside the compared `.text` window. **Stage 9-B:** JS↔Rust win32 I/O handler bodies EQUAL on minimal fixtures; Python **asm** peer still movabs+store (honest remaining fork until asm migration).
+**Trust-chain observability:** gen12 `.text` SHA as of Stage 10-A (H_00 stub carries `dll_embed_size`): **`43ffde58…`** · **18432** bytes (was `b609a735…` at Stage 9 / v0.3 when embedded DLL was 485888B). Self-host bootstrap (gen1≡gen2) still EQUAL; I/O syscall/IAT + H_00 extract stub bytes are inside the compared `.text` window. **Stage 9-B / 10-C:** JS↔Rust↔asm win32 I/O handler bodies EQUAL on minimal fixtures; stub remains for G-SM-IO.
+
+### Stage 10-A — embedded `yoyo_runtime.dll` surface shrink (fail-closed)
+
+| Item | Detail |
+|------|--------|
+| **Before (v0.3)** | Embedded DLL **485888** B · genN PE **576512** B · gen12 SHA `b609a735…` |
+| **After** | Embedded DLL **231936** B (−253952) · genN PE **322560** B · gen12 SHA `43ffde58…` (same **18432** B window) |
+| **How** | `yoyo-runtime` depends on `verifier` with `default-features = false` (no `full-backends` / no wasmtime); `select_platform` only Win32/Linux/Stub; `profile.release.package.yoyo-runtime` `opt-level=z` |
+| **Gate** | `scripts/stage10-runtime-surface.ps1` — fail-closed MAX **250000** B; exact embed match in gen1; forbids wasmtime/cranelift markers |
+| **Still host-trusted** | DLL still Rust-compiled (Win32 compile path); bytes **outside** gen12 remain the bulk of the hole; not a YOYO-built runtime yet |
 
 ### Stage 9-B — JS peer platform I/O (DDC blind zone closed)
 
@@ -101,7 +111,17 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **JS golden / G-SM-IO** | Default `stub` movabs+store (unchanged pin) |
 | **Comparable scope** | ALLOC/LOAD_FILE/WRITE_FILE handler bytes JS==Rust win32; linux syscall path peer-checked |
 | **Gate** | `node yoyo-js/scripts/golden.js` + `scripts/stage9-js-peer-io.ps1` |
-| **Still divergent** | `yoyo-asm` I/O stubs; full `yoyo.ty` section-ddc may still DIFF (H_00 runtime / IAT width) |
+| **Still divergent** | full `yoyo.ty` section-ddc may still DIFF (H_00 runtime / IAT width); asm peer closed in Stage 10-C |
+
+### Stage 10-C — Python asm peer platform I/O (三链 I/O 可比对)
+
+| Item | Detail |
+|------|--------|
+| **Asm production** | `yoyo-asm/asm.py` `--target=win32|linux`; emit in `platform_io.py` |
+| **Asm golden / G-SM-IO** | Default / `--target=stub` movabs+store (unchanged contract) |
+| **Comparable scope** | win32 ALLOC/LOAD/WRITE handler bytes asm==Rust (==JS); linux ALLOC not stub + `0F 05` |
+| **Gate** | `scripts/stage10-asm-peer-io.ps1` (embeds stage9-js-peer-io) |
+| **Still divergent** | full `yoyo.ty` section-ddc may DIFF (H_00 / IAT width / embedded runtime) |
 
 ### Full body compiler (Stage 8-B · W5.5 body)
 
@@ -112,9 +132,10 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **`stage5-win-selfhost.ps1`** | M1→M2 bootstrap + **gen1 H_00 runtime** + M2→M3 embedded startup | gen1≡gen2 EQUAL; gen1 zero-arg → `output.exe`; gen3 from full-body compile |
 | **`stage9-gen1-h00-selfhost.ps1`** | Stage 9-A: gen1 H_00 pure path only | PE entry → H_00 (no genNrt wrapper); exit 0 + `output.exe` |
 | **`stage9-pure-m4.ps1`** | Stage 9-C: Win M4 via H_00 chain (no `--selfhost`) | gen1→gen2→gen3→gen4; gen4≡gen3_direct `.text` DDC EQUAL |
+| **`stage10-linux-pure-m4.sh`** | Stage 10-B: Linux M4 via ELF H_00 (no `--selfhost`) | gen1→gen2→gen3→gen4; gen4≡gen3_direct full-ELF DDC EQUAL |
 | **`stage8-extended-selfhost.ps1/.sh`** | M2→M3→M4 embedded chain (Stage 8-C; regression) | gen4≡gen3_direct `.text` DDC EQUAL; same gen12 window as fullbody |
 
-**DDC coverage boundary (honest):** gen12/fullbody monitor the **788-handler emit body** (handler `.text`), including Stage 9-A H_00 patch + appended extract stub when present. Embedded Rust `yoyo_runtime.dll` bytes remain outside that compared window. Golden G-SM fixtures still test W-selfhost-min opcode shapes; fullbody gate ensures production compile uses the complete body, not scoped H_05–H_16 subset only.
+**DDC coverage boundary (honest):** gen12/fullbody monitor the **788-handler emit body** (handler `.text`), including Stage 9-A H_00 patch + appended extract stub when present (stub embeds `dll_embed_size`, so Stage 10-A DLL shrink moves gen12 SHA). Embedded Rust `yoyo_runtime.dll` payload bytes remain outside that compared window (Stage 10-A: **231936** B, was 485888). Golden G-SM fixtures still test W-selfhost-min opcode shapes; fullbody gate ensures production compile uses the complete body, not scoped H_05–H_16 subset only.
 
 ### Stage 9-A — gen1 H_00 pure runtime (trust hole closed)
 
@@ -124,7 +145,7 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Not used** | genNrt-style entry that *replaces* user entry with a separate startup blob (gen2rt still uses that for Stage 8-C regression) |
 | **I/O** | Same Stage 8-A merged kernel32 IAT at `r15+0` (CreateFile/WriteFile/LoadLibrary/ExitProcess) for in-process DLL extract |
 | **Gate** | `scripts/stage9-gen1-h00-selfhost.ps1` + `stage5-win-selfhost.ps1` gen1 line GREEN |
-| **Still host-trusted** | Embedded `yoyo_runtime.dll` compile (Rust); see Stage 9-C for M4 without genNrt wrapper |
+| **Still host-trusted** | Embedded `yoyo_runtime.dll` compile (Rust; Stage 10-A shrunk surface — see above); see Stage 9-C for M4 without genNrt wrapper |
 
 ### Stage 9-C — Win pure M4 (host `--selfhost` wrapper shrunk)
 
@@ -134,7 +155,17 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Not used** | `bootstrap --selfhost` / genNrt entry wrapper for the M4 gate (`stage9-pure-m4.ps1`) |
 | **Parity** | gen4 ≡ gen3_direct `.text` section-ddc EQUAL (same window as stage8/fullbody) |
 | **Gate** | `scripts/stage9-pure-m4.ps1`; stage8 extended selfhost remains GREEN (regression; still documents genNrt path) |
-| **Still host-trusted** | Seed `link` + gen3_direct `bootstrap`; embedded `yoyo_runtime.dll` bytes; **Linux** M4 still requires `bootstrap --selfhost` (no ELF H_00 path yet) |
+| **Still host-trusted** | Seed `link` + gen3_direct `bootstrap`; embedded `yoyo_runtime.dll` bytes (Stage 10-A: 231936B fail-closed); Linux pure M4 = Stage 10-B |
+
+### Stage 10-B — Linux ELF H_00 / pure M4 (host `--selfhost` closed)
+
+| Item | Detail |
+|------|--------|
+| **Path** | `yoyo link --target=linux` → gen1; ELF entry `lea r15; jmp H_00`; H_00 extracts embedded `libyoyo_runtime.so` + `linux_h00_tramp.elf` via syscalls then `execve` trampoline |
+| **Not used** | `bootstrap --selfhost` / genNrt gcc loader for the M4 gate (`stage10-linux-pure-m4.sh`) |
+| **Parity** | gen4 ≡ gen3_direct full-ELF DDC EQUAL (sha prefix `085d07d4…` · **704512** B as of 2026-08-28; H_00 write-loop) |
+| **Gate** | `scripts/stage10-linux-pure-m4.sh`; stage8-extended-selfhost.sh remains GREEN (regression; still documents genNrt `--selfhost`) |
+| **Still host-trusted** | Seed `link` + gen3_direct `bootstrap`; embedded Rust `.so` + committed trampoline blob (dlopen/libdl); trampoline still uses system libc |
 
 ### How to run
 
@@ -146,7 +177,7 @@ yoyo test golden|backends|ddc|all|gen12|fullbody
 - `yoyo test backends` — compile+link all 37 targets, verify output
 - `yoyo test ddc` — nop + arith + branch + mem + ldb + container DDC suites
 - `yoyo test all` — golden + backends + ddc + gen12 + fullbody (CI-level one-shot)
-- `yoyo test gen12` — gen1≡gen2 SHA monitor (`b609a735`, Stage 9-A H_00 window 18432B)
+- `yoyo test gen12` — gen1≡gen2 SHA monitor (`43ffde58`, Stage 10-A H_00 window 18432B; was `b609a735` at v0.3)
 - `yoyo test fullbody` — full 788-handler body compile + runtime smoke (Stage 8-B)
 
 ## CLI Usage

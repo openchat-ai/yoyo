@@ -1,0 +1,77 @@
+# YOYO v0.4.0 Release Notes
+
+**Date:** 2026-08-28  
+**Tag:** `v0.4.0`  
+**Commit:** `613fc49b935e8b8f87fad3de2d8df237845711c8`
+
+---
+
+## One-line pitch
+
+**YOYO v0.4 shrinks the remaining host-trust face 鈥?smaller embedded runtime, Linux pure M4 without `--selfhost`, asm I/O peer parity 鈥?expanding three-chain DDC + Lock coverage without claiming Thompson proof or replacing C.**
+
+---
+
+## What this release is
+
+YOYO v0.4 **closes the largest honest remaining holes after v0.3** and puts more self-host observability under DDC + Lock. It is not a pivot to general application development.
+
+**Honest boundary:** DDC detects **output divergence** across independent peers under equal inputs 鈥?a practical trust bar, **not** Thompson immunity.
+
+---
+
+## Included in v0.4
+
+| Area | v0.4 includes |
+|------|----------------|
+| **Runtime.dll surface** | DLL **485888鈫?31936** B fail-closed (`stage10-runtime-surface.ps1`); gen12 SHA `43ffde58鈥 |
+| **Linux pure M4** | gen1鈫抔en4 without `bootstrap --selfhost`; gen4鈮en3_direct EQUAL (`stage10-linux-pure-m4.sh`) |
+| **asm peer I/O parity** | win32 `0x20/0x50/0x51` byte-equal Rust/JS; `stage10-asm-peer-io.ps1` |
+| **v0.3 baseline** | H_00 路 JS peer 路 Win pure M4 路 fullbody 路 lock 路 gen12 鈥?still green |
+
+### Trust-chain anchors
+
+| Monitor | Value |
+|---------|-------|
+| **Lock pin** | `0275802d鈥 (Decision #25, **unchanged** 鈥?no Relock) |
+| **gen12 `.text` (Win)** | **`43ffde58鈥** 路 **18432** bytes |
+| **runtime.dll** | **231936** B (still Rust-built; outside gen12 window) |
+| **Linux M4 ELF** | `085d07d4鈥 路 704512 B (pure path, no `--selfhost`) |
+
+---
+
+## Explicitly NOT in v0.4
+
+| Item | Status |
+|------|--------|
+| **Rust runtime still embedded** | `yoyo_runtime.dll` / `.so` still host-built; outside gen12 `.text` compare |
+| **YOYO-built runtime** | Deferred to v0.5+ |
+| **Thompson-proof / C replacement** | Forbidden claims |
+| **MCU / Morph as main track** | OUT |
+
+---
+
+## Pre-publish gates (all exit 0)
+
+```powershell
+cd F:\yoyo\yoyo-rust\verifier
+cargo run --release -- test all
+cargo run --release -- test lock
+cargo run --release -- test gen12
+cargo run --release -- test fullbody
+
+cd F:\yoyo
+.\scripts\verify-lock-pin.ps1
+node .\scripts\verify-yoyo-ty.mjs
+.\scripts\stage10-runtime-surface.ps1
+.\scripts\stage10-asm-peer-io.ps1
+.\scripts\stage9-pure-m4.ps1
+.\scripts\stage5-win-selfhost.ps1
+wsl bash /mnt/f/yoyo/scripts/stage10-linux-pure-m4.sh
+```
+
+---
+
+## North star reminder
+
+**鎵撶牬鍚庨棬榄斿拻** 鈥?more bytes under DDC+Lock, fewer 鈥済reen only because host wrapped it鈥?paths. Detection bar, not proof.

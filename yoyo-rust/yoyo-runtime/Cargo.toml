@@ -10,4 +10,5 @@ name = "yoyo_runtime"
 crate-type = ["cdylib"]
 
 [dependencies]
-verifier = { path = "../verifier" }
+# Stage 10-A: no full-backends / no wasmtime — shrink embedded host trust surface.
+verifier = { path = "../verifier", default-features = false }

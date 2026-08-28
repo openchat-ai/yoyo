@@ -107,3 +107,5 @@ node .\yoyo-js\scripts\golden.js
 ---
 
 *维护：Stage 9 毕业或信任链 SHA/脚本变更时同步本文件与 `STAGE9_OWNER_CHECKLIST.md`。勿把 MCU / Morph 误标为 v0.3 主交付。*
+
+> **v0.3 已毕业（2026-08-28）** → 下一主线见 [`SCOPE-v0.4.md`](./SCOPE-v0.4.md) + [`STAGE10_OWNER_CHECKLIST.md`](./STAGE10_OWNER_CHECKLIST.md)。

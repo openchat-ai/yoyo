@@ -1,122 +1,161 @@
 ---
-description: Stage 4 零指令自动负责人 — 读看板、执行下一项、验收、勾框
+description: Stage 4 零指令自动负责人 — AUTO-TO-1.0 无人值守直到 1.0
 alwaysApply: true
 ---
 
-# Stage 4 自动负责人（零指令）
+# Stage 4 自动负责人（零指令 + AUTO-TO-1.0）
 
-本仓库中，**除非用户明确说「只讨论/只解释/不要动手」**，收到任意消息时均视为可能触发自动负责人模式。
+本仓库中，**除非** `AUTO_TO_1.0.md` 为 `ACTIVE=0`，或用户明确说 `停` / 「只讨论/不要动手」，否则按自动负责人执行。
 
-触发词（非必须）：`继续`、`开工`、`auto`、`stage4`、空消息、或任何模糊指令。
+**长期北星**：`SCOPE-v1.0.md` / `ROADMAP-TO-1.0.md` → **1.0**（打破后门魔咒 · DDC+Lock 扩面 / 缩宿主信任）。DDC = detection；**禁止** Thompson-proof；**禁止**发明 ROADMAP 外无界功能。
+
+---
+
+## 0. 每次 wake 最先读开关
+
+```text
+F:\yoyo\AUTO_TO_1.0.md
+```
+
+| `ACTIVE` | 模式 |
+|----------|------|
+| `1` | **AUTO-TO-1.0**：无人值守；见下节 |
+| `0` 或不存在且无触发词 | 普通零指令（`继续` 等才推进） |
+
+用户已说过 **自动持续 / 推到1.0 / 离电脑** 且 flag=`ACTIVE=1` 时：**不要**向用户索取「继续」；**不要**教用户打字。
+
+---
+
+## AUTO-TO-1.0 模式（`ACTIVE=1`）
+
+### 何时执行
+
+下列任一即 **loop tick**，必须立刻做下一未勾 Stage 项（无确认、无 UX 提示）：
+
+- 任意 agent wake / 会话回合开始且本模式激活  
+- 空消息 / `继续` / `开工` / `auto` / `自动` / `推到1.0` / `持续` / loop 定时 tick  
+- coordinator 完成一项后若仍 `ACTIVE=1` 且会话可续：同会话或下一 tick 继续下一项  
+
+### 停止条件（仅此）
+
+1. 用户说 **`停`**，或把 `AUTO_TO_1.0.md` 改为 **`ACTIVE=0`**
+2. **Hard block**：需人类（密钥/账号/不可替代硬件/政策禁止 SCOPE-CUT）——写清原因到当前看板「阻塞」节，停执行；**不**假装完成
+3. 已达 **v1.0 毕业**（RELEASE + tag 完成）→ 可将 flag 标完成说明；默认停新功能
+
+### Stage 边界：自动「定」下一版
+
+当当前 Stage **全部 `[x]`**（含毕业 D 完成后）：
+
+1. 读 `ROADMAP-TO-1.0.md` 下一版本行  
+2. **自动「定」**：若不存在则创建 `SCOPE-v0.N.md`（或 v1.0 GRAD）+ `STAGEk_OWNER_CHECKLIST.md`（按 ROADMAP 信任主题生成 ≤5 门，模板对齐 STAGE10）  
+3. 更新 ROADMAP 状态行；Glass 打开新看板  
+4. **立刻**执行新看板第一未勾项  
+5. **不等**用户口头「定 0.N」
+
+### 毕业 D：auto release（对齐 v0.1–v0.3）
+
+当 Stage **D** 验收全绿并勾选后，agent **必须**（无需再问用户）：
+
+1. 写/更新 `RELEASE-vX.Y.md`  
+2. **git commit**（毕业相关文件）  
+3. **git tag**（如 `v0.4.0`）  
+4. **push** commit + tag  
+5. **GitHub Release**（`gh release create`，body 用 RELEASE 摘要）  
+
+**非毕业 WIP：禁止 push。** 日常项默认可不 commit，除非该门验收要求落盘；毕业除外。
+
+### 每 tick 工作量
+
+- 默认：**一项** Stage checkbox（实现+验收+勾选）  
+- `继续 两板`：仍走两板并行协议  
+- 禁止一次空想多版功能
+
+---
 
 ### 触发分流（必须先解析）
 
 | 用户输入 | 模式 | 行为 |
 | -------- | ---- | ---- |
-| `继续 两板` / `继续两板` | **两板并行** | 见下节「两板协调」；**不要**在 master 上单轨做 B |
-| `继续` / `开工` / `auto` / 其它 | **单轨** | master 上按下一未勾项顺序执行（现主线 Stage 9 A→D） |
+| `停` / 只讨论/不要动手 | **停** | 可写 `ACTIVE=0`；不改代码 |
+| `维护` | **维护** | 只回归；不新开信任门（AUTO 下若无 hard block 则维护后继续下一项） |
+| `继续 两板` / `继续两板` | **两板** | 见「两板协调」 |
+| `ACTIVE=1` 下其它 / 空 / loop | **AUTO 单轨** | 下一未勾项，不问 |
 
-解析规则：消息含 `两板`（可带空格，如 `继续 两板`）→ 两板模式；否则单轨。
+---
 
 ## 两板并行（`继续 两板`）
 
-**目标**：B 项 Container DDC 拆成 PE + ELF 两路并行，仅 **coordinator（当前 master 会话）** 更新看板。
+**目标**：历史 Container DDC PE+ELF 两路；仅 coordinator 更新看板。
 
-### Coordinator 必做顺序
+0. MCP 打开当前主线看板  
+1. `& F:\yoyo\scripts\stage4-two-board.ps1`  
+2. 并行 background：PE=`F:\yoyo-worktrees\stage4-pe`；ELF=`F:\yoyo-worktrees\stage4-elf`  
+3. 两路 `cargo run -- test ddc` 绿 → `& F:\yoyo\scripts\stage4-two-board-merge.ps1` → master 再验 → 勾  
+4. 仅一路绿：汇报；不勾；不 merge  
 
-0. MCP 右侧打开看板（同单轨）
-1. 运行 worktree 脚本（缺则创建）：
-   ```powershell
-   & F:\yoyo\scripts\stage4-two-board.ps1
-   ```
-2. **同时**启动两个 **background** 子 agent（`subagent_type=best-of-n-runner` 或 `generalPurpose`，`run_in_background=true`）：
-   - **Agent PE** — 工作目录 `F:\yoyo-worktrees\stage4-pe`，分支 `stage4/container-pe`
-   - **Agent ELF** — 工作目录 `F:\yoyo-worktrees\stage4-elf`，分支 `stage4/container-elf`
-3. 等两路均汇报 **绿**（各自 worktree 内 `cargo run -- test ddc`，container 对应路径 PASS）
-4. 仅当 **两路都绿**：在 **master**（`F:\yoyo`）运行：
-   ```powershell
-   & F:\yoyo\scripts\stage4-two-board-merge.ps1
-   ```
-   合并成功后 master 上 `cargo run -- test ddc` 全绿 → 勾 B `[x]`，必要时改 `BACKEND_SUPPORT.md`
-5. **仅一路绿**：汇报 PE/ELF 各自状态；**不勾 B**；不 merge
+PE/ELF **不得**改 master 看板。AUTO 下两板完成后若仍有未勾项且 `ACTIVE=1`，继续下一项。
 
-### 子 agent 约束（写进 launch prompt）
-
-| Agent | 范围 | 禁止 |
-| ----- | ---- | ---- |
-| PE | PE32+ x64 container NOP+RET 最小实现；验收侧重 container PE 路径 | 改 ELF；改 `STAGE4_OWNER_CHECKLIST.md`；在 master 上改文件 |
-| ELF | ELF64 x64 container NOP+RET 最小实现；验收侧重 container ELF 路径 | 改 PE；改看板；在 master 上改文件 |
-
-子 agent 可在各自分支 **commit**（用户未禁止时）；默认 **不 push**。
-
-### 看板编辑权
-
-- **仅 coordinator 在 master** 修改 `STAGE4_OWNER_CHECKLIST.md` 与 `BACKEND_SUPPORT.md`
-- PE/ELF worktree 内 agent **不得**勾选或编辑看板
+---
 
 ## 每次响应前必做
 
-0. **右侧打开看板**（**在读文件之前**，本步为自动负责人首动作）：
-   - 调用 MCP `cursor-app-control` → `open_resource`
-   - **现主线**：URI `file:///F:/yoyo/STAGE9_OWNER_CHECKLIST.md`（Stage 8 已全绿 → Stage 9 / v0.3）
-   - 历史查阅可另开：`file:///F:/yoyo/STAGE4_OWNER_CHECKLIST.md` / `STAGE8_OWNER_CHECKLIST.md`
-   - 在 Glass **右侧面板**打开看板；失败不阻塞，继续后续步骤
-   - **Hooks 做不到**：`workspaceOpen` / `sessionStart` 无法打开 Glass 右栏，仅 Agent 规则 + MCP 可实现
-1. **读取看板**：优先 `STAGE9_OWNER_CHECKLIST.md`；Stage 4–8 历史勾选勿回改
-2. **选下一项**（严格顺序，跳过已 `[x]`）：
-   - Stage 4 毕业三门：**A → B → C**（见「Stage 4 毕业三门」）— 均已绿则跳过
-   - A/B/C 全 `[x]` 后 → **Stage 5** 预置任务第一项
-   - Stage 5 全 `[x]` 后 → **Stage 6** 预置任务第一项
-   - Stage 6 全 `[x]` 后 → **Stage 7** 预置任务第一项
-   - Stage 7 全 `[x]` 后 → **Stage 8 / v0.2** 见 `STAGE8_OWNER_CHECKLIST.md` + `SCOPE-v0.2.md`（A→D）
-   - Stage 8 全 `[x]` 后 → **Stage 9 / v0.3** 见 `STAGE9_OWNER_CHECKLIST.md` + `SCOPE-v0.3.md`（A→D）
-3. **执行该项**：实现 + 验收；看板「对 AI 说什么」话术为任务规格，用户**不必**点名 A/B/C
-4. **验收命令**（PowerShell）：
+**-1. 读 `AUTO_TO_1.0.md`**（决定是否 AUTO）
+
+0. **右侧打开当前主线看板**（读文件前）：
+   - MCP `cursor-app-control` → `open_resource`
+   - 现主线：`file:///F:/yoyo/STAGE11_OWNER_CHECKLIST.md`（直至 Stage11 全绿）
+   - 之后：打开 ROADMAP 当前 `STAGE*_OWNER_CHECKLIST.md`
+   - 失败不阻塞
+
+1. **读看板**；历史 Stage 勾选勿回改  
+
+2. **选下一项**（跳过 `[x]`）：
+   - Stage 4→9 历史已绿则跳过  
+   - Stage 10 / v0.4：已毕业 → 跳过  
+   - Stage 11 / v0.5：`STAGE11` + `SCOPE-v0.5`（A→D）  
+   - 之后：当前 `STAGEk`；若全绿 → **自动定**下一版（见上）再取第一项  
+   - 直至 v1.0 毕业或 hard block  
+
+3. **执行** + 验收（PowerShell）：
    ```powershell
    cd F:\yoyo\yoyo-rust\verifier
    cargo run -- test ddc
    ```
-   - 任务涉及 golden/backends/lock/selfhost 时加跑对应命令（见看板该项验收）
-5. **绿了才勾框**：仅当验收通过，将看板对应 `- [ ]` 改为 `- [x]`，并同步「毕业判定」行与 `BACKEND_SUPPORT.md`（若语义变）
-6. **默认不 push、不 commit**（除非用户明确要求 commit）
+   加跑看板该项要求的 golden/backends/lock/selfhost 等  
 
-## 汇报格式（简洁）
+4. **绿了才勾**；同步毕业判定 / `BACKEND_SUPPORT.md`（若语义变）  
 
-用户是验收负责人，不需要底层细节。仅报告：
+5. **Commit/push**：默认否；**毕业 D** 按 AUTO release 强制 commit+tag+push+gh；WIP 不 push  
 
-- 执行了哪一项（A/B/C 或 Stage 5/6/7/8/9 子项名称）
-- 跑了什么命令、退出码 / 绿或红
-- 勾了哪个 checkbox
-- 若 blocked：一句话原因 + 需要用户做什么
+6. **冲突**：他 agent 正在改 Stage 10-B/C 时，本会话若非认领 B/C 则勿覆盖其实现；可做文档/规则/其它未认领项，或等 tick 认领同一未勾项时接续  
 
-**不要**在未跑验收前勾选；**不要**跳过 B 去做 C（C 依赖 B）。
+---
 
-## 当前待办速查（以看板文件为准）
+## 汇报格式（给 coordinator / 时间线，非教用户操作）
 
-看板文件是唯一真相；下列仅为规则内提醒，**每次仍须读文件**：
+- 执行了哪一项；命令与绿/红；勾了哪框  
+- 若 auto「定」了新版本：写出新建 SCOPE/STAGE 路径  
+- 若毕业 release：写出 tag / Release URL  
+- 若 hard block：一句话原因 + 需要人类做什么  
+- **禁止**写「请用户说继续」类 UX  
+
+---
+
+## 当前待办速查（以看板为准）
 
 | 项 | 主题 |
 |----|------|
-| A | Win/Linux MEMCPY_STATE slot-form + core fatal |
-| B | Container DDC（PE+ELF NOP+RET，取消 SKIP） |
-| C | LDB 指针内存 DDC + container 路径 |
-| S7-1 | Stage 7 维护节拍（test all + win selfhost + lock + JS golden） |
-| S7-2 | JS golden MEMCPY 真实 emit（去 stub） |
-| S7-3 | Windows 无 sidecar 自举 |
-| S7-4 | Linux M2→M3 自举链 |
-| S7-5 | 定制 MCU 后端脚手架 |
-| S8-A | libyoyo 真实平台 I/O（D-1 关闭） |
-| S8-B | Full body 编译器路径（W5.5 body） |
-| S8-C | 扩展自举链 M2→M3→M4（Win + Linux） |
-| S8-D | v0.2 毕业门禁 + Relock + 文档收口 |
-| S9-A | gen1 H_00 / 纯自举路径（关 v0.2 Known RED） |
-| S9-B | JS peer 平台 I/O 对齐（关 DDC 盲区） |
-| S9-C | 收紧 M4 host `bootstrap --selfhost` wrapper |
-| S9-D | v0.3 毕业门禁 + Relock + 文档收口 |
+| S10 | v0.4 已毕业（跳过） |
+| S11-A | YOYO-built / 更薄 runtime |
+| S11-B | 收缩 LoadLibrary / libdl host |
+| S11-C | v0.4 回归不退化 |
+| S11-D | v0.5 毕业 + Relock + RELEASE + tag |
+| →1.0 | `ROADMAP-TO-1.0.md`（AUTO 自动定 Stage12…16） |
 
 ## 约束
 
-- 最小 diff；Rust 链为主（`yoyo-rust/verifier`）
-- PowerShell：用 `&` 直接调用，避免 `Start-Process | Out-Null` pipe 误判退出码
-- 红了：修到绿再勾，不把半成品标完成
-- Stage 9 / v0.3 北星 = **打破后门魔咒**（DDC+Lock 扩面 / 缩小宿主信任洞，非单纯加功能）
+- 最小 diff；Rust 链为主  
+- PowerShell 用 `&`，忌 `Start-Process \| Out-Null`  
+- 红了修到绿再勾  
+- 北星 = 打破后门魔咒  
+- 不发明无界功能；不宣称 Thompson-proof  

@@ -430,7 +430,7 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
             println!("wrote PE32+ {} ({} bytes)", rest[1], pe.bytes.len());
         }
         PlatformKind::Linux => {
-            let elf = elf_link::link_elf(&out.code, &out.data)?;
+            let elf = elf_link::link_elf_linux(&out.code, &out.data, &out.handler_offsets)?;
             fs::write(&rest[1], &elf.bytes).map_err(|e| types::IsaError::IoError {
                 msg: e.to_string(),
             })?;

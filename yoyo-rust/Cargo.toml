@@ -13,3 +13,8 @@ authors = ["YOYO maintainers"]
 isa-proc = { path = "verifier/isa-proc" }
 libyoyo = { path = "libyoyo" }
 yoyo-platform = { path = "platform" }
+
+# Stage 10-A: size-optimize the embedded selfhost runtime DLL only.
+[profile.release.package.yoyo-runtime]
+opt-level = "z"
+codegen-units = 1

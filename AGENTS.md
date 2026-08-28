@@ -4,7 +4,8 @@
 
 ## Stage 4 负责人看板（零指令）
 
-- **看板**：`STAGE4_OWNER_CHECKLIST.md` — 每日 DDC 绿/红 + A/B/C 毕业勾选
+- **现主线看板**：`STAGE11_OWNER_CHECKLIST.md` + `SCOPE-v0.5.md`（Stage 11 / v0.5）
+- **历史看板**：`STAGE10_OWNER_CHECKLIST.md`（v0.4 已毕业）；`STAGE4`–`STAGE9` 见各 STAGE*_OWNER_CHECKLIST
 - **自动规则**：`.cursor/rules/stage4-auto-owner.mdc` — `继续` 单轨 master；`继续 两板` PE+ELF 并行 worktree（`scripts/stage4-two-board.ps1`）
 
 ## "Pre-existing bug" 调查：先用最小测试隔离，再判断是代码还是用法 (2026-06-30)

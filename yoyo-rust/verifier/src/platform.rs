@@ -1,5 +1,10 @@
 //! Platform backends (PROMPT-v3 Part 7).
 
+// Stage 10-A: selfhost runtime builds without `full-backends`; exotic emit
+// surfaces stay in source for the CLI but are intentionally unreachable so the
+// linker can drop them from `yoyo_runtime.dll`.
+#![cfg_attr(not(feature = "full-backends"), allow(dead_code))]
+
 use crate::types::{IsaError, IsaResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -482,6 +487,21 @@ pub enum FixupKind {
 }
 
 pub fn select_platform(target: PlatformKind) -> Box<dyn PlatformBackend> {
+    // Stage 10-A: `yoyo-runtime` builds verifier without `full-backends` so only
+    // Win32/Linux/Stub are reachable — linker can GC the other emit surfaces out
+    // of the embedded DLL (largest remaining host-trust hole outside gen12).
+    #[cfg(not(feature = "full-backends"))]
+    {
+        return match target {
+            PlatformKind::Win32 => Box::new(Win32Platform::new()),
+            PlatformKind::Linux => Box::new(LinuxPlatform::new()),
+            PlatformKind::Stub => Box::new(StubPlatform::new()),
+            other => panic!(
+                "verifier built without full-backends; platform {other:?} unavailable in selfhost runtime"
+            ),
+        };
+    }
+    #[cfg(feature = "full-backends")]
     match target {
         PlatformKind::Win32 => Box::new(Win32Platform::new()),
         PlatformKind::Linux => Box::new(LinuxPlatform::new()),

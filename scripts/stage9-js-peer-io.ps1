@@ -78,6 +78,6 @@ process.stdout.write(b.toString('hex'));
 }
 
 Write-Host "Trust chain: JS PE path setEmitPlatform(win32); 0x20/0x50/0x51 byte-equal Rust platform_io; stub remains for G-SM-IO."
-Write-Host "Still divergent: Python asm peer still movabs+store; full yoyo.ty section-ddc may differ (H_00 / IAT width)."
+Write-Host "Still divergent: full yoyo.ty section-ddc may differ (H_00 / IAT width). Asm peer I/O: see stage10-asm-peer-io.ps1."
 Write-Host "Stage 9-B: GREEN"
 exit 0
