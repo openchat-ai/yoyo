@@ -83,7 +83,7 @@
 | ~~Win M4 host `--selfhost`~~ | Stage 9-C — **GREEN (DONE)** |
 | ~~runtime.dll 面 / Linux `--selfhost` / asm I/O~~ | Stage 10 A/B/C — **GREEN (DONE)** · v0.4.0 |
 | ~~更薄 runtime · LoadLibrary host~~ | Stage 11 A/B/C — **GREEN (DONE)** · v0.5.0 |
-| 三 peer I/O · selfhost body section-ddc | Stage 12 / v0.6 ✅（`STAGE12_OWNER_CHECKLIST.md` · tag `v0.6.0`） |
+| ~~三 peer I/O · selfhost body section-ddc~~ | Stage 12 A/B/C/D — **GREEN (DONE)** · v0.6.0 |
 | seed/link host · 跨平台 parity | Stage 13 / v0.7 主线（`STAGE13_OWNER_CHECKLIST.md`） |
 
 ### W-START NODE（EXPERIMENTAL · body-extend 扩写完成 · 2026-07-24 点火 · 2026-07-28 收束 · ≠ freeze）
@@ -1309,7 +1309,7 @@ isa! { r#"
 | ~~Win M4 host `--selfhost`~~ | Stage 9-C — **GREEN (DONE)** |
 | ~~runtime.dll 面 / Linux `--selfhost` / asm I/O~~ | Stage 10 A/B/C — **GREEN (DONE)** · v0.4.0 |
 | ~~更薄 runtime · LoadLibrary host~~ | Stage 11 A/B/C — **GREEN (DONE)** · v0.5.0 |
-| 三 peer I/O · selfhost body section-ddc | Stage 12 / v0.6 ✅（`STAGE12_OWNER_CHECKLIST.md` · tag `v0.6.0`） |
+| ~~三 peer I/O · selfhost body section-ddc~~ | Stage 12 A/B/C/D — **GREEN (DONE)** · v0.6.0 |
 | seed/link host · 跨平台 parity | Stage 13 / v0.7 主线（`STAGE13_OWNER_CHECKLIST.md`） |
 
 ### W-START NODE（EXPERIMENTAL · body-extend 扩写完成 · 2026-07-24 点火 · 2026-07-28 收束 · ≠ freeze）

@@ -27,7 +27,8 @@ YOYO 的存在理由 **不是造语言**，而是 **用 DDC + Lock 在实践中�
 | **Cursor 内** | `Ctrl+P` → `STAGE12_OWNER` |
 | **规格一页纸** | `F:\yoyo\SCOPE-v0.6.md` |
 
-相关：`STAGE11_OWNER_CHECKLIST.md`（v0.5 已毕业）、`RELEASE-v0.5.md`、`BACKEND_SUPPORT.md`。  
+相关：`STAGE11_OWNER_CHECKLIST.md`（v0.5 已毕业）、`RELEASE-v0.5.md`、`RELEASE-v0.6.md`、`BACKEND_SUPPORT.md`。  
+**下一主线**：`STAGE13_OWNER_CHECKLIST.md` · `SCOPE-v0.7.md`。  
 **→ 1.0**：`SCOPE-v1.0.md` · `ROADMAP-TO-1.0.md` · **`AUTO_TO_1.0.md`**（`ACTIVE=1` 无人值守）。
 
 ---
@@ -37,7 +38,7 @@ YOYO 的存在理由 **不是造语言**，而是 **用 DDC + Lock 在实践中�
 | 方式 | 操作 |
 | ---- | ---- |
 | **AUTO-TO-1.0** | `AUTO_TO_1.0.md` `ACTIVE=1` → 每 tick 无问询执行下一未勾项直至 1.0 / hard block / `停` |
-| **单轨** | A→B→C→D；全绿后 **自动定** v0.7/Stage13 并继续 |
+| **单轨** | A→B→C→D；全绿后 **自动定** v0.7/Stage13（已定）并继续 |
 | **毕业 D** | 绿后 auto commit + tag + GitHub Release + push（WIP 不 push） |
 | **看板** | Agent 优先打开本文件；Stage 4–11 勿回改 |
 
