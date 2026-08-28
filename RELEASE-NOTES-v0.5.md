@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-28  
 **Tag:** `v0.5.0`  
-**Commit:** `PENDING`
+**Commit:** `39b32953be992b564e60a07d0fc5ebc9795c9964`
 
 ---
 
