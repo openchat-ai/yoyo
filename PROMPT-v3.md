@@ -65,7 +65,7 @@
 > **日常入口。** 规格语义仍在下方 Parts；施工顺序 = 本 Week 轴。Status 仅允许：**GREEN (DONE)** / **RED** / **SCOPE-CUT** / **HOLD**。勿再维护 `STATUS.md` / `docs/PROGRESS-MAP.md`（已并入此处）。
 
 ### 你现在在哪
-**Stage 4 已毕业**（A/B/C 全绿 · 看板 `STAGE4_OWNER_CHECKLIST.md`）→ **Stage 5 已毕业**（8/8 · 2026-08-24）→ **Stage 6 已毕业**（3/3 · 2026-08-25）→ **Stage 7 已毕业**（5/5 · 2026-08-26 · custom-mcu 脚手架）→ **Stage 8 已毕业**（A/B/C/D 全绿 · 2026-08-27 · v0.2 · 看板 `STAGE8_OWNER_CHECKLIST.md`）→ **Stage 9 已毕业**（A/B/C/D 全绿 · 2026-08-28 · v0.3 · 看板 `STAGE9_OWNER_CHECKLIST.md`）→ **Stage 10 已毕业**（A/B/C/D 全绿 · 2026-08-28 · v0.4 宿主信任面再收 · 看板 `STAGE10_OWNER_CHECKLIST.md` · tag `v0.4.0`）→ **Stage 11 已毕业**（A/B/C/D 全绿 · 2026-08-28 · v0.5 更薄 runtime / LoadLibrary host · 看板 `STAGE11_OWNER_CHECKLIST.md` · tag `v0.5.0`）→ **Stage 12 已毕业**（A/B/C/D 全绿 · 2026-08-28 · v0.6 三 peer I/O / selfhost-body section-ddc · 看板 `STAGE12_OWNER_CHECKLIST.md` · tag `v0.6.0`）→ **现主线 Stage 13 / v0.7**（`SCOPE-v0.7.md` · `STAGE13_OWNER_CHECKLIST.md`）。
+**Stage 4 已毕业**（A/B/C 全绿 · 看板 `STAGE4_OWNER_CHECKLIST.md`）→ **Stage 5 已毕业**（8/8 · 2026-08-24）→ **Stage 6 已毕业**（3/3 · 2026-08-25）→ **Stage 7 已毕业**（5/5 · 2026-08-26 · custom-mcu 脚手架）→ **Stage 8 已毕业**（A/B/C/D 全绿 · 2026-08-27 · v0.2 · 看板 `STAGE8_OWNER_CHECKLIST.md`）→ **Stage 9 已毕业**（A/B/C/D 全绿 · 2026-08-28 · v0.3 · 看板 `STAGE9_OWNER_CHECKLIST.md`）→ **Stage 10 已毕业**（A/B/C/D 全绿 · 2026-08-28 · v0.4 宿主信任面再收 · 看板 `STAGE10_OWNER_CHECKLIST.md` · tag `v0.4.0`）→ **Stage 11 已毕业**（A/B/C/D 全绿 · 2026-08-28 · v0.5 更薄 runtime / LoadLibrary host · 看板 `STAGE11_OWNER_CHECKLIST.md` · tag `v0.5.0`）→ **Stage 12 已毕业**（A/B/C/D 全绿 · 2026-08-28 · v0.6 三 peer I/O / selfhost-body section-ddc · 看板 `STAGE12_OWNER_CHECKLIST.md` · tag `v0.6.0`）→ **Stage 13 已毕业**（A/B/C/D 全绿 · 2026-08-29 · v0.7 seed/link host / 跨平台 parity · 看板 `STAGE13_OWNER_CHECKLIST.md` · tag `v0.7.0`）→ **现主线 Stage 14 / v0.8**（`SCOPE-v0.8.md` · `STAGE14_OWNER_CHECKLIST.md`）。
 
 `yoyo.ty` = **788 handlers / 4170 lines**；Rust golden **739/739 PASS** · backends **37/37 PASS** · `cargo run -- test all` **CI 级绿**；JS==Rust==Python 三端字节级相等（3-chain section-ddc EQUAL，SHA-256: `4fb8b87f`）；gen1≡gen2 持续绿（`test gen12` + `verify-gen12-ddc.ps1`）。
 
@@ -84,7 +84,8 @@
 | ~~runtime.dll 面 / Linux `--selfhost` / asm I/O~~ | Stage 10 A/B/C — **GREEN (DONE)** · v0.4.0 |
 | ~~更薄 runtime · LoadLibrary host~~ | Stage 11 A/B/C — **GREEN (DONE)** · v0.5.0 |
 | ~~三 peer I/O · selfhost body section-ddc~~ | Stage 12 A/B/C/D — **GREEN (DONE)** · v0.6.0 |
-| seed/link host · 跨平台 parity | Stage 13 / v0.7 主线（`STAGE13_OWNER_CHECKLIST.md`） |
+| ~~seed/link host · 跨平台 parity~~ | Stage 13 A/B/C/D — **GREEN (DONE)** · v0.7.0 |
+| 窗外字节 / SCOPE-CUT · Lock 硬化 | Stage 14 / v0.8 主线（`STAGE14_OWNER_CHECKLIST.md`） |
 
 ### W-START NODE（EXPERIMENTAL · body-extend 扩写完成 · 2026-07-24 点火 · 2026-07-28 收束 · ≠ freeze）
 `EXPERIMENTAL · NON-GREEN · Rust-first · OUT-OF-v0.1-body（SCOPE-CUT 边界外点火）` — 详表 `docs/auxdocs/selfhost-start-node.md`
@@ -1291,7 +1292,7 @@ isa! { r#"
 > **日常入口。** 规格语义仍在下方 Parts；施工顺序 = 本 Week 轴。Status 仅允许：**GREEN (DONE)** / **RED** / **SCOPE-CUT** / **HOLD**。勿再维护 `STATUS.md` / `docs/PROGRESS-MAP.md`（已并入此处）。
 
 ### 你现在在哪
-**Stage 4 已毕业**（A/B/C 全绿 · 看板 `STAGE4_OWNER_CHECKLIST.md`）→ **Stage 5 已毕业**（8/8 · 2026-08-24）→ **Stage 6 已毕业**（3/3 · 2026-08-25）→ **Stage 7 已毕业**（5/5 · 2026-08-26 · custom-mcu 脚手架）→ **Stage 8 已毕业**（A/B/C/D 全绿 · 2026-08-27 · v0.2 · 看板 `STAGE8_OWNER_CHECKLIST.md`）→ **Stage 9 已毕业**（A/B/C/D 全绿 · 2026-08-28 · v0.3 · 看板 `STAGE9_OWNER_CHECKLIST.md`）→ **Stage 10 已毕业**（A/B/C/D 全绿 · 2026-08-28 · v0.4 宿主信任面再收 · 看板 `STAGE10_OWNER_CHECKLIST.md` · tag `v0.4.0`）→ **Stage 11 已毕业**（A/B/C/D 全绿 · 2026-08-28 · v0.5 更薄 runtime / LoadLibrary host · 看板 `STAGE11_OWNER_CHECKLIST.md` · tag `v0.5.0`）→ **Stage 12 已毕业**（A/B/C/D 全绿 · 2026-08-28 · v0.6 三 peer I/O / selfhost-body section-ddc · 看板 `STAGE12_OWNER_CHECKLIST.md` · tag `v0.6.0`）→ **现主线 Stage 13 / v0.7**（`SCOPE-v0.7.md` · `STAGE13_OWNER_CHECKLIST.md`）。
+**Stage 4 已毕业**（A/B/C 全绿 · 看板 `STAGE4_OWNER_CHECKLIST.md`）→ **Stage 5 已毕业**（8/8 · 2026-08-24）→ **Stage 6 已毕业**（3/3 · 2026-08-25）→ **Stage 7 已毕业**（5/5 · 2026-08-26 · custom-mcu 脚手架）→ **Stage 8 已毕业**（A/B/C/D 全绿 · 2026-08-27 · v0.2 · 看板 `STAGE8_OWNER_CHECKLIST.md`）→ **Stage 9 已毕业**（A/B/C/D 全绿 · 2026-08-28 · v0.3 · 看板 `STAGE9_OWNER_CHECKLIST.md`）→ **Stage 10 已毕业**（A/B/C/D 全绿 · 2026-08-28 · v0.4 宿主信任面再收 · 看板 `STAGE10_OWNER_CHECKLIST.md` · tag `v0.4.0`）→ **Stage 11 已毕业**（A/B/C/D 全绿 · 2026-08-28 · v0.5 更薄 runtime / LoadLibrary host · 看板 `STAGE11_OWNER_CHECKLIST.md` · tag `v0.5.0`）→ **Stage 12 已毕业**（A/B/C/D 全绿 · 2026-08-28 · v0.6 三 peer I/O / selfhost-body section-ddc · 看板 `STAGE12_OWNER_CHECKLIST.md` · tag `v0.6.0`）→ **Stage 13 已毕业**（A/B/C/D 全绿 · 2026-08-29 · v0.7 seed/link host / 跨平台 parity · 看板 `STAGE13_OWNER_CHECKLIST.md` · tag `v0.7.0`）→ **现主线 Stage 14 / v0.8**（`SCOPE-v0.8.md` · `STAGE14_OWNER_CHECKLIST.md`）。
 
 `yoyo.ty` = **788 handlers / 4170 lines**；Rust golden **739/739 PASS** · backends **37/37 PASS** · `cargo run -- test all` **CI 级绿**；JS==Rust==Python 三端字节级相等（3-chain section-ddc EQUAL，SHA-256: `4fb8b87f`）；gen1≡gen2 持续绿（`test gen12` + `verify-gen12-ddc.ps1`）。
 
@@ -1310,7 +1311,8 @@ isa! { r#"
 | ~~runtime.dll 面 / Linux `--selfhost` / asm I/O~~ | Stage 10 A/B/C — **GREEN (DONE)** · v0.4.0 |
 | ~~更薄 runtime · LoadLibrary host~~ | Stage 11 A/B/C — **GREEN (DONE)** · v0.5.0 |
 | ~~三 peer I/O · selfhost body section-ddc~~ | Stage 12 A/B/C/D — **GREEN (DONE)** · v0.6.0 |
-| seed/link host · 跨平台 parity | Stage 13 / v0.7 主线（`STAGE13_OWNER_CHECKLIST.md`） |
+| ~~seed/link host · 跨平台 parity~~ | Stage 13 A/B/C/D — **GREEN (DONE)** · v0.7.0 |
+| 窗外字节 / SCOPE-CUT · Lock 硬化 | Stage 14 / v0.8 主线（`STAGE14_OWNER_CHECKLIST.md`） |
 
 ### W-START NODE（EXPERIMENTAL · body-extend 扩写完成 · 2026-07-24 点火 · 2026-07-28 收束 · ≠ freeze）
 `EXPERIMENTAL · NON-GREEN · Rust-first · OUT-OF-v0.1-body（SCOPE-CUT 边界外点火）` — 详表 `docs/auxdocs/selfhost-start-node.md`
