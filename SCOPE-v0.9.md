@@ -92,7 +92,7 @@ wsl bash /mnt/f/yoyo/scripts/stage10-linux-pure-m4.sh
 
 **Stage 15-C（2026-08-29）：** `stage15-v08-regress.ps1 -SkipBuild` exit 0 · ALL_GREEN（stamp 01:34:49；D 复验 **01:40:31**）· 串行：`yoyo.exe test all/lock/gen12/fullbody=0` + stage13–9 + stage14 A/B + `stage15-hole-inventory=0` + WSL stage10-linux · `cargo SKIP(-SkipBuild)` · `driver.lock` · named `-SkipBuild` · **零并行 cargo** · v0.8 基线不退化。
 
-**毕业判定（2026-08-29 · Stage 15-D）：** A/B/C/D 全绿 · **无 Relock**（Decision #25）· `verify-lock-pin` + `stage14-lock-harden.ps1 -SkipBuild` PINNED · `stage15-v08-regress.ps1 -SkipBuild` ALL_GREEN（**01:40:42**）· `RELEASE-v0.9.md` / `RELEASE-NOTES-v0.9.md` 诚实写 **HOLE_INVENTORY ACTIVE closed=0 cut=7** + DDC=detection · 仍 OW-\* Rust runtime / LoadLibrary / seed · 下一主线已定 `SCOPE-v1.0.md` + `STAGE16_OWNER_CHECKLIST.md` · tag `v0.9.0`
+**毕业判定（2026-08-29 · Stage 15-D）：** A/B/C/D 全绿 · **无 Relock**（Decision #25）· `verify-lock-pin` + `stage14-lock-harden.ps1 -SkipBuild` PINNED · `stage15-v08-regress.ps1 -SkipBuild` ALL_GREEN（**01:40:31**）· `RELEASE-v0.9.md` / `RELEASE-NOTES-v0.9.md` 诚实写 **HOLE_INVENTORY ACTIVE closed=0 cut=7** + DDC=detection · 仍 OW-\* Rust runtime / LoadLibrary / seed · 下一主线已定 `SCOPE-v1.0.md` + `STAGE16_OWNER_CHECKLIST.md` · tag `v0.9.0`
 
 ---
 

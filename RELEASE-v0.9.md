@@ -44,7 +44,7 @@ YOYO v0.9 **enumerates every OW-\* / REL-\* hole as machine-checkable CLOSED|CUT
 Stage 15 **A/B/C/D did not modify `yoyo/projects/yoyo.ty`**. Trust gains came from **per-hole inventory + gate**, **pre-run keep-green**, and **v0.8 regression harness** — not a source-body edit. Therefore:
 
 - **No Relock required** — Decision #25 pin remains authoritative
-- **Verified 2026-08-29:** `verify-lock-pin.ps1` exit 0 · `stage14-lock-harden.ps1 -SkipBuild` · `LOCK_HARDEN status=PINNED decision=25 relock=NO ty_eq_lock=YES` · `stage15-v08-regress.ps1 -SkipBuild` ALL_GREEN (stamp **01:38:48**) · Stage 15-D accept
+- **Verified 2026-08-29:** `verify-lock-pin.ps1` exit 0 · `stage14-lock-harden.ps1 -SkipBuild` · `LOCK_HARDEN status=PINNED decision=25 relock=NO ty_eq_lock=YES` · `stage15-v08-regress.ps1 -SkipBuild` ALL_GREEN (stamp **01:40:31**) · Stage 15-D accept
 - v0.9 graduation documents **hole inventory ACTIVE (7 CUT) + pre-run**; the Lock pin still locks the **788-handler source artifact**
 
 ### A/B/C trust gains (one line each)
@@ -72,7 +72,7 @@ cd F:\yoyo
 .\scripts\stage15-v08-regress.ps1 -SkipBuild
 ```
 
-**Stage 15-D re-verify (2026-08-29):** Lock PINNED · `stage15-v08-regress.ps1 -SkipBuild` ALL_GREEN (serial; stamp 01:38:48; no parallel cargo).
+**Stage 15-D re-verify (2026-08-29):** Lock PINNED · `stage15-v08-regress.ps1 -SkipBuild` ALL_GREEN (serial; stamp 01:40:31; no parallel cargo).
 
 ### Docs that belong in v0.9
 
@@ -155,7 +155,7 @@ yoyo-test/
 
 ### 1. Verify green (exit code 0 everywhere)
 
-Stage 15-D re-verify: `verify-lock-pin.ps1` · `stage14-lock-harden.ps1 -SkipBuild` PINNED · `stage15-v08-regress.ps1 -SkipBuild` ALL_GREEN 2026-08-29 01:38:48. Prior A/B/C gates ALL_GREEN.
+Stage 15-D re-verify: `verify-lock-pin.ps1` · `stage14-lock-harden.ps1 -SkipBuild` PINNED · `stage15-v08-regress.ps1 -SkipBuild` ALL_GREEN 2026-08-29 01:40:31. Prior A/B/C gates ALL_GREEN.
 
 ### 2. Confirm pin integrity
 
