@@ -20,8 +20,16 @@ else
   WORKDIR="$ARTIFACT_DIR"
 fi
 mkdir -p "$WORKDIR"
+# Clear prior artifacts (incl. input.*) so serial re-runs don't trip "File exists" on busy /tmp.
 rm -f "$WORKDIR"/{gen1,gen2,gen3,gen4,gen3_direct,output}.elf \
-  "$WORKDIR"/libyoyo_runtime.so "$WORKDIR"/.yoyo_h00_tramp
+  "$WORKDIR"/libyoyo_runtime.so "$WORKDIR"/.yoyo_h00_tramp \
+  "$WORKDIR"/input.tyb "$WORKDIR"/input.ky
+# If a prior H_00 child still holds a name, recreate WORKDIR under /tmp.
+if [[ "$WORKDIR" == /tmp/* ]] && ! touch "$WORKDIR/.yoyo_stage10b_w" 2>/dev/null; then
+  rm -rf "$WORKDIR"
+  mkdir -p "$WORKDIR"
+fi
+rm -f "$WORKDIR"/.yoyo_stage10b_w 2>/dev/null || true
 
 TY="$ROOT/yoyo/projects/yoyo.ty"
 TYB="$ROOT/yoyo/projects/yoyo.tyb"
@@ -46,6 +54,7 @@ GEN3_DIRECT="$WORKDIR/gen3_direct.elf"
 INPUT_TYB="$WORKDIR/input.tyb"
 INPUT_KY="$WORKDIR/input.ky"
 
+rm -f "$INPUT_TYB" "$INPUT_KY"
 cp -f "$TYB" "$INPUT_TYB"
 cp -f "$TY" "$INPUT_KY"
 

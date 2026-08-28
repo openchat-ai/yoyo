@@ -221,6 +221,49 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Accept** | `verify-lock-pin` exit 0 · `stage13-v06-regress.ps1 -SkipBuild` ALL_GREEN（2026-08-29） |
 | **Next** | Stage 14 / v0.8：`SCOPE-v0.8.md` + `STAGE14_OWNER_CHECKLIST.md`（窗外字节 / SCOPE-CUT 草案 · Lock 硬化） |
 
+### Stage 14-A — outside-window SCOPE-CUT draft
+
+| Item | Detail |
+|------|--------|
+| **Scope** | Honest SCOPE-CUT for H_00 slot / extract stub / embedded runtime / LoadLibrary IAT / Rust-emitted seed — shrink **blind spot** (observability), not invent full `.text` EQUAL |
+| **Doc** | `SCOPE-CUT-v0.8-outside-window.md` |
+| **Gate** | `scripts/stage14-outside-window-scope-cut.ps1`（alias `stage14-scope-cut.ps1`） |
+| **Pins** | body EQUAL ≥17013（obs 17805）；stub_nz ∈[100,2048]（obs 159）；dll ≤170000 exact embed（obs 154624）；seed PE ≤270000；LoadLibraryA+yoyo_rt.dll markers |
+| **Status** | GREEN 2026-08-29 · `SCOPE_CUT status=ACTIVE full_text=DIFF` · no Relock（未改 `yoyo.ty`） |
+| **Still CUT** | OW-H00 / OW-STUB / OW-RT / OW-IAT / OW-SEED — comparable EQUAL = selfhost-body only |
+
+### Stage 14-B — Lock pin / Relock discipline harden
+
+| Item | Detail |
+|------|--------|
+| **Scope** | Thicken pin / Relock gates: nail Decision #25 when unchanged; drift fail-closed `RELOCK_REQUIRED` (no auto-relock; Relock + Decision note required) |
+| **Gate** | `scripts/stage14-lock-harden.ps1`（alias `stage14-lock.ps1`） |
+| **Pins** | ty SHA == lock.sha256 == `0275802d2b4459e6…`；previous_sha256 = `af530094…`；lock.note contains Decision #25；verify-lock-pin + `test lock` |
+| **Status** | GREEN 2026-08-29 · `LOCK_HARDEN status=PINNED decision=25 pin=0275802d… relock=NO` · **no Relock**（未改 `yoyo.ty`） |
+| **No regress** | stage14-A (`stage14-outside-window-scope-cut -SkipBuild`) + stage13-link-host spot |
+| **Next** | Stage 14-D DONE → Stage 15 / v0.9 |
+
+### Stage 14-C — v0.7 regression must not regress
+
+| Item | Detail |
+|------|--------|
+| **Scope** | Fail-closed serial keep-green: stage13/12/11/10/9 + `yoyo.exe test all/lock/gen12/fullbody` + Stage 14 A/B |
+| **Gate** | `scripts/stage14-v07-regress.ps1` |
+| **Hard cargo** | wait zero cargo/rustc → ≤1 release build → post-build `yoyo.exe` / named `-SkipBuild` only（PS5.1 array splat `@("-SkipBuild")` does **not** bind `[switch]`） |
+| **Robust** | `driver.lock` blocks concurrent workdir race；Invoke-Gate without `| Out-Host`（preserve LASTEXITCODE） |
+| **Status** | ALL_GREEN 2026-08-29 · D re-verify stamp **01:14:12** · `stage14-v07-regress.ps1 -SkipBuild` exit 0 · **no Relock** |
+| **Next** | Stage 14-D DONE → Stage 15 / v0.9 |
+
+### Stage 14-D — v0.8 毕业
+
+| Item | Detail |
+|------|--------|
+| **Docs** | `RELEASE-v0.8.md` · `RELEASE-NOTES-v0.8.md` · `SCOPE-v0.8.md` 毕业判定 · `SCOPE-CUT-v0.8-outside-window.md` |
+| **Lock** | Decision #25 pin **unchanged** — no Relock（Stage 14 未改 `yoyo.ty`） |
+| **Accept** | `stage14-lock-harden.ps1 -SkipBuild` PINNED · `stage14-v07-regress.ps1 -SkipBuild` ALL_GREEN（2026-08-29 01:14:12） |
+| **Honest** | SCOPE-CUT ACTIVE；DDC=detection；OW-H00/STUB/RT/IAT/SEED；full `.text` DIFF；seed 仍 Rust 发射 |
+| **Next** | Stage 15 / v0.9：`SCOPE-v0.9.md` + `STAGE15_OWNER_CHECKLIST.md`（洞清单收口 · 预跑门禁） |
+
 ### Full body compiler (Stage 8-B · W5.5 body)
 
 | Path | What it validates | DDC scope |

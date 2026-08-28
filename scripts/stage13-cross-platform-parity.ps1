@@ -55,7 +55,8 @@ function Invoke-Gate([string]$Name, [scriptblock]$Body) {
     $sw = [Diagnostics.Stopwatch]::StartNew()
     $code = 0
     try {
-        & $Body | Out-Host
+        # Do NOT pipe to Out-Host — PS5.1 can lose/poison LASTEXITCODE on native stderr.
+        & $Body
         $code = $LASTEXITCODE
         if ($null -eq $code) { $code = 0 }
     } catch {
@@ -304,7 +305,14 @@ if ($SkipWsl) {
 
 $null = Invoke-Gate "stage10-linux-pure-m4.sh (WSL)" {
     $wslScript = "/mnt/f/yoyo/scripts/stage10-linux-pure-m4.sh"
-    wsl -e bash $wslScript
+    # WSL may emit non-fatal stderr (e.g. systemd user session); keep exit-code truth.
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        & wsl -e bash $wslScript
+    } finally {
+        $ErrorActionPreference = $prevEap
+    }
 }
 if ($Failed) {
     Write-Summary "FAILED"

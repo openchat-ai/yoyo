@@ -11,7 +11,8 @@ YOYO 的存在理由 **不是造语言**，而是 **用 DDC + Lock 在实践中�
 ## 🎯 Stage 14 进度
 
 ```text
-[ ] A  [ ] B  [ ] C  [ ] D   →  从 A 起；见 SCOPE-v0.8.md
+[x] A  [x] B  [x] C  [x] D   →  v0.8 已毕业（2026-08-29）· 见 SCOPE-v0.8.md / RELEASE-v0.8.md
+                              → 下一主线 v0.9：SCOPE-v0.9.md + STAGE15_OWNER_CHECKLIST.md
 ```
 
 > **关于「打钩」**：`- [x]` = 已勾，`- [ ]` = 未勾。Markdown 预览才显示为 checkbox 符号。
@@ -26,7 +27,8 @@ YOYO 的存在理由 **不是造语言**，而是 **用 DDC + Lock 在实践中�
 | **Cursor 内** | `Ctrl+P` → `STAGE14_OWNER` |
 | **规格一页纸** | `F:\yoyo\SCOPE-v0.8.md` |
 
-相关：`STAGE13_OWNER_CHECKLIST.md`（v0.7 已毕业）、`RELEASE-v0.7.md`、`BACKEND_SUPPORT.md`。  
+相关：`STAGE13_OWNER_CHECKLIST.md`（v0.7 已毕业）、`RELEASE-v0.7.md`、`RELEASE-v0.8.md`、`BACKEND_SUPPORT.md`。  
+**下一主线**：`STAGE15_OWNER_CHECKLIST.md` · `SCOPE-v0.9.md`。  
 **→ 1.0**：`SCOPE-v1.0.md` · `ROADMAP-TO-1.0.md` · **`AUTO_TO_1.0.md`**（`ACTIVE=1` 无人值守）。
 
 ---
@@ -36,20 +38,20 @@ YOYO 的存在理由 **不是造语言**，而是 **用 DDC + Lock 在实践中�
 | 方式 | 操作 |
 | ---- | ---- |
 | **AUTO-TO-1.0** | `AUTO_TO_1.0.md` `ACTIVE=1` → 每 tick 无问询执行下一未勾项直至 1.0 / hard block / `停` |
-| **单轨** | A→B→C→D；全绿后 **自动定** v0.9/Stage15 并继续 |
+| **单轨** | A→B→C→D；全绿后 **自动定** v0.9/Stage15（已定）并继续 |
 | **毕业 D** | 绿后 auto commit + tag + GitHub Release + push（WIP 不 push） |
 | **看板** | Agent 优先打开本文件；Stage 4–13 勿回改 |
 
 ### 毕业顺序（严格 · 按信任冲击）
 
-1. **A** — 窗外字节收口或 SCOPE-CUT 草案（**full `.text` DIFF 主洞**）
-2. **B** — Lock 硬化
-3. **C** — v0.7 回归不退化（门禁加固 / 观测）
+1. **A** — 窗外字节收口或 SCOPE-CUT 草案（**DONE** · full `.text` DIFF → SCOPE-CUT ACTIVE）
+2. **B** — Lock 硬化（**DONE** · Decision #25 nail / Relock discipline gate）
+3. **C** — v0.7 回归不退化（**DONE** · `stage14-v07-regress.ps1` ALL_GREEN）
 4. **D** — v0.8 毕业门禁 + Relock（若需要）+ 文档收口
 
-**不要跳关**：B 可与 A 技术并行，但勾选顺序仍 A→B；D 依赖 A/B/C。
+**不要跳关**：勾选顺序仍 A→B→C→D；D 依赖 A/B/C。
 
-**下一项** = **A**（窗外字节收口或 SCOPE-CUT 草案）。
+**下一关** = 已毕业 → 见 `STAGE15_OWNER_CHECKLIST.md`（v0.9）。
 
 ---
 
@@ -74,7 +76,11 @@ cd F:\yoyo
 .\scripts\stage11-loadlibrary-host.ps1
 .\scripts\stage9-pure-m4.ps1
 .\scripts\verify-lock-pin.ps1
-# Stage 14 gates: stage14-* （落地后补）
+.\scripts\stage14-outside-window-scope-cut.ps1
+# alias: .\scripts\stage14-scope-cut.ps1
+.\scripts\stage14-lock-harden.ps1
+# alias: .\scripts\stage14-lock.ps1
+.\scripts\stage14-v07-regress.ps1
 # WSL: bash scripts/stage10-linux-pure-m4.sh
 ```
 
@@ -82,12 +88,12 @@ cd F:\yoyo
 
 ## Stage 14 毕业四门
 
-### 待做
+### 待做 / 已勾
 
-- [ ] **A：窗外字节收口或 SCOPE-CUT 草案** — 缩小 H_00/extract/runtime/IAT 等窗外盲区，或起草诚实 SCOPE-CUT · **信任链**：须可脚本验收；不得假装 full `.text` EQUAL
-- [ ] **B：Lock 硬化** — pin / Relock 纪律门禁加厚 · **信任链**：改源必 Relock+Decision；未改则钉 Decision #25
-- [ ] **C：v0.7 回归不退化** — stage13/stage12/stage11/stage10/stage9/fullbody/lock/gen12 门禁保持绿 · **信任链**：扩面不丢 v0.7 基线
-- [ ] **D：v0.8 毕业门禁** — A/B/C 全绿 + Lock 复验（改源则 Relock）+ `SCOPE-v0.8.md` 毕业判定 + `RELEASE-v0.8.md` · **信任链**：RELEASE 诚实写 DDC=detection 非 proof
+- [x] **A：窗外字节收口或 SCOPE-CUT 草案** — **SCOPE-CUT 草案落地**（`SCOPE-CUT-v0.8-outside-window.md` + `scripts/stage14-outside-window-scope-cut.ps1` exit 0）· **信任链**：selfhost-body EQUAL 钉住可比窗；窗外 OW-H00/OW-STUB/OW-RT/OW-IAT/OW-SEED 机器钉天花板+标记；**不得**假装 full `.text` EQUAL（观测 `SCOPE_CUT status=ACTIVE full_text=DIFF body_window=EQUAL compared=17805 stub_nz=159 dll=154624`）· 未改 `yoyo.ty` / 无 Relock
+- [x] **B：Lock 硬化** — pin / Relock 纪律门禁加厚（`scripts/stage14-lock-harden.ps1` exit 0 · alias `stage14-lock.ps1`）· **信任链**（2026-08-29）：`LOCK_HARDEN status=PINNED decision=25 pin=0275802d… relock=NO ty_eq_lock=YES`；权威钉 Decision #25（ty==lock==`0275802d…` + previous `af530094…` + note 标签）；漂移 → `RELOCK_REQUIRED`（禁静默改 lock / 无 auto-Relock）；`verify-lock-pin` PASS；不退化 A（scope-cut）+ stage13-link-host spot · **无 Relock**（未改 `yoyo.ty`）
+- [x] **C：v0.7 回归不退化** — stage13/12/11/10/9 + fullbody/lock/gen12 + Stage 14 A/B 全绿（`scripts/stage14-v07-regress.ps1` exit **0** · `ALL_GREEN` 2026-08-29 01:08:59）· **信任链**：wait cargo → ≤1 cargo → `yoyo.exe test all|lock|gen12|fullbody` → nested `-SkipBuild`（**named switch**；PS5.1 array splat `@("-SkipBuild")` 不绑定）+ WSL pure-m4；`driver.lock` 禁并发 workdir 竞态；Invoke-Gate 不 `| Out-Host`（保 LASTEXITCODE）· **无 Relock** · 不退化 A/B
+- [x] **D：v0.8 毕业门禁** — A/B/C 全绿 + Lock 复验（pin 未改 · 无 Relock）+ `SCOPE-v0.8.md` 毕业判定 + `RELEASE-v0.8.md` / `RELEASE-NOTES-v0.8.md`（2026-08-29）· **信任链**：Decision #25 pin 仍权威；`stage14-lock-harden.ps1 -SkipBuild` exit 0 · `LOCK_HARDEN status=PINNED relock=NO`；`stage14-v07-regress.ps1 -SkipBuild` ALL_GREEN（stamp 01:14:12）；RELEASE 诚实写 DDC=detection、**SCOPE-CUT ACTIVE**、仍 Rust runtime + LoadLibrary/libdl、full `.text` DIFF、stub OS 仍 stub、**seed 仍 Rust 发射**；下一主线已定 `SCOPE-v0.9.md` + `STAGE15_OWNER_CHECKLIST.md`
 
 ### 可选 · 低优先级（不挡 v0.8 毕业）
 
