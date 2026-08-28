@@ -8,7 +8,7 @@
 
 ## One-line pitch
 
-**YOYO v0.4 shrinks the remaining host-trust face ? smaller embedded runtime, Linux pure M4 without `--selfhost`, asm I/O peer parity ? expanding three-chain DDC + Lock coverage without claiming Thompson proof or replacing C.**
+**YOYO v0.4 shrinks the remaining host-trust face — smaller embedded runtime, Linux pure M4 without `--selfhost`, asm I/O peer parity — expanding three-chain DDC + Lock coverage without claiming Thompson proof or replacing C.**
 
 ---
 
@@ -16,7 +16,7 @@
 
 YOYO v0.4 **closes the largest honest remaining holes after v0.3** and puts more self-host observability under DDC + Lock. It is not a pivot to general application development.
 
-**Honest boundary:** DDC detects **output divergence** across independent peers under equal inputs ? a practical trust bar, **not** Thompson immunity.
+**Honest boundary:** DDC detects **output divergence** across independent peers under equal inputs — a practical trust bar, **not** Thompson immunity.
 
 ---
 
@@ -24,19 +24,19 @@ YOYO v0.4 **closes the largest honest remaining holes after v0.3** and puts more
 
 | Area | v0.4 includes |
 |------|----------------|
-| **Runtime.dll surface** | DLL **485888?231936** B fail-closed (`stage10-runtime-surface.ps1`); gen12 SHA `43ffde58?` |
+| **Runtime.dll surface** | DLL **485888?231936** B fail-closed (`stage10-runtime-surface.ps1`); gen12 SHA `43ffde58…` |
 | **Linux pure M4** | gen1?gen4 without `bootstrap --selfhost`; gen4?gen3_direct EQUAL (`stage10-linux-pure-m4.sh`) |
 | **asm peer I/O parity** | win32 `0x20/0x50/0x51` byte-equal Rust/JS; `stage10-asm-peer-io.ps1` |
-| **v0.3 baseline** | H_00 · JS peer · Win pure M4 · fullbody · lock · gen12 ? still green |
+| **v0.3 baseline** | H_00 · JS peer · Win pure M4 · fullbody · lock · gen12 — still green |
 
 ### Trust-chain anchors
 
 | Monitor | Value |
 |---------|-------|
-| **Lock pin** | `0275802d?` (Decision #25, **unchanged** ? no Relock) |
-| **gen12 `.text` (Win)** | **`43ffde58?`** · **18432** bytes |
+| **Lock pin** | `0275802d…` (Decision #25, **unchanged** — no Relock) |
+| **gen12 `.text` (Win)** | **`43ffde58…`** · **18432** bytes |
 | **runtime.dll** | **231936** B (still Rust-built; outside gen12 window) |
-| **Linux M4 ELF** | `085d07d4?` · 704512 B (pure path, no `--selfhost`) |
+| **Linux M4 ELF** | `085d07d4…` · 704512 B (pure path, no `--selfhost`) |
 
 ---
 
@@ -74,4 +74,4 @@ wsl bash /mnt/f/yoyo/scripts/stage10-linux-pure-m4.sh
 
 ## North star reminder
 
-**??????** ? more bytes under DDC+Lock, fewer ?green only because host wrapped it? paths. Detection bar, not proof.
+**??????** — more bytes under DDC+Lock, fewer "green only because host wrapped it" paths. Detection bar, not proof.
