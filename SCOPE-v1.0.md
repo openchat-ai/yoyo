@@ -1,8 +1,9 @@
 # YOYO 1.0 — Scope Boundary（负责人一页纸）
 
-> **前提**：已发布 v0.1–**v0.8.0**；**现主线** Stage 15 / v0.9。  
+> **前提**：已发布 v0.1–**v0.9.0**；**现主线** Stage 16 / v1.0。  
 > **路线图**：`ROADMAP-TO-1.0.md`。**无人值守开关**：`AUTO_TO_1.0.md`（`ACTIVE=1` = 推到 1.0）。  
-> **诚实**：不能一夜魔法到 1.0；AUTO = 按 ROADMAP gates 连续打磨；耗时取决于宿主面（尤其 YOYO-built runtime）。DDC = detection，非 Thompson-proof。
+> **诚实**：不能一夜魔法到 1.0；AUTO = 按 ROADMAP gates 连续打磨；耗时取决于宿主面（尤其 YOYO-built runtime）。DDC = detection，非 Thompson-proof。  
+> **基线**：Stage 15 已毕业（2026-08-29）；Lock pin `0275802d…`（Decision #25）；`HOLE_INVENTORY ACTIVE closed=0 cut=7`（见 `RELEASE-v0.9.md`）。
 
 ---
 
@@ -27,9 +28,20 @@
 
 ---
 
-## 版本化里程碑（v0.4 → v1.0）
+## v1.0 IN（有界 · ≤4 门 · 按信任冲击排序）
 
-每版 **≤5 门**。AUTO 模式下 Stage 全绿后 **agent 自动「定」下一版**（创建 SCOPE + STAGE 看板），不等用户口头确认。
+| # | 范围 | 说明 | 信任链（为何 IN） | 状态 |
+|---|------|------|------------------|------|
+| 1 | **全关或 SCOPE-CUT 定稿** | 对 v0.9 七项 CUT：能关则 CLOSED+证据；不能关则定稿进 1.0 RELEASE / SCOPE-CUT | **1.0 对外洞面可验** | 待 A |
+| 2 | **detection 话术 + 1.0 预跑** | 钉 detection≠proof；一键串行 keep-green（含 v0.9 gates） | **少盲飞 1.0** | 待 B |
+| 3 | **v0.9 回归不退化** | stage15 A/B/C + stage14–9 + fullbody/lock/gen12 保持绿 | 定稿不买回归 | 待 C |
+| 4 | **毕业收口** | Relock（若改 pin）+ `RELEASE-v1.0.md` + tag；诚实写仍存 CUT | 对外 detection 话术定稿 | 待 D |
+
+**主验收看板**：`STAGE16_OWNER_CHECKLIST.md`（A→D）。进度：`[ ] A [ ] B [ ] C [ ] D`。
+
+---
+
+## 版本化里程碑（v0.4 → v1.0）
 
 | 版本 | Stage | 信任主题（≤5 门） | 产物 |
 |------|-------|-------------------|------|
@@ -38,39 +50,67 @@
 | **v0.6** | 12 | 三 peer I/O · section-ddc on selfhost body · 回归 · 毕业 | ✅ `RELEASE-v0.6` · tag `v0.6.0` |
 | **v0.7** | 13 | seed/link host · 跨平台 parity · Relock 纪律 · 毕业 | ✅ `RELEASE-v0.7` · tag `v0.7.0` |
 | **v0.8** | 14 | 窗外字节再收或 SCOPE-CUT 草案 · Lock 硬化 · 毕业 | ✅ `RELEASE-v0.8` · tag `v0.8.0` |
-| **v0.9** | 15 | 洞清单 · 关或 SCOPE-CUT · 预跑门禁 · 毕业 | `SCOPE-v0.9` · `STAGE15` |
+| **v0.9** | 15 | 洞清单 · 关或 SCOPE-CUT · 预跑门禁 · 毕业 | ✅ `RELEASE-v0.9` · tag `v0.9.0` |
 | **v1.0** | 16 | 全关或 SCOPE-CUT 定稿 · RELEASE · tag · detection 话术 | `STAGE16` · `RELEASE-v1.0` + tag |
 
-> **v0.9 现状**：Stage 14 / v0.8 **已毕业**；现主线 Stage 15 **A** 洞清单收口；v0.8 已毕业勿回改。
+> **v1.0 现状**：Stage 15 / v0.9 **已毕业**；现主线 Stage 16 **A** 全关或 SCOPE-CUT 定稿；v0.9 已毕业勿回改。
 
 ---
 
-## 永远 OUT / post-1.0
+## v1.0 OUT（永远 / post-1.0）
 
-Morph 产品 · MCU 主赛道 · C/Rust 替代宣称 · Thompson-proof · TheoryManifest/CDS · macOS 生产门禁不阻塞 · G06+ 默认不扩
+Morph 产品 · MCU 主赛道 · C/Rust 替代宣称 · Thompson-proof · TheoryManifest/CDS · macOS 生产门禁不阻塞 · G06+ 默认不扩 · invent Stage 17 功能轨
+
+---
+
+## 与 v0.9 诚实剩余面的关系
+
+| v0.9 / `RELEASE-v0.9.md` / HOLE_INVENTORY | v1.0 回收 |
+|------------------------------------------|-----------|
+| **OW-H00 / OW-STUB / OW-RT / OW-IAT / OW-SEED** 全 CUT | Stage 16 **A** — 关或定稿 |
+| **REL-FULLTEXT / REL-STUBOS** CUT | Stage 16 **A** — 定稿进 RELEASE |
+| **HOLE_INVENTORY ACTIVE closed=0 cut=7** | 继续诚实直至 A 定稿 |
+| DDC = detection 非 proof | Stage 16 **B/D** 钉死 |
+
+---
+
+## 毕业门禁（机器可验 · 全 exit 0）
+
+```powershell
+cd F:\yoyo
+.\scripts\verify-lock-pin.ps1
+.\scripts\stage15-hole-inventory.ps1 -SkipBuild
+.\scripts\stage15-prerun.ps1 -SkipBuild
+.\scripts\stage15-v08-regress.ps1 -SkipBuild
+# Stage 16 gates as added: stage16-*.ps1 -SkipBuild
+```
+
+**Stage 16 四门全 `[x]`** = v1.0 可发布候选。
+
+**毕业判定：** （Stage 16 A/B/C/D 全绿后填写）
 
 ---
 
 ## AUTO-TO-1.0 契约（无人值守）
 
-**开关**：`AUTO_TO_1.0.md` 中 `ACTIVE=1`（用户已开启：离电脑 / 自动持续 / 推到1.0）。
+**开关**：`AUTO_TO_1.0.md` 中 `ACTIVE=1`。
 
 | 条件 | Agent |
 |------|-------|
 | `ACTIVE=1` + 每次 wake / loop tick / 空消息 / `继续` | **无问询**执行下一未勾 Stage 项 |
-| Stage N 全 `[x]` | **自动「定」** ROADMAP 下一版：写 SCOPE + `STAGEx_OWNER_CHECKLIST.md`，立刻做第一项 |
-| Stage **D** 毕业门禁绿 | **auto commit** + **tag** + **GitHub Release**（对齐 v0.1–v0.3）；毕业允许 push |
+| Stage N 全 `[x]` | **自动「定」** ROADMAP 下一版（Stage 16 为终点） |
+| Stage **D** 毕业门禁绿 | **auto commit** + **tag** + **GitHub Release**；毕业允许 push |
 | 非毕业 WIP | **不 push** |
-| Hard block（需人类密钥/硬件/不可 SCOPE-CUT 的政策） | 停；写清原因到看板；保持 `ACTIVE=1` 除非用户改 |
+| Hard block | 停；写清原因到看板 |
 | 用户 `停` 或 `ACTIVE=0` | 停手 |
 | 范围 | **仅** ROADMAP/SCOPE 已列信任门；禁止发明无界功能 |
 
 ---
 
-## 诚实预期
+## 诚实边界（对外一句话）
 
-AUTO 是连续打磨 gates，不是魔法完成。最难通常是 v0.5+ runtime。不可关的洞 → SCOPE-CUT + RELEASE 诚实写出后仍可毕业。
+**YOYO 1.0 要把 v0.9 洞清单定稿为全关或诚实 SCOPE-CUT 写入 RELEASE——仍是 detection bar，不是 Thompson 证明；OW-\* 未关前不得假装已关。**
 
 ---
 
-*更新：2026-08-29 · AUTO-TO-1.0 无人值守契约生效 · 现主线 Stage 15 / v0.9*
+*更新：2026-08-29 · v0.9.0 毕业后定稿 Stage 16 / v1.0 · 见 `STAGE16_OWNER_CHECKLIST.md`*

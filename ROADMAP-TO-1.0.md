@@ -11,8 +11,8 @@
 | **v0.6** | **12** | ✅ | `SCOPE-v0.6.md` | `STAGE12_OWNER_CHECKLIST.md` | `RELEASE-v0.6.md` · tag `v0.6.0` |
 | **v0.7** | **13** | ✅ | `SCOPE-v0.7.md` | `STAGE13_OWNER_CHECKLIST.md` | `RELEASE-v0.7.md` · tag `v0.7.0` |
 | **v0.8** | **14** | ✅ | `SCOPE-v0.8.md` | `STAGE14_OWNER_CHECKLIST.md` | `RELEASE-v0.8.md` · tag `v0.8.0` |
-| **v0.9** | **15** | 🔄 | `SCOPE-v0.9.md` | `STAGE15_OWNER_CHECKLIST.md` | `RELEASE-v0.9.md` |
-| **v1.0** | **16** | AUTO 将定 | `SCOPE-v1.0.md` + 可选 GRAD | `STAGE16_OWNER_CHECKLIST.md` | `RELEASE-v1.0.md` + **tag** |
+| **v0.9** | **15** | ✅ | `SCOPE-v0.9.md` | `STAGE15_OWNER_CHECKLIST.md` | `RELEASE-v0.9.md` · tag `v0.9.0` |
+| **v1.0** | **16** | 🔄 | `SCOPE-v1.0.md` | `STAGE16_OWNER_CHECKLIST.md` | `RELEASE-v1.0.md` + **tag** |
 
 ## 信任主题
 
@@ -23,7 +23,7 @@
 | v0.6 | 三 peer I/O · selfhost body section-ddc（✅） |
 | v0.7 | seed/link host · 跨平台 parity · Relock（✅） |
 | v0.8 | 窗外字节/SCOPE-CUT 草案 · Lock 硬化（✅） |
-| v0.9 | 洞清单收口 · 预跑 |
+| v0.9 | 洞清单收口 · 预跑（✅） |
 | v1.0 | 全关或 SCOPE-CUT · RELEASE · tag |
 
 ## AUTO 行为（coordinator）
@@ -32,9 +32,10 @@
 2. 每 tick：下一未勾项 → 验收 → 绿才勾  
 3. Stage 全绿 → 毕业 D：commit + tag + GitHub Release + push（仅毕业）→ auto「定」下一版 → 继续  
 4. 停：`停` / `ACTIVE=0` / hard block  
+5. **v1.0 / Stage 16 = ROADMAP 终点** — 毕业后勿 invent Stage 17 功能轨
 
 OUT：Morph · MCU 主赛道 · C/Rust 替代 · Thompson-proof — 见 `SCOPE-v1.0.md`。
 
 ---
 
-*更新：2026-08-29 · v0.8.0 毕业 · 现主线 Stage 15 / v0.9*
+*更新：2026-08-29 · v0.9.0 毕业 · 现主线 Stage 16 / v1.0*

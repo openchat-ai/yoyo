@@ -262,7 +262,47 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Lock** | Decision #25 pin **unchanged** — no Relock（Stage 14 未改 `yoyo.ty`） |
 | **Accept** | `stage14-lock-harden.ps1 -SkipBuild` PINNED · `stage14-v07-regress.ps1 -SkipBuild` ALL_GREEN（2026-08-29 01:14:12） |
 | **Honest** | SCOPE-CUT ACTIVE；DDC=detection；OW-H00/STUB/RT/IAT/SEED；full `.text` DIFF；seed 仍 Rust 发射 |
-| **Next** | Stage 15 / v0.9：`SCOPE-v0.9.md` + `STAGE15_OWNER_CHECKLIST.md`（洞清单收口 · 预跑门禁） |
+| **Next** | Stage 15 / v0.9 DONE → Stage 16 / v1.0 |
+
+### Stage 15-A — hole inventory close-or-CUT
+
+| Item | Detail |
+|------|--------|
+| **Scope** | Per-hole `disposition=CLOSED\|CUT` for OW-\* / REL-\* — turn lump CUT into machine inventory (no fake CLOSED / fake EQUAL) |
+| **Doc** | `SCOPE-CUT-v0.9-hole-inventory.md` |
+| **Gate** | `scripts/stage15-hole-inventory.ps1`（alias `stage15-a.ps1`） |
+| **Pins** | nested stage14-A exit 0；full `.text` DIFF；body EQUAL 17805；stub_nz 159；dll 154624 exact embed；seed PE ≤270000；LoadLibraryA+yoyo_rt.dll |
+| **Status** | GREEN 2026-08-29 · `HOLE_INVENTORY status=ACTIVE closed=0 cut=7` · no Relock（未改 `yoyo.ty`） |
+| **Still CUT** | OW-H00 / OW-STUB / OW-RT / OW-IAT / OW-SEED / REL-FULLTEXT / REL-STUBOS |
+
+### Stage 15-B — prerun keep-green
+
+| Item | Detail |
+|------|--------|
+| **Scope** | One-shot serial prerun before graduation: hole-inventory + stage14-v07-regress (covers Stage 14 A/B/C + stage13–9 + tests + WSL) |
+| **Gate** | `scripts/stage15-prerun.ps1`（alias `stage15-keep-green.ps1` / `stage15-b.ps1`） |
+| **Hard cargo** | wait zero cargo → `cargo SKIP(-SkipBuild)` → named `-SkipBuild` only；`driver.lock`；**零并行 cargo** |
+| **Status** | ALL_GREEN 2026-08-29 · `stage15-prerun.ps1 -SkipBuild` exit 0 |
+
+### Stage 15-C — v0.8 regression must not regress
+
+| Item | Detail |
+|------|--------|
+| **Scope** | Fail-closed serial keep-green: yoyo test all/lock/gen12/fullbody + stage13–9 + stage14 A/B + stage15-hole-inventory + WSL |
+| **Gate** | `scripts/stage15-v08-regress.ps1`（alias `stage15-c.ps1`） |
+| **Hard cargo** | wait zero cargo → ≤1 release build → post-build named `-SkipBuild` only（PS5.1 array splat forbidden） |
+| **Status** | ALL_GREEN 2026-08-29 · D re-verify stamp **01:40:31** · `stage15-v08-regress.ps1 -SkipBuild` exit 0 · **no Relock** |
+| **Next** | Stage 15-D DONE → Stage 16 / v1.0 |
+
+### Stage 15-D — v0.9 毕业
+
+| Item | Detail |
+|------|--------|
+| **Docs** | `RELEASE-v0.9.md` · `RELEASE-NOTES-v0.9.md` · `SCOPE-v0.9.md` 毕业判定 · `SCOPE-CUT-v0.9-hole-inventory.md` |
+| **Lock** | Decision #25 pin **unchanged** — no Relock（Stage 15 未改 `yoyo.ty`） |
+| **Accept** | `stage14-lock-harden.ps1 -SkipBuild` PINNED · `stage15-v08-regress.ps1 -SkipBuild` ALL_GREEN（2026-08-29 01:40:31） |
+| **Honest** | HOLE_INVENTORY ACTIVE closed=0 cut=7；DDC=detection；OW-\* Rust runtime / LoadLibrary / seed；full `.text` DIFF |
+| **Next** | Stage 16 / v1.0：`SCOPE-v1.0.md` + `STAGE16_OWNER_CHECKLIST.md`（全关或 SCOPE-CUT 定稿 · RELEASE · tag） |
 
 ### Full body compiler (Stage 8-B · W5.5 body)
 

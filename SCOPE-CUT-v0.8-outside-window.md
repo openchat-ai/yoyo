@@ -64,6 +64,7 @@ Gate 必须同时：
 | **Stage 14-A** | 本草案 + gate = A 验收（收口观测盲区；非假 EQUAL） |
 | **B/C/D** | Lock 硬化 / 回归 / 毕业另项；D 写 RELEASE 时引用本 CUT |
 | **关闭路径** | 对齐 H_00/stub peer → 可把 OW-H00/OW-STUB 标 CLOSED；OW-RT 需 YOYO-built runtime 才关 |
+| **Stage 15-A** | 逐项 disposition 见 `SCOPE-CUT-v0.9-hole-inventory.md` + `stage15-hole-inventory.ps1`（本文件仍为窗外基线） |
 
 ---
 

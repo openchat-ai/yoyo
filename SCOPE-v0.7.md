@@ -99,7 +99,7 @@ wsl bash /mnt/f/yoyo/scripts/stage10-linux-pure-m4.sh
 
 **B 状态（2026-08-29）：** `[x]` — `stage13-cross-platform-parity.ps1` ALL_GREEN（exit 0）：stage12-three-peer-io + stub-OS honesty（freebsd/haiku three-peer EQUAL；plan9/serenity forks；apple/android→stub）+ stage13-link-host Win+Linux + stage9-pure-m4 + WSL stage10-linux-pure-m4。信任链：一平台绿另一平台盲 → 单门禁双平台；SkipWsl/SkipLinux 不可用于毕业。诚实剩余：stub OS 仍 stub；Rust runtime + LoadLibrary/libdl；full `.text` 可 DIFF；macOS 非门禁。
 
-**C 状态（2026-08-29）：** `[x]` — `stage13-v06-regress.ps1` ALL_GREEN（exit 0）：串行 A+B + `yoyo.exe test all/lock/gen12/fullbody` + verify-lock-pin + stage11/10/9 + stage12 three-peer/selfhost-body + WSL stage10；post-build 零 cargo（release binary + `-SkipBuild`）。信任链：扩面不丢 v0.6 基线。诚实剩余同 A/B。
+**C 状态（2026-08-29）：** `[x]` — `stage13-v06-regress.ps1` ALL_GREEN（exit 0）：串行 stage13-link-host + stage13-cross-platform-parity + stage12-v05-regress（all/lock/gen12/fullbody + stage11/10/9 + stage12 A/B + lock pin + WSL）；一次 release build 后 `-SkipBuild`；`-SkipWsl` 禁毕业。信任链：扩面不丢 v0.6 基线。诚实剩余同 A/B。
 
 **毕业判定：** Stage 13 A/B/C/D **全绿**（2026-08-29）。验收：`verify-lock-pin.ps1` exit 0；`stage13-v06-regress.ps1 -SkipBuild` ALL_GREEN（串行 A+B + stage12-v05-regress；post-build 零 cargo）。Lock pin Decision #25 **未改**（**No Relock** — Stage 13 未改 `yoyo.ty`）。seed/link host fail-closed 观测；Win/Linux (+ stub OS) parity 单门禁；v0.6 基线不退化。诚实剩余：Rust runtime + LoadLibrary/libdl；full `.text` 仍可 DIFF；stub OS 仍 stub；**seed 仍 Rust 发射**。见 `RELEASE-v0.7.md` · tag `v0.7.0`。下一主线：`SCOPE-v0.8.md` + `STAGE14_OWNER_CHECKLIST.md`。
 
