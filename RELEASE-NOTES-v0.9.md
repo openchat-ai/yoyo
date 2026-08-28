@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-29  
 **Tag:** `v0.9.0`  
-**Commit:** *(filled after graduation commit)*
+**Commit:** `772251e940a9ad7f6eaac18f06ec2115107e1923`
 
 ---
 
