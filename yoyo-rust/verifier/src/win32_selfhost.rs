@@ -4,14 +4,13 @@ use crate::types::{IsaError, IsaResult};
 
 pub const RUNTIME_DLL_NAME: &str = "yoyo_runtime.dll";
 
-const TEMP_DLL_NAME: &[u8] = b"yoyo_rt.dll\0";
+const TEMP_DLL_NAME: &[u8] = b"yoyo_rt.dll\0"; // Stage 11-B H_00: cwd-relative (not %TEMP%)
 
 /// Merged kernel32 IAT slots (same base as platform_io r15+0). See pe_link prepend_win32_io_iat.
-pub const IAT_GET_TEMPPATH: u32 = 5;
-pub const IAT_LSTRCAT: u32 = 6;
-pub const IAT_LOADLIBRARY: u32 = 7;
-pub const IAT_GETPROCADDRESS: u32 = 8;
-pub const IAT_EXIT_PROCESS: u32 = 9;
+/// Stage 11-B: LoadLibrary path no longer uses GetTempPathA/lstrcatA (slots were 5–9).
+pub const IAT_LOADLIBRARY: u32 = 5;
+pub const IAT_GETPROCADDRESS: u32 = 6;
+pub const IAT_EXIT_PROCESS: u32 = 7;
 
 pub struct SelfhostMeta {
     pub temp_name_rva: u32,
@@ -36,7 +35,9 @@ const KERNEL32_FUNCS: &[&str] = &[
 
 pub fn runtime_dll_bytes() -> IsaResult<Vec<u8>> {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    // Stage 11-A: prefer `release-runtime` (fat LTO + strip) over plain release.
     for path in [
+        root.join("target/release-runtime/yoyo_runtime.dll"),
         root.join("target/release/yoyo_runtime.dll"),
         root.join("target/debug/yoyo_runtime.dll"),
         root.join("target-selfhost/release/yoyo_runtime.dll"),
@@ -48,7 +49,7 @@ pub fn runtime_dll_bytes() -> IsaResult<Vec<u8>> {
         }
     }
     Err(IsaError::IoError {
-        msg: "yoyo_runtime.dll not found — run `cargo build --release -p yoyo-runtime`".into(),
+        msg: "yoyo_runtime.dll not found — run `cargo build --profile release-runtime -p yoyo-runtime`".into(),
     })
 }
 
@@ -173,8 +174,9 @@ pub fn append_h00_runtime_data(
     ))
 }
 
-/// Stage 9-A H_00 runtime body: extract embedded runtime via Stage 8-A merged
-/// kernel32 IAT (CreateFile/WriteFile/LoadLibrary), invoke compile, ExitProcess.
+/// Stage 9-A / 11-B H_00 runtime body: extract embedded runtime via Stage 8-A
+/// merged kernel32 IAT (CreateFile/WriteFile/LoadLibrary) to cwd-relative
+/// `yoyo_rt.dll`, invoke compile, ExitProcess.
 /// PE entry is `jmp H_00` (not `call`), so this must never return.
 pub fn gen_h00_selfhost_main(
     meta: &SelfhostMeta,
@@ -187,7 +189,7 @@ pub fn gen_h00_selfhost_main(
     let main_text_off = pe_startup_len + main_user_off;
     let mut c: Vec<u8> = Vec::new();
 
-    // Same Win64 stack frame as gen2rt entry (PATH buffer at [rsp+0x80] after sub 0x208).
+    // Win64 shadow/stack frame (sub 0x208) — keep alignment for LoadLibrary.
     c.extend_from_slice(&[0x53, 0x41, 0x54, 0x41, 0x55, 0x56]);
     c.extend_from_slice(&[0x48, 0x81, 0xEC, 0x08, 0x02, 0x00, 0x00]);
 
@@ -196,7 +198,7 @@ pub fn gen_h00_selfhost_main(
     c
 }
 
-/// Shared DLL extract + invoke sequence (gen2rt entry or H_00 body).
+/// H_00 DLL extract + invoke (Stage 11-B: cwd-relative path, no GetTempPath/lstrcat).
 fn gen_dll_extract_invoke(
     c: &mut Vec<u8>,
     text_rva: u32,
@@ -205,7 +207,6 @@ fn gen_dll_extract_invoke(
     exit_process: bool,
     nested: bool,
 ) {
-    const PATH_OFF: u32 = 0x80;
     let body_start = c.len();
 
     if !nested {
@@ -213,22 +214,18 @@ fn gen_dll_extract_invoke(
         c.extend_from_slice(&[0x48, 0x81, 0xEC, 0x08, 0x02, 0x00, 0x00]);
     }
 
-    let code_off = code_base_off + body_start as u32;
+    let _code_off = code_base_off + body_start as u32;
 
-    emit_mov_ecx_imm(c, 260);
-    emit_lea_reg_rsp(c, 2, PATH_OFF);
-    emit_call_iat_merged(c, text_rva, code_base_off, meta.iat_rva, IAT_GET_TEMPPATH);
-
-    emit_lea_reg_rsp(c, 1, PATH_OFF);
+    // lea rcx, [rip+temp_name]  ("yoyo_rt.dll") — CreateFile / LoadLibrary path
     let lea_temp = c.len();
-    c.extend_from_slice(&[0x48, 0x8D, 0x15, 0, 0, 0, 0]);
-    emit_call_iat_merged(c, text_rva, code_base_off, meta.iat_rva, IAT_LSTRCAT);
+    c.extend_from_slice(&[0x48, 0x8D, 0x0D, 0, 0, 0, 0]);
 
     let lea_embed = c.len();
-    c.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]); // lea rsi, [rip+embed]
     emit_mov_r13_imm32(c, meta.dll_embed_size);
 
-    emit_lea_reg_rsp(c, 1, PATH_OFF);
+    // CreateFileA(rcx=path, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0)
+    // rcx already = path; reload after shadow-space writes may clobber — re-lea below if needed.
     emit_mov_edx_imm(c, 0x4000_0000);
     c.extend_from_slice(&[0x45, 0x31, 0xC0, 0x45, 0x31, 0xC9]);
     emit_mov_dword_rsp(c, 0x20, 2);
@@ -236,22 +233,24 @@ fn gen_dll_extract_invoke(
     emit_mov_qword_rsp(c, 0x30, 0);
     emit_call_iat_merged(c, text_rva, code_base_off, meta.iat_rva, 1); // CreateFileA
 
-    c.extend_from_slice(&[0x49, 0x89, 0xC4]);
-    c.extend_from_slice(&[0x4C, 0x89, 0xE1, 0x48, 0x89, 0xF2, 0x4D, 0x89, 0xE8]);
-    emit_lea_reg_rsp(c, 9, 0x40);
+    c.extend_from_slice(&[0x49, 0x89, 0xC4]); // mov r12, rax (handle)
+    c.extend_from_slice(&[0x4C, 0x89, 0xE1, 0x48, 0x89, 0xF2, 0x4D, 0x89, 0xE8]); // rcx=h, rdx=buf, r8=size
+    emit_lea_reg_rsp(c, 9, 0x40); // r9 = &bytes_written
     emit_mov_qword_rsp(c, 0x20, 0);
     emit_call_iat_merged(c, text_rva, code_base_off, meta.iat_rva, 3); // WriteFile
 
     c.extend_from_slice(&[0x4C, 0x89, 0xE1]);
     emit_call_iat_merged(c, text_rva, code_base_off, meta.iat_rva, 4); // CloseHandle
 
-    emit_lea_reg_rsp(c, 1, PATH_OFF);
+    // lea rcx, [rip+temp_name] again (rcx was clobbered)
+    let lea_temp2 = c.len();
+    c.extend_from_slice(&[0x48, 0x8D, 0x0D, 0, 0, 0, 0]);
     emit_call_iat_merged(c, text_rva, code_base_off, meta.iat_rva, IAT_LOADLIBRARY);
-    c.extend_from_slice(&[0x48, 0x89, 0xC3]);
+    c.extend_from_slice(&[0x48, 0x89, 0xC3]); // mov rbx, rax (module)
 
-    c.extend_from_slice(&[0x48, 0x89, 0xD9]);
+    c.extend_from_slice(&[0x48, 0x89, 0xD9]); // mov rcx, rbx
     let lea_export = c.len();
-    c.extend_from_slice(&[0x48, 0x8D, 0x15, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x8D, 0x15, 0, 0, 0, 0]); // lea rdx, [rip+export]
     emit_call_iat_merged(c, text_rva, code_base_off, meta.iat_rva, IAT_GETPROCADDRESS);
 
     c.extend_from_slice(&[0xFF, 0xD0]); // call runtime export
@@ -260,9 +259,7 @@ fn gen_dll_extract_invoke(
         c.extend_from_slice(&[0x89, 0xC1]);
         emit_call_iat_merged(c, text_rva, code_base_off, meta.iat_rva, IAT_EXIT_PROCESS);
     }
-    let _ = code_off;
 
-    // Ensure fixup sites are in bounds (lea disp32 writes 4 bytes past opcode).
     let need = lea_export + 7;
     if c.len() < need {
         c.resize(need, 0x90);
@@ -274,6 +271,14 @@ fn gen_dll_extract_invoke(
         text_rva,
         code_base_off,
         lea_temp + 7,
+        meta.temp_name_rva,
+    );
+    fix_rip_disp(
+        c,
+        lea_temp2 + 3,
+        text_rva,
+        code_base_off,
+        lea_temp2 + 7,
         meta.temp_name_rva,
     );
     fix_rip_disp(

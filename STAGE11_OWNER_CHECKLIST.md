@@ -11,7 +11,8 @@ YOYO 的存在理由 **不是造语言**，而是 **用 DDC + Lock 在实践中�
 ## 🎯 Stage 11 进度
 
 ```text
-[ ] A  [ ] B  [ ] C  [ ] D   →  见 SCOPE-v0.5.md
+[x] A  [x] B  [x] C  [x] D   →  v0.5 已毕业（2026-08-28）· 见 SCOPE-v0.5.md / RELEASE-v0.5.md
+                              → 下一主线 v0.6：SCOPE-v0.6.md + STAGE12_OWNER_CHECKLIST.md
 ```
 
 > **关于「打钩」**：`- [x]` = 已勾，`- [ ]` = 未勾。Markdown 预览才显示为 checkbox 符号。
@@ -49,7 +50,7 @@ YOYO 的存在理由 **不是造语言**，而是 **用 DDC + Lock 在实践中�
 
 **不要跳关**：B 可与 A 技术并行，但勾选顺序仍 A→B；D 依赖 A/B/C。
 
-**第一次推进** = 做 **A**（YOYO-built / 更薄 runtime）。
+**下一关** = 已毕业 → 见 `STAGE12_OWNER_CHECKLIST.md`（v0.6）。
 
 ---
 
@@ -65,11 +66,12 @@ Stage 11 进行中加跑（见各项验收）：
 ```powershell
 cd F:\yoyo
 .\scripts\stage10-runtime-surface.ps1
+.\scripts\stage11-runtime-surface.ps1
+.\scripts\stage11-loadlibrary-host.ps1
 .\scripts\stage10-asm-peer-io.ps1
 .\scripts\stage9-pure-m4.ps1
 .\scripts\verify-lock-pin.ps1
 # WSL: bash scripts/stage10-linux-pure-m4.sh
-# + Stage 11 新门禁（落地后）
 ```
 
 ---
@@ -78,10 +80,10 @@ cd F:\yoyo
 
 ### 待做
 
-- [ ] **A：YOYO-built / 更薄 runtime** — 替换或显著收缩每个 genN 嵌入的 Rust `yoyo_runtime.dll` / `.so`；策略落地须可脚本验收（大小/parity/自建路径）· **信任链**：窗外 host runtime 字节减少或进入监控；不得用「为能跑而跳过 DDC」捷径
-- [ ] **B：收缩 LoadLibrary / libdl host** — 缩小 H_00 提取后对宿主加载器的信任；或把关键路径纳入可观测门禁 · **信任链**：「绿」不再只能靠不可比对的 LoadLibrary/libdl 黑箱
-- [ ] **C：v0.4 回归不退化** — stage10/stage9/fullbody/lock/gen12 门禁保持绿；必要时加固观测脚本 · **信任链**：扩面时不丢已有 DDC/Lock 基线
-- [ ] **D：v0.5 毕业门禁** — A/B/C 全绿 + Lock 复验（改源则 Relock）+ `SCOPE-v0.5.md` 毕业判定 + `RELEASE-v0.5.md` · **信任链**：RELEASE 诚实写 DDC=detection 非 proof；逐项写如何加强 DDC/Lock / 缩小宿主信任
+- [x] **A：YOYO-built / 更薄 runtime** — 替换或显著收缩每个 genN 嵌入的 Rust `yoyo_runtime.dll` / `.so`；策略落地须可脚本验收（大小/parity/自建路径）· **信任链**（2026-08-28）：`scripts/stage11-runtime-surface.ps1` GREEN；DLL **231936→154624** B（fail-closed MAX **170000**；`profile.release-runtime` fat LTO + strip + `panic=abort` + `opt-level=z`）；`.so` **592064→407232**；genN PE **322560→248832** / ELF **704512→512000**；gen12 窗仍 **18432** B，SHA `43ffde58`→`d782166d`（H_00 stub 含 `dll_embed_size`）；embed exact + gen1 H_00 compile ≡ bootstrap `.text` DDC；**仍** Rust cdylib、窗外、非 YOYO-built（诚实）
+- [x] **B：收缩 LoadLibrary / libdl host** — 缩小 H_00 提取后对宿主加载器的信任；或把关键路径纳入可观测门禁 · **信任链**（2026-08-28）：`scripts/stage11-loadlibrary-host.ps1` GREEN；Win H_00 **cwd-relative** `yoyo_rt.dll`（dropped **GetTempPathA/lstrcatA**；host-loader IAT **5→3**）；Linux tramp **14464→9768** B（nostdlib `.S`；fail-closed MAX **12000**；exact embed）；stub deterministic re-link `.text` DDC EQUAL（gen12 SHA **`d782166d`** · 18432B）；smoke cwd extract + LoadLibrary；**仍** host LoadLibraryA / libdl（诚实）
+- [x] **C：v0.4 回归不退化** — stage10/stage9/fullbody/lock/gen12 门禁保持绿；必要时加固观测脚本 · **已关**（2026-08-28）：`scripts/_stage11-c-accept.log` ALL_GREEN — build/s11-rt/s11-ll/s10-rt/s10-asm/s10-linux/s9-m4/s9-js/s5/pin/all/lock/gen12/fullbody EXIT=0
+- [x] **D：v0.5 毕业门禁** — A/B/C 全绿 + Lock 复验（pin 未改 · 无 Relock）+ `SCOPE-v0.5.md` 毕业判定 + `RELEASE-v0.5.md` / `RELEASE-NOTES-v0.5.md`（2026-08-28）· **信任链**：Decision #25 pin 仍权威；gen12 `d782166d` / 18432B；DLL **154624** B fail-closed；LoadLibrary cwd + tramp **9768** B；RELEASE 诚实写 DDC=detection、仍 Rust runtime + LoadLibrary/libdl
 
 ### 可选 · 低优先级（不挡 v0.5 毕业）
 

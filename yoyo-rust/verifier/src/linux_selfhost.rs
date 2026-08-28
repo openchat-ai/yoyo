@@ -40,9 +40,15 @@ int main(void) {
 /// Load prebuilt `libyoyo_runtime.so` from release/debug target dirs.
 pub fn runtime_so_bytes() -> IsaResult<Vec<u8>> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    // Stage 11-A: prefer `release-runtime` (fat LTO + strip) over plain release.
     let candidates = [
+        root.join("target/release-runtime/libyoyo_runtime.so"),
         root.join("target/release/libyoyo_runtime.so"),
         root.join("target/debug/libyoyo_runtime.so"),
+        root.join(format!(
+            "target/{}/release-runtime/libyoyo_runtime.so",
+            current_target()
+        )),
         root.join(format!(
             "target/{}/release/libyoyo_runtime.so",
             current_target()
@@ -60,7 +66,7 @@ pub fn runtime_so_bytes() -> IsaResult<Vec<u8>> {
         }
     }
     Err(IsaError::IoError {
-        msg: "libyoyo_runtime.so not found — run `cargo build --release -p yoyo-runtime` (Linux/WSL)"
+        msg: "libyoyo_runtime.so not found — run `cargo build --profile release-runtime -p yoyo-runtime` (Linux/WSL)"
             .into(),
     })
 }

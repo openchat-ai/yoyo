@@ -18,3 +18,16 @@ yoyo-platform = { path = "platform" }
 [profile.release.package.yoyo-runtime]
 opt-level = "z"
 codegen-units = 1
+
+# Stage 11-A: dedicated profile for yoyo-runtime cdylib — fat LTO + strip +
+# abort without forcing LTO on the verifier CLI (wasmtime link). Output:
+#   target/release-runtime/yoyo_runtime.dll
+# Prefer this path in win32_selfhost / linux_selfhost; scripts copy into
+# target/release/ for stage10 compatibility.
+[profile.release-runtime]
+inherits = "release"
+lto = true
+strip = "symbols"
+codegen-units = 1
+opt-level = "z"
+panic = "abort"

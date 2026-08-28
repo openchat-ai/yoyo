@@ -9,6 +9,8 @@
 # v0.3 baseline (pre Stage 10-A): 485888 bytes
 # Stage 10-A shrink: default-features=false (no full-backends/wasmtime) +
 #   profile.release.package.yoyo-runtime opt-level=z → 231936 bytes
+# Stage 11-A further shrink (fat LTO + strip + verifier -z): see
+#   scripts/stage11-runtime-surface.ps1 (tighter MAX; this Stage 10 gate stays).
 #
 # Honest remaining surface: DLL bytes remain OUTSIDE gen12; still Rust-compiled;
 # Win/Linux selfhost still LoadLibrary this blob. Not a YOYO-built runtime yet.

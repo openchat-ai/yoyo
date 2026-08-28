@@ -91,7 +91,7 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 
 **D-1 (2026-08-27 / Stage 9-B 2026-08-28 / Stage 10-C 2026-08-28):** Rust **Win32 + Linux** production link paths no longer use movabs+store placeholders for I/O opcodes. **Stub** remains deterministic for golden fixtures (G-SM-IO). **JS peer (Stage 9-B):** production `yoyo-js` PE path uses `setEmitPlatform('win32')` + `platform-io.js` matching Rust `platform_io.rs` byte-for-byte; golden default stays `stub`. Gate: `scripts/stage9-js-peer-io.ps1` + golden `PEER-IO-WIN32` / `PEER-IO-LINUX` / `PEER-IO-STUB`. **Asm peer (Stage 10-C):** `yoyo-asm/platform_io.py` + `asm.py` `--target=win32|linux|stub` — win32 `0x20/0x50/0x51` byte-equal Rust; linux ALLOC syscall path peer-checked. Gate: `scripts/stage10-asm-peer-io.ps1`.
 
-**Trust-chain observability:** gen12 `.text` SHA as of Stage 10-A (H_00 stub carries `dll_embed_size`): **`43ffde58…`** · **18432** bytes (was `b609a735…` at Stage 9 / v0.3 when embedded DLL was 485888B). Self-host bootstrap (gen1≡gen2) still EQUAL; I/O syscall/IAT + H_00 extract stub bytes are inside the compared `.text` window. **Stage 9-B / 10-C:** JS↔Rust↔asm win32 I/O handler bodies EQUAL on minimal fixtures; stub remains for G-SM-IO.
+**Trust-chain observability:** gen12 `.text` SHA as of Stage 11-B (H_00 cwd-relative LoadLibrary stub): **`d782166d…`** · **18432** bytes (was `27a79388…` at Stage 11-A; `43ffde58…` at Stage 10-A / v0.4 @ DLL 231936B; `b609a735…` at Stage 9 / v0.3 @ 485888B). Self-host bootstrap (gen1≡gen2) still EQUAL; I/O syscall/IAT + H_00 extract stub bytes are inside the compared `.text` window. **Stage 9-B / 10-C:** JS↔Rust↔asm win32 I/O handler bodies EQUAL on minimal fixtures; stub remains for G-SM-IO.
 
 ### Stage 10-A — embedded `yoyo_runtime.dll` surface shrink (fail-closed)
 
@@ -102,6 +102,28 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **How** | `yoyo-runtime` depends on `verifier` with `default-features = false` (no `full-backends` / no wasmtime); `select_platform` only Win32/Linux/Stub; `profile.release.package.yoyo-runtime` `opt-level=z` |
 | **Gate** | `scripts/stage10-runtime-surface.ps1` — fail-closed MAX **250000** B; exact embed match in gen1; forbids wasmtime/cranelift markers |
 | **Still host-trusted** | DLL still Rust-compiled (Win32 compile path); bytes **outside** gen12 remain the bulk of the hole; not a YOYO-built runtime yet |
+
+### Stage 11-A — thinner embedded runtime (fail-closed + compile-parity)
+
+| Item | Detail |
+|------|--------|
+| **Before (v0.4 / Stage 10-A)** | Embedded DLL **231936** B · fail-closed MAX **250000** |
+| **After** | Embedded DLL **154624** B (fat LTO + strip + `panic=abort` + `opt-level=z`) · fail-closed MAX **170000**; Linux `.so` **407232** B; genN PE **248832** / ELF **512000** |
+| **How** | Dedicated `profile.release-runtime` (`lto` + `strip` + `opt-level=z` + `panic=abort`); still `default-features=false`; discovery prefers `target/release-runtime/` (copied to `target/release/` for Stage 10 gate) |
+| **Gate** | `scripts/stage11-runtime-surface.ps1` — size + exact embed + gen1 H_00 compile ≡ `yoyo bootstrap` `.text` DDC; Stage 10 gate remains green |
+| **Trust gain** | Host runtime bytes outside gen12 shrink further; DLL compile *effect* monitored vs bootstrap parity (bytes themselves still outside gen12); with Stage 11-B stub, gen12 SHA **`d782166d…`** |
+| **Still host-trusted** | Still Rust cdylib (not YOYO-built); LoadLibrary/libdl host path shrunk in Stage 11-B |
+
+### Stage 11-B — shrink LoadLibrary / libdl host (fail-closed)
+
+| Item | Detail |
+|------|--------|
+| **Before** | H_00 Win: GetTempPathA + lstrcatA + LoadLibraryA (5 host-loader IAT slots 5–9); Linux tramp **14464** B (gcc CRT) |
+| **After** | Win: cwd-relative `yoyo_rt.dll` only — host-loader IAT **3** (LoadLibraryA/GetProcAddress/ExitProcess); Linux tramp **9768** B (nostdlib `.S`) |
+| **How** | `pe_link`/`win32_selfhost` drop TEMP-path APIs; `linux_h00_tramp.S` + `build-linux-h00-tramp.sh` |
+| **Gate** | `scripts/stage11-loadlibrary-host.ps1` — forbidden GetTempPath/lstrcat absent; tramp MAX **12000**; exact tramp embed; deterministic re-link `.text` DDC; cwd extract smoke |
+| **Trust gain** | 「绿」pins stub/IAT/tramp bytes — not only “LoadLibrary succeeded”; fewer opaque kernel32 APIs on load path |
+| **Still host-trusted** | Still calls host LoadLibraryA / libdl; trampoline still needs libc/libdl |
 
 ### Stage 9-B — JS peer platform I/O (DDC blind zone closed)
 
@@ -135,7 +157,7 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **`stage10-linux-pure-m4.sh`** | Stage 10-B: Linux M4 via ELF H_00 (no `--selfhost`) | gen1→gen2→gen3→gen4; gen4≡gen3_direct full-ELF DDC EQUAL |
 | **`stage8-extended-selfhost.ps1/.sh`** | M2→M3→M4 embedded chain (Stage 8-C; regression) | gen4≡gen3_direct `.text` DDC EQUAL; same gen12 window as fullbody |
 
-**DDC coverage boundary (honest):** gen12/fullbody monitor the **788-handler emit body** (handler `.text`), including Stage 9-A H_00 patch + appended extract stub when present (stub embeds `dll_embed_size`, so Stage 10-A DLL shrink moves gen12 SHA). Embedded Rust `yoyo_runtime.dll` payload bytes remain outside that compared window (Stage 10-A: **231936** B, was 485888). Golden G-SM fixtures still test W-selfhost-min opcode shapes; fullbody gate ensures production compile uses the complete body, not scoped H_05–H_16 subset only.
+**DDC coverage boundary (honest):** gen12/fullbody monitor the **788-handler emit body** (handler `.text`), including Stage 9-A H_00 patch + appended extract stub when present (stub embeds `dll_embed_size`, so Stage 10-A / 11-A DLL shrink and Stage 11-B stub/IAT shrink move gen12 SHA — now **`d782166d…`** · **18432** B). Embedded Rust `yoyo_runtime.dll` payload bytes remain outside that compared window (Stage 11-A: **154624** B, was Stage 10-A 231936 / v0.3 485888). Golden G-SM fixtures still test W-selfhost-min opcode shapes; fullbody gate ensures production compile uses the complete body, not scoped H_05–H_16 subset only.
 
 ### Stage 9-A — gen1 H_00 pure runtime (trust hole closed)
 
@@ -143,9 +165,9 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 |------|--------|
 | **Path** | `yoyo link` → `gen1.exe`; PE entry `lea r15; jmp H_00`; H_00 patched to `jmp` extract+`LoadLibrary`+`yoyo_runtime_selfhost_main`+`ExitProcess` |
 | **Not used** | genNrt-style entry that *replaces* user entry with a separate startup blob (gen2rt still uses that for Stage 8-C regression) |
-| **I/O** | Same Stage 8-A merged kernel32 IAT at `r15+0` (CreateFile/WriteFile/LoadLibrary/ExitProcess) for in-process DLL extract |
+| **I/O** | Stage 8-A merged kernel32 IAT at `r15+0`; Stage 11-B: cwd-relative `yoyo_rt.dll` CreateFile/WriteFile/LoadLibrary (no GetTempPathA/lstrcatA) |
 | **Gate** | `scripts/stage9-gen1-h00-selfhost.ps1` + `stage5-win-selfhost.ps1` gen1 line GREEN |
-| **Still host-trusted** | Embedded `yoyo_runtime.dll` compile (Rust; Stage 10-A shrunk surface — see above); see Stage 9-C for M4 without genNrt wrapper |
+| **Still host-trusted** | Embedded `yoyo_runtime.dll` compile (Rust; Stage 11-A thinner); host LoadLibraryA remains (Stage 11-B observes/shrinks face) |
 
 ### Stage 9-C — Win pure M4 (host `--selfhost` wrapper shrunk)
 
@@ -163,9 +185,9 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 |------|--------|
 | **Path** | `yoyo link --target=linux` → gen1; ELF entry `lea r15; jmp H_00`; H_00 extracts embedded `libyoyo_runtime.so` + `linux_h00_tramp.elf` via syscalls then `execve` trampoline |
 | **Not used** | `bootstrap --selfhost` / genNrt gcc loader for the M4 gate (`stage10-linux-pure-m4.sh`) |
-| **Parity** | gen4 ≡ gen3_direct full-ELF DDC EQUAL (sha prefix `085d07d4…` · **704512** B as of 2026-08-28; H_00 write-loop) |
+| **Parity** | gen4 ≡ gen3_direct full-ELF DDC EQUAL (sha prefix `c6d8c49a…` · **512000** B as of Stage 11-B 2026-08-28; was `085d07d4…` · 704512) |
 | **Gate** | `scripts/stage10-linux-pure-m4.sh`; stage8-extended-selfhost.sh remains GREEN (regression; still documents genNrt `--selfhost`) |
-| **Still host-trusted** | Seed `link` + gen3_direct `bootstrap`; embedded Rust `.so` + committed trampoline blob (dlopen/libdl); trampoline still uses system libc |
+| **Still host-trusted** | Seed `link` + gen3_direct `bootstrap`; embedded Rust `.so` + committed trampoline (Stage 11-B: **9768** B nostdlib; still dlopen/libdl via libc) |
 
 ### How to run
 

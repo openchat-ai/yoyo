@@ -15,9 +15,9 @@ const KERNEL32_IO_FUNCS: &[&str] = &[
     "ReadFile",
     "WriteFile",
     "CloseHandle",
-    // Stage 9-A H_00 runtime: DLL extract + LoadLibrary (slots 5–9, same IAT base as r15+0).
-    "GetTempPathA",
-    "lstrcatA",
+    // Stage 9-A / 11-B H_00 runtime: cwd-relative DLL extract + LoadLibrary
+    // (slots 5–7). Stage 11-B dropped GetTempPathA/lstrcatA — write+LoadLibrary
+    // `yoyo_rt.dll` in cwd (same posture as Linux `./libyoyo_runtime.so`).
     "LoadLibraryA",
     "GetProcAddress",
     "ExitProcess",
@@ -239,6 +239,7 @@ fn write_cstr_entry(blob: &mut [u8], base: usize, s: &[u8]) {
 
 /// Wrap raw x64 code with Win32 runtime selfhost startup + HOT table.
 /// Entry: extract embedded runtime to %TEMP% → LoadLibraryA → compile → ExitProcess.
+/// (gen2rt / Stage 8-C regression path; keeps private GetTempPath IAT via build_selfhost_metadata.)
 pub fn link_pe_selfhost(
     code: &[u8],
     data: &[u8],

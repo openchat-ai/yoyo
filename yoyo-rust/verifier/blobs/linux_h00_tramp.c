@@ -1,5 +1,7 @@
-/* Stage 10-B: tiny dlopen trampoline for ELF H_00 path.
- * Written to cwd by H_00 stub, then execve'd. Expects ./libyoyo_runtime.so.
+/* Historical Stage 10-B C trampoline (gcc+CRT ~14KB).
+ * Stage 11-B builds from linux_h00_tramp.S via scripts/build-linux-h00-tramp.sh
+ * (nostdlib, ~10KB). Kept only as readable reference of the dlopen contract:
+ *   dlopen("./libyoyo_runtime.so") → dlsym("yoyo_runtime_selfhost_main") → call.
  */
 #include <dlfcn.h>
 #include <stdlib.h>

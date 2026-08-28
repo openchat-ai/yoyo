@@ -32,8 +32,8 @@ YOYO v0.5 要 **收口 v0.4 RELEASE 诚实写出的最大剩余洞**：嵌入式
 
 | # | 范围 | 说明 | 信任链（为何 IN） |
 |---|------|------|------------------|
-| 1 | **YOYO-built / 更薄 runtime** | 替换或显著收缩每个 genN 嵌入的 Rust runtime；策略须可脚本验收（大小/parity/自建路径） | **v0.4 最大诚实剩余洞** |
-| 2 | **收缩 LoadLibrary / libdl host** | 缩小 H_00→宿主加载器旁路；或把关键路径纳入可观测门禁 | **runtime 加载信任洞** |
+| 1 | **YOYO-built / 更薄 runtime** | 替换或显著收缩每个 genN 嵌入的 Rust runtime；策略须可脚本验收（大小/parity/自建路径） · **Stage 11-A DONE 2026-08-28**：DLL **231936→154624** B（`stage11-runtime-surface.ps1` MAX 170000；`release-runtime` fat LTO）；compile-parity vs bootstrap；**仍** Rust 嵌入（诚实） | **v0.4 最大诚实剩余洞** |
+| 2 | **收缩 LoadLibrary / libdl host** | 缩小 H_00→宿主加载器旁路；或把关键路径纳入可观测门禁 · **Stage 11-B DONE 2026-08-28**：Win cwd-relative extract（IAT 5→3）；Linux tramp 14464→9768；`stage11-loadlibrary-host.ps1` | **runtime 加载信任洞** |
 | 3 | **v0.4 回归不退化** | stage10 + stage9 + fullbody/lock/gen12 保持绿 | 扩面时不丢已有 DDC/Lock 基线 |
 | 4 | **毕业收口** | Relock（若改 pin）+ `RELEASE-v0.5.md`；诚实写仍存边界 | 对外 detection 话术 |
 
@@ -57,10 +57,10 @@ YOYO v0.5 要 **收口 v0.4 RELEASE 诚实写出的最大剩余洞**：嵌入式
 
 | v0.4 / `RELEASE-v0.4.md` 状态 | v0.5 回收 |
 |-------------------------------|-----------|
-| **Embedded Rust runtime** — 仍嵌、窗外 | Stage 11 **A** |
-| **LoadLibrary / libdl trampoline** | Stage 11 **B** |
+| **Embedded Rust runtime** — 仍嵌、窗外 | Stage 11 **A DONE 2026-08-28**：DLL **231936→154624** B（MAX **170000**；`release-runtime` LTO/strip/abort）；compile-parity 门禁绿；**仍** Rust cdylib 非 YOYO-built |
+| **LoadLibrary / libdl trampoline** | Stage 11 **B DONE 2026-08-28**：cwd-relative + IAT 5→3；tramp 14464→9768；**仍** LoadLibrary/libdl |
 | Linux `--selfhost` / asm I/O stubs | **已关**（v0.4）；不得回退 |
-| DDC = detection 非 proof | Stage 11 **D** 继续强调 |
+| DDC = detection 非 proof | Stage 11 **D DONE** — 见 `RELEASE-v0.5.md` |
 
 ---
 
@@ -77,16 +77,17 @@ cd F:\yoyo
 .\scripts\verify-lock-pin.ps1
 node .\scripts\verify-yoyo-ty.mjs
 .\scripts\stage10-runtime-surface.ps1
+.\scripts\stage11-runtime-surface.ps1       # A：更薄 runtime（DONE · MAX 170000）
+.\scripts\stage11-loadlibrary-host.ps1      # B：LoadLibrary/libdl host（DONE · tramp MAX 12000）
 .\scripts\stage10-asm-peer-io.ps1
 .\scripts\stage9-pure-m4.ps1
 .\scripts\stage5-win-selfhost.ps1
 wsl bash /mnt/f/yoyo/scripts/stage10-linux-pure-m4.sh
-# + Stage 11 新门禁脚本（A/B 落地后）
 ```
 
 **Stage 11 四门全 `[x]`** = v0.5 可发布候选。
 
-**毕业判定：** （Stage 11 A/B/C/D 全绿后填写）
+**毕业判定：** Stage 11 A/B/C/D **全绿**（2026-08-28）。验收：`test all` / `lock` / `gen12` / `fullbody` / `verify-lock-pin` / `stage11-runtime-surface` / `stage11-loadlibrary-host` / stage10/stage9 基线全 exit 0。Lock pin Decision #25 **未改**（无 Relock）。gen12 窗 **18432** B · SHA `d782166d…`；runtime.dll **154624** B（仍 Rust 嵌入，诚实剩余）；LoadLibrary cwd-relative + Linux tramp **9768** B（仍 libdl）。见 `RELEASE-v0.5.md` · tag `v0.5.0`。
 
 ---
 
