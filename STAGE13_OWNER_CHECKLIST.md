@@ -11,7 +11,8 @@ YOYO 的存在理由 **不是造语言**，而是 **用 DDC + Lock 在实践中�
 ## 🎯 Stage 13 进度
 
 ```text
-[ ] A  [ ] B  [ ] C  [ ] D   →  见 SCOPE-v0.7.md
+[x] A  [x] B  [x] C  [x] D   →  v0.7 已毕业（2026-08-29）· 见 SCOPE-v0.7.md / RELEASE-v0.7.md
+                              → 下一主线 v0.8：SCOPE-v0.8.md + STAGE14_OWNER_CHECKLIST.md
 ```
 
 > **关于「打钩」**：`- [x]` = 已勾，`- [ ]` = 未勾。Markdown 预览才显示为 checkbox 符号。
@@ -26,7 +27,8 @@ YOYO 的存在理由 **不是造语言**，而是 **用 DDC + Lock 在实践中�
 | **Cursor 内** | `Ctrl+P` → `STAGE13_OWNER` |
 | **规格一页纸** | `F:\yoyo\SCOPE-v0.7.md` |
 
-相关：`STAGE12_OWNER_CHECKLIST.md`（v0.6 已毕业）、`RELEASE-v0.6.md`、`BACKEND_SUPPORT.md`。  
+相关：`STAGE12_OWNER_CHECKLIST.md`（v0.6 已毕业）、`RELEASE-v0.6.md`、`RELEASE-v0.7.md`、`BACKEND_SUPPORT.md`。  
+**下一主线**：`STAGE14_OWNER_CHECKLIST.md` · `SCOPE-v0.8.md`。  
 **→ 1.0**：`SCOPE-v1.0.md` · `ROADMAP-TO-1.0.md` · **`AUTO_TO_1.0.md`**（`ACTIVE=1` 无人值守）。
 
 ---
@@ -36,7 +38,7 @@ YOYO 的存在理由 **不是造语言**，而是 **用 DDC + Lock 在实践中�
 | 方式 | 操作 |
 | ---- | ---- |
 | **AUTO-TO-1.0** | `AUTO_TO_1.0.md` `ACTIVE=1` → 每 tick 无问询执行下一未勾项直至 1.0 / hard block / `停` |
-| **单轨** | A→B→C→D；全绿后 **自动定** v0.8/Stage14 并继续 |
+| **单轨** | A→B→C→D；全绿后 **自动定** v0.8/Stage14（已定）并继续 |
 | **毕业 D** | 绿后 auto commit + tag + GitHub Release + push（WIP 不 push） |
 | **看板** | Agent 优先打开本文件；Stage 4–12 勿回改 |
 
@@ -49,7 +51,7 @@ YOYO 的存在理由 **不是造语言**，而是 **用 DDC + Lock 在实践中�
 
 **不要跳关**：B 可与 A 技术并行，但勾选顺序仍 A→B；D 依赖 A/B/C。
 
-**下一项** = **A**（seed/link host）。
+**下一关** = 已毕业 → 见 `STAGE14_OWNER_CHECKLIST.md`（v0.8）。
 
 ---
 
@@ -72,6 +74,9 @@ cd F:\yoyo
 .\scripts\stage9-pure-m4.ps1
 .\scripts\verify-lock-pin.ps1
 # Stage 13 gates: stage13-* （落地后补）
+.\scripts\stage13-link-host.ps1
+.\scripts\stage13-cross-platform-parity.ps1
+.\scripts\stage13-v06-regress.ps1
 # WSL: bash scripts/stage10-linux-pure-m4.sh
 ```
 
@@ -81,10 +86,10 @@ cd F:\yoyo
 
 ### 待做
 
-- [ ] **A：seed/link host** — 收缩或 fail-closed 观测 `yoyo link` / `bootstrap` 种子旁路 · **信任链**：须说明如何缩小自举入口宿主信任；可脚本 exit 0
-- [ ] **B：跨平台 parity** — Win/Linux（+ stub OS 诚实钉）parity 门禁加厚 · **信任链**：减少一平台绿、另一平台盲
-- [ ] **C：v0.6 回归不退化** — stage12/stage11/stage10/stage9/fullbody/lock/gen12 门禁保持绿 · **信任链**：扩面不丢基线
-- [ ] **D：v0.7 毕业门禁** — A/B/C 全绿 + Lock 复验（改源则 Relock）+ `SCOPE-v0.7.md` 毕业判定 + `RELEASE-v0.7.md` · **信任链**：RELEASE 诚实写 DDC=detection 非 proof
+- [x] **A：seed/link host** — fail-closed 观测 + 合同 · **信任链**（2026-08-28 复验）：`scripts/stage13-link-host.ps1` exit **0**；`yoyo.exe test all` exit **0**；spot stage12-A/B + stage11-A/B + lock pin **0**。批准种子 = H_00 `seed_host_compile*`；`link`≡`bootstrap`(无 `--selfhost`) DDC EQUAL；PE/ELF ≤ MAX；Win 禁 GetTempPathA；`--selfhost` 必须 DIFF + `SEED_HOST path=gennrt`。**诚实剩余**：Rust `yoyo.exe` 仍发射种子；embedded runtime + LoadLibrary/libdl；Linux `SEED_HOST` 在当前 release binary 上仍可能报 `path=plain`（门禁以 `libyoyo_runtime.so`+`dlopen` markers fail-closed；源码 classifier 已认 `h00`，待无竞态 rebuild 钉死 `path=h00`）
+- [x] **B：跨平台 parity** — Win/Linux（+ stub OS 诚实钉）parity 门禁加厚 · **信任链**（2026-08-29）：`scripts/stage13-cross-platform-parity.ps1`（alias `stage13-parity.ps1` / `stage13-cross-parity.ps1`）exit **0** ALL_GREEN；内嵌 stage12-three-peer-io + stage13-link-host（禁 SkipLinux）+ stage9-pure-m4 + WSL stage10-linux-pure-m4（禁 SkipWsl）；stub OS `freebsd`/`haiku` ALLOC/LOAD/WRITE **Rust=JS=asm** 17B G-SM-IO（禁 0F05 invent）+ `plan9`/`serenity` NOP/SERE 诚实分叉钉 + unknown→stub（apple/android）；linux ALLOC 对比须有 syscall。**诚实剩余**：stub OS 仍 stub（非生产 I/O）；Rust runtime + LoadLibrary/libdl；full `.text` 可 DIFF；macOS 非门禁
+- [x] **C：v0.6 回归不退化** — stage12/stage11/stage10/stage9/fullbody/lock/gen12 门禁保持绿 · **信任链**（2026-08-29）：`scripts/stage13-v06-regress.ps1` exit **0** ALL_GREEN；串行 A+B + `yoyo.exe test all/lock/gen12/fullbody` + verify-lock-pin + stage11/10/9 + stage12 three-peer/selfhost-body + WSL stage10-linux-pure-m4；post-build **零 cargo**（release `yoyo.exe` + `-SkipBuild`；`verify-lock-pin` 优先无 cargo）。**诚实剩余**：Rust runtime + LoadLibrary/libdl；full `.text` 可 DIFF；stub OS 仍 stub；seed 仍 Rust 发射
+- [x] **D：v0.7 毕业门禁** — A/B/C 全绿 + Lock 复验（pin 未改 · 无 Relock）+ `SCOPE-v0.7.md` 毕业判定 + `RELEASE-v0.7.md` / `RELEASE-NOTES-v0.7.md`（2026-08-29）· **信任链**：Decision #25 pin 仍权威；`verify-lock-pin` exit 0；`stage13-v06-regress.ps1 -SkipBuild` ALL_GREEN；RELEASE 诚实写 DDC=detection、仍 Rust runtime + LoadLibrary/libdl、full `.text` 可 DIFF、stub OS 仍 stub、**seed 仍 Rust 发射**
 
 ### 可选 · 低优先级（不挡 v0.7 毕业）
 
@@ -141,4 +146,4 @@ Stage 13 毕业项 D：v0.7 毕业收口。
 
 ---
 
-*创建：2026-08-28 · v0.6.0 后定稿 Stage 13 / v0.7 · 见 `SCOPE-v0.7.md` · 长期 → `SCOPE-v1.0.md` / `ROADMAP-TO-1.0.md`*
+*创建：2026-08-28 · v0.6.0 后定稿 Stage 13 / v0.7 · 见 `SCOPE-v0.7.md` · **v0.7 已毕业 2026-08-29** · 下一主线 → `SCOPE-v0.8.md` / `STAGE14_OWNER_CHECKLIST.md`*

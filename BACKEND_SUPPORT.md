@@ -179,7 +179,47 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 |------|--------|
 | **Docs** | `RELEASE-v0.6.md` · `RELEASE-NOTES-v0.6.md` · `SCOPE-v0.6.md` 毕业判定 |
 | **Lock** | Decision #25 pin **unchanged** — no Relock（Stage 12 未改 `yoyo.ty`） |
-| **Next** | Stage 13 / v0.7：`SCOPE-v0.7.md` + `STAGE13_OWNER_CHECKLIST.md`（seed/link host · 跨平台 parity） |
+| **Next** | Stage 13 / v0.7：`SCOPE-v0.7.md` + `STAGE13_OWNER_CHECKLIST.md`（seed/link host · 跨平台 parity）· **v0.7 已毕业 2026-08-29** → 见 Stage 13-D |
+
+### Stage 13-A — seed/link host contract + fail-closed observe
+
+| Item | Detail |
+|------|--------|
+| **Contract** | Canonical seed = H_00 `link_pe_win32` / `link_elf_linux` via `selfhost::seed_host_compile*`；`yoyo bootstrap` **without** `--selfhost` is an alias of that path（not genNrt） |
+| **Observe** | Machine line `SEED_HOST cmd=… path=h00|gennrt …`（`verifier/src/seed_host.rs`）；Win seed must expose `yoyo_rt.dll`+LoadLibraryA and **must not** expose GetTempPathA |
+| **Fail-closed** | PE ≤ **270000** / ELF ≤ **550000**（Rust H_00 link + `scripts/stage13-link-host.ps1`）；`bootstrap --selfhost` **must DIFF** seed |
+| **Gate** | `scripts/stage13-link-host.ps1` exit 0（observed PE **248832** / ELF **512000**；gen12 SHA unchanged `d782166d…`） |
+| **Trust gain** | 「绿」cannot silently slide onto genNrt/GetTempPath seed；dual CLI (`link`/`bootstrap`) pinned to one H_00 host surface |
+| **Still host-trusted** | Rust-built `yoyo.exe` still **emits** the seed；embedded Rust runtime + LoadLibrary/libdl remain（Stages 10–11） |
+
+### Stage 13-B — Win/Linux parity + stub-OS honesty
+
+| Item | Detail |
+|------|--------|
+| **Scope** | Fail-closed dual-platform gate — Win **and** Linux must green under one script; stub OS honesty-pinned |
+| **Covers** | `stage12-three-peer-io` + Rust/JS/asm stub-OS pins（freebsd/haiku/plan9/serenity）+ `stage13-link-host`（no SkipLinux）+ `stage9-pure-m4` + WSL `stage10-linux-pure-m4`（SkipWsl = RED） |
+| **Stub pins** | JS/asm → movabs+store 17B；Rust freebsd/haiku → movabs（no `0F05` invent）；plan9 NOP flat / serenity SERE+NOP；linux ALLOC contrast must keep syscall |
+| **Gate** | `scripts/stage13-cross-platform-parity.ps1`（alias `stage13-parity.ps1`）exit 0 ALL_GREEN 2026-08-29 |
+| **Trust gain** | 「一平台绿、另一平台盲」closed for I/O + seed/link + pure M4；stub OS cannot silently become production I/O |
+| **Still honest forks** | Plan9/FreeBSD/Haiku/Serenity remain stub（not real OS I/O）；Rust runtime + LoadLibrary/libdl；full `.text` may DIFF；macOS not required |
+
+### Stage 13-C — v0.6 回归不退化
+
+| Item | Detail |
+|------|--------|
+| **Gate** | `scripts/stage13-v06-regress.ps1`（fail-closed 串行；`&` not Start-Process；无并行 cargo） |
+| **Covers** | stage13-link-host + stage13-cross-platform-parity + stage12-v05-regress（stage12/11/10/9 + all/lock/gen12/fullbody + lock pin + WSL） |
+| **Status** | ALL_GREEN（2026-08-29）；`-SkipBuild` re-verify Stage 13-D；gen12 SHA `d782166d…` · 18432B；pin `0275802d…` unchanged |
+| **Honest unchanged** | Rust runtime + LoadLibrary/libdl；full `.text` may DIFF；stub OS still stub；seed still Rust-emitted |
+
+### Stage 13-D — v0.7 毕业
+
+| Item | Detail |
+|------|--------|
+| **Docs** | `RELEASE-v0.7.md` · `RELEASE-NOTES-v0.7.md` · `SCOPE-v0.7.md` 毕业判定 |
+| **Lock** | Decision #25 pin **unchanged** — no Relock（Stage 13 未改 `yoyo.ty`） |
+| **Accept** | `verify-lock-pin` exit 0 · `stage13-v06-regress.ps1 -SkipBuild` ALL_GREEN（2026-08-29） |
+| **Next** | Stage 14 / v0.8：`SCOPE-v0.8.md` + `STAGE14_OWNER_CHECKLIST.md`（窗外字节 / SCOPE-CUT 草案 · Lock 硬化） |
 
 ### Full body compiler (Stage 8-B · W5.5 body)
 

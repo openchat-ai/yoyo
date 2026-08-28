@@ -22,19 +22,35 @@ pub fn selfhost_compile_tyb(tyb_data: &[u8]) -> IsaResult<Vec<u8>> {
     Ok(pe.bytes)
 }
 
-/// Compile `.ty` text or `.tyb` binary to Win32 PE bytes.
-/// Used by `yoyo bootstrap` for Stage 5 M1→M2 interim (external compiler, not runtime selfhost).
-pub fn bootstrap_compile(input: &[u8]) -> IsaResult<Vec<u8>> {
+/// Stage 13-A fail-closed ceilings for the H_00 seed/link host image (keep in sync with
+/// `scripts/stage13-link-host.ps1`). Observed @ Stage 11-B/v0.6: PE 248832 / ELF 512000.
+/// Do not raise casually — growth here is growth of the selfhost entry host surface.
+pub const STAGE13_MAX_SEED_PE_BYTES: usize = 270_000;
+pub const STAGE13_MAX_SEED_ELF_BYTES: usize = 550_000;
+
+/// Stage 13-A canonical **seed/link host** compile (Win32).
+///
+/// Pure M4 / gen12 seed algebra must enter through this path (H_00 `link_pe_win32`),
+/// shared by `yoyo link` and `yoyo bootstrap` **without** `--selfhost`.
+/// `bootstrap --selfhost` (genNrt / GetTempPath) is a different host surface and must DIFF.
+pub fn seed_host_compile(input: &[u8]) -> IsaResult<Vec<u8>> {
     if crate::tyb_parser::is_tyb(input) {
         selfhost_compile_tyb(input)
     } else {
         let src = std::str::from_utf8(input).map_err(|e| crate::types::IsaError::ParseError {
             line: 0,
-            msg: format!("bootstrap input not valid UTF-8 .ty: {e}"),
+            msg: format!("seed/link host input not valid UTF-8 .ty: {e}"),
         })?;
         let out = executor::compile_ty_source(src, PlatformKind::Win32)?;
         Ok(pe_link::link_pe_win32(&out.code, &out.data, &out.handler_offsets)?.bytes)
     }
+}
+
+/// Compile `.ty` text or `.tyb` binary to Win32 PE bytes.
+/// Alias of [`seed_host_compile`] — Stage 5 M1→M2 interim / Stage 13-A seed path
+/// (external compiler, not `bootstrap --selfhost` runtime wrapper).
+pub fn bootstrap_compile(input: &[u8]) -> IsaResult<Vec<u8>> {
+    seed_host_compile(input)
 }
 
 /// Link emitted code as Win32 PE with embedded runtime selfhost startup + HOT table.
@@ -67,18 +83,25 @@ pub fn selfhost_compile_tyb_linux(tyb_data: &[u8]) -> IsaResult<Vec<u8>> {
     Ok(elf_link::link_elf_linux(&out.code, &out.data, &out.handler_offsets)?.bytes)
 }
 
-/// Compile `.ty` text or `.tyb` binary to Linux ELF64 bytes.
-pub fn bootstrap_compile_linux(input: &[u8]) -> IsaResult<Vec<u8>> {
+/// Stage 13-A canonical **seed/link host** compile (Linux ELF H_00).
+/// Shared by `yoyo link --target=linux` and `yoyo bootstrap --target=linux` (no `--selfhost`).
+pub fn seed_host_compile_linux(input: &[u8]) -> IsaResult<Vec<u8>> {
     if crate::tyb_parser::is_tyb(input) {
         selfhost_compile_tyb_linux(input)
     } else {
         let src = std::str::from_utf8(input).map_err(|e| crate::types::IsaError::ParseError {
             line: 0,
-            msg: format!("bootstrap input not valid UTF-8 .ty: {e}"),
+            msg: format!("seed/link host input not valid UTF-8 .ty: {e}"),
         })?;
         let out = executor::compile_ty_source(src, PlatformKind::Linux)?;
         Ok(elf_link::link_elf_linux(&out.code, &out.data, &out.handler_offsets)?.bytes)
     }
+}
+
+/// Compile `.ty` text or `.tyb` binary to Linux ELF64 bytes.
+/// Alias of [`seed_host_compile_linux`] (Stage 13-A seed path).
+pub fn bootstrap_compile_linux(input: &[u8]) -> IsaResult<Vec<u8>> {
+    seed_host_compile_linux(input)
 }
 
 /// Link emitted code as Linux ELF with embedded runtime selfhost startup.

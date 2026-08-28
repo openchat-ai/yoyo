@@ -9,8 +9,8 @@
 | v0.4 | 10 | ✅ | `SCOPE-v0.4.md` | `STAGE10_OWNER_CHECKLIST.md` | `RELEASE-v0.4.md` · tag `v0.4.0` |
 | **v0.5** | **11** | ✅ | `SCOPE-v0.5.md` | `STAGE11_OWNER_CHECKLIST.md` | `RELEASE-v0.5.md` · tag `v0.5.0` |
 | **v0.6** | **12** | ✅ | `SCOPE-v0.6.md` | `STAGE12_OWNER_CHECKLIST.md` | `RELEASE-v0.6.md` · tag `v0.6.0` |
-| **v0.7** | **13** | 🔄 | `SCOPE-v0.7.md` | `STAGE13_OWNER_CHECKLIST.md` | `RELEASE-v0.7.md` |
-| v0.8 | 14 | AUTO 将定 | `SCOPE-v0.8.md` | `STAGE14_OWNER_CHECKLIST.md` | `RELEASE-v0.8.md` |
+| **v0.7** | **13** | ✅ | `SCOPE-v0.7.md` | `STAGE13_OWNER_CHECKLIST.md` | `RELEASE-v0.7.md` · tag `v0.7.0` |
+| **v0.8** | **14** | 🔄 | `SCOPE-v0.8.md` | `STAGE14_OWNER_CHECKLIST.md` | `RELEASE-v0.8.md` |
 | v0.9 | 15 | AUTO 将定 | `SCOPE-v0.9.md` | `STAGE15_OWNER_CHECKLIST.md` | `RELEASE-v0.9.md` |
 | **v1.0** | **16** | AUTO 将定 | `SCOPE-v1.0.md` + 可选 GRAD | `STAGE16_OWNER_CHECKLIST.md` | `RELEASE-v1.0.md` + **tag** |
 
@@ -21,7 +21,7 @@
 | v0.4 | runtime 面 · Linux 纯 M4 · asm I/O · 毕业（✅） |
 | v0.5 | YOYO-built/更薄 runtime · 收缩 LoadLibrary host（✅） |
 | v0.6 | 三 peer I/O · selfhost body section-ddc（✅） |
-| v0.7 | seed/link host · 跨平台 parity · Relock |
+| v0.7 | seed/link host · 跨平台 parity · Relock（✅） |
 | v0.8 | 窗外字节/SCOPE-CUT 草案 · Lock 硬化 |
 | v0.9 | 洞清单收口 · 预跑 |
 | v1.0 | 全关或 SCOPE-CUT · RELEASE · tag |
@@ -37,4 +37,4 @@ OUT：Morph · MCU 主赛道 · C/Rust 替代 · Thompson-proof — 见 `SCOPE-v
 
 ---
 
-*更新：2026-08-28 · v0.6.0 毕业 · 现主线 Stage 13 / v0.7*
+*更新：2026-08-29 · v0.7.0 毕业 · 现主线 Stage 14 / v0.8*

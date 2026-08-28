@@ -51,6 +51,7 @@ mod riscv32_elf_link;
 mod arm64_pe_link;
 mod self_test;
 mod selfhost;
+mod seed_host;
 mod startup;
 mod win32_selfhost;
 mod linux_selfhost;
@@ -417,17 +418,25 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
 
     match target {
         PlatformKind::Win32 => {
-            let pe = if selfhost {
+            let (pe, dll_embed) = if selfhost {
                 let hot = selfhost::build_hot(&out.handler_offsets);
                 let dll = selfhost::runtime_dll_bytes()?;
-                pe_link::link_pe_selfhost(&out.code, &out.data, &hot, &dll)?
+                let pe = pe_link::link_pe_selfhost(&out.code, &out.data, &hot, &dll)?;
+                (pe, Some(dll.len()))
             } else {
-                pe_link::link_pe_win32(&out.code, &out.data, &out.handler_offsets)?
+                let pe = pe_link::link_pe_win32(&out.code, &out.data, &out.handler_offsets)?;
+                let dll_embed = if seed_host::classify_seed_path(&pe.bytes) == "h00" {
+                    Some(selfhost::runtime_dll_bytes()?.len())
+                } else {
+                    None
+                };
+                (pe, dll_embed)
             };
             fs::write(&rest[1], &pe.bytes).map_err(|e| types::IsaError::IoError {
                 msg: e.to_string(),
             })?;
             println!("wrote PE32+ {} ({} bytes)", rest[1], pe.bytes.len());
+            seed_host::emit_observe("link", "win32", &pe.bytes, dll_embed);
         }
         PlatformKind::Linux => {
             let elf = elf_link::link_elf_linux(&out.code, &out.data, &out.handler_offsets)?;
@@ -435,6 +444,12 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
                 msg: e.to_string(),
             })?;
             println!("wrote ELF64 {} ({} bytes)", rest[1], elf.bytes.len());
+            let so_embed = if seed_host::classify_seed_path(&elf.bytes) == "h00" {
+                Some(selfhost::runtime_so_bytes()?.len())
+            } else {
+                None
+            };
+            seed_host::emit_observe("link", "linux", &elf.bytes, so_embed);
         }
         PlatformKind::Stub | PlatformKind::BareMetal => {
             // Flat code dump for non-PE/non-ELF targets
@@ -691,6 +706,7 @@ fn cmd_bootstrap(args: &[String]) -> Result<(), types::IsaError> {
                 elf.len(),
                 linux_selfhost::RUNTIME_SO_NAME
             );
+            seed_host::emit_observe("bootstrap-selfhost", "linux", &elf, Some(so.len()));
             return Ok(());
         }
 
@@ -717,6 +733,7 @@ fn cmd_bootstrap(args: &[String]) -> Result<(), types::IsaError> {
             pe.len(),
             dll_len
         );
+        seed_host::emit_observe("bootstrap-selfhost", "win32", &pe, Some(dll_len));
         return Ok(());
     }
     if rest.len() != 2 {
@@ -725,20 +742,32 @@ fn cmd_bootstrap(args: &[String]) -> Result<(), types::IsaError> {
     let input = fs::read(&rest[0]).map_err(|e| types::IsaError::IoError {
         msg: e.to_string(),
     })?;
+    // Stage 13-A: bootstrap without --selfhost IS the seed/link host (≡ `yoyo link`).
     let out_bytes = if is_linux {
-        selfhost::bootstrap_compile_linux(&input)?
+        selfhost::seed_host_compile_linux(&input)?
     } else {
-        selfhost::bootstrap_compile(&input)?
+        selfhost::seed_host_compile(&input)?
     };
     fs::write(&rest[1], &out_bytes).map_err(|e| types::IsaError::IoError {
         msg: e.to_string(),
     })?;
     println!(
-        "bootstrap: {} → {} ({} bytes)",
+        "seed/link host (Stage 13-A): {} → {} ({} bytes; not --selfhost)",
         rest[0],
         rest[1],
         out_bytes.len()
     );
+    let target_label = if is_linux { "linux" } else { "win32" };
+    let embed = if seed_host::classify_seed_path(&out_bytes) == "h00" {
+        if is_linux {
+            Some(selfhost::runtime_so_bytes()?.len())
+        } else {
+            Some(selfhost::runtime_dll_bytes()?.len())
+        }
+    } else {
+        None
+    };
+    seed_host::emit_observe("bootstrap", target_label, &out_bytes, embed);
     Ok(())
 }
 

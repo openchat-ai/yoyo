@@ -24,6 +24,8 @@ pub fn link_elf(code: &[u8], data: &[u8]) -> IsaResult<ElfImage> {
 /// Linux link with optional H_00 in-process selfhost (Stage 10-B).
 /// When `handler_offsets` contains H_20/H_21, patch H_00 to extract embedded
 /// runtime `.so` + trampoline and `execve` (ELF entry stays lea r15 → H_00).
+///
+/// Stage 13-A: H_00 branch is the approved seed/link host path (≡ bootstrap no `--selfhost`).
 pub fn link_elf_linux(
     code: &[u8],
     data: &[u8],
@@ -32,7 +34,17 @@ pub fn link_elf_linux(
     if should_h00_selfhost(handler_offsets) {
         let so = linux_selfhost::runtime_so_bytes()?;
         let tramp = linux_selfhost::trampoline_bytes();
-        link_elf_h00_runtime(code, data, &so, tramp)
+        let elf = link_elf_h00_runtime(code, data, &so, tramp)?;
+        if elf.bytes.len() > crate::selfhost::STAGE13_MAX_SEED_ELF_BYTES {
+            return Err(IsaError::PlatformError {
+                msg: format!(
+                    "Stage 13-A seed/link host ELF {} bytes exceeds fail-closed MAX {} (H_00 path)",
+                    elf.bytes.len(),
+                    crate::selfhost::STAGE13_MAX_SEED_ELF_BYTES
+                ),
+            });
+        }
+        Ok(elf)
     } else {
         link_elf_impl(code, data)
     }

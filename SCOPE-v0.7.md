@@ -31,12 +31,12 @@ YOYO v0.7 要 **收口 v0.6 RELEASE 诚实写出的下一最大洞**：seed/link
 
 ## v0.7 IN（有界 · ≤4 门 · 按信任冲击排序）
 
-| # | 范围 | 说明 | 信任链（为何 IN） |
-|---|------|------|------------------|
-| 1 | **seed/link host** | 收缩或 fail-closed 观测 `link`/`bootstrap` 种子旁路；须可脚本验收 | **自举入口宿主洞** |
-| 2 | **跨平台 parity** | Win/Linux（+ stub OS 诚实钉）parity 门禁加厚；减少平台分叉盲区 | **多平台 detection 一致** |
-| 3 | **v0.6 回归不退化** | stage12 + stage11 + stage10/9 + fullbody/lock/gen12 保持绿 | 扩面时不丢已有 DDC/Lock 基线 |
-| 4 | **毕业收口** | Relock（若改 pin）+ `RELEASE-v0.7.md`；诚实写仍存边界 | 对外 detection 话术 |
+| # | 范围 | 说明 | 信任链（为何 IN） | 状态 |
+|---|------|------|------------------|------|
+| 1 | **seed/link host** | 收缩或 fail-closed 观测 `link`/`bootstrap` 种子旁路；须可脚本验收 | **自举入口宿主洞** | **A 绿**（2026-08-28）`stage13-link-host.ps1` |
+| 2 | **跨平台 parity** | Win/Linux（+ stub OS 诚实钉）parity 门禁加厚；减少平台分叉盲区 | **多平台 detection 一致** | **B 绿**（2026-08-29）`stage13-cross-platform-parity.ps1` |
+| 3 | **v0.6 回归不退化** | stage12 + stage11 + stage10/9 + fullbody/lock/gen12 保持绿 | 扩面时不丢已有 DDC/Lock 基线 | **C 绿**（2026-08-29）`stage13-v06-regress.ps1` |
+| 4 | **毕业收口** | Relock（若改 pin）+ `RELEASE-v0.7.md`；诚实写仍存边界 · **Stage 13-D DONE 2026-08-29**：无 Relock；`RELEASE-v0.7.md` + tag `v0.7.0` | 对外 detection 话术 | **D 绿** |
 
 **主验收看板**：`STAGE13_OWNER_CHECKLIST.md`（A→D）。
 
@@ -86,20 +86,29 @@ node .\scripts\verify-yoyo-ty.mjs
 .\scripts\stage11-runtime-surface.ps1
 .\scripts\stage11-loadlibrary-host.ps1
 .\scripts\stage9-pure-m4.ps1
-# Stage 13 gates: stage13-* （A/B 落地后补）
+# Stage 13 gates: stage13-* （A/B/C）
+.\scripts\stage13-link-host.ps1
+.\scripts\stage13-cross-platform-parity.ps1
+.\scripts\stage13-v06-regress.ps1
 wsl bash /mnt/f/yoyo/scripts/stage10-linux-pure-m4.sh
 ```
 
 **Stage 13 四门全 `[x]`** = v0.7 可发布候选。
 
-**毕业判定：** （Stage 13 A/B/C/D 全绿后填写）
+**A 状态（2026-08-28）：** `[x]` — `stage13-link-host.ps1` exit 0；`yoyo.exe test all` exit 0；spot stage12-A/B + stage11-A/B + lock 绿。种子入口 = H_00 `seed_host_compile*`；bootstrap 无 `--selfhost` ≡ link；`--selfhost` DIFF；PE/ELF fail-closed MAX。诚实剩余：Rust `yoyo.exe` 仍发射种子；runtime + LoadLibrary/libdl；Linux `SEED_HOST path=plain` 直至 classifier rebuild 落地（markers 已 fail-closed）。
+
+**B 状态（2026-08-29）：** `[x]` — `stage13-cross-platform-parity.ps1` ALL_GREEN（exit 0）：stage12-three-peer-io + stub-OS honesty（freebsd/haiku three-peer EQUAL；plan9/serenity forks；apple/android→stub）+ stage13-link-host Win+Linux + stage9-pure-m4 + WSL stage10-linux-pure-m4。信任链：一平台绿另一平台盲 → 单门禁双平台；SkipWsl/SkipLinux 不可用于毕业。诚实剩余：stub OS 仍 stub；Rust runtime + LoadLibrary/libdl；full `.text` 可 DIFF；macOS 非门禁。
+
+**C 状态（2026-08-29）：** `[x]` — `stage13-v06-regress.ps1` ALL_GREEN（exit 0）：串行 A+B + `yoyo.exe test all/lock/gen12/fullbody` + verify-lock-pin + stage11/10/9 + stage12 three-peer/selfhost-body + WSL stage10；post-build 零 cargo（release binary + `-SkipBuild`）。信任链：扩面不丢 v0.6 基线。诚实剩余同 A/B。
+
+**毕业判定：** Stage 13 A/B/C/D **全绿**（2026-08-29）。验收：`verify-lock-pin.ps1` exit 0；`stage13-v06-regress.ps1 -SkipBuild` ALL_GREEN（串行 A+B + stage12-v05-regress；post-build 零 cargo）。Lock pin Decision #25 **未改**（**No Relock** — Stage 13 未改 `yoyo.ty`）。seed/link host fail-closed 观测；Win/Linux (+ stub OS) parity 单门禁；v0.6 基线不退化。诚实剩余：Rust runtime + LoadLibrary/libdl；full `.text` 仍可 DIFF；stub OS 仍 stub；**seed 仍 Rust 发射**。见 `RELEASE-v0.7.md` · tag `v0.7.0`。下一主线：`SCOPE-v0.8.md` + `STAGE14_OWNER_CHECKLIST.md`。
 
 ---
 
 ## 诚实边界（对外一句话）
 
-**YOYO v0.7 继续收口 seed/link 宿主与跨平台 parity——仍是 detection bar，不是 Thompson 证明；Rust runtime / LoadLibrary 宿主洞若未关须继续诚实写出。**
+**YOYO v0.7 继续收口 seed/link 宿主与跨平台 parity——仍是 detection bar，不是 Thompson 证明；Rust runtime / LoadLibrary 宿主洞若未关须继续诚实写出；seed 仍由 Rust `yoyo.exe` 发射。**
 
 ---
 
-*维护：Stage 13 毕业或信任链变更时同步本文件与 `STAGE13_OWNER_CHECKLIST.md`。*
+*维护：Stage 13 毕业或信任链变更时同步本文件与 `STAGE13_OWNER_CHECKLIST.md`。v0.7 已毕业 2026-08-29。*

@@ -100,6 +100,9 @@ pub fn link_pe(code: &[u8], data: &[u8]) -> IsaResult<PeImage> {
 /// Win32 link with optional H_00 in-process selfhost (Stage 9-A).
 /// When `handler_offsets` contains H_20/H_21 I/O handlers, patch H_00 entry to
 /// call platform I/O handlers then embedded runtime compile (PE entry stays lea r15 → H_00).
+///
+/// Stage 13-A: the H_00 branch is the approved **seed/link host** path (same bytes as
+/// `yoyo bootstrap` without `--selfhost`). Fail-closed PE size ceiling applied there.
 pub fn link_pe_win32(
     code: &[u8],
     data: &[u8],
@@ -107,7 +110,18 @@ pub fn link_pe_win32(
 ) -> IsaResult<PeImage> {
     if should_h00_selfhost(handler_offsets) {
         let dll = win32_selfhost::runtime_dll_bytes()?;
-        link_pe_h00_runtime(code, data, handler_offsets, &dll)
+        let pe = link_pe_h00_runtime(code, data, handler_offsets, &dll)?;
+        // Stage 13-A: pin seed/link host PE surface (keep sync w/ stage13-link-host.ps1).
+        if pe.bytes.len() > crate::selfhost::STAGE13_MAX_SEED_PE_BYTES {
+            return Err(crate::types::IsaError::PlatformError {
+                msg: format!(
+                    "Stage 13-A seed/link host PE {} bytes exceeds fail-closed MAX {} (H_00 path)",
+                    pe.bytes.len(),
+                    crate::selfhost::STAGE13_MAX_SEED_PE_BYTES
+                ),
+            });
+        }
+        Ok(pe)
     } else {
         let section_align: u32 = 0x1000;
         let text_rva = section_align;

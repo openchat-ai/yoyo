@@ -103,7 +103,7 @@ PE/ELF **不得**改 master 看板。AUTO 下两板完成后若仍有未勾项�
 
 0. **右侧打开当前主线看板**（读文件前）：
    - MCP `cursor-app-control` → `open_resource`
-   - 现主线：`file:///F:/yoyo/STAGE13_OWNER_CHECKLIST.md`（直至 Stage13 全绿）
+   - 现主线：`file:///F:/yoyo/STAGE14_OWNER_CHECKLIST.md`（直至 Stage14 全绿）
    - 之后：打开 ROADMAP 当前 `STAGE*_OWNER_CHECKLIST.md`
    - 失败不阻塞
 
@@ -114,7 +114,8 @@ PE/ELF **不得**改 master 看板。AUTO 下两板完成后若仍有未勾项�
    - Stage 10 / v0.4：已毕业 → 跳过  
    - Stage 11 / v0.5：已毕业 → 跳过  
    - Stage 12 / v0.6：已毕业 → 跳过  
-   - Stage 13 / v0.7：`STAGE13` + `SCOPE-v0.7`（A→D）  
+   - Stage 13 / v0.7：已毕业 → 跳过  
+   - Stage 14 / v0.8：`STAGE14` + `SCOPE-v0.8`（A→D）  
    - 之后：当前 `STAGEk`；若全绿 → **自动定**下一版（见上）再取第一项  
    - 直至 v1.0 毕业或 hard block  
 
@@ -150,11 +151,12 @@ PE/ELF **不得**改 master 看板。AUTO 下两板完成后若仍有未勾项�
 | S10 | v0.4 已毕业（跳过） |
 | S11 | v0.5 已毕业（跳过） |
 | S12 | v0.6 已毕业（跳过） |
-| S13-A | seed/link host |
-| S13-B | 跨平台 parity |
-| S13-C | v0.6 回归不退化 |
-| S13-D | v0.7 毕业 + Relock + RELEASE + tag |
-| →1.0 | `ROADMAP-TO-1.0.md`（AUTO 自动定 Stage14…16） |
+| S13 | v0.7 已毕业（跳过） |
+| S14-A | 窗外字节 / SCOPE-CUT 草案 |
+| S14-B | Lock 硬化 |
+| S14-C | v0.7 回归不退化 |
+| S14-D | v0.8 毕业 + Relock + RELEASE + tag |
+| →1.0 | `ROADMAP-TO-1.0.md`（AUTO 自动定 Stage15…16） |
 
 ## 约束
 

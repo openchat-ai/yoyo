@@ -1,6 +1,6 @@
 # YOYO 1.0 — Scope Boundary（负责人一页纸）
 
-> **前提**：已发布 v0.1–**v0.6.0**；**现主线** Stage 13 / v0.7。  
+> **前提**：已发布 v0.1–**v0.7.0**；**现主线** Stage 14 / v0.8。  
 > **路线图**：`ROADMAP-TO-1.0.md`。**无人值守开关**：`AUTO_TO_1.0.md`（`ACTIVE=1` = 推到 1.0）。  
 > **诚实**：不能一夜魔法到 1.0；AUTO = 按 ROADMAP gates 连续打磨；耗时取决于宿主面（尤其 YOYO-built runtime）。DDC = detection，非 Thompson-proof。
 
@@ -36,12 +36,12 @@
 | **v0.4** | 10 | runtime 面 · Linux 纯 M4 · asm I/O · 毕业 | ✅ `RELEASE-v0.4` · tag `v0.4.0` |
 | **v0.5** | 11 | YOYO-built/更薄 runtime · 收缩 LoadLibrary host · 回归 · 毕业 | ✅ `RELEASE-v0.5` · tag `v0.5.0` |
 | **v0.6** | 12 | 三 peer I/O · section-ddc on selfhost body · 回归 · 毕业 | ✅ `RELEASE-v0.6` · tag `v0.6.0` |
-| **v0.7** | 13 | seed/link host · 跨平台 parity · Relock 纪律 · 毕业 | `SCOPE-v0.7` · `STAGE13` |
+| **v0.7** | 13 | seed/link host · 跨平台 parity · Relock 纪律 · 毕业 | ✅ `RELEASE-v0.7` · tag `v0.7.0` |
 | **v0.8** | 14 | 窗外字节再收或 SCOPE-CUT 草案 · Lock 硬化 · 毕业 | `SCOPE-v0.8` · `STAGE14` |
 | **v0.9** | 15 | 洞清单 · 关或 SCOPE-CUT · 预跑门禁 · 毕业 | `SCOPE-v0.9` · `STAGE15` |
 | **v1.0** | 16 | 全关或 SCOPE-CUT 定稿 · RELEASE · tag · detection 话术 | `STAGE16` · `RELEASE-v1.0` + tag |
 
-> **v0.7 现状**：Stage 13 从 A（seed/link host）起；v0.6 已毕业勿回改。
+> **v0.8 现状**：Stage 14 从 A（窗外字节 / SCOPE-CUT 草案）起；v0.7 已毕业勿回改。
 
 ---
 
@@ -73,4 +73,4 @@ AUTO 是连续打磨 gates，不是魔法完成。最难通常是 v0.5+ runtime�
 
 ---
 
-*更新：2026-08-28 · AUTO-TO-1.0 无人值守契约生效*
+*更新：2026-08-29 · AUTO-TO-1.0 无人值守契约生效 · 现主线 Stage 14 / v0.8*
