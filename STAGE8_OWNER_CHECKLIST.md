@@ -12,6 +12,7 @@ YOYO 的存在理由 **不是造语言**，而是 **用 DDC + Lock 在实践中�
 
 ```text
 [x] A  [x] B  [x] C  [x] D   →  v0.2 毕业见 SCOPE-v0.2.md + RELEASE-v0.2.md
+                              → 下一主线 v0.3：SCOPE-v0.3.md + STAGE9_OWNER_CHECKLIST.md
 ```
 
 > **关于「打钩」**：`- [x]` = 已勾，`- [ ]` = 未勾。Markdown 预览才显示为 checkbox 符号。
@@ -26,7 +27,7 @@ YOYO 的存在理由 **不是造语言**，而是 **用 DDC + Lock 在实践中�
 | **Cursor 内** | `Ctrl+P` → `STAGE8_OWNER` |
 | **规格一页纸** | `F:\yoyo\SCOPE-v0.2.md` |
 
-相关：`STAGE4_OWNER_CHECKLIST.md`（Stage 4–7 历史）、`BACKEND_SUPPORT.md`、`RELEASE-v0.1.md`。
+相关：`STAGE4_OWNER_CHECKLIST.md`（Stage 4–7 历史）、`STAGE9_OWNER_CHECKLIST.md`（v0.3 下一主线）、`BACKEND_SUPPORT.md`、`RELEASE-v0.1.md`、`RELEASE-v0.2.md`。
 
 ---
 
@@ -147,3 +148,17 @@ A/B/C 均已绿；走 Lock Protocol 8-step Relock（full body pin 更新）；ve
 ---
 
 *创建：2026-08-27 · Stage 8 A/B/C/D 全绿（2026-08-27）· v0.2 毕业门禁通过 · 见 `RELEASE-v0.2.md`*
+
+**维护记录**：2026-08-28 — v0.2.0 后维护节拍全绿（test all/lock/gen12/fullbody · lock-pin · win+linux M4 selfhost）；无代码变更。  
+**维护记录**：2026-08-28（二次）— 维护节拍再验全绿（test all/lock/gen12/fullbody · lock-pin · verify-ty · stage5/stage8 Win + WSL M4）；无代码变更。
+
+---
+
+## v0.2 已毕业 → v0.3 下一主线
+
+> Stage 8 勾选 **保持不变**，勿回改。发 `继续` 走 Stage 9：
+
+| 文档 | 用途 |
+| ---- | ---- |
+| [`SCOPE-v0.3.md`](./SCOPE-v0.3.md) | v0.3 一页纸：北星、IN/OUT、与 v0.2 缺口关系、毕业门禁 |
+| [`STAGE9_OWNER_CHECKLIST.md`](./STAGE9_OWNER_CHECKLIST.md) | Stage 9 actionable 看板（A→D）；从 **A（gen1 H_00）** 起 |

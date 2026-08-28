@@ -15,6 +15,12 @@ const KERNEL32_IO_FUNCS: &[&str] = &[
     "ReadFile",
     "WriteFile",
     "CloseHandle",
+    // Stage 9-A H_00 runtime: DLL extract + LoadLibrary (slots 5–9, same IAT base as r15+0).
+    "GetTempPathA",
+    "lstrcatA",
+    "LoadLibraryA",
+    "GetProcAddress",
+    "ExitProcess",
 ];
 
 /// Prepend kernel32 IAT at r15+0 for Stage 8 platform I/O emit.
@@ -88,14 +94,147 @@ pub struct PeImage {
 /// Wrap raw x64 code (+ optional data) in a PE32+ image.
 /// Entry: sets up R15 → .data (state base), then jumps to `code`.
 pub fn link_pe(code: &[u8], data: &[u8]) -> IsaResult<PeImage> {
+    link_pe_win32(code, data, &[])
+}
+
+/// Win32 link with optional H_00 in-process selfhost (Stage 9-A).
+/// When `handler_offsets` contains H_20/H_21 I/O handlers, patch H_00 entry to
+/// call platform I/O handlers then embedded runtime compile (PE entry stays lea r15 → H_00).
+pub fn link_pe_win32(
+    code: &[u8],
+    data: &[u8],
+    handler_offsets: &[(u16, u32, u32)],
+) -> IsaResult<PeImage> {
+    if should_h00_selfhost(handler_offsets) {
+        let dll = win32_selfhost::runtime_dll_bytes()?;
+        link_pe_h00_runtime(code, data, handler_offsets, &dll)
+    } else {
+        let section_align: u32 = 0x1000;
+        let text_rva = section_align;
+        let est_text = code.len() as u32 + 0x40;
+        let text_vs = align_up(est_text, section_align);
+        let data_rva = text_rva + text_vs;
+        let (extended, import_dir_rva, import_dir_size) = prepend_win32_io_iat(data, data_rva);
+        let _ = platform_io::WIN32_IAT_DATA_RESERVE;
+        link_pe_impl(code, &extended, true, import_dir_rva, import_dir_size)
+    }
+}
+
+fn should_h00_selfhost(handler_offsets: &[(u16, u32, u32)]) -> bool {
+    let has_load = handler_offsets.iter().any(|(h, _, _)| *h == 0x20);
+    let has_write = handler_offsets.iter().any(|(h, _, _)| *h == 0x21);
+    has_load && has_write
+}
+
+fn handler_off(handler_offsets: &[(u16, u32, u32)], hh: u16) -> Option<u32> {
+    handler_offsets
+        .iter()
+        .find(|(h, _, _)| *h == hh)
+        .map(|(_, off, _)| *off)
+}
+
+/// Stage 9-A: gen1 H_00 pure runtime — patch entry handler, embed strings + runtime DLL.
+/// Entry stays lea r15 → H_00 (not genNrt startup wrapper). H_00 calls extract+runtime+ExitProcess.
+pub fn link_pe_h00_runtime(
+    code: &[u8],
+    data: &[u8],
+    handler_offsets: &[(u16, u32, u32)],
+    dll_bytes: &[u8],
+) -> IsaResult<PeImage> {
+    const PE_STARTUP_LEN: u32 = 13;
     let section_align: u32 = 0x1000;
-    let text_rva = section_align;
-    let est_text = code.len() as u32 + 0x40;
-    let text_vs = align_up(est_text, section_align);
-    let data_rva = text_rva + text_vs;
-    let (extended, import_dir_rva, import_dir_size) = prepend_win32_io_iat(data, data_rva);
+
+    let mut code = code.to_vec();
+    if code.len() < 18 {
+        return Err(crate::types::IsaError::PlatformError {
+            msg: "H_00 selfhost: code too short for entry patch".into(),
+        });
+    }
+
+    let main_user_off = code.len() as u32;
+    // Presence of W-SM H_20/H_21 marks a full-body image (gate only; not CALL targets).
+    let h20 = handler_off(handler_offsets, 0x20).ok_or_else(|| {
+        crate::types::IsaError::PlatformError {
+            msg: "H_00 selfhost: missing H_20 (full-body marker)".into(),
+        }
+    })?;
+
+    // Two-pass: measure h00_main length, then fix data_rva + rebuild with correct RVAs.
+    let probe = win32_selfhost::gen_h00_selfhost_main(
+        &win32_selfhost::SelfhostMeta {
+            temp_name_rva: 0,
+            export_name_rva: 0,
+            dll_embed_rva: 0,
+            dll_embed_size: dll_bytes.len() as u32,
+            iat_rva: 0,
+            import_dir_rva: 0,
+            import_dir_size: 0,
+        },
+        0,
+        section_align,
+        PE_STARTUP_LEN,
+        main_user_off,
+        h20,
+    );
+    let text_vs = align_up(PE_STARTUP_LEN + code.len() as u32 + probe.len() as u32 + 0x40, section_align);
+    let data_rva = section_align + text_vs;
+
+    let with_strings = embed_string_table(data);
+    // Prepend IAT before runtime embed so string/DLL RVAs include the IAT header pad.
+    let (io_prepended, import_dir_rva, import_dir_size) =
+        prepend_win32_io_iat(&with_strings, data_rva);
+    let (extended, meta) =
+        win32_selfhost::append_h00_runtime_data(&io_prepended, data_rva, dll_bytes)?;
+
+    let h00_main = win32_selfhost::gen_h00_selfhost_main(
+        &meta,
+        data_rva,
+        section_align,
+        PE_STARTUP_LEN,
+        main_user_off,
+        h20,
+    );
+    code.extend_from_slice(&h00_main);
+
+    // Patch H_00 (user code offset 0): JMP h00_main (not CALL).
+    // PE entry is already `jmp H_00`; an extra CALL would leave RSP misaligned by 8
+    // vs gen2rt's entry-style frame (sub 0x208), causing movaps AV in LoadLibrary.
+    let rel = main_user_off as i32 - 5;
+    code[0] = 0xE9;
+    code[1..5].copy_from_slice(&rel.to_le_bytes());
+    for i in 5..18 {
+        code[i] = 0x90;
+    }
     let _ = platform_io::WIN32_IAT_DATA_RESERVE;
-    link_pe_impl(code, &extended, true, import_dir_rva, import_dir_size)
+    link_pe_impl(&code, &extended, true, import_dir_rva, import_dir_size)
+}
+
+/// Embed default selfhost paths at r15+STR_TABLE_OFF (platform_io layout).
+fn embed_string_table(user_data: &[u8]) -> Vec<u8> {
+    let table_off = platform_io::STR_TABLE_OFF as usize;
+    let need = table_off + platform_io::STR_ENTRY_SIZE as usize * 3;
+    let mut blob = user_data.to_vec();
+    if blob.len() < need {
+        blob.resize(need, 0);
+    }
+    write_cstr_entry(&mut blob, table_off, b"input.tyb");
+    write_cstr_entry(
+        &mut blob,
+        table_off + platform_io::STR_ENTRY_SIZE as usize,
+        b"input.ky",
+    );
+    write_cstr_entry(
+        &mut blob,
+        table_off + platform_io::STR_ENTRY_SIZE as usize * 2,
+        b"output.exe",
+    );
+    blob
+}
+
+fn write_cstr_entry(blob: &mut [u8], base: usize, s: &[u8]) {
+    let n = s.len().min(platform_io::STR_ENTRY_SIZE as usize - 1);
+    blob[base..base + n].copy_from_slice(&s[..n]);
+    blob[base + n] = 0;
 }
 
 /// Wrap raw x64 code with Win32 runtime selfhost startup + HOT table.

@@ -7,9 +7,12 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { encodeOp } = require('./platform/encode-x64');
+const { encodeOp, setEmitPlatform } = require('./platform/encode-x64');
 const { buildPe } = require('./platform/pe-builder');
 const { OUTPUT_DATA_NEED } = require('./platform/platform-config');
+
+// Stage 9-B: production PE path emits real Win32 I/O (not movabs+store stub).
+setEmitPlatform('win32');
 
 function parseTy(src) {
   const lines = [];

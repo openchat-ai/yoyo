@@ -18,7 +18,7 @@ use crate::types::IsaResult;
 /// This proves that .tyb → .exe produces the same result as .ty → .exe.
 pub fn selfhost_compile_tyb(tyb_data: &[u8]) -> IsaResult<Vec<u8>> {
     let out = executor::compile_tyb_source(tyb_data, PlatformKind::Win32)?;
-    let pe = pe_link::link_pe(&out.code, &out.data)?;
+    let pe = pe_link::link_pe_win32(&out.code, &out.data, &out.handler_offsets)?;
     Ok(pe.bytes)
 }
 
@@ -33,7 +33,7 @@ pub fn bootstrap_compile(input: &[u8]) -> IsaResult<Vec<u8>> {
             msg: format!("bootstrap input not valid UTF-8 .ty: {e}"),
         })?;
         let out = executor::compile_ty_source(src, PlatformKind::Win32)?;
-        Ok(pe_link::link_pe(&out.code, &out.data)?.bytes)
+        Ok(pe_link::link_pe_win32(&out.code, &out.data, &out.handler_offsets)?.bytes)
     }
 }
 

@@ -6,7 +6,7 @@
 ## 🎓 Stage 4 已毕业
 
 ```text
-[x] A  [x] B  [x] C   →  Stage 5 已毕业 → Stage 6 已毕业 → **下一主线：Stage 7**（见下方预置任务）
+[x] A  [x] B  [x] C   →  Stage 5–8 已毕业 → **下一主线：Stage 9 / v0.3**（见文末指针）
 ```
 
 > **关于「打钩」**：本文件用 Markdown 写法 `- [x]` / `- [ ]`。在**源码视图**里看到的是方括号字母；用 **Markdown 预览**（右上角预览图标）才会显示为可勾选符号。`[x]` = 已勾，`[ ]` = 未勾。
@@ -296,13 +296,15 @@ Stage 4 看板抽检：golden 或 backends 失败（贴完整输出）。
 
 ---
 
-## v0.1 已发布 → v0.2 下一主线
+## v0.1 已发布 → v0.2 已毕业 → v0.3 下一主线
 
-> Stage 4–7 勾选 **保持不变**，勿回改。v0.2 范围与 Stage 8 看板：
+> Stage 4–7 勾选 **保持不变**，勿回改。Stage 8 / v0.2 已毕业；下一主线为 Stage 9 / v0.3：
 
 | 文档 | 用途 |
 | ---- | ---- |
-| [`SCOPE-v0.2.md`](./SCOPE-v0.2.md) | v0.2 一页纸：IN/OUT、毕业门禁、与 W5.5 SCOPE-CUT 关系 |
-| [`STAGE8_OWNER_CHECKLIST.md`](./STAGE8_OWNER_CHECKLIST.md) | Stage 8  actionable 看板（A→D）；发 `继续` 从 **A** 起 |
+| [`SCOPE-v0.3.md`](./SCOPE-v0.3.md) | v0.3 一页纸：信任洞收口、IN/OUT、毕业门禁 |
+| [`STAGE9_OWNER_CHECKLIST.md`](./STAGE9_OWNER_CHECKLIST.md) | Stage 9 actionable 看板（A→D）；发 `继续` 从 **A（gen1 H_00）** 起 |
+| [`SCOPE-v0.2.md`](./SCOPE-v0.2.md) / [`STAGE8_OWNER_CHECKLIST.md`](./STAGE8_OWNER_CHECKLIST.md) | v0.2 历史边界与已毕业看板（勿回改勾选） |
+| [`RELEASE-v0.2.md`](./RELEASE-v0.2.md) | v0.2 发布边界 |
 
 **v0.1 发布边界**：[`RELEASE-v0.1.md`](./RELEASE-v0.1.md)

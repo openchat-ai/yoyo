@@ -422,7 +422,7 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
                 let dll = selfhost::runtime_dll_bytes()?;
                 pe_link::link_pe_selfhost(&out.code, &out.data, &hot, &dll)?
             } else {
-                pe_link::link_pe(&out.code, &out.data)?
+                pe_link::link_pe_win32(&out.code, &out.data, &out.handler_offsets)?
             };
             fs::write(&rest[1], &pe.bytes).map_err(|e| types::IsaError::IoError {
                 msg: e.to_string(),
@@ -1038,12 +1038,12 @@ fn cmd_test_gen12() -> Result<(), types::IsaError> {
     })?;
 
     let out_ty = executor::compile_ty_source(&src, PlatformKind::Win32)?;
-    let gen1 = pe_link::link_pe(&out_ty.code, &out_ty.data)?.bytes;
+    let gen1 = pe_link::link_pe_win32(&out_ty.code, &out_ty.data, &out_ty.handler_offsets)?.bytes;
 
     let gen2 = selfhost::bootstrap_compile(&tyb_data)?;
 
     let out_tyb = executor::compile_tyb_source(&tyb_data, PlatformKind::Win32)?;
-    let gen2_link = pe_link::link_pe(&out_tyb.code, &out_tyb.data)?.bytes;
+    let gen2_link = pe_link::link_pe_win32(&out_tyb.code, &out_tyb.data, &out_tyb.handler_offsets)?.bytes;
 
     let pairs: [(&str, &[u8], &str, &[u8]); 2] = [
         ("gen1(.ty link)", &gen1, "gen2(.tyb bootstrap)", &gen2),
@@ -1124,7 +1124,7 @@ fn cmd_test_fullbody() -> Result<(), types::IsaError> {
         });
     }
 
-    let gen1 = pe_link::link_pe(&out.code, &out.data)?.bytes;
+    let gen1 = pe_link::link_pe_win32(&out.code, &out.data, &out.handler_offsets)?.bytes;
     let gen2 = selfhost::bootstrap_compile(&tyb_data)?;
 
     let report = ddc::compare_pe_text(&gen1, &gen2)?;

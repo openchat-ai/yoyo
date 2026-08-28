@@ -153,3 +153,5 @@ Run the machine-checkable gates block above.
 ---
 
 *Maintainer: update when Stage 8 gates or trust-chain SHA monitors change. v0.2 graduation: 2026-08-27 · Stage 8 A/B/C/D all green.*
+
+> **Next:** v0.3 / Stage 9 — `SCOPE-v0.3.md` + `STAGE9_OWNER_CHECKLIST.md` (close gen1 H_00, JS I/O parity, host-wrapper trust holes).

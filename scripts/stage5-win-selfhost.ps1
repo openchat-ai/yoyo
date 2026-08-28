@@ -77,17 +77,19 @@ try {
 }
 
 Write-Host ""
-Write-Host "=== M1→M2: gen1.exe runtime (true selfhost — entry H_00 SET+RET) ==="
+Write-Host "=== M1→M2: gen1.exe runtime (Stage 9-A H_00 pure path — no genNrt entry wrapper) ==="
 Push-Location $WorkDir
+$gen1RuntimeGreen = $false
 try {
     if (Test-Path "output.exe") { Remove-Item "output.exe" }
     if (Test-Path $Gen1) {
         & $Gen1
         $ec = $LASTEXITCODE
         if ((Test-Path "output.exe") -and $ec -eq 0) {
-            Write-Host "gen1 runtime selfhost: GREEN"
+            $gen1RuntimeGreen = $true
+            Write-Host "gen1 runtime selfhost: GREEN (output.exe=$((Get-Item 'output.exe').Length) bytes, H_00 entry)"
         } else {
-            Write-Host "gen1 runtime selfhost: RED (exit=$ec, no output.exe — need embedded startup + 0x50/0x51)"
+            Write-Host "gen1 runtime selfhost: RED (exit=$ec, no output.exe)"
         }
     } else {
         Write-Host "gen1 runtime selfhost: SKIP (no gen1.exe)"
@@ -131,7 +133,9 @@ try {
 Write-Host ""
 Write-Host "=== summary ==="
 Write-Host "M1→M2 bootstrap: $(if ($m1m2Green) { 'GREEN' } else { 'RED' })"
+Write-Host "gen1 H_00 runtime: $(if ($gen1RuntimeGreen) { 'GREEN' } else { 'RED' })"
 Write-Host "M2→M3 runtime:   $(if ($m2m3Green) { 'GREEN' } else { 'RED' })"
 Write-Host "Stage 5 checkbox:  $(if ($m2m3Green) { 'may check [x]' } else { 'keep [ ] — partial bootstrap only' })"
+Write-Host "Stage 9-A (H_00):  $(if ($gen1RuntimeGreen) { 'may check [x]' } else { 'keep [ ]' })"
 
 if ($m2m3Green) { exit 0 } else { exit 1 }

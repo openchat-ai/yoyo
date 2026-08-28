@@ -2,7 +2,24 @@
 /**
  * encode-x64.js — JS portion of platform-emit (entity 6).
  * Mirrors yoyo-rust assembler primitives for the 22 executor opcodes.
+ *
+ * Platform I/O (0x20/0x50/0x51): default `stub` (movabs+store) for golden;
+ * production PE path sets `win32` via setEmitPlatform (Stage 9-B).
  */
+
+/** @type {'stub'|'win32'|'linux'} */
+let emitPlatform = 'stub';
+
+function setEmitPlatform(p) {
+  if (p !== 'stub' && p !== 'win32' && p !== 'linux') {
+    throw new Error('emitPlatform must be stub|win32|linux');
+  }
+  emitPlatform = p;
+}
+
+function getEmitPlatform() {
+  return emitPlatform;
+}
 
 function rex(w, r, x, b) {
   return 0x40 | (w << 3) | (r << 2) | (x << 1) | b;
@@ -111,7 +128,9 @@ function encodeOp(op, args, branchPlaceholder) {
     return out;
   }
   if (op === 0x20 || op === 0x50 || op === 0x51) {
-    return [...movabsRax(a(1) || 0), ...storeState(a(0), 0, 0)];
+    // Lazy require avoids cycle with platform-io.js (uses loadState/storeState).
+    const { encodeIoOp } = require('./platform-io');
+    return encodeIoOp(op, args, emitPlatform);
   }
   // MEMCPY_DATA: canonical `rep movsb` (cross-peer DDC).
   // Load src→RSI, dst→RDI, n→RCX; rep movsb = 0xFC.
@@ -152,4 +171,11 @@ function leaR15Scale8(regLow3, rexR) {
   return [rex, 0x8b, modrm, sib, 0x00, 0x00, 0x00]; // disp32 = 0
 }
 
-module.exports = { encodeOp, loadState, storeState, movabsRax };
+module.exports = {
+  encodeOp,
+  loadState,
+  storeState,
+  movabsRax,
+  setEmitPlatform,
+  getEmitPlatform,
+};

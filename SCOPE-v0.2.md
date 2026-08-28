@@ -106,3 +106,5 @@ node .\yoyo-js\scripts\golden.js
 ---
 
 *维护：Stage 8 毕业或 W5.5 语义变更时同步本文件与 `STAGE8_OWNER_CHECKLIST.md`。勿把 MCU 脚手架毕业误标为 v0.2 主交付。*
+
+> **v0.2 已毕业（2026-08-27）** → 下一主线见 [`SCOPE-v0.3.md`](./SCOPE-v0.3.md) + [`STAGE9_OWNER_CHECKLIST.md`](./STAGE9_OWNER_CHECKLIST.md)。

@@ -86,25 +86,55 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 |---------|--------------|------------------|-------------------|-------|
 | **Win32** | VirtualAlloc via kernel32 IAT `[r15+0]` | CreateFileA + ReadFile + CloseHandle | CreateFileA + WriteFile + CloseHandle | `pe_link` prepends IAT blob; emit in `platform_io.rs` |
 | **Linux** | mmap syscall | open/read/close | open/write/close | inline x64 syscalls in `platform_io.rs` |
-| **Stub** | movabs+store | movabs+store | movabs+store | cross-peer golden / G-SM-IO DDC (JS peer may differ) |
+| **Stub** | movabs+store | movabs+store | movabs+store | G-SM-IO / golden; JS default encode stays stub |
 | **Plan9 / FreeBSD / Haiku / Serenity** | movabs+store | movabs+store | movabs+store | x64 hosted peers; real OS I/O deferred |
 
-**D-1 (2026-08-27):** Rust **Win32 + Linux** production link paths no longer use movabs+store placeholders for I/O opcodes. **Stub** remains deterministic for golden fixtures. JS chain may still emit movabs+store — intentional cross-peer divergence until JS migration.
+**D-1 (2026-08-27 / Stage 9-B 2026-08-28):** Rust **Win32 + Linux** production link paths no longer use movabs+store placeholders for I/O opcodes. **Stub** remains deterministic for golden fixtures (G-SM-IO). **JS peer (Stage 9-B):** production `yoyo-js` PE path uses `setEmitPlatform('win32')` + `platform-io.js` matching Rust `platform_io.rs` byte-for-byte; golden default stays `stub`. Gate: `scripts/stage9-js-peer-io.ps1` + golden `PEER-IO-WIN32` / `PEER-IO-LINUX` / `PEER-IO-STUB`.
 
-**Trust-chain observability:** gen12 `.text` SHA updated when I/O handlers change (`e92520ea…` as of Stage 8-A). Self-host bootstrap (gen1≡gen2) still EQUAL; I/O syscall/IAT bytes are inside the compared `.text` window.
+**Trust-chain observability:** gen12 `.text` SHA as of Stage 9-A H_00 path: **`b609a735…`** · **18432** bytes (was `e92520ea…` / 17920 at Stage 8-A). Self-host bootstrap (gen1≡gen2) still EQUAL; I/O syscall/IAT + H_00 extract stub bytes are inside the compared `.text` window. **Stage 9-B:** JS↔Rust win32 I/O handler bodies EQUAL on minimal fixtures; Python **asm** peer still movabs+store (honest remaining fork until asm migration).
+
+### Stage 9-B — JS peer platform I/O (DDC blind zone closed)
+
+| Item | Detail |
+|------|--------|
+| **JS production** | `yoyo-js/src/yoyo.js` → `setEmitPlatform('win32')`; emit in `platform-io.js` |
+| **JS golden / G-SM-IO** | Default `stub` movabs+store (unchanged pin) |
+| **Comparable scope** | ALLOC/LOAD_FILE/WRITE_FILE handler bytes JS==Rust win32; linux syscall path peer-checked |
+| **Gate** | `node yoyo-js/scripts/golden.js` + `scripts/stage9-js-peer-io.ps1` |
+| **Still divergent** | `yoyo-asm` I/O stubs; full `yoyo.ty` section-ddc may still DIFF (H_00 runtime / IAT width) |
 
 ### Full body compiler (Stage 8-B · W5.5 body)
 
 | Path | What it validates | DDC scope |
 |------|-------------------|-----------|
-| **`test gen12`** | `.ty` link ≡ `.tyb` bootstrap (788 handlers) | `.text` 17920 bytes, SHA `e92520ea…` |
+| **`test gen12`** | `.ty` link ≡ `.tyb` bootstrap (788 handlers) | `.text` window (H_00 path may enlarge vs v0.2 17920) |
 | **`test fullbody`** | Handler count ≥700 (fail-closed vs W-SM scoped=34); `.ty`/`.tyb` bootstrap; gen2rt runtime → `output.exe` | Same gen12 `.text` window + runtime gen3 parity |
-| **`stage5-win-selfhost.ps1`** | M1→M2 bootstrap + M2→M3 embedded startup | gen1≡gen2 EQUAL; gen3 from full-body compile |
-| **`stage8-extended-selfhost.ps1/.sh`** | M2→M3→M4 embedded chain (Stage 8-C) | gen4≡gen3_direct `.text` DDC EQUAL; same gen12 window as fullbody |
+| **`stage5-win-selfhost.ps1`** | M1→M2 bootstrap + **gen1 H_00 runtime** + M2→M3 embedded startup | gen1≡gen2 EQUAL; gen1 zero-arg → `output.exe`; gen3 from full-body compile |
+| **`stage9-gen1-h00-selfhost.ps1`** | Stage 9-A: gen1 H_00 pure path only | PE entry → H_00 (no genNrt wrapper); exit 0 + `output.exe` |
+| **`stage9-pure-m4.ps1`** | Stage 9-C: Win M4 via H_00 chain (no `--selfhost`) | gen1→gen2→gen3→gen4; gen4≡gen3_direct `.text` DDC EQUAL |
+| **`stage8-extended-selfhost.ps1/.sh`** | M2→M3→M4 embedded chain (Stage 8-C; regression) | gen4≡gen3_direct `.text` DDC EQUAL; same gen12 window as fullbody |
 
-**DDC coverage boundary (honest):** gen12/fullbody monitor the **788-handler emit body** (handler `.text`), not the embedded Rust startup stub in gen2rt/gen3rt (separate bytes). Golden G-SM fixtures still test W-selfhost-min opcode shapes; fullbody gate ensures production compile uses the complete body, not scoped H_05–H_16 subset only.
+**DDC coverage boundary (honest):** gen12/fullbody monitor the **788-handler emit body** (handler `.text`), including Stage 9-A H_00 patch + appended extract stub when present. Embedded Rust `yoyo_runtime.dll` bytes remain outside that compared window. Golden G-SM fixtures still test W-selfhost-min opcode shapes; fullbody gate ensures production compile uses the complete body, not scoped H_05–H_16 subset only.
 
-**Pre-existing gap (not C blocker):** gen1 H_00 entry runtime selfhost remains RED — true in-process compiler without embedded startup. M3→M4 uses same embedded genNrt path as M2→M3 (host `bootstrap --selfhost` wrapper, not gen3-in-process).
+### Stage 9-A — gen1 H_00 pure runtime (trust hole closed)
+
+| Item | Detail |
+|------|--------|
+| **Path** | `yoyo link` → `gen1.exe`; PE entry `lea r15; jmp H_00`; H_00 patched to `jmp` extract+`LoadLibrary`+`yoyo_runtime_selfhost_main`+`ExitProcess` |
+| **Not used** | genNrt-style entry that *replaces* user entry with a separate startup blob (gen2rt still uses that for Stage 8-C regression) |
+| **I/O** | Same Stage 8-A merged kernel32 IAT at `r15+0` (CreateFile/WriteFile/LoadLibrary/ExitProcess) for in-process DLL extract |
+| **Gate** | `scripts/stage9-gen1-h00-selfhost.ps1` + `stage5-win-selfhost.ps1` gen1 line GREEN |
+| **Still host-trusted** | Embedded `yoyo_runtime.dll` compile (Rust); see Stage 9-C for M4 without genNrt wrapper |
+
+### Stage 9-C — Win pure M4 (host `--selfhost` wrapper shrunk)
+
+| Item | Detail |
+|------|--------|
+| **Path** | `yoyo link` → gen1; run gen1→gen2→gen3→gen4 (each zero-arg H_00); reference = `bootstrap` **without** `--selfhost` |
+| **Not used** | `bootstrap --selfhost` / genNrt entry wrapper for the M4 gate (`stage9-pure-m4.ps1`) |
+| **Parity** | gen4 ≡ gen3_direct `.text` section-ddc EQUAL (same window as stage8/fullbody) |
+| **Gate** | `scripts/stage9-pure-m4.ps1`; stage8 extended selfhost remains GREEN (regression; still documents genNrt path) |
+| **Still host-trusted** | Seed `link` + gen3_direct `bootstrap`; embedded `yoyo_runtime.dll` bytes; **Linux** M4 still requires `bootstrap --selfhost` (no ELF H_00 path yet) |
 
 ### How to run
 
@@ -116,7 +146,7 @@ yoyo test golden|backends|ddc|all|gen12|fullbody
 - `yoyo test backends` — compile+link all 37 targets, verify output
 - `yoyo test ddc` — nop + arith + branch + mem + ldb + container DDC suites
 - `yoyo test all` — golden + backends + ddc + gen12 + fullbody (CI-level one-shot)
-- `yoyo test gen12` — gen1≡gen2 SHA monitor (`e92520ea`, Stage 8-A I/O emit)
+- `yoyo test gen12` — gen1≡gen2 SHA monitor (`b609a735`, Stage 9-A H_00 window 18432B)
 - `yoyo test fullbody` — full 788-handler body compile + runtime smoke (Stage 8-B)
 
 ## CLI Usage

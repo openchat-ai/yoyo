@@ -65,19 +65,22 @@
 > **日常入口。** 规格语义仍在下方 Parts；施工顺序 = 本 Week 轴。Status 仅允许：**GREEN (DONE)** / **RED** / **SCOPE-CUT** / **HOLD**。勿再维护 `STATUS.md` / `docs/PROGRESS-MAP.md`（已并入此处）。
 
 ### 你现在在哪
-**Stage 4 已毕业**（A/B/C 全绿 · 看板 `STAGE4_OWNER_CHECKLIST.md`）→ **Stage 5 已毕业**（8/8 · 2026-08-24）→ **Stage 6 已毕业**（3/3 · 2026-08-25）→ **Stage 7 已毕业**（5/5 · 2026-08-26 · custom-mcu 脚手架）→ **Stage 8 已毕业**（A/B/C/D 全绿 · 2026-08-27 · v0.2 毕业门禁 · 看板 `STAGE8_OWNER_CHECKLIST.md`）。
+**Stage 4 已毕业**（A/B/C 全绿 · 看板 `STAGE4_OWNER_CHECKLIST.md`）→ **Stage 5 已毕业**（8/8 · 2026-08-24）→ **Stage 6 已毕业**（3/3 · 2026-08-25）→ **Stage 7 已毕业**（5/5 · 2026-08-26 · custom-mcu 脚手架）→ **Stage 8 已毕业**（A/B/C/D 全绿 · 2026-08-27 · v0.2 · 看板 `STAGE8_OWNER_CHECKLIST.md`）→ **Stage 9 已毕业**（A/B/C/D 全绿 · 2026-08-28 · v0.3 信任洞收口 · 看板 `STAGE9_OWNER_CHECKLIST.md`）。
 
-`yoyo.ty` = **788 handlers / 4170 lines**；Rust golden **739/739 PASS** · backends **36/36 PASS** · `cargo run -- test all` **CI 级绿**；JS==Rust==Python 三端字节级相等（3-chain section-ddc EQUAL，SHA-256: `4fb8b87f`）；gen1≡gen2 持续绿（`test gen12` + `verify-gen12-ddc.ps1`）。
+`yoyo.ty` = **788 handlers / 4170 lines**；Rust golden **739/739 PASS** · backends **37/37 PASS** · `cargo run -- test all` **CI 级绿**；JS==Rust==Python 三端字节级相等（3-chain section-ddc EQUAL，SHA-256: `4fb8b87f`）；gen1≡gen2 持续绿（`test gen12` + `verify-gen12-ddc.ps1`）。
 
 **DDC**：`00_nop_ret` 23 paths · `01_arith`/`02_branch`/`03_mem` 各 **11/11 core fatal**（含 win32/linux + **11 MCU fatal**）· `04_ldb_ptr` sim+container PASS · container PE+ELF PASS（不再 SKIP）。
 
-**自举**：Windows M2→M3 全绿（`stage5-win-selfhost.ps1` · gen2rt embedded startup → output.exe）；**M2→M3→M4** 全绿（`stage8-extended-selfhost.ps1/.sh` · gen4≡gen3_direct DDC EQUAL · gen12 SHA `e92520ea`）。full body 788 handlers · `test fullbody` 绿。真实平台 I/O（D-1 关闭 · `platform_io.rs`）。pin `0275802d2b4459e6…`（Decision #25 · Stage 8 未改源码）· **Freeze at M3**（Decision #26 · Lock Protocol 8-step 复验 2026-08-27 graduation gate）。
+**自举**：Windows M2→M3 全绿（`stage5-win-selfhost.ps1` · gen1 H_00 + gen2rt）；**M2→M3→M4** 全绿（`stage8-extended-selfhost` genNrt + **`stage9-pure-m4.ps1` H_00 纯链** · gen4≡gen3_direct DDC EQUAL · gen12 SHA `b609a735` / 18432B）。full body 788 handlers · `test fullbody` 绿。真实平台 I/O（D-1 · Rust + **JS peer Stage 9-B**）。pin `0275802d2b4459e6…`（Decision #25 · Stage 8/9 **未改**源码 · 无 Relock）· **Freeze at M3**（Decision #26）。
 
 ### 仍红（big list）
 | 项 | 说明 |
 |----|------|
 | ~~Freeze + Lock 复验~~ | Lock Protocol 8-step；pin `0275802d2b4459e6…` 与 `yoyo/tests/yoyo.ty.lock` 一致 — **GREEN (DONE)** |
 | ~~文档收口~~ | PROMPT Week 轴 ↔ 看板 ↔ BACKEND_SUPPORT 同步 — **GREEN (DONE)** |
+| ~~gen1 H_00~~ | Stage 9-A — **GREEN (DONE)** |
+| ~~JS I/O peer 盲区~~ | Stage 9-B — **GREEN (DONE)**（asm 仍 stub） |
+| ~~Win M4 host `--selfhost`~~ | Stage 9-C — **GREEN (DONE)**（Linux 仍 `--selfhost`） |
 
 ### W-START NODE（EXPERIMENTAL · body-extend 扩写完成 · 2026-07-24 点火 · 2026-07-28 收束 · ≠ freeze）
 `EXPERIMENTAL · NON-GREEN · Rust-first · OUT-OF-v0.1-body（SCOPE-CUT 边界外点火）` — 详表 `docs/auxdocs/selfhost-start-node.md`
@@ -103,7 +106,7 @@
 
 ### ISA / cross-peer gaps（NON-NORMATIVE · 自 W4.1 收纳）
 body 今日 = **788 handlers / 4170 lines**（W-START 扩写后）。扩写勿静默碰下列面（非 Week 红，但是诚实缺口）：
-- **D-1** `0x20/0x50/0x51`：JS 三码合流 movabs+store；Rust 走 `PlatformBackend`（Stub=movabs+store / Win=movabs+store）→ **peer 字节可分叉**；`yoyo.ty` 已练（H_2B-H_2D）。
+- **D-1** `0x20/0x50/0x51`：Rust Win/Linux 真 syscall/IAT；**JS 生产 PE（Stage 9-B）** 对齐 Rust win32 字节；golden 默认仍 stub（G-SM-IO）；**asm 仍 movabs+store**（诚实分叉）。
 - **D-2** `0x64 MOVRR`：**GREEN (Phase 2)** — JS/Rust 独立路由（`emit_movrr` / encodeOp 0x64 分支）；与 GET 同语义 `S[dst]←S[src]`，不再 alias emit_get。
 - **D-3** `0x84/0x85`：两端真实 `rep movsb` emit；DDC EQUAL；JS REX.R + Rust 参数顺序 + pin byte-17 均已修平（body-extend-105）。
 - **D-4**：gen1≡gen2 — 三端 DDC EQUAL，`.ty`==`.tyb`（SHA-256: 4fb8b87f），**GREEN**
@@ -300,6 +303,22 @@ node .\scripts\check-sugar.mjs
 | 3 | S7.3 | Windows 无 sidecar 自举 — runtime 嵌入 PE | **GREEN (DONE)** |
 | 4 | S7.4 | Linux M2→M3 自举链 — `stage5-linux-selfhost` 脚本全绿 | **GREEN (DONE)** |
 | 5 | S7.5 | 定制 MCU 后端脚手架 — `custom-mcu` + BACKEND_SUPPORT hook + backends 37/37 | **GREEN (DONE)** |
+
+### Stage 8 — v0.2 信任扩面（已毕业 ✅ · 2026-08-27 · 看板 `STAGE8_OWNER_CHECKLIST.md`）
+| # | id | 任务 | Status |
+|---|-----|------|--------|
+| 1 | S8-A | libyoyo 真实平台 I/O（D-1 关闭 · `platform_io.rs`） | **GREEN (DONE)** |
+| 2 | S8-B | Full body 编译器路径（W5.5 body · `test fullbody`） | **GREEN (DONE)** |
+| 3 | S8-C | 扩展自举链 M2→M3→M4（Win + Linux · genNrt） | **GREEN (DONE)** |
+| 4 | S8-D | v0.2 毕业门禁 + Relock 复验 + 文档收口 | **GREEN (DONE)** |
+
+### Stage 9 — v0.3 信任洞收口（已毕业 ✅ · 2026-08-28 · 看板 `STAGE9_OWNER_CHECKLIST.md`）
+| # | id | 任务 | Status |
+|---|-----|------|--------|
+| 1 | S9-A | gen1 H_00 / 纯自举路径（关 v0.2 Known RED） | **GREEN (DONE)** |
+| 2 | S9-B | JS peer 平台 I/O 对齐（关 DDC 盲区） | **GREEN (DONE)** |
+| 3 | S9-C | 收紧 M4 host `bootstrap --selfhost`（Win 纯 H_00 链） | **GREEN (DONE)** |
+| 4 | S9-D | v0.3 毕业门禁 + pin 复验（无 Relock）+ `RELEASE-v0.3.md` | **GREEN (DONE)** |
 
 ---
 
@@ -1268,19 +1287,22 @@ isa! { r#"
 > **日常入口。** 规格语义仍在下方 Parts；施工顺序 = 本 Week 轴。Status 仅允许：**GREEN (DONE)** / **RED** / **SCOPE-CUT** / **HOLD**。勿再维护 `STATUS.md` / `docs/PROGRESS-MAP.md`（已并入此处）。
 
 ### 你现在在哪
-**Stage 4 已毕业**（A/B/C 全绿 · 看板 `STAGE4_OWNER_CHECKLIST.md`）→ **Stage 5 已毕业**（8/8 · 2026-08-24）→ **Stage 6 已毕业**（3/3 · 2026-08-25）→ **Stage 7 已毕业**（5/5 · 2026-08-26 · custom-mcu 脚手架）→ **Stage 8 已毕业**（A/B/C/D 全绿 · 2026-08-27 · v0.2 毕业门禁 · 看板 `STAGE8_OWNER_CHECKLIST.md`）。
+**Stage 4 已毕业**（A/B/C 全绿 · 看板 `STAGE4_OWNER_CHECKLIST.md`）→ **Stage 5 已毕业**（8/8 · 2026-08-24）→ **Stage 6 已毕业**（3/3 · 2026-08-25）→ **Stage 7 已毕业**（5/5 · 2026-08-26 · custom-mcu 脚手架）→ **Stage 8 已毕业**（A/B/C/D 全绿 · 2026-08-27 · v0.2 · 看板 `STAGE8_OWNER_CHECKLIST.md`）→ **Stage 9 已毕业**（A/B/C/D 全绿 · 2026-08-28 · v0.3 信任洞收口 · 看板 `STAGE9_OWNER_CHECKLIST.md`）。
 
-`yoyo.ty` = **788 handlers / 4170 lines**；Rust golden **739/739 PASS** · backends **36/36 PASS** · `cargo run -- test all` **CI 级绿**；JS==Rust==Python 三端字节级相等（3-chain section-ddc EQUAL，SHA-256: `4fb8b87f`）；gen1≡gen2 持续绿（`test gen12` + `verify-gen12-ddc.ps1`）。
+`yoyo.ty` = **788 handlers / 4170 lines**；Rust golden **739/739 PASS** · backends **37/37 PASS** · `cargo run -- test all` **CI 级绿**；JS==Rust==Python 三端字节级相等（3-chain section-ddc EQUAL，SHA-256: `4fb8b87f`）；gen1≡gen2 持续绿（`test gen12` + `verify-gen12-ddc.ps1`）。
 
 **DDC**：`00_nop_ret` 23 paths · `01_arith`/`02_branch`/`03_mem` 各 **11/11 core fatal**（含 win32/linux + **11 MCU fatal**）· `04_ldb_ptr` sim+container PASS · container PE+ELF PASS（不再 SKIP）。
 
-**自举**：Windows M2→M3 全绿（`stage5-win-selfhost.ps1` · gen2rt embedded startup → output.exe）；**M2→M3→M4** 全绿（`stage8-extended-selfhost.ps1/.sh` · gen4≡gen3_direct DDC EQUAL · gen12 SHA `e92520ea`）。full body 788 handlers · `test fullbody` 绿。真实平台 I/O（D-1 关闭 · `platform_io.rs`）。pin `0275802d2b4459e6…`（Decision #25 · Stage 8 未改源码）· **Freeze at M3**（Decision #26 · Lock Protocol 8-step 复验 2026-08-27 graduation gate）。
+**自举**：Windows M2→M3 全绿（`stage5-win-selfhost.ps1` · gen1 H_00 + gen2rt）；**M2→M3→M4** 全绿（`stage8-extended-selfhost` genNrt + **`stage9-pure-m4.ps1` H_00 纯链** · gen4≡gen3_direct DDC EQUAL · gen12 SHA `b609a735` / 18432B）。full body 788 handlers · `test fullbody` 绿。真实平台 I/O（D-1 · Rust + **JS peer Stage 9-B**）。pin `0275802d2b4459e6…`（Decision #25 · Stage 8/9 **未改**源码 · 无 Relock）· **Freeze at M3**（Decision #26）。
 
 ### 仍红（big list）
 | 项 | 说明 |
 |----|------|
 | ~~Freeze + Lock 复验~~ | Lock Protocol 8-step；pin `0275802d2b4459e6…` 与 `yoyo/tests/yoyo.ty.lock` 一致 — **GREEN (DONE)** |
 | ~~文档收口~~ | PROMPT Week 轴 ↔ 看板 ↔ BACKEND_SUPPORT 同步 — **GREEN (DONE)** |
+| ~~gen1 H_00~~ | Stage 9-A — **GREEN (DONE)** |
+| ~~JS I/O peer 盲区~~ | Stage 9-B — **GREEN (DONE)**（asm 仍 stub） |
+| ~~Win M4 host `--selfhost`~~ | Stage 9-C — **GREEN (DONE)**（Linux 仍 `--selfhost`） |
 
 ### W-START NODE（EXPERIMENTAL · body-extend 扩写完成 · 2026-07-24 点火 · 2026-07-28 收束 · ≠ freeze）
 `EXPERIMENTAL · NON-GREEN · Rust-first · OUT-OF-v0.1-body（SCOPE-CUT 边界外点火）` — 详表 `docs/auxdocs/selfhost-start-node.md`
@@ -1306,7 +1328,7 @@ isa! { r#"
 
 ### ISA / cross-peer gaps（NON-NORMATIVE · 自 W4.1 收纳）
 body 今日 = **788 handlers / 4170 lines**（W-START 扩写后）。扩写勿静默碰下列面（非 Week 红，但是诚实缺口）：
-- **D-1** `0x20/0x50/0x51`：JS 三码合流 movabs+store；Rust 走 `PlatformBackend`（Stub=movabs+store / Win=movabs+store）→ **peer 字节可分叉**；`yoyo.ty` 已练（H_2B-H_2D）。
+- **D-1** `0x20/0x50/0x51`：Rust Win/Linux 真 syscall/IAT；**JS 生产 PE（Stage 9-B）** 对齐 Rust win32 字节；golden 默认仍 stub（G-SM-IO）；**asm 仍 movabs+store**（诚实分叉）。
 - **D-2** `0x64 MOVRR`：**GREEN (Phase 2)** — JS/Rust 独立路由（`emit_movrr` / encodeOp 0x64 分支）；与 GET 同语义 `S[dst]←S[src]`，不再 alias emit_get。
 - **D-3** `0x84/0x85`：两端真实 `rep movsb` emit；DDC EQUAL；JS REX.R + Rust 参数顺序 + pin byte-17 均已修平（body-extend-105）。
 - **D-4**：gen1≡gen2 — 三端 DDC EQUAL，`.ty`==`.tyb`（SHA-256: 4fb8b87f），**GREEN**
@@ -1503,6 +1525,22 @@ node .\scripts\check-sugar.mjs
 | 3 | S7.3 | Windows 无 sidecar 自举 — runtime 嵌入 PE | **GREEN (DONE)** |
 | 4 | S7.4 | Linux M2→M3 自举链 — `stage5-linux-selfhost` 脚本全绿 | **GREEN (DONE)** |
 | 5 | S7.5 | 定制 MCU 后端脚手架 — `custom-mcu` + BACKEND_SUPPORT hook + backends 37/37 | **GREEN (DONE)** |
+
+### Stage 8 — v0.2 信任扩面（已毕业 ✅ · 2026-08-27 · 看板 `STAGE8_OWNER_CHECKLIST.md`）
+| # | id | 任务 | Status |
+|---|-----|------|--------|
+| 1 | S8-A | libyoyo 真实平台 I/O（D-1 关闭 · `platform_io.rs`） | **GREEN (DONE)** |
+| 2 | S8-B | Full body 编译器路径（W5.5 body · `test fullbody`） | **GREEN (DONE)** |
+| 3 | S8-C | 扩展自举链 M2→M3→M4（Win + Linux · genNrt） | **GREEN (DONE)** |
+| 4 | S8-D | v0.2 毕业门禁 + Relock 复验 + 文档收口 | **GREEN (DONE)** |
+
+### Stage 9 — v0.3 信任洞收口（已毕业 ✅ · 2026-08-28 · 看板 `STAGE9_OWNER_CHECKLIST.md`）
+| # | id | 任务 | Status |
+|---|-----|------|--------|
+| 1 | S9-A | gen1 H_00 / 纯自举路径（关 v0.2 Known RED） | **GREEN (DONE)** |
+| 2 | S9-B | JS peer 平台 I/O 对齐（关 DDC 盲区） | **GREEN (DONE)** |
+| 3 | S9-C | 收紧 M4 host `bootstrap --selfhost`（Win 纯 H_00 链） | **GREEN (DONE)** |
+| 4 | S9-D | v0.3 毕业门禁 + pin 复验（无 Relock）+ `RELEASE-v0.3.md` | **GREEN (DONE)** |
 
 ---
 

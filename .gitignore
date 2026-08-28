@@ -14,11 +14,17 @@ yoyo-js/node_modules/
 # Temp / scratch / build artifacts
 scripts/_*.txt
 scripts/_stage5-*/
+scripts/_stage8-*/
+scripts/_stage9-*/
 build-out.txt
 build_log.txt
 target-selfhost-build.log
 yoyo-rust/target-coord/
 yoyo-rust/target-selfhost/
+yoyo-rust/target-nosidecar/
+yoyo-rust/target-selfhost-build/
+yoyo-rust/target-sh-build/
+yoyo-test/
 __pycache__/
 *.pyc
 _scratch_*

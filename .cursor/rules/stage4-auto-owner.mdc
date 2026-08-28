@@ -14,7 +14,7 @@ alwaysApply: true
 | 用户输入 | 模式 | 行为 |
 | -------- | ---- | ---- |
 | `继续 两板` / `继续两板` | **两板并行** | 见下节「两板协调」；**不要**在 master 上单轨做 B |
-| `继续` / `开工` / `auto` / 其它 | **单轨** | master 上按 A→B→C 下一未勾项顺序执行 |
+| `继续` / `开工` / `auto` / 其它 | **单轨** | master 上按下一未勾项顺序执行（现主线 Stage 9 A→D） |
 
 解析规则：消息含 `两板`（可带空格，如 `继续 两板`）→ 两板模式；否则单轨。
 
@@ -58,16 +58,18 @@ alwaysApply: true
 
 0. **右侧打开看板**（**在读文件之前**，本步为自动负责人首动作）：
    - 调用 MCP `cursor-app-control` → `open_resource`
-   - URI 固定：`file:///F:/yoyo/STAGE4_OWNER_CHECKLIST.md`
+   - **现主线**：URI `file:///F:/yoyo/STAGE9_OWNER_CHECKLIST.md`（Stage 8 已全绿 → Stage 9 / v0.3）
+   - 历史查阅可另开：`file:///F:/yoyo/STAGE4_OWNER_CHECKLIST.md` / `STAGE8_OWNER_CHECKLIST.md`
    - 在 Glass **右侧面板**打开看板；失败不阻塞，继续后续步骤
    - **Hooks 做不到**：`workspaceOpen` / `sessionStart` 无法打开 Glass 右栏，仅 Agent 规则 + MCP 可实现
-1. **读取看板**：`STAGE4_OWNER_CHECKLIST.md`（完整路径 `F:\yoyo\STAGE4_OWNER_CHECKLIST.md`）
+1. **读取看板**：优先 `STAGE9_OWNER_CHECKLIST.md`；Stage 4–8 历史勾选勿回改
 2. **选下一项**（严格顺序，跳过已 `[x]`）：
-   - Stage 4 毕业三门：**A → B → C**（见「Stage 4 毕业三门」）
+   - Stage 4 毕业三门：**A → B → C**（见「Stage 4 毕业三门」）— 均已绿则跳过
    - A/B/C 全 `[x]` 后 → **Stage 5** 预置任务第一项
    - Stage 5 全 `[x]` 后 → **Stage 6** 预置任务第一项
    - Stage 6 全 `[x]` 后 → **Stage 7** 预置任务第一项
    - Stage 7 全 `[x]` 后 → **Stage 8 / v0.2** 见 `STAGE8_OWNER_CHECKLIST.md` + `SCOPE-v0.2.md`（A→D）
+   - Stage 8 全 `[x]` 后 → **Stage 9 / v0.3** 见 `STAGE9_OWNER_CHECKLIST.md` + `SCOPE-v0.3.md`（A→D）
 3. **执行该项**：实现 + 验收；看板「对 AI 说什么」话术为任务规格，用户**不必**点名 A/B/C
 4. **验收命令**（PowerShell）：
    ```powershell
@@ -82,7 +84,7 @@ alwaysApply: true
 
 用户是验收负责人，不需要底层细节。仅报告：
 
-- 执行了哪一项（A/B/C 或 Stage 5/6/7 子项名称）
+- 执行了哪一项（A/B/C 或 Stage 5/6/7/8/9 子项名称）
 - 跑了什么命令、退出码 / 绿或红
 - 勾了哪个 checkbox
 - 若 blocked：一句话原因 + 需要用户做什么
@@ -107,10 +109,14 @@ alwaysApply: true
 | S8-B | Full body 编译器路径（W5.5 body） |
 | S8-C | 扩展自举链 M2→M3→M4（Win + Linux） |
 | S8-D | v0.2 毕业门禁 + Relock + 文档收口 |
+| S9-A | gen1 H_00 / 纯自举路径（关 v0.2 Known RED） |
+| S9-B | JS peer 平台 I/O 对齐（关 DDC 盲区） |
+| S9-C | 收紧 M4 host `bootstrap --selfhost` wrapper |
+| S9-D | v0.3 毕业门禁 + Relock + 文档收口 |
 
 ## 约束
 
 - 最小 diff；Rust 链为主（`yoyo-rust/verifier`）
 - PowerShell：用 `&` 直接调用，避免 `Start-Process | Out-Null` pipe 误判退出码
 - 红了：修到绿再勾，不把半成品标完成
-- Stage 8 / v0.2 北星 = **打破后门魔咒**（DDC+Lock 扩面，非单纯加功能）
+- Stage 9 / v0.3 北星 = **打破后门魔咒**（DDC+Lock 扩面 / 缩小宿主信任洞，非单纯加功能）
