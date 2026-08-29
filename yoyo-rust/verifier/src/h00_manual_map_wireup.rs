@@ -342,7 +342,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
     let store_iat = c.len();
     patch_rel32(&mut c, jmp_store_iat + 1, jmp_store_iat + 5, store_iat);
-    c.extend_from_slice(&[0x4D, 0x89, 0x03]); // mov [r11], rax (IAT slot)
+    c.extend_from_slice(&[0x49, 0x89, 0x03]); // mov [r11], rax (IAT slot)
     c.extend_from_slice(&[0x48, 0x83, 0xC6, 0x08]);
     c.extend_from_slice(&[0x49, 0x83, 0xC3, 0x08]);
     let jmp_thunk = c.len();
