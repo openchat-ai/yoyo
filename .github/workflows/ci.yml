@@ -7,7 +7,8 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Win32 H_00 seed/link (gen12) embeds yoyo_runtime.dll; Linux runners have no DLL.
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -18,9 +19,14 @@ jobs:
         with:
           rustflags: ""
 
-      - name: Build
+      - name: Build verifier
         working-directory: yoyo-rust/verifier
         run: cargo build
+
+      # Needed for link_pe_win32 H_00 path (gen12 / seed host). Debug DLL is enough to link.
+      - name: Build yoyo-runtime DLL
+        working-directory: yoyo-rust
+        run: cargo build -p yoyo-runtime
 
       - name: Unit tests
         working-directory: yoyo-rust/verifier

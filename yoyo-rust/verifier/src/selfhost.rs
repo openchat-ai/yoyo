@@ -147,15 +147,19 @@ mod tests {
         let ty_path = root.join("yoyo.ty");
 
         let tyb_data = fs::read(&tyb_path).unwrap();
-        let pe_self = selfhost_compile_tyb(&tyb_data).unwrap();
+        let src = fs::read_to_string(&ty_path).unwrap();
 
-        // Same seed/link host as .tyb path (`link_pe_win32` + handler offsets), not bare `link_pe`.
-        let ty_data = fs::read(&ty_path).unwrap();
-        let pe_normal = seed_host_compile(&ty_data).unwrap();
+        // Emit-layer DDC: .ty vs .tyb must produce identical code/data/handlers.
+        // Full PE H_00 link (needs yoyo_runtime.dll) is covered by `yoyo test gen12`.
+        let out_tyb =
+            crate::executor::compile_tyb_source(&tyb_data, PlatformKind::Win32).unwrap();
+        let out_ty = crate::executor::compile_ty_source(&src, PlatformKind::Win32).unwrap();
 
-        let text_self = crate::ddc::pe_text_section(&pe_self).unwrap();
-        let text_normal = crate::ddc::pe_text_section(&pe_normal).unwrap();
-
-        assert_eq!(text_self, text_normal, "selfhost compile must match normal compile");
+        assert_eq!(out_tyb.code, out_ty.code, "emit code must match (.ty vs .tyb)");
+        assert_eq!(out_tyb.data, out_ty.data, "emit data must match (.ty vs .tyb)");
+        assert_eq!(
+            out_tyb.handler_offsets, out_ty.handler_offsets,
+            "handler offsets must match (.ty vs .tyb)"
+        );
     }
 }
