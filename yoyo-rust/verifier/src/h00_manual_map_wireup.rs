@@ -300,15 +300,15 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x85, 0xD2]);
     let jz_idone3 = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    // module name at r14+rcx
-    c.extend_from_slice(&[0x4A, 0x8D, 0x14, 0x0E]); // lea rdx,[r14+rcx]
+    // edx=FirstThunk rva — save IAT cursor before rdx becomes module-name ptr
+    c.extend_from_slice(&[0x4A, 0x8D, 0x1C, 0x16]); // lea r11,[r14+rdx] IAT write cursor
+    c.extend_from_slice(&[0x4A, 0x8D, 0x14, 0x0E]); // lea rdx,[r14+rcx] module name
     let call_find_mod = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]); // call find_module
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     fail_jumps.push(c.len());
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = module base
-    c.extend_from_slice(&[0x4D, 0x8D, 0x5C, 0x16, 0x00]); // lea r11,[r14+rdx] IAT write ptr
     c.extend_from_slice(&[0x85, 0xDB]); // cmp ebx,0 (OriginalFirstThunk)
     let jz_iat_read = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
@@ -317,21 +317,30 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     let iat_read = c.len();
     patch_rel32(&mut c, jz_iat_read + 2, jz_iat_read + 6, iat_read);
-    c.extend_from_slice(&[0x4A, 0x8D, 0x34, 0x16]); // lea rsi,[r14+rdx] read IAT when no OFT
+    c.extend_from_slice(&[0x49, 0x89, 0xDE]); // mov rsi, r11 (read IAT when no OFT)
     let thunk_loop = c.len();
     patch_rel32(&mut c, j_to_loop + 1, j_to_loop + 5, thunk_loop);
     c.extend_from_slice(&[0x48, 0x8B, 0x06]); // thunk
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_thunk_done = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x89, 0xC1]); // mov rcx, rax (save thunk)
     c.extend_from_slice(&[0x48, 0x0F, 0xBA, 0xE8, 0x3F]); // bt rax,63
     let jc_ord = c.len();
-    c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x4A, 0x8D, 0x54, 0x06, 0x02]); // lea rdx,[r14+rax+2] name
+    c.extend_from_slice(&[0x0F, 0x82, 0, 0, 0, 0]); // jc ord_path
+    c.extend_from_slice(&[0x4A, 0x8D, 0x54, 0x0E, 0x02]); // lea rdx,[r14+rcx+2] name
     let call_resolve = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
-    let after_ord = c.len();
-    patch_rel32(&mut c, jc_ord + 2, jc_ord + 6, after_ord);
+    let jmp_store_iat = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let ord_path = c.len();
+    patch_rel32(&mut c, jc_ord + 2, jc_ord + 6, ord_path);
+    c.extend_from_slice(&[0x89, 0xC8]); // mov eax, ecx
+    c.extend_from_slice(&[0x25, 0xFF, 0xFF, 0x00, 0x00]); // and eax, 0xffff
+    let call_resolve_ord = c.len();
+    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    let store_iat = c.len();
+    patch_rel32(&mut c, jmp_store_iat + 1, jmp_store_iat + 5, store_iat);
     c.extend_from_slice(&[0x4D, 0x89, 0x03]); // mov [r11], rax (IAT slot)
     c.extend_from_slice(&[0x48, 0x83, 0xC6, 0x08]);
     c.extend_from_slice(&[0x49, 0x83, 0xC3, 0x08]);
@@ -483,6 +492,28 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jae_no_exp + 2, jae_no_exp + 6, no_exp);
     c.extend_from_slice(&[0x31, 0xC0]);
     c.extend_from_slice(&[0xC3]);
+
+    let resolve_export_ordinal = c.len();
+    patch_rel32(
+        &mut c,
+        call_resolve_ord + 1,
+        call_resolve_ord + 5,
+        resolve_export_ordinal,
+    );
+    c.extend_from_slice(&[0x89, 0xC1]); // mov ecx, eax (ordinal)
+    c.extend_from_slice(&[0x8B, 0x47, 0x3C]);
+    c.extend_from_slice(&[0x8B, 0x84, 0x38, 0x88, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x85, 0xC0]);
+    let jz_no_ord = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x01, 0xF8]);
+    c.extend_from_slice(&[0x8B, 0x50, 0x1C]);
+    c.extend_from_slice(&[0x48, 0x01, 0xFA]);
+    c.extend_from_slice(&[0x89, 0xC8]);
+    c.extend_from_slice(&[0x8B, 0x04, 0x82]);
+    c.extend_from_slice(&[0x48, 0x01, 0xF8]);
+    c.extend_from_slice(&[0xC3]);
+    patch_rel32(&mut c, jz_no_ord + 2, jz_no_ord + 6, no_exp);
 
     for at in fail_jumps {
         patch_rel32(
@@ -649,8 +680,8 @@ mod tests {
             }
         }
         assert!(
-            body.len() > 400 && body.len() < 950,
-            "manual-map H_00 stub should fit OW-STUB pin [40,900] (got {}B)",
+            body.len() > 400 && body.len() < 1024,
+            "manual-map H_00 stub should fit OW-STUB pin [40,1024] (got {}B)",
             body.len()
         );
         // No LoadLibraryA ROR13 hash needle (0x8E 0x4E 0x0E 0xEC)
