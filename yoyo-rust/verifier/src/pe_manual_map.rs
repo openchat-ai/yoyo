@@ -456,7 +456,8 @@ mod tests {
             if dll.eq_ignore_ascii_case("KERNEL32.dll") && name == "ExitProcess" {
                 Some(0x7FFE_0000)
             } else {
-                None
+                // Spike test: any resolved VA suffices to walk export dir.
+                Some(0x7FFE_1000)
             }
         })
         .expect("manual map sidecar");
