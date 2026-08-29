@@ -564,7 +564,9 @@ fn gen_h00_export_call_tail(
     c.extend_from_slice(&[0x48, 0x01, 0xD8]); // add rax, rbx — functions RVA is image-relative
     c.extend_from_slice(&[0x8B, 0x00]);
     c.extend_from_slice(&[0x48, 0x01, 0xD8]);
-    c.extend_from_slice(&[0xFF, 0xD0]);
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]); // shadow for Win64 call convention
+    c.extend_from_slice(&[0xFF, 0xD0]); // call export (yoyo_runtime_selfhost_main)
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x28]);
     c.extend_from_slice(&[0x89, 0xC1]);
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_EXIT_PROCESS);
 
