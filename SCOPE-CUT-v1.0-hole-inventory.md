@@ -18,7 +18,9 @@
 
 **Post-v1.0 path 2（关洞）· OW-IAT Linux tramp shrink（2026-08-29）：** `linux_h00_tramp.elf` **去掉 dlsym**（`dlopen` only + in-process ELF dyn sym walk for `yoyo_runtime_selfhost_main`）。tramp **9760** B（was **9768**）；gen4≡gen3_direct **EQUAL**（sha `26ad9d0e`）。**仍 CUT**（dlopen / libc 仍在）— **禁止**标 CLOSED。
 
-**Post-v1.0 path 2（关洞）· OW-H00 slot align（2026-08-29）：** JS/asm 全量 `yoyo.ty` link 时 H_00 与 Rust 同 **JMP+NOP 18B**（`E9 rel32 + 13×NOP`）；三 peer slot **EQUAL**。**仍 CUT**（Rust-only H_00 stub tail 仍驱动 JS↔Rust full `.text` DIFF）— **禁止**标 CLOSED / 假 full `.text` EQUAL。
+**Post-v1.0 path 2（关洞）· OW-IAT manual-map wire-up（2026-08-29 · PR #8）：** H_00 stub **905B** manual-map（CreateFile/Read/VirtualAlloc + `pe_manual_map`）；PEB `LoadLibraryA` **DROPPED**；JS `h00-manual-map-stub.hex` lockstep。**仍 CUT**（sidecar `yoyo_rt.dll` + kernel32 I/O）— **禁止**标 CLOSED。
+
+**Post-v1.0 path 2（关洞）· OW-H00 re-eval（PR #8）：** JS template at canonical RVAs；**three_peer_full=DIFF**（body EQUAL）。**OW-H00 CUT** — 撤销 PR #6 CLOSED。
 
 **Post-v1.0 path 2（关洞）· OW-SEED observe pin（2026-08-29）：** stage13/15/16 fail-closed 钉 **emitter**（`yoyo.exe` basename + size + sha256_prefix）+ **seed**（PE size + sha256_prefix 与 `SEED_HOST` 一致）+ **path=h00**。`SEED_HOST sha256_prefix` 扩至 **16** hex。**仍 CUT**（seed 仍由 Rust `yoyo.exe` 发射）— **禁止**标 CLOSED / SEED_HOST_GONE。
 
@@ -38,10 +40,10 @@ v0.9 把洞从 lump 变成逐项 `CLOSED|CUT`。v1.0-A 要求洞从「v0.9 枚�
 
 | ID | 区域 | Disposition | 关闭证据（CLOSED 才需要） | CUT 钉（机器） |
 |----|------|-------------|---------------------------|----------------|
-| **OW-H00** | H_00 entry slot（18 B） | **CUT** | full `.text` EQUAL 且 body 仍 EQUAL | slot **JMP+NOP aligned**（JS=Rust=asm）；full `.text` JS↔Rust **DIFF**（stub）；body 跳过该槽 |
-| **OW-STUB** | H_00 LoadLibrary stub tail | **CUT** | `stub_tail_nonzero==0`（所有 peer） | `stub_tail_nonzero` ∈ **[40, 900]**；观测 **251**（PEB LoadLibrary + functions[0]） |
+| **OW-H00** | H_00 entry slot（18 B） | **CUT** | full `.text` EQUAL 且 body 仍 EQUAL | slot **JMP+NOP aligned**；full `.text` JS↔Rust **DIFF**（manual-map stub bytes） |
+| **OW-STUB** | H_00 manual-map stub tail | **CUT** | `stub_tail_nonzero==0`（所有 peer） | `stub_tail_nonzero` ∈ **[40, 950]**；观测 **905** |
 | **OW-RT** | Sidecar Rust runtime (Win DLL / Linux `.so`) | **CUT** | 无 exact embed **且** 无 Rust LoadLibrary/libdl sidecar 宿主信任 | Win DLL **≤150000** 观测 **141312**；Linux seed ELF **253952**（MAX **300000**）；sidecar `yoyo_rt.dll` / `./libyoyo_runtime.so`；**no exact .so embed**（tramp still embedded） |
-| **OW-IAT** | Host LoadLibrary / libdl | **CUT** | 无宿主 DLL 加载面（无 `yoyo_rt.dll`） | Win：**无** IAT `LoadLibraryA`/`GetProcAddress`；PEB ROR13 + PE export resolve；`yoyo_rt.dll` 仍在。Linux tramp：`dlopen` only；**无** `dlsym`；仍宿主加载 |
+| **OW-IAT** | Host file I/O + sidecar | **CUT** | 无宿主 DLL 加载面（无 `yoyo_rt.dll`） | Win：**无** PEB LoadLibraryA；CreateFile/Read/VirtualAlloc + manual-map；`yoyo_rt.dll` 仍在。Linux tramp：`dlopen` only；**无** `dlsym`；仍宿主加载 |
 | **OW-SEED** | Seed 仍由 Rust `yoyo.exe` 发射 | **CUT** | seed 非 Rust host 发射 | Rust `yoyo link`；seed PE **≤270000**（观测 **248320**）；**emitter** size+sha256_prefix + **seed** sha256_prefix≡`SEED_HOST` + **path=h00** |
 | **REL-FULLTEXT** | full `.text` peer compare | **CUT** | （禁止用 EQUAL 当毕业话术） | `full_text=DIFF` → inventory FINAL+CUT；意外 EQUAL → PARTIAL（OW-RT/IAT 仍 CUT） |
 | **REL-STUBOS** | Plan9/FreeBSD/Haiku/Serenity I/O | **CUT** | 生产 I/O 落地（非本 Stage） | `stage13-cross-platform-parity.ps1` stub 钉仍在源门禁中 |
@@ -100,30 +102,28 @@ Gate 必须同时：
 
 ---
 
-## 观测基线（2026-08-29 · post-v1.0 OW-STUB ordinal-0 + OW-RT sidecar + OW-IAT no-GPA/dlsym + OW-H00 slot align + OW-SEED pin · gate GREEN）
+## 观测基线（2026-08-29 · post PR #8 · OW-IAT manual-map wire-up · master `1598cad`）
 
 | Monitor | Value |
 |---------|-------|
 | selfhost-body compared | **17805** B EQUAL |
-| full `.text` JS↔Rust | **DIFF**（H_00 slot aligned；stub tail drives DIFF） |
-| H_00 entry slot (18 B) | **JMP+NOP aligned** JS=Rust=asm (`E9`+rel+13×`90`) |
-| stub_tail_nonzero (Rust) | **96**（pin [40, 512]；ordinal-0 export resolve） |
+| full `.text` JS↔Rust | **DIFF**（`a9b4cdc8` vs `72c27c9f` · **18944** B） |
+| three_peer_full | **DIFF** |
+| H_00 entry slot (18 B) | **JMP+NOP aligned** JS=Rust |
+| stub_tail_nonzero (JS=Rust) | **905**（pin [40, 950]） |
 | runtime.dll | **141312**（**no exact embed**；sidecar） |
-| seed PE (Rust link) | **248320**（≤270000；data floor 0x38000 仍主导体积） |
+| seed PE (Rust link) | **249344**（≤270000） |
 | seed ELF (Linux link) | **253952**（≪300000；**no exact .so embed**；tramp **9760** B embed；no dlsym） |
-| gen12 / fullbody `.text` | SHA prefix **`90ad6d6e`** · compared **17920** B |
+| gen12 / fullbody `.text` | SHA prefix **`72c27c9f`** · compared **18944** B |
 | Lock pin | `0275802d…` Decision #25（本缩面不改 `yoyo.ty`） |
 | Disposition | **OW-\* + REL-\* all CUT**（closed=0 cut=7） |
-| Gate | `stage16-scope-cut-finalize.ps1 -SkipBuild` exit **0** · `HOLE_INVENTORY_V10 status=FINAL` |
-| No-regress | nested stage15-A exit 0 · stage14-A nested via stage15 · `stage10-linux-pure-m4.sh` GREEN |
-| OW-IAT shrink | Win GetProcAddress **ABSENT**；IAT/ASCII `LoadLibraryA` **ABSENT**（PEB ROR13 resolve）；Linux tramp dlsym **ABSENT**；dlopen **PRESENT**（仍 CUT · 宿主 LoadLibrary） |
-| OW-STUB shrink | PEB LoadLibrary + AddressOfFunctions[0]；was 235B → **69** → **251** B span（仍 CUT） |
-| OW-SEED observe | emitter+seed hash + path=h00（仍 CUT） |
-| Obsolete PRs | #1 closed → **bd390b9**；#3 merged → **4f3064d**；#5 merged → **48af60a**；#6 merged（69B） |
+| Gates | body-ddc · gen12 · stage17-ow-iat-wireup · stage10-linux GREEN |
+| OW-IAT wire-up | PEB LoadLibrary **DROPPED**；manual-map **WIRED**；**仍 CUT** |
+| Obsolete PRs | #8 merged → **1598cad**；#7 merged → **2589b37** |
 
-**Next tip（post-v1.0 path 2）：** **OW-IAT wire-up** — replace PEB `LoadLibraryA` call with `CreateFileA`/`ReadFile`/`VirtualAlloc` + `pe_manual_map` in H_00 stub; **three-peer lockstep**; Linux `dlopen` → `open`/`mmap` second.
+**Next tip（post-v1.0 path 2）：** **Linux dlopen replace** — tramp `dlopen` → `open`/`read`/`mmap` + in-process ELF map（mirror Win manual-map）；then **Win sidecar smoke** (cwd `yoyo_rt.dll` + manual-map H_00 run).
 
-**OW-IAT spike landed（PR #7）：** `verifier/src/pe_manual_map.rs`（section map + DIR64 reloc + import resolve + `functions[0]` export）· gate `scripts/stage17-ow-iat-spike.{ps1,sh}` · doc `SCOPE-CUT-v1.0-ow-iat-spike.md` · IAT/ASCII `LoadLibraryA` **ABSENT** · PEB resolve still CUT · manual-map **not wired** yet.
+**OW-IAT wire-up landed（PR #8 · master `1598cad`）：** `gen_h00_manual_map_main` **907B** emit wired；PEB LoadLibrary **DROPPED**；JS `h00-manual-map-peer.js` template lockstep · gate `stage17-ow-iat-wireup` · **OW-IAT still CUT**（sidecar + CreateFile path).
 
 ---
 

@@ -368,7 +368,17 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Floor** | **82B** = LoadLibraryA + in-process `functions[0]` + ExitProcess×2; below needs OW-IAT/OW-RT not stub tweak |
 | **Gates** | three-peer full `.text` EQUAL; body-ddc + stage14/15/16 stub pin [40,512] |
 
-### Post-v1.0 path 2 — OW-SEED emitter/seed hash pin (2026-08-29)
+### Post-v1.0 path 2 — OW-IAT manual-map wire-up (2026-08-29 · PR #8)
+
+| Item | Detail |
+|------|--------|
+| **Hole** | **OW-IAT** (+ **OW-H00** re-eval) |
+| **Change** | `gen_h00_manual_map_main` wired into H_00; PEB `LoadLibraryA` **dropped**; CreateFile/Read/VirtualAlloc + `pe_manual_map`; JS `h00-manual-map-stub.hex` lockstep |
+| **Still CUT** | Sidecar `yoyo_rt.dll` + kernel32 file I/O; **not** YOYO-built loader end-to-end |
+| **Obs** | stub_nz **905**; gen12 **`72c27c9f`** / **18944** B; seed PE **249344**; three_peer_full **DIFF** (JS `a9b4cdc8` ≠ Rust `72c27c9f`) |
+| **OW-H00** | **CUT** (re-eval; PR #6 CLOSED revoked — template present but full `.text` not byte-equal) |
+| **Gates** | body-ddc · gen12 · `stage17-ow-iat-wireup` unit tests · stage10-linux GREEN |
+| **Next** | Linux dlopen → open/mmap manual-map; Win cwd sidecar smoke |
 
 | Item | Detail |
 |------|--------|
