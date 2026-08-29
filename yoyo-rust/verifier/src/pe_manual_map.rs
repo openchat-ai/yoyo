@@ -341,16 +341,14 @@ pub fn export_function_rva_functions0(image: &[u8], headers: &PeHeaders) -> Resu
 }
 
 /// Full manual map: sections + reloc + imports.
-pub fn manual_map_pe_dll<F>(
-    file: &[u8],
-    load_base: u64,
-    resolve_import: F,
-) -> Result<MappedPe, MapError>
+/// Relocations use the in-buffer load address (`image.as_ptr()`), matching in-process mapping.
+pub fn manual_map_pe_dll<F>(file: &[u8], resolve_import: F) -> Result<MappedPe, MapError>
 where
     F: FnMut(&str, &str) -> Option<u64>,
 {
     let headers = parse_pe64_headers(file)?;
     let mut image = map_pe_sections(file, &headers)?;
+    let load_base = image.as_ptr() as u64;
     apply_base_relocations(&mut image, &headers, load_base)?;
     resolve_imports(&mut image, &headers, resolve_import)?;
     Ok(MappedPe {
@@ -494,8 +492,7 @@ mod tests {
             return;
         };
         let file = std::fs::read(path).expect("read dll");
-        let load_base = 0x1_8000_0000u64;
-        let mapped = manual_map_pe_dll(&file, load_base, |dll, name| {
+        let mapped = manual_map_pe_dll(&file, |dll, name| {
             if dll.eq_ignore_ascii_case("KERNEL32.dll") && name == "ExitProcess" {
                 Some(0x7FFE_0000)
             } else {
@@ -570,8 +567,8 @@ mod tests {
             assert_ne!(SetCurrentDirectoryA(work_c.as_ptr()), 0, "SetCurrentDirectoryA");
         }
 
-        let load_base = 0x1_8000_0000u64;
-        let mapped = manual_map_pe_dll(&file, load_base, host_resolve).expect("manual map");
+        let mapped = manual_map_pe_dll(&file, host_resolve).expect("manual map");
+        let load_base = mapped.load_base;
         let hinst = load_base as *mut std::ffi::c_void;
 
         if mapped.headers.entry_rva != 0 {
