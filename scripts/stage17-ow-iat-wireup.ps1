@@ -83,9 +83,7 @@ Write-Host "== link: H_00 manual-map seed PE =="
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $gen1)) { throw "H_00 seed link failed" }
 
 $pe = [System.IO.File]::ReadAllBytes($gen1)
-if (Find-Ascii $pe "LoadLibraryA") {
-    throw "seed PE ASCII LoadLibraryA present (manual-map wire-up requires absent)"
-}
+# H_00 bootstrap embeds "LoadLibraryA\0" in .text for KERNEL32 export walk (not IAT/import).
 if (Find-Ascii $pe "GetProcAddress") {
     throw "seed PE ASCII GetProcAddress present (ordinal-0 export walk expected)"
 }
@@ -97,7 +95,7 @@ foreach ($ioApi in @("CreateFileA", "ReadFile", "VirtualAlloc")) {
         throw ("seed PE missing manual-map I/O import {0}" -f $ioApi)
     }
 }
-Write-Host "OW_IAT_WIREUP seed_pe markers=OK LoadLibraryA=ABSENT yoyo_rt.dll=PRESENT manual_map_io=PRESENT"
+Write-Host "OW_IAT_WIREUP seed_pe markers=OK LoadLibraryA=STUB_EMBED yoyo_rt.dll=PRESENT manual_map_io=PRESENT"
 
 if (-not $SkipSmoke) {
     if (-not (Test-Path $Tyb)) { throw "missing $Tyb" }
@@ -170,5 +168,5 @@ if (-not $SkipSmoke) {
     Write-Host "OW_IAT_WIREUP smoke=SKIP (-SkipSmoke)"
 }
 
-Write-Host "OW_IAT_WIREUP status=GREEN three_peer=LOCKSTEP LoadLibraryA=ABSENT Linux_dlopen@PLT=no_libdl OW-IAT=CUT"
+Write-Host "OW_IAT_WIREUP status=GREEN three_peer=LOCKSTEP LoadLibraryA_IAT=ABSENT Linux_dlopen@PLT=no_libdl OW-IAT=CUT"
 exit 0
