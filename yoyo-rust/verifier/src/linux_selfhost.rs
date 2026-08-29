@@ -4,7 +4,8 @@
 //! via system cc when available (WSL/Linux).
 //!
 //! Stage 10-B / post-v1.0 OW-RT H_00: ELF entry → H_00 → syscall extract of embedded
-//! trampoline only → `execve` trampoline → trampoline `dlopen("./libyoyo_runtime.so")`.
+//! trampoline only → `execve` trampoline → trampoline `dlopen("./libyoyo_runtime.so")`
+//! then in-process ELF dyn sym walk (no dlsym — OW-IAT shrink).
 //! The Rust `.so` is a cwd sidecar (no exact embed) — OW-RT stays CUT (still Rust runtime
 //! + glibc/libdl trampoline). genNrt `--selfhost` remains a separate host surface.
 

@@ -178,6 +178,10 @@ if ($trampAscii.IndexOf("yoyo_runtime_selfhost_main") -lt 0) {
     Write-Host "Stage 11-B: RED (trampoline missing export name)"
     exit 1
 }
+if ($trampAscii.IndexOf("dlsym") -ge 0) {
+    Write-Host "Stage 11-B: RED (trampoline still references dlsym — post-v1.0 OW-IAT requires ELF dyn walk)"
+    exit 1
+}
 if ($trampAscii.IndexOf("./libyoyo_runtime.so") -lt 0) {
     Write-Host "Stage 11-B: RED (trampoline missing cwd-relative .so path)"
     exit 1
@@ -421,7 +425,7 @@ $report = [ordered]@{
     linux_so_embed_offset = $linuxSoEmbedOff
     honest_remaining      = @(
         "Win H_00 still calls host LoadLibraryA (cwd sidecar; export via in-process PE walk)",
-        "Linux H_00 still execve's committed glibc/libdl trampoline blob (cwd .so sidecar; no exact .so embed)",
+        "Linux H_00 still execve's committed glibc/dlopen trampoline blob (cwd .so sidecar; no exact .so embed; no dlsym)",
         "gen2rt Stage 8-C regression path may still use GetTempPath + GetProcAddress private IAT",
         "Not a YOYO-built loader — Stage 11-B + OW-IAT/OW-RT shrink observe the host-loader face"
     )
@@ -433,6 +437,6 @@ Write-Host "report: $reportPath"
 
 Write-Host ""
 Write-Host "Stage 11-B: GREEN"
-Write-Host "  trust-chain: H_00 host-loader IAT 3→2 APIs (dropped GetProcAddress; PE export walk); cwd sidecar"
+Write-Host "  trust-chain: H_00 host-loader IAT 3→2 APIs (dropped GetProcAddress; PE export walk); Linux tramp dropped dlsym (ELF dyn walk); cwd sidecar"
 Write-Host "  monitored:   import names + cwd yoyo_rt.dll smoke + trampoline size/embed + Linux no .so embed"
 exit 0
