@@ -309,6 +309,7 @@ fn gen_h00_manual_map_body(
     fail_jumps.push(c.len());
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = module base
+    c.extend_from_slice(&[0x49, 0x89, 0xF5]); // mov r13, rsi (save import descriptor ptr)
     c.extend_from_slice(&[0x85, 0xDB]); // cmp ebx,0 (OriginalFirstThunk)
     let jz_iat_read = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
@@ -349,7 +350,8 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jmp_thunk + 1, jmp_thunk + 5, thunk_loop);
     let thunk_done = c.len();
     patch_rel32(&mut c, jz_thunk_done + 2, jz_thunk_done + 6, thunk_done);
-    c.extend_from_slice(&[0x48, 0x83, 0xC6, 0x14]); // next desc
+    c.extend_from_slice(&[0x49, 0x83, 0xC5, 0x14]); // add r13, 20 (next IMAGE_IMPORT_DESCRIPTOR)
+    c.extend_from_slice(&[0x4C, 0x89, 0xEE]); // mov rsi, r13
     let jmp_id = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     patch_rel32(&mut c, jmp_id + 1, jmp_id + 5, import_desc);
