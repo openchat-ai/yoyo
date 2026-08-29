@@ -267,14 +267,40 @@ if ($null -eq $bodyCompared -or $bodyCompared -lt $MinBodyCompared) {
 if ($null -eq $stubNz) { Fail-Out "stub_tail_nonzero not parsed" }
 
 Write-Host ""
+Write-Host "== asm peer (three-peer full .text honesty) =="
+$asmOut = Join-Path $WorkDir "M_asm.exe"
+Write-Host "  Asm..."
+& python (Join-Path $Root "yoyo-asm\asm.py") $Ty $asmOut
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path $asmOut)) { Fail-Out "asm peer build failed" }
+
+Write-Host ""
 Write-Host "== honest full .text =="
 $prevEap = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
 $fullLines = & $Yoyo diff $jsOut $rustOut 2>&1
 $fullEc = $LASTEXITCODE
+$fullJsAsmLines = & $Yoyo diff $jsOut $asmOut 2>&1
+$fullJsAsmEc = $LASTEXITCODE
+$fullRustAsmLines = & $Yoyo diff $rustOut $asmOut 2>&1
+$fullRustAsmEc = $LASTEXITCODE
 $ErrorActionPreference = $prevEap
-$fullLines | ForEach-Object { Write-Host ("  {0}" -f $_) }
+Write-Host "  JS vs Rust:"
+$fullLines | ForEach-Object { Write-Host ("    {0}" -f $_) }
+Write-Host "  JS vs Asm:"
+$fullJsAsmLines | ForEach-Object { Write-Host ("    {0}" -f $_) }
+Write-Host "  Rust vs Asm:"
+$fullRustAsmLines | ForEach-Object { Write-Host ("    {0}" -f $_) }
 $fullStatus = if ($fullEc -eq 0) { "EQUAL" } else { "DIFF" }
+$fullJsAsm = if ($fullJsAsmEc -eq 0) { "EQUAL" } else { "DIFF" }
+$fullRustAsm = if ($fullRustAsmEc -eq 0) { "EQUAL" } else { "DIFF" }
+if ($fullJsAsm -eq "EQUAL" -and $fullRustAsm -eq "EQUAL" -and $fullStatus -eq "EQUAL") {
+    $threePeerFull = "EQUAL"
+} elseif ($fullJsAsm -eq "EQUAL" -and ($fullStatus -eq "DIFF" -or $fullRustAsm -eq "DIFF")) {
+    $threePeerFull = "PARTIAL_JS_ASM"
+} else {
+    $threePeerFull = "DIFF"
+}
+Write-Host ("  three_peer_full_text={0} (JS=Rust={1}; JS=Asm={2}; Rust=Asm={3})" -f $threePeerFull, $fullStatus, $fullJsAsm, $fullRustAsm)
 
 # OW-H00 slot pin: PE startup 13B + H_00 slot 18B must match JS↔Rust (JMP+NOP aligned).
 $H00StartupLen = 13
@@ -313,11 +339,12 @@ foreach ($n in $stubOsNeedles) {
 Write-Host ""
 Write-Host "== per-hole disposition (fail-closed CLOSED) =="
 
-# OW-H00: CLOSED only if full .text EQUAL (slot aligned alone is NOT CLOSED).
-if ($fullStatus -eq "EQUAL") {
-    Add-Hole "OW-H00" "CLOSED" ("full_text=EQUAL;body_window=EQUAL;compared={0}" -f $bodyCompared)
+# OW-H00: CLOSED only if three-peer full .text EQUAL (slot aligned alone is NOT CLOSED).
+if ($threePeerFull -eq "EQUAL") {
+    Add-Hole "OW-H00" "CLOSED" ("three_peer_full_text=EQUAL;body_window=EQUAL;compared={0}" -f $bodyCompared)
 } else {
-    Add-Hole "OW-H00" "CUT" ("full_text=DIFF;H00_slot_18B_ALIGNED;stub_still_DIFF;compared={0}" -f $bodyCompared)
+    Add-Hole "OW-H00" "CUT" ("three_peer_full_text={0};JS=Rust={1};JS=Asm={2};Rust=Asm={3};H00_slot_18B_ALIGNED;stub_still_DIFF;compared={4}" -f `
+        $threePeerFull, $fullStatus, $fullJsAsm, $fullRustAsm, $bodyCompared)
 }
 
 # OW-STUB: CLOSED only if stub span gone.
@@ -387,8 +414,8 @@ if ($CutCount -gt 0) {
 $partialNote = ""
 if ($fullStatus -eq "EQUAL" -and $CutCount -gt 0) { $partialNote = " overlay=PARTIAL" }
 
-$statusLine = ("HOLE_INVENTORY status={0} full_text={1} body_window=EQUAL compared={2} stub_nz={3} dll={4} seed_pe={5} seed_sha={6} emitter_sha={7} emitter_bytes={8} embed_off={9} closed={10} cut={11}{12}" -f `
-    $invStatus, $fullStatus, $bodyCompared, $stubNz, $dllSize, $seedPe, $seedShaPrefix, $emitterShaPrefix, $emitterBytes, $embedOff, $ClosedCount, $CutCount, $partialNote)
+$statusLine = ("HOLE_INVENTORY status={0} full_text={1} three_peer_full={2} body_window=EQUAL compared={3} stub_nz={4} dll={5} seed_pe={6} seed_sha={7} emitter_sha={8} emitter_bytes={9} embed_off={10} closed={11} cut={12}{13}" -f `
+    $invStatus, $fullStatus, $threePeerFull, $bodyCompared, $stubNz, $dllSize, $seedPe, $seedShaPrefix, $emitterShaPrefix, $emitterBytes, $embedOff, $ClosedCount, $CutCount, $partialNote)
 Write-Host ""
 Write-Host $statusLine
 Write-Host ""

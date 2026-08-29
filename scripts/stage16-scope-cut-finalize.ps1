@@ -185,6 +185,8 @@ $seedSha = "?"
 $emitterSha = "?"
 $embedOff = "?"
 if ($statusFrom15 -match 'full_text=(\S+)') { $fullText = $Matches[1] }
+$threePeerFull = "UNKNOWN"
+if ($statusFrom15 -match 'three_peer_full=(\S+)') { $threePeerFull = $Matches[1] }
 if ($statusFrom15 -match 'compared=(\d+)') { $bodyCompared = $Matches[1] }
 if ($statusFrom15 -match 'stub_nz=(\d+)') { $stubNz = $Matches[1] }
 if ($statusFrom15 -match 'dll=(\d+)') { $dllSize = $Matches[1] }
@@ -204,6 +206,12 @@ if ($fullText -eq "DIFF") {
         Fail-Out "OW-H00 CLOSED while full_text=DIFF (fake CLOSED)"
     }
 }
+if ($threePeerFull -ne "EQUAL" -and $threePeerFull -ne "UNKNOWN") {
+    $owH00 = ($FinalRows | Where-Object { $_ -match 'FINAL_HOLE id=OW-H00' } | Select-Object -First 1)
+    if ($owH00 -match 'disposition=CLOSED') {
+        Fail-Out ("OW-H00 CLOSED while three_peer_full={0} (fake CLOSED)" -f $threePeerFull)
+    }
+}
 # Post-v1.0 OW-SEED: inventory must carry emitter+seed hash pins on CUT evidence.
 $owSeed = ($FinalRows | Where-Object { $_ -match 'FINAL_HOLE id=OW-SEED' } | Select-Object -First 1)
 if ($owSeed -match 'disposition=CUT') {
@@ -214,8 +222,8 @@ if ($owSeed -match 'disposition=CUT') {
 
 # v1.0-A expected baseline: all CUT (closed=0 cut=7) is OK and honest.
 # FINAL status means the table is released for 1.0 — not that holes are closed.
-$statusLine = ("HOLE_INVENTORY_V10 status=FINAL full_text={0} body_window=EQUAL compared={1} stub_nz={2} dll={3} seed_pe={4} seed_sha={5} emitter_sha={6} embed_off={7} closed={8} cut={9} upstream={10}" -f `
-    $fullText, $bodyCompared, $stubNz, $dllSize, $seedPe, $seedSha, $emitterSha, $embedOff, $ClosedCount, $CutCount, ($statusFrom15 -replace '^HOLE_INVENTORY ', ''))
+$statusLine = ("HOLE_INVENTORY_V10 status=FINAL full_text={0} three_peer_full={1} body_window=EQUAL compared={2} stub_nz={3} dll={4} seed_pe={5} seed_sha={6} emitter_sha={7} embed_off={8} closed={9} cut={10} upstream={11}" -f `
+    $fullText, $threePeerFull, $bodyCompared, $stubNz, $dllSize, $seedPe, $seedSha, $emitterSha, $embedOff, $ClosedCount, $CutCount, ($statusFrom15 -replace '^HOLE_INVENTORY ', ''))
 
 Write-Host ""
 Write-Host $statusLine
