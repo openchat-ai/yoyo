@@ -503,6 +503,8 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x41, 0x0F, 0xB7, 0x04, 0x51]); // movzx eax,word [rcx+r10*2]
     c.extend_from_slice(&[0x8B, 0x04, 0x82]); // mov eax,[rdx+rax*4]
     c.extend_from_slice(&[0x48, 0x01, 0xF8]);
+    let call_fixup_name = c.len();
+    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x41, 0x5B]); // pop r11
     c.extend_from_slice(&[0xC3]);
     let next_name = c.len();
@@ -538,8 +540,68 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x89, 0xC8]);
     c.extend_from_slice(&[0x8B, 0x04, 0x82]);
     c.extend_from_slice(&[0x48, 0x01, 0xF8]);
+    let call_fixup_ord = c.len();
+    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
     c.extend_from_slice(&[0xC3]);
     patch_rel32(&mut c, jz_no_ord + 2, jz_no_ord + 6, no_exp);
+
+    // KERNEL32 forwarders land in export dir as "OTHERDLL.name" — recurse resolve.
+    let fix_forward = c.len();
+    patch_rel32(&mut c, call_fixup_name + 1, call_fixup_name + 5, fix_forward);
+    patch_rel32(&mut c, call_fixup_ord + 1, call_fixup_ord + 5, fix_forward);
+    // rdi=module, rax=export va → rax=code va; preserves rsi
+    c.extend_from_slice(&[0x56]); // push rsi
+    c.extend_from_slice(&[0x8B, 0x77, 0x3C]); // mov esi,[rdi+3c]
+    c.extend_from_slice(&[0x8B, 0x8C, 0x37, 0x88, 0x00, 0x00, 0x00]); // export rva
+    c.extend_from_slice(&[0x85, 0xC9]);
+    let jz_ff_ret = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x8D, 0x14, 0x0F]); // lea rdx,[rdi+rcx] exp start
+    c.extend_from_slice(&[0x49, 0x89, 0xD2]); // mov r10, rdx
+    c.extend_from_slice(&[0x8B, 0x94, 0x37, 0x8C, 0x00, 0x00, 0x00]); // export size
+    c.extend_from_slice(&[0x49, 0x8D, 0x1C, 0x0A]); // lea rbx,[r10+rdx] exp end
+    c.extend_from_slice(&[0x4C, 0x39, 0xD0]); // cmp rax,r10
+    let jb_ff_ret = c.len();
+    c.extend_from_slice(&[0x0F, 0x82, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x39, 0xD8]); // cmp rax,rbx
+    let jae_ff_ret = c.len();
+    c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x49, 0x89, 0xC1]); // mov r9, rax (forwarder "DLL.name")
+    c.extend_from_slice(&[0x49, 0x89, 0xC0]); // mov r8, rax (save dll name start)
+    let ff_scan = c.len();
+    c.extend_from_slice(&[0x41, 0x80, 0x39, 0x2E]); // cmp byte [r9], '.'
+    let jz_ff_dot = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x41, 0x80, 0x39, 0x00]);
+    let jz_ff_bad = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x49, 0xFF, 0xC1]); // inc r9
+    let jmp_ff_scan = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    patch_rel32(&mut c, jmp_ff_scan + 1, jmp_ff_scan + 5, ff_scan);
+    let ff_dot = c.len();
+    patch_rel32(&mut c, jz_ff_dot + 2, jz_ff_dot + 6, ff_dot);
+    c.extend_from_slice(&[0x41, 0xC6, 0x01, 0x00]); // mov byte [r9],0 (RWX image)
+    c.extend_from_slice(&[0x4C, 0x89, 0xC2]); // mov rdx, r8 (dll name)
+    let call_ff_find = c.len();
+    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
+    let jz_ff_bad2 = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x89, 0xC7]); // mov rdi, rax (target module)
+    c.extend_from_slice(&[0x49, 0x8D, 0x51, 0x01]); // lea rdx,[r9+1] func name
+    let call_ff_resolve = c.len();
+    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    let ff_ret = c.len();
+    c.extend_from_slice(&[0x5E]); // pop rsi
+    c.extend_from_slice(&[0xC3]);
+    patch_rel32(&mut c, call_ff_find + 1, call_ff_find + 5, find_module);
+    patch_rel32(&mut c, call_ff_resolve + 1, call_ff_resolve + 5, resolve_export);
+    patch_rel32(&mut c, jz_ff_ret + 2, jz_ff_ret + 6, ff_ret);
+    patch_rel32(&mut c, jb_ff_ret + 2, jb_ff_ret + 6, ff_ret);
+    patch_rel32(&mut c, jae_ff_ret + 2, jae_ff_ret + 6, ff_ret);
+    patch_rel32(&mut c, jz_ff_bad + 2, jz_ff_bad + 6, ff_ret);
+    patch_rel32(&mut c, jz_ff_bad2 + 2, jz_ff_bad2 + 6, ff_ret);
 
     let helpers_end = c.len();
     patch_rel32(&mut c, jmp_over_helpers + 1, jmp_over_helpers + 5, helpers_end);
@@ -711,8 +773,8 @@ mod tests {
             }
         }
         assert!(
-            body.len() > 400 && body.len() < 1100,
-            "manual-map H_00 stub should fit OW-STUB pin [40,1100] (got {}B)",
+            body.len() > 400 && body.len() < 1300,
+            "manual-map H_00 stub should fit OW-STUB pin [40,1300] (got {}B)",
             body.len()
         );
         // No LoadLibraryA ROR13 hash needle (0x8E 0x4E 0x0E 0xEC)

@@ -20,7 +20,7 @@ Set-Location $Root
 
 # Post-v1.0 OW-RT sidecar + OW-IAT manual-map wire-up (PR #8): stub ~905B; DLL ≤150000.
 $MinStubTailNonzero = 40
-$MaxStubTailNonzero = 1100
+$MaxStubTailNonzero = 1300
 $MaxDllBytes = 150000
 $MaxSeedPeBytes = 270000
 $MinBodyCompared = 17013
