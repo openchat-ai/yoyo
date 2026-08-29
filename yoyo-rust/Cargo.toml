@@ -31,3 +31,4 @@ strip = "symbols"
 codegen-units = 1
 opt-level = "z"
 panic = "abort"
+rustflags = ["-C", "target-feature=+crt-static"]
