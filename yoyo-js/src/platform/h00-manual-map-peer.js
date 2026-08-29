@@ -28,8 +28,8 @@ const H00_IAT_SITES = [
   [136, 2], // ReadFile
   [145, 4], // CloseHandle
   [195, 0], // VirtualAlloc (image)
-  [980, 5], // ExitProcess (success)
-  [991, 5], // ExitProcess (fail)
+  [1021, 5], // ExitProcess (success)
+  [1032, 5], // ExitProcess (fail)
 ];
 
 function rebaseManualMapStub(buf, textRva, codeBaseOff, meta) {
