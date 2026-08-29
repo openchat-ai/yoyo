@@ -115,11 +115,15 @@ Gate 必须同时：
 | Lock pin | `0275802d…` Decision #25（本缩面不改 `yoyo.ty`） |
 | Disposition | **OW-\* + REL-\* all CUT**（closed=0 cut=7） |
 | Gate | `stage16-scope-cut-finalize.ps1 -SkipBuild` exit **0** · `HOLE_INVENTORY_V10 status=FINAL` |
-| No-regress | nested stage15-A exit 0 · stage14-A nested via stage15 |
-| OW-IAT shrink | Win GetProcAddress **ABSENT**（ordinal-0 PE export resolve）；Linux tramp dlsym **ABSENT**（ELF dyn walk）；LoadLibraryA/dlopen **PRESENT**（仍 CUT） |
-| OW-STUB shrink | ordinal-0 export resolve；was 235B full name walk → **96** B（仍 CUT） |
-| OW-SEED observe | emitter=`yoyo.exe` size+sha256_prefix；seed sha256_prefix≡`SEED_HOST`（16 hex）；path=h00（仍 CUT） |
-| OW-H00 slot align | JS/asm `patch_h00_jmp_nop` ≡ Rust `link_pe_h00_runtime` slot bytes（仍 CUT · stub DIFF） |
+| No-regress | nested stage15-A exit 0 · stage14-A nested via stage15 · `stage10-linux-pure-m4.sh` GREEN |
+| OW-IAT shrink | Win GetProcAddress **ABSENT**；IAT/ASCII `LoadLibraryA` **ABSENT**（PEB ROR13 resolve）；Linux tramp dlsym **ABSENT**；dlopen **PRESENT**（仍 CUT · 宿主 LoadLibrary） |
+| OW-STUB shrink | PEB LoadLibrary + AddressOfFunctions[0]；was 235B → **69** → **251** B span（仍 CUT） |
+| OW-SEED observe | emitter+seed hash + path=h00（仍 CUT） |
+| Obsolete PRs | #1 closed → **bd390b9**；#3 merged → **4f3064d**；#5 merged → **48af60a**；#6 merged（69B） |
+
+**Next tip（post-v1.0 path 2）：** **OW-IAT wire-up** — replace PEB `LoadLibraryA` call with `CreateFileA`/`ReadFile`/`VirtualAlloc` + `pe_manual_map` in H_00 stub; **three-peer lockstep**; Linux `dlopen` → `open`/`mmap` second.
+
+**OW-IAT spike landed（PR #7）：** `verifier/src/pe_manual_map.rs`（section map + DIR64 reloc + import resolve + `functions[0]` export）· gate `scripts/stage17-ow-iat-spike.{ps1,sh}` · doc `SCOPE-CUT-v1.0-ow-iat-spike.md` · IAT/ASCII `LoadLibraryA` **ABSENT** · PEB resolve still CUT · manual-map **not wired** yet.
 
 ---
 
