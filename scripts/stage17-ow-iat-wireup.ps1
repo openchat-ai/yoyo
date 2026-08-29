@@ -128,6 +128,7 @@ if (-not $SkipSmoke) {
             10 { "probe_CreateFile" }
             11 { "probe_WriteFile" }
             1 { "generic_fail_or_runtime" }
+            -1073741819 { "access_violation" }
             default { "unknown" }
         }
         throw ("manual-map smoke WITH sidecar failed exit={0} phase={1}" -f $smokeExit, $phase)

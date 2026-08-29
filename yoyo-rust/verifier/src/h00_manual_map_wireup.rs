@@ -71,12 +71,14 @@ fn fix_rip_disp(
 /// Emit x64 that reads cwd sidecar `yoyo_rt.dll` into a VirtualAlloc buffer.
 ///
 /// On success: `r12` = file bytes pointer, `r13d` = byte count.
-/// On failure: jumps to `fail_label`.
+/// On failure: jumps to phase-specific fail labels (CreateFile=2, Read=3, VirtualAlloc=4).
 pub fn gen_h00_read_sidecar_prelude(
     meta: &SelfhostMeta,
     text_rva: u32,
     chunk_text_off: u32,
-    fail_label: usize,
+    fail_create_file: usize,
+    fail_read_empty: usize,
+    fail_virtual_alloc: usize,
 ) -> Vec<u8> {
     let mut c: Vec<u8> = Vec::new();
 
@@ -133,12 +135,16 @@ pub fn gen_h00_read_sidecar_prelude(
         meta.temp_name_rva,
     );
 
-    for at in [jz_no_file, jz_no_buf, jz_empty] {
+    for (at, fail) in [
+        (jz_no_file, fail_create_file),
+        (jz_no_buf, fail_virtual_alloc),
+        (jz_empty, fail_read_empty),
+    ] {
         patch_rel32(
             &mut c,
             at + 2,
             chunk_text_off as usize + at + 6,
-            fail_label,
+            fail,
         );
     }
 
@@ -152,10 +158,11 @@ fn gen_h00_manual_map_body(
     text_rva: u32,
     chunk_text_off: u32,
     iat_rva: u32,
-    fail_label: usize,
+    fail_virtual_alloc: usize,
+    fail_import: usize,
 ) -> Vec<u8> {
     let mut c: Vec<u8> = Vec::new();
-    let mut fail_jumps: Vec<usize> = Vec::new();
+    let mut fail_jumps: Vec<(usize, usize)> = Vec::new();
 
     // ebx = e_lfanew; r12 = file PE
     c.extend_from_slice(&[0x41, 0x8B, 0x5C, 0x24, 0x3C]); // mov ebx,[r12+3c]
@@ -168,7 +175,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x41, 0xB9, 0x40, 0x00, 0x00, 0x00]);
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, iat_rva, IAT_VIRTUAL_ALLOC);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
-    fail_jumps.push(c.len());
+    fail_jumps.push((c.len(), fail_virtual_alloc));
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x49, 0x89, 0xC6]); // mov r14, rax (image)
 
@@ -312,7 +319,7 @@ fn gen_h00_manual_map_body(
     let call_find_mod = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]); // call find_module
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
-    fail_jumps.push(c.len());
+    fail_jumps.push((c.len(), fail_import));
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = module base
     c.extend_from_slice(&[0x49, 0x89, 0xF5]); // mov r13, rsi (save import descriptor ptr)
@@ -593,12 +600,12 @@ fn gen_h00_manual_map_body(
     let helpers_end = c.len();
     patch_rel32(&mut c, jmp_over_helpers + 1, jmp_over_helpers + 5, helpers_end);
 
-    for at in fail_jumps {
+    for (at, fail) in fail_jumps {
         patch_rel32(
             &mut c,
             at + 2,
             chunk_text_off as usize + at + 6,
-            fail_label,
+            fail,
         );
     }
 
@@ -610,29 +617,56 @@ fn gen_h00_export_call_tail(
     meta: &SelfhostMeta,
     text_rva: u32,
     chunk_text_off: u32,
-    fail_label: usize,
+    fail_export: usize,
 ) -> Vec<u8> {
     let mut c: Vec<u8> = Vec::new();
-    let mut fail_jumps: Vec<usize> = Vec::new();
+    let mut fail_jumps: Vec<(usize, usize)> = Vec::new();
 
     c.extend_from_slice(&[0x8B, 0x73, 0x3C]);
     c.extend_from_slice(&[0x8B, 0x84, 0x33, 0x88, 0x00, 0x00, 0x00]);
     c.extend_from_slice(&[0x85, 0xC0]);
-    fail_jumps.push(c.len());
+    fail_jumps.push((c.len(), fail_export));
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    // TEMP CI isolate: reach export tail without calling mapped export (find AV source).
-    c.extend_from_slice(&[0x31, 0xC9]); // xor ecx, ecx
+    c.extend_from_slice(&[0x48, 0x8D, 0x3C, 0x03]);
+    c.extend_from_slice(&[0x8B, 0x47, 0x1C]);
+    c.extend_from_slice(&[0x48, 0x01, 0xD8]); // add rax, rbx — functions RVA is image-relative
+    c.extend_from_slice(&[0x8B, 0x00]);
+    c.extend_from_slice(&[0x48, 0x01, 0xD8]);
+    // Win64: RSP%16==8 before CALL so callee entry has RSP%16==0 after push retaddr.
+    // H_00 prologue leaves RSP%16==8; map body preserves it; 0x30 shadow keeps alignment.
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x30]); // shadow + alignment fix
+    c.extend_from_slice(&[0xFF, 0xD0]); // call export (yoyo_runtime_selfhost_main)
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x30]);
+    c.extend_from_slice(&[0x89, 0xC1]);
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_EXIT_PROCESS);
 
-    for at in fail_jumps {
+    for (at, fail) in fail_jumps {
         patch_rel32(
             &mut c,
             at + 2,
             chunk_text_off as usize + at + 6,
-            fail_label,
+            fail,
         );
     }
     c
+}
+
+const FAIL_EXIT_CODES: [u8; 8] = [2, 3, 4, 5, 6, 7, 8, 9];
+
+fn emit_phase_fail_epilogues(
+    c: &mut Vec<u8>,
+    text_rva: u32,
+    code_base_off: u32,
+    iat_rva: u32,
+) -> [usize; 8] {
+    let chunk_text_off = code_base_off + c.len() as u32;
+    let mut labels = [0usize; 8];
+    for (i, &code) in FAIL_EXIT_CODES.iter().enumerate() {
+        labels[i] = code_base_off as usize + c.len();
+        c.extend_from_slice(&[0xB9, code, 0, 0, 0]);
+        emit_call_iat_merged(c, text_rva, chunk_text_off, iat_rva, IAT_EXIT_PROCESS);
+    }
+    labels
 }
 
 /// Full H_00 manual-map stub: file read + manual map + export call + fail epilogue.
@@ -648,50 +682,71 @@ pub fn gen_h00_manual_map_main(
 
     let prelude_text_off = code_base_off + H00_PROLOGUE_LEN;
 
-    // Size pass (placeholder fail_label) then emit with real fail epilogue offset.
-    let prelude_len =
-        gen_h00_read_sidecar_prelude(meta, text_rva, prelude_text_off, usize::MAX).len();
+    const EPILOGUE_LEN: usize = 8 * 11; // mov ecx,imm32 + FF15 rel32 per phase
+
+    // Size pass with placeholder fail labels.
+    let prelude_len = gen_h00_read_sidecar_prelude(
+        meta,
+        text_rva,
+        prelude_text_off,
+        usize::MAX,
+        usize::MAX,
+        usize::MAX,
+    )
+    .len();
     let map_text_off_m = prelude_text_off + prelude_len as u32;
-    let map_len =
-        gen_h00_manual_map_body(text_rva, map_text_off_m, meta.iat_rva, usize::MAX).len();
+    let map_len = gen_h00_manual_map_body(
+        text_rva,
+        map_text_off_m,
+        meta.iat_rva,
+        usize::MAX,
+        usize::MAX,
+    )
+    .len();
     let tail_text_off_m = map_text_off_m + map_len as u32;
     let tail_len =
         gen_h00_export_call_tail(meta, text_rva, tail_text_off_m, usize::MAX).len();
-    let fail_label = code_base_off as usize
+    let epilogue_base = code_base_off as usize
         + H00_PROLOGUE_LEN as usize
         + prelude_len
         + map_len
         + tail_len;
 
+    let fail_create_file = epilogue_base;
+    let fail_read_empty = epilogue_base + 11;
+    let fail_virtual_alloc = epilogue_base + 22;
+    let _fail_section_copy = epilogue_base + 33;
+    let _fail_reloc = epilogue_base + 44;
+    let fail_import = epilogue_base + 55;
+    let fail_export = epilogue_base + 66;
+    let _fail_dllmain = epilogue_base + 77;
+
     c.extend_from_slice(&gen_h00_read_sidecar_prelude(
         meta,
         text_rva,
         prelude_text_off,
-        fail_label,
+        fail_create_file,
+        fail_read_empty,
+        fail_virtual_alloc,
     ));
     let map_text_off = code_base_off + c.len() as u32;
     c.extend_from_slice(&gen_h00_manual_map_body(
         text_rva,
         map_text_off,
         meta.iat_rva,
-        fail_label,
+        fail_virtual_alloc,
+        fail_import,
     ));
     let tail_text_off = code_base_off + c.len() as u32;
     c.extend_from_slice(&gen_h00_export_call_tail(
         meta,
         text_rva,
         tail_text_off,
-        fail_label,
+        fail_export,
     ));
 
-    c.extend_from_slice(&[0xB9, 0x01, 0x00, 0x00, 0x00]);
-    emit_call_iat_merged(
-        &mut c,
-        text_rva,
-        code_base_off,
-        meta.iat_rva,
-        IAT_EXIT_PROCESS,
-    );
+    let _ = emit_phase_fail_epilogues(&mut c, text_rva, code_base_off, meta.iat_rva);
+    let _ = EPILOGUE_LEN; // keep size estimate stable for readers
     c
 }
 
@@ -721,8 +776,7 @@ mod tests {
     #[test]
     fn read_sidecar_prelude_nonempty_and_bounded() {
         let meta = sample_meta();
-        let fail = 0x50_000usize;
-        let body = gen_h00_read_sidecar_prelude(&meta, 0x1000, 17_823, fail);
+        let body = gen_h00_read_sidecar_prelude(&meta, 0x1000, 17_823, 0x50_000, 0x50_020, 0x50_010);
         assert!(body.len() > 80, "prelude should be substantial");
         assert!(
             body.len() < 230,
