@@ -192,7 +192,7 @@ fn gen_h00_manual_map_body(
         0x0F, 0xB7, 0x84, 0x1C, PE_OFF_SIZE_OF_OPTIONAL_HEADER, 0x00, 0x00, 0x00,
     ]); // movzx eax,word [r12+rbx+14h]
     c.extend_from_slice(&[0x83, 0xC0, PE_OFF_OPTIONAL]); // add eax,24
-    c.extend_from_slice(&[0x4A, 0x8D, 0x3C, 0x23]); // lea rdi,[r12+rbx]
+    c.extend_from_slice(&[0x49, 0x8D, 0x3C, 0x1C]); // lea rdi,[r12+rbx]
     c.extend_from_slice(&[0x48, 0x01, 0xC7]); // add rdi,rax
     c.extend_from_slice(&[0x41, 0x6B, 0xC0, 0x28]); // imul eax,r8d,40
     c.extend_from_slice(&[0x48, 0x01, 0xC7]); // add rdi,rax
@@ -203,8 +203,8 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x85, 0xD2]);
     let jz_next_sec = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x4B, 0x8D, 0x3C, 0x0E]); // lea rdi,[r14+rcx]
-    c.extend_from_slice(&[0x4B, 0x8D, 0x34, 0x0E]); // lea rsi,[r12+r9]
+    c.extend_from_slice(&[0x49, 0x8D, 0x3C, 0x0E]); // lea rdi,[r14+rcx]
+    c.extend_from_slice(&[0x4B, 0x8D, 0x34, 0x0C]); // lea rsi,[r12+r9]
     c.extend_from_slice(&[0x89, 0xD1]); // mov ecx, edx
     c.extend_from_slice(&[0xF3, 0xA4]);
     let next_sec = c.len();
@@ -231,7 +231,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_reloc_done = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x4A, 0x8D, 0x34, 0x06]); // lea rsi,[r14+rax] block — r14 is image base, good
+    c.extend_from_slice(&[0x49, 0x8D, 0x34, 0x06]); // lea rsi,[r14+rax]
     let reloc_block = c.len();
     c.extend_from_slice(&[0x8B, 0x0E]); // mov ecx,[rsi] page rva
     c.extend_from_slice(&[0x85, 0xC9]);
@@ -257,7 +257,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x25, 0xFF, 0x0F, 0x00, 0x00]); // and eax, 0xfff (page offset)
     c.extend_from_slice(&[0x89, 0xC2]); // mov edx, eax
-    c.extend_from_slice(&[0x4D, 0x8D, 0x5C, 0x0E, 0x00]); // lea r11,[r14+rcx]
+    c.extend_from_slice(&[0x4D, 0x8D, 0x1C, 0x0E]); // lea r11,[r14+rcx]
     c.extend_from_slice(&[0x49, 0x01, 0xD3]); // add r11, rdx
     c.extend_from_slice(&[0x4D, 0x01, 0x13]); // add [r11], r10
     let next_re = c.len();
@@ -285,7 +285,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_import_done = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x4A, 0x8D, 0x34, 0x06]); // lea rsi,[r14+rax] desc
+    c.extend_from_slice(&[0x49, 0x8D, 0x34, 0x06]); // lea rsi,[r14+rax] desc
     let import_desc = c.len();
     c.extend_from_slice(&[0x8B, 0x06]); // OriginalFirstThunk
     c.extend_from_slice(&[0x89, 0xC3]); // mov ebx, eax
@@ -301,8 +301,8 @@ fn gen_h00_manual_map_body(
     let jz_idone3 = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     // edx=FirstThunk rva — save IAT cursor before rdx becomes module-name ptr
-    c.extend_from_slice(&[0x4A, 0x8D, 0x1C, 0x16]); // lea r11,[r14+rdx] IAT write cursor
-    c.extend_from_slice(&[0x4A, 0x8D, 0x14, 0x0E]); // lea rdx,[r14+rcx] module name
+    c.extend_from_slice(&[0x4D, 0x8D, 0x1C, 0x16]); // lea r11,[r14+rdx] IAT write cursor
+    c.extend_from_slice(&[0x49, 0x8D, 0x14, 0x0E]); // lea rdx,[r14+rcx] module name
     let call_find_mod = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]); // call find_module
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
@@ -313,7 +313,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x85, 0xDB]); // cmp ebx,0 (OriginalFirstThunk)
     let jz_iat_read = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x4A, 0x8D, 0x34, 0x1E]); // lea rsi,[r14+rbx] read OFT
+    c.extend_from_slice(&[0x49, 0x8D, 0x34, 0x1E]); // lea rsi,[r14+rbx] read OFT
     let j_to_loop = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     let iat_read = c.len();
@@ -329,7 +329,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x48, 0x0F, 0xBA, 0xE8, 0x3F]); // bt rax,63
     let jc_ord = c.len();
     c.extend_from_slice(&[0x0F, 0x82, 0, 0, 0, 0]); // jc ord_path
-    c.extend_from_slice(&[0x4A, 0x8D, 0x54, 0x0E, 0x02]); // lea rdx,[r14+rcx+2] name
+    c.extend_from_slice(&[0x49, 0x8D, 0x54, 0x0E, 0x02]); // lea rdx,[r14+rcx+2] name
     let call_resolve = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
     let jmp_store_iat = c.len();
