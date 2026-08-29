@@ -4,8 +4,9 @@
 //! / `gen_h00_selfhost_main`) no longer exact-embeds `yoyo_runtime.dll` in PE `.data`.
 //! It LoadLibraryA's a cwd sidecar `yoyo_rt.dll` (still Rust-built — OW-RT stays CUT).
 //! Post-v1.0 OW-IAT shrink: H_00 no longer imports GetProcAddress — after LoadLibraryA
-//! it resolves export ordinal 0 in-process (yoyo_runtime pins `yoyo_runtime_selfhost_main`
-//! as the first named export). Host LoadLibraryA remains (OW-IAT still CUT).
+//! it resolves `AddressOfFunctions[0]` in-process (yoyo_runtime `.def` pins
+//! `yoyo_runtime_selfhost_main` as the first export → functions[0]). Host LoadLibraryA
+//! remains (OW-IAT still CUT).
 //! genNrt `--selfhost` still embeds + GPA.
 
 use crate::types::{IsaError, IsaResult};
@@ -176,8 +177,8 @@ pub fn append_h00_runtime_data(
     ))
 }
 
-/// H_00 runtime body: LoadLibraryA cwd sidecar `yoyo_rt.dll` → export ordinal 0
-/// (`yoyo_runtime_selfhost_main`, pinned first named export) → invoke → ExitProcess.
+/// H_00 runtime body: LoadLibraryA cwd sidecar `yoyo_rt.dll` → `AddressOfFunctions[0]`
+/// (`yoyo_runtime_selfhost_main`, pinned via yoyo-runtime export order) → invoke → ExitProcess.
 /// No GetProcAddress (OW-IAT shrink); no CreateFile/WriteFile extract (OW-RT).
 /// PE entry is `jmp H_00` (not `call`), so this must never return.
 /// Preserves r15 (.data base) for the runtime export.
@@ -201,41 +202,25 @@ pub fn gen_h00_selfhost_main(
     c.extend_from_slice(&[0x48, 0x8D, 0x0D, 0, 0, 0, 0]);
     emit_call_iat_merged(&mut c, text_rva, code_base_off, meta.iat_rva, IAT_LOADLIBRARY);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]); // test rax,rax
-    let jz_fail_from_ll = c.len();
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    let jz_fail = c.len();
+    c.extend_from_slice(&[0x74, 0x00]); // jz rel8 → fail (patched)
     c.extend_from_slice(&[0x48, 0x89, 0xC3]); // mov rbx, rax (module base)
 
-    // Minimal PE export resolve: AddressOfNameOrdinals[0] → AddressOfFunctions[ord].
-    // mov esi, [rbx+0x3C]  ; e_lfanew
-    c.extend_from_slice(&[0x8B, 0x73, 0x3C]);
-    // mov eax, [rbx+rsi+0x88] ; Export Directory RVA
-    c.extend_from_slice(&[0x8B, 0x84, 0x33, 0x88, 0x00, 0x00, 0x00]);
-    c.extend_from_slice(&[0x85, 0xC0]); // test eax,eax
-    let jz_exp = c.len();
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    // lea rdi, [rbx+rax] ; export dir
-    c.extend_from_slice(&[0x48, 0x8D, 0x3C, 0x03]);
-    // cmp dword [rdi+0x18], 0  ; NumberOfNames
-    c.extend_from_slice(&[0x83, 0x7F, 0x18, 0x00]);
-    let jz_names = c.len();
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    // mov eax, [rdi+0x24] ; AddressOfNameOrdinals RVA
-    c.extend_from_slice(&[0x8B, 0x47, 0x24]);
+    // Ultra-compact PE export: AddressOfFunctions[0] (yoyo_runtime export order pin).
+    c.extend_from_slice(&[0x8B, 0x43, 0x3C]); // mov eax, [rbx+0x3C] ; e_lfanew
+    c.extend_from_slice(&[0x8B, 0x84, 0x03, 0x88, 0x00, 0x00, 0x00]); // mov eax, [rbx+rax+0x88]
+    c.extend_from_slice(&[0x48, 0x01, 0xD8]); // add rax, rbx ; export dir ptr
+    c.extend_from_slice(&[0x8B, 0x40, 0x1C]); // mov eax, [rax+0x1C] ; AddressOfFunctions RVA
     c.extend_from_slice(&[0x48, 0x01, 0xD8]); // add rax, rbx
-    c.extend_from_slice(&[0x0F, 0xB7, 0x08]); // movzx ecx, word [rax] ; ord[0]
-    // mov eax, [rdi+0x1C] ; AddressOfFunctions RVA
-    c.extend_from_slice(&[0x8B, 0x47, 0x1C]);
-    c.extend_from_slice(&[0x48, 0x8D, 0x14, 0x03]); // lea rdx, [rbx+rax]
-    c.extend_from_slice(&[0x8B, 0x04, 0x8A]); // mov eax, [rdx+rcx*4]
+    c.extend_from_slice(&[0x8B, 0x00]); // mov eax, [rax] ; functions[0]
     c.extend_from_slice(&[0x48, 0x01, 0xD8]); // add rax, rbx
     c.extend_from_slice(&[0xFF, 0xD0]); // call rax
     c.extend_from_slice(&[0x89, 0xC1]); // mov ecx, eax
     emit_call_iat_merged(&mut c, text_rva, code_base_off, meta.iat_rva, IAT_EXIT_PROCESS);
 
     let fail = c.len();
-    for at in [jz_fail_from_ll, jz_exp, jz_names] {
-        patch_rel32(&mut c, at + 2, at + 6, fail);
-    }
+    let rel8 = (fail as i32 - (jz_fail as i32 + 2)) as i8;
+    c[jz_fail + 1] = rel8 as u8;
     c.extend_from_slice(&[0xB9, 0x01, 0x00, 0x00, 0x00]); // ExitProcess(1)
     emit_call_iat_merged(&mut c, text_rva, code_base_off, meta.iat_rva, IAT_EXIT_PROCESS);
 
@@ -419,7 +404,7 @@ mod tests {
     }
 
     #[test]
-    fn h00_main_ordinal_export_compact() {
+    fn h00_main_functions0_export_compact() {
         let meta = SelfhostMeta {
             temp_name_rva: 0x30_000,
             export_name_rva: 0,
@@ -431,8 +416,8 @@ mod tests {
         };
         let body = gen_h00_selfhost_main(&meta, 0x38_000, 0x1000, 13, 17_810, 0);
         assert!(
-            body.len() < 160,
-            "ordinal-0 H_00 stub should be compact (got {}B)",
+            body.len() <= 80,
+            "functions[0] H_00 stub should be compact (got {}B)",
             body.len()
         );
     }

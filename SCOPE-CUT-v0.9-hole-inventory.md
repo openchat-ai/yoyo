@@ -8,7 +8,7 @@
 
 **Post-v1.0 OW-RT：** Win H_00 **无 exact embed**；cwd sidecar `yoyo_rt.dll`；DLL **141312**。仍 **CUT**（Rust runtime）。
 **Post-v1.0 OW-IAT：** GetProcAddress **ABSENT**；PE export walk；stub_nz **235**。仍 **CUT**（LoadLibraryA）。
-**Post-v1.0 OW-H00 peer align（2026-08-29 · CLOSED）：** JS `linkPeWin32` + asm delegate mirror Rust `link_pe_h00_runtime`（H_00 **JMP+NOP** + 97B stub）。three-peer full `.text` **EQUAL** **17920** B · sha **`90ad6d6e`**。**OW-H00 CLOSED**（fail-closed）。**OW-STUB** 仍 CUT（stub_nz=96）。
+**Post-v1.0 OW-H00 peer align（2026-08-29 · CLOSED）：** JS `linkPeWin32` + asm delegate mirror Rust `link_pe_h00_runtime`（H_00 **JMP+NOP** + 71B stub）。three-peer full `.text` **EQUAL** **17920** B · sha **`808b9ec8`**。**OW-H00 CLOSED**（fail-closed）。**OW-STUB** 仍 CUT（stub_nz=69）。
 
 ---
 

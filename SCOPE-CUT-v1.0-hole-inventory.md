@@ -12,13 +12,15 @@
 
 **Post-v1.0 path 2（关洞）· OW-STUB shrink（2026-08-29）：** H_00 stub **235→96** B：去掉 export 名字符串 + **ordinal-0** 解析（`yoyo_runtime` 钉 `yoyo_runtime_selfhost_main` 为首个 named export；不再 in-stub strcmp walk）。gen12 `90ad6d6e` / **17920** B；seed PE **248320**。**仍 CUT**（Rust-only stub；窗外）— **禁止**标 CLOSED。
 
+**Post-v1.0 path 2（关洞）· OW-STUB shrink-2（2026-08-29）：** H_00 stub **96→69** B（`stub_tail_nonzero` span）：drop export-dir guards + **AddressOfNameOrdinals** walk；resolve **`AddressOfFunctions[0]`** directly（`yoyo-runtime` `.def` export order pin）。gen12 `808b9ec8` / **17920** B；seed PE **248320** unchanged。**仍 CUT** — **禁止**标 CLOSED。
+
 **Post-v1.0 path 2（关洞）· OW-IAT shrink（2026-08-29）：** H_00 宿主 IAT **去掉 GetProcAddress**（host-loader **3→2**：LoadLibraryA + ExitProcess）。LoadLibraryA 之后 in-process PE export resolve（ordinal-0；was full name walk）。**仍 CUT**（LoadLibraryA / libdl 仍在）— **禁止**标 CLOSED。
 
 **Post-v1.0 path 2（关洞）· OW-IAT Linux tramp shrink（2026-08-29）：** `linux_h00_tramp.elf` **去掉 dlsym**（`dlopen` only + in-process ELF dyn sym walk for `yoyo_runtime_selfhost_main`）。tramp **9760** B（was **9768**）；gen4≡gen3_direct **EQUAL**（sha `26ad9d0e`）。**仍 CUT**（dlopen / libc 仍在）— **禁止**标 CLOSED。
 
 **Post-v1.0 path 2（关洞）· OW-H00 slot align（2026-08-29）：** JS/asm 全量 `yoyo.ty` link 时 H_00 与 Rust 同 **JMP+NOP 18B**（`E9 rel32 + 13×NOP`）；三 peer slot **EQUAL**。**仍 CUT**（Rust-only H_00 stub tail 仍驱动 JS↔Rust full `.text` DIFF）— **禁止**标 CLOSED / 假 full `.text` EQUAL。
 
-**Post-v1.0 path 2（关洞）· OW-H00 peer align（2026-08-29）：** JS `linkPeWin32` + `win32-h00-selfhost.js` + asm `link_pe_win32_peer` mirror Rust `link_pe_h00_runtime`（H_00 slot **JMP+NOP** + **97B** ordinal-0 stub）。three-peer full `yoyo.ty` PE **248320** B；`.text` **17920** B **EQUAL**（sha **`90ad6d6e`**）。**OW-H00 CLOSED**（fail-closed：`full_text=EQUAL` + body window EQUAL）。**OW-STUB** 仍 **CUT**（`stub_tail_nonzero=96`）。
+**Post-v1.0 path 2（关洞）· OW-H00 peer align（2026-08-29）：** JS `linkPeWin32` + `win32-h00-selfhost.js` + asm `link_pe_win32_peer` mirror Rust `link_pe_h00_runtime`（H_00 slot **JMP+NOP** + **71B** functions[0] stub）。three-peer full `yoyo.ty` PE **248320** B；`.text` **17920** B **EQUAL**（sha **`808b9ec8`**）。**OW-H00 CLOSED**（fail-closed：`full_text=EQUAL` + body window EQUAL）。**OW-STUB** 仍 **CUT**（`stub_tail_nonzero=69`）。
 
 ---
 
@@ -36,8 +38,8 @@ v0.9 把洞从 lump 变成逐项 `CLOSED|CUT`。v1.0-A 要求洞从「v0.9 枚�
 
 | ID | 区域 | Disposition | 关闭证据（CLOSED 才需要） | CUT 钉（机器） |
 |----|------|-------------|---------------------------|----------------|
-| **OW-H00** | H_00 entry slot（18 B）+ emit tail stub | **CLOSED** | full `.text` **EQUAL** JS=asm=Rust **17920** B · sha **`90ad6d6e`** · body window EQUAL | — |
-| **OW-STUB** | H_00 LoadLibrary stub tail | **CUT** | `stub_tail_nonzero==0`（所有 peer） | `stub_tail_nonzero` ∈ **[40, 512]**；观测 **96**（ordinal-0 export resolve） |
+| **OW-H00** | H_00 entry slot（18 B）+ emit tail stub | **CLOSED** | full `.text` **EQUAL** JS=asm=Rust **17920** B · sha **`808b9ec8`** · body window EQUAL | — |
+| **OW-STUB** | H_00 LoadLibrary stub tail | **CUT** | `stub_tail_nonzero==0`（所有 peer） | `stub_tail_nonzero` ∈ **[40, 512]**；观测 **69**（AddressOfFunctions[0] resolve） |
 | **OW-RT** | Sidecar Rust runtime (Win DLL / Linux `.so`) | **CUT** | 无 exact embed **且** 无 Rust LoadLibrary/libdl sidecar 宿主信任 | Win DLL **≤150000** 观测 **141312**；Linux seed ELF **253952**（MAX **300000**）；sidecar `yoyo_rt.dll` / `./libyoyo_runtime.so`；**no exact .so embed**（tramp still embedded） |
 | **OW-IAT** | LoadLibraryA / libdl host | **CUT** | PE 无 `LoadLibraryA`（YOYO-built loader） | Win：`LoadLibraryA` + `yoyo_rt.dll`；**无** `GetProcAddress`（ordinal-0 PE export resolve）。Linux tramp：`dlopen` only；**无** `dlsym`（ELF dyn sym walk）；仍宿主加载 |
 | **OW-SEED** | Seed 仍由 Rust `yoyo.exe` 发射 | **CUT** | seed 非 Rust host 发射 | Rust `yoyo link`；seed PE **≤270000**（观测 **248320**）；**emitter** size+sha256_prefix + **seed** sha256_prefix≡`SEED_HOST` + **path=h00** |
@@ -98,27 +100,27 @@ Gate 必须同时：
 
 ---
 
-## 观测基线（2026-08-29 · post-v1.0 OW-H00 CLOSED + OW-STUB 96B + OW-RT sidecar + OW-IAT no-GPA/dlsym + OW-SEED pin · gate GREEN）
+## 观测基线（2026-08-29 · post-v1.0 OW-H00 CLOSED + OW-STUB 69B + OW-RT sidecar + OW-IAT no-GPA/dlsym + OW-SEED pin · gate GREEN）
 
 | Monitor | Value |
 |---------|-------|
 | selfhost-body compared | **17805** B EQUAL |
-| full `.text` JS↔Rust↔asm | **EQUAL** · **17920** B · sha **`90ad6d6e`** |
+| full `.text` JS↔Rust↔asm | **EQUAL** · **17920** B · sha **`808b9ec8`** |
 | H_00 entry slot (18 B) | **JMP+NOP aligned** JS=Rust=asm (`E9`+rel+13×`90`) |
-| stub_tail_nonzero (all peers) | **96**（pin [40, 512]；ordinal-0 export resolve；仍 CUT） |
+| stub_tail_nonzero (all peers) | **69**（pin [40, 512]；AddressOfFunctions[0] resolve；仍 CUT） |
 | runtime.dll | **141312**（**no exact embed**；sidecar） |
 | seed PE (Rust link) | **248320**（≤270000；data floor 0x38000 仍主导体积） |
 | seed ELF (Linux link) | **253952**（≪300000；**no exact .so embed**；tramp **9760** B embed；no dlsym） |
-| gen12 / fullbody `.text` | SHA prefix **`90ad6d6e`** · compared **17920** B |
+| gen12 / fullbody `.text` | SHA prefix **`808b9ec8`** · compared **17920** B |
 | Lock pin | `0275802d…` Decision #25（本缩面不改 `yoyo.ty`） |
 | Disposition | **OW-H00 CLOSED** · **6× CUT**（closed=1 cut=6） |
 | Gate | `stage16-scope-cut-finalize.ps1 -SkipBuild` exit **0** · `HOLE_INVENTORY_V10 status=FINAL` |
 | No-regress | nested stage15-A exit 0 · stage14-A nested via stage15 · `stage10-linux-pure-m4.sh` GREEN |
 | OW-IAT shrink | Win GetProcAddress **ABSENT**（ordinal-0 PE export resolve）；Linux tramp dlsym **ABSENT**（ELF dyn walk）；LoadLibraryA/dlopen **PRESENT**（仍 CUT） |
-| OW-STUB shrink | ordinal-0 export resolve；was 235B full name walk → **96** B（仍 CUT） |
+| OW-STUB shrink | AddressOfFunctions[0] direct resolve；was 96B ordinal walk → **69** B span（仍 CUT） |
 | OW-SEED observe | emitter=`yoyo.exe` size+sha256_prefix；seed sha256_prefix≡`SEED_HOST`（16 hex）；path=h00（仍 CUT） |
 | OW-H00 peer align | JS `linkPeWin32` + asm delegate ≡ Rust `link_pe_h00_runtime` · **CLOSED** |
 
 ---
 
-*Stage 16-A · 打破后门魔咒：洞从「v0.9 枚举」变「1.0 FINAL SCOPE-CUT + 可脚本钉」· post-v1.0 OW-H00：**CLOSED**（three-peer full `.text` EQUAL）· post-v1.0 OW-RT：Win/Linux exact embed → sidecar（仍 CUT）· post-v1.0 OW-IAT：GetProcAddress → ordinal-0 export resolve；Linux dlsym → ELF dyn walk（仍 CUT）· post-v1.0 OW-STUB：235→96B ordinal-0（仍 CUT）· post-v1.0 OW-SEED：emitter+seed hash pin（仍 CUT）*
+*Stage 16-A · 打破后门魔咒：洞从「v0.9 枚举」变「1.0 FINAL SCOPE-CUT + 可脚本钉」· post-v1.0 OW-H00：**CLOSED**（three-peer full `.text` EQUAL）· post-v1.0 OW-RT：Win/Linux exact embed → sidecar（仍 CUT）· post-v1.0 OW-IAT：GetProcAddress → ordinal-0 export resolve；Linux dlsym → ELF dyn walk（仍 CUT）· post-v1.0 OW-STUB：235→96→**69**B functions[0]（仍 CUT）· post-v1.0 OW-SEED：emitter+seed hash pin（仍 CUT）*

@@ -188,7 +188,7 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Contract** | Canonical seed = H_00 `link_pe_win32` / `link_elf_linux` via `selfhost::seed_host_compile*`；`yoyo bootstrap` **without** `--selfhost` is an alias of that path（not genNrt） |
 | **Observe** | Machine line `SEED_HOST cmd=… path=h00|gennrt …`（`verifier/src/seed_host.rs`）；Win seed must expose `yoyo_rt.dll`+LoadLibraryA and **must not** expose GetTempPathA |
 | **Fail-closed** | PE ≤ **270000** / ELF ≤ **300000**（Rust H_00 link + `scripts/stage13-link-host.ps1`；post-v1.0 Linux sidecar）；`bootstrap --selfhost` **must DIFF** seed |
-| **Gate** | `scripts/stage13-link-host.ps1` exit 0（observed PE **248320** / ELF **253952**；gen12 SHA `90ad6d6e…`） |
+| **Gate** | `scripts/stage13-link-host.ps1` exit 0（observed PE **248320** / ELF **253952**；gen12 SHA `808b9ec8…`） |
 | **Trust gain** | 「绿」cannot silently slide onto genNrt/GetTempPath seed；dual CLI (`link`/`bootstrap`) pinned to one H_00 host surface |
 | **Still host-trusted** | Rust-built `yoyo.exe` still **emits** the seed；embedded Rust runtime + LoadLibrary/libdl remain（Stages 10–11） |
 
@@ -321,8 +321,8 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | Item | Detail |
 |------|--------|
 | **Hole** | **OW-H00** |
-| **Change** | JS `linkPeWin32` + `win32-h00-selfhost.js` mirror Rust `link_pe_h00_runtime` (H_00 slot **JMP+NOP** + 97B ordinal-0 stub); asm win32 delegates to same JS link CLI |
-| **Gate** | three-peer full `yoyo.ty` PE **byte-equal** Rust (`90ad6d6e` · 17920B `.text`); H_00 slot `e98d45000090909090909090909090909090` |
+| **Change** | JS `linkPeWin32` + `win32-h00-selfhost.js` mirror Rust `link_pe_h00_runtime` (H_00 slot **JMP+NOP** + 71B functions[0] stub); asm win32 delegates to same JS link CLI |
+| **Gate** | three-peer full `yoyo.ty` PE **byte-equal** Rust (`808b9ec8` · 17920B `.text`); H_00 slot `e98d45000090909090909090909090909090` |
 | **Disposition** | **OW-H00 CLOSED** (fail-closed: full `.text` EQUAL + body window EQUAL) |
 | **Still CUT** | OW-STUB / OW-RT / OW-IAT / OW-SEED |
 
@@ -334,6 +334,16 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Still CUT** | `LoadLibraryA` / libdl remain; **not** YOYO-built loader; CLOSED still requires LoadLibraryA absent |
 | **Obs** | stub_nz **235**; seed PE **248832**; gen12 `84a8c1c9` / **18432** B; GetProcAddress **ABSENT** on seed |
 | **Gates** | stage11/13/14/15 fail-closed forbid GetProcAddress; inventory CUT evidence `no_GetProcAddress;PE_export_walk` |
+
+### Post-v1.0 path 2 — OW-STUB functions[0] export resolve (2026-08-29)
+
+| Item | Detail |
+|------|--------|
+| **Hole** | **OW-STUB** |
+| **Change** | H_00 stub **96→69** B span: drop export-dir guards + AddressOfNameOrdinals walk; resolve **AddressOfFunctions[0]** directly (`yoyo-runtime` `.def` export order pin) |
+| **Still CUT** | LoadLibrary stub outside three-peer EQUAL; **stub≠0 ≠ CLOSED** |
+| **Obs** | stub_nz **69**; seed PE **248320**; gen12 `808b9ec8` / **17920** B; three-peer full `.text` **EQUAL** (OW-H00 stays CLOSED) |
+| **Gates** | body-ddc + stage14/15/16 stub pin [40,512]; selfhost-body EQUAL unchanged |
 
 ### Post-v1.0 path 2 — OW-STUB ordinal-0 export resolve (2026-08-29)
 
