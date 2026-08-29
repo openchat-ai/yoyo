@@ -341,7 +341,7 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 |------|--------|
 | **Hole** | **OW-IAT** |
 | **Change** | Spike `pe_manual_map.rs`: in-process PE32+ map (sections + DIR64 reloc + import callback + `functions[0]` export). **Not wired** into H_00 stub yet. |
-| **Still CUT** | `LoadLibraryA` / `dlopen` **still on seed**; host CreateFile/ReadFile/VirtualAlloc remain after wire-up |
+| **Still CUT** | Win: host CreateFile/ReadFile/VirtualAlloc on seed; Linux: host syscalls on tramp (no dlopen) |
 | **Gate** | `scripts/stage17-ow-iat-spike.ps1` / `.sh` · `cargo test -p verifier --lib pe_manual_map` |
 | **Doc** | `SCOPE-CUT-v1.0-ow-iat-spike.md` |
 | **Next** | Emit larger H_00 stub (CreateFile→Read→map) + JS/asm peer sync; then drop `LoadLibraryA` from `KERNEL32_IO_FUNCS` |

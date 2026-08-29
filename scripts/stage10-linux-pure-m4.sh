@@ -209,7 +209,7 @@ echo "  gen4 = gen3 H_00 runtime output (no genNrt / --selfhost wrapper)"
 echo "Remaining host surface (honest):"
 echo "  - host link/bootstrap seed + gen3_direct reference"
 echo "  - cwd sidecar libyoyo_runtime.so (Rust compile; no exact embed) + linux_h00_tramp.elf blob"
-echo "  - trampoline still uses dlopen via libc (no dlsym; ELF dyn sym walk)"
+echo "  - trampoline uses syscall open/read/mmap manual ELF map (no dlopen/libdl; ELF dyn sym walk)"
 if [[ -n "$text_sha" ]]; then
   echo "  gen4 DDC SHA256 prefix: $text_sha"
 elif [[ -n "$trust_sha" ]]; then

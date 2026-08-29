@@ -32,5 +32,5 @@ if ($wired) {
     Write-Host "OW_IAT_WIREUP H_00_wired=NO (honest CUT)"
 }
 
-Write-Host "OW_IAT_WIREUP status=WIP three_peer=JS_template_lockstep LoadLibraryA=ABSENT OW-IAT=CUT"
+Write-Host "OW_IAT_WIREUP status=WIP three_peer=JS_template_lockstep LoadLibraryA=ABSENT Linux_dlopen=ABSENT OW-IAT=CUT"
 exit 0

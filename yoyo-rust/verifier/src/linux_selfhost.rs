@@ -4,10 +4,10 @@
 //! via system cc when available (WSL/Linux).
 //!
 //! Stage 10-B / post-v1.0 OW-RT H_00: ELF entry → H_00 → syscall extract of embedded
-//! trampoline only → `execve` trampoline → trampoline `dlopen("./libyoyo_runtime.so")`
-//! then in-process ELF dyn sym walk (no dlsym — OW-IAT shrink).
+//! trampoline only → `execve` trampoline → syscall open/read/mmap manual ELF map of
+//! `./libyoyo_runtime.so` then in-process ELF dyn sym walk (no dlsym — OW-IAT shrink).
 //! The Rust `.so` is a cwd sidecar (no exact embed) — OW-RT stays CUT (still Rust runtime
-//! + glibc/libdl trampoline). genNrt `--selfhost` remains a separate host surface.
+//! + syscall-only manual-map trampoline; no dlopen/libdl). genNrt `--selfhost` remains a separate host surface.
 
 use crate::types::{IsaError, IsaResult};
 use std::path::Path;
@@ -74,7 +74,7 @@ pub fn runtime_so_bytes() -> IsaResult<Vec<u8>> {
     })
 }
 
-/// Prebuilt dlopen trampoline ELF (committed blob; rebuild via scripts/build-linux-h00-tramp.sh).
+/// Prebuilt manual-map trampoline ELF (committed blob; rebuild via scripts/build-linux-h00-tramp.sh).
 pub fn trampoline_bytes() -> &'static [u8] {
     include_bytes!("../blobs/linux_h00_tramp.elf")
 }

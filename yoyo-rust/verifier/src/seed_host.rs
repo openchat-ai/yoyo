@@ -26,7 +26,7 @@ pub fn classify_seed_path(bytes: &[u8]) -> &'static str {
     let has_win_ll = find_ascii(bytes, b"LoadLibraryA");
     let has_yoyo_rt =
         find_ascii(bytes, b"yoyo_rt.dll") || find_ascii(bytes, b"libyoyo_runtime.so");
-    // Linux H_00 trampoline uses dlopen; string may appear in embedded tramp bytes.
+    // Linux H_00 trampoline uses open/read/mmap manual map (no dlopen); legacy dlopen string absent.
     let has_linux_dl = find_ascii(bytes, b"dlopen") || find_ascii(bytes, b"libdl.so");
     if has_temp {
         "gennrt"
