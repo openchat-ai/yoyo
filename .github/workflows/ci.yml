@@ -7,7 +7,8 @@ on:
 
 jobs:
   build:
-    # Win32 H_00 seed/link (gen12) embeds yoyo_runtime.dll; Linux runners have no DLL.
+    # Win32 H_00 seed/link uses cwd sidecar yoyo_rt.dll (LoadLibrary); gen2rt --selfhost still embeds.
+    # Linux runners have no Win DLL — keep windows-latest for gen12/fullbody.
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,7 +24,8 @@ jobs:
         working-directory: yoyo-rust/verifier
         run: cargo build
 
-      # Needed for link_pe_win32 H_00 path (gen12 / seed host). Prefer release-runtime (LTO+strip) so H_00 seed PE stays under STAGE13_MAX_SEED_PE_BYTES.
+      # gen2rt / --selfhost still embeds; release-runtime also keeps DLL size under OW-RT MAX.
+      # H_00 seed/link itself no longer exact-embeds (post-v1.0 sidecar).
       - name: Build yoyo-runtime DLL
         working-directory: yoyo-rust
         run: cargo build --profile release-runtime -p yoyo-runtime
