@@ -517,7 +517,15 @@ mod tests {
             fn LoadLibraryA(name: *const i8) -> *mut std::ffi::c_void;
             fn GetProcAddress(module: *mut std::ffi::c_void, name: *const i8) -> *mut std::ffi::c_void;
             fn SetCurrentDirectoryA(path: *const i8) -> i32;
+            fn VirtualProtect(
+                addr: *mut std::ffi::c_void,
+                size: usize,
+                new_protect: u32,
+                old_protect: *mut u32,
+            ) -> i32;
         }
+
+        const PAGE_EXECUTE_READWRITE: u32 = 0x40;
 
         fn host_resolve(dll: &str, name: &str) -> Option<u64> {
             let dll_c = CString::new(dll).ok()?;
@@ -557,6 +565,10 @@ mod tests {
         let file = std::fs::read(&dll_path).expect("read sidecar");
         let imports = pe_import_dll_names(&file).expect("import dlls");
         eprintln!("SIDEcar_IMPORT_DLLS={imports:?}");
+        assert!(
+            !imports.iter().any(|d| d.eq_ignore_ascii_case("VCRUNTIME140.dll")),
+            "sidecar must be crt-static (build yoyo-runtime before verifier /MD rlibs)"
+        );
 
         let work = std::env::temp_dir().join(format!("yoyo-manual-map-smoke-{}", std::process::id()));
         std::fs::create_dir_all(&work).expect("mkdir work");
@@ -568,14 +580,27 @@ mod tests {
         }
 
         let mapped = manual_map_pe_dll(&file, host_resolve).expect("manual map");
-        let load_base = mapped.load_base;
-        let hinst = load_base as *mut std::ffi::c_void;
+        let base = mapped.load_base;
+        let hinst = base as *mut std::ffi::c_void;
+        unsafe {
+            let mut old = 0u32;
+            assert_ne!(
+                VirtualProtect(
+                    mapped.image.as_ptr() as *mut _,
+                    mapped.image.len(),
+                    PAGE_EXECUTE_READWRITE,
+                    &mut old,
+                ),
+                0,
+                "VirtualProtect on manual-mapped image",
+            );
+        }
 
         if mapped.headers.entry_rva != 0 {
             type DllEntry =
                 unsafe extern "system" fn(*mut std::ffi::c_void, u32, *mut std::ffi::c_void) -> i32;
             let entry: DllEntry = unsafe {
-                std::mem::transmute(load_base + mapped.headers.entry_rva as u64)
+                std::mem::transmute(base + mapped.headers.entry_rva as u64)
             };
             unsafe {
                 assert_ne!(entry(hinst, 1, std::ptr::null_mut()), 0, "DllMain attach");
@@ -585,8 +610,7 @@ mod tests {
         let export_rva =
             export_function_rva_functions0(&mapped.image, &mapped.headers).expect("export rva");
         type ExportFn = unsafe extern "system" fn() -> i32;
-        let export_fn: ExportFn =
-            unsafe { std::mem::transmute(load_base + export_rva as u64) };
+        let export_fn: ExportFn = unsafe { std::mem::transmute(base + export_rva as u64) };
         let code = unsafe { export_fn() };
         assert_eq!(code, 0, "yoyo_runtime_selfhost_main exit code");
         assert!(
