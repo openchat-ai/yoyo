@@ -308,14 +308,18 @@ fn gen_h00_manual_map_body(
     fail_jumps.push(c.len());
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = module base
-    c.extend_from_slice(&[0x85, 0xDB]);
-    let use_ft = c.len();
+    c.extend_from_slice(&[0x4D, 0x8D, 0x5C, 0x16, 0x00]); // lea r11,[r14+rdx] IAT write ptr
+    c.extend_from_slice(&[0x85, 0xDB]); // cmp ebx,0 (OriginalFirstThunk)
+    let jz_iat_read = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x4A, 0x8D, 0x34, 0x1E]); // lea rsi,[r14+rbx] oft
-    let use_iat = c.len();
-    patch_rel32(&mut c, use_ft + 2, use_ft + 6, use_iat);
-    c.extend_from_slice(&[0x4A, 0x8D, 0x34, 0x16]); // lea rsi,[r14+rdx] iat
+    c.extend_from_slice(&[0x4A, 0x8D, 0x34, 0x1E]); // lea rsi,[r14+rbx] read OFT
+    let j_to_loop = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let iat_read = c.len();
+    patch_rel32(&mut c, jz_iat_read + 2, jz_iat_read + 6, iat_read);
+    c.extend_from_slice(&[0x4A, 0x8D, 0x34, 0x16]); // lea rsi,[r14+rdx] read IAT when no OFT
     let thunk_loop = c.len();
+    patch_rel32(&mut c, j_to_loop + 1, j_to_loop + 5, thunk_loop);
     c.extend_from_slice(&[0x48, 0x8B, 0x06]); // thunk
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_thunk_done = c.len();
@@ -328,8 +332,9 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
     let after_ord = c.len();
     patch_rel32(&mut c, jc_ord + 2, jc_ord + 6, after_ord);
-    c.extend_from_slice(&[0x48, 0x89, 0x06]); // store IAT
+    c.extend_from_slice(&[0x4D, 0x89, 0x03]); // mov [r11], rax (IAT slot)
     c.extend_from_slice(&[0x48, 0x83, 0xC6, 0x08]);
+    c.extend_from_slice(&[0x49, 0x83, 0xC3, 0x08]);
     let jmp_thunk = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     patch_rel32(&mut c, jmp_thunk + 1, jmp_thunk + 5, thunk_loop);
@@ -372,22 +377,22 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_ascii_chk = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x41, 0x0F, 0xB6, 0x19]); // movzx ebx,byte [r9]
-    c.extend_from_slice(&[0x85, 0xDB]);
+    c.extend_from_slice(&[0x45, 0x0F, 0xB6, 0x19]); // movzx r11d,byte [r9] (preserve ebx=OFT)
+    c.extend_from_slice(&[0x45, 0x85, 0xDB]);
     let jz_dll_mismatch = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    // tolower eax and bl, compare
+    // tolower eax and r11b, compare
     c.extend_from_slice(&[0x3C, 0x41]); // cmp al,'A'
     c.extend_from_slice(&[0x72, 0x04]);
     c.extend_from_slice(&[0x3C, 0x5A]);
     c.extend_from_slice(&[0x77, 0x04]);
     c.extend_from_slice(&[0x0C, 0x20]); // or al,0x20
-    c.extend_from_slice(&[0x80, 0xFB, 0x41]);
+    c.extend_from_slice(&[0x41, 0x80, 0xFB, 0x41]);
     c.extend_from_slice(&[0x72, 0x04]);
-    c.extend_from_slice(&[0x80, 0xFB, 0x5A]);
+    c.extend_from_slice(&[0x41, 0x80, 0xFB, 0x5A]);
     c.extend_from_slice(&[0x77, 0x04]);
-    c.extend_from_slice(&[0x0C, 0x20]); // or bl,0x20
-    c.extend_from_slice(&[0x38, 0xD8]); // cmp al,bl
+    c.extend_from_slice(&[0x41, 0x80, 0xCB, 0x20]); // or r11b,0x20
+    c.extend_from_slice(&[0x44, 0x38, 0xD8]); // cmp al,r11b
     let jne_dll = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x49, 0xFF, 0xC0]);
@@ -410,7 +415,7 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jmp_mod + 1, jmp_mod + 5, mod_loop);
     let no_mod = c.len();
     patch_rel32(&mut c, jz_no_mod + 2, jz_no_mod + 6, no_mod);
-    patch_rel32(&mut c, jz_next_mod + 2, jz_next_mod + 6, no_mod);
+    patch_rel32(&mut c, jz_next_mod + 2, jz_next_mod + 6, dll_mismatch);
     c.extend_from_slice(&[0x31, 0xC0]);
     c.extend_from_slice(&[0xC3]);
     let mod_found = c.len();
