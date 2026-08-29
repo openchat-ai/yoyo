@@ -20,17 +20,17 @@ jobs:
         with:
           rustflags: ""
 
-      - name: Build verifier
-        working-directory: yoyo-rust/verifier
-        run: cargo build
-
-      # gen2rt / --selfhost still embeds; release-runtime also keeps DLL size under OW-RT MAX.
-      # H_00 seed/link itself no longer exact-embeds (post-v1.0 sidecar).
+      # crt-static sidecar MUST build before verifier — otherwise reused verifier rlibs
+      # keep /MD and yoyo_runtime.dll still imports VCRUNTIME140 (manual-map PEB walk fails).
       - name: Build yoyo-runtime DLL
         working-directory: yoyo-rust
         env:
           RUSTFLAGS: "-C target-feature=+crt-static"
         run: cargo build --profile release-runtime -p yoyo-runtime
+
+      - name: Build verifier
+        working-directory: yoyo-rust/verifier
+        run: cargo build
 
       - name: Unit tests
         working-directory: yoyo-rust/verifier

@@ -52,14 +52,15 @@ $needRuntime = -not ((Test-Path $RuntimeDllPreferred) -or (Test-Path $RuntimeDll
 if ($needYoyo -or $needRuntime) {
     if ($SkipBuild) { throw "missing yoyo.exe or yoyo_runtime.dll (and -SkipBuild)" }
     Push-Location (Join-Path $Root "yoyo-rust")
-    if ($needYoyo) {
-        & cargo build --release -p verifier
-        if ($LASTEXITCODE -ne 0) { throw "verifier build failed" }
-    }
     if ($needRuntime -and -not (Test-Path $RuntimeDllPreferred)) {
         $env:RUSTFLAGS = "-C target-feature=+crt-static"
         & cargo build --profile release-runtime -p yoyo-runtime
         if ($LASTEXITCODE -ne 0) { throw "yoyo-runtime build failed" }
+        Remove-Item Env:RUSTFLAGS -ErrorAction SilentlyContinue
+    }
+    if ($needYoyo) {
+        & cargo build --release -p verifier
+        if ($LASTEXITCODE -ne 0) { throw "verifier build failed" }
     }
     Pop-Location
 }
