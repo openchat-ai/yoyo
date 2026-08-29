@@ -490,7 +490,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x41, 0x38, 0x01]); // cmp byte ptr [r9], al
     let jne_name = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x84, 0xC9]);
+    c.extend_from_slice(&[0x84, 0xC0]); // test al, al (export char — both strings ended)
     let jz_name_found = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0xFF, 0xC0]);
