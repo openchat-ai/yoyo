@@ -4,14 +4,14 @@
 # Stage 11-B shrinks the Win H_00 extract path (drop GetTempPathA + lstrcatA; write +
 # LoadLibrary cwd-relative `yoyo_rt.dll`, same posture as Linux `./libyoyo_runtime.so`)
 # and puts the remaining host-loader surface under a fail-closed gate:
-#   - Win: import table must expose exactly {LoadLibraryA,ExitProcess}
-#     as the host-loader slice (no GetTempPathA / lstrcatA / GetProcAddress on H_00 IAT)
-#   - Win: H_00 stub resolves export via in-process PE walk (OW-IAT shrink; still LoadLibraryA)
+#   - Win: import table host-loader slice is exactly {ExitProcess}
+#     (no GetTempPathA / lstrcatA / GetProcAddress / LoadLibraryA on H_00 IAT)
+#   - Win: H_00 resolves LoadLibraryA via PEB→kernel32 ROR13 hash; export via PE walk
 #   - Linux: committed dlopen trampoline blob size ≤ MAX; trampoline exact-embed in
-#     linux gen1; post-v1.0: libyoyo_runtime.so is cwd sidecar (no exact embed)
-#   - Smoke: gen1 H_00 still compiles via LoadLibrary path (parity optional via 11-A)
+#     linux gen1; post-v1.0: libyoyo_runtime.so is cwd sidecar (no exact embed); no dlsym
+#   - Smoke: gen1 H_00 still compiles via host LoadLibrary path (parity optional via 11-A)
 #
-# Honest remaining: still calls host LoadLibraryA / libdl; trampoline still glibc+dlopen.
+# Honest remaining: still calls host LoadLibrary (PEB-resolved) / libdl; trampoline still glibc+dlopen.
 param(
     [switch]$SkipBuild,
     [switch]$SkipLinux,
@@ -23,12 +23,12 @@ $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
 # Fail-closed ceilings (do not raise casually).
-$MaxHostLoaderIatNames = 2          # LoadLibraryA + ExitProcess (OW-IAT: no GetProcAddress)
+$MaxHostLoaderIatNames = 1          # ExitProcess only (deeper OW-IAT: LoadLibraryA via PEB, not IAT)
 # Stage 11-B nostdlib .S tramp (was gcc+CRT 14464). Do not raise casually.
 $MaxTrampBytes = 12000
 $BaselineTrampBytes = 14464
-$ForbiddenWinHostApis = @("GetTempPathA", "lstrcatA", "GetProcAddress")
-$RequiredWinHostApis = @("LoadLibraryA", "ExitProcess")
+$ForbiddenWinHostApis = @("GetTempPathA", "lstrcatA", "GetProcAddress", "LoadLibraryA")
+$RequiredWinHostApis = @("ExitProcess")
 $RequiredIoApis = @("VirtualAlloc", "CreateFileA", "ReadFile", "WriteFile", "CloseHandle")
 
 $WorkDir = Join-Path $Root "scripts\_stage11-loadlibrary-host"
@@ -253,10 +253,7 @@ if ((Find-Ascii $peFace "yoyo_rt.dll") -lt 0) {
         Write-Host "Stage 11-B: RED (cwd sidecar name yoyo_rt.dll missing)"
     exit 1
 }
-if ((Find-Ascii $peFace "yoyo_runtime_selfhost_main") -lt 0) {
-    Write-Host "Stage 11-B: RED (export name missing on PE face)"
-    exit 1
-}
+# Ordinal-0 export resolve: export name string is intentionally absent from seed PE.
 
 foreach ($name in $RequiredWinHostApis) {
     $occ = Count-AsciiOccurrences $peFace $name
@@ -266,8 +263,8 @@ foreach ($name in $RequiredWinHostApis) {
     }
 }
 
-Write-Host "Win IAT host-loader slice: $($RequiredWinHostApis -join ', ') (GetTempPathA/lstrcatA/GetProcAddress ABSENT)"
-Write-Host "Win sidecar name: yoyo_rt.dll (cwd-relative); no exact embed; export via PE walk"
+Write-Host "Win IAT host-loader slice: $($RequiredWinHostApis -join ', ') (LoadLibraryA/GetTempPathA/lstrcatA/GetProcAddress ABSENT)"
+Write-Host "Win sidecar name: yoyo_rt.dll (cwd-relative); no exact embed; LoadLibrary via PEB; export ordinal-0"
 
 # --- Pin H_00 loader stub bytes (DDC-comparable .text window) ---
 # gen12 / yoyo diff compare handler .text including H_00 extract stub.
@@ -437,6 +434,6 @@ Write-Host "report: $reportPath"
 
 Write-Host ""
 Write-Host "Stage 11-B: GREEN"
-Write-Host "  trust-chain: H_00 host-loader IAT 3→2 APIs (dropped GetProcAddress; PE export walk); Linux tramp dropped dlsym (ELF dyn walk); cwd sidecar"
+Write-Host "  trust-chain: H_00 host-loader IAT → ExitProcess only (LoadLibraryA via PEB; ordinal-0 export); Linux tramp no dlsym; cwd sidecar"
 Write-Host "  monitored:   import names + cwd yoyo_rt.dll smoke + trampoline size/embed + Linux no .so embed"
 exit 0

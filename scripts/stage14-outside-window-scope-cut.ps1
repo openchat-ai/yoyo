@@ -19,14 +19,14 @@ $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
 # Fail-closed pins (do not raise casually). Keep aligned with SCOPE-CUT doc + stage11/13.
-# Post-v1.0 OW-RT: no exact embed; sidecar LoadLibrary. OW-IAT: stub ~69B (AddressOfFunctions[0]; was ordinal-walk 96B / name-walk 235B).
+# Post-v1.0 OW-RT: no exact embed; sidecar LoadLibrary. OW-IAT PEB: stub grows; pin [40,900].
 $MinStubTailNonzero = 40
-$MaxStubTailNonzero = 512
+$MaxStubTailNonzero = 900
 $MaxDllBytes = 150000
 $MaxSeedPeBytes = 270000
 $MinBodyCompared = 17013
-$RequiredMarkers = @("LoadLibraryA", "yoyo_rt.dll")
-$ForbiddenIatMarkers = @("GetProcAddress")
+$RequiredMarkers = @("yoyo_rt.dll")
+$ForbiddenIatMarkers = @("GetProcAddress", "LoadLibraryA")
 
 $WorkDir = Join-Path $Root "scripts\_stage14-outside-window-scope-cut"
 New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
@@ -170,7 +170,7 @@ foreach ($m in $ForbiddenIatMarkers) {
         exit 1
     }
 }
-Write-Host "OW-IAT markers: $($RequiredMarkers -join ', ') OK; GetProcAddress ABSENT (PE export walk)"
+Write-Host "OW-IAT markers: $($RequiredMarkers -join ', ') OK; LoadLibraryA/GetProcAddress ABSENT (PEB + ordinal-0)"
 
 Write-Host ""
 Write-Host "== selfhost-body (reconfirm) + stub pin =="

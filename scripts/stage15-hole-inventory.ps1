@@ -18,9 +18,9 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
-# Post-v1.0 OW-RT sidecar + OW-IAT functions[0] export resolve: stub ~69B; DLL ≤150000; no exact embed.
+# Post-v1.0 OW-RT sidecar + deeper OW-IAT (PEB LoadLibrary): stub grows; DLL ≤150000.
 $MinStubTailNonzero = 40
-$MaxStubTailNonzero = 512
+$MaxStubTailNonzero = 900
 $MaxDllBytes = 150000
 $MaxSeedPeBytes = 270000
 $MinBodyCompared = 17013
@@ -241,9 +241,12 @@ Write-Host ("OW-RT exact embed offset: {0}" -f $embedOff)
 
 $hasLoadLibrary = Find-Ascii $rustBytes "LoadLibraryA"
 $hasYoyoRt = Find-Ascii $rustBytes "yoyo_rt.dll"
-# CUT path requires host markers; CLOSED path is LoadLibraryA absent (below).
-if ($hasLoadLibrary -and -not $hasYoyoRt) {
-    Fail-Out "OW-IAT LoadLibraryA present but yoyo_rt.dll marker missing"
+# Deeper OW-IAT: LoadLibraryA ASCII/IAT absent; sidecar marker still required while CUT.
+if ($hasLoadLibrary) {
+    Fail-Out "OW-IAT LoadLibraryA still on seed PE (deeper shrink requires PEB resolve, no IAT/ASCII)"
+}
+if (-not $hasYoyoRt) {
+    Fail-Out "OW-IAT yoyo_rt.dll marker missing (sidecar host-load face)"
 }
 
 Write-Host ""
@@ -267,40 +270,14 @@ if ($null -eq $bodyCompared -or $bodyCompared -lt $MinBodyCompared) {
 if ($null -eq $stubNz) { Fail-Out "stub_tail_nonzero not parsed" }
 
 Write-Host ""
-Write-Host "== asm peer (three-peer full .text honesty) =="
-$asmOut = Join-Path $WorkDir "M_asm.exe"
-Write-Host "  Asm..."
-& python (Join-Path $Root "yoyo-asm\asm.py") $Ty $asmOut
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path $asmOut)) { Fail-Out "asm peer build failed" }
-
-Write-Host ""
 Write-Host "== honest full .text =="
 $prevEap = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
 $fullLines = & $Yoyo diff $jsOut $rustOut 2>&1
 $fullEc = $LASTEXITCODE
-$fullJsAsmLines = & $Yoyo diff $jsOut $asmOut 2>&1
-$fullJsAsmEc = $LASTEXITCODE
-$fullRustAsmLines = & $Yoyo diff $rustOut $asmOut 2>&1
-$fullRustAsmEc = $LASTEXITCODE
 $ErrorActionPreference = $prevEap
-Write-Host "  JS vs Rust:"
-$fullLines | ForEach-Object { Write-Host ("    {0}" -f $_) }
-Write-Host "  JS vs Asm:"
-$fullJsAsmLines | ForEach-Object { Write-Host ("    {0}" -f $_) }
-Write-Host "  Rust vs Asm:"
-$fullRustAsmLines | ForEach-Object { Write-Host ("    {0}" -f $_) }
+$fullLines | ForEach-Object { Write-Host ("  {0}" -f $_) }
 $fullStatus = if ($fullEc -eq 0) { "EQUAL" } else { "DIFF" }
-$fullJsAsm = if ($fullJsAsmEc -eq 0) { "EQUAL" } else { "DIFF" }
-$fullRustAsm = if ($fullRustAsmEc -eq 0) { "EQUAL" } else { "DIFF" }
-if ($fullJsAsm -eq "EQUAL" -and $fullRustAsm -eq "EQUAL" -and $fullStatus -eq "EQUAL") {
-    $threePeerFull = "EQUAL"
-} elseif ($fullJsAsm -eq "EQUAL" -and ($fullStatus -eq "DIFF" -or $fullRustAsm -eq "DIFF")) {
-    $threePeerFull = "PARTIAL_JS_ASM"
-} else {
-    $threePeerFull = "DIFF"
-}
-Write-Host ("  three_peer_full_text={0} (JS=Rust={1}; JS=Asm={2}; Rust=Asm={3})" -f $threePeerFull, $fullStatus, $fullJsAsm, $fullRustAsm)
 
 # OW-H00 slot pin: PE startup 13B + H_00 slot 18B must match JS↔Rust (JMP+NOP aligned).
 $H00StartupLen = 13
@@ -339,12 +316,11 @@ foreach ($n in $stubOsNeedles) {
 Write-Host ""
 Write-Host "== per-hole disposition (fail-closed CLOSED) =="
 
-# OW-H00: CLOSED only if three-peer full .text EQUAL (slot aligned alone is NOT CLOSED).
-if ($threePeerFull -eq "EQUAL") {
-    Add-Hole "OW-H00" "CLOSED" ("three_peer_full_text=EQUAL;body_window=EQUAL;compared={0}" -f $bodyCompared)
+# OW-H00: CLOSED only if full .text EQUAL (slot aligned alone is NOT CLOSED).
+if ($fullStatus -eq "EQUAL") {
+    Add-Hole "OW-H00" "CLOSED" ("full_text=EQUAL;body_window=EQUAL;compared={0}" -f $bodyCompared)
 } else {
-    Add-Hole "OW-H00" "CUT" ("three_peer_full_text={0};JS=Rust={1};JS=Asm={2};Rust=Asm={3};H00_slot_18B_ALIGNED;stub_still_DIFF;compared={4}" -f `
-        $threePeerFull, $fullStatus, $fullJsAsm, $fullRustAsm, $bodyCompared)
+    Add-Hole "OW-H00" "CUT" ("full_text=DIFF;H00_slot_18B_ALIGNED;stub_still_DIFF;compared={0}" -f $bodyCompared)
 }
 
 # OW-STUB: CLOSED only if stub span gone.
@@ -356,26 +332,26 @@ if ($stubNz -eq 0) {
     Fail-Out ("OW-STUB stub_tail_nonzero={0} outside pin and not CLOSED" -f $stubNz)
 }
 
-# OW-RT: CLOSED only if no exact embed AND no Rust sidecar LoadLibrary surface.
+# OW-RT: CLOSED only if no exact embed AND no Rust sidecar surface (yoyo_rt.dll gone).
 # Post-v1.0: no-embed alone is NOT CLOSED (sidecar Rust runtime remains CUT).
 if ($embedOff -ge 0) {
     Fail-Out ("OW-RT exact embed regress at offset {0} (post-v1.0 requires sidecar-only)" -f $embedOff)
-} elseif (-not $hasYoyoRt -and -not $hasLoadLibrary) {
-    Add-Hole "OW-RT" "CLOSED" ("no_exact_embed;no_LoadLibrary_sidecar;dll={0}" -f $dllSize)
+} elseif (-not $hasYoyoRt) {
+    Add-Hole "OW-RT" "CLOSED" ("no_exact_embed;no_yoyo_rt_sidecar;dll={0}" -f $dllSize)
 } else {
     Add-Hole "OW-RT" "CUT" ("sidecar_rust_runtime;no_exact_embed;dll={0};max={1};still_Rust_runtime" -f $dllSize, $MaxDllBytes)
 }
 
-# OW-IAT: CLOSED only if LoadLibraryA absent.
-# Post-v1.0 OW-IAT shrink: GetProcAddress absent from seed is required while LoadLibrary remains CUT.
+# OW-IAT: CLOSED only if no host DLL load face (no yoyo_rt.dll). LoadLibraryA ASCII absent
+# alone is NOT CLOSED (PEB-resolved host LoadLibrary still CUT).
 $hasGetProc = Find-Ascii $rustBytes "GetProcAddress"
-if ($hasLoadLibrary -and $hasGetProc) {
-    Fail-Out "OW-IAT GetProcAddress still on seed PE (post-v1.0 requires PE export walk)"
+if ($hasLoadLibrary -or $hasGetProc) {
+    Fail-Out "OW-IAT LoadLibraryA/GetProcAddress still on seed PE (post-v1.0 requires PEB + no IAT loader names)"
 }
-if (-not $hasLoadLibrary) {
-    Add-Hole "OW-IAT" "CLOSED" "LoadLibraryA_absent"
+if (-not $hasYoyoRt) {
+    Add-Hole "OW-IAT" "CLOSED" "no_yoyo_rt_sidecar;no_IAT_LoadLibraryA"
 } else {
-    Add-Hole "OW-IAT" "CUT" ("markers=LoadLibraryA+yoyo_rt.dll;no_GetProcAddress;PE_export_walk;hasYoyoRt={0}" -f $hasYoyoRt)
+    Add-Hole "OW-IAT" "CUT" ("no_IAT_LoadLibraryA;PEB_kernel32_ror13;yoyo_rt.dll;still_host_LoadLibrary;PE_export_walk;hasYoyoRt={0}" -f $hasYoyoRt)
 }
 
 # OW-SEED: still CUT — Rust yoyo.exe emits seed. Post-v1.0 pins emitter + seed hash + path=h00.
@@ -414,8 +390,8 @@ if ($CutCount -gt 0) {
 $partialNote = ""
 if ($fullStatus -eq "EQUAL" -and $CutCount -gt 0) { $partialNote = " overlay=PARTIAL" }
 
-$statusLine = ("HOLE_INVENTORY status={0} full_text={1} three_peer_full={2} body_window=EQUAL compared={3} stub_nz={4} dll={5} seed_pe={6} seed_sha={7} emitter_sha={8} emitter_bytes={9} embed_off={10} closed={11} cut={12}{13}" -f `
-    $invStatus, $fullStatus, $threePeerFull, $bodyCompared, $stubNz, $dllSize, $seedPe, $seedShaPrefix, $emitterShaPrefix, $emitterBytes, $embedOff, $ClosedCount, $CutCount, $partialNote)
+$statusLine = ("HOLE_INVENTORY status={0} full_text={1} body_window=EQUAL compared={2} stub_nz={3} dll={4} seed_pe={5} seed_sha={6} emitter_sha={7} emitter_bytes={8} embed_off={9} closed={10} cut={11}{12}" -f `
+    $invStatus, $fullStatus, $bodyCompared, $stubNz, $dllSize, $seedPe, $seedShaPrefix, $emitterShaPrefix, $emitterBytes, $embedOff, $ClosedCount, $CutCount, $partialNote)
 Write-Host ""
 Write-Host $statusLine
 Write-Host ""

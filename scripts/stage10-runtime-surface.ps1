@@ -134,12 +134,16 @@ if (-not $SkipLinkSmoke) {
         exit 1
     }
     $ascii = [System.Text.Encoding]::ASCII.GetString($pe)
-    if ($ascii.IndexOf("yoyo_rt.dll") -lt 0 -or $ascii.IndexOf("LoadLibraryA") -lt 0) {
-        Write-Host "Stage 10-A: RED (sidecar markers yoyo_rt.dll / LoadLibraryA missing)"
+    if ($ascii.IndexOf("yoyo_rt.dll") -lt 0) {
+        Write-Host "Stage 10-A: RED (sidecar marker yoyo_rt.dll missing)"
+        exit 1
+    }
+    if ($ascii.IndexOf("LoadLibraryA") -ge 0) {
+        Write-Host "Stage 10-A: RED (LoadLibraryA ASCII still present — deeper OW-IAT requires PEB resolve)"
         exit 1
     }
     $embedOk = $true  # means "sidecar posture OK" (no exact embed)
-    Write-Host "gen1: $gen1Len bytes; no exact embed (cwd sidecar yoyo_rt.dll)"
+    Write-Host "gen1: $gen1Len bytes; no exact embed (cwd sidecar yoyo_rt.dll; PEB LoadLibrary)"
 }
 
 # Persist machine-readable observation for docs / Relock notes.
@@ -161,7 +165,7 @@ $report = [ordered]@{
     honest_remaining = @(
         "DLL still Rust-compiled (verifier lib, Win32/Linux/Stub emit only)",
         "DLL bytes still outside gen12 18432B compared .text window",
-        "H_00 LoadLibraryA cwd sidecar yoyo_rt.dll (no exact embed; still Rust runtime)"
+        "H_00 PEB-resolved LoadLibrary cwd sidecar yoyo_rt.dll (no exact embed; still Rust runtime)"
     )
 }
 $reportPath = Join-Path $WorkDir "runtime-surface.json"

@@ -7,7 +7,7 @@
 #   - Canonical seed = H_00 `link_pe_win32` / `link_elf_linux` (Rust: seed_host_compile*)
 #   - link(.ty) ≡ link(.tyb) ≡ bootstrap(.tyb) .text/full DDC EQUAL
 #   - Seed PE/ELF size ≤ STAGE13_MAX (Rust also enforces on H_00 link)
-#   - Win seed markers: yoyo_rt.dll + LoadLibraryA (no GetProcAddress; PE export walk); NO GetTempPathA
+#   - Win seed markers: yoyo_rt.dll (no LoadLibraryA/GetProcAddress ASCII; PEB + PE export walk); NO GetTempPathA
 #   - bootstrap --selfhost MUST DIFF seed (and Win must expose GetTempPathA) — else RED
 #
 # Honest remaining: still trusts Rust-built `yoyo.exe` host to emit the seed; sidecar
@@ -191,8 +191,8 @@ if ($bootOut -notmatch 'SEED_HOST cmd=bootstrap target=win32 path=h00') {
 if (-not (Invoke-YoyoDiffEqual $SeedLinkTy $SeedBoot "link(.ty) vs bootstrap(.tyb)")) { exit 1 }
 
 $seedBytes = [System.IO.File]::ReadAllBytes($SeedLinkTy)
-$required = @("LoadLibraryA", "yoyo_rt.dll", "yoyo_runtime_selfhost_main")
-$forbidden = @("GetTempPathA", "lstrcatA", "GetProcAddress")
+$required = @("yoyo_rt.dll")
+$forbidden = @("GetTempPathA", "lstrcatA", "GetProcAddress", "LoadLibraryA")
 foreach ($n in $required) {
     if (-not (Find-Ascii $seedBytes $n)) {
         Write-Host "Stage 13-A: RED (seed missing required marker: $n)"
@@ -205,7 +205,7 @@ foreach ($n in $forbidden) {
         exit 1
     }
 }
-Write-Host "Win seed markers: H_00 cwd LoadLibrary + PE export walk (no GetTempPathA/GetProcAddress)"
+Write-Host "Win seed markers: H_00 cwd sidecar + PEB LoadLibrary + ordinal-0 export (no IAT LoadLibraryA/GetProcAddress)"
 
 if (-not $SkipSelfhostDiff) {
     Write-Host ""
@@ -341,5 +341,5 @@ Write-Host "  Gate fails closed if seed grows past MAX, gains GetTempPathA, or �
 Write-Host "Remaining host surface (honest):"
 Write-Host "  - Rust-built yoyo.exe still emits the seed (host compile trust)"
 Write-Host "  - cwd sidecar yoyo_rt.dll / libyoyo_runtime.so (Rust; Stages 10–11; no exact embed)"
-Write-Host "  - host LoadLibraryA / libdl on H_00 path (Stage 11-B observes face)"
+Write-Host "  - host LoadLibrary (PEB-resolved) / libdl on H_00 path (Stage 11-B observes face)"
 exit 0

@@ -15,11 +15,10 @@ const KERNEL32_IO_FUNCS: &[&str] = &[
     "ReadFile",
     "WriteFile",
     "CloseHandle",
-    // Stage 9-A / post-v1.0 H_00: cwd sidecar LoadLibrary (slots 5–6).
+    // Stage 9-A / post-v1.0 H_00: cwd sidecar LoadLibrary (was slots 5–6).
     // Stage 11-B dropped GetTempPathA/lstrcatA; post-v1.0 dropped extract+WriteFile
-    // embed; post-v1.0 OW-IAT: dropped GetProcAddress — H_00 resolves AddressOfFunctions[0]
-    // in-process after LoadLibraryA (still host LoadLibrary; OW-IAT CUT).
-    "LoadLibraryA",
+    // embed + GetProcAddress; deeper OW-IAT: dropped LoadLibraryA from IAT — H_00
+    // resolves it via PEB→kernel32 export hash walk (still host LoadLibrary; CUT).
     "ExitProcess",
 ];
 
