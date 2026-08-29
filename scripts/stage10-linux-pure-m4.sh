@@ -45,7 +45,8 @@ done
 
 if [[ ! -x "$YOYO" ]] || [[ -z "$RUNTIME_SO" ]]; then
   echo "== build yoyo + yoyo-runtime (release / release-runtime) =="
-  (cd "$ROOT/yoyo-rust" && cargo build --release -p verifier && cargo build --profile release-runtime -p yoyo-runtime)
+  bash "$ROOT/scripts/build-linux-h00-tramp.sh"
+  (cd "$ROOT/yoyo-rust" && cargo clean -p verifier -p yoyo-runtime && cargo build --release -p verifier && cargo build --profile release-runtime -p yoyo-runtime)
   RUNTIME_SO="$ROOT/yoyo-rust/target/release-runtime/libyoyo_runtime.so"
   if [[ ! -f "$RUNTIME_SO" ]]; then
     RUNTIME_SO="$ROOT/yoyo-rust/target/release/libyoyo_runtime.so"
@@ -209,7 +210,7 @@ echo "  gen4 = gen3 H_00 runtime output (no genNrt / --selfhost wrapper)"
 echo "Remaining host surface (honest):"
 echo "  - host link/bootstrap seed + gen3_direct reference"
 echo "  - cwd sidecar libyoyo_runtime.so (Rust compile; no exact embed) + linux_h00_tramp.elf blob"
-echo "  - trampoline still uses dlopen via libc (no dlsym; ELF dyn sym walk)"
+echo "  - hybrid tramp: dynamic -lc dlopen@PLT (no libdl NEEDED); in-process ELF dyn sym walk (no dlsym)"
 if [[ -n "$text_sha" ]]; then
   echo "  gen4 DDC SHA256 prefix: $text_sha"
 elif [[ -n "$trust_sha" ]]; then

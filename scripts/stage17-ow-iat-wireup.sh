@@ -8,4 +8,4 @@ if command -v rustup >/dev/null 2>&1 && rustup toolchain list 2>/dev/null | grep
 else
   cargo test -p verifier --lib manual_map
 fi
-echo "OW_IAT_WIREUP status=WIP phase=manual_map_x64_emit H_00_wired=YES LoadLibraryA=ABSENT PEB_resolve=DROPPED three_peer=LOCKSTEP"
+echo "OW_IAT_WIREUP status=WIP phase=manual_map_x64_emit H_00_wired=YES LoadLibraryA=ABSENT PEB_resolve=DROPPED Linux_dlopen=ABSENT three_peer=LOCKSTEP"

@@ -167,12 +167,17 @@ if ($trampAscii.IndexOf("__libc_start_main") -ge 0) {
     Write-Host "Stage 11-B: RED (tramp ELF still binds __libc_start_main 鈥?CRT surface regress)"
     exit 1
 }
-if ($trampAscii.IndexOf("dlopen") -lt 0 -and $trampAscii.IndexOf("libdl") -lt 0 -and $trampAscii.IndexOf("libc.so") -lt 0) {
-    # Stripped dyn ELF may only show NEEDED via dynamic section; require either .so path or dynstr marker.
-    if ($trampAscii.IndexOf("libyoyo_runtime.so") -lt 0) {
-        Write-Host "Stage 11-B: RED (trampoline missing libyoyo_runtime.so marker)"
-        exit 1
-    }
+if ($trampAscii.IndexOf("libdl") -ge 0) {
+    Write-Host "Stage 11-B: RED (trampoline still references libdl — hybrid requires dlopen via libc only, no libdl NEEDED)"
+    exit 1
+}
+if ($trampAscii.IndexOf("/lib/x86_64-linux-gnu/libc.so.6") -ge 0) {
+    Write-Host "Stage 11-B: RED (trampoline still hardcodes glibc disk path — must use ld.so-mapped libc, not disk mmap)"
+    exit 1
+}
+if ($trampAscii.IndexOf("libyoyo_runtime.so") -lt 0) {
+    Write-Host "Stage 11-B: RED (trampoline missing libyoyo_runtime.so marker)"
+    exit 1
 }
 if ($trampAscii.IndexOf("yoyo_runtime_selfhost_main") -lt 0) {
     Write-Host "Stage 11-B: RED (trampoline missing export name)"
@@ -422,7 +427,7 @@ $report = [ordered]@{
     linux_so_embed_offset = $linuxSoEmbedOff
     honest_remaining      = @(
         "Win H_00 still calls host LoadLibraryA (cwd sidecar; export via in-process PE walk)",
-        "Linux H_00 still execve's committed glibc/dlopen trampoline blob (cwd .so sidecar; no exact .so embed; no dlsym)",
+        "Linux H_00 execve's hybrid tramp (dynamic -lc dlopen via libc; no libdl NEEDED; ELF dyn sym walk; no dlsym)",
         "gen2rt Stage 8-C regression path may still use GetTempPath + GetProcAddress private IAT",
         "Not a YOYO-built loader — Stage 11-B + OW-IAT/OW-RT shrink observe the host-loader face"
     )
@@ -434,6 +439,6 @@ Write-Host "report: $reportPath"
 
 Write-Host ""
 Write-Host "Stage 11-B: GREEN"
-Write-Host "  trust-chain: H_00 host-loader IAT → ExitProcess only (LoadLibraryA via PEB; ordinal-0 export); Linux tramp no dlsym; cwd sidecar"
+Write-Host "  trust-chain: H_00 host-loader IAT → ExitProcess only (LoadLibraryA via PEB; ordinal-0 export); Linux hybrid tramp (-lc dlopen; no libdl); cwd sidecar"
 Write-Host "  monitored:   import names + cwd yoyo_rt.dll smoke + trampoline size/embed + Linux no .so embed"
 exit 0

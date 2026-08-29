@@ -341,7 +341,7 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 |------|--------|
 | **Hole** | **OW-IAT** |
 | **Change** | Spike `pe_manual_map.rs`: in-process PE32+ map (sections + DIR64 reloc + import callback + `functions[0]` export). **Not wired** into H_00 stub yet. |
-| **Still CUT** | `LoadLibraryA` / `dlopen` **still on seed**; host CreateFile/ReadFile/VirtualAlloc remain after wire-up |
+| **Still CUT** | Win: host CreateFile/ReadFile/VirtualAlloc on seed; Linux: host syscalls on tramp (no dlopen) |
 | **Gate** | `scripts/stage17-ow-iat-spike.ps1` / `.sh` · `cargo test -p verifier --lib pe_manual_map` |
 | **Doc** | `SCOPE-CUT-v1.0-ow-iat-spike.md` |
 | **Next** | Emit larger H_00 stub (CreateFile→Read→map) + JS/asm peer sync; then drop `LoadLibraryA` from `KERNEL32_IO_FUNCS` |
@@ -478,7 +478,7 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Not used** | `bootstrap --selfhost` / genNrt gcc loader for the M4 gate (`stage10-linux-pure-m4.sh`) |
 | **Parity** | gen4 ≡ gen3_direct full-ELF DDC EQUAL (sha prefix `c6d8c49a…` · **512000** B as of Stage 11-B 2026-08-28; was `085d07d4…` · 704512) |
 | **Gate** | `scripts/stage10-linux-pure-m4.sh`; stage8-extended-selfhost.sh remains GREEN (regression; still documents genNrt `--selfhost`) |
-| **Still host-trusted** | Seed `link` + gen3_direct `bootstrap`; embedded Rust `.so` + committed trampoline (Stage 11-B: **9768** B nostdlib; still dlopen/libdl via libc) |
+| **Still host-trusted** | Seed `link` + gen3_direct `bootstrap`; cwd sidecar `.so` + hybrid tramp (dynamic -lc dlopen; no libdl NEEDED; no dlsym) |
 
 ### How to run
 

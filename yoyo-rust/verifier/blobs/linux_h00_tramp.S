@@ -1,8 +1,8 @@
-/* Stage 11-B / post-v1.0 OW-IAT: minimal dlopen trampoline (no CRT).
- * H_00 extracts this ELF + cwd sidecar libyoyo_runtime.so, then execve's it.
- * Contract: dlopen("./libyoyo_runtime.so") → in-process ELF dyn sym walk for
- *   yoyo_runtime_selfhost_main (no dlsym — mirrors Win PE export walk).
- * Rebuild: scripts/build-linux-h00-tramp.sh
+/* Stage 11-B / post-v1.0 OW-IAT: hybrid dynamic tramp (no CRT, no libdl NEEDED).
+ * Build: scripts/build-linux-h00-tramp.sh with -lc -lgcc_s only.
+ * dlopen@PLT uses ld.so-mapped libc — do NOT static-mmap glibc/ld from disk.
+ * H_00 execve's this blob + cwd libyoyo_runtime.so sidecar.
+ * Contract: dlopen("./libyoyo_runtime.so") → in-process ELF dyn sym walk (no dlsym).
  */
         .section .text
         .global _start

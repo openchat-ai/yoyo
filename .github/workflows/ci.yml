@@ -72,8 +72,13 @@ jobs:
       - name: Build release verifier + runtime
         working-directory: yoyo-rust
         run: |
+          bash ../scripts/build-linux-h00-tramp.sh
+          # Bust stale sccache artifacts; tramp include_bytes must match sidecar build.
+          cargo clean -p verifier -p yoyo-runtime
           cargo build --release -p verifier
           cargo build --profile release-runtime -p yoyo-runtime
+          echo "tramp bytes: $(stat -c%s verifier/blobs/linux_h00_tramp.elf)"
+          echo "sidecar bytes: $(stat -c%s target/release-runtime/libyoyo_runtime.so)"
 
       - name: Stage 10-B Linux pure M4 (H_00 sidecar + no-dlsym tramp)
         run: bash scripts/stage10-linux-pure-m4.sh

@@ -47,9 +47,9 @@ H_00 stub (future, larger than 71 B):
 | **Gates** | CLOSED still requires no `yoyo_rt.dll` sidecar marker |
 | **Smoke** | Needs Windows cwd sidecar smoke after wire-up |
 
-## Linux (next slice)
+## Linux (wired 2026-08-29)
 
-Replace tramp `dlopen@PLT` with `open` + `read` + `mmap` + in-process ELF PT_LOAD map (mirror Win spike). Tramp blob is outside Win three-peer `.text` EQUAL but embedded in seed ELF.
+Hybrid tramp: dynamic `-lc` only (no libdl NEEDED); sidecar via dlopen@PLT + in-process sym walk (no dlsym); **no glibc/ld disk mmap**. **Still CUT** (dlopen + ld.so libc + cwd sidecar).
 
 ## Remaining CUT after Win OW-IAT CLOSED
 
