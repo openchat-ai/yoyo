@@ -435,6 +435,18 @@ where
         }
         return Err(e);
     }
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetCurrentProcess() -> *mut std::ffi::c_void;
+        fn FlushInstructionCache(
+            hProcess: *mut std::ffi::c_void,
+            lpBaseAddress: *const std::ffi::c_void,
+            dwSize: usize,
+        ) -> i32;
+    }
+    unsafe {
+        FlushInstructionCache(GetCurrentProcess(), base as *const _, size);
+    }
     Ok(ExecutableMappedPe {
         headers,
         base: base as *mut u8,
@@ -596,7 +608,11 @@ pub mod stub_resolve {
         module_base: u64,
         name: &str,
         load_library_a: Option<u64>,
+        depth: u8,
     ) -> Option<u64> {
+        if depth > 16 {
+            return None;
+        }
         unsafe {
             let dos = std::slice::from_raw_parts(module_base as *const u8, 0x1000);
             let e_lfa = read_u32(dos, 0x3C).ok()? as usize;
@@ -642,7 +658,7 @@ pub mod stub_resolve {
                 if func_va >= exp_start && func_va < exp_end {
                     let fwd = CStr::from_ptr(func_va as *const i8).to_str().ok()?;
                     let (fwd_dll, fwd_name) = fwd.split_once('.')?;
-                    return stub_resolve(fwd_dll, fwd_name, load_library_a);
+                    return stub_resolve_depth(fwd_dll, fwd_name, load_library_a, depth + 1);
                 }
                 return Some(func_va);
             }
@@ -652,6 +668,18 @@ pub mod stub_resolve {
 
     /// Resolve like H_00 stub: PEB walk, then optional LoadLibraryA fallback, export + forwarders.
     pub fn stub_resolve(dll: &str, name: &str, load_library_a: Option<u64>) -> Option<u64> {
+        stub_resolve_depth(dll, name, load_library_a, 0)
+    }
+
+    fn stub_resolve_depth(
+        dll: &str,
+        name: &str,
+        load_library_a: Option<u64>,
+        depth: u8,
+    ) -> Option<u64> {
+        if depth > 16 {
+            return None;
+        }
         let module = find_module_peb(dll).or_else(|| {
             let ll = load_library_a?;
             let dll_c = std::ffi::CString::new(dll).ok()?;
@@ -668,16 +696,20 @@ pub mod stub_resolve {
         })?;
         if let Some(rest) = name.strip_prefix('#') {
             let ord: u16 = rest.parse().ok()?;
-            return resolve_export_by_ordinal(module, ord, load_library_a);
+            return resolve_export_by_ordinal(module, ord, load_library_a, depth);
         }
-        resolve_export_in_module(module, name, load_library_a)
+        resolve_export_in_module(module, name, load_library_a, depth)
     }
 
     fn resolve_export_by_ordinal(
         module_base: u64,
         ordinal: u16,
         load_library_a: Option<u64>,
+        depth: u8,
     ) -> Option<u64> {
+        if depth > 16 {
+            return None;
+        }
         unsafe {
             let dos = std::slice::from_raw_parts(module_base as *const u8, 0x1000);
             let e_lfa = read_u32(dos, 0x3C).ok()? as usize;
@@ -706,7 +738,7 @@ pub mod stub_resolve {
             if func_va >= exp_start && func_va < exp_end {
                 let fwd = CStr::from_ptr(func_va as *const i8).to_str().ok()?;
                 let (fwd_dll, fwd_name) = fwd.split_once('.')?;
-                return stub_resolve(fwd_dll, fwd_name, load_library_a);
+                return stub_resolve_depth(fwd_dll, fwd_name, load_library_a, depth + 1);
             }
             Some(func_va)
         }
@@ -714,7 +746,7 @@ pub mod stub_resolve {
 
     pub fn bootstrap_load_library_a() -> Option<u64> {
         let k32 = find_module_peb("KERNEL32.dll")?;
-        resolve_export_in_module(k32, "LoadLibraryA", None)
+        resolve_export_in_module(k32, "LoadLibraryA", None, 0)
     }
 }
 

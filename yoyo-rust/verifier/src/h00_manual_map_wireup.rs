@@ -33,8 +33,8 @@ const PEB_LDR_INMEMORY_FLINK_OFF: u8 = 0x20;
 const LDR_INMEMORY_FLINK_OFF: u8 = 0x10;
 const LDR_DLLBASE_OFF: u8 = 0x30;
 const LDR_BASEDLLNAME_BUF_OFF: u8 = 0x60;
-/// Scratch qword at r15+0x30 (IAT slot 6) — bootstrap LoadLibraryA for find_module fallback.
-const H00_LOADLIBRARY_SCRATCH_OFF: u8 = 0x30;
+/// Scratch qword past kernel32+preload IAT (6+4 slots × 8 = 0x50) — bootstrap LoadLibraryA.
+const H00_LOADLIBRARY_SCRATCH_OFF: u8 = 0x50;
 
 /// H_00 stub prologue (`push` saves + `sub rsp` + align) before file-read prelude.
 pub const H00_PROLOGUE_LEN: u32 = 15;
@@ -742,7 +742,8 @@ fn gen_h00_export_call_tail(
     c.extend_from_slice(&[0x48, 0x01, 0xD8]); // add rax, rbx — functions RVA is image-relative
     c.extend_from_slice(&[0x8B, 0x00]);
     c.extend_from_slice(&[0x48, 0x01, 0xD8]);
-    // Win64 shadow (0x20) before call; prologue already aligned RSP%16==0.
+    // Win64: RSP%16==0 at CALL; prologue aligned once but map helpers may disturb it.
+    c.extend_from_slice(&[0x48, 0x83, 0xE4, 0xF0]); // and rsp, -16
     c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x20]); // shadow for export call
     c.extend_from_slice(&[0xFF, 0xD0]); // call export (yoyo_runtime_selfhost_main)
     c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]);
