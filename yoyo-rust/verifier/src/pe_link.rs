@@ -15,9 +15,9 @@ const KERNEL32_IO_FUNCS: &[&str] = &[
     "ReadFile",
     "WriteFile",
     "CloseHandle",
-    // Stage 9-A / 11-B H_00 runtime: cwd-relative DLL extract + LoadLibrary
-    // (slots 5–7). Stage 11-B dropped GetTempPathA/lstrcatA — write+LoadLibrary
-    // `yoyo_rt.dll` in cwd (same posture as Linux `./libyoyo_runtime.so`).
+    // Stage 9-A / post-v1.0 H_00: cwd sidecar LoadLibrary (slots 5–7).
+    // Stage 11-B dropped GetTempPathA/lstrcatA; post-v1.0 dropped extract+WriteFile
+    // embed — LoadLibraryA `yoyo_rt.dll` in cwd (sidecar; still Rust runtime / OW-RT CUT).
     "LoadLibraryA",
     "GetProcAddress",
     "ExitProcess",
@@ -99,7 +99,8 @@ pub fn link_pe(code: &[u8], data: &[u8]) -> IsaResult<PeImage> {
 
 /// Win32 link with optional H_00 in-process selfhost (Stage 9-A).
 /// When `handler_offsets` contains H_20/H_21 I/O handlers, patch H_00 entry to
-/// call platform I/O handlers then embedded runtime compile (PE entry stays lea r15 → H_00).
+/// LoadLibraryA cwd sidecar `yoyo_rt.dll` then runtime compile (PE entry stays lea r15 → H_00).
+/// Post-v1.0: H_00 path does **not** exact-embed the Rust runtime DLL (OW-RT shrink; still CUT).
 ///
 /// Stage 13-A: the H_00 branch is the approved **seed/link host** path (same bytes as
 /// `yoyo bootstrap` without `--selfhost`). Fail-closed PE size ceiling applied there.
@@ -109,8 +110,7 @@ pub fn link_pe_win32(
     handler_offsets: &[(u16, u32, u32)],
 ) -> IsaResult<PeImage> {
     if should_h00_selfhost(handler_offsets) {
-        let dll = win32_selfhost::runtime_dll_bytes()?;
-        let pe = link_pe_h00_runtime(code, data, handler_offsets, &dll)?;
+        let pe = link_pe_h00_runtime(code, data, handler_offsets)?;
         // Stage 13-A: pin seed/link host PE surface (keep sync w/ stage13-link-host.ps1).
         if pe.bytes.len() > crate::selfhost::STAGE13_MAX_SEED_PE_BYTES {
             return Err(crate::types::IsaError::PlatformError {
@@ -147,13 +147,13 @@ fn handler_off(handler_offsets: &[(u16, u32, u32)], hh: u16) -> Option<u32> {
         .map(|(_, off, _)| *off)
 }
 
-/// Stage 9-A: gen1 H_00 pure runtime — patch entry handler, embed strings + runtime DLL.
-/// Entry stays lea r15 → H_00 (not genNrt startup wrapper). H_00 calls extract+runtime+ExitProcess.
+/// Stage 9-A / post-v1.0: gen1 H_00 — patch entry handler; sidecar name strings only
+/// (no exact-embed of `yoyo_runtime.dll`). Entry stays lea r15 → H_00.
+/// H_00: LoadLibraryA(`yoyo_rt.dll`) → runtime → ExitProcess.
 pub fn link_pe_h00_runtime(
     code: &[u8],
     data: &[u8],
     handler_offsets: &[(u16, u32, u32)],
-    dll_bytes: &[u8],
 ) -> IsaResult<PeImage> {
     const PE_STARTUP_LEN: u32 = 13;
     let section_align: u32 = 0x1000;
@@ -179,7 +179,7 @@ pub fn link_pe_h00_runtime(
             temp_name_rva: 0,
             export_name_rva: 0,
             dll_embed_rva: 0,
-            dll_embed_size: dll_bytes.len() as u32,
+            dll_embed_size: 0,
             iat_rva: 0,
             import_dir_rva: 0,
             import_dir_size: 0,
@@ -194,11 +194,10 @@ pub fn link_pe_h00_runtime(
     let data_rva = section_align + text_vs;
 
     let with_strings = embed_string_table(data);
-    // Prepend IAT before runtime embed so string/DLL RVAs include the IAT header pad.
+    // Prepend IAT before sidecar name strings so RVAs include the IAT header pad.
     let (io_prepended, import_dir_rva, import_dir_size) =
         prepend_win32_io_iat(&with_strings, data_rva);
-    let (extended, meta) =
-        win32_selfhost::append_h00_runtime_data(&io_prepended, data_rva, dll_bytes)?;
+    let (extended, meta) = win32_selfhost::append_h00_runtime_data(&io_prepended, data_rva)?;
 
     let h00_main = win32_selfhost::gen_h00_selfhost_main(
         &meta,

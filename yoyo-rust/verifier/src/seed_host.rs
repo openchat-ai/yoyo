@@ -11,7 +11,7 @@ use crate::ddc;
 
 /// Classify a linked image's seed/host entry shape from embedded ASCII markers.
 ///
-/// - `h00` — Stage 9-A+ / 10-B extract path (Win LoadLibraryA+yoyo_rt.dll, or
+/// - `h00` — Stage 9-A+ / post-v1.0 sidecar path (Win LoadLibraryA+yoyo_rt.dll, or
 ///   Linux embedded `libyoyo_runtime.so` + dlopen trampoline; libdl may live only
 ///   in the trampoline blob and not as a flat `libdl.so` ASCII in the ELF)
 /// - `gennrt` — `bootstrap --selfhost` / genNrt GetTempPath-style wrapper

@@ -1,15 +1,15 @@
-# stage11-runtime-surface.ps1 — Stage 11-A: thinner embedded yoyo_runtime.dll gate
+# stage11-runtime-surface.ps1 鈥?Stage 11-A: thinner embedded yoyo_runtime.dll gate
 #
 # Continues Stage 10-A: fail-closed size + exact embed match, with a tighter MAX
 # after Stage 11-A `release-runtime` fat LTO + strip (still Rust cdylib; not
 # YOYO-built). Also runs a YOYO-parity smoke: gen1 H_00 (embedded DLL) compile
-# of yoyo.tyb must .text-DDC EQUAL `yoyo bootstrap` of the same input — so the
+# of yoyo.tyb must .text-DDC EQUAL `yoyo bootstrap` of the same input 鈥?so the
 # host DLL's compile *effect* stays under the same monitor as seed/bootstrap
 # even though DLL bytes remain OUTSIDE the gen12 compared .text window.
 #
 # v0.3 baseline: 485888 B
-# v0.4 / Stage 10-A: 231936 B (MAX 250000) — stage10-runtime-surface.ps1
-# Stage 11-A:        measured under MAX 170000 — this script
+# v0.4 / Stage 10-A: 231936 B (MAX 250000) 鈥?stage10-runtime-surface.ps1
+# Stage 11-A:        measured under MAX 170000 鈥?this script
 #
 # Honest remaining: still Rust-compiled; Win/Linux still LoadLibrary/libdl this blob.
 param(
@@ -22,9 +22,9 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
-# Fail-closed ceiling (bytes). Tighter than Stage 10 MAX 250000 — do not raise casually.
-$MaxDllBytes = 170000
-# v0.4 documented size for before→after reporting (not enforced as floor).
+# Fail-closed ceiling (bytes). Tighter than Stage 10 MAX 250000 鈥?do not raise casually.
+$MaxDllBytes = 150000
+# v0.4 documented size for before鈫抋fter reporting (not enforced as floor).
 $BaselineV04Bytes = 231936
 $BaselineV03Bytes = 485888
 
@@ -79,7 +79,7 @@ if ($needYoyo -or $needRuntime) {
         if ($LASTEXITCODE -ne 0) { throw "verifier build failed" }
     }
     if ($needRuntime) {
-        Write-Host "== build yoyo-runtime (release-runtime · fat LTO) =="
+        Write-Host "== build yoyo-runtime (release-runtime 路 fat LTO) =="
         cargo build --profile release-runtime -p yoyo-runtime
         if ($LASTEXITCODE -ne 0) { throw "yoyo-runtime release-runtime build failed" }
     }
@@ -117,11 +117,11 @@ Write-Host "vs v0.4:   delta=$deltaVsV04 bytes (positive = shrink)"
 Write-Host "vs v0.3:   delta=$deltaVsV03 bytes"
 
 if ($dllBytes -gt $MaxDllBytes) {
-    Write-Host "Stage 11-A: RED (DLL $dllBytes > MAX $MaxDllBytes) — host trust surface grew or shrink regresssed"
+    Write-Host "Stage 11-A: RED (DLL $dllBytes > MAX $MaxDllBytes) 鈥?host trust surface grew or shrink regresssed"
     exit 1
 }
 if ($dllBytes -ge $BaselineV04Bytes) {
-    Write-Host "Stage 11-A: RED (DLL $dllBytes >= v0.4 baseline $BaselineV04Bytes) — no measurable Stage 11 shrink"
+    Write-Host "Stage 11-A: RED (DLL $dllBytes >= v0.4 baseline $BaselineV04Bytes) 鈥?no measurable Stage 11 shrink"
     exit 1
 }
 
@@ -156,7 +156,7 @@ if (-not $SkipLinkSmoke) {
     if (-not (Test-Path $Ty)) { throw "missing $Ty" }
     if (-not (Test-Path $Yoyo)) { throw "missing $Yoyo" }
     Write-Host ""
-    Write-Host "== link smoke: yoyo link → gen1 (H_00 + embed) =="
+    Write-Host "== link smoke: yoyo link 鈫?gen1 (H_00 + embed) =="
     if (Test-Path $gen1) { Remove-Item $gen1 }
     & $Yoyo link --target=win32 $Ty $gen1
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path $gen1)) {
@@ -166,12 +166,17 @@ if (-not $SkipLinkSmoke) {
     $gen1Len = [int64](Get-Item $gen1).Length
     $pe = [System.IO.File]::ReadAllBytes($gen1)
     $embedOff = Find-EmbeddedDllOffset $pe $dllRaw
-    if ($embedOff -lt 0) {
-        Write-Host "Stage 11-A: RED (built DLL bytes not found embedded in gen1)"
+    if ($embedOff -ge 0) {
+        Write-Host "Stage 11-A: RED (exact embed at $embedOff — post-v1.0 sidecar shrink regresssed)"
+        exit 1
+    }
+    $ascii = [System.Text.Encoding]::ASCII.GetString($pe)
+    if ($ascii.IndexOf("yoyo_rt.dll") -lt 0) {
+        Write-Host "Stage 11-A: RED (sidecar marker yoyo_rt.dll missing)"
         exit 1
     }
     $embedOk = $true
-    Write-Host "gen1: $gen1Len bytes; embedded DLL at file offset $embedOff (exact match)"
+    Write-Host "gen1: $gen1Len bytes; no exact embed (cwd sidecar yoyo_rt.dll)"
 }
 
 if (-not $SkipParity -and $embedOk) {
@@ -182,6 +187,7 @@ if (-not $SkipParity -and $embedOk) {
     New-Item -ItemType Directory -Force -Path $runDir | Out-Null
     Copy-Item $gen1 (Join-Path $runDir "gen1.exe") -Force
     Copy-Item $Tyb (Join-Path $runDir "input.tyb") -Force
+    Copy-Item $RuntimeDll (Join-Path $runDir "yoyo_rt.dll") -Force
     $gen1Out = Join-Path $runDir "output.exe"
     if (Test-Path $gen1Out) { Remove-Item $gen1Out }
     Push-Location $runDir
@@ -209,7 +215,7 @@ if (-not $SkipParity -and $embedOk) {
     }
     $parityOk = $true
     $paritySha = (Get-Sha256Hex $gen1Out).Substring(0, 8)
-    Write-Host "parity: gen1(H_00/DLL) ≡ bootstrap (.text DDC EQUAL), out sha prefix $paritySha"
+    Write-Host "parity: gen1(H_00/DLL) 鈮?bootstrap (.text DDC EQUAL), out sha prefix $paritySha"
 }
 
 $report = [ordered]@{
@@ -236,7 +242,7 @@ $report = [ordered]@{
         "DLL still Rust-compiled (verifier lib, Win32/Linux/Stub emit only)",
         "DLL bytes still outside gen12 18432B compared .text window",
         "Each genN still embeds and LoadLibrary this blob via H_00",
-        "Not YOYO-built — Stage 11-A is thinner host face + fail-closed + compile-parity monitor"
+        "Not YOYO-built 鈥?Stage 11-A is thinner host face + fail-closed + compile-parity monitor"
     )
 }
 $reportPath = Join-Path $WorkDir "runtime-surface.json"
@@ -246,6 +252,6 @@ Write-Host "report: $reportPath"
 
 Write-Host ""
 Write-Host "Stage 11-A: GREEN"
-Write-Host "  trust-chain: host DLL $BaselineV04Bytes → $dllBytes (Δ -$deltaVsV04 vs v0.4); still outside gen12"
+Write-Host "  trust-chain: host DLL $BaselineV04Bytes 鈫?$dllBytes (螖 -$deltaVsV04 vs v0.4); still outside gen12"
 Write-Host "  monitored:   embed exact + compile-parity vs bootstrap; path=$buildPathNote"
 exit 0

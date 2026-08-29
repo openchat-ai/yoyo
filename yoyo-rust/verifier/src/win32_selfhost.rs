@@ -1,10 +1,15 @@
-//! Win32 selfhost startup x64 + embedded runtime DLL in PE .data.
+//! Win32 selfhost startup x64 + runtime DLL host surface.
+//!
+//! Post-v1.0 OW-RT shrink: the approved H_00 seed/link path (`append_h00_runtime_data`
+//! / `gen_h00_selfhost_main`) no longer exact-embeds `yoyo_runtime.dll` in PE `.data`.
+//! It LoadLibraryA's a cwd sidecar `yoyo_rt.dll` (still Rust-built — OW-RT stays CUT).
+//! The older genNrt / `--selfhost` path (`build_selfhost_metadata`) still embeds.
 
 use crate::types::{IsaError, IsaResult};
 
 pub const RUNTIME_DLL_NAME: &str = "yoyo_runtime.dll";
 
-const TEMP_DLL_NAME: &[u8] = b"yoyo_rt.dll\0"; // Stage 11-B H_00: cwd-relative (not %TEMP%)
+const TEMP_DLL_NAME: &[u8] = b"yoyo_rt.dll\0"; // H_00: cwd-relative sidecar name
 
 /// Merged kernel32 IAT slots (same base as platform_io r15+0). See pe_link prepend_win32_io_iat.
 /// Stage 11-B: LoadLibrary path no longer uses GetTempPathA/lstrcatA (slots were 5–9).
@@ -136,11 +141,11 @@ pub fn build_selfhost_metadata(
     ))
 }
 
-/// Append runtime DLL + name strings for H_00 path (merged IAT at r15+0, no second import dir).
+/// Append H_00 sidecar name strings only (merged IAT at r15+0; **no** runtime DLL embed).
+/// Post-v1.0 OW-RT: seed PE trusts an external cwd `yoyo_rt.dll`, not an opaque .data blob.
 pub fn append_h00_runtime_data(
     user_data: &[u8],
     data_rva: u32,
-    dll_bytes: &[u8],
 ) -> IsaResult<(Vec<u8>, SelfhostMeta)> {
     let export_name = b"yoyo_runtime_selfhost_main\0";
     let mut blob = user_data.to_vec();
@@ -150,23 +155,21 @@ pub fn append_h00_runtime_data(
     let base = blob.len();
     let temp_off = 0usize;
     let export_off = temp_off + TEMP_DLL_NAME.len();
-    let embed_off = export_off + export_name.len();
-    let embed_pad = (16 - (dll_bytes.len() % 16)) % 16;
-    let total = embed_off + dll_bytes.len() + embed_pad;
-    blob.resize(base + total, 0);
+    let total = export_off + export_name.len();
+    let pad = (16 - (total % 16)) % 16;
+    blob.resize(base + total + pad, 0);
     let rva = |off: usize| data_rva + (base + off) as u32;
 
     blob[base + temp_off..base + temp_off + TEMP_DLL_NAME.len()].copy_from_slice(TEMP_DLL_NAME);
     blob[base + export_off..base + export_off + export_name.len()].copy_from_slice(export_name);
-    blob[base + embed_off..base + embed_off + dll_bytes.len()].copy_from_slice(dll_bytes);
 
     Ok((
         blob,
         SelfhostMeta {
             temp_name_rva: rva(temp_off),
             export_name_rva: rva(export_off),
-            dll_embed_rva: rva(embed_off),
-            dll_embed_size: dll_bytes.len() as u32,
+            dll_embed_rva: 0,
+            dll_embed_size: 0,
             iat_rva: data_rva,
             import_dir_rva: 0,
             import_dir_size: 0,
@@ -174,9 +177,8 @@ pub fn append_h00_runtime_data(
     ))
 }
 
-/// Stage 9-A / 11-B H_00 runtime body: extract embedded runtime via Stage 8-A
-/// merged kernel32 IAT (CreateFile/WriteFile/LoadLibrary) to cwd-relative
-/// `yoyo_rt.dll`, invoke compile, ExitProcess.
+/// H_00 runtime body: LoadLibraryA cwd sidecar `yoyo_rt.dll` → GetProcAddress →
+/// invoke → ExitProcess. No CreateFile/WriteFile extract (no exact embed).
 /// PE entry is `jmp H_00` (not `call`), so this must never return.
 pub fn gen_h00_selfhost_main(
     meta: &SelfhostMeta,
@@ -186,87 +188,31 @@ pub fn gen_h00_selfhost_main(
     main_user_off: u32,
     _h20_user_off: u32,
 ) -> Vec<u8> {
-    let main_text_off = pe_startup_len + main_user_off;
+    let code_base_off = pe_startup_len + main_user_off;
     let mut c: Vec<u8> = Vec::new();
 
     // Win64 shadow/stack frame (sub 0x208) — keep alignment for LoadLibrary.
     c.extend_from_slice(&[0x53, 0x41, 0x54, 0x41, 0x55, 0x56]);
     c.extend_from_slice(&[0x48, 0x81, 0xEC, 0x08, 0x02, 0x00, 0x00]);
 
-    gen_dll_extract_invoke(&mut c, text_rva, main_text_off, meta, true, true);
-    // exit_process=true → ExitProcess; never returns.
-    c
-}
-
-/// H_00 DLL extract + invoke (Stage 11-B: cwd-relative path, no GetTempPath/lstrcat).
-fn gen_dll_extract_invoke(
-    c: &mut Vec<u8>,
-    text_rva: u32,
-    code_base_off: u32,
-    meta: &SelfhostMeta,
-    exit_process: bool,
-    nested: bool,
-) {
-    let body_start = c.len();
-
-    if !nested {
-        c.extend_from_slice(&[0x53, 0x41, 0x54, 0x41, 0x55, 0x56]);
-        c.extend_from_slice(&[0x48, 0x81, 0xEC, 0x08, 0x02, 0x00, 0x00]);
-    }
-
-    let _code_off = code_base_off + body_start as u32;
-
-    // lea rcx, [rip+temp_name]  ("yoyo_rt.dll") — CreateFile / LoadLibrary path
+    // lea rcx, [rip+temp_name]  ("yoyo_rt.dll")
     let lea_temp = c.len();
     c.extend_from_slice(&[0x48, 0x8D, 0x0D, 0, 0, 0, 0]);
-
-    let lea_embed = c.len();
-    c.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]); // lea rsi, [rip+embed]
-    emit_mov_r13_imm32(c, meta.dll_embed_size);
-
-    // CreateFileA(rcx=path, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0)
-    // rcx already = path; reload after shadow-space writes may clobber — re-lea below if needed.
-    emit_mov_edx_imm(c, 0x4000_0000);
-    c.extend_from_slice(&[0x45, 0x31, 0xC0, 0x45, 0x31, 0xC9]);
-    emit_mov_dword_rsp(c, 0x20, 2);
-    emit_mov_dword_rsp(c, 0x28, 0x80);
-    emit_mov_qword_rsp(c, 0x30, 0);
-    emit_call_iat_merged(c, text_rva, code_base_off, meta.iat_rva, 1); // CreateFileA
-
-    c.extend_from_slice(&[0x49, 0x89, 0xC4]); // mov r12, rax (handle)
-    c.extend_from_slice(&[0x4C, 0x89, 0xE1, 0x48, 0x89, 0xF2, 0x4D, 0x89, 0xE8]); // rcx=h, rdx=buf, r8=size
-    emit_lea_reg_rsp(c, 9, 0x40); // r9 = &bytes_written
-    emit_mov_qword_rsp(c, 0x20, 0);
-    emit_call_iat_merged(c, text_rva, code_base_off, meta.iat_rva, 3); // WriteFile
-
-    c.extend_from_slice(&[0x4C, 0x89, 0xE1]);
-    emit_call_iat_merged(c, text_rva, code_base_off, meta.iat_rva, 4); // CloseHandle
-
-    // lea rcx, [rip+temp_name] again (rcx was clobbered)
-    let lea_temp2 = c.len();
-    c.extend_from_slice(&[0x48, 0x8D, 0x0D, 0, 0, 0, 0]);
-    emit_call_iat_merged(c, text_rva, code_base_off, meta.iat_rva, IAT_LOADLIBRARY);
+    emit_call_iat_merged(&mut c, text_rva, code_base_off, meta.iat_rva, IAT_LOADLIBRARY);
     c.extend_from_slice(&[0x48, 0x89, 0xC3]); // mov rbx, rax (module)
 
     c.extend_from_slice(&[0x48, 0x89, 0xD9]); // mov rcx, rbx
     let lea_export = c.len();
     c.extend_from_slice(&[0x48, 0x8D, 0x15, 0, 0, 0, 0]); // lea rdx, [rip+export]
-    emit_call_iat_merged(c, text_rva, code_base_off, meta.iat_rva, IAT_GETPROCADDRESS);
+    emit_call_iat_merged(&mut c, text_rva, code_base_off, meta.iat_rva, IAT_GETPROCADDRESS);
 
     c.extend_from_slice(&[0xFF, 0xD0]); // call runtime export
-    if exit_process {
-        // mov ecx, eax ; ExitProcess(exit_code) — never returns (PE entry was jmp, not call).
-        c.extend_from_slice(&[0x89, 0xC1]);
-        emit_call_iat_merged(c, text_rva, code_base_off, meta.iat_rva, IAT_EXIT_PROCESS);
-    }
-
-    let need = lea_export + 7;
-    if c.len() < need {
-        c.resize(need, 0x90);
-    }
+    // mov ecx, eax ; ExitProcess(exit_code) — never returns
+    c.extend_from_slice(&[0x89, 0xC1]);
+    emit_call_iat_merged(&mut c, text_rva, code_base_off, meta.iat_rva, IAT_EXIT_PROCESS);
 
     fix_rip_disp(
-        c,
+        &mut c,
         lea_temp + 3,
         text_rva,
         code_base_off,
@@ -274,29 +220,14 @@ fn gen_dll_extract_invoke(
         meta.temp_name_rva,
     );
     fix_rip_disp(
-        c,
-        lea_temp2 + 3,
-        text_rva,
-        code_base_off,
-        lea_temp2 + 7,
-        meta.temp_name_rva,
-    );
-    fix_rip_disp(
-        c,
-        lea_embed + 3,
-        text_rva,
-        code_base_off,
-        lea_embed + 7,
-        meta.dll_embed_rva,
-    );
-    fix_rip_disp(
-        c,
+        &mut c,
         lea_export + 3,
         text_rva,
         code_base_off,
         lea_export + 7,
         meta.export_name_rva,
     );
+    c
 }
 
 fn emit_call_iat_merged(c: &mut Vec<u8>, text_rva: u32, code_base_off: u32, iat_rva: u32, slot: u32) {

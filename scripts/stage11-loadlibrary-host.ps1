@@ -1,13 +1,13 @@
-# stage11-loadlibrary-host.ps1 — Stage 11-B: shrink / observe H_00 LoadLibrary·libdl host
+# stage11-loadlibrary-host.ps1 鈥?Stage 11-B: shrink / observe H_00 LoadLibrary路libdl host
 #
-# Trust goal: 「绿」must not rest only on an opaque LoadLibrary / libdl black box.
+# Trust goal: 銆岀豢銆峬ust not rest only on an opaque LoadLibrary / libdl black box.
 # Stage 11-B shrinks the Win H_00 extract path (drop GetTempPathA + lstrcatA; write +
 # LoadLibrary cwd-relative `yoyo_rt.dll`, same posture as Linux `./libyoyo_runtime.so`)
 # and puts the remaining host-loader surface under a fail-closed gate:
 #   - Win: import table must expose exactly {LoadLibraryA,GetProcAddress,ExitProcess}
 #     as the host-loader slice (no GetTempPathA / lstrcatA on the H_00 merged IAT)
 #   - Win: H_00 stub must call LoadLibraryA / GetProcAddress IAT slots exactly once each
-#   - Linux: committed dlopen trampoline blob size ≤ MAX + exact embed in linux gen1
+#   - Linux: committed dlopen trampoline blob size 鈮?MAX + exact embed in linux gen1
 #   - Smoke: gen1 H_00 still compiles via LoadLibrary path (parity optional via 11-A)
 #
 # Honest remaining: still calls host LoadLibraryA / libdl; trampoline still glibc+dlopen.
@@ -113,7 +113,7 @@ if ($needYoyo -or $needRuntime) {
 }
 
 if (-not (Test-Path $Yoyo)) {
-    Write-Host "Stage 11-B: RED (yoyo.exe missing — rebuild required after H_00 stub change)"
+    Write-Host "Stage 11-B: RED (yoyo.exe missing 鈥?rebuild required after H_00 stub change)"
     exit 1
 }
 
@@ -147,12 +147,12 @@ if ($trampBytes -gt $MaxTrampBytes) {
     exit 1
 }
 if ($trampBytes -ge $BaselineTrampBytes) {
-    Write-Host "Stage 11-B: RED (trampoline $trampBytes >= v0.4 baseline $BaselineTrampBytes) — no measurable shrink"
+    Write-Host "Stage 11-B: RED (trampoline $trampBytes >= v0.4 baseline $BaselineTrampBytes) 鈥?no measurable shrink"
     exit 1
 }
 $trampSrc = Join-Path $Root "yoyo-rust\verifier\blobs\linux_h00_tramp.S"
 if (-not (Test-Path $trampSrc)) {
-    Write-Host "Stage 11-B: RED (missing linux_h00_tramp.S — Stage 11-B build source)"
+    Write-Host "Stage 11-B: RED (missing linux_h00_tramp.S 鈥?Stage 11-B build source)"
     exit 1
 }
 $trampSrcText = Get-Content -Raw $trampSrc
@@ -163,7 +163,7 @@ if ($trampSrcText.IndexOf("__libc_start_main") -ge 0 -or $trampSrcText -match '(
 $trampRaw = [System.IO.File]::ReadAllBytes($TrampBlob)
 $trampAscii = [System.Text.Encoding]::ASCII.GetString($trampRaw)
 if ($trampAscii.IndexOf("__libc_start_main") -ge 0) {
-    Write-Host "Stage 11-B: RED (tramp ELF still binds __libc_start_main — CRT surface regress)"
+    Write-Host "Stage 11-B: RED (tramp ELF still binds __libc_start_main 鈥?CRT surface regress)"
     exit 1
 }
 if ($trampAscii.IndexOf("dlopen") -lt 0 -and $trampAscii.IndexOf("libdl") -lt 0 -and $trampAscii.IndexOf("libc.so") -lt 0) {
@@ -186,7 +186,7 @@ if ($trampAscii.IndexOf("./libyoyo_runtime.so") -lt 0) {
 $gen1 = Join-Path $WorkDir "gen1.exe"
 if (-not (Test-Path $Ty)) { throw "missing $Ty" }
 Write-Host ""
-Write-Host "== link smoke: yoyo link → gen1 (H_00 LoadLibrary path) =="
+Write-Host "== link smoke: yoyo link 鈫?gen1 (H_00 LoadLibrary path) =="
 if (Test-Path $gen1) { Remove-Item $gen1 }
 & $Yoyo link --target=win32 $Ty $gen1
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $gen1)) {
@@ -199,18 +199,16 @@ $peAscii = [System.Text.Encoding]::ASCII.GetString($pe)
 
 Write-Host "gen1: $gen1Len bytes"
 
-# Bound import-name checks to the YOYO PE face (exclude embedded runtime DLL,
-# which may contain the same ASCII in its own import table).
+# Post-v1.0: no exact embed — whole PE is the face (sidecar LoadLibrary).
 $dllPath = if (Test-Path $RuntimeDllPreferred) { $RuntimeDllPreferred } else { $RuntimeDllCompat }
-if (-not (Test-Path $dllPath)) { throw "missing runtime DLL for embed face split" }
+if (-not (Test-Path $dllPath)) { throw "missing runtime DLL for sidecar posture check" }
 $dllRaw = [System.IO.File]::ReadAllBytes($dllPath)
 $embedOff = Find-EmbeddedExact $pe $dllRaw
-if ($embedOff -lt 0) {
-    Write-Host "Stage 11-B: RED (built runtime DLL not exact-embedded in gen1)"
+if ($embedOff -ge 0) {
+    Write-Host "Stage 11-B: RED (exact embed at $embedOff — post-v1.0 sidecar shrink regresssed)"
     exit 1
 }
-$peFace = New-Object byte[] $embedOff
-[Array]::Copy($pe, 0, $peFace, 0, $embedOff)
+$peFace = $pe
 
 foreach ($name in $RequiredIoApis) {
     if ((Find-Ascii $peFace $name) -lt 0) {
@@ -226,7 +224,7 @@ foreach ($name in $RequiredWinHostApis) {
 }
 foreach ($name in $ForbiddenWinHostApis) {
     if ((Find-Ascii $peFace $name) -ge 0) {
-        Write-Host "Stage 11-B: RED (forbidden host-loader import '$name' still present — H_00 IAT not shrunk)"
+        Write-Host "Stage 11-B: RED (forbidden host-loader import '$name' still present 鈥?H_00 IAT not shrunk)"
         exit 1
     }
 }
@@ -247,7 +245,7 @@ foreach ($extra in @("LoadLibraryW", "LoadLibraryExA", "LoadLibraryExW")) {
 }
 
 if ((Find-Ascii $peFace "yoyo_rt.dll") -lt 0) {
-    Write-Host "Stage 11-B: RED (cwd extract name yoyo_rt.dll missing)"
+        Write-Host "Stage 11-B: RED (cwd sidecar name yoyo_rt.dll missing)"
     exit 1
 }
 if ((Find-Ascii $peFace "yoyo_runtime_selfhost_main") -lt 0) {
@@ -264,7 +262,7 @@ foreach ($name in $RequiredWinHostApis) {
 }
 
 Write-Host "Win IAT host-loader slice: $($RequiredWinHostApis -join ', ') (GetTempPathA/lstrcatA ABSENT)"
-Write-Host "Win extract name: yoyo_rt.dll (cwd-relative); embed at $embedOff"
+Write-Host "Win sidecar name: yoyo_rt.dll (cwd-relative); no exact embed"
 
 # --- Pin H_00 loader stub bytes (DDC-comparable .text window) ---
 # gen12 / yoyo diff compare handler .text including H_00 extract stub.
@@ -279,7 +277,7 @@ Write-Host $gen1HashOut.Trim()
 # Prefer structured section hash if available; fall back to full-file SHA + marker probe.
 $gen1Sha = Get-Sha256Hex $gen1
 # Locate H_00 stub fingerprint: sequence lea rcx (48 8D 0D) near embed size mov r13d
-# Count FF 15 (call [rip+iat]) — H_00 cwd path uses CreateFile+WriteFile+Close+LoadLibrary+GetProc+Exit = 6
+# Count FF 15 (call [rip+iat]) 鈥?H_00 cwd path uses CreateFile+WriteFile+Close+LoadLibrary+GetProc+Exit = 6
 $ff15 = 0
 for ($i = 0; $i -lt $pe.Length - 1; $i++) {
     if ($pe[$i] -eq 0xFF -and $pe[$i + 1] -eq 0x15) { $ff15++ }
@@ -289,7 +287,7 @@ if ((Find-Ascii $pe "yoyo_rt.dll") -lt 0) {
     Write-Host "Stage 11-B: RED (stub pin: extract name missing from PE)"
     exit 1
 }
-# Diff gen1 against a second fresh link — must be byte-identical (deterministic stub).
+# Diff gen1 against a second fresh link 鈥?must be byte-identical (deterministic stub).
 $gen1b = Join-Path $WorkDir "gen1b.exe"
 if (Test-Path $gen1b) { Remove-Item $gen1b }
 & $Yoyo link --target=win32 $Ty $gen1b
@@ -326,7 +324,8 @@ if (-not $SkipSmoke) {
     $outExe = Join-Path $runDir "output.exe"
     $rtDll = Join-Path $runDir "yoyo_rt.dll"
     if (Test-Path $outExe) { Remove-Item $outExe }
-    if (Test-Path $rtDll) { Remove-Item $rtDll }
+    # Post-v1.0: pre-place sidecar (no extract-from-embed).
+    Copy-Item $dllPath $rtDll -Force
     Push-Location $runDir
     try {
         & ".\gen1.exe"
@@ -335,16 +334,12 @@ if (-not $SkipSmoke) {
         Pop-Location
     }
     if ($smokeExit -ne 0 -or -not (Test-Path $outExe)) {
-        Write-Host "Stage 11-B: RED (gen1 H_00 LoadLibrary smoke failed, exit=$smokeExit)"
+        Write-Host "Stage 11-B: RED (gen1 H_00 sidecar LoadLibrary smoke failed, exit=$smokeExit)"
         exit 1
     }
-    # Extracted DLL should land in cwd (not %TEMP%) — observable fail-closed.
-    if (-not (Test-Path $rtDll)) {
-        Write-Host "Stage 11-B: RED (yoyo_rt.dll not written to cwd — extract path regresssed)"
-        exit 1
-    }
+    # Extracted DLL should land in cwd (not %TEMP%) 鈥?observable fail-closed.
     $smokeOk = $true
-    Write-Host "smoke: gen1 → output.exe OK; cwd extract $rtDll present"
+    Write-Host "smoke: gen1 → output.exe OK; cwd sidecar $rtDll LoadLibrary path"
 }
 
 # --- Linux trampoline embed (optional WSL link) ---
@@ -395,7 +390,7 @@ $report = [ordered]@{
         "Win H_00 still calls host LoadLibraryA + GetProcAddress (now cwd-relative only)",
         "Linux H_00 still execve's committed glibc/libdl trampoline blob",
         "gen2rt Stage 8-C regression path may still use GetTempPath private IAT",
-        "Not a YOYO-built loader — Stage 11-B shrinks + observes the host-loader face"
+        "Not a YOYO-built loader 鈥?Stage 11-B shrinks + observes the host-loader face"
     )
 }
 $reportPath = Join-Path $WorkDir "loadlibrary-host.json"
@@ -405,6 +400,6 @@ Write-Host "report: $reportPath"
 
 Write-Host ""
 Write-Host "Stage 11-B: GREEN"
-Write-Host "  trust-chain: H_00 host-loader IAT 5→3 APIs (dropped GetTempPathA/lstrcatA); cwd extract"
+Write-Host "  trust-chain: H_00 host-loader IAT 5鈫? APIs (dropped GetTempPathA/lstrcatA); cwd extract"
 Write-Host "  monitored:   import names + cwd yoyo_rt.dll smoke + trampoline size/embed"
 exit 0

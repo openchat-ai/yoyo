@@ -1,13 +1,13 @@
-# stage12-selfhost-body-section-ddc.ps1 — Stage 12-B: selfhost body section-ddc
+# stage12-selfhost-body-section-ddc.ps1 鈥?Stage 12-B: selfhost body section-ddc
 # Fail-closed gate:
-#   - Rust `yoyo test body-ddc` (gen1≡gen2 enlarged window + H_00 stub pin)
+#   - Rust `yoyo test body-ddc` (gen1鈮en2 enlarged window + H_00 stub pin)
 #   - Three-peer full yoyo.ty: PE startup + post-H_00 shared handlers EQUAL
-#     (shrinks "whole .text DIFF ⇒ outside still green" blind spot)
+#     (shrinks "whole .text DIFF 鈬?outside still green" blind spot)
 #   - compared window >= 17013 (startup 13 + shared handlers >= 17000)
-#   - Rust H_00 extract stub present (stub_tail_nonzero >= 100; matches body-ddc)
+#   - Rust H_00 LoadLibrary stub present (stub_tail_nonzero >= 40; matches body-ddc)
 # Honest remaining DIFF (documented, not fail):
 #   - H_00 entry slot (Rust JMP+NOPs vs JS/asm SET+RET)
-#   - Rust-only H_00 extract stub tail
+#   - Rust-only H_00 LoadLibrary stub tail
 #   - Embedded Rust runtime DLL / .data host surface / LoadLibrary
 #   - Full .text section-ddc across peers
 param(
@@ -28,7 +28,7 @@ if (-not (Test-Path $Yoyo) -or -not $SkipBuild) {
     Write-Host "== build verifier (release, serial) =="
     Push-Location (Join-Path $Root "yoyo-rust")
     # Native cargo writes warnings to stderr; with $ErrorActionPreference=Stop that
-    # becomes a terminating error under `&`. Temporarily Continue; still fail on exit≠0.
+    # becomes a terminating error under `&`. Temporarily Continue; still fail on exit鈮?.
     $prevEap = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
     & cargo build --release -p verifier
@@ -41,7 +41,7 @@ if (-not (Test-Path $Yoyo)) { throw "missing yoyo.exe" }
 if (-not (Test-Path $Ty)) { throw "missing $Ty" }
 
 Write-Host ""
-Write-Host "== Rust body-ddc (gen1≡gen2 selfhost-body window + H_00 stub pin) =="
+Write-Host "== Rust body-ddc (gen1鈮en2 selfhost-body window + H_00 stub pin) =="
 & $Yoyo test body-ddc
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Stage 12-B: RED (yoyo test body-ddc exit $LASTEXITCODE)"
@@ -116,17 +116,17 @@ if (-not $allEqual) {
 }
 
 # Fail-closed: enlarged window must beat the old JS/asm-only 17920-minus-H00 floor.
-# Shared window = PE startup (13) + handlers after H_00 (>=17000) ⇒ compared >= 17013.
+# Shared window = PE startup (13) + handlers after H_00 (>=17000) 鈬?compared >= 17013.
 if ($minCompared -lt 17013) {
-    Write-Host "Stage 12-B: RED (compared window $minCompared < 17013 — blind spot not shrunk)"
+    Write-Host "Stage 12-B: RED (compared window $minCompared < 17013 鈥?blind spot not shrunk)"
     exit 1
 }
 
-if ($null -eq $rustStubNz -or $rustStubNz -lt 100) {
-    Write-Host "Stage 12-B: RED (Rust H_00 extract stub missing/too small stub_tail_nonzero=$rustStubNz)"
+if ($null -eq $rustStubNz -or $rustStubNz -lt 40) {
+    Write-Host "Stage 12-B: RED (Rust H_00 LoadLibrary stub missing/too small stub_tail_nonzero=$rustStubNz)"
     exit 1
 }
-Write-Host "Rust H_00 extract stub_tail_nonzero=${rustStubNz}B (selfhost body present; outside three-peer EQUAL window)"
+Write-Host "Rust H_00 LoadLibrary stub_tail_nonzero=${rustStubNz}B (selfhost body present; outside three-peer EQUAL window)"
 
 Write-Host ""
 Write-Host "== sanity: full .text three-peer may still DIFF (honest) =="
@@ -140,12 +140,12 @@ $fullLines | ForEach-Object { Write-Host "  JS vs Rust full .text: $_" }
 if ($fullDiff -eq 0) {
     Write-Host "  note: full .text unexpectedly EQUAL (better than baseline; OK)"
 } else {
-    Write-Host "  note: full .text DIFF as expected (H_00 slot + Rust extract stub)"
+    Write-Host "  note: full .text DIFF as expected (H_00 slot + Rust LoadLibrary stub)"
 }
 
 Write-Host ""
-Write-Host "Stage 12-B: GREEN — selfhost body section-ddc"
+Write-Host "Stage 12-B: GREEN 鈥?selfhost body section-ddc"
 Write-Host "  three-peer EQUAL window >= $minCompared bytes (startup + post-H_00 handlers)"
 Write-Host "  Rust body-ddc + H_00 stub pin: PASS (stub_tail_nonzero=$rustStubNz)"
-Write-Host "Still honest DIFF: H_00 entry slot; Rust H_00 extract stub; embedded runtime DLL in .data; LoadLibrary/libdl; full .text peer compare"
+Write-Host "Still honest DIFF: H_00 entry slot; Rust H_00 LoadLibrary stub; sidecar Rust runtime (no exact embed); LoadLibrary/libdl; full .text peer compare"
 exit 0

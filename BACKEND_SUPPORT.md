@@ -228,7 +228,7 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Scope** | Honest SCOPE-CUT for H_00 slot / extract stub / embedded runtime / LoadLibrary IAT / Rust-emitted seed — shrink **blind spot** (observability), not invent full `.text` EQUAL |
 | **Doc** | `SCOPE-CUT-v0.8-outside-window.md` |
 | **Gate** | `scripts/stage14-outside-window-scope-cut.ps1`（alias `stage14-scope-cut.ps1`） |
-| **Pins** | body EQUAL ≥17013（obs 17805）；stub_nz ∈[100,2048]（obs 159）；dll ≤170000 exact embed（obs 154624）；seed PE ≤270000；LoadLibraryA+yoyo_rt.dll markers |
+| **Pins** | body EQUAL ≥17013（obs 17805）；stub_nz ∈[40,512]（obs 53）；dll ≤150000 **no exact embed**（obs 141312 sidecar）；seed PE ≤270000；LoadLibraryA+yoyo_rt.dll markers |
 | **Status** | GREEN 2026-08-29 · `SCOPE_CUT status=ACTIVE full_text=DIFF` · no Relock（未改 `yoyo.ty`） |
 | **Still CUT** | OW-H00 / OW-STUB / OW-RT / OW-IAT / OW-SEED — comparable EQUAL = selfhost-body only |
 
@@ -271,7 +271,7 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Scope** | Per-hole `disposition=CLOSED\|CUT` for OW-\* / REL-\* — turn lump CUT into machine inventory (no fake CLOSED / fake EQUAL) |
 | **Doc** | `SCOPE-CUT-v0.9-hole-inventory.md` |
 | **Gate** | `scripts/stage15-hole-inventory.ps1`（alias `stage15-a.ps1`） |
-| **Pins** | nested stage14-A exit 0；full `.text` DIFF；body EQUAL 17805；stub_nz 159；dll 154624 exact embed；seed PE ≤270000；LoadLibraryA+yoyo_rt.dll |
+| **Pins** | nested stage14-A exit 0；full `.text` DIFF；body EQUAL 17805；stub_nz 53；dll 141312 **no exact embed**（sidecar）；seed PE ≤270000；LoadLibraryA+yoyo_rt.dll |
 | **Status** | GREEN 2026-08-29 · `HOLE_INVENTORY status=ACTIVE closed=0 cut=7` · no Relock（未改 `yoyo.ty`） |
 | **Still CUT** | OW-H00 / OW-STUB / OW-RT / OW-IAT / OW-SEED / REL-FULLTEXT / REL-STUBOS |
 
@@ -304,6 +304,17 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Honest** | HOLE_INVENTORY ACTIVE closed=0 cut=7；DDC=detection；OW-\* Rust runtime / LoadLibrary / seed；full `.text` DIFF |
 | **Next** | Stage 16 / v1.0 DONE → ROADMAP endpoint |
 
+
+### Post-v1.0 path 2 — OW-RT sidecar shrink (2026-08-29)
+
+| Item | Detail |
+|------|--------|
+| **Hole** | **OW-RT** (highest trust impact among feasible session closes) |
+| **Change** | Win H_00 seed/link **drops exact embed** of `yoyo_runtime.dll`; `LoadLibraryA("yoyo_rt.dll")` cwd sidecar only |
+| **Still CUT** | Rust runtime + LoadLibrary remain; **no-embed alone ≠ CLOSED** (stage15 fail-closed) |
+| **Obs** | dll **141312** (was 154624); stub_nz **53** (was 159); seed PE **248320**; gen12 `61110c66` / **17920** B |
+| **Linux** | H_00 still exact-embeds `.so` + trampoline (this session Win-only) |
+| **Gates** | stage10/11/12/14/15/16 inventory pins updated; `stage15-hole-inventory -SkipBuild` |
 ### Stage 16-A — SCOPE-CUT FINAL (hole inventory)
 
 | Item | Detail |

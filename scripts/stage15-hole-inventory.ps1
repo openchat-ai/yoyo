@@ -1,4 +1,4 @@
-# stage15-hole-inventory.ps1 — Stage 15-A: hole inventory CLOSED|CUT
+# stage15-hole-inventory.ps1 鈥?Stage 15-A: hole inventory CLOSED|CUT
 #
 # Trust goal: turn v0.8 OW-* / RELEASE remaining surfaces from a lump
 # SCOPE-CUT into a per-hole machine disposition (CLOSED or CUT with pins).
@@ -17,9 +17,10 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
-$MinStubTailNonzero = 100
-$MaxStubTailNonzero = 2048
-$MaxDllBytes = 170000
+# Post-v1.0 OW-RT sidecar: stub ~53B; DLL 鈮?50000; no exact embed.
+$MinStubTailNonzero = 40
+$MaxStubTailNonzero = 512
+$MaxDllBytes = 150000
 $MaxSeedPeBytes = 270000
 $MinBodyCompared = 17013
 
@@ -253,11 +254,14 @@ if ($stubNz -eq 0) {
     Fail-Out ("OW-STUB stub_tail_nonzero={0} outside pin and not CLOSED" -f $stubNz)
 }
 
-# OW-RT: CLOSED only if no exact embed.
-if ($embedOff -lt 0) {
-    Add-Hole "OW-RT" "CLOSED" ("runtime.dll_not_exactly_embedded;dll={0}" -f $dllSize)
+# OW-RT: CLOSED only if no exact embed AND no Rust sidecar LoadLibrary surface.
+# Post-v1.0: no-embed alone is NOT CLOSED (sidecar Rust runtime remains CUT).
+if ($embedOff -ge 0) {
+    Fail-Out ("OW-RT exact embed regress at offset {0} (post-v1.0 requires sidecar-only)" -f $embedOff)
+} elseif (-not $hasYoyoRt -and -not $hasLoadLibrary) {
+    Add-Hole "OW-RT" "CLOSED" ("no_exact_embed;no_LoadLibrary_sidecar;dll={0}" -f $dllSize)
 } else {
-    Add-Hole "OW-RT" "CUT" ("exact_embed_off={0};dll={1};max={2};still_Rust_runtime" -f $embedOff, $dllSize, $MaxDllBytes)
+    Add-Hole "OW-RT" "CUT" ("sidecar_rust_runtime;no_exact_embed;dll={0};max={1};still_Rust_runtime" -f $dllSize, $MaxDllBytes)
 }
 
 # OW-IAT: CLOSED only if LoadLibraryA absent.

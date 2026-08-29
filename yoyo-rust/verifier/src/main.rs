@@ -425,11 +425,8 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
                 (pe, Some(dll.len()))
             } else {
                 let pe = pe_link::link_pe_win32(&out.code, &out.data, &out.handler_offsets)?;
-                let dll_embed = if seed_host::classify_seed_path(&pe.bytes) == "h00" {
-                    Some(selfhost::runtime_dll_bytes()?.len())
-                } else {
-                    None
-                };
+                // Post-v1.0 H_00: sidecar LoadLibrary — no exact embed size to report.
+                let dll_embed = None;
                 (pe, dll_embed)
             };
             fs::write(&rest[1], &pe.bytes).map_err(|e| types::IsaError::IoError {
@@ -760,9 +757,11 @@ fn cmd_bootstrap(args: &[String]) -> Result<(), types::IsaError> {
     let target_label = if is_linux { "linux" } else { "win32" };
     let embed = if seed_host::classify_seed_path(&out_bytes) == "h00" {
         if is_linux {
+            // Linux H_00 still exact-embeds .so + trampoline (Win sidecar-only this session).
             Some(selfhost::runtime_so_bytes()?.len())
         } else {
-            Some(selfhost::runtime_dll_bytes()?.len())
+            // Post-v1.0 Win H_00: no exact embed (cwd sidecar yoyo_rt.dll).
+            None
         }
     } else {
         None
@@ -1280,9 +1279,10 @@ fn cmd_test_fullbody() -> Result<(), types::IsaError> {
 
 /// Stage 12-B: selfhost-body section-ddc on full `yoyo.ty` (Rust gen1≡gen2).
 /// Enlarges observability past whole-`.text` three-peer DIFF: compares PE startup +
-/// post-H_00 shared handlers; fail-closed requires Rust H_00 extract stub present.
+/// post-H_00 shared handlers; fail-closed requires Rust H_00 LoadLibrary stub present.
 fn cmd_test_body_ddc() -> Result<(), types::IsaError> {
-    const MIN_H00_STUB_NONZERO: usize = 100;
+    // Post-v1.0 sidecar LoadLibrary stub is shorter than extract+WriteFile (was 100/159).
+    const MIN_H00_STUB_NONZERO: usize = 40;
 
     let root = repo_root()?;
     let ty = root.join("yoyo/projects/yoyo.ty");

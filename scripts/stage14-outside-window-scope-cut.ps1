@@ -19,9 +19,10 @@ $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
 # Fail-closed pins (do not raise casually). Keep aligned with SCOPE-CUT doc + stage11/13.
-$MinStubTailNonzero = 100
-$MaxStubTailNonzero = 2048
-$MaxDllBytes = 170000
+# Post-v1.0 OW-RT: no exact embed; sidecar LoadLibrary stub ~53B (was extract 159).
+$MinStubTailNonzero = 40
+$MaxStubTailNonzero = 512
+$MaxDllBytes = 150000
 $MaxSeedPeBytes = 270000
 $MinBodyCompared = 17013
 $RequiredMarkers = @("LoadLibraryA", "yoyo_rt.dll")
@@ -146,12 +147,13 @@ if ($seedPe -gt $MaxSeedPeBytes) {
 $rustBytes = [System.IO.File]::ReadAllBytes($rustOut)
 $dllBytes = [System.IO.File]::ReadAllBytes($RuntimeDll)
 $embedOff = Find-EmbeddedExact $rustBytes $dllBytes
-Write-Host "OW-RT exact embed offset: $embedOff"
-if ($embedOff -lt 0) {
-    Write-Host "Stage 14-A: RED (OW-RT runtime.dll not exactly embedded in Rust PE)"
-    Write-Summary "FAILED (runtime embed)"
+Write-Host "OW-RT exact embed offset: $embedOff (post-v1.0: must be absent)"
+if ($embedOff -ge 0) {
+    Write-Host "Stage 14-A: RED (OW-RT exact embed returned at $embedOff — sidecar shrink regresssed)"
+    Write-Summary "FAILED (runtime embed regress)"
     exit 1
 }
+Write-Host "OW-RT: no exact embed (cwd sidecar yoyo_rt.dll; still Rust runtime CUT)"
 
 foreach ($m in $RequiredMarkers) {
     if (-not (Find-Ascii $rustBytes $m)) {
@@ -219,7 +221,7 @@ Write-Host $scopeLine
 Write-Host ""
 Write-Host "Stage 14-A: GREEN — outside-window SCOPE-CUT draft + gate"
 Write-Host "  Doc: SCOPE-CUT-v0.8-outside-window.md"
-Write-Host "  Still CUT: H_00 slot / extract stub (if DIFF) / embedded Rust runtime / LoadLibrary IAT / Rust-emitted seed"
+Write-Host "  Still CUT: H_00 slot / LoadLibrary stub (if DIFF) / sidecar Rust runtime / LoadLibrary IAT / Rust-emitted seed"
 Write-Host "  Comparable EQUAL: selfhost-body window only — NOT full .text"
 Write-Summary "GREEN $scopeLine"
 exit 0

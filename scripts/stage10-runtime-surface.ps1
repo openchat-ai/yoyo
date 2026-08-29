@@ -1,14 +1,13 @@
-# stage10-runtime-surface.ps1 — Stage 10-A: embedded yoyo_runtime.dll trust-surface gate
+# stage10-runtime-surface.ps1 鈥?Stage 10-A: embedded yoyo_runtime.dll trust-surface gate
 #
 # Measures the Rust-compiled runtime DLL that every genN embeds (outside gen12
-# 18432B compared .text window; SHA moves with dll_embed_size in H_00 stub —
-# v0.3 was b609a735, Stage 10-A is 43ffde58). Fail-closed against a documented
+# 18432B compared .text window; SHA moves with dll_embed_size in H_00 stub 鈥?# v0.3 was b609a735, Stage 10-A is 43ffde58). Fail-closed against a documented
 # MAX size so the host-trust hole cannot silently grow. Also verifies gen1 embeds
 # the same bytes as the built DLL (exact embed match).
 #
 # v0.3 baseline (pre Stage 10-A): 485888 bytes
 # Stage 10-A shrink: default-features=false (no full-backends/wasmtime) +
-#   profile.release.package.yoyo-runtime opt-level=z → 231936 bytes
+#   profile.release.package.yoyo-runtime opt-level=z 鈫?231936 bytes
 # Stage 11-A further shrink (fat LTO + strip + verifier -z): see
 #   scripts/stage11-runtime-surface.ps1 (tighter MAX; this Stage 10 gate stays).
 #
@@ -24,9 +23,9 @@ $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
 # Fail-closed ceiling (bytes). Update only when an intentional shrink/expand is
-# documented in BACKEND_SUPPORT.md / STAGE10 — never raise casually.
+# documented in BACKEND_SUPPORT.md / STAGE10 鈥?never raise casually.
 $MaxDllBytes = 250000
-# v0.3 documented baseline for before→after reporting (not enforced as floor).
+# v0.3 documented baseline for before鈫抋fter reporting (not enforced as floor).
 $BaselineV03Bytes = 485888
 
 $WorkDir = Join-Path $Root "scripts\_stage10-runtime-surface"
@@ -56,7 +55,7 @@ function Find-EmbeddedDllOffset([byte[]]$Pe, [byte[]]$Dll) {
 }
 
 Write-Host "=== Stage 10-A: runtime.dll surface gate ==="
-Write-Host "  gen12 window:             18432 bytes · SHA prefix 43ffde58 (was b609a735 @ v0.3)"
+Write-Host "  gen12 window:             18432 bytes 路 SHA prefix 43ffde58 (was b609a735 @ v0.3)"
 Write-Host "  v0.3 baseline DLL:        $BaselineV03Bytes bytes (outside gen12)"
 Write-Host "  fail-closed MAX DLL:      $MaxDllBytes bytes"
 
@@ -88,11 +87,11 @@ Write-Host "DLL SHA256:$dllSha"
 Write-Host "vs v0.3:   delta=$deltaVsV03 bytes (positive = shrink)"
 
 if ($dllBytes -gt $MaxDllBytes) {
-    Write-Host "Stage 10-A: RED (DLL $dllBytes > MAX $MaxDllBytes) — host trust surface grew or shrink regresssed"
+    Write-Host "Stage 10-A: RED (DLL $dllBytes > MAX $MaxDllBytes) 鈥?host trust surface grew or shrink regresssed"
     exit 1
 }
 if ($dllBytes -ge $BaselineV03Bytes) {
-    Write-Host "Stage 10-A: RED (DLL $dllBytes >= v0.3 baseline $BaselineV03Bytes) — no measurable shrink"
+    Write-Host "Stage 10-A: RED (DLL $dllBytes >= v0.3 baseline $BaselineV03Bytes) 鈥?no measurable shrink"
     exit 1
 }
 
@@ -120,7 +119,7 @@ if (-not $SkipLinkSmoke) {
     if (-not (Test-Path $Ty)) { throw "missing $Ty" }
     if (-not (Test-Path $Yoyo)) { throw "missing $Yoyo" }
     Write-Host ""
-    Write-Host "== link smoke: yoyo link → gen1 (H_00 + embed) =="
+    Write-Host "== link smoke: yoyo link 鈫?gen1 (H_00 + embed) =="
     if (Test-Path $gen1) { Remove-Item $gen1 }
     & $Yoyo link --target=win32 $Ty $gen1
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path $gen1)) {
@@ -130,12 +129,17 @@ if (-not $SkipLinkSmoke) {
     $gen1Len = [int64](Get-Item $gen1).Length
     $pe = [System.IO.File]::ReadAllBytes($gen1)
     $embedOff = Find-EmbeddedDllOffset $pe $dllRaw
-    if ($embedOff -lt 0) {
-        Write-Host "Stage 10-A: RED (built DLL bytes not found embedded in gen1)"
+    if ($embedOff -ge 0) {
+        Write-Host "Stage 10-A: RED (exact embed at $embedOff — post-v1.0 sidecar shrink regresssed)"
         exit 1
     }
-    $embedOk = $true
-    Write-Host "gen1: $gen1Len bytes; embedded DLL at file offset $embedOff (exact match)"
+    $ascii = [System.Text.Encoding]::ASCII.GetString($pe)
+    if ($ascii.IndexOf("yoyo_rt.dll") -lt 0 -or $ascii.IndexOf("LoadLibraryA") -lt 0) {
+        Write-Host "Stage 10-A: RED (sidecar markers yoyo_rt.dll / LoadLibraryA missing)"
+        exit 1
+    }
+    $embedOk = $true  # means "sidecar posture OK" (no exact embed)
+    Write-Host "gen1: $gen1Len bytes; no exact embed (cwd sidecar yoyo_rt.dll)"
 }
 
 # Persist machine-readable observation for docs / Relock notes.
@@ -157,7 +161,7 @@ $report = [ordered]@{
     honest_remaining = @(
         "DLL still Rust-compiled (verifier lib, Win32/Linux/Stub emit only)",
         "DLL bytes still outside gen12 18432B compared .text window",
-        "Each genN still embeds and LoadLibrary this blob via H_00"
+        "H_00 LoadLibraryA cwd sidecar yoyo_rt.dll (no exact embed; still Rust runtime)"
     )
 }
 $reportPath = Join-Path $WorkDir "runtime-surface.json"
@@ -167,5 +171,5 @@ Write-Host "report: $reportPath"
 
 Write-Host ""
 Write-Host "Stage 10-A: GREEN"
-Write-Host "  trust-chain: host DLL $BaselineV03Bytes → $dllBytes (Δ -$deltaVsV03); still outside gen12"
+Write-Host "  trust-chain: host DLL $BaselineV03Bytes 鈫?$dllBytes (螖 -$deltaVsV03); still outside gen12"
 exit 0
