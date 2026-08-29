@@ -8,13 +8,13 @@
 
 Remove host **`LoadLibraryA`** / **`dlopen`** from the approved H_00 seed path by loading cwd sidecar `yoyo_rt.dll` / `./libyoyo_runtime.so` with a **YOYO-emitted in-process loader** instead of the Windows loader / libdl.
 
-**Honest today:** seed PE still contains ASCII `LoadLibraryA` in the kernel32 IAT. H_00 stub still calls it (71 B span · `stub_nz=69`). **OW-IAT remains CUT.**
+**Honest today (post deeper OW-IAT `3c4554d`):** seed PE has **no** ASCII `LoadLibraryA` in kernel32 IAT — H_00 resolves it via PEB→kernel32 ROR13 hash walk (`stub_nz=251`). **Still calls host LoadLibrary.** Manual-map spike **not wired**. **OW-IAT remains CUT.**
 
 ## CLOSED criteria (fail-closed · unchanged from SCOPE-CUT v1.0)
 
 | Hole | CLOSED when | Not sufficient |
 |------|-------------|----------------|
-| **OW-IAT (Win)** | Rust seed PE has **no** ASCII `LoadLibraryA` | Dropping `GetProcAddress` only |
+| **OW-IAT (Win)** | No host DLL load face (no `yoyo_rt.dll` sidecar marker) | Dropping IAT/ASCII `LoadLibraryA` only (PEB resolve still CUT) |
 | **OW-IAT (Linux)** | Seed ELF / tramp has **no** `dlopen` / `libdl` import surface on H_00 path | Dropping `dlsym` only |
 
 After CLOSED, **kernel32 file I/O** (`CreateFileA` / `ReadFile` / `VirtualAlloc`) or **Linux syscalls** (`open` / `read` / `mmap`) remain **host-trusted** — a separate shrink track, not OW-IAT.
@@ -42,9 +42,9 @@ H_00 stub (future, larger than 71 B):
 
 | Blocker | Detail |
 |---------|--------|
-| **Stub size** | Manual map + file read ≫ 71 B; JS + asm peers must mirror before merge |
-| **OW-H00** | `three_peer_full=EQUAL` · sha `808b9ec8` — do not land stub change without peer sync |
-| **Gates** | `stage11` / `stage13` / `stage14` still **require** `LoadLibraryA` until flip PR |
+| **Stub size** | Manual map + file read ≫ 251 B PEB stub; JS + asm peers must mirror before merge |
+| **OW-H00** | JS peer still **71 B** (LoadLibraryA IAT) vs Rust **251 B** (PEB) — three-peer **DIFF** until sync |
+| **Gates** | `stage11`/`stage13`/`stage15` require IAT/ASCII `LoadLibraryA` **absent** (done); CLOSED needs no `yoyo_rt.dll` |
 | **Smoke** | Needs Windows cwd sidecar smoke after wire-up |
 
 ## Linux (next slice)
@@ -65,7 +65,7 @@ cd yoyo-rust && cargo test -p verifier pe_manual_map
 ./scripts/stage17-ow-iat-spike.sh
 ```
 
-Gate prints `OW_IAT_SPIKE status=GREEN` and **`LoadLibraryA=PRESENT`** until wire-up PR lands.
+Gate prints `OW_IAT_SPIKE status=GREEN` and **`IAT_LoadLibraryA=ABSENT`** (PEB resolve / manual-map wire-up still CUT).
 
 ---
 
