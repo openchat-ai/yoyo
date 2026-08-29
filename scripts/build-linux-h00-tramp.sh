@@ -17,3 +17,7 @@ echo "NEEDED:"
 readelf -d "$OUT" | grep NEEDED || true
 echo "UNDEF dynamic:"
 nm -D "$OUT" 2>/dev/null | awk '/ U /{print}' || true
+if nm -D "$OUT" 2>/dev/null | grep -q 'dlsym'; then
+  echo "RED: trampoline still imports dlsym (post-v1.0 OW-IAT requires ELF dyn walk)"
+  exit 1
+fi

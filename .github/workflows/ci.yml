@@ -59,7 +59,7 @@ jobs:
         run: cargo run -- info
 
   linux-m4:
-    # Post-v1.0 OW-RT Linux sidecar parity — prevent Windows-only CI regressions on ELF H_00 M4.
+    # Post-v1.0 OW-RT Linux sidecar + OW-IAT no-dlsym tramp — prevent Windows-only CI regressions.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -75,5 +75,5 @@ jobs:
           cargo build --release -p verifier
           cargo build --profile release-runtime -p yoyo-runtime
 
-      - name: Stage 10-B Linux pure M4 (H_00 sidecar)
+      - name: Stage 10-B Linux pure M4 (H_00 sidecar + no-dlsym tramp)
         run: bash scripts/stage10-linux-pure-m4.sh
