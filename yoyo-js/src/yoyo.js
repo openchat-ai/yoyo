@@ -8,7 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const { encodeOp, setEmitPlatform } = require('./platform/encode-x64');
-const { buildPe } = require('./platform/pe-builder');
+const { linkPeWin32 } = require('./platform/pe-builder');
 const { OUTPUT_DATA_NEED } = require('./platform/platform-config');
 
 // Stage 9-B: production PE path emits real Win32 I/O (not movabs+store stub).
@@ -43,6 +43,9 @@ function compile(lines) {
   const data = [];
   const labels = new Map();
   const fixups = [];
+  const handlerOffsets = [];
+  let currentHh = null;
+  let handlerStart = 0;
   // Label ids are full numeric args (not masked to u8). Values ≥0x100 use
   // multi-digit hex tokens (e.g. `40 100`); wrapping via &0xff would collide H_00..
   const labelId = (a) => {
@@ -54,7 +57,12 @@ function compile(lines) {
   };
   for (const { op, args } of lines) {
     if (op === 0x40) {
-      labels.set(labelId(args), code.length);
+      if (currentHh !== null) {
+        handlerOffsets.push([currentHh, handlerStart, code.length - handlerStart]);
+      }
+      currentHh = labelId(args);
+      handlerStart = code.length;
+      labels.set(currentHh, handlerStart);
       continue;
     }
     if (op === 0x10 || op === 0x12 || op === 0x13) {
@@ -71,6 +79,9 @@ function compile(lines) {
     }
     code.push(...encodeOp(op, args, false));
   }
+  if (currentHh !== null) {
+    handlerOffsets.push([currentHh, handlerStart, code.length - handlerStart]);
+  }
   for (const f of fixups) {
     if (!labels.has(f.hh)) throw new Error('undefined label H_' + f.hh.toString(16));
     const rel = labels.get(f.hh) - (f.relAt + 4);
@@ -78,7 +89,7 @@ function compile(lines) {
     code[f.relAt] = b[0]; code[f.relAt + 1] = b[1];
     code[f.relAt + 2] = b[2]; code[f.relAt + 3] = b[3];
   }
-  return { code: Buffer.from(code), data: Buffer.from(data), labels };
+  return { code: Buffer.from(code), data: Buffer.from(data), labels, handlerOffsets };
 }
 
 function main() {
@@ -88,8 +99,8 @@ function main() {
     process.exit(2);
   }
   const src = fs.readFileSync(inFile, 'utf8');
-  const { code, data } = compile(parseTy(src));
-  const pe = buildPe(code, data, OUTPUT_DATA_NEED);
+  const { code, data, handlerOffsets } = compile(parseTy(src));
+  const pe = linkPeWin32(code, data, handlerOffsets, OUTPUT_DATA_NEED);
   fs.mkdirSync(path.dirname(path.resolve(outFile)), { recursive: true });
   fs.writeFileSync(outFile, pe);
   console.log(`M0: ${inFile} → ${outFile} (${pe.length} bytes, code=${code.length}, dataFloor=0x${OUTPUT_DATA_NEED.toString(16)})`);

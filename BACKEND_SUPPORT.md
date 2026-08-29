@@ -316,7 +316,15 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Linux** | H_00 still exact-embeds `.so` + trampoline (this session Win-only) |
 | **Gates** | stage10/11/12/14/15/16 inventory pins updated; `stage15-hole-inventory -SkipBuild` |
 
-### Post-v1.0 path 2 — OW-IAT GetProcAddress shrink (2026-08-29)
+### Post-v1.0 path 2 — OW-H00 peer align (2026-08-29)
+
+| Item | Detail |
+|------|--------|
+| **Hole** | **OW-H00** |
+| **Change** | JS `linkPeWin32` + `win32-h00-selfhost.js` mirror Rust `link_pe_h00_runtime` (H_00 slot **JMP+NOP** + 97B ordinal-0 stub); asm win32 delegates to same JS link CLI |
+| **Gate** | three-peer full `yoyo.ty` PE **byte-equal** Rust (`90ad6d6e` · 17920B `.text`); H_00 slot `e98d45000090909090909090909090909090` |
+| **Still CUT** | OW-STUB / OW-RT / OW-IAT / OW-SEED — disposition unchanged until `stage15-hole-inventory` / `stage16-scope-cut-finalize` re-run on Win |
+
 
 | Item | Detail |
 |------|--------|

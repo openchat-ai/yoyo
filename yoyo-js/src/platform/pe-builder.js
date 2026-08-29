@@ -61,7 +61,7 @@ function prependWin32IoIat(userData, dataRva) {
   return { data: blob, importDirRva: dataRva + descOff, importDirSize: descSize };
 }
 
-function buildPe(code, data, dataNeed) {
+function buildPe(code, data, dataNeed, importOverride) {
   const sectionAlign = 0x1000;
   const fileAlign = 0x200;
   const headersRaw = 0x400;
@@ -72,7 +72,19 @@ function buildPe(code, data, dataNeed) {
   const dataRva = textRva + textVs;
 
   const userData = Buffer.isBuffer(data) ? data : Buffer.from(data || []);
-  const { data: extended, importDirRva, importDirSize } = prependWin32IoIat(userData, dataRva);
+  let extended;
+  let importDirRva;
+  let importDirSize;
+  if (importOverride) {
+    extended = userData;
+    importDirRva = importOverride.importDirRva;
+    importDirSize = importOverride.importDirSize;
+  } else {
+    const prep = prependWin32IoIat(userData, dataRva);
+    extended = prep.data;
+    importDirRva = prep.importDirRva;
+    importDirSize = prep.importDirSize;
+  }
 
   const dataVs = Math.max(dataNeed, alignUp(extended.length + 0x1000, sectionAlign));
   const dataRaw = alignUp(dataVs, fileAlign);
@@ -145,4 +157,22 @@ function buildPe(code, data, dataNeed) {
   return img;
 }
 
-module.exports = { buildPe, prependWin32IoIat };
+const { shouldH00Selfhost, linkPeH00Runtime } = require('./win32-h00-selfhost');
+
+/**
+ * JS peer of pe_link::link_pe_win32 — H_00 path when full-body (H_20+H_21) present.
+ */
+function linkPeWin32(code, data, handlerOffsets, dataNeed = require('./platform-config').OUTPUT_DATA_NEED) {
+  const userCode = Buffer.isBuffer(code) ? code : Buffer.from(code);
+  const userData = Buffer.isBuffer(data) ? data : Buffer.from(data || []);
+  if (shouldH00Selfhost(handlerOffsets)) {
+    const linked = linkPeH00Runtime(userCode, userData, handlerOffsets);
+    return buildPe(linked.code, linked.data, dataNeed, {
+      importDirRva: linked.importDirRva,
+      importDirSize: linked.importDirSize,
+    });
+  }
+  return buildPe(userCode, userData, dataNeed);
+}
+
+module.exports = { buildPe, prependWin32IoIat, linkPeWin32 };

@@ -23,6 +23,8 @@ const KERNEL32_IO_FUNCS = [
   'ReadFile',
   'WriteFile',
   'CloseHandle',
+  'LoadLibraryA',
+  'ExitProcess',
 ];
 
 function u32le(n) {
