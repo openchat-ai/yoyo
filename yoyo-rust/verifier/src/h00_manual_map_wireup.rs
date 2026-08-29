@@ -287,10 +287,6 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jz_reloc_done2 + 2, jz_reloc_done2 + 6, reloc_done);
     patch_rel32(&mut c, jb_reloc_done + 2, jb_reloc_done + 6, reloc_done);
 
-    // TEMP CI isolate: skip import resolve (AV during PEB walk / forwarder fixup).
-    let jmp_skip_imports = c.len();
-    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-
     // Import resolve: walk descriptors at [r14+import_rva]
     c.extend_from_slice(&[
         0x8B, 0x84, 0x1C, PE_OFF_IMPORT_DIR_RVA, 0x00, 0x00, 0x00,
@@ -373,7 +369,6 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     patch_rel32(&mut c, jmp_id + 1, jmp_id + 5, import_desc);
     let import_done = c.len();
-    patch_rel32(&mut c, jmp_skip_imports + 1, jmp_skip_imports + 5, import_done);
     patch_rel32(&mut c, jz_import_done + 2, jz_import_done + 6, import_done);
     patch_rel32(&mut c, jz_idone + 2, jz_idone + 6, import_done);
 
@@ -625,34 +620,10 @@ fn gen_h00_export_call_tail(
     fail_export: usize,
 ) -> Vec<u8> {
     let mut c: Vec<u8> = Vec::new();
-    let mut fail_jumps: Vec<(usize, usize)> = Vec::new();
 
-    c.extend_from_slice(&[0x8B, 0x73, 0x3C]);
-    c.extend_from_slice(&[0x8B, 0x84, 0x33, 0x88, 0x00, 0x00, 0x00]);
-    c.extend_from_slice(&[0x85, 0xC0]);
-    fail_jumps.push((c.len(), fail_export));
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x48, 0x8D, 0x3C, 0x03]);
-    c.extend_from_slice(&[0x8B, 0x47, 0x1C]);
-    c.extend_from_slice(&[0x48, 0x01, 0xD8]); // add rax, rbx — functions RVA is image-relative
-    c.extend_from_slice(&[0x8B, 0x00]);
-    c.extend_from_slice(&[0x48, 0x01, 0xD8]);
-    // Win64: RSP%16==8 before CALL so callee entry has RSP%16==0 after push retaddr.
-    // H_00 prologue leaves RSP%16==8; map body preserves it; 0x30 shadow keeps alignment.
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x30]); // shadow + alignment fix
-    c.extend_from_slice(&[0xFF, 0xD0]); // call export (yoyo_runtime_selfhost_main)
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x30]);
-    c.extend_from_slice(&[0x89, 0xC1]);
+    // TEMP bisect: post import+reloc success (rbx=mapped base); no export walk/call.
+    c.extend_from_slice(&[0x31, 0xC9]); // xor ecx, ecx
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_EXIT_PROCESS);
-
-    for (at, fail) in fail_jumps {
-        patch_rel32(
-            &mut c,
-            at + 2,
-            chunk_text_off as usize + at + 6,
-            fail,
-        );
-    }
     c
 }
 
