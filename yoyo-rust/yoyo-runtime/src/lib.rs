@@ -36,6 +36,10 @@ fn read_input() -> Result<Vec<u8>, i32> {
 /// Main entry — called from embedded startup via LoadLibrary/dlopen export.
 #[no_mangle]
 pub extern "C" fn yoyo_runtime_selfhost_main() -> i32 {
+    if std::env::var("YOYO_MM_SMOKE_PROBE").is_ok() {
+        let _ = std::fs::write(default_output_name(), b"probe");
+        return 0;
+    }
     let input = match read_input() {
         Ok(d) => d,
         Err(e) => return e,
