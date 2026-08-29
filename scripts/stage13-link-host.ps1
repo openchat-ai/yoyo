@@ -59,21 +59,20 @@ function Invoke-YoyoDiffEqual([string]$A, [string]$B, [string]$Label) {
     return $true
 }
 
-# Linux H_00: prefer SEED_HOST path=h00; markers = so name and/or tramp name
-# (dlopen lives in cwd tramp sidecar after post-v1.0 no-exact-embed).
+# Linux H_00: prefer SEED_HOST path=h00; also accept older classifiers that labeled
+# embedded-so+dlopen seeds as path=plain (markers still prove H_00 extract surface).
 function Test-LinuxH00Observe([string]$SeedHostLine, [byte[]]$ElfBytes, [string]$Label) {
     if ($SeedHostLine -match 'SEED_HOST cmd=\S+ target=linux path=h00\b') {
         Write-Host "Linux H_00 observe ($Label): SEED_HOST path=h00"
         return $true
     }
     $hasSo = Find-Ascii $ElfBytes "libyoyo_runtime.so"
-    $hasTramp = Find-Ascii $ElfBytes ".yoyo_h00_tramp"
     $hasDl = (Find-Ascii $ElfBytes "dlopen") -or (Find-Ascii $ElfBytes "libdl.so")
-    if ($hasSo -and ($hasTramp -or $hasDl) -and ($SeedHostLine -match 'SEED_HOST cmd=\S+ target=linux path=')) {
-        Write-Host "Linux H_00 observe ($Label): markers libyoyo_runtime.so+tramp/dlopen (SEED_HOST path not yet h00)"
+    if ($hasSo -and $hasDl -and ($SeedHostLine -match 'SEED_HOST cmd=\S+ target=linux path=')) {
+        Write-Host "Linux H_00 observe ($Label): markers libyoyo_runtime.so+dlopen (SEED_HOST path not yet h00)"
         return $true
     }
-    Write-Host "Stage 13-A: RED ($Label — Linux seed not H_00; need path=h00 or libyoyo_runtime.so+tramp)"
+    Write-Host "Stage 13-A: RED ($Label — Linux seed not H_00; need path=h00 or libyoyo_runtime.so+dlopen)"
     Write-Host "  line: $($SeedHostLine.Trim())"
     return $false
 }
@@ -300,33 +299,6 @@ if (-not $SkipLinux) {
         }
         Write-Host "linux OW-RT: no exact .so embed (sidecar; checked vs $soCand)"
     }
-
-    $trampCand = Join-Path $Root "yoyo-rust\verifier\blobs\linux_h00_tramp.elf"
-    if (Test-Path $trampCand) {
-        $trampRaw = [System.IO.File]::ReadAllBytes($trampCand)
-        $trampOff = -1
-        if ($trampRaw.Length -ge 16 -and $linkElfBytes.Length -ge $trampRaw.Length) {
-            $n0 = $trampRaw[0]; $n1 = $trampRaw[1]
-            $limit = $linkElfBytes.Length - $trampRaw.Length
-            for ($i = 0; $i -le $limit; $i++) {
-                if ($linkElfBytes[$i] -ne $n0 -or $linkElfBytes[$i + 1] -ne $n1) { continue }
-                $ok = $true
-                for ($j = 0; $j -lt $trampRaw.Length; $j++) {
-                    if ($linkElfBytes[$i + $j] -ne $trampRaw[$j]) { $ok = $false; break }
-                }
-                if ($ok) { $trampOff = $i; break }
-            }
-        }
-        if ($trampOff -ge 0) {
-            Write-Host "Stage 13-A: RED (linux seed exact-embeds tramp at $trampOff -- sidecar shrink regresssed)"
-            exit 1
-        }
-        Write-Host "linux OW-RT: no exact tramp embed (cwd sidecar .yoyo_h00_tramp; checked vs $trampCand)"
-    }
-    if (-not (Find-Ascii $linkElfBytes ".yoyo_h00_tramp")) {
-        Write-Host "Stage 13-A: RED (linux seed missing .yoyo_h00_tramp marker)"
-        exit 1
-    }
     $bootElfOut = & $Yoyo bootstrap --target=linux $Tyb $SeedBootElf 2>&1 | Out-String
     Write-Host $bootElfOut.TrimEnd()
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path $SeedBootElf)) {
@@ -335,9 +307,7 @@ if (-not $SkipLinux) {
     }
     $elfBytes = [System.IO.File]::ReadAllBytes($SeedBootElf)
     $linuxH00Markers = (Find-Ascii $elfBytes "libyoyo_runtime.so") -and (
-        (Find-Ascii $elfBytes ".yoyo_h00_tramp") -or
-        (Find-Ascii $elfBytes "dlopen") -or
-        (Find-Ascii $elfBytes "yoyo_runtime_selfhost_main")
+        (Find-Ascii $elfBytes "dlopen") -or (Find-Ascii $elfBytes "yoyo_runtime_selfhost_main")
     )
     $linuxSeedHostLine = $bootElfOut -match 'SEED_HOST cmd=bootstrap target=linux path=h00'
     if (-not $linuxSeedHostLine -and -not $linuxH00Markers) {
@@ -370,6 +340,6 @@ Write-Host "  bootstrap without --selfhost is an alias of that seed path (Stage 
 Write-Host "  Gate fails closed if seed grows past MAX, gains GetTempPathA, or ≡ --selfhost."
 Write-Host "Remaining host surface (honest):"
 Write-Host "  - Rust-built yoyo.exe still emits the seed (host compile trust)"
-Write-Host "  - cwd sidecar yoyo_rt.dll / libyoyo_runtime.so / .yoyo_h00_tramp (Rust; Stages 10–11; no exact embed)"
+Write-Host "  - cwd sidecar yoyo_rt.dll / libyoyo_runtime.so (Rust; Stages 10–11; no exact embed)"
 Write-Host "  - host LoadLibraryA / libdl on H_00 path (Stage 11-B observes face)"
 exit 0

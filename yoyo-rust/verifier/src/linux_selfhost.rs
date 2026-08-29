@@ -1,12 +1,12 @@
 //! Linux ELF selfhost: genNrt gcc loader (Stage 7/8) + H_00 pure path (Stage 10-B).
 //!
-//! Stage 8 `--selfhost`: dynamically linked stub (`dlopen` -> `yoyo_runtime_selfhost_main`)
+//! Stage 8 `--selfhost`: dynamically linked stub (`dlopen` → `yoyo_runtime_selfhost_main`)
 //! via system cc when available (WSL/Linux).
 //!
-//! Stage 10-B / post-v1.0 OW-RT H_00: ELF entry -> H_00 -> `execve("./.yoyo_h00_tramp")`
-//! (cwd sidecar trampoline + cwd `./libyoyo_runtime.so`). No exact embed of tramp or `.so`.
-//! OW-RT stays CUT (still Rust runtime + glibc/libdl trampoline). genNrt `--selfhost`
-//! remains a separate host surface.
+//! Stage 10-B / post-v1.0 OW-RT H_00: ELF entry → H_00 → syscall extract of embedded
+//! trampoline only → `execve` trampoline → trampoline `dlopen("./libyoyo_runtime.so")`.
+//! The Rust `.so` is a cwd sidecar (no exact embed) — OW-RT stays CUT (still Rust runtime
+//! + glibc/libdl trampoline). genNrt `--selfhost` remains a separate host surface.
 
 use crate::types::{IsaError, IsaResult};
 use std::path::Path;
@@ -15,7 +15,7 @@ use std::process::Command;
 pub const RUNTIME_SO_NAME: &str = "libyoyo_runtime.so";
 pub const EXPORT_NAME: &str = "yoyo_runtime_selfhost_main";
 
-/// Cwd-relative names: both are sidecars (no exact embed in seed ELF).
+/// Cwd-relative names: `.so` is sidecar-only; tramp name is written by H_00 extract.
 pub const H00_SO_NAME: &[u8] = b"./libyoyo_runtime.so\0";
 pub const H00_TRAMP_NAME: &[u8] = b"./.yoyo_h00_tramp\0";
 
@@ -128,8 +128,8 @@ pub fn link_elf_selfhost_runtime(
     Ok(bytes)
 }
 
-/// Metadata for H_00 cwd-sidecar trampoline execve (offsets relative to data / r15).
-/// Post-v1.0 OW-RT deepen: neither `.so` nor trampoline is exact-embedded (`*_embed_*` = 0).
+/// Metadata for H_00 trampoline extract + execve (offsets relative to data / r15).
+/// Post-v1.0 OW-RT: `.so` is cwd sidecar — `so_embed_*` stay 0 (no exact embed).
 #[derive(Clone, Debug)]
 pub struct H00Meta {
     pub so_name_off: u32,
@@ -140,9 +140,12 @@ pub struct H00Meta {
     pub tramp_embed_size: u32,
 }
 
-/// Append path strings only (no trampoline / `.so` bytes).
-/// Post-v1.0 OW-RT: seed ELF trusts cwd `./.yoyo_h00_tramp` + `./libyoyo_runtime.so`.
-pub fn append_h00_runtime_data(user_data: &[u8]) -> IsaResult<(Vec<u8>, H00Meta)> {
+/// Append path strings + embedded trampoline only (no `libyoyo_runtime.so` bytes).
+/// Post-v1.0 OW-RT: seed ELF trusts cwd `./libyoyo_runtime.so`, not an opaque `.data` blob.
+pub fn append_h00_runtime_data(
+    user_data: &[u8],
+    tramp_bytes: &[u8],
+) -> IsaResult<(Vec<u8>, H00Meta)> {
     let mut blob = user_data.to_vec();
     while blob.len() % 16 != 0 {
         blob.push(0);
@@ -151,13 +154,16 @@ pub fn append_h00_runtime_data(user_data: &[u8]) -> IsaResult<(Vec<u8>, H00Meta)
 
     let so_name_off = 0usize;
     let tramp_name_off = so_name_off + H00_SO_NAME.len();
-    let total = tramp_name_off + H00_TRAMP_NAME.len();
-    let pad = (16 - (total % 16)) % 16;
+    let tramp_embed_off = align_up(tramp_name_off + H00_TRAMP_NAME.len(), 16);
+    let tramp_pad = (16 - (tramp_bytes.len() % 16)) % 16;
+    let total = tramp_embed_off + tramp_bytes.len() + tramp_pad;
 
-    blob.resize(base + total + pad, 0);
+    blob.resize(base + total, 0);
     blob[base + so_name_off..base + so_name_off + H00_SO_NAME.len()].copy_from_slice(H00_SO_NAME);
     blob[base + tramp_name_off..base + tramp_name_off + H00_TRAMP_NAME.len()]
         .copy_from_slice(H00_TRAMP_NAME);
+    blob[base + tramp_embed_off..base + tramp_embed_off + tramp_bytes.len()]
+        .copy_from_slice(tramp_bytes);
 
     Ok((
         blob,
@@ -166,21 +172,31 @@ pub fn append_h00_runtime_data(user_data: &[u8]) -> IsaResult<(Vec<u8>, H00Meta)
             tramp_name_off: (base + tramp_name_off) as u32,
             so_embed_off: 0,
             so_embed_size: 0,
-            tramp_embed_off: 0,
-            tramp_embed_size: 0,
+            tramp_embed_off: (base + tramp_embed_off) as u32,
+            tramp_embed_size: tramp_bytes.len() as u32,
         },
     ))
 }
 
-/// Stage 10-B / post-v1.0 H_00 body: `execve` cwd sidecar trampoline (no extract).
-/// Expects cwd `./.yoyo_h00_tramp` + `./libyoyo_runtime.so` (OW-RT shrink; still CUT).
+fn align_up(v: usize, a: usize) -> usize {
+    (v + a - 1) & !(a - 1)
+}
+
+/// Stage 10-B / post-v1.0 H_00 body: write embedded trampoline via syscalls, then execve.
+/// Expects cwd sidecar `./libyoyo_runtime.so` (OW-RT shrink; still CUT).
 /// ELF entry is `jmp H_00` (not `call`); this must never return.
 pub fn gen_h00_selfhost_main(meta: &H00Meta) -> Vec<u8> {
     let mut c: Vec<u8> = Vec::new();
 
-    // execve(tramp_path, [tramp_path, NULL], NULL) -- tramp/dlopen is host-preplaced.
-    let _so = meta.so_name_off; // observe marker lives in .data; body only needs tramp path
-    let _ = (_so, meta.so_embed_off, meta.so_embed_size, meta.tramp_embed_off, meta.tramp_embed_size);
+    // Sidecar .so is not extracted — only the committed trampoline blob.
+    emit_write_embedded(
+        &mut c,
+        meta.tramp_name_off,
+        meta.tramp_embed_off,
+        meta.tramp_embed_size,
+    );
+
+    // execve(tramp_path, [tramp_path, NULL], NULL)
     emit_lea_r15(&mut c, 7, meta.tramp_name_off); // rdi
     c.extend_from_slice(&[0x6A, 0x00]); // push 0
     c.push(0x57); // push rdi
@@ -196,6 +212,64 @@ pub fn gen_h00_selfhost_main(meta: &H00Meta) -> Vec<u8> {
     c
 }
 
+fn emit_write_embedded(c: &mut Vec<u8>, name_off: u32, embed_off: u32, size: u32) {
+    emit_lea_r15(c, 7, name_off);
+    emit_mov_eax_imm(c, 87); // SYS_unlink
+    c.extend_from_slice(&[0x0F, 0x05]);
+
+    emit_lea_r15(c, 7, name_off);
+    emit_mov_esi_imm(c, 0x241); // O_WRONLY|O_CREAT|O_TRUNC
+    emit_mov_edx_imm(c, 0o755);
+    emit_mov_eax_imm(c, 2); // SYS_open
+    c.extend_from_slice(&[0x0F, 0x05]);
+    c.extend_from_slice(&[0x49, 0x89, 0xC4]); // mov r12, rax
+
+    // r13 = remaining, r14 = cursor
+    emit_mov_r13_imm(c, size);
+    emit_lea_r15(c, 6, embed_off); // rsi = buf
+    c.extend_from_slice(&[0x49, 0x89, 0xF6]); // mov r14, rsi
+
+    // write_loop:
+    let loop_top = c.len();
+    c.extend_from_slice(&[0x4D, 0x85, 0xED]); // test r13, r13
+    let jz_patch = c.len();
+    c.extend_from_slice(&[0x74, 0x00]); // jz done (patch)
+
+    c.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
+    c.extend_from_slice(&[0x4C, 0x89, 0xF6]); // mov rsi, r14
+    c.extend_from_slice(&[0x4C, 0x89, 0xEA]); // mov rdx, r13
+    emit_mov_eax_imm(c, 1); // SYS_write
+    c.extend_from_slice(&[0x0F, 0x05]);
+    // if rax <= 0: exit 126
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]); // test rax, rax
+    let jle_patch = c.len();
+    c.extend_from_slice(&[0x7E, 0x00]); // jle fail
+
+    c.extend_from_slice(&[0x49, 0x01, 0xC6]); // add r14, rax
+    c.extend_from_slice(&[0x49, 0x29, 0xC5]); // sub r13, rax
+    let jmp_back = c.len();
+    c.extend_from_slice(&[0xEB, 0x00]); // jmp loop_top
+    c[jmp_back + 1] = (loop_top as i32 - (jmp_back as i32 + 2)) as u8;
+
+    let fail = c.len();
+    c[jle_patch + 1] = (fail as i32 - (jle_patch as i32 + 2)) as u8;
+    emit_mov_eax_imm(c, 60);
+    emit_mov_edi_imm(c, 126);
+    c.extend_from_slice(&[0x0F, 0x05]);
+
+    let done = c.len();
+    c[jz_patch + 1] = (done as i32 - (jz_patch as i32 + 2)) as u8;
+
+    c.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
+    emit_mov_eax_imm(c, 3); // SYS_close
+    c.extend_from_slice(&[0x0F, 0x05]);
+}
+
+fn emit_mov_r13_imm(c: &mut Vec<u8>, imm: u32) {
+    // mov r13, imm32 (zero-extends): 41 BD imm32
+    c.extend_from_slice(&[0x41, 0xBD]);
+    c.extend_from_slice(&imm.to_le_bytes());
+}
 
 fn emit_lea_r15(c: &mut Vec<u8>, reg_low3: u8, disp: u32) {
     // lea r64, [r15 + disp32]: REX.W+B (0x49), not 0x4C (that sets R instead of B).
@@ -215,6 +289,15 @@ fn emit_mov_edi_imm(c: &mut Vec<u8>, imm: u32) {
     c.extend_from_slice(&imm.to_le_bytes());
 }
 
+fn emit_mov_esi_imm(c: &mut Vec<u8>, imm: u32) {
+    c.push(0xBE);
+    c.extend_from_slice(&imm.to_le_bytes());
+}
+
+fn emit_mov_edx_imm(c: &mut Vec<u8>, imm: u32) {
+    c.push(0xBA);
+    c.extend_from_slice(&imm.to_le_bytes());
+}
 
 #[cfg(test)]
 mod tests {
@@ -233,33 +316,32 @@ mod tests {
     }
 
     #[test]
-    fn h00_main_emits_execve_only() {
+    fn h00_main_emits_syscalls_no_so_extract() {
         let meta = H00Meta {
             so_name_off: 0x100,
             tramp_name_off: 0x120,
             so_embed_off: 0,
             so_embed_size: 0,
-            tramp_embed_off: 0,
-            tramp_embed_size: 0,
+            tramp_embed_off: 0x200,
+            tramp_embed_size: 0x100,
         };
         let body = gen_h00_selfhost_main(&meta);
         assert!(body.windows(2).any(|w| w == [0x0F, 0x05]));
-        // execve + exit only (no open/write extract loop).
+        assert!(body.len() > 40);
+        // One write_embedded (tramp) + execve + exit — not two extract loops.
         let syscall_count = body.windows(2).filter(|w| *w == [0x0F, 0x05]).count();
-        assert_eq!(syscall_count, 2, "H_00 should be execve+exit only");
-        assert!(body.len() < 64, "H_00 body unexpectedly large");
+        assert!(syscall_count < 20, "unexpectedly large H_00 (so extract regress?)");
     }
 
     #[test]
-    fn append_h00_paths_only_no_embeds() {
+    fn append_h00_no_so_bytes() {
         let tramp = trampoline_bytes();
-        let (blob, meta) = append_h00_runtime_data(b"user").unwrap();
+        let (blob, meta) = append_h00_runtime_data(b"user", tramp).unwrap();
         assert_eq!(meta.so_embed_size, 0);
         assert_eq!(meta.so_embed_off, 0);
-        assert_eq!(meta.tramp_embed_size, 0);
-        assert_eq!(meta.tramp_embed_off, 0);
+        assert_eq!(meta.tramp_embed_size as usize, tramp.len());
+        // .so path string present for observe; exact trampoline embed present.
         assert!(blob.windows(H00_SO_NAME.len()).any(|w| w == H00_SO_NAME));
-        assert!(blob.windows(H00_TRAMP_NAME.len()).any(|w| w == H00_TRAMP_NAME));
-        assert!(!blob.windows(tramp.len()).any(|w| w == tramp), "tramp must not be embedded");
+        assert!(blob.windows(tramp.len()).any(|w| w == tramp));
     }
 }

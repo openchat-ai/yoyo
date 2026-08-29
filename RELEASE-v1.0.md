@@ -54,7 +54,7 @@ YOYO v1.0 **finalizes** the v0.9 hole inventory as **SCOPE-CUT FINAL** (machine 
 | **H_00 LoadLibrary stub** | `stub_tail_nonzero` **235** B | **OW-STUB CUT** (Rust-only; PE export walk; outside three-peer EQUAL) |
 | **Hole inventory** | **FINAL** 路 closed=0 路 cut=7 | All seven **CUT** (honest; no fake CLOSED) |
 | **Detection banlist** | **ACTIVE** | Gate: `stage16-detection-wording.ps1` |
-| **Linux trampoline** | size **9768** cwd sidecar | Still host libdl; **no exact embed** in seed |
+| **Linux trampoline** | size **9768** (v0.5+) | Still host libdl path |
 
 ### Lock / Relock (v1.0 graduation) 鈥?Decision
 
