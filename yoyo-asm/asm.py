@@ -345,13 +345,20 @@ def compile_lines(lines, platform=None):
     data = bytearray()
     labels = {}
     fixups = []  # (rel_at, hh)
+    handler_offsets = []
+    current_hh = None
+    handler_start = 0
 
     for op, args in lines:
         if op == 0x40:  # HANDLER hh — label definition
             hh = args[0]
             if hh > 0xFFFF:
                 raise ValueError(f"Handler id out of range: {hh}")
-            labels[hh] = len(code)
+            if current_hh is not None:
+                handler_offsets.append((current_hh, handler_start, len(code) - handler_start))
+            current_hh = hh
+            handler_start = len(code)
+            labels[hh] = handler_start
             continue
 
         if op in (0x10, 0x12, 0x13):  # DATA / STR / RAW — data payload
@@ -373,6 +380,9 @@ def compile_lines(lines, platform=None):
         bytes_out = encode_op(op, args, branch_placeholder=False)
         code.extend(bytes_out)
 
+    if current_hh is not None:
+        handler_offsets.append((current_hh, handler_start, len(code) - handler_start))
+
     # Pass 2: fixup rel32
     for rel_at, hh in fixups:
         if hh not in labels:
@@ -381,7 +391,7 @@ def compile_lines(lines, platform=None):
         rel = target - (rel_at + 4)
         struct.pack_into('<i', code, rel_at, rel)
 
-    return bytes(code), bytes(data), labels
+    return bytes(code), bytes(data), labels, handler_offsets
 
 
 # Stage 9-A / post-v1.0 OW-H00: H_00 entry slot (JMP+NOP pad matches Rust link_pe_h00_runtime).
@@ -524,6 +534,31 @@ def build_pe(code, data, data_need=0x38000):
     return bytes(img)
 
 
+def link_pe_win32_peer(code, data, handler_offsets):
+    """Win32 PE link via JS peer (H_00 JMP+NOP + IAT + sidecar strings)."""
+    import json
+    import subprocess
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cli = os.path.join(root, 'yoyo-js', 'scripts', 'link-pe-win32-cli.js')
+    payload = {
+        'code': code.hex(),
+        'data': data.hex(),
+        'handlerOffsets': [[h, off, ln] for h, off, ln in handler_offsets],
+    }
+    proc = subprocess.run(
+        ['node', cli],
+        input=json.dumps(payload).encode('utf-8'),
+        capture_output=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"link-pe-win32-cli failed (exit {proc.returncode}): {proc.stderr.decode()}"
+        )
+    return proc.stdout
+
+
 # ── CLI ──────────────────────────────────────────────────────────────
 
 def main():
@@ -552,12 +587,10 @@ def main():
     set_emit_platform(io_platform)
 
     lines = parse_ty(src)
-    code, data, labels = compile_lines(lines)
-    if target == "win32" and should_h00_selfhost(labels):
-        code = patch_h00_jmp_nop(code)
+    code, data, labels, handler_offsets = compile_lines(lines)
 
     if target == "win32":
-        pe = build_pe(code, data)
+        pe = link_pe_win32_peer(code, data, handler_offsets)
         os.makedirs(os.path.dirname(os.path.abspath(out_file)) or '.', exist_ok=True)
         with open(out_file, 'wb') as f:
             f.write(pe)

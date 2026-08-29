@@ -8,30 +8,11 @@
 const fs = require('fs');
 const path = require('path');
 const { encodeOp, setEmitPlatform } = require('./platform/encode-x64');
-const { buildPe } = require('./platform/pe-builder');
+const { linkPeWin32 } = require('./platform/pe-builder');
 const { OUTPUT_DATA_NEED } = require('./platform/platform-config');
-
-// Stage 9-A / post-v1.0 OW-H00: H_00 entry slot length (JMP+NOP pad matches Rust link).
-const H00_SLOT_LEN = 18;
 
 // Stage 9-B: production PE path emits real Win32 I/O (not movabs+store stub).
 setEmitPlatform('win32');
-
-/** Full-body marker: W-SM H_20/H_21 I/O handlers present (matches pe_link.rs). */
-function shouldH00Selfhost(labels) {
-  return labels.has(0x20) && labels.has(0x21);
-}
-
-/** Patch H_00 (user code offset 0) to JMP emit-tail + NOP pad — peer of Rust link_pe_h00_runtime. */
-function patchH00JmpNop(code) {
-  const buf = Buffer.from(code);
-  if (buf.length < H00_SLOT_LEN) return buf;
-  const rel = buf.length - 5;
-  buf[0] = 0xE9;
-  buf.writeInt32LE(rel, 1);
-  for (let i = 5; i < H00_SLOT_LEN; i++) buf[i] = 0x90;
-  return buf;
-}
 
 function parseTy(src) {
   const lines = [];
@@ -62,6 +43,9 @@ function compile(lines) {
   const data = [];
   const labels = new Map();
   const fixups = [];
+  const handlerOffsets = [];
+  let currentHh = null;
+  let handlerStart = 0;
   // Label ids are full numeric args (not masked to u8). Values ≥0x100 use
   // multi-digit hex tokens (e.g. `40 100`); wrapping via &0xff would collide H_00..
   const labelId = (a) => {
@@ -73,7 +57,12 @@ function compile(lines) {
   };
   for (const { op, args } of lines) {
     if (op === 0x40) {
-      labels.set(labelId(args), code.length);
+      if (currentHh !== null) {
+        handlerOffsets.push([currentHh, handlerStart, code.length - handlerStart]);
+      }
+      currentHh = labelId(args);
+      handlerStart = code.length;
+      labels.set(currentHh, handlerStart);
       continue;
     }
     if (op === 0x10 || op === 0x12 || op === 0x13) {
@@ -90,6 +79,9 @@ function compile(lines) {
     }
     code.push(...encodeOp(op, args, false));
   }
+  if (currentHh !== null) {
+    handlerOffsets.push([currentHh, handlerStart, code.length - handlerStart]);
+  }
   for (const f of fixups) {
     if (!labels.has(f.hh)) throw new Error('undefined label H_' + f.hh.toString(16));
     const rel = labels.get(f.hh) - (f.relAt + 4);
@@ -97,7 +89,7 @@ function compile(lines) {
     code[f.relAt] = b[0]; code[f.relAt + 1] = b[1];
     code[f.relAt + 2] = b[2]; code[f.relAt + 3] = b[3];
   }
-  return { code: Buffer.from(code), data: Buffer.from(data), labels };
+  return { code: Buffer.from(code), data: Buffer.from(data), labels, handlerOffsets };
 }
 
 function main() {
@@ -107,12 +99,11 @@ function main() {
     process.exit(2);
   }
   const src = fs.readFileSync(inFile, 'utf8');
-  const { code, data, labels } = compile(parseTy(src));
-  const emitCode = shouldH00Selfhost(labels) ? patchH00JmpNop(code) : code;
-  const pe = buildPe(emitCode, data, OUTPUT_DATA_NEED);
+  const { code, data, handlerOffsets } = compile(parseTy(src));
+  const pe = linkPeWin32(code, data, handlerOffsets, OUTPUT_DATA_NEED);
   fs.mkdirSync(path.dirname(path.resolve(outFile)), { recursive: true });
   fs.writeFileSync(outFile, pe);
-  console.log(`M0: ${inFile} → ${outFile} (${pe.length} bytes, code=${emitCode.length}, dataFloor=0x${OUTPUT_DATA_NEED.toString(16)})`);
+  console.log(`M0: ${inFile} → ${outFile} (${pe.length} bytes, code=${code.length}, dataFloor=0x${OUTPUT_DATA_NEED.toString(16)})`);
 }
 
 main();
