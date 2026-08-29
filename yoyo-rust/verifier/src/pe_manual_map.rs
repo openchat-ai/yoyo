@@ -417,7 +417,7 @@ where
     }
     let load_base = base as u64;
     unsafe {
-        std::ptr::copy_nonoverlap(staging.as_ptr(), base as *mut u8, size);
+        std::ptr::copy_nonoverlapping(staging.as_ptr(), base as *mut u8, size);
     }
     let image = unsafe { std::slice::from_raw_parts_mut(base as *mut u8, size) };
     if let Err(e) = apply_base_relocations(image, &headers, load_base)
