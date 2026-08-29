@@ -84,11 +84,13 @@ pub fn gen_h00_read_sidecar_prelude(
 
     let lea_path = c.len();
     c.extend_from_slice(&[0x48, 0x8D, 0x0D, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0xBA, 0x00, 0x00, 0x00, 0x80]);
-    c.extend_from_slice(&[0x45, 0x31, 0xC0]);
-    c.extend_from_slice(&[0x41, 0xB9, 0x03, 0x00, 0x00, 0x00]);
-    c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x20, 0x00, 0x00, 0x00, 0x00]);
-    c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x28, 0x00, 0x00, 0x00, 0x00]);
+    // CreateFileA(path, GENERIC_READ, share=0, sa=NULL, OPEN_EXISTING, NORMAL, hTemplate=NULL)
+    c.extend_from_slice(&[0xBA, 0x00, 0x00, 0x00, 0x80]); // GENERIC_READ
+    c.extend_from_slice(&[0x45, 0x31, 0xC0]); // xor r8d,r8d
+    c.extend_from_slice(&[0x45, 0x31, 0xC9]); // xor r9d,r9d
+    c.extend_from_slice(&[0xC7, 0x44, 0x24, 0x20, 0x03, 0x00, 0x00, 0x00]); // OPEN_EXISTING
+    c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x28, 0x80, 0x00, 0x00, 0x00]); // FILE_ATTRIBUTE_NORMAL
+    c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x30, 0x00, 0x00, 0x00, 0x00]); // hTemplateFile
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_CREATE_FILE);
     c.extend_from_slice(&[0x48, 0x83, 0xF8, 0xFF]);
     let jz_no_file = c.len();
@@ -679,8 +681,8 @@ mod tests {
         let body = gen_h00_read_sidecar_prelude(&meta, 0x1000, 17_823, fail);
         assert!(body.len() > 80, "prelude should be substantial");
         assert!(
-            body.len() < 220,
-            "file-read prelude should stay <220B (got {}B)",
+            body.len() < 230,
+            "file-read prelude should stay <230B (got {}B)",
             body.len()
         );
     }

@@ -114,7 +114,19 @@ if (-not $SkipSmoke) {
         Pop-Location
     }
     if ($smokeExit -ne 0 -or -not (Test-Path $outExe)) {
-        throw ("manual-map smoke WITH sidecar failed exit={0}" -f $smokeExit)
+        $phase = switch ($smokeExit) {
+            2 { "CreateFile" }
+            3 { "Read/empty" }
+            4 { "VirtualAlloc" }
+            5 { "section_copy" }
+            6 { "reloc" }
+            7 { "import" }
+            8 { "export" }
+            9 { "DllMain" }
+            1 { "generic_fail_or_runtime" }
+            default { "unknown" }
+        }
+        throw ("manual-map smoke WITH sidecar failed exit={0} phase={1}" -f $smokeExit, $phase)
     }
     $outLen = (Get-Item $outExe).Length
     Write-Host ("smoke WITH sidecar: gen1 -> output.exe OK ({0} bytes)" -f $outLen)

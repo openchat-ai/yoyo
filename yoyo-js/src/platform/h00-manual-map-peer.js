@@ -23,13 +23,13 @@ function patchRel32(buf, dispOff, from, to) {
 
 const H00_LEA_SITE = 15;
 const H00_IAT_SITES = [
-  [54, 1], // CreateFileA
-  [92, 0], // VirtualAlloc (file buffer)
-  [136, 2], // ReadFile
-  [145, 4], // CloseHandle
-  [195, 0], // VirtualAlloc (image)
-  [1034, 5], // ExitProcess (success)
-  [1045, 5], // ExitProcess (fail)
+  [59, 1], // CreateFileA
+  [97, 0], // VirtualAlloc (file buffer)
+  [141, 2], // ReadFile
+  [150, 4], // CloseHandle
+  [200, 0], // VirtualAlloc (image)
+  [1039, 5], // ExitProcess (success)
+  [1050, 5], // ExitProcess (fail)
 ];
 
 function rebaseManualMapStub(buf, textRva, codeBaseOff, meta) {
