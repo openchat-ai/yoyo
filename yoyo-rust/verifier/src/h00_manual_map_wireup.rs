@@ -382,28 +382,27 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     // compare rdx (ascii) with r8 (unicode) case-insensitive
     c.extend_from_slice(&[0x49, 0x89, 0xD1]); // mov r9, rdx (save ascii)
-    c.extend_from_slice(&[0x4D, 0x89, 0xC0]); // mov r8, r8 — wchar buf in r8 already
     let cmp_dll = c.len();
     c.extend_from_slice(&[0x41, 0x0F, 0xB7, 0x00]); // movzx eax,word [r8]
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_ascii_chk = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x45, 0x0F, 0xB6, 0x19]); // movzx r11d,byte [r9] (preserve ebx=OFT)
-    c.extend_from_slice(&[0x45, 0x85, 0xDB]);
+    c.extend_from_slice(&[0x45, 0x0F, 0xB6, 0x11]); // movzx r10d,byte [r9] (keep r11=IAT cursor)
+    c.extend_from_slice(&[0x45, 0x85, 0xD2]);
     let jz_dll_mismatch = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    // tolower eax and r11b, compare
+    // tolower eax and r10b, compare
     c.extend_from_slice(&[0x3C, 0x41]); // cmp al,'A'
     c.extend_from_slice(&[0x72, 0x04]);
     c.extend_from_slice(&[0x3C, 0x5A]);
     c.extend_from_slice(&[0x77, 0x04]);
     c.extend_from_slice(&[0x0C, 0x20]); // or al,0x20
-    c.extend_from_slice(&[0x41, 0x80, 0xFB, 0x41]);
+    c.extend_from_slice(&[0x41, 0x80, 0xFA, 0x41]);
     c.extend_from_slice(&[0x72, 0x04]);
-    c.extend_from_slice(&[0x41, 0x80, 0xFB, 0x5A]);
+    c.extend_from_slice(&[0x41, 0x80, 0xFA, 0x5A]);
     c.extend_from_slice(&[0x77, 0x04]);
-    c.extend_from_slice(&[0x41, 0x80, 0xCB, 0x20]); // or r11b,0x20
-    c.extend_from_slice(&[0x44, 0x38, 0xD8]); // cmp al,r11b
+    c.extend_from_slice(&[0x41, 0x80, 0xCA, 0x20]); // or r10b,0x20
+    c.extend_from_slice(&[0x41, 0x38, 0xC1]); // cmp al,r10b
     let jne_dll = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x49, 0xFF, 0xC0]);
