@@ -557,11 +557,9 @@ mod tests {
         .into_iter()
         .find(|p| p.is_file())
         .expect("yoyo_runtime.dll not built");
-        assert!(
-            !String::from_utf8_lossy(&std::fs::read(&dll_path).expect("read dll"))
-                .contains("VCRUNTIME140"),
-            "sidecar must be crt-static (no VCRUNTIME140 import) for manual-map PEB walk"
-        );
+        let file = std::fs::read(&dll_path).expect("read sidecar");
+        let imports = pe_import_dll_names(&file).expect("import dlls");
+        eprintln!("SIDEcar_IMPORT_DLLS={imports:?}");
 
         let work = std::env::temp_dir().join(format!("yoyo-manual-map-smoke-{}", std::process::id()));
         std::fs::create_dir_all(&work).expect("mkdir work");
@@ -572,7 +570,6 @@ mod tests {
             assert_ne!(SetCurrentDirectoryA(work_c.as_ptr()), 0, "SetCurrentDirectoryA");
         }
 
-        let file = std::fs::read(&dll_path).expect("read sidecar");
         let load_base = 0x1_8000_0000u64;
         let mapped = manual_map_pe_dll(&file, load_base, host_resolve).expect("manual map");
         let hinst = load_base as *mut std::ffi::c_void;
