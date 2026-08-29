@@ -26,7 +26,7 @@ Set-Location $Root
 
 # Fail-closed ceilings (keep in sync with verifier selfhost::STAGE13_MAX_SEED_*).
 $MaxSeedPeBytes = 270000
-$MaxSeedElfBytes = 550000
+$MaxSeedElfBytes = 300000
 $ObservedSeedPeBytes = 248832
 $ObservedSeedElfBytes = 253952
 

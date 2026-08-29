@@ -187,8 +187,8 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 |------|--------|
 | **Contract** | Canonical seed = H_00 `link_pe_win32` / `link_elf_linux` via `selfhost::seed_host_compile*`；`yoyo bootstrap` **without** `--selfhost` is an alias of that path（not genNrt） |
 | **Observe** | Machine line `SEED_HOST cmd=… path=h00|gennrt …`（`verifier/src/seed_host.rs`）；Win seed must expose `yoyo_rt.dll`+LoadLibraryA and **must not** expose GetTempPathA |
-| **Fail-closed** | PE ≤ **270000** / ELF ≤ **550000**（Rust H_00 link + `scripts/stage13-link-host.ps1`）；`bootstrap --selfhost` **must DIFF** seed |
-| **Gate** | `scripts/stage13-link-host.ps1` exit 0（observed PE **248832** / ELF **512000**；gen12 SHA unchanged `d782166d…`） |
+| **Fail-closed** | PE ≤ **270000** / ELF ≤ **300000**（Rust H_00 link + `scripts/stage13-link-host.ps1`；post-v1.0 Linux sidecar）；`bootstrap --selfhost` **must DIFF** seed |
+| **Gate** | `scripts/stage13-link-host.ps1` exit 0（observed PE **248832** / ELF **253952**；gen12 SHA `84a8c1c9…`） |
 | **Trust gain** | 「绿」cannot silently slide onto genNrt/GetTempPath seed；dual CLI (`link`/`bootstrap`) pinned to one H_00 host surface |
 | **Still host-trusted** | Rust-built `yoyo.exe` still **emits** the seed；embedded Rust runtime + LoadLibrary/libdl remain（Stages 10–11） |
 
@@ -343,7 +343,7 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Hole** | **OW-RT** (Linux parity with Win sidecar) |
 | **Change** | Linux H_00 drops exact embed of `libyoyo_runtime.so`; cwd sidecar + trampoline `dlopen("./libyoyo_runtime.so")`; trampoline blob still embedded |
 | **Still CUT** | Rust `.so` + glibc/libdl trampoline remain; **no-.so-embed alone ≠ CLOSED** |
-| **Obs** | seed ELF expected **≪300000** (was ~512000 with embed); tramp still exact-embed |
+| **Obs** | seed ELF **253952**（was ~512000 with embed；MAX **300000**）; tramp still exact-embed |
 | **Gates** | stage10-linux-pure-m4 (pre-place sidecar); stage11/13 fail-closed forbid exact `.so` embed |
 
 ### Stage 16-A — SCOPE-CUT FINAL (hole inventory)
