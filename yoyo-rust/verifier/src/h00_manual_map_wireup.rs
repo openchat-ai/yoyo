@@ -102,7 +102,7 @@ pub fn gen_h00_read_sidecar_prelude(
     c.extend_from_slice(&[0x48, 0x89, 0xC3]);
 
     c.extend_from_slice(&[0x31, 0xC9]);
-    c.extend_from_slice(&[0xBA, 0x00, 0x00, 0x08, 0x00]);
+    c.extend_from_slice(&[0xBA, 0x00, 0x00, 0x80, 0x00]); // max read 8 MiB (crt-static sidecar)
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xB9, 0x04, 0x00, 0x00, 0x00]);
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_VIRTUAL_ALLOC);
@@ -113,7 +113,7 @@ pub fn gen_h00_read_sidecar_prelude(
 
     c.extend_from_slice(&[0x48, 0x89, 0xD9]);
     c.extend_from_slice(&[0x4C, 0x89, 0xE2]);
-    c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x00, 0x08, 0x00]);
+    c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x00, 0x80, 0x00]); // ReadFile size cap
     c.extend_from_slice(&[0x4C, 0x8D, 0x4C, 0x24, READ_BYTES_STACK_OFF]);
     c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x20, 0x00, 0x00, 0x00, 0x00]);
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_READ_FILE);
@@ -175,7 +175,9 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xB9, 0x40, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]); // Win64 shadow for IAT VirtualAlloc
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, iat_rva, IAT_VIRTUAL_ALLOC);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x28]);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     fail_jumps.push((c.len(), fail_virtual_alloc));
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
@@ -685,12 +687,11 @@ fn emit_phase_fail_epilogues(
     code_base_off: u32,
     iat_rva: u32,
 ) -> [usize; 8] {
-    let chunk_text_off = code_base_off + c.len() as u32;
     let mut labels = [0usize; 8];
     for (i, &code) in FAIL_EXIT_CODES.iter().enumerate() {
         labels[i] = code_base_off as usize + c.len();
         c.extend_from_slice(&[0xB9, code, 0, 0, 0]);
-        emit_call_iat_merged(c, text_rva, chunk_text_off, iat_rva, IAT_EXIT_PROCESS);
+        emit_call_iat_merged(c, text_rva, code_base_off, iat_rva, IAT_EXIT_PROCESS);
     }
     labels
 }
