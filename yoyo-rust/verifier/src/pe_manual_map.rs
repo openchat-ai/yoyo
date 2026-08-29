@@ -925,6 +925,16 @@ mod tests {
         std::fs::create_dir_all(&work).expect("mkdir work");
         let tyb = root.join("yoyo/projects/yoyo.tyb");
         std::fs::copy(&tyb, work.join("input.tyb")).expect("copy input.tyb");
+
+        let prev_cwd = std::env::current_dir().expect("cwd");
+        struct RestoreCwd(std::path::PathBuf);
+        impl Drop for RestoreCwd {
+            fn drop(&mut self) {
+                let _ = std::env::set_current_dir(&self.0);
+            }
+        }
+        let _cwd_guard = RestoreCwd(prev_cwd);
+
         let work_c = CString::new(work.to_string_lossy().as_bytes()).expect("work path");
         unsafe {
             assert_ne!(SetCurrentDirectoryA(work_c.as_ptr()), 0, "SetCurrentDirectoryA");
@@ -936,6 +946,13 @@ mod tests {
 
         // Match H_00 stub: skip DllMain (CRT entry AV on manual-mapped image).
         std::env::set_var("YOYO_MM_SMOKE_PROBE", "1");
+        struct ClearProbe;
+        impl Drop for ClearProbe {
+            fn drop(&mut self) {
+                std::env::remove_var("YOYO_MM_SMOKE_PROBE");
+            }
+        }
+        let _probe_guard = ClearProbe;
 
         let export_rva =
             export_function_rva_functions0(image, &mapped.headers).expect("export rva");
