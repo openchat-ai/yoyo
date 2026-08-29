@@ -435,7 +435,8 @@ fn gen_h00_manual_map_body(
 
     let resolve_export = c.len();
     patch_rel32(&mut c, call_resolve + 1, call_resolve + 5, resolve_export);
-    // rdi=module, rdx=name → rax=func
+    // rdi=module, rdx=name → rax=func (preserve thunk rsi; rbx/rcx/rdx = PE tables)
+    c.extend_from_slice(&[0x49, 0x89, 0xD1]); // mov r9, rdx — save import name before table walk
     c.extend_from_slice(&[0x8B, 0x47, 0x3C]);
     c.extend_from_slice(&[0x8B, 0x84, 0x38, 0x88, 0x00, 0x00, 0x00]);
     c.extend_from_slice(&[0x85, 0xC0]);
@@ -446,21 +447,20 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x45, 0x85, 0xC0]);
     let jz_no_exp2 = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x8B, 0x48, 0x20]);
-    c.extend_from_slice(&[0x48, 0x01, 0xF9]);
-    c.extend_from_slice(&[0x44, 0x8B, 0x50, 0x24]);
-    c.extend_from_slice(&[0x4C, 0x01, 0xFA]);
-    c.extend_from_slice(&[0x8B, 0x48, 0x1C]);
-    c.extend_from_slice(&[0x48, 0x01, 0xF9]);
-    c.extend_from_slice(&[0x31, 0xF6]);
+    c.extend_from_slice(&[0x8B, 0x58, 0x20]); // mov ebx,[rax+20] AddressOfNames
+    c.extend_from_slice(&[0x48, 0x01, 0xFB]); // add rbx, rdi
+    c.extend_from_slice(&[0x8B, 0x48, 0x24]); // mov ecx,[rax+24] AddressOfNameOrdinals
+    c.extend_from_slice(&[0x48, 0x01, 0xF9]); // add rcx, rdi
+    c.extend_from_slice(&[0x8B, 0x50, 0x1C]); // mov edx,[rax+1c] AddressOfFunctions
+    c.extend_from_slice(&[0x48, 0x01, 0xFA]); // add rdx, rdi
+    c.extend_from_slice(&[0x45, 0x31, 0xD2]); // xor r10d,r10d — export index (keep rsi=thunk ptr)
     let exp_loop = c.len();
-    c.extend_from_slice(&[0x44, 0x39, 0xC6]);
+    c.extend_from_slice(&[0x45, 0x39, 0xC2]); // cmp r10d,r8d
     let jae_no_exp = c.len();
     c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x8B, 0x04, 0xB1]);
+    c.extend_from_slice(&[0x41, 0x8B, 0x04, 0x93]); // mov eax,[rbx+r10*4]
     c.extend_from_slice(&[0x48, 0x01, 0xF8]);
-    // strcmp rdx with [rax] case-insensitive
-    c.extend_from_slice(&[0x49, 0x89, 0xD1]); // save import name rdx→r9
+    // strcmp r9 with [rax]
     let cmp_name = c.len();
     c.extend_from_slice(&[0x0F, 0xB6, 0x08]);
     c.extend_from_slice(&[0x41, 0x0F, 0xB6, 0x19]);
@@ -477,13 +477,13 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jmp_cmp + 1, jmp_cmp + 5, cmp_name);
     let name_found = c.len();
     patch_rel32(&mut c, jz_name_found + 2, jz_name_found + 6, name_found);
-    c.extend_from_slice(&[0x41, 0x0F, 0xB7, 0x04, 0x72]);
-    c.extend_from_slice(&[0x8B, 0x04, 0x81]);
+    c.extend_from_slice(&[0x41, 0x0F, 0xB7, 0x04, 0x51]); // movzx eax,word [rcx+r10*2]
+    c.extend_from_slice(&[0x8B, 0x04, 0x82]); // mov eax,[rdx+rax*4]
     c.extend_from_slice(&[0x48, 0x01, 0xF8]);
     c.extend_from_slice(&[0xC3]);
     let next_name = c.len();
     patch_rel32(&mut c, jne_name + 2, jne_name + 6, next_name);
-    c.extend_from_slice(&[0xFF, 0xC6]);
+    c.extend_from_slice(&[0x41, 0xFF, 0xC2]); // inc r10d
     let jmp_exp = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     patch_rel32(&mut c, jmp_exp + 1, jmp_exp + 5, exp_loop);
@@ -545,7 +545,7 @@ fn gen_h00_export_call_tail(
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x8D, 0x3C, 0x03]);
     c.extend_from_slice(&[0x8B, 0x47, 0x1C]);
-    c.extend_from_slice(&[0x48, 0x01, 0xF8]);
+    c.extend_from_slice(&[0x48, 0x01, 0xD8]); // add rax, rbx — functions RVA is image-relative
     c.extend_from_slice(&[0x8B, 0x00]);
     c.extend_from_slice(&[0x48, 0x01, 0xD8]);
     c.extend_from_slice(&[0xFF, 0xD0]);
