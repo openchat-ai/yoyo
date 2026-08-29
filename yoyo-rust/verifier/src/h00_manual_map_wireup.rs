@@ -291,15 +291,19 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x89, 0xC3]); // mov ebx, eax
     c.extend_from_slice(&[0x8B, 0x4E, 0x0C]); // Name RVA
     c.extend_from_slice(&[0x8B, 0x56, 0x10]); // FirstThunk
+    // Null descriptor: Name, FirstThunk, and OFT all zero (OFT alone may be 0).
     c.extend_from_slice(&[0x85, 0xC9]);
+    let jnz_process = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x85, 0xD2]);
+    let jnz_process2 = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x85, 0xC0]);
     let jz_idone = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x85, 0xC0]);
-    let jz_idone2 = c.len();
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x85, 0xD2]);
-    let jz_idone3 = c.len();
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    let process_desc = c.len();
+    patch_rel32(&mut c, jnz_process + 2, jnz_process + 6, process_desc);
+    patch_rel32(&mut c, jnz_process2 + 2, jnz_process2 + 6, process_desc);
     // edx=FirstThunk rva — save IAT cursor before rdx becomes module-name ptr
     c.extend_from_slice(&[0x4D, 0x8D, 0x1C, 0x16]); // lea r11,[r14+rdx] IAT write cursor
     c.extend_from_slice(&[0x49, 0x8D, 0x14, 0x0E]); // lea rdx,[r14+rcx] module name
@@ -358,8 +362,6 @@ fn gen_h00_manual_map_body(
     let import_done = c.len();
     patch_rel32(&mut c, jz_import_done + 2, jz_import_done + 6, import_done);
     patch_rel32(&mut c, jz_idone + 2, jz_idone + 6, import_done);
-    patch_rel32(&mut c, jz_idone2 + 2, jz_idone2 + 6, import_done);
-    patch_rel32(&mut c, jz_idone3 + 2, jz_idone3 + 6, import_done);
 
     // Rust cdylib sidecar needs DllMain(PROCESS_ATTACH) after imports (manual-map ≠ LoadLibrary).
     c.extend_from_slice(&[0x41, 0x8B, 0x46, 0x3C]); // mov eax,[r14+3c] e_lfanew
