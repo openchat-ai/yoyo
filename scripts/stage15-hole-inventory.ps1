@@ -18,7 +18,7 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
-# Post-v1.0 OW-RT sidecar + OW-IAT ordinal-0 direct export resolve: stub ~82B; DLL ≤150000; no exact embed.
+# Post-v1.0 OW-RT sidecar + OW-IAT functions[0] export resolve: stub ~69B; DLL ≤150000; no exact embed.
 $MinStubTailNonzero = 40
 $MaxStubTailNonzero = 512
 $MaxDllBytes = 150000

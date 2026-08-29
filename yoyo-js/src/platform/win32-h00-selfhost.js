@@ -11,7 +11,7 @@ const IAT_LOADLIBRARY = 5;
 const IAT_EXIT_PROCESS = 6;
 const PE_STARTUP_LEN = 13;
 const H00_SLOT_LEN = 18;
-const H00_MAIN_STUB_LEN = 84; // pinned to Rust PE ordinal-0 direct export resolve stub
+const H00_MAIN_STUB_LEN = 71; // pinned to Rust PE AddressOfFunctions[0] export resolve stub
 const SECTION_ALIGN = 0x1000;
 
 function alignUp(v, a) {
@@ -80,17 +80,14 @@ function genH00SelfhostMain(meta, textRva, mainUserOff) {
   c = Buffer.concat([c, Buffer.from([0x48, 0x8d, 0x0d, 0, 0, 0, 0])]);
   c = emitCallIatMerged(c, textRva, codeBaseOff, meta.iatRva, IAT_LOADLIBRARY);
   c = Buffer.concat([c, Buffer.from([0x48, 0x85, 0xc0])]);
-  const jzFailFromLl = c.length;
-  c = Buffer.concat([c, Buffer.from([0x0f, 0x84, 0, 0, 0, 0])]);
+  const jzFail = c.length;
+  c = Buffer.concat([c, Buffer.from([0x74, 0x00])]);
   c = Buffer.concat([c, Buffer.from([0x48, 0x89, 0xc3])]);
 
-  c = Buffer.concat([c, Buffer.from([0x8b, 0x73, 0x3c])]);
-  c = Buffer.concat([c, Buffer.from([0x8b, 0x84, 0x33, 0x88, 0x00, 0x00, 0x00])]);
-  c = Buffer.concat([c, Buffer.from([0x85, 0xc0])]);
-  const jzExp = c.length;
-  c = Buffer.concat([c, Buffer.from([0x0f, 0x84, 0, 0, 0, 0])]);
-  c = Buffer.concat([c, Buffer.from([0x48, 0x8d, 0x3c, 0x03])]);
-  c = Buffer.concat([c, Buffer.from([0x8b, 0x47, 0x1c])]);
+  c = Buffer.concat([c, Buffer.from([0x8b, 0x43, 0x3c])]);
+  c = Buffer.concat([c, Buffer.from([0x8b, 0x84, 0x03, 0x88, 0x00, 0x00, 0x00])]);
+  c = Buffer.concat([c, Buffer.from([0x48, 0x01, 0xd8])]);
+  c = Buffer.concat([c, Buffer.from([0x8b, 0x40, 0x1c])]);
   c = Buffer.concat([c, Buffer.from([0x48, 0x01, 0xd8])]);
   c = Buffer.concat([c, Buffer.from([0x8b, 0x00])]);
   c = Buffer.concat([c, Buffer.from([0x48, 0x01, 0xd8])]);
@@ -99,9 +96,7 @@ function genH00SelfhostMain(meta, textRva, mainUserOff) {
   c = emitCallIatMerged(c, textRva, codeBaseOff, meta.iatRva, IAT_EXIT_PROCESS);
 
   const fail = c.length;
-  for (const at of [jzFailFromLl, jzExp]) {
-    patchRel32(c, at + 2, at + 6, fail);
-  }
+  c[jzFail + 1] = fail - (jzFail + 2);
   c = Buffer.concat([c, Buffer.from([0xb9, 0x01, 0x00, 0x00, 0x00])]);
   c = emitCallIatMerged(c, textRva, codeBaseOff, meta.iatRva, IAT_EXIT_PROCESS);
 

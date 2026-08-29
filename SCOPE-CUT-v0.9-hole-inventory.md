@@ -7,9 +7,9 @@
 **Upstream:** `SCOPE-CUT-v0.8-outside-window.md`（Stage 14-A 窗外草案）仍有效；本文件把 OW-\* / RELEASE-v0.8 剩余面 **逐项 disposition**。
 
 **Post-v1.0 OW-RT：** Win H_00 **无 exact embed**；cwd sidecar `yoyo_rt.dll`；DLL **141312**。仍 **CUT**（Rust runtime）。
-**Post-v1.0 OW-IAT：** Win GetProcAddress **ABSENT**；ordinal-0 PE export resolve；Linux tramp dlsym **ABSENT**（ELF dyn walk）。仍 **CUT**（LoadLibraryA / dlopen）。
-**Post-v1.0 OW-STUB：** ordinal-0 export resolve；stub_nz **96**（was 235）。仍 **CUT**（Rust-only stub）。
-**Post-v1.0 OW-H00 peer align（2026-08-29 · CLOSED · 4f3064d）：** JS `linkPeWin32` + asm delegate mirror Rust `link_pe_h00_runtime`（H_00 **JMP+NOP** + 97B stub）。three-peer full `.text` **EQUAL** **17920** B · sha **`90ad6d6e`** · `three_peer_full=EQUAL`。**OW-H00 CLOSED**（fail-closed）。**OW-STUB** 仍 CUT（stub_nz=96）。
+**Post-v1.0 OW-IAT：** Win GetProcAddress **ABSENT**；AddressOfFunctions[0] PE export resolve；Linux tramp dlsym **ABSENT**（ELF dyn walk）。仍 **CUT**（LoadLibraryA / dlopen）。
+**Post-v1.0 OW-STUB：** AddressOfFunctions[0] export resolve；stub_nz **69**（was 235→96→82）。仍 **CUT**（Rust-only stub）。
+**Post-v1.0 OW-H00 peer align（2026-08-29 · CLOSED）：** JS `linkPeWin32` + asm delegate mirror Rust `link_pe_h00_runtime`（H_00 **JMP+NOP** + 71B stub）。three-peer full `.text` **EQUAL** **17920** B · sha **`808b9ec8`** · `three_peer_full=EQUAL`。**OW-H00 CLOSED**（fail-closed）。**OW-STUB** 仍 CUT（stub_nz=69）。
 
 ---
 
@@ -27,7 +27,7 @@ v0.8 把窗外钉成 SCOPE-CUT ACTIVE（lump）。v0.9-A 要求洞从「清单�
 | ID | 区域 | Disposition | 关闭证据（CLOSED 才需要） | CUT 钉（机器） |
 |----|------|-------------|---------------------------|----------------|
 | **OW-H00** | H_00 entry slot（18 B）+ emit tail stub | **CLOSED** | `three_peer_full_text=EQUAL` · full `.text` JS=asm=Rust **17920** B · body window EQUAL | — |
-| **OW-STUB** | H_00 LoadLibrary stub tail | **CUT** | `stub_tail_nonzero==0`（所有 peer） | `stub_tail_nonzero` ∈ **[40, 512]**；观测 **96** |
+| **OW-STUB** | H_00 LoadLibrary stub tail | **CUT** | `stub_tail_nonzero==0`（所有 peer） | `stub_tail_nonzero` ∈ **[40, 512]**；观测 **69** |
 | **OW-RT** | Sidecar Rust `yoyo_runtime.dll` | **CUT** | 无 exact embed **且** 无 Rust sidecar LoadLibrary 面 | size **≤150000**；观测 **141312**；**no exact embed** |
 | **OW-IAT** | LoadLibraryA / libdl host | **CUT** | PE 无 `LoadLibraryA`（YOYO-built loader） | Win：`LoadLibraryA` + `yoyo_rt.dll`；**无** GetProcAddress；Linux tramp：**无** dlsym |
 | **OW-SEED** | Seed 仍由 Rust `yoyo.exe` 发射 | **CUT** | seed 非 Rust host 发射 | Rust `yoyo link`；seed PE **≤270000**（观测 **248320**）；emitter+seed sha256_prefix + path=h00 |
@@ -85,14 +85,14 @@ Gate 必须同时：
 
 ---
 
-## 观测基线（2026-08-29 · master **4f3064d**）
+## 观测基线（2026-08-29 · post PR #6 · stub_nz=69）
 
 | Monitor | Value |
 |---------|-------|
 | selfhost-body compared | **17805** B EQUAL |
-| full `.text` JS↔Rust↔asm | **EQUAL** · sha **`90ad6d6e`** |
+| full `.text` JS↔Rust↔asm | **EQUAL** · sha **`808b9ec8`** |
 | three_peer_full | **EQUAL** |
-| stub_tail_nonzero (all peers) | **96**（pin [40, 512]） |
+| stub_tail_nonzero (all peers) | **69**（pin [40, 512]） |
 | runtime.dll | **141312**（**no exact embed**；sidecar） |
 | seed PE (Rust link) | **248320**（≤270000） |
 | Lock pin | `0275802d…` Decision #25 |

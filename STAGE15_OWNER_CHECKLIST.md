@@ -151,4 +151,4 @@ Stage 15 毕业项 D：v0.9 毕业收口。
 
 *创建：2026-08-29 · v0.9.0 毕业 · Stage 15 A/B/C/D 全绿 · 见 `RELEASE-v0.9.md` · 下一主线 → `SCOPE-v1.0.md` / `STAGE16_OWNER_CHECKLIST.md`*
 
-**Post-v1.0（2026-08-29 · 4f3064d）：** OW-H00 **CLOSED** — `three_peer_full=EQUAL` · full `.text` sha **`90ad6d6e`**；gate 新增 asm peer + `three_peer_full` 汇总；PR #1/#3 closed/merged。
+**Post-v1.0（2026-08-29 · PR #6）：** OW-H00 **CLOSED** — `three_peer_full=EQUAL` · full `.text` sha **`808b9ec8`**。OW-STUB shrink-2：**96→69** B span（AddressOfFunctions[0] + `.def` export pin）；**仍 CUT**。Next：**OW-IAT/OW-RT**（LoadLibrary removal）。
