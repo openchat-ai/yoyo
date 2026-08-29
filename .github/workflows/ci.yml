@@ -58,6 +58,10 @@ jobs:
         working-directory: yoyo-rust/verifier
         run: cargo run -- info
 
+      - name: Stage 17 OW-IAT wire-up (manual-map H_00 + cwd sidecar smoke)
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/stage17-ow-iat-wireup.ps1
+
   linux-m4:
     # Post-v1.0 OW-RT Linux sidecar + OW-IAT no-dlsym tramp — prevent Windows-only CI regressions.
     runs-on: ubuntu-latest

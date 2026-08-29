@@ -7,7 +7,7 @@
 **Upstream:** `SCOPE-CUT-v0.8-outside-window.md`（Stage 14-A 窗外草案）仍有效；本文件把 OW-\* / RELEASE-v0.8 剩余面 **逐项 disposition**。
 
 **Post-v1.0 OW-RT：** Win H_00 **无 exact embed**；cwd sidecar `yoyo_rt.dll`；DLL **141312**。仍 **CUT**（Rust runtime）。
-**Post-v1.0 OW-IAT：** Win GetProcAddress **ABSENT**；AddressOfFunctions[0] PE export resolve；Linux tramp dlsym **ABSENT**（ELF dyn walk）。仍 **CUT**（LoadLibraryA / dlopen）。
+**Post-v1.0 OW-IAT：** Win manual-map wired（CreateFile/Read/VirtualAlloc + `pe_manual_map`）；**无** PEB/ASCII LoadLibraryA；cwd `yoyo_rt.dll` sidecar。Linux tramp **dlopen@PLT**（dynamic `-lc` only；**no libdl NEEDED**）；no dlsym。仍 **CUT**（host I/O + sidecar）。
 **Post-v1.0 OW-STUB：** manual-map H_00 stub；stub_nz **905**（was 251→69）。仍 **CUT**（窗外 stub）。
 **Post-v1.0 OW-IAT wire-up（PR #8）：** PEB `LoadLibraryA` **DROPPED**；CreateFile/Read/VirtualAlloc + `pe_manual_map` wired。**仍 CUT**（sidecar + kernel32 I/O）。
 **Post-v1.0 OW-H00 CLOSED（PR #8 + JS IAT sync）：** JS dropped stale `LoadLibraryA` from `KERNEL32_IO_FUNCS`（7→6，对齐 Rust）；`tempNameRva` + lea disp32 对齐。**three_peer_full=EQUAL** · full `.text` **`72c27c9f`** · **18944** B。**OW-H00 CLOSED**（fail-closed）。
@@ -30,7 +30,7 @@ v0.8 把窗外钉成 SCOPE-CUT ACTIVE（lump）。v0.9-A 要求洞从「清单�
 | **OW-H00** | H_00 entry slot（18 B）+ manual-map stub tail | **CLOSED** | `three_peer_full_text=EQUAL` · full `.text` JS=asm=Rust **18944** B · sha **`72c27c9f`** | — |
 | **OW-STUB** | H_00 manual-map stub tail | **CUT** | `stub_tail_nonzero==0`（所有 peer） | `stub_tail_nonzero` ∈ **[40, 950]**；观测 **905** |
 | **OW-RT** | Sidecar Rust `yoyo_runtime.dll` | **CUT** | 无 exact embed **且** 无 Rust sidecar LoadLibrary 面 | size **≤150000**；观测 **141312**；**no exact embed** |
-| **OW-IAT** | CreateFile/Read/VirtualAlloc + sidecar | **CUT** | 无宿主 DLL 加载面（无 `yoyo_rt.dll`） | **无** PEB LoadLibraryA；manual-map wired；`yoyo_rt.dll` sidecar + kernel32 I/O |
+| **OW-IAT** | CreateFile/Read/VirtualAlloc + sidecar | **CUT** | 无宿主 DLL 加载面（无 `yoyo_rt.dll`） | Win：**无** LoadLibraryA；manual-map wired；`yoyo_rt.dll` cwd sidecar + kernel32 I/O。Linux：**dlopen@PLT**（no libdl NEEDED）；no dlsym |
 | **OW-SEED** | Seed 仍由 Rust `yoyo.exe` 发射 | **CUT** | seed 非 Rust host 发射 | Rust `yoyo link`；seed PE **≤270000**（观测 **248320**）；emitter+seed sha256_prefix + path=h00 |
 | **REL-FULLTEXT** | full `.text` peer compare | **CUT** | （禁止用 EQUAL 当毕业话术） | `full_text=EQUAL_observed` → PARTIAL（OW-STUB/RT/IAT/SEED 仍 CUT） |
 | **REL-STUBOS** | Plan9/FreeBSD/Haiku/Serenity I/O | **CUT** | 生产 I/O 落地（非本 Stage） | `stage13-cross-platform-parity.ps1` stub 钉仍在源门禁中 |
@@ -46,7 +46,7 @@ Gate **只**在下列证据同时成立时打印 `disposition=CLOSED`：
 1. **OW-H00** — `three_peer_full_text=EQUAL` **且** body window EQUAL  
 2. **OW-STUB** — parsed `stub_tail_nonzero == 0`  
 3. **OW-RT** — no exact embed **且** no Rust sidecar LoadLibrary surface（**仅无 embed ≠ CLOSED**）  
-4. **OW-IAT** — ASCII `LoadLibraryA` **absent** from Rust seed PE  
+4. **OW-IAT** — 无宿主 DLL 加载面（无 `yoyo_rt.dll` sidecar 标记）— **仅**无 IAT/ASCII `LoadLibraryA` **或** manual-map wired **不得** CLOSED  
 5. **OW-SEED** — （v0.9-A **不自动 CLOSED**；需另立非 Rust 发射路径证据）  
 6. **REL-FULLTEXT** — **永不**标 CLOSED 作为毕业（EQUAL 时仅 PARTIAL / 观测）  
 7. **REL-STUBOS** — **永不**标 CLOSED 除非 stage13 stub 门改为 production I/O（超出 v0.9-A）
@@ -99,7 +99,7 @@ Gate 必须同时：
 | runtime.dll | **141312**（no exact embed；sidecar） |
 | seed PE (Rust link) | **249344**（≤270000） |
 | Disposition | **OW-H00 CLOSED** · **6× CUT**（closed=1 cut=6） |
-| Gates | body-ddc · gen12 · stage17-wireup · stage10-linux GREEN |
+| Gates | body-ddc · gen12 · stage17-ow-iat-wireup (smoke) · stage10-linux GREEN |
 
 ---
 

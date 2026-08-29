@@ -43,7 +43,7 @@ v0.9 把洞从 lump 变成逐项 `CLOSED|CUT`。v1.0-A 要求洞从「v0.9 枚�
 | **OW-H00** | H_00 entry slot（18 B）+ manual-map stub | **CLOSED** | `three_peer_full=EQUAL` · full `.text` JS=asm=Rust **18944** B | — |
 | **OW-STUB** | H_00 manual-map stub tail | **CUT** | `stub_tail_nonzero==0`（所有 peer） | `stub_tail_nonzero` ∈ **[40, 950]**；观测 **905** |
 | **OW-RT** | Sidecar Rust runtime (Win DLL / Linux `.so`) | **CUT** | 无 exact embed **且** 无 Rust LoadLibrary/libdl sidecar 宿主信任 | Win DLL **≤150000** 观测 **141312**；Linux seed ELF **253952**（MAX **300000**）；sidecar `yoyo_rt.dll` / `./libyoyo_runtime.so`；**no exact .so embed**（tramp still embedded） |
-| **OW-IAT** | Host file I/O + sidecar | **CUT** | 无宿主 DLL 加载面（无 `yoyo_rt.dll`） | Win：**无** PEB LoadLibraryA；CreateFile/Read/VirtualAlloc + manual-map；`yoyo_rt.dll` 仍在。Linux tramp：**无** `dlopen`/`libdl`；syscall mmap loader；仍宿主 syscalls + cwd `.so` |
+| **OW-IAT** | Host file I/O + sidecar | **CUT** | 无宿主 DLL 加载面（无 `yoyo_rt.dll`） | Win：**无** PEB/ASCII LoadLibraryA；CreateFile/Read/VirtualAlloc + manual-map；`yoyo_rt.dll` cwd sidecar。Linux tramp：**dlopen@PLT**（dynamic `-lc` only；**no libdl NEEDED**）；no dlsym；cwd `./libyoyo_runtime.so` |
 | **OW-SEED** | Seed 仍由 Rust `yoyo.exe` 发射 | **CUT** | seed 非 Rust host 发射 | Rust `yoyo link`；seed PE **≤270000**（观测 **248320**）；**emitter** size+sha256_prefix + **seed** sha256_prefix≡`SEED_HOST` + **path=h00** |
 | **REL-FULLTEXT** | full `.text` peer compare | **CUT** | （禁止用 EQUAL 当毕业话术） | `full_text=DIFF` → inventory FINAL+CUT；意外 EQUAL → PARTIAL（OW-RT/IAT 仍 CUT） |
 | **REL-STUBOS** | Plan9/FreeBSD/Haiku/Serenity I/O | **CUT** | 生产 I/O 落地（非本 Stage） | `stage13-cross-platform-parity.ps1` stub 钉仍在源门禁中 |
@@ -117,10 +117,10 @@ Gate 必须同时：
 | gen12 / fullbody `.text` | SHA prefix **`72c27c9f`** · compared **18944** B |
 | Lock pin | `0275802d…` Decision #25（本缩面不改 `yoyo.ty`） |
 | Disposition | **OW-H00 CLOSED** · **6× CUT**（closed=1 cut=6） |
-| Gates | body-ddc · gen12 · stage17-ow-iat-wireup · stage10-linux GREEN |
-| OW-IAT wire-up | PEB LoadLibrary **DROPPED**；manual-map **WIRED**；**仍 CUT** |
+| Gates | body-ddc · gen12 · stage17-ow-iat-wireup (CI smoke) · stage10-linux GREEN |
+| OW-IAT wire-up | PEB LoadLibrary **DROPPED**；manual-map **WIRED**；Win smoke **fail-closed** without cwd `yoyo_rt.dll`；**仍 CUT** |
 
-**Next tip（post-v1.0 path 2）：** **Win sidecar smoke** (cwd `yoyo_rt.dll` + manual-map H_00 run); **OW-IAT CLOSED** only when `yoyo_rt.dll` / sidecar marker absent.
+**Next tip（post-v1.0 path 2）：** **YOYO-built runtime** (drop Rust `yoyo_runtime.dll` / sidecar); **OW-IAT CLOSED** only when `yoyo_rt.dll` / sidecar marker absent.
 
 ---
 

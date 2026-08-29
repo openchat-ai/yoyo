@@ -271,8 +271,8 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Scope** | Per-hole `disposition=CLOSED\|CUT` for OW-\* / REL-\* — turn lump CUT into machine inventory (no fake CLOSED / fake EQUAL) |
 | **Doc** | `SCOPE-CUT-v0.9-hole-inventory.md` |
 | **Gate** | `scripts/stage15-hole-inventory.ps1`（alias `stage15-a.ps1`） |
-| **Pins** | nested stage14-A exit 0；full `.text` DIFF；body EQUAL 17805；stub_nz 53；dll 141312 **no exact embed**（sidecar）；seed PE ≤270000；LoadLibraryA+yoyo_rt.dll |
-| **Status** | GREEN 2026-08-29 · `HOLE_INVENTORY status=ACTIVE closed=0 cut=7` · no Relock（未改 `yoyo.ty`） |
+| **Pins** | nested stage14-A exit 0；**three_peer_full=EQUAL** · **`72c27c9f`**；body EQUAL 17805；stub_nz **905**；dll 141312 **no exact embed**（sidecar）；seed PE ≤270000；**no** LoadLibraryA；`yoyo_rt.dll` sidecar marker |
+| **Status** | GREEN 2026-08-29 · `HOLE_INVENTORY status=ACTIVE closed=1 cut=6`（OW-H00 CLOSED）· no Relock（未改 `yoyo.ty`） |
 | **Still CUT** | OW-H00 / OW-STUB / OW-RT / OW-IAT / OW-SEED / REL-FULLTEXT / REL-STUBOS |
 
 ### Stage 15-B — prerun keep-green
@@ -405,8 +405,8 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Scope** | Elevate v0.9 ACTIVE inventory to v1.0 FINAL `CLOSED\|CUT` per OW-\*/REL-\* (no fake CLOSED) |
 | **Doc** | `SCOPE-CUT-v1.0-hole-inventory.md` |
 | **Gate** | `scripts/stage16-scope-cut-finalize.ps1`（alias `stage16-a.ps1`） |
-| **Status** | GREEN 2026-08-29 · `HOLE_INVENTORY_V10 status=FINAL closed=0 cut=7` · no Relock |
-| **Still CUT** | OW-H00 / OW-STUB / OW-RT / OW-IAT / OW-SEED / REL-FULLTEXT / REL-STUBOS |
+| **Status** | GREEN 2026-08-29 · `HOLE_INVENTORY_V10 status=FINAL closed=1 cut=6`（OW-H00 CLOSED）· no Relock |
+| **Still CUT** | OW-STUB / OW-RT / OW-IAT / OW-SEED / REL-FULLTEXT / REL-STUBOS |
 
 ### Stage 16-B — detection wording / RELEASE boundary
 
@@ -433,8 +433,19 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Docs** | `RELEASE-v1.0.md` · `RELEASE-NOTES-v1.0.md` · `SCOPE-v1.0.md` 毕业判定 · `SCOPE-CUT-v1.0-hole-inventory.md` · `DETECTION-BANLIST-v1.0.md` |
 | **Lock** | Decision #25 pin **unchanged** — no Relock（Stage 16 未改 `yoyo.ty`） |
 | **Accept** | `verify-lock-pin` · `stage14-lock-harden.ps1 -SkipBuild` PINNED · `stage16-v09-regress.ps1 -SkipBuild` ALL_GREEN（2026-08-29 02:14:21） |
-| **Honest** | HOLE_INVENTORY_V10 FINAL closed=0 cut=7；DDC=detection；七项仍 CUT（无假 CLOSED）；Rust runtime / LoadLibrary / seed |
+| **Honest** | HOLE_INVENTORY_V10 FINAL closed=1 cut=6（OW-H00 CLOSED）；DDC=detection；其余 CUT（无假 CLOSED）；Rust runtime / sidecar / seed |
 | **Next** | **ROADMAP DONE** — no Stage 17；`AUTO_TO_1.0.md` COMPLETED + ACTIVE=0 |
+
+### Post-v1.0 path 2 — Win OW-IAT wire-up smoke (2026-08-29)
+
+| Item | Detail |
+|------|--------|
+| **Hole** | **OW-IAT** (Win manual-map H_00 + cwd sidecar) |
+| **Change** | `stage17-ow-iat-wireup.ps1` smoke: link H_00 seed PE; **with** cwd `yoyo_rt.dll` → `output.exe`; **without** sidecar → fail-closed (no output) |
+| **Still CUT** | manual-map + kernel32 I/O + Rust `yoyo_runtime.dll` sidecar — **not** OW-IAT CLOSED |
+| **Gate** | `scripts/stage17-ow-iat-wireup.ps1` · CI `windows-latest` after `cargo build` |
+| **Obs** | stub_nz **905**; seed PE **~249344**; LoadLibraryA **ABSENT**; `yoyo_rt.dll` marker **PRESENT** |
+| **Next** | **YOYO-built runtime** (drop Rust sidecar); OW-IAT CLOSED only when `yoyo_rt.dll` marker absent |
 
 ### Full body compiler (Stage 8-B · W5.5 body)
 
