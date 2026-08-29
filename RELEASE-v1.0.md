@@ -39,7 +39,7 @@ YOYO v1.0 **finalizes** the v0.9 hole inventory as **SCOPE-CUT FINAL** (machine 
 | **OW-STUB** | **CUT** | Rust LoadLibrary stub_tail_nonzero (obs. 235; PE export walk) |
 | **OW-RT** | **CUT** | Sidecar Rust `yoyo_runtime.dll` (141312; no exact embed) |
 | **OW-IAT** | **CUT** | LoadLibraryA / libdl still present; **GetProcAddress absent** (in-process PE export walk) |
-| **OW-SEED** | **CUT** | Seed still Rust-emitted (`yoyo.exe`) |
+| **OW-SEED** | **CUT** | Seed still Rust-emitted (`yoyo.exe`); emitter+seed sha256_prefix + path=h00 pinned |
 | **REL-FULLTEXT** | **CUT** | full `.text` not a graduation EQUAL claim |
 | **REL-STUBOS** | **CUT** | Plan9/FreeBSD/Haiku/Serenity stub 鈥?not production I/O |
 

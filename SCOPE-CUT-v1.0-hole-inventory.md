@@ -10,6 +10,8 @@
 
 **Post-v1.0 path 2（关洞）· OW-IAT shrink（2026-08-29）：** H_00 宿主 IAT **去掉 GetProcAddress**（host-loader **3→2**：LoadLibraryA + ExitProcess）。LoadLibraryA 之后 **in-process PE export walk** 解析 `yoyo_runtime_selfhost_main`。stub_nz **235**；gen12 `84a8c1c9` / **18432** B；seed PE **248832**。**仍 CUT**（LoadLibraryA / libdl 仍在）— **禁止**标 CLOSED。
 
+**Post-v1.0 path 2（关洞）· OW-SEED observe pin（2026-08-29）：** stage13/15/16 fail-closed 钉 **emitter**（`yoyo.exe` basename + size + sha256_prefix）+ **seed**（PE size + sha256_prefix 与 `SEED_HOST` 一致）+ **path=h00**。`SEED_HOST sha256_prefix` 扩至 **16** hex。**仍 CUT**（seed 仍由 Rust `yoyo.exe` 发射）— **禁止**标 CLOSED / SEED_HOST_GONE。
+
 ---
 
 ## 为何定稿
@@ -30,7 +32,7 @@ v0.9 把洞从 lump 变成逐项 `CLOSED|CUT`。v1.0-A 要求洞从「v0.9 枚�
 | **OW-STUB** | H_00 LoadLibrary stub tail | **CUT** | `stub_tail_nonzero==0`（所有 peer） | `stub_tail_nonzero` ∈ **[40, 512]**；观测 **235** |
 | **OW-RT** | Sidecar Rust `yoyo_runtime.dll` | **CUT** | 无 exact embed **且** 无 Rust LoadLibrary sidecar 宿主信任 | size **≤150000**；观测 **141312**；**no exact embed**；sidecar `yoyo_rt.dll` |
 | **OW-IAT** | LoadLibraryA / libdl host | **CUT** | PE 无 `LoadLibraryA`（YOYO-built loader） | 标记 `LoadLibraryA` + `yoyo_rt.dll`；**无** `GetProcAddress`（PE export walk）；仍宿主 LoadLibrary |
-| **OW-SEED** | Seed 仍由 Rust `yoyo.exe` 发射 | **CUT** | seed 非 Rust host 发射 | Rust `yoyo link` 产出 PE；seed PE **≤270000**（观测 **248832**） |
+| **OW-SEED** | Seed 仍由 Rust `yoyo.exe` 发射 | **CUT** | seed 非 Rust host 发射 | Rust `yoyo link`；seed PE **≤270000**（观测 **248832**）；**emitter** size+sha256_prefix + **seed** sha256_prefix≡`SEED_HOST` + **path=h00** |
 | **REL-FULLTEXT** | full `.text` peer compare | **CUT** | （禁止用 EQUAL 当毕业话术） | `full_text=DIFF` → inventory FINAL+CUT；意外 EQUAL → PARTIAL（OW-RT/IAT 仍 CUT） |
 | **REL-STUBOS** | Plan9/FreeBSD/Haiku/Serenity I/O | **CUT** | 生产 I/O 落地（非本 Stage） | `stage13-cross-platform-parity.ps1` stub 钉仍在源门禁中 |
 
@@ -45,8 +47,8 @@ Gate **只**在下列证据同时成立时打印 `disposition=CLOSED`：
 1. **OW-H00** — `full_text=EQUAL` **且** body window EQUAL  
 2. **OW-STUB** — parsed `stub_tail_nonzero == 0`  
 3. **OW-RT** — runtime.dll **not** exactly embedded **且** 无 `LoadLibraryA`/`yoyo_rt.dll` sidecar 面（YOYO-built / 无 Rust runtime 宿主）— **仅无 embed 不得 CLOSED**  
-4. **OW-IAT** — ASCII `LoadLibraryA` **absent** from Rust seed PE  
-5. **OW-SEED** — （**不自动 CLOSED**；需另立非 Rust 发射路径证据）  
+4. **OW-IAT** — ASCII `LoadLibraryA` **absent** from Rust seed PE（仅去掉 GetProcAddress **不得** CLOSED）  
+5. **OW-SEED** — （**不自动 CLOSED**；需另立非 Rust 发射路径证据；CUT 须带 emitter/seed hash + path=h00）  
 6. **REL-FULLTEXT** — **永不**标 CLOSED 作为毕业（EQUAL 时仅 PARTIAL / 观测）  
 7. **REL-STUBOS** — **永不**标 CLOSED 除非 stage13 stub 门改为 production I/O
 
@@ -59,10 +61,12 @@ Gate **只**在下列证据同时成立时打印 `disposition=CLOSED`：
 - ❌ 「full `.text` three-peer EQUAL」作为 v1.0-A / RELEASE 毕业话术（窗仍 DIFF 时）
 - ❌ 「洞已全关」若任一项仍 `disposition=CUT`
 - ❌ Thompson-proof / 已消灭 Rust runtime / LoadLibrary / Rust seed
-- ❌ 把「无 exact embed」说成 OW-RT **CLOSED**（sidecar Rust 仍在）
+- ❌ 「无 exact embed」说成 OW-RT **CLOSED**（sidecar Rust 仍在）
+- ❌ 「无 GetProcAddress」说成 OW-IAT **CLOSED**（LoadLibraryA 仍在）
+- ❌ 「已钉 emitter/seed hash」说成 OW-SEED **CLOSED**（仍 Rust `yoyo.exe` 发射）
 - ❌ 把 SCOPE-CUT 写成失败或倒退；不得假 EQUAL / 假 CLOSED
 
-允许：✅ 「v1.0 SCOPE-CUT FINAL · 七项 CLOSED|CUT 已机器钉 + selfhost-body EQUAL」；✅ 「OW-RT 已缩：无 exact embed / sidecar（仍 CUT）」；✅ 「OW-IAT 已缩：无 GetProcAddress / PE export walk（仍 CUT · LoadLibraryA）」
+允许：✅ 「v1.0 SCOPE-CUT FINAL · 七项 CLOSED|CUT 已机器钉 + selfhost-body EQUAL」；✅ 「OW-RT 已缩：无 exact embed / sidecar（仍 CUT）」；✅ 「OW-IAT 已缩：无 GetProcAddress / PE export walk（仍 CUT · LoadLibraryA）」；✅ 「OW-SEED 已缩盲区：emitter+seed hash + path=h00 机器钉（仍 CUT）」
 
 ---
 
@@ -86,7 +90,7 @@ Gate 必须同时：
 
 ---
 
-## 观测基线（2026-08-29 · post-v1.0 OW-RT sidecar + OW-IAT no-GPA · gate GREEN）
+## 观测基线（2026-08-29 · post-v1.0 OW-RT sidecar + OW-IAT no-GPA + OW-SEED pin · gate GREEN）
 
 | Monitor | Value |
 |---------|-------|
@@ -101,7 +105,8 @@ Gate 必须同时：
 | Gate | `stage16-scope-cut-finalize.ps1 -SkipBuild` exit **0** · `HOLE_INVENTORY_V10 status=FINAL` |
 | No-regress | nested stage15-A exit 0 · stage14-A nested via stage15 |
 | OW-IAT shrink | GetProcAddress **ABSENT**；LoadLibraryA **PRESENT**（仍 CUT） |
+| OW-SEED observe | emitter=`yoyo.exe` size+sha256_prefix；seed sha256_prefix≡`SEED_HOST`（16 hex）；path=h00（仍 CUT） |
 
 ---
 
-*Stage 16-A · 打破后门魔咒：洞从「v0.9 枚举」变「1.0 FINAL SCOPE-CUT + 可脚本钉」· post-v1.0 OW-RT：exact embed → sidecar（仍 CUT）· post-v1.0 OW-IAT：GetProcAddress → PE export walk（仍 CUT）*
+*Stage 16-A · 打破后门魔咒：洞从「v0.9 枚举」变「1.0 FINAL SCOPE-CUT + 可脚本钉」· post-v1.0 OW-RT：exact embed → sidecar（仍 CUT）· post-v1.0 OW-IAT：GetProcAddress → PE export walk（仍 CUT）· post-v1.0 OW-SEED：emitter+seed hash pin（仍 CUT）*

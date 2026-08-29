@@ -11,8 +11,9 @@
 #   - bootstrap --selfhost MUST DIFF seed (and Win must expose GetTempPathA) — else RED
 #
 # Honest remaining: still trusts Rust-built `yoyo.exe` host to emit the seed; sidecar
-# Rust runtime + LoadLibrary/libdl remain (Stages 10–11 + OW-IAT). This gate observes/contracts
-# the seed *entry* surface — it does not eliminate host compile trust.
+# Rust runtime + LoadLibrary/libdl remain (Stages 10–11 + OW-IAT). Post-v1.0 OW-SEED
+# pins emitter identity + seed sha256_prefix under fail-closed observe (still CUT).
+# This gate observes/contracts the seed *entry* surface — it does not eliminate host compile trust.
 param(
     [switch]$SkipBuild,
     [switch]$SkipLinux,
@@ -141,6 +142,28 @@ if ($peSz -gt $MaxSeedPeBytes) {
     Write-Host "Stage 13-A: RED (seed PE $peSz > MAX $MaxSeedPeBytes)"
     exit 1
 }
+# Post-v1.0 OW-SEED: SEED_HOST sha/bytes must match on-disk seed; pin emitter identity.
+$emitterBytes = (Get-Item -LiteralPath $Yoyo).Length
+$emitterSha = (Get-FileHash -LiteralPath $Yoyo -Algorithm SHA256).Hash.ToLowerInvariant()
+$emitterShaPrefix = $emitterSha.Substring(0, [Math]::Min(16, $emitterSha.Length))
+$seedSha = (Get-FileHash -LiteralPath $SeedLinkTy -Algorithm SHA256).Hash.ToLowerInvariant()
+$seedShaPrefix = $seedSha.Substring(0, [Math]::Min(16, $seedSha.Length))
+if ($linkTyOut -notmatch 'SEED_HOST cmd=link target=win32 path=h00 bytes=(\d+) dll_embed=\S+ sha256_prefix=([0-9a-fA-F]+)') {
+    Write-Host "Stage 13-A: RED (SEED_HOST missing bytes/sha256_prefix)"
+    exit 1
+}
+$obsBytes = [int64]$Matches[1]
+$obsShaPrefix = $Matches[2].ToLowerInvariant()
+if ($obsBytes -ne $peSz) {
+    Write-Host "Stage 13-A: RED (SEED_HOST bytes=$obsBytes != on-disk $peSz)"
+    exit 1
+}
+if (-not $seedSha.StartsWith($obsShaPrefix)) {
+    Write-Host "Stage 13-A: RED (SEED_HOST sha256_prefix=$obsShaPrefix != file $seedShaPrefix...)"
+    exit 1
+}
+Write-Host ("OW-SEED pin: emitter=yoyo.exe bytes={0} sha256_prefix={1}; seed_pe={2} sha256_prefix={3} path=h00" -f `
+    $emitterBytes, $emitterShaPrefix, $peSz, $seedShaPrefix)
 
 Write-Host ""
 Write-Host "=== Win32: same host via yoyo link (.tyb) ==="

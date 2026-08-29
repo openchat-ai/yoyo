@@ -181,12 +181,16 @@ $bodyCompared = "?"
 $stubNz = "?"
 $dllSize = "?"
 $seedPe = "?"
+$seedSha = "?"
+$emitterSha = "?"
 $embedOff = "?"
 if ($statusFrom15 -match 'full_text=(\S+)') { $fullText = $Matches[1] }
 if ($statusFrom15 -match 'compared=(\d+)') { $bodyCompared = $Matches[1] }
 if ($statusFrom15 -match 'stub_nz=(\d+)') { $stubNz = $Matches[1] }
 if ($statusFrom15 -match 'dll=(\d+)') { $dllSize = $Matches[1] }
 if ($statusFrom15 -match 'seed_pe=(\d+)') { $seedPe = $Matches[1] }
+if ($statusFrom15 -match 'seed_sha=([0-9a-fA-F]+)') { $seedSha = $Matches[1] }
+if ($statusFrom15 -match 'emitter_sha=([0-9a-fA-F]+)') { $emitterSha = $Matches[1] }
 if ($statusFrom15 -match 'embed_off=(-?\d+)') { $embedOff = $Matches[1] }
 
 # Honesty: full DIFF must not be marketed as EQUAL; REL-FULLTEXT must stay CUT.
@@ -200,11 +204,18 @@ if ($fullText -eq "DIFF") {
         Fail-Out "OW-H00 CLOSED while full_text=DIFF (fake CLOSED)"
     }
 }
+# Post-v1.0 OW-SEED: inventory must carry emitter+seed hash pins on CUT evidence.
+$owSeed = ($FinalRows | Where-Object { $_ -match 'FINAL_HOLE id=OW-SEED' } | Select-Object -First 1)
+if ($owSeed -match 'disposition=CUT') {
+    if ($owSeed -notmatch 'emitter_sha256_prefix=' -or $owSeed -notmatch 'seed_sha256_prefix=' -or $owSeed -notmatch 'path=h00') {
+        Fail-Out "OW-SEED CUT missing emitter/seed hash path=h00 pins (post-v1.0 OW-SEED observe)"
+    }
+}
 
 # v1.0-A expected baseline: all CUT (closed=0 cut=7) is OK and honest.
 # FINAL status means the table is released for 1.0 — not that holes are closed.
-$statusLine = ("HOLE_INVENTORY_V10 status=FINAL full_text={0} body_window=EQUAL compared={1} stub_nz={2} dll={3} seed_pe={4} embed_off={5} closed={6} cut={7} upstream={8}" -f `
-    $fullText, $bodyCompared, $stubNz, $dllSize, $seedPe, $embedOff, $ClosedCount, $CutCount, ($statusFrom15 -replace '^HOLE_INVENTORY ', ''))
+$statusLine = ("HOLE_INVENTORY_V10 status=FINAL full_text={0} body_window=EQUAL compared={1} stub_nz={2} dll={3} seed_pe={4} seed_sha={5} emitter_sha={6} embed_off={7} closed={8} cut={9} upstream={10}" -f `
+    $fullText, $bodyCompared, $stubNz, $dllSize, $seedPe, $seedSha, $emitterSha, $embedOff, $ClosedCount, $CutCount, ($statusFrom15 -replace '^HOLE_INVENTORY ', ''))
 
 Write-Host ""
 Write-Host $statusLine

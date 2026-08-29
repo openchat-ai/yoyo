@@ -6,6 +6,7 @@
 
 **Post-v1.0 OW-RT：** Win H_00 **无 exact embed**；sidecar `yoyo_rt.dll`；DLL **141312**。仍 CUT。
 **Post-v1.0 OW-IAT：** GetProcAddress **ABSENT**（PE export walk）；stub_nz **235**；仍 CUT（LoadLibraryA）。
+**Post-v1.0 OW-SEED：** emitter+seed sha256_prefix + path=h00 机器钉；仍 CUT（Rust `yoyo.exe` 发射）。
 
 ---
 
@@ -26,7 +27,7 @@ full `.text` 仍 **DIFF**，因为窗 **外** 仍有宿主 / 发射面字节。�
 | **OW-STUB** | H_00 LoadLibrary stub tail | `.text` emit 后 | `stub_tail_nonzero` 钉 **[40, 512]**；观测 **235** B（Rust-only；PE export walk） | **CUT** — 三 peer EQUAL 窗外 |
 | **OW-RT** | Sidecar Rust `yoyo_runtime.dll` | cwd sidecar（非 PE `.data` embed） | size **≤150000**；观测 **141312**；**no exact embed** | **CUT** — 不在 gen12 / body 窗 |
 | **OW-IAT** | LoadLibraryA / ExitProcess（无 GetProcAddress） | PE IAT + stub 调用 | Stage 11-B + OW-IAT：宿主 LoadLibrary 仍在；GPA→PE export walk | **CUT** — 仍宿主加载，非 YOYO-built loader |
-| **OW-SEED** | Seed 仍由 Rust `yoyo.exe` 发射 | host CLI | Stage 13-A 已 observe；不消除 | **CUT** — 不骗 v0.8；继续诚实 |
+| **OW-SEED** | Seed 仍由 Rust `yoyo.exe` 发射 | host CLI | Stage 13/15：emitter+seed hash + path=h00；不消除 | **CUT** — 不骗 v0.8；继续诚实 |
 
 **可比绿窗（非 CUT）：** selfhost-body / `yoyo test body-ddc` / gen12·fullbody 788-handler 窗。
 

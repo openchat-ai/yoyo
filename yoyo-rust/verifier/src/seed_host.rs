@@ -4,10 +4,15 @@
 //! These helpers emit a machine-parseable `SEED_HOST` line so scripts can pin:
 //! - seed PE/ELF uses the H_00 path (not genNrt `--selfhost` wrapper)
 //! - link and bootstrap stay on one observable host surface
+//! - post-v1.0 OW-SEED: `sha256_prefix` (16 hex) matches on-disk seed bytes under
+//!   stage13/15 inventory (emitter identity is pinned by the gate against `yoyo.exe`)
 //!
-//! Honest remaining: host Rust `yoyo.exe` still performs the seed compile+link.
+//! Honest remaining: host Rust `yoyo.exe` still performs the seed compile+link (OW-SEED CUT).
 
 use crate::ddc;
+
+/// Hex chars of seed SHA-256 printed on `SEED_HOST` (fail-closed match vs file hash).
+pub const SEED_SHA256_PREFIX_LEN: usize = 16;
 
 /// Classify a linked image's seed/host entry shape from embedded ASCII markers.
 ///
@@ -41,7 +46,8 @@ pub fn classify_seed_path(bytes: &[u8]) -> &'static str {
 pub fn emit_observe(cmd: &str, target: &str, bytes: &[u8], dll_embed: Option<usize>) {
     let path = classify_seed_path(bytes);
     let sha = ddc::sha256_hex(bytes);
-    let prefix = &sha[..8.min(sha.len())];
+    let n = SEED_SHA256_PREFIX_LEN.min(sha.len());
+    let prefix = &sha[..n];
     let dll = match dll_embed {
         Some(n) => n.to_string(),
         None => "-".to_string(),

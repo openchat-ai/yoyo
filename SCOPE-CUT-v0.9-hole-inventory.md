@@ -8,6 +8,7 @@
 
 **Post-v1.0 OW-RT：** Win H_00 **无 exact embed**；cwd sidecar `yoyo_rt.dll`；DLL **141312**。仍 **CUT**（Rust runtime）。
 **Post-v1.0 OW-IAT：** GetProcAddress **ABSENT**；PE export walk；stub_nz **235**。仍 **CUT**（LoadLibraryA）。
+**Post-v1.0 OW-SEED：** emitter + seed sha256_prefix + path=h00 机器钉；仍 **CUT**（Rust `yoyo.exe` 发射）。
 
 ---
 
@@ -28,7 +29,7 @@ v0.8 把窗外钉成 SCOPE-CUT ACTIVE（lump）。v0.9-A 要求洞从「清单�
 | **OW-STUB** | H_00 LoadLibrary stub tail | **CUT** | `stub_tail_nonzero==0`（所有 peer） | `stub_tail_nonzero` ∈ **[40, 512]**；观测 **235** |
 | **OW-RT** | Sidecar Rust `yoyo_runtime.dll` | **CUT** | 无 exact embed **且** 无 Rust sidecar LoadLibrary 面 | size **≤150000**；观测 **141312**；**no exact embed** |
 | **OW-IAT** | LoadLibraryA / libdl host | **CUT** | PE 无 `LoadLibraryA`（YOYO-built loader） | 标记 `LoadLibraryA` + `yoyo_rt.dll`；**无** GetProcAddress（PE export walk） |
-| **OW-SEED** | Seed 仍由 Rust `yoyo.exe` 发射 | **CUT** | seed 非 Rust host 发射 | Rust `yoyo link` 产出 PE；seed PE **≤270000**（观测 **248832**） |
+| **OW-SEED** | Seed 仍由 Rust `yoyo.exe` 发射 | **CUT** | seed 非 Rust host 发射 | Rust `yoyo link`；seed PE **≤270000**（观测 **248832**）；emitter+seed sha256_prefix + path=h00 |
 | **REL-FULLTEXT** | full `.text` peer compare | **CUT** | （禁止用 EQUAL 当毕业话术） | `full_text=DIFF` → inventory ACTIVE；意外 EQUAL → PARTIAL（OW-RT/IAT 仍 CUT） |
 | **REL-STUBOS** | Plan9/FreeBSD/Haiku/Serenity I/O | **CUT** | 生产 I/O 落地（非本 Stage） | `stage13-cross-platform-parity.ps1` stub 钉仍在源门禁中 |
 

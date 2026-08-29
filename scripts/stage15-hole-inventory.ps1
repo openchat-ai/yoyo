@@ -9,6 +9,7 @@
 #   2. Per-hole HOLE id=... disposition=CLOSED|CUT evidence=...
 #   3. HOLE_INVENTORY status=... summary line
 # Honest: DDC = detection; Rust runtime + LoadLibrary + Rust seed remain CUT.
+# Post-v1.0 OW-SEED: pin emitter identity + seed sha256_prefix + path=h00 (still CUT).
 param(
     [switch]$SkipBuild
 )
@@ -175,14 +176,46 @@ Write-Host "  JS..."
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $jsOut)) { Fail-Out "JS peer build failed" }
 
 Write-Host "  Rust..."
-& $Yoyo link --target=win32 $Ty $rustOut
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path $rustOut)) { Fail-Out "Rust peer build failed" }
+$prevEapLink = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+$linkOut = & $Yoyo link --target=win32 $Ty $rustOut 2>&1 | Out-String
+$linkEc = $LASTEXITCODE
+$ErrorActionPreference = $prevEapLink
+Write-Host $linkOut.TrimEnd()
+if ($linkEc -ne 0 -or -not (Test-Path $rustOut)) { Fail-Out "Rust peer build failed" }
 
 $seedPe = (Get-Item $rustOut).Length
 Write-Host ("Rust seed PE: {0} bytes (MAX {1})" -f $seedPe, $MaxSeedPeBytes)
 if ($seedPe -gt $MaxSeedPeBytes) {
     Fail-Out ("seed PE {0} exceeds MAX {1}" -f $seedPe, $MaxSeedPeBytes)
 }
+
+# Post-v1.0 OW-SEED: fail-closed pin emitter identity + seed hash (still CUT — Rust emits).
+$emitterName = [System.IO.Path]::GetFileName($Yoyo)
+if ($emitterName -ne "yoyo.exe") {
+    Fail-Out ("OW-SEED emitter basename {0} != yoyo.exe" -f $emitterName)
+}
+$emitterBytes = (Get-Item -LiteralPath $Yoyo).Length
+$emitterSha = (Get-FileHash -LiteralPath $Yoyo -Algorithm SHA256).Hash.ToLowerInvariant()
+$emitterShaPrefix = $emitterSha.Substring(0, [Math]::Min(16, $emitterSha.Length))
+$seedSha = (Get-FileHash -LiteralPath $rustOut -Algorithm SHA256).Hash.ToLowerInvariant()
+$seedShaPrefix = $seedSha.Substring(0, [Math]::Min(16, $seedSha.Length))
+if ($linkOut -notmatch 'SEED_HOST cmd=link target=win32 path=h00\b') {
+    Fail-Out "OW-SEED missing SEED_HOST cmd=link target=win32 path=h00"
+}
+if ($linkOut -notmatch 'SEED_HOST cmd=link target=win32 path=h00 bytes=(\d+) dll_embed=\S+ sha256_prefix=([0-9a-fA-F]+)') {
+    Fail-Out "OW-SEED SEED_HOST line missing bytes/sha256_prefix fields"
+}
+$obsSeedBytes = [int64]$Matches[1]
+$obsSeedShaPrefix = $Matches[2].ToLowerInvariant()
+if ($obsSeedBytes -ne $seedPe) {
+    Fail-Out ("OW-SEED SEED_HOST bytes={0} != on-disk seed_pe={1}" -f $obsSeedBytes, $seedPe)
+}
+if (-not $seedSha.StartsWith($obsSeedShaPrefix)) {
+    Fail-Out ("OW-SEED SEED_HOST sha256_prefix={0} != file sha {1}..." -f $obsSeedShaPrefix, $seedShaPrefix)
+}
+Write-Host ("OW-SEED emitter={0} bytes={1} sha256_prefix={2}" -f $emitterName, $emitterBytes, $emitterShaPrefix)
+Write-Host ("OW-SEED seed_pe={0} sha256_prefix={1} path=h00 (SEED_HOST matched)" -f $seedPe, $seedShaPrefix)
 
 $rustBytes = [System.IO.File]::ReadAllBytes($rustOut)
 $dllBytes = [System.IO.File]::ReadAllBytes($RuntimeDll)
@@ -276,8 +309,10 @@ if (-not $hasLoadLibrary) {
     Add-Hole "OW-IAT" "CUT" ("markers=LoadLibraryA+yoyo_rt.dll;no_GetProcAddress;PE_export_walk;hasYoyoRt={0}" -f $hasYoyoRt)
 }
 
-# OW-SEED: v0.9-A does not auto-CLOSE -- Rust yoyo.exe still emits seed.
-Add-Hole "OW-SEED" "CUT" ("emitter=Rust_yoyo.exe;seed_pe={0};max={1}" -f $seedPe, $MaxSeedPeBytes)
+# OW-SEED: still CUT — Rust yoyo.exe emits seed. Post-v1.0 pins emitter + seed hash + path=h00.
+# CLOSED only with a non-Rust emitter evidence path (not invented here).
+Add-Hole "OW-SEED" "CUT" ("emitter=Rust_yoyo.exe;emitter_bytes={0};emitter_sha256_prefix={1};seed_pe={2};seed_sha256_prefix={3};path=h00;max={4}" -f `
+    $emitterBytes, $emitterShaPrefix, $seedPe, $seedShaPrefix, $MaxSeedPeBytes)
 
 # REL-FULLTEXT: never CLOSED as graduation claim.
 if ($fullStatus -eq "DIFF") {
@@ -310,8 +345,8 @@ if ($CutCount -gt 0) {
 $partialNote = ""
 if ($fullStatus -eq "EQUAL" -and $CutCount -gt 0) { $partialNote = " overlay=PARTIAL" }
 
-$statusLine = ("HOLE_INVENTORY status={0} full_text={1} body_window=EQUAL compared={2} stub_nz={3} dll={4} seed_pe={5} embed_off={6} closed={7} cut={8}{9}" -f `
-    $invStatus, $fullStatus, $bodyCompared, $stubNz, $dllSize, $seedPe, $embedOff, $ClosedCount, $CutCount, $partialNote)
+$statusLine = ("HOLE_INVENTORY status={0} full_text={1} body_window=EQUAL compared={2} stub_nz={3} dll={4} seed_pe={5} seed_sha={6} emitter_sha={7} emitter_bytes={8} embed_off={9} closed={10} cut={11}{12}" -f `
+    $invStatus, $fullStatus, $bodyCompared, $stubNz, $dllSize, $seedPe, $seedShaPrefix, $emitterShaPrefix, $emitterBytes, $embedOff, $ClosedCount, $CutCount, $partialNote)
 Write-Host ""
 Write-Host $statusLine
 Write-Host ""
