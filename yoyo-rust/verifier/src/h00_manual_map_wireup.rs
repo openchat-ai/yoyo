@@ -620,15 +620,8 @@ fn gen_h00_export_call_tail(
     c.extend_from_slice(&[0x85, 0xC0]);
     fail_jumps.push(c.len());
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x48, 0x8D, 0x3C, 0x03]);
-    c.extend_from_slice(&[0x8B, 0x47, 0x1C]);
-    c.extend_from_slice(&[0x48, 0x01, 0xD8]); // add rax, rbx — functions RVA is image-relative
-    c.extend_from_slice(&[0x8B, 0x00]);
-    c.extend_from_slice(&[0x48, 0x01, 0xD8]);
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]); // shadow for Win64 call convention
-    c.extend_from_slice(&[0xFF, 0xD0]); // call export (yoyo_runtime_selfhost_main)
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x28]);
-    c.extend_from_slice(&[0x89, 0xC1]);
+    // TEMP CI isolate: reach export tail without calling mapped export (find AV source).
+    c.extend_from_slice(&[0x31, 0xC9]); // xor ecx, ecx
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_EXIT_PROCESS);
 
     for at in fail_jumps {

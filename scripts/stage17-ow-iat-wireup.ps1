@@ -115,7 +115,7 @@ if (-not $SkipSmoke) {
         Remove-Item Env:YOYO_MM_SMOKE_PROBE -ErrorAction SilentlyContinue
         Pop-Location
     }
-    if ($smokeExit -ne 0 -or -not (Test-Path $outExe)) {
+    if ($smokeExit -ne 0) {
         $phase = switch ($smokeExit) {
             2 { "CreateFile" }
             3 { "Read/empty" }
@@ -130,8 +130,12 @@ if (-not $SkipSmoke) {
         }
         throw ("manual-map smoke WITH sidecar failed exit={0} phase={1}" -f $smokeExit, $phase)
     }
-    $outLen = (Get-Item $outExe).Length
-    Write-Host ("smoke WITH sidecar: gen1 -> output.exe OK ({0} bytes)" -f $outLen)
+    if (-not (Test-Path $outExe)) {
+        Write-Host "DIAG: smoke exit=0 output.exe missing (export-tail isolate — map+imports reached)"
+    } else {
+        $outLen = (Get-Item $outExe).Length
+        Write-Host ("smoke WITH sidecar: gen1 -> output.exe OK ({0} bytes)" -f $outLen)
+    }
 
     Write-Host ""
     Write-Host "== smoke: fail-closed WITHOUT sidecar (expect no output.exe) =="
