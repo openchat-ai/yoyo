@@ -508,6 +508,99 @@ mod tests {
         assert!(rva > 0x1000, "export RVA should be in image");
     }
 
+    /// Windows-only: manual-map sidecar with host GetProcAddress resolver (isolates stub vs runtime).
+    #[test]
+    #[cfg(windows)]
+    fn manual_map_runtime_smoke_host_resolve() {
+        use std::ffi::CString;
+        use std::path::PathBuf;
+
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn LoadLibraryA(name: *const i8) -> *mut std::ffi::c_void;
+            fn GetProcAddress(module: *mut std::ffi::c_void, name: *const i8) -> *mut std::ffi::c_void;
+            fn SetCurrentDirectoryA(path: *const i8) -> i32;
+        }
+
+        fn host_resolve(dll: &str, name: &str) -> Option<u64> {
+            let dll_c = CString::new(dll).ok()?;
+            unsafe {
+                let module = LoadLibraryA(dll_c.as_ptr());
+                if module.is_null() {
+                    return None;
+                }
+                if let Some(rest) = name.strip_prefix('#') {
+                    let ord: u16 = rest.parse().ok()?;
+                    let proc = GetProcAddress(module, ord as usize as *const i8);
+                    if proc.is_null() {
+                        None
+                    } else {
+                        Some(proc as u64)
+                    }
+                } else {
+                    let name_c = CString::new(name).ok()?;
+                    let proc = GetProcAddress(module, name_c.as_ptr());
+                    if proc.is_null() {
+                        None
+                    } else {
+                        Some(proc as u64)
+                    }
+                }
+            }
+        }
+
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let dll_path = [
+            root.join("yoyo-rust/target/release-runtime/yoyo_runtime.dll"),
+            root.join("yoyo-rust/target/release/yoyo_runtime.dll"),
+        ]
+        .into_iter()
+        .find(|p| p.is_file())
+        .expect("yoyo_runtime.dll not built");
+        assert!(
+            !String::from_utf8_lossy(&std::fs::read(&dll_path).expect("read dll"))
+                .contains("VCRUNTIME140"),
+            "sidecar must be crt-static (no VCRUNTIME140 import) for manual-map PEB walk"
+        );
+
+        let work = std::env::temp_dir().join(format!("yoyo-manual-map-smoke-{}", std::process::id()));
+        std::fs::create_dir_all(&work).expect("mkdir work");
+        let tyb = root.join("yoyo/projects/yoyo.tyb");
+        std::fs::copy(&tyb, work.join("input.tyb")).expect("copy input.tyb");
+        let work_c = CString::new(work.to_string_lossy().as_bytes()).expect("work path");
+        unsafe {
+            assert_ne!(SetCurrentDirectoryA(work_c.as_ptr()), 0, "SetCurrentDirectoryA");
+        }
+
+        let file = std::fs::read(&dll_path).expect("read sidecar");
+        let load_base = 0x1_8000_0000u64;
+        let mapped = manual_map_pe_dll(&file, load_base, host_resolve).expect("manual map");
+        let hinst = load_base as *mut std::ffi::c_void;
+
+        if mapped.headers.entry_rva != 0 {
+            type DllEntry =
+                unsafe extern "system" fn(*mut std::ffi::c_void, u32, *mut std::ffi::c_void) -> i32;
+            let entry: DllEntry = unsafe {
+                std::mem::transmute(load_base + mapped.headers.entry_rva as u64)
+            };
+            unsafe {
+                assert_ne!(entry(hinst, 1, std::ptr::null_mut()), 0, "DllMain attach");
+            }
+        }
+
+        let export_rva =
+            export_function_rva_functions0(&mapped.image, &mapped.headers).expect("export rva");
+        type ExportFn = unsafe extern "system" fn() -> i32;
+        let export_fn: ExportFn =
+            unsafe { std::mem::transmute(load_base + export_rva as u64) };
+        let code = unsafe { export_fn() };
+        assert_eq!(code, 0, "yoyo_runtime_selfhost_main exit code");
+        assert!(
+            work.join("output.exe").is_file(),
+            "output.exe missing after manual-map host-resolve smoke"
+        );
+    }
+
     fn write_u16(buf: &mut [u8], off: usize, v: u16) {
         buf[off..off + 2].copy_from_slice(&v.to_le_bytes());
     }
