@@ -381,8 +381,11 @@ fn gen_h00_manual_map_body(
 
     // rbx = mapped image (r14)
     c.extend_from_slice(&[0x4C, 0x89, 0xF3]); // mov rbx, r14
+    // Success path must skip inline helpers (find_module/resolve_export); export tail follows map body.
+    let jmp_over_helpers = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
-    // --- Internal helpers (placed after main path) ---
+    // --- Internal helpers (placed after main path; reached only via call) ---
     let find_module = c.len();
     patch_rel32(&mut c, call_find_mod + 1, call_find_mod + 5, find_module);
     // rdx = ascii dll name → rax = DllBase
@@ -533,6 +536,9 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x48, 0x01, 0xF8]);
     c.extend_from_slice(&[0xC3]);
     patch_rel32(&mut c, jz_no_ord + 2, jz_no_ord + 6, no_exp);
+
+    let helpers_end = c.len();
+    patch_rel32(&mut c, jmp_over_helpers + 1, jmp_over_helpers + 5, helpers_end);
 
     for at in fail_jumps {
         patch_rel32(

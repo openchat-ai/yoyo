@@ -108,11 +108,9 @@ if (-not $SkipSmoke) {
     if (Test-Path $outExe) { Remove-Item $outExe }
     Push-Location $runOk
     try {
-        $env:YOYO_MM_SMOKE_PROBE = "1"
         & ".\gen1.exe"
         $smokeExit = $LASTEXITCODE
     } finally {
-        Remove-Item Env:YOYO_MM_SMOKE_PROBE -ErrorAction SilentlyContinue
         Pop-Location
     }
     if ($smokeExit -ne 0 -or -not (Test-Path $outExe)) {
