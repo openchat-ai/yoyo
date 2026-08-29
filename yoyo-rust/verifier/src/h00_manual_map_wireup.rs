@@ -458,7 +458,8 @@ fn gen_h00_manual_map_body(
 
     let resolve_export = c.len();
     patch_rel32(&mut c, call_resolve + 1, call_resolve + 5, resolve_export);
-    // rdi=module, rdx=name → rax=func (preserve thunk rsi; rbx/rcx/rdx = PE tables)
+    // rdi=module, rdx=name → rax=func (preserve thunk rsi; rbx/rcx/rdx = PE tables; r11=IAT cursor)
+    c.extend_from_slice(&[0x41, 0x53]); // push r11 — caller IAT cursor survives resolve_export
     c.extend_from_slice(&[0x49, 0x89, 0xD1]); // mov r9, rdx — save import name before table walk
     c.extend_from_slice(&[0x8B, 0x47, 0x3C]);
     c.extend_from_slice(&[0x8B, 0x84, 0x38, 0x88, 0x00, 0x00, 0x00]);
@@ -483,11 +484,10 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x41, 0x8B, 0x04, 0x93]); // mov eax,[rbx+r10*4]
     c.extend_from_slice(&[0x48, 0x01, 0xF8]);
-    // strcmp r9 with [rax]
+    // strcmp r9 (import) with [rax] (export) — do not clobber rbx=AddressOfNames
     let cmp_name = c.len();
     c.extend_from_slice(&[0x0F, 0xB6, 0x08]); // movzx eax, byte [rax] export name
-    c.extend_from_slice(&[0x41, 0x0F, 0xB6, 0x19]); // movzx ebx, byte [r9] import name
-    c.extend_from_slice(&[0x38, 0xD8]); // cmp al, bl
+    c.extend_from_slice(&[0x41, 0x38, 0x01]); // cmp byte ptr [r9], al
     let jne_name = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x84, 0xC9]);
@@ -503,6 +503,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x41, 0x0F, 0xB7, 0x04, 0x51]); // movzx eax,word [rcx+r10*2]
     c.extend_from_slice(&[0x8B, 0x04, 0x82]); // mov eax,[rdx+rax*4]
     c.extend_from_slice(&[0x48, 0x01, 0xF8]);
+    c.extend_from_slice(&[0x41, 0x5B]); // pop r11
     c.extend_from_slice(&[0xC3]);
     let next_name = c.len();
     patch_rel32(&mut c, jne_name + 2, jne_name + 6, next_name);
@@ -514,6 +515,7 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jz_no_exp + 2, jz_no_exp + 6, no_exp);
     patch_rel32(&mut c, jz_no_exp2 + 2, jz_no_exp2 + 6, no_exp);
     patch_rel32(&mut c, jae_no_exp + 2, jae_no_exp + 6, no_exp);
+    c.extend_from_slice(&[0x41, 0x5B]); // pop r11
     c.extend_from_slice(&[0x31, 0xC0]);
     c.extend_from_slice(&[0xC3]);
 
