@@ -112,4 +112,4 @@ Gate 必须同时：
 
 ---
 
-*Stage 16-A · 打破后门魔咒：洞从「v0.9 枚举」变「1.0 FINAL SCOPE-CUT + 可脚本钉」· post-v1.0 OW-RT：exact embed → sidecar（仍 CUT）· post-v1.0 OW-IAT：GetProcAddress → PE export walk（仍 CUT）· post-v1.0 OW-SEED：emitter+seed hash pin（仍 CUT）*
+*Stage 16-A · 打破后门魔咒：洞从「v0.9 枚举」变「1.0 FINAL SCOPE-CUT + 可脚本钉」· post-v1.0 OW-RT：Win/Linux exact embed → sidecar（仍 CUT）· post-v1.0 OW-IAT：GetProcAddress → PE export walk（仍 CUT）· post-v1.0 OW-SEED：emitter+seed hash pin（仍 CUT）*
