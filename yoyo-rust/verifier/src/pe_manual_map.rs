@@ -233,6 +233,33 @@ fn cstr_at(image: &[u8], rva: u32) -> Result<&str, MapError> {
     std::str::from_utf8(&bytes[..end]).map_err(|_| err("import name not utf8"))
 }
 
+/// List imported DLL names from a PE file (for sidecar diagnostics).
+pub fn pe_import_dll_names(file: &[u8]) -> Result<Vec<String>, MapError> {
+    let headers = parse_pe64_headers(file)?;
+    if headers.import_dir_rva == 0 {
+        return Ok(Vec::new());
+    }
+    let mut out = Vec::new();
+    let mut desc_rva = headers.import_dir_rva;
+    loop {
+        let desc = rva_slice(file, desc_rva)?;
+        if desc.len() < 20 {
+            break;
+        }
+        let name_rva = read_u32(desc, 12)?;
+        let first_thunk = read_u32(desc, 16)?;
+        let orig_first_thunk = read_u32(desc, 0)?;
+        if name_rva == 0 && first_thunk == 0 && orig_first_thunk == 0 {
+            break;
+        }
+        if name_rva != 0 {
+            out.push(cstr_at(file, name_rva)?.to_string());
+        }
+        desc_rva += 20;
+    }
+    Ok(out)
+}
+
 /// Resolve PE import thunks using `resolve(dll, name) -> host VA`.
 pub fn resolve_imports<F>(image: &mut [u8], headers: &PeHeaders, mut resolve: F) -> Result<(), MapError>
 where
@@ -439,6 +466,22 @@ mod tests {
     }
 
     /// When yoyo_runtime.dll is built, prove manual_map + functions[0] on real sidecar bytes.
+    /// Log sidecar import DLL names when built (Windows CI diagnostic for manual-map smoke).
+    #[test]
+    fn log_sidecar_import_dlls_if_present() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let paths = [
+            root.join("target/release-runtime/yoyo_runtime.dll"),
+            root.join("target/release/yoyo_runtime.dll"),
+        ];
+        let Some(path) = paths.iter().find(|p| p.is_file()) else {
+            return;
+        };
+        let file = std::fs::read(path).expect("read dll");
+        let dlls = pe_import_dll_names(&file).expect("imports");
+        eprintln!("SIDEcar_IMPORT_DLLS={dlls:?}");
+    }
+
     #[test]
     fn manual_map_real_sidecar_if_present() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");

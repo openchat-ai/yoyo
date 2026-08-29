@@ -22,63 +22,118 @@ const KERNEL32_IO_FUNCS: &[&str] = &[
     "ExitProcess",
 ];
 
+/// Loaded by the Windows loader before H_00 runs so manual-map PEB walk can resolve
+/// MSVC Rust sidecar imports (gen1 otherwise only maps kernel32).
+const PRELOAD_RUNTIME_DLL_IMPORTS: &[(&str, &str)] = &[
+    ("VCRUNTIME140.dll", "memset"),
+    ("api-ms-win-crt-runtime-l1-1-0.dll", "_initialize_onexit_table"),
+    ("api-ms-win-crt-heap-l1-1-0.dll", "malloc"),
+    ("api-ms-win-crt-stdio-l1-1-0.dll", "__stdio_common_vsprintf"),
+];
+
+fn hint_name_bytes(func: &str) -> Vec<u8> {
+    let mut hn = Vec::new();
+    hn.extend_from_slice(&0u16.to_le_bytes());
+    hn.extend_from_slice(func.as_bytes());
+    hn.push(0);
+    while hn.len() % 2 != 0 {
+        hn.push(0);
+    }
+    hn
+}
+
 /// Prepend kernel32 IAT at r15+0 for Stage 8 platform I/O emit.
 fn prepend_win32_io_iat(user_data: &[u8], data_rva: u32) -> (Vec<u8>, u32, u32) {
-    let n = KERNEL32_IO_FUNCS.len();
     let desc_size = 40usize;
     let kernel32_name = b"kernel32.dll\0";
-    let iat_slots_off = 0usize; // r15+0 .. r15+40
+    let kern_n = KERNEL32_IO_FUNCS.len();
+    let preload_n = PRELOAD_RUNTIME_DLL_IMPORTS.len();
+    let num_desc = 1 + preload_n + 1; // trailing null descriptor
 
-    let mut hint_names: Vec<Vec<u8>> = Vec::new();
-    for name in KERNEL32_IO_FUNCS {
-        let mut hn = Vec::new();
-        hn.extend_from_slice(&0u16.to_le_bytes());
-        hn.extend_from_slice(name.as_bytes());
-        hn.push(0);
-        while hn.len() % 2 != 0 {
-            hn.push(0);
-        }
-        hint_names.push(hn);
+    let kern_iat_off = 0usize;
+    let preload_iat_off = kern_n * 8;
+    let desc_off = preload_iat_off + preload_n * 8;
+
+    let kern_hints: Vec<Vec<u8>> = KERNEL32_IO_FUNCS.iter().map(|s| hint_name_bytes(s)).collect();
+    let preload_hints: Vec<Vec<u8>> = PRELOAD_RUNTIME_DLL_IMPORTS
+        .iter()
+        .map(|(_, f)| hint_name_bytes(f))
+        .collect();
+
+    let strings_off = desc_off + desc_size * num_desc;
+    let mut cursor = strings_off;
+
+    let kern_name_off = cursor;
+    cursor += kernel32_name.len();
+
+    let mut kern_hn_off = Vec::new();
+    for hn in &kern_hints {
+        kern_hn_off.push(cursor);
+        cursor += hn.len();
+    }
+    let kern_ilt_off = cursor;
+    cursor += (kern_n + 1) * 8;
+
+    let mut preload_meta: Vec<(usize, usize, usize, usize)> = Vec::new();
+    for (i, (dll, _)) in PRELOAD_RUNTIME_DLL_IMPORTS.iter().enumerate() {
+        let name_off = cursor;
+        cursor += dll.len() + 1;
+        let hn_off = cursor;
+        cursor += preload_hints[i].len();
+        let ilt_off = cursor;
+        cursor += 16; // one thunk + null
+        let iat_off = preload_iat_off + i * 8;
+        preload_meta.push((name_off, hn_off, ilt_off, iat_off));
     }
 
-    let desc_off = (n + 1) * 8;
-    let kern_off = desc_off + desc_size;
-    let hn_start = kern_off + kernel32_name.len();
-    let mut hn_off = hn_start;
-    let mut hn_rvas: Vec<u32> = Vec::new();
-    for hn in &hint_names {
-        hn_rvas.push(data_rva + hn_off as u32);
-        hn_off += hn.len();
-    }
-
-    let ilt_off = hn_off;
-    let header_end = ilt_off + (n + 1) * 8;
+    let header_end = cursor;
     let pad = align_up_usize(header_end, 16);
     let mut blob = vec![0u8; pad + user_data.len()];
     let user_base = pad;
 
-    write_u32(&mut blob, desc_off, data_rva + ilt_off as u32);
-    write_u32(&mut blob, desc_off + 12, data_rva + kern_off as u32);
-    write_u32(&mut blob, desc_off + 16, data_rva + iat_slots_off as u32);
+    // kernel32 descriptor
+    write_u32(&mut blob, desc_off, data_rva + kern_ilt_off as u32);
+    write_u32(&mut blob, desc_off + 12, data_rva + kern_name_off as u32);
+    write_u32(&mut blob, desc_off + 16, data_rva + kern_iat_off as u32);
 
-    blob[kern_off..kern_off + kernel32_name.len()].copy_from_slice(kernel32_name);
-
-    let mut off = hn_start;
-    for hn in &hint_names {
-        blob[off..off + hn.len()].copy_from_slice(hn);
-        off += hn.len();
+    for (i, (name_off, hn_off, ilt_off, iat_off)) in preload_meta.iter().enumerate() {
+        let at = desc_off + desc_size * (1 + i);
+        write_u32(&mut blob, at, data_rva + *ilt_off as u32);
+        write_u32(&mut blob, at + 12, data_rva + *name_off as u32);
+        write_u32(&mut blob, at + 16, data_rva + *iat_off as u32);
     }
 
-    for (i, &hn_rva) in hn_rvas.iter().enumerate() {
-        write_u64(&mut blob, ilt_off + i * 8, hn_rva as u64);
-        write_u64(&mut blob, iat_slots_off + i * 8, hn_rva as u64);
+    blob[kern_name_off..kern_name_off + kernel32_name.len()].copy_from_slice(kernel32_name);
+    for (off, hn) in kern_hn_off.iter().zip(&kern_hints) {
+        blob[*off..*off + hn.len()].copy_from_slice(hn);
+    }
+    for (i, &hn_off) in kern_hn_off.iter().enumerate() {
+        let hn_rva = data_rva + hn_off as u32;
+        write_u64(&mut blob, kern_ilt_off + i * 8, hn_rva as u64);
+        write_u64(&mut blob, kern_iat_off + i * 8, hn_rva as u64);
+    }
+
+    for (i, ((dll, _), (name_off, hn_off, ilt_off, iat_off))) in PRELOAD_RUNTIME_DLL_IMPORTS
+        .iter()
+        .zip(preload_meta.iter())
+        .enumerate()
+    {
+        blob[*name_off..*name_off + dll.len() + 1]
+            .copy_from_slice(&[dll.as_bytes(), b"\0"].concat());
+        let hn = &preload_hints[i];
+        blob[*hn_off..*hn_off + hn.len()].copy_from_slice(hn);
+        let hn_rva = data_rva + *hn_off as u32;
+        write_u64(&mut blob, *ilt_off, hn_rva as u64);
+        write_u64(&mut blob, *ilt_off + 8, 0);
+        write_u64(&mut blob, *iat_off, hn_rva as u64);
     }
 
     blob[user_base..user_base + user_data.len()].copy_from_slice(user_data);
+    let import_dir_bytes = desc_size * (1 + preload_n);
     (
         blob,
         data_rva + desc_off as u32,
-        desc_size as u32,
+        import_dir_bytes as u32,
     )
 }
 
