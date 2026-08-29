@@ -358,6 +358,88 @@ where
     })
 }
 
+/// Windows-only: map into `VirtualAlloc` RWX memory so DllMain/export can run (Vec heap is NX).
+#[cfg(windows)]
+pub struct ExecutableMappedPe {
+    pub headers: PeHeaders,
+    pub base: *mut u8,
+    pub size: usize,
+}
+
+#[cfg(windows)]
+impl Drop for ExecutableMappedPe {
+    fn drop(&mut self) {
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn VirtualFree(lpAddress: *mut std::ffi::c_void, dwSize: usize, dwFreeType: u32) -> i32;
+        }
+        const MEM_RELEASE: u32 = 0x8000;
+        if !self.base.is_null() {
+            unsafe {
+                VirtualFree(self.base as *mut _, 0, MEM_RELEASE);
+            }
+            self.base = std::ptr::null_mut();
+        }
+    }
+}
+
+#[cfg(windows)]
+pub fn manual_map_pe_dll_executable<F>(file: &[u8], resolve_import: F) -> Result<ExecutableMappedPe, MapError>
+where
+    F: FnMut(&str, &str) -> Option<u64>,
+{
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn VirtualAlloc(
+            lpAddress: *mut std::ffi::c_void,
+            dwSize: usize,
+            flAllocationType: u32,
+            flProtect: u32,
+        ) -> *mut std::ffi::c_void;
+    }
+    const MEM_COMMIT: u32 = 0x1000;
+    const MEM_RESERVE: u32 = 0x2000;
+    const PAGE_EXECUTE_READWRITE: u32 = 0x40;
+
+    let headers = parse_pe64_headers(file)?;
+    let staging = map_pe_sections(file, &headers)?;
+    let size = headers.size_of_image as usize;
+    let base = unsafe {
+        VirtualAlloc(
+            std::ptr::null_mut(),
+            size,
+            MEM_COMMIT | MEM_RESERVE,
+            PAGE_EXECUTE_READWRITE,
+        )
+    };
+    if base.is_null() {
+        return Err(err("VirtualAlloc failed for manual map"));
+    }
+    let load_base = base as u64;
+    unsafe {
+        std::ptr::copy_nonoverlap(staging.as_ptr(), base as *mut u8, size);
+    }
+    let image = unsafe { std::slice::from_raw_parts_mut(base as *mut u8, size) };
+    if let Err(e) = apply_base_relocations(image, &headers, load_base)
+        .and_then(|_| resolve_imports(image, &headers, resolve_import))
+    {
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn VirtualFree(lpAddress: *mut std::ffi::c_void, dwSize: usize, dwFreeType: u32) -> i32;
+        }
+        const MEM_RELEASE: u32 = 0x8000;
+        unsafe {
+            VirtualFree(base, 0, MEM_RELEASE);
+        }
+        return Err(e);
+    }
+    Ok(ExecutableMappedPe {
+        headers,
+        base: base as *mut u8,
+        size,
+    })
+}
+
 fn write_u64(buf: &mut [u8], off: usize, v: u64) {
     buf[off..off + 8].copy_from_slice(&v.to_le_bytes());
 }
@@ -517,15 +599,7 @@ mod tests {
             fn LoadLibraryA(name: *const i8) -> *mut std::ffi::c_void;
             fn GetProcAddress(module: *mut std::ffi::c_void, name: *const i8) -> *mut std::ffi::c_void;
             fn SetCurrentDirectoryA(path: *const i8) -> i32;
-            fn VirtualProtect(
-                addr: *mut std::ffi::c_void,
-                size: usize,
-                new_protect: u32,
-                old_protect: *mut u32,
-            ) -> i32;
         }
-
-        const PAGE_EXECUTE_READWRITE: u32 = 0x40;
 
         fn host_resolve(dll: &str, name: &str) -> Option<u64> {
             let dll_c = CString::new(dll).ok()?;
@@ -579,22 +653,10 @@ mod tests {
             assert_ne!(SetCurrentDirectoryA(work_c.as_ptr()), 0, "SetCurrentDirectoryA");
         }
 
-        let mapped = manual_map_pe_dll(&file, host_resolve).expect("manual map");
-        let base = mapped.load_base;
-        let hinst = base as *mut std::ffi::c_void;
-        unsafe {
-            let mut old = 0u32;
-            assert_ne!(
-                VirtualProtect(
-                    mapped.image.as_ptr() as *mut _,
-                    mapped.image.len(),
-                    PAGE_EXECUTE_READWRITE,
-                    &mut old,
-                ),
-                0,
-                "VirtualProtect on manual-mapped image",
-            );
-        }
+        let mapped = manual_map_pe_dll_executable(&file, host_resolve).expect("manual map");
+        let base = mapped.base as u64;
+        let hinst = mapped.base as *mut std::ffi::c_void;
+        let image = unsafe { std::slice::from_raw_parts(mapped.base, mapped.size) };
 
         if mapped.headers.entry_rva != 0 {
             type DllEntry =
@@ -608,7 +670,7 @@ mod tests {
         }
 
         let export_rva =
-            export_function_rva_functions0(&mapped.image, &mapped.headers).expect("export rva");
+            export_function_rva_functions0(image, &mapped.headers).expect("export rva");
         type ExportFn = unsafe extern "system" fn() -> i32;
         let export_fn: ExportFn = unsafe { std::mem::transmute(base + export_rva as u64) };
         let code = unsafe { export_fn() };
