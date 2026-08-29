@@ -564,15 +564,12 @@ pub mod stub_resolve {
         }
 
         unsafe {
-            let peb = {
-                let peb_ptr: *const *mut Peb;
-                std::arch::asm!(
-                    "mov {}, gs:[0x60]",
-                    out(reg) peb_ptr,
-                    options(nostack, pure, readonly)
-                );
-                *peb_ptr
-            };
+            let peb: *mut Peb;
+            std::arch::asm!(
+                "mov {}, gs:[0x60]",
+                out(reg) peb,
+                options(nostack, pure, readonly)
+            );
             if peb.is_null() {
                 return None;
             }
@@ -691,10 +688,13 @@ pub mod stub_resolve {
             }
             let exp_size = read_u32(dos, opt + 116).ok()?;
             let exp = (module_base + exp_rva as u64) as *const u8;
-            let functions_rva = read_u32(std::slice::from_raw_parts(exp, 0x28), 0x1C).ok()?;
+            let exp_slice = std::slice::from_raw_parts(exp, 0x28);
+            let base_ordinal = read_u32(exp_slice, 0x10).ok()?;
+            let functions_rva = read_u32(exp_slice, 0x1C).ok()?;
+            let idx = ordinal.checked_sub(base_ordinal as u16)? as u64;
             let func_rva = read_u32(
                 std::slice::from_raw_parts(
-                    (module_base + functions_rva as u64 + ordinal as u64 * 4) as *const u8,
+                    (module_base + functions_rva as u64 + idx * 4) as *const u8,
                     4,
                 ),
                 0,
