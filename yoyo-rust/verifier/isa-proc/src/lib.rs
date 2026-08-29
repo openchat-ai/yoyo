@@ -77,6 +77,14 @@ fn expand_isa(src: &str) -> Result<proc_macro2::TokenStream, String> {
         if !seen.insert(r.opcode) {
             return Err(format!("Duplicate opcode 0x{:02X}", r.opcode));
         }
+        // Read emit pattern so CI `-D warnings` accepts the parsed field;
+        // also reject empty recipes (parser already checks, belt-and-suspenders).
+        if r.pattern.is_empty() {
+            return Err(format!(
+                "opcode 0x{:02X} ({}) has empty emit pattern",
+                r.opcode, r.mnemonic
+            ));
+        }
     }
 
     let variants: Vec<_> = rows

@@ -88,6 +88,9 @@ fn parse_row(line: &str) -> Result<IsaRow, String> {
     }
     let params: Vec<String> = left_toks[2..].iter().map(|s| s.to_string()).collect();
     let pattern: Vec<String> = right.split_whitespace().map(|s| s.to_string()).collect();
+    if pattern.is_empty() {
+        return Err("empty emit pattern after =>".into());
+    }
     Ok(IsaRow {
         opcode,
         mnemonic,
@@ -112,5 +115,16 @@ mod tests {
         assert_eq!(rows[0].opcode, 0x30);
         assert_eq!(rows[0].mnemonic, "SET");
         assert_eq!(rows[0].variant_name(), "Set");
+        assert_eq!(
+            rows[0].pattern,
+            vec![
+                "movabs",
+                "rax",
+                "imm",
+                "store_state",
+                "slot",
+                "rax"
+            ]
+        );
     }
 }

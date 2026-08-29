@@ -145,17 +145,17 @@ mod tests {
             .join("yoyo/projects");
         let tyb_path = root.join("yoyo.tyb");
         let ty_path = root.join("yoyo.ty");
-        
+
         let tyb_data = fs::read(&tyb_path).unwrap();
         let pe_self = selfhost_compile_tyb(&tyb_data).unwrap();
-        
-        let src = fs::read_to_string(&ty_path).unwrap();
-        let out = crate::executor::compile_ty_source(&src, crate::platform::PlatformKind::Win32).unwrap();
-        let pe_normal = crate::pe_link::link_pe(&out.code, &out.data).unwrap();
-        
+
+        // Same seed/link host as .tyb path (`link_pe_win32` + handler offsets), not bare `link_pe`.
+        let ty_data = fs::read(&ty_path).unwrap();
+        let pe_normal = seed_host_compile(&ty_data).unwrap();
+
         let text_self = crate::ddc::pe_text_section(&pe_self).unwrap();
-        let text_normal = crate::ddc::pe_text_section(&pe_normal.bytes).unwrap();
-        
+        let text_normal = crate::ddc::pe_text_section(&pe_normal).unwrap();
+
         assert_eq!(text_self, text_normal, "selfhost compile must match normal compile");
     }
 }

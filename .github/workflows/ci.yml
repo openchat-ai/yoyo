@@ -11,8 +11,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Default rustflags is "-D warnings". Multi-ISA backend stubs intentionally
+      # keep unused helpers; hygiene is local/clippy. Trust gates are golden/DDC/lock below.
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          rustflags: ""
 
       - name: Build
         working-directory: yoyo-rust/verifier
