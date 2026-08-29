@@ -351,7 +351,7 @@ if ($hasLoadLibrary -or $hasGetProc) {
 if (-not $hasYoyoRt) {
     Add-Hole "OW-IAT" "CLOSED" "no_yoyo_rt_sidecar;no_IAT_LoadLibraryA"
 } else {
-    Add-Hole "OW-IAT" "CUT" ("no_IAT_LoadLibraryA;PEB_kernel32_ror13;yoyo_rt.dll;still_host_LoadLibrary;PE_export_walk;hasYoyoRt={0}" -f $hasYoyoRt)
+    Add-Hole "OW-IAT" "CUT" ("no_IAT_LoadLibraryA;manual_map_wired;kernel32_IO;yoyo_rt.dll_sidecar;still_host_trusted;hasYoyoRt={0}" -f $hasYoyoRt)
 }
 
 # OW-SEED: still CUT — Rust yoyo.exe emits seed. Post-v1.0 pins emitter + seed hash + path=h00.
