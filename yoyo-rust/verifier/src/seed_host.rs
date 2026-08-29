@@ -17,8 +17,8 @@ pub const SEED_SHA256_PREFIX_LEN: usize = 16;
 /// Classify a linked image's seed/host entry shape from embedded ASCII markers.
 ///
 /// - `h00` — Stage 9-A+ / post-v1.0 sidecar path (Win LoadLibraryA+yoyo_rt.dll, or
-///   Linux cwd `libyoyo_runtime.so` + embedded dlopen trampoline; libdl may live only
-///   in the trampoline blob and not as a flat `libdl.so` ASCII in the ELF)
+///   Linux cwd `libyoyo_runtime.so` + cwd `.yoyo_h00_tramp`; libdl/dlopen live in the
+///   tramp sidecar, not necessarily as ASCII in the seed ELF)
 /// - `gennrt` — `bootstrap --selfhost` / genNrt GetTempPath-style wrapper
 /// - `plain` — no full-body runtime extract markers
 pub fn classify_seed_path(bytes: &[u8]) -> &'static str {
@@ -26,7 +26,7 @@ pub fn classify_seed_path(bytes: &[u8]) -> &'static str {
     let has_win_ll = find_ascii(bytes, b"LoadLibraryA");
     let has_yoyo_rt =
         find_ascii(bytes, b"yoyo_rt.dll") || find_ascii(bytes, b"libyoyo_runtime.so");
-    // Linux H_00 trampoline uses dlopen; string may appear in embedded tramp bytes.
+    // Linux H_00 trampoline uses dlopen; string may appear in cwd tramp sidecar, not seed.
     let has_linux_dl = find_ascii(bytes, b"dlopen") || find_ascii(bytes, b"libdl.so");
     if has_temp {
         "gennrt"

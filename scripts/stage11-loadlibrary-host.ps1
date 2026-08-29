@@ -7,8 +7,8 @@
 #   - Win: import table must expose exactly {LoadLibraryA,ExitProcess}
 #     as the host-loader slice (no GetTempPathA / lstrcatA / GetProcAddress on H_00 IAT)
 #   - Win: H_00 stub resolves export via in-process PE walk (OW-IAT shrink; still LoadLibraryA)
-#   - Linux: committed dlopen trampoline blob size ≤ MAX; trampoline exact-embed in
-#     linux gen1; post-v1.0: libyoyo_runtime.so is cwd sidecar (no exact embed)
+#   - Linux: committed dlopen trampoline blob size <= MAX; post-v1.0: tramp + .so are
+#     cwd sidecars (no exact embed of either in linux gen1)
 #   - Smoke: gen1 H_00 still compiles via LoadLibrary path (parity optional via 11-A)
 #
 # Honest remaining: still calls host LoadLibraryA / libdl; trampoline still glibc+dlopen.
@@ -343,7 +343,7 @@ if (-not $SkipSmoke) {
     Write-Host "smoke: gen1 → output.exe OK; cwd sidecar $rtDll LoadLibrary path"
 }
 
-# --- Linux trampoline embed + .so sidecar posture (optional WSL link) ---
+# --- Linux trampoline + .so cwd sidecar posture (optional WSL link) ---
 $linuxEmbedOk = $false
 $linuxSoSidecarOk = $false
 $linuxGen1Len = 0
@@ -351,7 +351,7 @@ $linuxEmbedOff = -1
 $linuxSoEmbedOff = -1
 if (-not $SkipLinux) {
     Write-Host ""
-    Write-Host "== Linux: link gen1 + trampoline embed + no .so exact embed =="
+    Write-Host "== Linux: link gen1 + no tramp/.so exact embed (cwd sidecars) =="
     $linuxGen1 = Join-Path $WorkDir "gen1.elf"
     if (Test-Path $linuxGen1) { Remove-Item $linuxGen1 }
     & $Yoyo link --target=linux $Ty $linuxGen1
@@ -362,12 +362,16 @@ if (-not $SkipLinux) {
     $linuxGen1Len = [int64](Get-Item $linuxGen1).Length
     $elf = [System.IO.File]::ReadAllBytes($linuxGen1)
     $linuxEmbedOff = Find-EmbeddedExact $elf $trampRaw
-    if ($linuxEmbedOff -lt 0) {
-        Write-Host "Stage 11-B: RED (trampoline bytes not exact-embedded in linux gen1)"
+    if ($linuxEmbedOff -ge 0) {
+        Write-Host "Stage 11-B: RED (trampoline exact-embed at $linuxEmbedOff -- sidecar shrink regresssed)"
         exit 1
     }
     $linuxEmbedOk = $true
-    Write-Host "linux gen1: $linuxGen1Len bytes; trampoline at file offset $linuxEmbedOff (exact)"
+    Write-Host "linux gen1: $linuxGen1Len bytes; no exact tramp embed (cwd .yoyo_h00_tramp)"
+    if ((Find-Ascii $elf ".yoyo_h00_tramp") -lt 0) {
+        Write-Host "Stage 11-B: RED (linux gen1 missing .yoyo_h00_tramp marker)"
+        exit 1
+    }
     if ($linuxGen1Len -gt 300000) {
         Write-Host "Stage 11-B: RED (linux gen1 $linuxGen1Len still embed-class; expect sidecar <<300000)"
         exit 1
@@ -421,7 +425,7 @@ $report = [ordered]@{
     linux_so_embed_offset = $linuxSoEmbedOff
     honest_remaining      = @(
         "Win H_00 still calls host LoadLibraryA (cwd sidecar; export via in-process PE walk)",
-        "Linux H_00 still execve's committed glibc/libdl trampoline blob (cwd .so sidecar; no exact .so embed)",
+        "Linux H_00 still execve's cwd glibc/libdl trampoline sidecar (no exact tramp/.so embed; still CUT)",
         "gen2rt Stage 8-C regression path may still use GetTempPath + GetProcAddress private IAT",
         "Not a YOYO-built loader — Stage 11-B + OW-IAT/OW-RT shrink observe the host-loader face"
     )
@@ -434,5 +438,5 @@ Write-Host "report: $reportPath"
 Write-Host ""
 Write-Host "Stage 11-B: GREEN"
 Write-Host "  trust-chain: H_00 host-loader IAT 3→2 APIs (dropped GetProcAddress; PE export walk); cwd sidecar"
-Write-Host "  monitored:   import names + cwd yoyo_rt.dll smoke + trampoline size/embed + Linux no .so embed"
+Write-Host "  monitored:   import names + cwd yoyo_rt.dll smoke + trampoline size + Linux no tramp/.so embed"
 exit 0

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Stage 10-B / post-v1.0: Linux ELF H_00 pure M4 (no bootstrap --selfhost)
-# Seed: yoyo link --target=linux → gen1 (H_00 entry; trampoline embed + cwd .so sidecar)
+# Seed: yoyo link --target=linux -> gen1 (H_00 entry; cwd tramp + .so sidecars; no exact embed)
 # Chain: gen1 → gen2 → gen3 → gen4 (each zero-arg H_00; pre-placed libyoyo_runtime.so)
 # Parity: gen4 ≡ gen3_direct (full-file DDC via yoyo diff); gen3_direct = bootstrap WITHOUT --selfhost
 # Trust: M3→M4 algebra runs via prior YOYO ELF H_00 path; host never calls bootstrap --selfhost here.
-# Honest: OW-RT still CUT (Rust .so + libdl trampoline); no exact embed of .so.
+# Honest: OW-RT still CUT (Rust .so + libdl trampoline); no exact embed of tramp/.so.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -55,6 +55,13 @@ if [[ ! -f "$RUNTIME_SO" ]]; then
   echo "Stage 10-B: RED (libyoyo_runtime.so missing for cwd sidecar)"
   exit 1
 fi
+TRAMP_BLOB="$ROOT/yoyo-rust/verifier/blobs/linux_h00_tramp.elf"
+if [[ ! -f "$TRAMP_BLOB" ]]; then
+  echo "Stage 10-B: RED (missing $TRAMP_BLOB for cwd sidecar)"
+  exit 1
+fi
+echo "sidecar tramp: $TRAMP_BLOB ($(stat -c%s "$TRAMP_BLOB" 2>/dev/null || wc -c <"$TRAMP_BLOB") bytes)"
+
 echo "sidecar .so: $RUNTIME_SO ($(stat -c%s "$RUNTIME_SO" 2>/dev/null || wc -c <"$RUNTIME_SO") bytes)"
 
 if [[ ! -f "$TYB" ]]; then
@@ -101,10 +108,12 @@ run_h00() {
   local out="$2"
   local label="$3"
   chmod +x "$exe"
-  # Post-v1.0 OW-RT: cwd sidecar .so (no extract-from-embed). Re-place each run.
+  # Post-v1.0 OW-RT: cwd sidecar tramp + .so (no exact embed). Re-place each run.
   rm -f "$WORKDIR/output.elf" "$WORKDIR/.yoyo_h00_tramp"
   cp -f "$RUNTIME_SO" "$WORKDIR/libyoyo_runtime.so"
-  echo "running $label (zero-arg H_00; cwd sidecar libyoyo_runtime.so)..."
+  cp -f "$TRAMP_BLOB" "$WORKDIR/.yoyo_h00_tramp"
+  chmod +x "$WORKDIR/.yoyo_h00_tramp"
+  echo "running $label (zero-arg H_00; cwd sidecar tramp+.so)..."
   set +e
   (cd "$WORKDIR" && "./$(basename "$exe")")
   local ec=$?
@@ -128,16 +137,23 @@ if [[ ! -f "$GEN1" ]] || [[ "$gen1_sz" -le 0 ]]; then
   echo "Stage 10-B: RED (gen1 link failed)"
   exit 1
 fi
-echo "gen1: ${gen1_sz} bytes (ELF entry → H_00; cwd sidecar .so)"
+echo "gen1: ${gen1_sz} bytes (ELF entry -> H_00; cwd tramp+.so sidecars)"
 # Post-v1.0 OW-RT: fail-closed — gen1 must NOT exact-embed the Rust .so.
 python3 - <<PY
 import pathlib, sys
 gen1 = pathlib.Path(r"$GEN1").read_bytes()
 so = pathlib.Path(r"$RUNTIME_SO").read_bytes()
+tramp = pathlib.Path(r"$TRAMP_BLOB").read_bytes()
 if len(so) >= 16 and so in gen1:
     print(f"Stage 10-B: RED (exact .so embed regress in gen1; len={len(so)})")
     sys.exit(1)
-print("OW-RT: no exact .so embed in gen1 (cwd sidecar posture)")
+if len(tramp) >= 16 and tramp in gen1:
+    print(f"Stage 10-B: RED (exact tramp embed regress in gen1; len={len(tramp)})")
+    sys.exit(1)
+if b".yoyo_h00_tramp" not in gen1:
+    print("Stage 10-B: RED (gen1 missing .yoyo_h00_tramp marker)")
+    sys.exit(1)
+print("OW-RT: no exact .so/tramp embed in gen1 (cwd sidecar posture)")
 PY
 if [[ "$gen1_sz" -gt 300000 ]]; then
   echo "Stage 10-B: RED (gen1 $gen1_sz still looks like pre-sidecar embed class; expect <<300000)"
@@ -203,12 +219,12 @@ echo "bootstrap --selfhost:  NOT USED (Stage 10-B gate)"
 echo "Stage 10-B:            $(if $chain_green && $parity_equal; then echo 'may check [x]'; else echo 'keep [ ]'; fi)"
 echo ""
 echo "Trust chain: M4 algebra completed inside H_00-patched YOYO ELFs (gen1→gen4)."
-echo "  Seed = yoyo link --target=linux (H_00 trampoline stub + cwd libyoyo_runtime.so sidecar)"
+echo "  Seed = yoyo link --target=linux (H_00 execve cwd .yoyo_h00_tramp + libyoyo_runtime.so)"
 echo "  Reference = yoyo bootstrap --target=linux WITHOUT --selfhost"
 echo "  gen4 = gen3 H_00 runtime output (no genNrt / --selfhost wrapper)"
 echo "Remaining host surface (honest):"
 echo "  - host link/bootstrap seed + gen3_direct reference"
-echo "  - cwd sidecar libyoyo_runtime.so (Rust compile; no exact embed) + linux_h00_tramp.elf blob"
+echo "  - cwd sidecars .yoyo_h00_tramp + libyoyo_runtime.so (no exact embed; tramp blob host-preplaced)"
 echo "  - trampoline still uses system libdl/libc via execve"
 if [[ -n "$text_sha" ]]; then
   echo "  gen4 DDC SHA256 prefix: $text_sha"

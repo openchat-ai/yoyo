@@ -313,7 +313,7 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Change** | Win H_00 seed/link **drops exact embed** of `yoyo_runtime.dll`; `LoadLibraryA("yoyo_rt.dll")` cwd sidecar only |
 | **Still CUT** | Rust runtime + LoadLibrary remain; **no-embed alone ≠ CLOSED** (stage15 fail-closed) |
 | **Obs** | dll **141312** (was 154624); stub_nz **53** (was 159); seed PE **248320**; gen12 `61110c66` / **17920** B |
-| **Linux** | H_00 still exact-embeds `.so` + trampoline (this session Win-only) |
+| **Linux** | See post-v1.0 Linux OW-RT tramp+`.so` sidecar parity below |
 | **Gates** | stage10/11/12/14/15/16 inventory pins updated; `stage15-hole-inventory -SkipBuild` |
 
 ### Post-v1.0 path 2 — OW-IAT GetProcAddress shrink (2026-08-29)
@@ -341,10 +341,10 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | Item | Detail |
 |------|--------|
 | **Hole** | **OW-RT** (Linux parity with Win sidecar) |
-| **Change** | Linux H_00 drops exact embed of `libyoyo_runtime.so`; cwd sidecar + trampoline `dlopen("./libyoyo_runtime.so")`; trampoline blob still embedded |
+| **Change** | Linux H_00 drops exact embed of trampoline + `libyoyo_runtime.so`; cwd `.yoyo_h00_tramp` + `./libyoyo_runtime.so`; tramp `dlopen` |
 | **Still CUT** | Rust `.so` + glibc/libdl trampoline remain; **no-.so-embed alone ≠ CLOSED** |
-| **Obs** | seed ELF **253952**（was ~512000 with embed；MAX **300000**）; tramp still exact-embed |
-| **Gates** | stage10-linux-pure-m4 (pre-place sidecar); stage11/13 fail-closed forbid exact `.so` embed |
+| **Obs** | seed ELF **253952** (data floor; was ~512000 with .so embed; MAX **300000**; no tramp/.so exact embed) |
+| **Gates** | stage10-linux-pure-m4 (pre-place tramp+.so); stage11/13 fail-closed forbid exact tramp/`.so` embed |
 
 ### Stage 16-A — SCOPE-CUT FINAL (hole inventory)
 
@@ -422,11 +422,11 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 
 | Item | Detail |
 |------|--------|
-| **Path** | `yoyo link --target=linux` → gen1; ELF entry `lea r15; jmp H_00`; H_00 extracts embedded `libyoyo_runtime.so` + `linux_h00_tramp.elf` via syscalls then `execve` trampoline |
+| **Path** | `yoyo link --target=linux` → gen1; ELF entry `lea r15; jmp H_00`; H_00 `execve("./.yoyo_h00_tramp")` (cwd tramp + `.so` sidecars; no exact embed) |
 | **Not used** | `bootstrap --selfhost` / genNrt gcc loader for the M4 gate (`stage10-linux-pure-m4.sh`) |
 | **Parity** | gen4 ≡ gen3_direct full-ELF DDC EQUAL (sha prefix `c6d8c49a…` · **512000** B as of Stage 11-B 2026-08-28; was `085d07d4…` · 704512) |
 | **Gate** | `scripts/stage10-linux-pure-m4.sh`; stage8-extended-selfhost.sh remains GREEN (regression; still documents genNrt `--selfhost`) |
-| **Still host-trusted** | Seed `link` + gen3_direct `bootstrap`; embedded Rust `.so` + committed trampoline (Stage 11-B: **9768** B nostdlib; still dlopen/libdl via libc) |
+| **Still host-trusted** | Seed `link` + gen3_direct `bootstrap`; cwd Rust `.so` + cwd trampoline blob (Stage 11-B: **9768** B nostdlib; still dlopen/libdl via libc) |
 
 ### How to run
 
