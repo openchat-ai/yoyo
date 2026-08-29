@@ -60,8 +60,7 @@ jobs:
 
       - name: Stage 17 OW-IAT wire-up (manual-map H_00 + cwd sidecar smoke)
         shell: pwsh
-        # Runtime smoke RED (manual-map AV 0xC0000005) — unit tests + PE markers only until fixed.
-        run: pwsh -NoProfile -File scripts/stage17-ow-iat-wireup.ps1 -SkipSmoke
+        run: pwsh -NoProfile -File scripts/stage17-ow-iat-wireup.ps1
 
   linux-m4:
     # Post-v1.0 OW-RT Linux sidecar + OW-IAT no-dlsym tramp — prevent Windows-only CI regressions.

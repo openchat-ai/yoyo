@@ -17,6 +17,21 @@ pub const IAT_CLOSE_HANDLE: u32 = 4;
 /// Stack scratch for ReadFile nNumberOfBytesRead (above shadow 0x28).
 const READ_BYTES_STACK_OFF: u8 = 0x30;
 
+/// PE32+ optional-header field offsets from `e_lfanew` (ebx holds e_lfanew; COFF = 20 B after PE sig).
+const PE_OFF_NUMBER_OF_SECTIONS: u8 = 6; // COFF + 2
+const PE_OFF_SIZE_OF_OPTIONAL_HEADER: u8 = 20; // COFF + 16
+const PE_OFF_OPTIONAL: u8 = 24; // PE sig (4) + COFF (20)
+const PE_OFF_IMAGE_BASE: u8 = PE_OFF_OPTIONAL + 24; // 0x30
+const PE_OFF_SIZE_OF_IMAGE: u8 = PE_OFF_OPTIONAL + 56; // 0x50
+const PE_OFF_SIZE_OF_HEADERS: u8 = PE_OFF_OPTIONAL + 60; // 0x54
+const PE_OFF_IMPORT_DIR_RVA: u8 = PE_OFF_OPTIONAL + 120; // 0x90
+const PE_OFF_BASERELOC_DIR_RVA: u8 = PE_OFF_OPTIONAL + 152; // 0xB0
+
+/// InMemoryOrderModuleList: Flink points at LDR entry + 0x10.
+const LDR_INMEMORY_FLINK_OFF: u8 = 0x10;
+const LDR_DLLBASE_OFF: u8 = 0x30;
+const LDR_BASEDLLNAME_BUF_OFF: u8 = 0x60;
+
 /// H_00 stub prologue (`push` saves + `sub rsp`) before file-read prelude.
 pub const H00_PROLOGUE_LEN: u32 = 11;
 
@@ -143,7 +158,9 @@ fn gen_h00_manual_map_body(
     // ebx = e_lfanew; r12 = file PE
     c.extend_from_slice(&[0x41, 0x8B, 0x5C, 0x24, 0x3C]); // mov ebx,[r12+3c]
     // VirtualAlloc(0, SizeOfImage, MEM_COMMIT|RESERVE, PAGE_EXECUTE_READWRITE)
-    c.extend_from_slice(&[0x8B, 0x94, 0x1C, 0x38, 0x00, 0x00, 0x00]); // mov edx,[r12+rbx+38h]
+    c.extend_from_slice(&[
+        0x8B, 0x94, 0x1C, PE_OFF_SIZE_OF_IMAGE, 0x00, 0x00, 0x00,
+    ]); // mov edx,[r12+rbx+50h]
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xB9, 0x40, 0x00, 0x00, 0x00]);
@@ -154,45 +171,31 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x49, 0x89, 0xC6]); // mov r14, rax (image)
 
     // Copy headers: rep movsb SizeOfHeaders
-    c.extend_from_slice(&[0x8B, 0x8C, 0x1C, 0x3C, 0x00, 0x00, 0x00]); // mov ecx,[r12+rbx+3ch]
+    c.extend_from_slice(&[
+        0x8B, 0x8C, 0x1C, PE_OFF_SIZE_OF_HEADERS, 0x00, 0x00, 0x00,
+    ]); // mov ecx,[r12+rbx+54h]
     c.extend_from_slice(&[0x4C, 0x89, 0xF7]); // mov rdi, r14
     c.extend_from_slice(&[0x4C, 0x89, 0xE6]); // mov rsi, r12
     c.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
 
-    // Section copy loop: esi = index
-    c.extend_from_slice(&[0x0F, 0xB7, 0x74, 0x1C, 0x06]); // movzx esi,word [r12+rbx+6]
-    c.extend_from_slice(&[0x45, 0x31, 0xFF]); // xor r15d,r15d — save: clobber r15d counter only; r15 qword restored after
-    // Actually we must preserve r15 (.data base). Use ebp as section index instead.
-    // Undo: use r15d for index would clobber r15. Use r8d as section index.
-    c.pop(); c.pop(); // remove last 2 bytes of xor r15d
-    c.pop(); c.pop();
-    c.pop(); c.pop();
-    c.pop(); c.pop();
-    c.pop(); c.pop();
-    // Re-emit with r8d index
+    // Section copy loop: esi = NumberOfSections, r8d = index
+    c.extend_from_slice(&[
+        0x0F, 0xB7, 0x74, 0x1C, PE_OFF_NUMBER_OF_SECTIONS,
+    ]); // movzx esi,word [r12+rbx+6]
     c.extend_from_slice(&[0x45, 0x31, 0xC0]); // xor r8d,r8d
     let sec_loop = c.len();
     c.extend_from_slice(&[0x44, 0x39, 0xC6]); // cmp esi,r8d
     let jae_secs_done = c.len();
     c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-    // section hdr ptr: r12+rbx+18+SizeOfOptionalHeader+r8*40
-    c.extend_from_slice(&[0x0F, 0xB7, 0x44, 0x1C, 0x14]); // movzx eax,word [r12+rbx+14]
-    c.extend_from_slice(&[0x4A, 0x8D, 0x7C, 0x04, 0x18]); // lea rdi,[r12+rbx+rax+18+r8*1] — wrong scale
-    // lea rdi, [r12 + rbx + rax + 18 + r8*40]
-    c.pop(); c.pop(); c.pop(); c.pop(); c.pop(); c.pop(); c.pop(); c.pop();
-    // mov eax, [r12+rbx+14] SizeOfOptionalHeader
-    c.extend_from_slice(&[0x0F, 0xB7, 0x44, 0x1C, 0x14]);
-    c.extend_from_slice(&[0x4C, 0x01, 0xE0]); // add rax, r12
-    c.extend_from_slice(&[0x48, 0x01, 0xD8]); // add rax, rbx
-    c.extend_from_slice(&[0x48, 0x83, 0xC0, 0x18]); // add rax, 18
-    c.extend_from_slice(&[0x49, 0xC1, 0xE0, 0x05]); // shl r8, 5  (*40 wrong - 32+8)
-    // r8*40 = r8*8 + r8*32; simpler: imul
-    c.pop(); c.pop(); c.pop(); c.pop();
-    c.extend_from_slice(&[0x41, 0x6B, 0xC0, 0x28]); // imul eax, r8d, 40
-    c.extend_from_slice(&[0x4C, 0x01, 0xE0]);
-    c.extend_from_slice(&[0x48, 0x01, 0xD8]);
-    c.extend_from_slice(&[0x48, 0x83, 0xC0, 0x18]);
-    c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = section hdr
+    // section hdr = r12 + rbx + 24 + SizeOfOptionalHeader + r8*40
+    c.extend_from_slice(&[
+        0x0F, 0xB7, 0x84, 0x1C, PE_OFF_SIZE_OF_OPTIONAL_HEADER, 0x00, 0x00, 0x00,
+    ]); // movzx eax,word [r12+rbx+14h]
+    c.extend_from_slice(&[0x83, 0xC0, PE_OFF_OPTIONAL]); // add eax,24
+    c.extend_from_slice(&[0x4A, 0x8D, 0x3C, 0x23]); // lea rdi,[r12+rbx]
+    c.extend_from_slice(&[0x48, 0x01, 0xC7]); // add rdi,rax
+    c.extend_from_slice(&[0x41, 0x6B, 0xC0, 0x28]); // imul eax,r8d,40
+    c.extend_from_slice(&[0x48, 0x01, 0xC7]); // add rdi,rax
 
     c.extend_from_slice(&[0x8B, 0x4F, 0x0C]); // mov ecx,[rdi+0c] VirtualAddress
     c.extend_from_slice(&[0x8B, 0x57, 0x10]); // mov edx,[rdi+10] SizeOfRawData
@@ -201,12 +204,7 @@ fn gen_h00_manual_map_body(
     let jz_next_sec = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x4B, 0x8D, 0x3C, 0x0E]); // lea rdi,[r14+rcx]
-    c.extend_from_slice(&[0x4D, 0x01, 0xCC]); // add r12, r9 — WRONG clobbers r12
-    // fix: lea rsi, [r12+r9]
-    c.pop(); c.pop(); c.pop();
-    c.extend_from_slice(&[0x4A, 0x8D, 0x34, 0x0C]); // lea rsi,[r12+rcx] — wrong
-    c.pop(); c.pop(); c.pop(); c.pop();
-    c.extend_from_slice(&[0x4B, 0x8D, 0x34, 0x0E]); // lea rsi, [r12 + r9]
+    c.extend_from_slice(&[0x4B, 0x8D, 0x34, 0x0E]); // lea rsi,[r12+r9]
     c.extend_from_slice(&[0x89, 0xD1]); // mov ecx, edx
     c.extend_from_slice(&[0xF3, 0xA4]);
     let next_sec = c.len();
@@ -218,16 +216,18 @@ fn gen_h00_manual_map_body(
     let secs_done = c.len();
     patch_rel32(&mut c, jae_secs_done + 2, jae_secs_done + 6, secs_done);
 
-    // Reloc delta: r10 = r14 - ImageBase
-    c.extend_from_slice(&[0x4C, 0x8B, 0x94, 0x1C, 0x18, 0x00, 0x00, 0x00]); // mov r10,[r12+rbx+18]
-    c.extend_from_slice(&[0x4D, 0x29, 0xD6]); // sub r14, r10 — NO destroys r14
-    c.pop(); c.pop(); c.pop();
-    c.extend_from_slice(&[0x4C, 0x89, 0xF0]); // mov rax, r14
-    c.extend_from_slice(&[0x4C, 0x29, 0xD0]); // sub rax, r10 → delta in rax
-    c.extend_from_slice(&[0x49, 0x89, 0xC2]); // mov r10, rax (delta)
+    // Reloc delta: r10 = mapped_base - ImageBase
+    c.extend_from_slice(&[
+        0x4C, 0x8B, 0x94, 0x1C, PE_OFF_IMAGE_BASE, 0x00, 0x00, 0x00,
+    ]); // mov r10,[r12+rbx+30h] (preferred ImageBase from file headers)
+    c.extend_from_slice(&[0x4C, 0x89, 0xF0]); // mov rax, r14 (mapped base)
+    c.extend_from_slice(&[0x4C, 0x29, 0xD0]); // sub rax, r10 → delta
+    c.extend_from_slice(&[0x49, 0x89, 0xC2]); // mov r10, rax
 
-    // Reloc dir RVA at optional+0x98 (112+5*8)
-    c.extend_from_slice(&[0x8B, 0x84, 0x1C, 0x98, 0x00, 0x00, 0x00]);
+    // Base reloc directory RVA (data directory index 5)
+    c.extend_from_slice(&[
+        0x8B, 0x84, 0x1C, PE_OFF_BASERELOC_DIR_RVA, 0x00, 0x00, 0x00,
+    ]);
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_reloc_done = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
@@ -255,16 +255,14 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x83, 0xFA, 0x0A]); // cmp edx,10 DIR64
     let jne_re = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x25, 0xFF, 0x0F, 0x00, 0x00]); // and eax, 0xfff
-    c.extend_from_slice(&[0x4B, 0x8D, 0x3C, 0x08]); // lea rdi,[r14+rcx+rax] — wait rdi is entry ptr
-    // Need: target = r14 + page_rva + off; rdi clobbered
-    c.pop(); c.pop(); c.pop(); c.pop(); c.pop(); c.pop(); c.pop();
-    c.extend_from_slice(&[0x89, 0xC2]); // mov edx, eax (offset)
-    c.extend_from_slice(&[0x4A, 0x8D, 0x3C, 0x0A]); // lea rdi,[r14+rcx+rdx]
-    c.extend_from_slice(&[0x4C, 0x01, 0x17]); // add [rdi], r10
+    c.extend_from_slice(&[0x25, 0xFF, 0x0F, 0x00, 0x00]); // and eax, 0xfff (page offset)
+    c.extend_from_slice(&[0x89, 0xC2]); // mov edx, eax
+    c.extend_from_slice(&[0x4D, 0x8D, 0x5C, 0x0E, 0x00]); // lea r11,[r14+rcx]
+    c.extend_from_slice(&[0x49, 0x01, 0xD3]); // add r11, rdx
+    c.extend_from_slice(&[0x4D, 0x01, 0x13]); // add [r11], r10
     let next_re = c.len();
     patch_rel32(&mut c, jne_re + 2, jne_re + 6, next_re);
-    c.extend_from_slice(&[0x48, 0x83, 0xC7, 0x02]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC7, 0x02]); // next reloc entry (rdi preserved)
     c.extend_from_slice(&[0xFF, 0xCB]);
     let jmp_re = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
@@ -281,7 +279,9 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jb_reloc_done + 2, jb_reloc_done + 6, reloc_done);
 
     // Import resolve: walk descriptors at [r14+import_rva]
-    c.extend_from_slice(&[0x8B, 0x84, 0x1C, 0x90, 0x00, 0x00, 0x00]); // import dir rva
+    c.extend_from_slice(&[
+        0x8B, 0x84, 0x1C, PE_OFF_IMPORT_DIR_RVA, 0x00, 0x00, 0x00,
+    ]); // import dir rva
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_import_done = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
@@ -353,15 +353,15 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, call_find_mod + 1, call_find_mod + 5, find_module);
     // rdx = ascii dll name → rax = DllBase
     c.extend_from_slice(&[0x65, 0x48, 0x8B, 0x04, 0x25, 0x60, 0x00, 0x00, 0x00]);
-    c.extend_from_slice(&[0x48, 0x8B, 0x40, 0x18]);
-    c.extend_from_slice(&[0x48, 0x8B, 0x40, 0x20]);
-    c.extend_from_slice(&[0x48, 0x8B, 0x00]);
+    c.extend_from_slice(&[0x48, 0x8B, 0x40, 0x18]); // PEB->Ldr
+    c.extend_from_slice(&[0x48, 0x8B, 0x40, 0x20]); // InMemoryOrderModuleList.Flink
+    c.extend_from_slice(&[0x48, 0x8B, 0x00]); // first entry Flink
+    c.extend_from_slice(&[0x48, 0x83, 0xE8, LDR_INMEMORY_FLINK_OFF]); // entry = Flink - 0x10
     let mod_loop = c.len();
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_no_mod = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x48, 0x8B, 0x48, 0x30]); // DllBase at +30 in LDR entry? x64: +0x30 DllBase, +0x60 BaseDllName
-    c.extend_from_slice(&[0x4C, 0x8B, 0x40, 0x60]); // UNICODE_STRING.Buffer at +0x60
+    c.extend_from_slice(&[0x4C, 0x8B, 0x40, LDR_BASEDLLNAME_BUF_OFF]); // BaseDllName.Buffer
     c.extend_from_slice(&[0x4D, 0x85, 0xC0]);
     let jz_next_mod = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
@@ -404,7 +404,8 @@ fn gen_h00_manual_map_body(
     let dll_mismatch = c.len();
     patch_rel32(&mut c, jz_dll_mismatch + 2, jz_dll_mismatch + 6, dll_mismatch);
     patch_rel32(&mut c, jne_dll + 2, jne_dll + 6, dll_mismatch);
-    c.extend_from_slice(&[0x48, 0x8B, 0x00]); // next entry
+    c.extend_from_slice(&[0x48, 0x8B, 0x40, LDR_INMEMORY_FLINK_OFF]); // next Flink
+    c.extend_from_slice(&[0x48, 0x83, 0xE8, LDR_INMEMORY_FLINK_OFF]); // entry base
     let jmp_mod = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     patch_rel32(&mut c, jmp_mod + 1, jmp_mod + 5, mod_loop);
@@ -415,7 +416,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0xC3]);
     let mod_found = c.len();
     patch_rel32(&mut c, jz_mod_found + 2, jz_mod_found + 6, mod_found);
-    c.extend_from_slice(&[0x48, 0x8B, 0x40, 0x30]); // DllBase from list entry at [rax]... need fix
+    c.extend_from_slice(&[0x48, 0x8B, 0x40, LDR_DLLBASE_OFF]); // DllBase
     c.extend_from_slice(&[0xC3]);
 
     let resolve_export = c.len();
@@ -627,6 +628,22 @@ mod tests {
         let meta = sample_meta();
         let body = gen_h00_manual_map_main(&meta, 0x1000, 17_823);
         eprintln!("manual_map_stub_len={}", body.len());
+        if std::env::var("DUMP_H00_MANUAL_MAP_HEX").is_ok() {
+            let hex: String = body.iter().map(|b| format!("{:02x}", b)).collect();
+            eprintln!("H00_MANUAL_MAP_HEX={hex}");
+            for i in 0..body.len().saturating_sub(1) {
+                if body[i] == 0xFF && body[i + 1] == 0x15 {
+                    eprintln!("H00_IAT_CALL at={i}");
+                }
+            }
+            if body.len() >= 7 {
+                for i in 0..body.len().saturating_sub(6) {
+                    if body[i] == 0x48 && body[i + 1] == 0x8D && body[i + 2] == 0x0D {
+                        eprintln!("H00_LEA_RIP at={i}");
+                    }
+                }
+            }
+        }
         assert!(
             body.len() > 400 && body.len() < 950,
             "manual-map H_00 stub should fit OW-STUB pin [40,900] (got {}B)",
