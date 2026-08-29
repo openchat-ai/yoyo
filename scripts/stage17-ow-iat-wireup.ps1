@@ -18,6 +18,8 @@ Push-Location (Join-Path $Root "yoyo-rust")
 try {
     & cargo test -p verifier manual_map
     if ($LASTEXITCODE -ne 0) { throw "wire-up unit tests failed" }
+    & cargo test -p verifier --lib manual_map_runtime_smoke_host_resolve
+    if ($LASTEXITCODE -ne 0) { throw "manual_map_runtime_smoke_host_resolve failed (stub vs reference mapper)" }
 } finally {
     Pop-Location
 }

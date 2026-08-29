@@ -27,15 +27,15 @@ const PE_OFF_SIZE_OF_HEADERS: u8 = PE_OFF_OPTIONAL + 60; // 0x54
 const PE_OFF_IMPORT_DIR_RVA: u8 = PE_OFF_OPTIONAL + 120; // 0x90
 const PE_OFF_BASERELOC_DIR_RVA: u8 = PE_OFF_OPTIONAL + 152; // 0xB0
 
-/// PEB_LDR_DATA.InMemoryOrderModuleList (Flink at +0x10; not +0x20 init-order list).
-const PEB_LDR_INMEMORY_FLINK_OFF: u8 = 0x10;
+/// PEB_LDR_DATA.InMemoryOrderModuleList.Flink at +0x20 (not InLoadOrder @ +0x10).
+const PEB_LDR_INMEMORY_FLINK_OFF: u8 = 0x20;
 /// InMemoryOrderLinks: Flink points at LDR entry + 0x10.
 const LDR_INMEMORY_FLINK_OFF: u8 = 0x10;
 const LDR_DLLBASE_OFF: u8 = 0x30;
 const LDR_BASEDLLNAME_BUF_OFF: u8 = 0x60;
 
-/// H_00 stub prologue (`push` saves + `sub rsp`) before file-read prelude.
-pub const H00_PROLOGUE_LEN: u32 = 11;
+/// H_00 stub prologue (`push` saves + `sub rsp` + align) before file-read prelude.
+pub const H00_PROLOGUE_LEN: u32 = 15;
 
 fn patch_rel32(c: &mut [u8], disp_off: usize, from: usize, to: usize) {
     let rel = to as i32 - from as i32;
@@ -389,10 +389,10 @@ fn gen_h00_manual_map_body(
     let find_module = c.len();
     patch_rel32(&mut c, call_find_mod + 1, call_find_mod + 5, find_module);
     // rdx = ascii dll name → rax = DllBase
-    // x64: gs:[0x60] = PEB; PEB.Ldr + InMemoryOrderModuleList.Flink (not init-order @ +0x20).
+    // x64: gs:[0x60] = PEB; Ldr.InMemoryOrderModuleList.Flink (+0x20); entry = Flink-0x10.
     c.extend_from_slice(&[0x65, 0x48, 0x8B, 0x04, 0x25, 0x60, 0x00, 0x00, 0x00]);
     c.extend_from_slice(&[0x48, 0x8B, 0x40, 0x18]); // mov rax,[rax+18h] PEB->Ldr
-    c.extend_from_slice(&[0x48, 0x8B, 0x40, PEB_LDR_INMEMORY_FLINK_OFF]); // InMemoryOrderModuleList.Flink
+    c.extend_from_slice(&[0x48, 0x8B, 0x40, 0x20]); // InMemoryOrderModuleList.Flink
     c.extend_from_slice(&[0x48, 0x83, 0xE8, LDR_INMEMORY_FLINK_OFF]); // entry = Flink - 0x10
     let mod_loop = c.len();
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
@@ -660,11 +660,10 @@ fn gen_h00_export_call_tail(
     c.extend_from_slice(&[0x48, 0x01, 0xD8]); // add rax, rbx — functions RVA is image-relative
     c.extend_from_slice(&[0x8B, 0x00]);
     c.extend_from_slice(&[0x48, 0x01, 0xD8]);
-    // Win64: RSP%16==8 before CALL so callee entry has RSP%16==0 after push retaddr.
-    // H_00 prologue leaves RSP%16==8; map body preserves it; 0x30 shadow keeps alignment.
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x30]); // shadow + alignment fix
+    // Win64 shadow (0x20) before call; prologue already aligned RSP%16==0.
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x20]); // shadow for export call
     c.extend_from_slice(&[0xFF, 0xD0]); // call export (yoyo_runtime_selfhost_main)
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x30]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]);
     c.extend_from_slice(&[0x89, 0xC1]);
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_EXIT_PROCESS);
 
@@ -706,6 +705,8 @@ pub fn gen_h00_manual_map_main(
 
     c.extend_from_slice(&[0x53, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56]);
     c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x20]);
+    // PE entry is JMP (not CALL) into H_00 — force RSP%16==0 before any Win64 calls.
+    c.extend_from_slice(&[0x48, 0x83, 0xE4, 0xF0]); // and rsp, -16
 
     let prelude_text_off = code_base_off + H00_PROLOGUE_LEN;
 

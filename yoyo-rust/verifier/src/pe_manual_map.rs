@@ -592,7 +592,6 @@ mod tests {
     /// Windows-only: manual-map sidecar with host GetProcAddress resolver (isolates stub vs runtime).
     #[test]
     #[cfg(windows)]
-    #[ignore = "in-process exec smoke; covered by stage17-ow-iat-wireup.ps1"]
     fn manual_map_runtime_smoke_host_resolve() {
         use std::ffi::CString;
         use std::path::PathBuf;
