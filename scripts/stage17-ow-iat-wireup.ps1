@@ -20,6 +20,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "wire-up unit tests failed" }
     & cargo test -p verifier --lib manual_map_runtime_smoke_host_resolve
     if ($LASTEXITCODE -ne 0) { throw "manual_map_runtime_smoke_host_resolve failed (stub vs reference mapper)" }
+    & cargo test -p verifier --lib compare_stub_vs_host_iat_on_sidecar
+    if ($LASTEXITCODE -ne 0) { throw "compare_stub_vs_host_iat_on_sidecar failed (stub IAT != host GetProcAddress)" }
 } finally {
     Pop-Location
 }

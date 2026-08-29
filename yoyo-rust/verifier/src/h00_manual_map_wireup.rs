@@ -33,6 +33,8 @@ const PEB_LDR_INMEMORY_FLINK_OFF: u8 = 0x20;
 const LDR_INMEMORY_FLINK_OFF: u8 = 0x10;
 const LDR_DLLBASE_OFF: u8 = 0x30;
 const LDR_BASEDLLNAME_BUF_OFF: u8 = 0x60;
+/// Scratch qword at r15+0x30 (IAT slot 6) — bootstrap LoadLibraryA for find_module fallback.
+const H00_LOADLIBRARY_SCRATCH_OFF: u8 = 0x30;
 
 /// H_00 stub prologue (`push` saves + `sub rsp` + align) before file-read prelude.
 pub const H00_PROLOGUE_LEN: u32 = 15;
@@ -303,6 +305,32 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jz_reloc_done2 + 2, jz_reloc_done2 + 6, reloc_done);
     patch_rel32(&mut c, jb_reloc_done + 2, jb_reloc_done + 6, reloc_done);
 
+    // Bootstrap LoadLibraryA at [r15+scratch] for find_module fallback (api-set forwarders).
+    c.extend_from_slice(&[0x49, 0xC7, 0x47, H00_LOADLIBRARY_SCRATCH_OFF, 0, 0, 0, 0]);
+    c.extend_from_slice(&[
+        0x8B, 0x84, 0x1C, PE_OFF_IMPORT_DIR_RVA, 0x00, 0x00, 0x00,
+    ]);
+    c.extend_from_slice(&[0x85, 0xC0]);
+    let jz_skip_ll_boot = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x49, 0x8D, 0x34, 0x06]); // lea rsi,[r14+rax] first import desc
+    c.extend_from_slice(&[0x8B, 0x4E, 0x0C]); // Name RVA
+    c.extend_from_slice(&[0x49, 0x8D, 0x54, 0x0E, 0x00]); // lea rdx,[r14+rcx] dll name (KERNEL32)
+    let call_boot_find = c.len();
+    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
+    let jz_skip_ll_boot2 = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = kernel32
+    let lea_ll_name = c.len();
+    c.extend_from_slice(&[0x48, 0x8D, 0x15, 0, 0, 0, 0]); // lea rdx,[rip+LoadLibraryA]
+    let call_boot_resolve = c.len();
+    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x49, 0x89, 0x47, H00_LOADLIBRARY_SCRATCH_OFF]); // [r15+scratch]=LoadLibraryA
+    let skip_ll_boot = c.len();
+    patch_rel32(&mut c, jz_skip_ll_boot + 2, jz_skip_ll_boot + 6, skip_ll_boot);
+    patch_rel32(&mut c, jz_skip_ll_boot2 + 2, jz_skip_ll_boot2 + 6, skip_ll_boot);
+
     // Import resolve: walk descriptors at [r14+import_rva]
     c.extend_from_slice(&[
         0x8B, 0x84, 0x1C, PE_OFF_IMPORT_DIR_RVA, 0x00, 0x00, 0x00,
@@ -404,13 +432,19 @@ fn gen_h00_manual_map_body(
     // --- Internal helpers (placed after main path; reached only via call) ---
     let find_module = c.len();
     patch_rel32(&mut c, call_find_mod + 1, call_find_mod + 5, find_module);
+    patch_rel32(&mut c, call_boot_find + 1, call_boot_find + 5, find_module);
     // rdx = ascii dll name → rax = DllBase
     // x64: gs:[0x60] = PEB; Ldr.InMemoryOrderModuleList.Flink (+0x20); entry = Flink-0x10.
+    c.extend_from_slice(&[0x41, 0x52]); // push r10 — list head
     c.extend_from_slice(&[0x65, 0x48, 0x8B, 0x04, 0x25, 0x60, 0x00, 0x00, 0x00]);
     c.extend_from_slice(&[0x48, 0x8B, 0x40, 0x18]); // mov rax,[rax+18h] PEB->Ldr
+    c.extend_from_slice(&[0x49, 0x8D, 0x50, 0x20]); // lea r10,[rax+20h] list head
     c.extend_from_slice(&[0x48, 0x8B, 0x40, 0x20]); // InMemoryOrderModuleList.Flink
-    c.extend_from_slice(&[0x48, 0x83, 0xE8, LDR_INMEMORY_FLINK_OFF]); // entry = Flink - 0x10
     let mod_loop = c.len();
+    c.extend_from_slice(&[0x4C, 0x39, 0xD0]); // cmp rax,r10 (back at list head?)
+    let je_no_mod = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x83, 0xE8, LDR_INMEMORY_FLINK_OFF]); // entry = Flink - 0x10
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_no_mod = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
@@ -457,22 +491,43 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jz_dll_mismatch + 2, jz_dll_mismatch + 6, dll_mismatch);
     patch_rel32(&mut c, jne_dll + 2, jne_dll + 6, dll_mismatch);
     c.extend_from_slice(&[0x48, 0x8B, 0x40, LDR_INMEMORY_FLINK_OFF]); // next Flink
-    c.extend_from_slice(&[0x48, 0x83, 0xE8, LDR_INMEMORY_FLINK_OFF]); // entry base
     let jmp_mod = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     patch_rel32(&mut c, jmp_mod + 1, jmp_mod + 5, mod_loop);
     let no_mod = c.len();
+    patch_rel32(&mut c, je_no_mod + 2, je_no_mod + 6, no_mod);
     patch_rel32(&mut c, jz_no_mod + 2, jz_no_mod + 6, no_mod);
     patch_rel32(&mut c, jz_next_mod + 2, jz_next_mod + 6, dll_mismatch);
+    // LoadLibraryA fallback when PEB walk misses (api-set / forwarder targets).
+    c.extend_from_slice(&[0x49, 0x8B, 0x47, H00_LOADLIBRARY_SCRATCH_OFF]); // mov rax,[r15+scratch]
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
+    let jz_ll_fail = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x89, 0xD1]); // mov rcx, rdx (dll name)
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]); // shadow
+    c.extend_from_slice(&[0xFF, 0xD0]); // call rax
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x28]);
+    c.extend_from_slice(&[0x41, 0x5A]); // pop r10
+    c.extend_from_slice(&[0xC3]);
+    let ll_fail = c.len();
+    patch_rel32(&mut c, jz_ll_fail + 2, jz_ll_fail + 6, ll_fail);
     c.extend_from_slice(&[0x31, 0xC0]);
+    c.extend_from_slice(&[0x41, 0x5A]); // pop r10
     c.extend_from_slice(&[0xC3]);
     let mod_found = c.len();
     patch_rel32(&mut c, jz_mod_found + 2, jz_mod_found + 6, mod_found);
     c.extend_from_slice(&[0x48, 0x8B, 0x40, LDR_DLLBASE_OFF]); // DllBase
+    c.extend_from_slice(&[0x41, 0x5A]); // pop r10
     c.extend_from_slice(&[0xC3]);
 
     let resolve_export = c.len();
     patch_rel32(&mut c, call_resolve + 1, call_resolve + 5, resolve_export);
+    patch_rel32(
+        &mut c,
+        call_boot_resolve + 1,
+        call_boot_resolve + 5,
+        resolve_export,
+    );
     // rdi=module, rdx=name → rax=func (preserve thunk rsi; rbx/rcx/rdx = PE tables; r11=IAT cursor)
     c.extend_from_slice(&[0x41, 0x53]); // push r11 — caller IAT cursor survives resolve_export
     c.extend_from_slice(&[0x49, 0x89, 0xD1]); // mov r9, rdx — save import name before table walk
@@ -640,6 +695,17 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jb_ff_ret + 2, jb_ff_ret + 6, ff_ret);
     patch_rel32(&mut c, jae_ff_ret + 2, jae_ff_ret + 6, ff_ret);
     patch_rel32(&mut c, jz_ff_bad + 2, jz_ff_bad + 6, ff_ret);
+
+    let embedded_loadlibrary_a = c.len();
+    c.extend_from_slice(b"LoadLibraryA\0");
+    fix_rip_disp(
+        &mut c,
+        lea_ll_name + 3,
+        text_rva,
+        chunk_text_off,
+        lea_ll_name + 7,
+        text_rva + chunk_text_off + embedded_loadlibrary_a as u32,
+    );
 
     let helpers_end = c.len();
     patch_rel32(&mut c, jmp_over_helpers + 1, jmp_over_helpers + 5, helpers_end);
@@ -850,8 +916,8 @@ mod tests {
             }
         }
         assert!(
-            body.len() > 400 && body.len() < 1400,
-            "manual-map H_00 stub should fit OW-STUB pin [40,1400] (got {}B)",
+            body.len() > 400 && body.len() < 1500,
+            "manual-map H_00 stub should fit OW-STUB pin [40,1500] (got {}B)",
             body.len()
         );
         // No LoadLibraryA ROR13 hash needle (0x8E 0x4E 0x0E 0xEC)

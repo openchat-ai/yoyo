@@ -446,6 +446,278 @@ fn write_u64(buf: &mut [u8], off: usize, v: u64) {
     buf[off..off + 8].copy_from_slice(&v.to_le_bytes());
 }
 
+/// Collect `(dll, name, iat_rva, va)` for every resolved import (test / audit).
+pub fn collect_resolved_imports(
+    image: &[u8],
+    headers: &PeHeaders,
+) -> Result<Vec<(String, String, u32, u64)>, MapError> {
+    if headers.import_dir_rva == 0 {
+        return Ok(Vec::new());
+    }
+    let mut out = Vec::new();
+    let mut desc_rva = headers.import_dir_rva;
+    loop {
+        let desc = rva_slice(image, desc_rva)?;
+        if desc.len() < 20 {
+            break;
+        }
+        let orig_first_thunk = read_u32(desc, 0)?;
+        let name_rva = read_u32(desc, 12)?;
+        let first_thunk = read_u32(desc, 16)?;
+        if orig_first_thunk == 0 && name_rva == 0 && first_thunk == 0 {
+            break;
+        }
+        let dll = cstr_at(image, name_rva)?.to_string();
+        let mut thunk_rva = if orig_first_thunk != 0 {
+            orig_first_thunk
+        } else {
+            first_thunk
+        };
+        let mut iat_rva = first_thunk;
+        loop {
+            let thunk = read_u64(image, thunk_rva as usize)?;
+            if thunk == 0 {
+                break;
+            }
+            let va = read_u64(image, iat_rva as usize)?;
+            let name = if thunk & (1u64 << 63) != 0 {
+                format!("#{}", thunk & 0xFFFF)
+            } else {
+                let hint_name_rva = (thunk & 0x7FFF_FFFF) as u32;
+                cstr_at(image, hint_name_rva + 2)?.to_string()
+            };
+            out.push((dll.clone(), name, iat_rva, va));
+            thunk_rva += 8;
+            iat_rva += 8;
+        }
+        desc_rva += 20;
+    }
+    Ok(out)
+}
+
+/// In-process stub resolver mirror (PEB walk + export walk + forwarders + LoadLibrary fallback).
+/// Matches the algorithm emitted in `h00_manual_map_wireup.rs`.
+#[cfg(windows)]
+pub mod stub_resolve {
+    use super::*;
+    use std::ffi::CStr;
+
+    fn to_lower(b: u8) -> u8 {
+        if (b'A'..=b'Z').contains(&b) {
+            b + 0x20
+        } else {
+            b
+        }
+    }
+
+    fn eq_ascii_base_dll_name(wide: *const u16, ascii: &str) -> bool {
+        if wide.is_null() {
+            return false;
+        }
+        unsafe {
+            let mut ai = 0;
+            let ab = ascii.as_bytes();
+            loop {
+                let wc = *wide.add(ai);
+                if wc == 0 {
+                    return ai == ab.len();
+                }
+                if ai >= ab.len() {
+                    return false;
+                }
+                if to_lower((wc & 0xFF) as u8) != to_lower(ab[ai]) {
+                    return false;
+                }
+                ai += 1;
+            }
+        }
+    }
+
+    /// Walk PEB InMemoryOrder module list; stop at list head (no infinite loop).
+    pub fn find_module_peb(dll_name: &str) -> Option<u64> {
+        #[repr(C)]
+        struct ListEntry {
+            flink: *mut ListEntry,
+            blink: *mut ListEntry,
+        }
+        #[repr(C)]
+        struct LdrData {
+            _pad: [u8; 0x20],
+            in_memory_order: ListEntry,
+        }
+        #[repr(C)]
+        struct LdrEntry {
+            in_load_order: ListEntry,
+            in_memory_order: ListEntry,
+            _init_order: ListEntry,
+            dll_base: *mut u8,
+            _entry: *mut u8,
+            _size: u32,
+            _pad: u32,
+            full_name: (u16, u16, *mut u16),
+            base_name: (u16, u16, *mut u16),
+        }
+        #[repr(C)]
+        struct Peb {
+            _pad: [u8; 0x18],
+            ldr: *mut LdrData,
+        }
+
+        unsafe {
+            let peb = {
+                let peb_ptr: *const *mut Peb;
+                std::arch::asm!(
+                    "mov {}, gs:[0x60]",
+                    out(reg) peb_ptr,
+                    options(nostack, pure, readonly)
+                );
+                *peb_ptr
+            };
+            if peb.is_null() {
+                return None;
+            }
+            let ldr = (*peb).ldr;
+            if ldr.is_null() {
+                return None;
+            }
+            let head = &mut (*ldr).in_memory_order as *mut ListEntry;
+            let mut flink = (*ldr).in_memory_order.flink;
+            while !flink.is_null() && flink != head {
+                let entry =
+                    (flink as *mut u8).offset(-0x10) as *const LdrEntry;
+                let base = (*entry).base_name.2;
+                if eq_ascii_base_dll_name(base, dll_name) {
+                    return Some((*entry).dll_base as u64);
+                }
+                flink = (*flink).flink;
+            }
+        }
+        None
+    }
+
+    fn resolve_export_in_module(
+        module_base: u64,
+        name: &str,
+        load_library_a: Option<u64>,
+    ) -> Option<u64> {
+        unsafe {
+            let dos = std::slice::from_raw_parts(module_base as *const u8, 0x1000);
+            let e_lfa = read_u32(dos, 0x3C).ok()? as usize;
+            let opt = e_lfa + 4 + 20;
+            let exp_rva = read_u32(dos, opt + 112).ok()?;
+            if exp_rva == 0 {
+                return None;
+            }
+            let exp_size = read_u32(dos, opt + 116).ok()?;
+            let exp = (module_base + exp_rva as u64) as *const u8;
+            let num_names = read_u32(std::slice::from_raw_parts(exp, 0x28), 0x18).ok()?;
+            if num_names == 0 {
+                return None;
+            }
+            let functions_rva = read_u32(std::slice::from_raw_parts(exp, 0x28), 0x1C).ok()?;
+            let names_rva = read_u32(std::slice::from_raw_parts(exp, 0x28), 0x20).ok()?;
+            let ordinals_rva = read_u32(std::slice::from_raw_parts(exp, 0x28), 0x24).ok()?;
+            let functions = module_base + functions_rva as u64;
+            let names = module_base + names_rva as u64;
+            let ordinals = module_base + ordinals_rva as u64;
+            for i in 0..num_names {
+                let name_rva =
+                    read_u32(std::slice::from_raw_parts((names + i as u64 * 4) as *const u8, 4), 0)
+                        .ok()?;
+                let export_name = (module_base + name_rva as u64) as *const i8;
+                let export_name = CStr::from_ptr(export_name).to_str().ok()?;
+                if export_name != name {
+                    continue;
+                }
+                let ord = read_u16(
+                    std::slice::from_raw_parts((ordinals + i as u64 * 2) as *const u8, 2),
+                    0,
+                )
+                .ok()?;
+                let func_rva = read_u32(
+                    std::slice::from_raw_parts((functions + ord as u64 * 4) as *const u8, 4),
+                    0,
+                )
+                .ok()?;
+                let func_va = module_base + func_rva as u64;
+                let exp_start = module_base + exp_rva as u64;
+                let exp_end = exp_start + exp_size as u64;
+                if func_va >= exp_start && func_va < exp_end {
+                    let fwd = CStr::from_ptr(func_va as *const i8).to_str().ok()?;
+                    let (fwd_dll, fwd_name) = fwd.split_once('.')?;
+                    return stub_resolve(fwd_dll, fwd_name, load_library_a);
+                }
+                return Some(func_va);
+            }
+        }
+        None
+    }
+
+    /// Resolve like H_00 stub: PEB walk, then optional LoadLibraryA fallback, export + forwarders.
+    pub fn stub_resolve(dll: &str, name: &str, load_library_a: Option<u64>) -> Option<u64> {
+        let module = find_module_peb(dll).or_else(|| {
+            let ll = load_library_a?;
+            let dll_c = std::ffi::CString::new(dll).ok()?;
+            type LoadLibraryAFn = unsafe extern "system" fn(*const i8) -> *mut std::ffi::c_void;
+            let module = unsafe {
+                let f: LoadLibraryAFn = std::mem::transmute(ll);
+                f(dll_c.as_ptr())
+            };
+            if module.is_null() {
+                None
+            } else {
+                Some(module as u64)
+            }
+        })?;
+        if let Some(rest) = name.strip_prefix('#') {
+            let ord: u16 = rest.parse().ok()?;
+            return resolve_export_by_ordinal(module, ord, load_library_a);
+        }
+        resolve_export_in_module(module, name, load_library_a)
+    }
+
+    fn resolve_export_by_ordinal(
+        module_base: u64,
+        ordinal: u16,
+        load_library_a: Option<u64>,
+    ) -> Option<u64> {
+        unsafe {
+            let dos = std::slice::from_raw_parts(module_base as *const u8, 0x1000);
+            let e_lfa = read_u32(dos, 0x3C).ok()? as usize;
+            let opt = e_lfa + 4 + 20;
+            let exp_rva = read_u32(dos, opt + 112).ok()?;
+            if exp_rva == 0 {
+                return None;
+            }
+            let exp_size = read_u32(dos, opt + 116).ok()?;
+            let exp = (module_base + exp_rva as u64) as *const u8;
+            let functions_rva = read_u32(std::slice::from_raw_parts(exp, 0x28), 0x1C).ok()?;
+            let func_rva = read_u32(
+                std::slice::from_raw_parts(
+                    (module_base + functions_rva as u64 + ordinal as u64 * 4) as *const u8,
+                    4,
+                ),
+                0,
+            )
+            .ok()?;
+            let func_va = module_base + func_rva as u64;
+            let exp_start = module_base + exp_rva as u64;
+            let exp_end = exp_start + exp_size as u64;
+            if func_va >= exp_start && func_va < exp_end {
+                let fwd = CStr::from_ptr(func_va as *const i8).to_str().ok()?;
+                let (fwd_dll, fwd_name) = fwd.split_once('.')?;
+                return stub_resolve(fwd_dll, fwd_name, load_library_a);
+            }
+            Some(func_va)
+        }
+    }
+
+    pub fn bootstrap_load_library_a() -> Option<u64> {
+        let k32 = find_module_peb("KERNEL32.dll")?;
+        resolve_export_in_module(k32, "LoadLibraryA", None)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -675,6 +947,95 @@ mod tests {
             work.join("output.exe").is_file(),
             "output.exe missing after manual-map host-resolve smoke"
         );
+    }
+
+    /// Stub resolver (PEB + forwarders + LoadLibrary fallback) must match host GetProcAddress IAT fills.
+    #[test]
+    #[cfg(windows)]
+    fn compare_stub_vs_host_iat_on_sidecar() {
+        use super::stub_resolve;
+        use std::ffi::CString;
+
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn LoadLibraryA(name: *const i8) -> *mut std::ffi::c_void;
+            fn GetProcAddress(module: *mut std::ffi::c_void, name: *const i8) -> *mut std::ffi::c_void;
+        }
+
+        fn host_resolve(dll: &str, name: &str) -> Option<u64> {
+            let dll_c = CString::new(dll).ok()?;
+            unsafe {
+                let module = LoadLibraryA(dll_c.as_ptr());
+                if module.is_null() {
+                    return None;
+                }
+                if let Some(rest) = name.strip_prefix('#') {
+                    let ord: u16 = rest.parse().ok()?;
+                    let proc = GetProcAddress(module, ord as usize as *const i8);
+                    if proc.is_null() {
+                        None
+                    } else {
+                        Some(proc as u64)
+                    }
+                } else {
+                    let name_c = CString::new(name).ok()?;
+                    let proc = GetProcAddress(module, name_c.as_ptr());
+                    if proc.is_null() {
+                        None
+                    } else {
+                        Some(proc as u64)
+                    }
+                }
+            }
+        }
+
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let paths = [
+            root.join("target/release-runtime/yoyo_runtime.dll"),
+            root.join("target/release/yoyo_runtime.dll"),
+        ];
+        let Some(path) = paths.iter().find(|p| p.is_file()) else {
+            eprintln!("skip compare_stub_vs_host_iat_on_sidecar: yoyo_runtime.dll not built");
+            return;
+        };
+        let file = std::fs::read(path).expect("read sidecar");
+        let headers = parse_pe64_headers(&file).expect("headers");
+        let ll = stub_resolve::bootstrap_load_library_a();
+        assert!(ll.is_some(), "LoadLibraryA bootstrap from kernel32 exports");
+
+        let mut host_image = map_pe_sections(&file, &headers).expect("host map sections");
+        let load_base = host_image.as_ptr() as u64;
+        apply_base_relocations(&mut host_image, &headers, load_base).expect("host reloc");
+        resolve_imports(&mut host_image, &headers, host_resolve).expect("host imports");
+        let host_iat = collect_resolved_imports(&host_image, &headers).expect("host iat");
+
+        let mut stub_image = map_pe_sections(&file, &headers).expect("stub map sections");
+        apply_base_relocations(&mut stub_image, &headers, load_base).expect("stub reloc");
+        resolve_imports(&mut stub_image, &headers, |dll, name| {
+            stub_resolve::stub_resolve(dll, name, ll)
+        })
+        .expect("stub imports");
+        let stub_iat = collect_resolved_imports(&stub_image, &headers).expect("stub iat");
+
+        assert_eq!(
+            host_iat.len(),
+            stub_iat.len(),
+            "import count mismatch host={} stub={}",
+            host_iat.len(),
+            stub_iat.len()
+        );
+        for (i, ((hd, hn, hr, hv), (sd, sn, sr, sv))) in
+            host_iat.iter().zip(stub_iat.iter()).enumerate()
+        {
+            assert_eq!(hd, sd, "import[{i}] dll");
+            assert_eq!(hn, sn, "import[{i}] name");
+            assert_eq!(hr, sr, "import[{i}] iat_rva");
+            assert_eq!(
+                hv, sv,
+                "import[{i}] {hd}!{hn} host={hv:#x} stub={sv:#x}",
+            );
+        }
+        eprintln!("STUB_HOST_IAT_COMPARE count={} status=EQUAL", host_iat.len());
     }
 
     fn write_u16(buf: &mut [u8], off: usize, v: u16) {
