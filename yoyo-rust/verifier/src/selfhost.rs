@@ -24,7 +24,8 @@ pub fn selfhost_compile_tyb(tyb_data: &[u8]) -> IsaResult<Vec<u8>> {
 
 /// Stage 13-A fail-closed ceilings for the H_00 seed/link host image (keep in sync with
 /// `scripts/stage13-link-host.ps1`). Observed @ Stage 11-B/v0.6: PE 248832 / ELF 512000.
-/// Post-v1.0 Win: no exact-embed → seed PE ~94KB class (still ≤270000; tighten after measure).
+/// Post-v1.0 Win: no exact-embed → seed PE ~94KB class (still ≤270000).
+/// Post-v1.0 Linux: no exact-embed `.so` → seed ELF ~100KB class (still ≤550000 until measured).
 /// Do not raise casually — growth here is growth of the selfhost entry host surface.
 pub const STAGE13_MAX_SEED_PE_BYTES: usize = 270_000;
 pub const STAGE13_MAX_SEED_ELF_BYTES: usize = 550_000;
@@ -78,7 +79,7 @@ pub fn bootstrap_selfhost_runtime(input_tyb: &[u8]) -> IsaResult<Vec<u8>> {
 }
 
 /// Compile `.tyb` to Linux ELF64 bytes (M1→M2 interim, Rust host compiler).
-/// Stage 10-B: full-body images use H_00 runtime path (embedded .so + trampoline).
+/// Stage 10-B / post-v1.0: full-body images use H_00 (tramp embed + cwd `.so` sidecar).
 pub fn selfhost_compile_tyb_linux(tyb_data: &[u8]) -> IsaResult<Vec<u8>> {
     let out = executor::compile_tyb_source(tyb_data, PlatformKind::Linux)?;
     Ok(elf_link::link_elf_linux(&out.code, &out.data, &out.handler_offsets)?.bytes)

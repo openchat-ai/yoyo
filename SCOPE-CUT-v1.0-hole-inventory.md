@@ -8,6 +8,8 @@
 
 **Post-v1.0 path 2（关洞）· OW-RT shrink（2026-08-29）：** Win H_00 seed/link **不再 exact-embed** `yoyo_runtime.dll`；改为 cwd sidecar `yoyo_rt.dll` + `LoadLibraryA`。DLL 观测 **141312**（LTO 后）。**仍 CUT**（Rust runtime 宿主信任未灭）— **禁止**把「无 embed」单独标 CLOSED。
 
+**Post-v1.0 path 2（关洞）· OW-RT Linux sidecar parity（2026-08-29）：** Linux H_00 **不再 exact-embed** `libyoyo_runtime.so`；仅嵌 trampoline，cwd sidecar `./libyoyo_runtime.so` + `dlopen`。seed ELF 期望 **≪300000**。**仍 CUT**（Rust `.so` + glibc/libdl tramp）— **禁止**标 CLOSED。
+
 **Post-v1.0 path 2（关洞）· OW-IAT shrink（2026-08-29）：** H_00 宿主 IAT **去掉 GetProcAddress**（host-loader **3→2**：LoadLibraryA + ExitProcess）。LoadLibraryA 之后 **in-process PE export walk** 解析 `yoyo_runtime_selfhost_main`。stub_nz **235**；gen12 `84a8c1c9` / **18432** B；seed PE **248832**。**仍 CUT**（LoadLibraryA / libdl 仍在）— **禁止**标 CLOSED。
 
 **Post-v1.0 path 2（关洞）· OW-SEED observe pin（2026-08-29）：** stage13/15/16 fail-closed 钉 **emitter**（`yoyo.exe` basename + size + sha256_prefix）+ **seed**（PE size + sha256_prefix 与 `SEED_HOST` 一致）+ **path=h00**。`SEED_HOST sha256_prefix` 扩至 **16** hex。**仍 CUT**（seed 仍由 Rust `yoyo.exe` 发射）— **禁止**标 CLOSED / SEED_HOST_GONE。
@@ -30,7 +32,7 @@ v0.9 把洞从 lump 变成逐项 `CLOSED|CUT`。v1.0-A 要求洞从「v0.9 枚�
 |----|------|-------------|---------------------------|----------------|
 | **OW-H00** | H_00 entry slot（18 B） | **CUT** | full `.text` EQUAL 且 body 仍 EQUAL | full `.text` DIFF（JS↔Rust）；body 跳过该槽 |
 | **OW-STUB** | H_00 LoadLibrary stub tail | **CUT** | `stub_tail_nonzero==0`（所有 peer） | `stub_tail_nonzero` ∈ **[40, 512]**；观测 **235** |
-| **OW-RT** | Sidecar Rust `yoyo_runtime.dll` | **CUT** | 无 exact embed **且** 无 Rust LoadLibrary sidecar 宿主信任 | size **≤150000**；观测 **141312**；**no exact embed**；sidecar `yoyo_rt.dll` |
+| **OW-RT** | Sidecar Rust runtime (Win DLL / Linux `.so`) | **CUT** | 无 exact embed **且** 无 Rust LoadLibrary/libdl sidecar 宿主信任 | Win DLL **≤150000** 观测 **141312**；sidecar `yoyo_rt.dll` / `./libyoyo_runtime.so`；**no exact embed**（双平台） |
 | **OW-IAT** | LoadLibraryA / libdl host | **CUT** | PE 无 `LoadLibraryA`（YOYO-built loader） | 标记 `LoadLibraryA` + `yoyo_rt.dll`；**无** `GetProcAddress`（PE export walk）；仍宿主 LoadLibrary |
 | **OW-SEED** | Seed 仍由 Rust `yoyo.exe` 发射 | **CUT** | seed 非 Rust host 发射 | Rust `yoyo link`；seed PE **≤270000**（观测 **248832**）；**emitter** size+sha256_prefix + **seed** sha256_prefix≡`SEED_HOST` + **path=h00** |
 | **REL-FULLTEXT** | full `.text` peer compare | **CUT** | （禁止用 EQUAL 当毕业话术） | `full_text=DIFF` → inventory FINAL+CUT；意外 EQUAL → PARTIAL（OW-RT/IAT 仍 CUT） |
@@ -99,6 +101,7 @@ Gate 必须同时：
 | stub_tail_nonzero (Rust) | **235**（pin [40, 512]；PE export walk） |
 | runtime.dll | **141312**（**no exact embed**；sidecar） |
 | seed PE (Rust link) | **248832**（≤270000；data floor 0x38000 仍主导体积） |
+| seed ELF (Linux link) | **253952**（≪300000；**no exact .so embed**；tramp still embedded） |
 | gen12 / fullbody `.text` | SHA prefix **`84a8c1c9`** · compared **18432** B |
 | Lock pin | `0275802d…` Decision #25（本缩面不改 `yoyo.ty`） |
 | Disposition | **OW-\* + REL-\* all CUT**（closed=0 cut=7） |

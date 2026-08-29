@@ -17,7 +17,7 @@ pub const SEED_SHA256_PREFIX_LEN: usize = 16;
 /// Classify a linked image's seed/host entry shape from embedded ASCII markers.
 ///
 /// - `h00` — Stage 9-A+ / post-v1.0 sidecar path (Win LoadLibraryA+yoyo_rt.dll, or
-///   Linux embedded `libyoyo_runtime.so` + dlopen trampoline; libdl may live only
+///   Linux cwd `libyoyo_runtime.so` + embedded dlopen trampoline; libdl may live only
 ///   in the trampoline blob and not as a flat `libdl.so` ASCII in the ELF)
 /// - `gennrt` — `bootstrap --selfhost` / genNrt GetTempPath-style wrapper
 /// - `plain` — no full-body runtime extract markers

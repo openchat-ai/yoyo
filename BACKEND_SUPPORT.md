@@ -336,6 +336,16 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Obs** | seed PE **248832**; `SEED_HOST sha256_prefix` length **8→16**; inventory evidence `emitter_sha256_prefix=…;seed_sha256_prefix=…;path=h00` |
 | **Gates** | stage13-link-host + stage15-hole-inventory + stage16-scope-cut-finalize require hash/path pins |
 
+### Post-v1.0 path 2 — Linux OW-RT .so sidecar parity (2026-08-29)
+
+| Item | Detail |
+|------|--------|
+| **Hole** | **OW-RT** (Linux parity with Win sidecar) |
+| **Change** | Linux H_00 drops exact embed of `libyoyo_runtime.so`; cwd sidecar + trampoline `dlopen("./libyoyo_runtime.so")`; trampoline blob still embedded |
+| **Still CUT** | Rust `.so` + glibc/libdl trampoline remain; **no-.so-embed alone ≠ CLOSED** |
+| **Obs** | seed ELF expected **≪300000** (was ~512000 with embed); tramp still exact-embed |
+| **Gates** | stage10-linux-pure-m4 (pre-place sidecar); stage11/13 fail-closed forbid exact `.so` embed |
+
 ### Stage 16-A — SCOPE-CUT FINAL (hole inventory)
 
 | Item | Detail |

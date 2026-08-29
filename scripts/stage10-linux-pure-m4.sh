@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# stage10-linux-pure-m4.sh — Stage 10-B: Linux ELF H_00 pure M4 (no bootstrap --selfhost)
-# Seed: yoyo link --target=linux → gen1 (H_00 entry)
-# Chain: gen1 → gen2 → gen3 → gen4 (each zero-arg H_00 extract+execve trampoline)
+# Stage 10-B / post-v1.0: Linux ELF H_00 pure M4 (no bootstrap --selfhost)
+# Seed: yoyo link --target=linux → gen1 (H_00 entry; trampoline embed + cwd .so sidecar)
+# Chain: gen1 → gen2 → gen3 → gen4 (each zero-arg H_00; pre-placed libyoyo_runtime.so)
 # Parity: gen4 ≡ gen3_direct (full-file DDC via yoyo diff); gen3_direct = bootstrap WITHOUT --selfhost
 # Trust: M3→M4 algebra runs via prior YOYO ELF H_00 path; host never calls bootstrap --selfhost here.
+# Honest: OW-RT still CUT (Rust .so + libdl trampoline); no exact embed of .so.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -34,12 +35,27 @@ rm -f "$WORKDIR"/.yoyo_stage10b_w 2>/dev/null || true
 TY="$ROOT/yoyo/projects/yoyo.ty"
 TYB="$ROOT/yoyo/projects/yoyo.tyb"
 YOYO="$ROOT/yoyo-rust/target/release/yoyo"
-RUNTIME_SO="$ROOT/yoyo-rust/target/release/libyoyo_runtime.so"
+# Prefer fat-LTO release-runtime sidecar (Stage 11-A); fall back to release.
+RUNTIME_SO=""
+for cand in \
+  "$ROOT/yoyo-rust/target/release-runtime/libyoyo_runtime.so" \
+  "$ROOT/yoyo-rust/target/release/libyoyo_runtime.so"; do
+  if [[ -f "$cand" ]]; then RUNTIME_SO="$cand"; break; fi
+done
 
-if [[ ! -x "$YOYO" ]] || [[ ! -f "$RUNTIME_SO" ]]; then
-  echo "== build yoyo + yoyo-runtime (release) =="
-  (cd "$ROOT/yoyo-rust" && cargo build --release -p verifier && cargo build --release -p yoyo-runtime)
+if [[ ! -x "$YOYO" ]] || [[ -z "$RUNTIME_SO" ]]; then
+  echo "== build yoyo + yoyo-runtime (release / release-runtime) =="
+  (cd "$ROOT/yoyo-rust" && cargo build --release -p verifier && cargo build --profile release-runtime -p yoyo-runtime)
+  RUNTIME_SO="$ROOT/yoyo-rust/target/release-runtime/libyoyo_runtime.so"
+  if [[ ! -f "$RUNTIME_SO" ]]; then
+    RUNTIME_SO="$ROOT/yoyo-rust/target/release/libyoyo_runtime.so"
+  fi
 fi
+if [[ ! -f "$RUNTIME_SO" ]]; then
+  echo "Stage 10-B: RED (libyoyo_runtime.so missing for cwd sidecar)"
+  exit 1
+fi
+echo "sidecar .so: $RUNTIME_SO ($(stat -c%s "$RUNTIME_SO" 2>/dev/null || wc -c <"$RUNTIME_SO") bytes)"
 
 if [[ ! -f "$TYB" ]]; then
   echo "== ty2tyb =="
@@ -85,8 +101,10 @@ run_h00() {
   local out="$2"
   local label="$3"
   chmod +x "$exe"
-  rm -f "$WORKDIR/output.elf" "$WORKDIR/libyoyo_runtime.so" "$WORKDIR/.yoyo_h00_tramp"
-  echo "running $label (zero-arg H_00)..."
+  # Post-v1.0 OW-RT: cwd sidecar .so (no extract-from-embed). Re-place each run.
+  rm -f "$WORKDIR/output.elf" "$WORKDIR/.yoyo_h00_tramp"
+  cp -f "$RUNTIME_SO" "$WORKDIR/libyoyo_runtime.so"
+  echo "running $label (zero-arg H_00; cwd sidecar libyoyo_runtime.so)..."
   set +e
   (cd "$WORKDIR" && "./$(basename "$exe")")
   local ec=$?
@@ -110,7 +128,21 @@ if [[ ! -f "$GEN1" ]] || [[ "$gen1_sz" -le 0 ]]; then
   echo "Stage 10-B: RED (gen1 link failed)"
   exit 1
 fi
-echo "gen1: ${gen1_sz} bytes (ELF entry → H_00)"
+echo "gen1: ${gen1_sz} bytes (ELF entry → H_00; cwd sidecar .so)"
+# Post-v1.0 OW-RT: fail-closed — gen1 must NOT exact-embed the Rust .so.
+python3 - <<PY
+import pathlib, sys
+gen1 = pathlib.Path(r"$GEN1").read_bytes()
+so = pathlib.Path(r"$RUNTIME_SO").read_bytes()
+if len(so) >= 16 and so in gen1:
+    print(f"Stage 10-B: RED (exact .so embed regress in gen1; len={len(so)})")
+    sys.exit(1)
+print("OW-RT: no exact .so embed in gen1 (cwd sidecar posture)")
+PY
+if [[ "$gen1_sz" -gt 300000 ]]; then
+  echo "Stage 10-B: RED (gen1 $gen1_sz still looks like pre-sidecar embed class; expect <<300000)"
+  exit 1
+fi
 
 echo ""
 echo "=== gen1 → gen2 (H_00) ==="
@@ -171,12 +203,12 @@ echo "bootstrap --selfhost:  NOT USED (Stage 10-B gate)"
 echo "Stage 10-B:            $(if $chain_green && $parity_equal; then echo 'may check [x]'; else echo 'keep [ ]'; fi)"
 echo ""
 echo "Trust chain: M4 algebra completed inside H_00-patched YOYO ELFs (gen1→gen4)."
-echo "  Seed = yoyo link --target=linux (H_00 extract stub + embedded .so + trampoline)"
+echo "  Seed = yoyo link --target=linux (H_00 trampoline stub + cwd libyoyo_runtime.so sidecar)"
 echo "  Reference = yoyo bootstrap --target=linux WITHOUT --selfhost"
 echo "  gen4 = gen3 H_00 runtime output (no genNrt / --selfhost wrapper)"
 echo "Remaining host surface (honest):"
 echo "  - host link/bootstrap seed + gen3_direct reference"
-echo "  - embedded libyoyo_runtime.so (Rust compile) + linux_h00_tramp.elf blob"
+echo "  - cwd sidecar libyoyo_runtime.so (Rust compile; no exact embed) + linux_h00_tramp.elf blob"
 echo "  - trampoline still uses system libdl/libc via execve"
 if [[ -n "$text_sha" ]]; then
   echo "  gen4 DDC SHA256 prefix: $text_sha"

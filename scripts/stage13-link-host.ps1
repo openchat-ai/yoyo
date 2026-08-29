@@ -28,7 +28,7 @@ Set-Location $Root
 $MaxSeedPeBytes = 270000
 $MaxSeedElfBytes = 550000
 $ObservedSeedPeBytes = 248832
-$ObservedSeedElfBytes = 512000
+$ObservedSeedElfBytes = 253952
 
 $WorkDir = Join-Path $Root "scripts\_stage13-link-host"
 New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
@@ -264,6 +264,41 @@ if (-not $SkipLinux) {
         Write-Host "Stage 13-A: RED (seed ELF $elfSz > MAX $MaxSeedElfBytes)"
         exit 1
     }
+    # Post-v1.0 OW-RT Linux sidecar: seed ELF must not look like pre-shrink .so-embed class.
+    if ($elfSz -gt 300000) {
+        Write-Host "Stage 13-A: RED (linux seed ELF $elfSz > 300000 — likely exact .so embed regress)"
+        exit 1
+    }
+    $linkElfBytes = [System.IO.File]::ReadAllBytes($SeedLinkElf)
+    if (-not (Find-Ascii $linkElfBytes "libyoyo_runtime.so")) {
+        Write-Host "Stage 13-A: RED (linux seed missing libyoyo_runtime.so marker)"
+        exit 1
+    }
+    $soCand = @(
+        (Join-Path $Root "yoyo-rust\target\release-runtime\libyoyo_runtime.so"),
+        (Join-Path $Root "yoyo-rust\target\release\libyoyo_runtime.so")
+    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if ($soCand) {
+        $soRaw = [System.IO.File]::ReadAllBytes($soCand)
+        $soOff = -1
+        if ($soRaw.Length -ge 16 -and $linkElfBytes.Length -ge $soRaw.Length) {
+            $n0 = $soRaw[0]; $n1 = $soRaw[1]
+            $limit = $linkElfBytes.Length - $soRaw.Length
+            for ($i = 0; $i -le $limit; $i++) {
+                if ($linkElfBytes[$i] -ne $n0 -or $linkElfBytes[$i + 1] -ne $n1) { continue }
+                $ok = $true
+                for ($j = 0; $j -lt $soRaw.Length; $j++) {
+                    if ($linkElfBytes[$i + $j] -ne $soRaw[$j]) { $ok = $false; break }
+                }
+                if ($ok) { $soOff = $i; break }
+            }
+        }
+        if ($soOff -ge 0) {
+            Write-Host "Stage 13-A: RED (linux seed exact-embeds .so at $soOff — sidecar shrink regresssed)"
+            exit 1
+        }
+        Write-Host "linux OW-RT: no exact .so embed (sidecar; checked vs $soCand)"
+    }
     $bootElfOut = & $Yoyo bootstrap --target=linux $Tyb $SeedBootElf 2>&1 | Out-String
     Write-Host $bootElfOut.TrimEnd()
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path $SeedBootElf)) {
@@ -305,6 +340,6 @@ Write-Host "  bootstrap without --selfhost is an alias of that seed path (Stage 
 Write-Host "  Gate fails closed if seed grows past MAX, gains GetTempPathA, or ≡ --selfhost."
 Write-Host "Remaining host surface (honest):"
 Write-Host "  - Rust-built yoyo.exe still emits the seed (host compile trust)"
-Write-Host "  - embedded yoyo_runtime.dll / libyoyo_runtime.so (Rust; Stages 10–11)"
-Write-Host "  - host LoadLibraryA / libdl on H_00 extract (Stage 11-B observes face)"
+Write-Host "  - cwd sidecar yoyo_rt.dll / libyoyo_runtime.so (Rust; Stages 10–11; no exact embed)"
+Write-Host "  - host LoadLibraryA / libdl on H_00 path (Stage 11-B observes face)"
 exit 0

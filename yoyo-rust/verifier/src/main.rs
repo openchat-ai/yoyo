@@ -441,11 +441,8 @@ fn cmd_link(args: &[String], budget: &Budget) -> Result<(), types::IsaError> {
                 msg: e.to_string(),
             })?;
             println!("wrote ELF64 {} ({} bytes)", rest[1], elf.bytes.len());
-            let so_embed = if seed_host::classify_seed_path(&elf.bytes) == "h00" {
-                Some(selfhost::runtime_so_bytes()?.len())
-            } else {
-                None
-            };
+            // Post-v1.0 Linux H_00: cwd sidecar libyoyo_runtime.so — no exact embed size.
+            let so_embed = None;
             seed_host::emit_observe("link", "linux", &elf.bytes, so_embed);
         }
         PlatformKind::Stub | PlatformKind::BareMetal => {
@@ -755,17 +752,8 @@ fn cmd_bootstrap(args: &[String]) -> Result<(), types::IsaError> {
         out_bytes.len()
     );
     let target_label = if is_linux { "linux" } else { "win32" };
-    let embed = if seed_host::classify_seed_path(&out_bytes) == "h00" {
-        if is_linux {
-            // Linux H_00 still exact-embeds .so + trampoline (Win sidecar-only this session).
-            Some(selfhost::runtime_so_bytes()?.len())
-        } else {
-            // Post-v1.0 Win H_00: no exact embed (cwd sidecar yoyo_rt.dll).
-            None
-        }
-    } else {
-        None
-    };
+    // Post-v1.0 H_00 (Win+Linux): no exact-embed of Rust runtime (cwd sidecar).
+    let embed = None;
     seed_host::emit_observe("bootstrap", target_label, &out_bytes, embed);
     Ok(())
 }

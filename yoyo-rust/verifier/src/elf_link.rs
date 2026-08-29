@@ -1,7 +1,7 @@
 //! Minimal ELF64 Linux x64 linker (PROMPT-v3 Phase 1).
 //! Produces a working Linux x64 executable wrapping emitted .text + .data.
 //! Data section size floor: 0x38000 (same as PE backend for consistency).
-//! Stage 10-B: optional H_00 runtime path (extract embedded .so + trampoline).
+//! Stage 10-B / post-v1.0: optional H_00 runtime path (trampoline embed + cwd .so sidecar).
 
 use crate::linux_selfhost;
 use crate::platform_io;
@@ -21,9 +21,9 @@ pub fn link_elf(code: &[u8], data: &[u8]) -> IsaResult<ElfImage> {
     link_elf_impl(code, data)
 }
 
-/// Linux link with optional H_00 in-process selfhost (Stage 10-B).
+/// Linux link with optional H_00 in-process selfhost (Stage 10-B / post-v1.0 OW-RT).
 /// When `handler_offsets` contains H_20/H_21, patch H_00 to extract embedded
-/// runtime `.so` + trampoline and `execve` (ELF entry stays lea r15 → H_00).
+/// trampoline and `execve` (cwd `libyoyo_runtime.so` sidecar; ELF entry stays lea r15 → H_00).
 ///
 /// Stage 13-A: H_00 branch is the approved seed/link host path (≡ bootstrap no `--selfhost`).
 pub fn link_elf_linux(
@@ -32,9 +32,8 @@ pub fn link_elf_linux(
     handler_offsets: &[(u16, u32, u32)],
 ) -> IsaResult<ElfImage> {
     if should_h00_selfhost(handler_offsets) {
-        let so = linux_selfhost::runtime_so_bytes()?;
         let tramp = linux_selfhost::trampoline_bytes();
-        let elf = link_elf_h00_runtime(code, data, &so, tramp)?;
+        let elf = link_elf_h00_runtime(code, data, tramp)?;
         if elf.bytes.len() > crate::selfhost::STAGE13_MAX_SEED_ELF_BYTES {
             return Err(IsaError::PlatformError {
                 msg: format!(
@@ -56,11 +55,10 @@ fn should_h00_selfhost(handler_offsets: &[(u16, u32, u32)]) -> bool {
     has_load && has_write
 }
 
-/// Stage 10-B: gen1 H_00 pure runtime — patch entry, embed strings + .so + trampoline.
+/// Stage 10-B / post-v1.0: gen1 H_00 — patch entry, embed strings + trampoline (no .so).
 pub fn link_elf_h00_runtime(
     code: &[u8],
     data: &[u8],
-    so_bytes: &[u8],
     tramp_bytes: &[u8],
 ) -> IsaResult<ElfImage> {
     let mut code = code.to_vec();
@@ -71,8 +69,7 @@ pub fn link_elf_h00_runtime(
     }
 
     let with_strings = embed_string_table(data);
-    let (extended, meta) =
-        linux_selfhost::append_h00_runtime_data(&with_strings, so_bytes, tramp_bytes)?;
+    let (extended, meta) = linux_selfhost::append_h00_runtime_data(&with_strings, tramp_bytes)?;
     let h00_main = linux_selfhost::gen_h00_selfhost_main(&meta);
     let main_user_off = code.len() as u32;
     code.extend_from_slice(&h00_main);

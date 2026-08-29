@@ -3,8 +3,10 @@
 //! Stage 8 `--selfhost`: dynamically linked stub (`dlopen` → `yoyo_runtime_selfhost_main`)
 //! via system cc when available (WSL/Linux).
 //!
-//! Stage 10-B H_00: ELF entry → H_00 → syscall extract of embedded trampoline +
-//! `libyoyo_runtime.so` → `execve` trampoline (no `bootstrap --selfhost`).
+//! Stage 10-B / post-v1.0 OW-RT H_00: ELF entry → H_00 → syscall extract of embedded
+//! trampoline only → `execve` trampoline → trampoline `dlopen("./libyoyo_runtime.so")`.
+//! The Rust `.so` is a cwd sidecar (no exact embed) — OW-RT stays CUT (still Rust runtime
+//! + glibc/libdl trampoline). genNrt `--selfhost` remains a separate host surface.
 
 use crate::types::{IsaError, IsaResult};
 use std::path::Path;
@@ -13,7 +15,7 @@ use std::process::Command;
 pub const RUNTIME_SO_NAME: &str = "libyoyo_runtime.so";
 pub const EXPORT_NAME: &str = "yoyo_runtime_selfhost_main";
 
-/// Cwd-relative names written by H_00 extract stub (must match trampoline expectations).
+/// Cwd-relative names: `.so` is sidecar-only; tramp name is written by H_00 extract.
 pub const H00_SO_NAME: &[u8] = b"./libyoyo_runtime.so\0";
 pub const H00_TRAMP_NAME: &[u8] = b"./.yoyo_h00_tramp\0";
 
@@ -126,7 +128,8 @@ pub fn link_elf_selfhost_runtime(
     Ok(bytes)
 }
 
-/// Metadata for H_00 extract + execve stub (offsets relative to data / r15).
+/// Metadata for H_00 trampoline extract + execve (offsets relative to data / r15).
+/// Post-v1.0 OW-RT: `.so` is cwd sidecar — `so_embed_*` stay 0 (no exact embed).
 #[derive(Clone, Debug)]
 pub struct H00Meta {
     pub so_name_off: u32,
@@ -137,10 +140,10 @@ pub struct H00Meta {
     pub tramp_embed_size: u32,
 }
 
-/// Append path strings + embedded runtime .so + trampoline after user data.
+/// Append path strings + embedded trampoline only (no `libyoyo_runtime.so` bytes).
+/// Post-v1.0 OW-RT: seed ELF trusts cwd `./libyoyo_runtime.so`, not an opaque `.data` blob.
 pub fn append_h00_runtime_data(
     user_data: &[u8],
-    so_bytes: &[u8],
     tramp_bytes: &[u8],
 ) -> IsaResult<(Vec<u8>, H00Meta)> {
     let mut blob = user_data.to_vec();
@@ -151,9 +154,7 @@ pub fn append_h00_runtime_data(
 
     let so_name_off = 0usize;
     let tramp_name_off = so_name_off + H00_SO_NAME.len();
-    let so_embed_off = align_up(tramp_name_off + H00_TRAMP_NAME.len(), 16);
-    let so_pad = (16 - (so_bytes.len() % 16)) % 16;
-    let tramp_embed_off = so_embed_off + so_bytes.len() + so_pad;
+    let tramp_embed_off = align_up(tramp_name_off + H00_TRAMP_NAME.len(), 16);
     let tramp_pad = (16 - (tramp_bytes.len() % 16)) % 16;
     let total = tramp_embed_off + tramp_bytes.len() + tramp_pad;
 
@@ -161,7 +162,6 @@ pub fn append_h00_runtime_data(
     blob[base + so_name_off..base + so_name_off + H00_SO_NAME.len()].copy_from_slice(H00_SO_NAME);
     blob[base + tramp_name_off..base + tramp_name_off + H00_TRAMP_NAME.len()]
         .copy_from_slice(H00_TRAMP_NAME);
-    blob[base + so_embed_off..base + so_embed_off + so_bytes.len()].copy_from_slice(so_bytes);
     blob[base + tramp_embed_off..base + tramp_embed_off + tramp_bytes.len()]
         .copy_from_slice(tramp_bytes);
 
@@ -170,8 +170,8 @@ pub fn append_h00_runtime_data(
         H00Meta {
             so_name_off: (base + so_name_off) as u32,
             tramp_name_off: (base + tramp_name_off) as u32,
-            so_embed_off: (base + so_embed_off) as u32,
-            so_embed_size: so_bytes.len() as u32,
+            so_embed_off: 0,
+            so_embed_size: 0,
             tramp_embed_off: (base + tramp_embed_off) as u32,
             tramp_embed_size: tramp_bytes.len() as u32,
         },
@@ -182,12 +182,13 @@ fn align_up(v: usize, a: usize) -> usize {
     (v + a - 1) & !(a - 1)
 }
 
-/// Stage 10-B H_00 body: write embedded .so + trampoline via syscalls, then execve trampoline.
+/// Stage 10-B / post-v1.0 H_00 body: write embedded trampoline via syscalls, then execve.
+/// Expects cwd sidecar `./libyoyo_runtime.so` (OW-RT shrink; still CUT).
 /// ELF entry is `jmp H_00` (not `call`); this must never return.
 pub fn gen_h00_selfhost_main(meta: &H00Meta) -> Vec<u8> {
     let mut c: Vec<u8> = Vec::new();
 
-    emit_write_embedded(&mut c, meta.so_name_off, meta.so_embed_off, meta.so_embed_size);
+    // Sidecar .so is not extracted — only the committed trampoline blob.
     emit_write_embedded(
         &mut c,
         meta.tramp_name_off,
@@ -315,17 +316,32 @@ mod tests {
     }
 
     #[test]
-    fn h00_main_emits_syscalls() {
+    fn h00_main_emits_syscalls_no_so_extract() {
         let meta = H00Meta {
             so_name_off: 0x100,
             tramp_name_off: 0x120,
-            so_embed_off: 0x200,
-            so_embed_size: 0x1000,
-            tramp_embed_off: 0x2000,
+            so_embed_off: 0,
+            so_embed_size: 0,
+            tramp_embed_off: 0x200,
             tramp_embed_size: 0x100,
         };
         let body = gen_h00_selfhost_main(&meta);
         assert!(body.windows(2).any(|w| w == [0x0F, 0x05]));
         assert!(body.len() > 40);
+        // One write_embedded (tramp) + execve + exit — not two extract loops.
+        let syscall_count = body.windows(2).filter(|w| *w == [0x0F, 0x05]).count();
+        assert!(syscall_count < 20, "unexpectedly large H_00 (so extract regress?)");
+    }
+
+    #[test]
+    fn append_h00_no_so_bytes() {
+        let tramp = trampoline_bytes();
+        let (blob, meta) = append_h00_runtime_data(b"user", tramp).unwrap();
+        assert_eq!(meta.so_embed_size, 0);
+        assert_eq!(meta.so_embed_off, 0);
+        assert_eq!(meta.tramp_embed_size as usize, tramp.len());
+        // .so path string present for observe; exact trampoline embed present.
+        assert!(blob.windows(H00_SO_NAME.len()).any(|w| w == H00_SO_NAME));
+        assert!(blob.windows(tramp.len()).any(|w| w == tramp));
     }
 }
