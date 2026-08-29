@@ -4,8 +4,9 @@
 //! / `gen_h00_selfhost_main`) no longer exact-embeds `yoyo_runtime.dll` in PE `.data`.
 //! It LoadLibraryA's a cwd sidecar `yoyo_rt.dll` (still Rust-built — OW-RT stays CUT).
 //! Post-v1.0 OW-IAT shrink: H_00 no longer imports GetProcAddress — after LoadLibraryA
-//! it walks the PE export directory in-process for `yoyo_runtime_selfhost_main`.
-//! Host LoadLibraryA remains (OW-IAT still CUT). genNrt `--selfhost` still embeds + GPA.
+//! it resolves export ordinal 0 in-process (yoyo_runtime pins `yoyo_runtime_selfhost_main`
+//! as the first named export). Host LoadLibraryA remains (OW-IAT still CUT).
+//! genNrt `--selfhost` still embeds + GPA.
 
 use crate::types::{IsaError, IsaResult};
 
@@ -148,27 +149,24 @@ pub fn append_h00_runtime_data(
     user_data: &[u8],
     data_rva: u32,
 ) -> IsaResult<(Vec<u8>, SelfhostMeta)> {
-    let export_name = b"yoyo_runtime_selfhost_main\0";
     let mut blob = user_data.to_vec();
     while blob.len() % 16 != 0 {
         blob.push(0);
     }
     let base = blob.len();
     let temp_off = 0usize;
-    let export_off = temp_off + TEMP_DLL_NAME.len();
-    let total = export_off + export_name.len();
+    let total = TEMP_DLL_NAME.len();
     let pad = (16 - (total % 16)) % 16;
     blob.resize(base + total + pad, 0);
     let rva = |off: usize| data_rva + (base + off) as u32;
 
     blob[base + temp_off..base + temp_off + TEMP_DLL_NAME.len()].copy_from_slice(TEMP_DLL_NAME);
-    blob[base + export_off..base + export_off + export_name.len()].copy_from_slice(export_name);
 
     Ok((
         blob,
         SelfhostMeta {
             temp_name_rva: rva(temp_off),
-            export_name_rva: rva(export_off),
+            export_name_rva: 0,
             dll_embed_rva: 0,
             dll_embed_size: 0,
             iat_rva: data_rva,
@@ -178,8 +176,8 @@ pub fn append_h00_runtime_data(
     ))
 }
 
-/// H_00 runtime body: LoadLibraryA cwd sidecar `yoyo_rt.dll` → in-process PE export
-/// walk for `yoyo_runtime_selfhost_main` → invoke → ExitProcess.
+/// H_00 runtime body: LoadLibraryA cwd sidecar `yoyo_rt.dll` → export ordinal 0
+/// (`yoyo_runtime_selfhost_main`, pinned first named export) → invoke → ExitProcess.
 /// No GetProcAddress (OW-IAT shrink); no CreateFile/WriteFile extract (OW-RT).
 /// PE entry is `jmp H_00` (not `call`), so this must never return.
 /// Preserves r15 (.data base) for the runtime export.
@@ -194,40 +192,22 @@ pub fn gen_h00_selfhost_main(
     let code_base_off = pe_startup_len + main_user_off;
     let mut c: Vec<u8> = Vec::new();
 
-    // Win64 frame: push rbx,r12,r13,r14; sub rsp,0x208 (align for LoadLibrary).
-    c.extend_from_slice(&[0x53, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56]);
-    c.extend_from_slice(&[0x48, 0x81, 0xEC, 0x08, 0x02, 0x00, 0x00]);
+    // push rbx; sub rsp,0x28 (shadow + align for LoadLibraryA).
+    c.extend_from_slice(&[0x53]);
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]);
 
     // lea rcx, [rip+temp_name]  ("yoyo_rt.dll")
     let lea_temp = c.len();
     c.extend_from_slice(&[0x48, 0x8D, 0x0D, 0, 0, 0, 0]);
     emit_call_iat_merged(&mut c, text_rva, code_base_off, meta.iat_rva, IAT_LOADLIBRARY);
-    // test rax,rax / jz fail
-    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]); // test rax,rax
     let jz_fail_from_ll = c.len();
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]); // jz rel32 → fail
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x89, 0xC3]); // mov rbx, rax (module base)
 
-    // lea r14, [rip+export_name]
-    let lea_export = c.len();
-    c.extend_from_slice(&[0x4C, 0x8D, 0x35, 0, 0, 0, 0]);
-
-    // cmp word [rbx], 'MZ'
-    c.extend_from_slice(&[0x66, 0x81, 0x3B, 0x4D, 0x5A]);
-    let jnz_mz = c.len();
-    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-
+    // Minimal PE export resolve: AddressOfNameOrdinals[0] → AddressOfFunctions[ord].
     // mov esi, [rbx+0x3C]  ; e_lfanew
     c.extend_from_slice(&[0x8B, 0x73, 0x3C]);
-    // cmp dword [rbx+rsi], 'PE\0\0'
-    c.extend_from_slice(&[0x81, 0x3C, 0x33, 0x50, 0x45, 0x00, 0x00]);
-    let jnz_pe = c.len();
-    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    // cmp word [rbx+rsi+0x18], 0x20b (PE32+)
-    c.extend_from_slice(&[0x66, 0x81, 0x7C, 0x33, 0x18, 0x0B, 0x02]);
-    let jnz_magic = c.len();
-    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-
     // mov eax, [rbx+rsi+0x88] ; Export Directory RVA
     c.extend_from_slice(&[0x8B, 0x84, 0x33, 0x88, 0x00, 0x00, 0x00]);
     c.extend_from_slice(&[0x85, 0xC0]); // test eax,eax
@@ -235,90 +215,28 @@ pub fn gen_h00_selfhost_main(
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     // lea rdi, [rbx+rax] ; export dir
     c.extend_from_slice(&[0x48, 0x8D, 0x3C, 0x03]);
-
-    // mov r13d, [rdi+0x18] ; NumberOfNames
-    c.extend_from_slice(&[0x44, 0x8B, 0x6F, 0x18]);
-    c.extend_from_slice(&[0x45, 0x85, 0xED]); // test r13d,r13d
+    // cmp dword [rdi+0x18], 0  ; NumberOfNames
+    c.extend_from_slice(&[0x83, 0x7F, 0x18, 0x00]);
     let jz_names = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-
-    // r8 = AddressOfNames
-    c.extend_from_slice(&[0x8B, 0x47, 0x20]); // mov eax,[rdi+0x20]
-    c.extend_from_slice(&[0x4C, 0x8D, 0x04, 0x03]); // lea r8,[rbx+rax]
-    // r9 = AddressOfNameOrdinals
+    // mov eax, [rdi+0x24] ; AddressOfNameOrdinals RVA
     c.extend_from_slice(&[0x8B, 0x47, 0x24]);
-    c.extend_from_slice(&[0x4C, 0x8D, 0x0C, 0x03]); // lea r9,[rbx+rax]
-    // r10 = AddressOfFunctions
+    c.extend_from_slice(&[0x48, 0x01, 0xD8]); // add rax, rbx
+    c.extend_from_slice(&[0x0F, 0xB7, 0x08]); // movzx ecx, word [rax] ; ord[0]
+    // mov eax, [rdi+0x1C] ; AddressOfFunctions RVA
     c.extend_from_slice(&[0x8B, 0x47, 0x1C]);
-    c.extend_from_slice(&[0x4C, 0x8D, 0x14, 0x03]); // lea r10,[rbx+rax]
-
-    // xor r11d,r11d ; i = 0
-    c.extend_from_slice(&[0x45, 0x31, 0xDB]);
-    let loop_top = c.len();
-    // cmp r11d, r13d / jae fail
-    c.extend_from_slice(&[0x45, 0x39, 0xEB]);
-    let jae_fail = c.len();
-    c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-
-    // mov eax, [r8+r11*4] ; name RVA
-    c.extend_from_slice(&[0x43, 0x8B, 0x04, 0x98]);
-    // lea rdx, [rbx+rax] ; candidate
-    c.extend_from_slice(&[0x48, 0x8D, 0x14, 0x03]);
-    // mov rsi, r14 ; needle
-    c.extend_from_slice(&[0x4C, 0x89, 0xF6]);
-
-    let strcmp_top = c.len();
-    // movzx eax, byte [rdx] / movzx ecx, byte [rsi]
-    c.extend_from_slice(&[0x0F, 0xB6, 0x02]);
-    c.extend_from_slice(&[0x0F, 0xB6, 0x0E]);
-    // cmp al, cl / jne next
-    c.extend_from_slice(&[0x38, 0xC8]);
-    let jne_next = c.len();
-    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    // test al, al / jz found
-    c.extend_from_slice(&[0x84, 0xC0]);
-    let jz_found = c.len();
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    // inc rdx / inc rsi / jmp strcmp
-    c.extend_from_slice(&[0x48, 0xFF, 0xC2, 0x48, 0xFF, 0xC6]);
-    let jmp_strcmp = c.len();
-    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-    patch_rel32(&mut c, jmp_strcmp + 1, jmp_strcmp + 5, strcmp_top);
-
-    let next_i = c.len();
-    patch_rel32(&mut c, jne_next + 2, jne_next + 6, next_i);
-    // inc r11d / jmp loop
-    c.extend_from_slice(&[0x41, 0xFF, 0xC3]);
-    let jmp_loop = c.len();
-    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-    patch_rel32(&mut c, jmp_loop + 1, jmp_loop + 5, loop_top);
-
-    let found = c.len();
-    patch_rel32(&mut c, jz_found + 2, jz_found + 6, found);
-    // movzx eax, word [r9+r11*2]
-    c.extend_from_slice(&[0x43, 0x0F, 0xB7, 0x04, 0x59]);
-    // mov eax, [r10+rax*4]
-    c.extend_from_slice(&[0x41, 0x8B, 0x04, 0x82]);
-    // lea rax, [rbx+rax] / call rax
-    c.extend_from_slice(&[0x48, 0x8D, 0x04, 0x03, 0xFF, 0xD0]);
-    // mov ecx, eax ; ExitProcess
-    c.extend_from_slice(&[0x89, 0xC1]);
+    c.extend_from_slice(&[0x48, 0x8D, 0x14, 0x03]); // lea rdx, [rbx+rax]
+    c.extend_from_slice(&[0x8B, 0x04, 0x8A]); // mov eax, [rdx+rcx*4]
+    c.extend_from_slice(&[0x48, 0x01, 0xD8]); // add rax, rbx
+    c.extend_from_slice(&[0xFF, 0xD0]); // call rax
+    c.extend_from_slice(&[0x89, 0xC1]); // mov ecx, eax
     emit_call_iat_merged(&mut c, text_rva, code_base_off, meta.iat_rva, IAT_EXIT_PROCESS);
 
     let fail = c.len();
-    for at in [
-        jz_fail_from_ll,
-        jnz_mz,
-        jnz_pe,
-        jnz_magic,
-        jz_exp,
-        jz_names,
-        jae_fail,
-    ] {
+    for at in [jz_fail_from_ll, jz_exp, jz_names] {
         patch_rel32(&mut c, at + 2, at + 6, fail);
     }
-    // mov ecx, 1 ; ExitProcess(1)
-    c.extend_from_slice(&[0xB9, 0x01, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0xB9, 0x01, 0x00, 0x00, 0x00]); // ExitProcess(1)
     emit_call_iat_merged(&mut c, text_rva, code_base_off, meta.iat_rva, IAT_EXIT_PROCESS);
 
     fix_rip_disp(
@@ -328,14 +246,6 @@ pub fn gen_h00_selfhost_main(
         code_base_off,
         lea_temp + 7,
         meta.temp_name_rva,
-    );
-    fix_rip_disp(
-        &mut c,
-        lea_export + 3,
-        text_rva,
-        code_base_off,
-        lea_export + 7,
-        meta.export_name_rva,
     );
     c
 }
@@ -506,5 +416,24 @@ mod tests {
         let dll = vec![0u8; 64];
         let (_, meta) = build_selfhost_metadata(&[], 0x30000, &dll).unwrap();
         assert!(gen_selfhost_startup(&meta).len() > 64);
+    }
+
+    #[test]
+    fn h00_main_ordinal_export_compact() {
+        let meta = SelfhostMeta {
+            temp_name_rva: 0x30_000,
+            export_name_rva: 0,
+            dll_embed_rva: 0,
+            dll_embed_size: 0,
+            iat_rva: 0x20_000,
+            import_dir_rva: 0,
+            import_dir_size: 0,
+        };
+        let body = gen_h00_selfhost_main(&meta, 0x38_000, 0x1000, 13, 17_810, 0);
+        assert!(
+            body.len() < 160,
+            "ordinal-0 H_00 stub should be compact (got {}B)",
+            body.len()
+        );
     }
 }

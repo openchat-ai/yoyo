@@ -27,7 +27,7 @@ Set-Location $Root
 # Fail-closed ceilings (keep in sync with verifier selfhost::STAGE13_MAX_SEED_*).
 $MaxSeedPeBytes = 270000
 $MaxSeedElfBytes = 300000
-$ObservedSeedPeBytes = 248832
+$ObservedSeedPeBytes = 248320
 $ObservedSeedElfBytes = 253952
 
 $WorkDir = Join-Path $Root "scripts\_stage13-link-host"

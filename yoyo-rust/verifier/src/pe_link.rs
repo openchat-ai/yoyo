@@ -17,7 +17,7 @@ const KERNEL32_IO_FUNCS: &[&str] = &[
     "CloseHandle",
     // Stage 9-A / post-v1.0 H_00: cwd sidecar LoadLibrary (slots 5–6).
     // Stage 11-B dropped GetTempPathA/lstrcatA; post-v1.0 dropped extract+WriteFile
-    // embed; post-v1.0 OW-IAT: dropped GetProcAddress — H_00 walks PE export table
+    // embed; post-v1.0 OW-IAT: dropped GetProcAddress — H_00 resolves export ordinal 0
     // in-process after LoadLibraryA (still host LoadLibrary; OW-IAT CUT).
     "LoadLibraryA",
     "ExitProcess",

@@ -188,7 +188,7 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Contract** | Canonical seed = H_00 `link_pe_win32` / `link_elf_linux` via `selfhost::seed_host_compile*`；`yoyo bootstrap` **without** `--selfhost` is an alias of that path（not genNrt） |
 | **Observe** | Machine line `SEED_HOST cmd=… path=h00|gennrt …`（`verifier/src/seed_host.rs`）；Win seed must expose `yoyo_rt.dll`+LoadLibraryA and **must not** expose GetTempPathA |
 | **Fail-closed** | PE ≤ **270000** / ELF ≤ **300000**（Rust H_00 link + `scripts/stage13-link-host.ps1`；post-v1.0 Linux sidecar）；`bootstrap --selfhost` **must DIFF** seed |
-| **Gate** | `scripts/stage13-link-host.ps1` exit 0（observed PE **248832** / ELF **253952**；gen12 SHA `84a8c1c9…`） |
+| **Gate** | `scripts/stage13-link-host.ps1` exit 0（observed PE **248320** / ELF **253952**；gen12 SHA `90ad6d6e…`） |
 | **Trust gain** | 「绿」cannot silently slide onto genNrt/GetTempPath seed；dual CLI (`link`/`bootstrap`) pinned to one H_00 host surface |
 | **Still host-trusted** | Rust-built `yoyo.exe` still **emits** the seed；embedded Rust runtime + LoadLibrary/libdl remain（Stages 10–11） |
 
@@ -326,6 +326,16 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Obs** | stub_nz **235**; seed PE **248832**; gen12 `84a8c1c9` / **18432** B; GetProcAddress **ABSENT** on seed |
 | **Gates** | stage11/13/14/15 fail-closed forbid GetProcAddress; inventory CUT evidence `no_GetProcAddress;PE_export_walk` |
 
+### Post-v1.0 path 2 — OW-STUB ordinal-0 export resolve (2026-08-29)
+
+| Item | Detail |
+|------|--------|
+| **Hole** | **OW-STUB** |
+| **Change** | H_00 stub **235→96** B: drop `.data` export name string; resolve **export ordinal 0** in-process (`yoyo_runtime` pins `yoyo_runtime_selfhost_main` as first named export) |
+| **Still CUT** | Rust-only stub outside three-peer EQUAL; **stub≠0 ≠ CLOSED** |
+| **Obs** | stub_nz **96**; seed PE **248320**; gen12 `90ad6d6e` / **17920** B |
+| **Gates** | body-ddc + stage14/15/16 stub pin [40,512]; selfhost-body EQUAL unchanged |
+
 ### Post-v1.0 path 2 — OW-SEED emitter/seed hash pin (2026-08-29)
 
 | Item | Detail |
@@ -333,7 +343,7 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Hole** | **OW-SEED** |
 | **Change** | Fail-closed observe: pin **emitter** (`yoyo.exe` basename + size + sha256_prefix) + **seed** PE sha256_prefix ≡ `SEED_HOST` (16 hex) + **path=h00** under stage13/15/16 |
 | **Still CUT** | Seed still emitted by Rust `yoyo.exe`; **not** non-Rust emitter; CLOSED still requires alternate emit path |
-| **Obs** | seed PE **248832**; `SEED_HOST sha256_prefix` length **8→16**; inventory evidence `emitter_sha256_prefix=…;seed_sha256_prefix=…;path=h00` |
+| **Obs** | seed PE **248320**; `SEED_HOST sha256_prefix` length **8→16**; inventory evidence `emitter_sha256_prefix=…;seed_sha256_prefix=…;path=h00` |
 | **Gates** | stage13-link-host + stage15-hole-inventory + stage16-scope-cut-finalize require hash/path pins |
 
 ### Post-v1.0 path 2 — Linux OW-RT .so sidecar parity (2026-08-29)
