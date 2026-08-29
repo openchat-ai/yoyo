@@ -23,10 +23,10 @@ jobs:
         working-directory: yoyo-rust/verifier
         run: cargo build
 
-      # Needed for link_pe_win32 H_00 path (gen12 / seed host). Debug DLL is enough to link.
+      # Needed for link_pe_win32 H_00 path (gen12 / seed host). Prefer release-runtime (LTO+strip) so H_00 seed PE stays under STAGE13_MAX_SEED_PE_BYTES.
       - name: Build yoyo-runtime DLL
         working-directory: yoyo-rust
-        run: cargo build -p yoyo-runtime
+        run: cargo build --profile release-runtime -p yoyo-runtime
 
       - name: Unit tests
         working-directory: yoyo-rust/verifier
