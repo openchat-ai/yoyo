@@ -390,8 +390,9 @@ if ($CutCount -gt 0) {
 $partialNote = ""
 if ($fullStatus -eq "EQUAL" -and $CutCount -gt 0) { $partialNote = " overlay=PARTIAL" }
 
-$statusLine = ("HOLE_INVENTORY status={0} full_text={1} body_window=EQUAL compared={2} stub_nz={3} dll={4} seed_pe={5} seed_sha={6} emitter_sha={7} emitter_bytes={8} embed_off={9} closed={10} cut={11}{12}" -f `
-    $invStatus, $fullStatus, $bodyCompared, $stubNz, $dllSize, $seedPe, $seedShaPrefix, $emitterShaPrefix, $emitterBytes, $embedOff, $ClosedCount, $CutCount, $partialNote)
+$threePeerFull = $fullStatus
+$statusLine = ("HOLE_INVENTORY status={0} full_text={1} three_peer_full={2} body_window=EQUAL compared={3} stub_nz={4} dll={5} seed_pe={6} seed_sha={7} emitter_sha={8} emitter_bytes={9} embed_off={10} closed={11} cut={12}{13}" -f `
+    $invStatus, $fullStatus, $threePeerFull, $bodyCompared, $stubNz, $dllSize, $seedPe, $seedShaPrefix, $emitterShaPrefix, $emitterBytes, $embedOff, $ClosedCount, $CutCount, $partialNote)
 Write-Host ""
 Write-Host $statusLine
 Write-Host ""

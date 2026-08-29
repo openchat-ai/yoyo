@@ -43,7 +43,7 @@ BAN id=SEED_HOST_GONE pattern=(?i)seed (is )?(no longer|not) (Rust[- ])?host[- ]
 
 | ID | Disposition | 一句话 |
 |----|-------------|--------|
-| **OW-H00** | **CUT** | H_00 entry slot；body 跳过；full `.text` DIFF |
+| **OW-H00** | **CLOSED** | three-peer full `.text` EQUAL · **`72c27c9f`** |
 | **OW-STUB** | **CUT** | Rust extract stub_tail_nonzero |
 | **OW-RT** | **CUT** | Embedded Rust runtime.dll |
 | **OW-IAT** | **CUT** | LoadLibraryA / libdl host trampoline (GetProcAddress dropped; PE export walk) |

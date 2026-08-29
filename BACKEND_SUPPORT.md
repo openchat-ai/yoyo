@@ -375,10 +375,10 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Hole** | **OW-IAT** (+ **OW-H00** re-eval) |
 | **Change** | `gen_h00_manual_map_main` wired into H_00; PEB `LoadLibraryA` **dropped**; CreateFile/Read/VirtualAlloc + `pe_manual_map`; JS `h00-manual-map-stub.hex` lockstep |
 | **Still CUT** | Sidecar `yoyo_rt.dll` + kernel32 file I/O; **not** YOYO-built loader end-to-end |
-| **Obs** | stub_nz **905**; gen12 **`72c27c9f`** / **18944** B; seed PE **249344**; three_peer_full **DIFF** (JS `a9b4cdc8` ≠ Rust `72c27c9f`) |
-| **OW-H00** | **CUT** (re-eval; PR #6 CLOSED revoked — template present but full `.text` not byte-equal) |
-| **Gates** | body-ddc · gen12 · `stage17-ow-iat-wireup` unit tests · stage10-linux GREEN |
-| **Next** | Linux dlopen → open/mmap manual-map; Win cwd sidecar smoke |
+| **Obs** | stub_nz **905**; gen12 **`72c27c9f`** / **18944** B; seed PE **249344**; three_peer_full **EQUAL** |
+| **OW-H00** | **CLOSED** — JS `KERNEL32_IO_FUNCS` 6-func sync (dropped stale LoadLibraryA IAT slot); lea `tempNameRva` aligned |
+| **Root cause** | JS had 7 IAT funcs vs Rust 6 → sidecar string RVA +32 → 1-byte lea disp drift |
+| **Gates** | body-ddc · gen12 · `yoyo diff` JS=Rust=asm **EQUAL** |
 
 | Item | Detail |
 |------|--------|

@@ -43,7 +43,7 @@ H_00 stub (future, larger than 71 B):
 | Blocker | Detail |
 |---------|--------|
 | ~~Stub size~~ | **DONE (PR #8)** — manual-map ~907B wired; JS hex template lockstep |
-| ~~OW-H00~~ | **Re-eval CUT** — JS template present but full `.text` **DIFF** (`a9b4cdc8` ≠ `72c27c9f`) |
+| ~~OW-H00~~ | **CLOSED** — three-peer full `.text` **EQUAL** (`72c27c9f`; JS IAT 6-func sync) |
 | **Gates** | CLOSED still requires no `yoyo_rt.dll` sidecar marker |
 | **Smoke** | Needs Windows cwd sidecar smoke after wire-up |
 
