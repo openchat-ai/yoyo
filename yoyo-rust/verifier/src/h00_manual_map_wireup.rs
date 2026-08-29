@@ -162,6 +162,7 @@ fn gen_h00_manual_map_body(
     iat_rva: u32,
     fail_virtual_alloc: usize,
     fail_import: usize,
+    fail_dllmain: usize,
 ) -> Vec<u8> {
     let mut c: Vec<u8> = Vec::new();
     let mut fail_jumps: Vec<(usize, usize)> = Vec::new();
@@ -376,9 +377,27 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jz_import_done + 2, jz_import_done + 6, import_done);
     patch_rel32(&mut c, jz_idone + 2, jz_idone + 6, import_done);
 
-    // Rust cdylib: skip DllMain for manual-map (CRT init via resolved imports is enough for
-    // yoyo_runtime_selfhost_main probe; DllMain CRT entry AV'd in stage17 smoke).
-    let after_dllmain = import_done;
+    // DllMain(DLL_PROCESS_ATTACH): CRT/TLS init (required — host-resolve smoke passes with this).
+    c.extend_from_slice(&[0x41, 0x8B, 0x5C, 0x24, 0x3C]); // mov ebx,[r12+3c] e_lfanew
+    c.extend_from_slice(&[
+        0x8B, 0x84, 0x1C, 0x28, 0x00, 0x00, 0x00,
+    ]); // mov eax,[r12+rbx+28h] AddressOfEntryPoint
+    c.extend_from_slice(&[0x85, 0xC0]);
+    let jz_no_entry = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]); // no entry → skip DllMain
+    c.extend_from_slice(&[0x4C, 0x89, 0xF1]); // mov rcx, r14 (hinst)
+    c.extend_from_slice(&[0xBA, 0x01, 0x00, 0x00, 0x00]); // fdwReason = PROCESS_ATTACH
+    c.extend_from_slice(&[0x45, 0x31, 0xC0]); // xor r8d, r8d
+    c.extend_from_slice(&[0x4C, 0x01, 0xF0]); // add rax, r14
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]); // Win64 shadow
+    c.extend_from_slice(&[0xFF, 0xD0]); // call DllMain
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x28]);
+    c.extend_from_slice(&[0x85, 0xC0]);
+    fail_jumps.push((c.len(), fail_dllmain));
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    let after_dllmain = c.len();
+    patch_rel32(&mut c, jz_no_entry + 2, jz_no_entry + 6, after_dllmain);
+
     // rbx = mapped image (r14)
     c.extend_from_slice(&[0x4C, 0x89, 0xF3]); // mov rbx, r14
     // Success path must skip inline helpers (find_module/resolve_export); export tail follows map body.
@@ -729,6 +748,7 @@ pub fn gen_h00_manual_map_main(
         meta.iat_rva,
         usize::MAX,
         usize::MAX,
+        usize::MAX,
     )
     .len();
     let tail_text_off_m = map_text_off_m + map_len as u32;
@@ -747,7 +767,7 @@ pub fn gen_h00_manual_map_main(
     let _fail_reloc = epilogue_base + 44;
     let fail_import = epilogue_base + 55;
     let fail_export = epilogue_base + 66;
-    let _fail_dllmain = epilogue_base + 77;
+    let fail_dllmain = epilogue_base + 77;
 
     c.extend_from_slice(&gen_h00_read_sidecar_prelude(
         meta,
@@ -764,6 +784,7 @@ pub fn gen_h00_manual_map_main(
         meta.iat_rva,
         fail_virtual_alloc,
         fail_import,
+        fail_dllmain,
     ));
     let tail_text_off = code_base_off + c.len() as u32;
     c.extend_from_slice(&gen_h00_export_call_tail(
@@ -835,8 +856,8 @@ mod tests {
             }
         }
         assert!(
-            body.len() > 400 && body.len() < 1300,
-            "manual-map H_00 stub should fit OW-STUB pin [40,1300] (got {}B)",
+            body.len() > 400 && body.len() < 1400,
+            "manual-map H_00 stub should fit OW-STUB pin [40,1400] (got {}B)",
             body.len()
         );
         // No LoadLibraryA ROR13 hash needle (0x8E 0x4E 0x0E 0xEC)
