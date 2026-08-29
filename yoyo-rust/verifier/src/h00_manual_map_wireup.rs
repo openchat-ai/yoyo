@@ -575,8 +575,25 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jmp_ff_scan + 1, jmp_ff_scan + 5, ff_scan);
     let ff_dot = c.len();
     patch_rel32(&mut c, jz_ff_dot + 2, jz_ff_dot + 6, ff_dot);
-    c.extend_from_slice(&[0x41, 0xC6, 0x01, 0x00]); // mov byte [r9],0 (RWX image)
-    c.extend_from_slice(&[0x4C, 0x89, 0xC2]); // mov rdx, r8 (dll name)
+    // Copy forwarder DLL prefix [r8,r9) to stack — never patch host .rdata forwarders.
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x40]); // sub rsp, 0x40
+    c.extend_from_slice(&[0x48, 0x89, 0xE7]); // mov rdi, rsp
+    c.extend_from_slice(&[0x4C, 0x89, 0xC6]); // mov rsi, r8
+    let ff_copy = c.len();
+    c.extend_from_slice(&[0x4C, 0x39, 0xCE]); // cmp rsi, r9
+    let jae_ff_copy_done = c.len();
+    c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae copy_done
+    c.extend_from_slice(&[0x8A, 0x06]); // mov al, [rsi]
+    c.extend_from_slice(&[0x88, 0x07]); // mov [rdi], al
+    c.extend_from_slice(&[0x48, 0xFF, 0xC6]); // inc rsi
+    c.extend_from_slice(&[0x48, 0xFF, 0xC7]); // inc rdi
+    let jmp_ff_copy = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    patch_rel32(&mut c, jmp_ff_copy + 1, jmp_ff_copy + 5, ff_copy);
+    let ff_copy_done = c.len();
+    patch_rel32(&mut c, jae_ff_copy_done + 2, jae_ff_copy_done + 6, ff_copy_done);
+    c.extend_from_slice(&[0xC6, 0x07, 0x00]); // mov byte [rdi], 0
+    c.extend_from_slice(&[0x48, 0x89, 0xE2]); // mov rdx, rsp (dll name)
     let call_ff_find = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
@@ -586,16 +603,22 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x49, 0x8D, 0x51, 0x01]); // lea rdx,[r9+1] func name
     let call_ff_resolve = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x40]); // add rsp, 0x40
     let ff_ret = c.len();
     c.extend_from_slice(&[0x5E]); // pop rsi
     c.extend_from_slice(&[0xC3]);
+    let ff_ret_pop = c.len();
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x40]); // add rsp, 0x40 (find_module failed)
+    let jmp_ff_ret = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp ff_ret
+    patch_rel32(&mut c, jz_ff_bad2 + 2, jz_ff_bad2 + 6, ff_ret_pop);
+    patch_rel32(&mut c, jmp_ff_ret + 1, jmp_ff_ret + 5, ff_ret);
     patch_rel32(&mut c, call_ff_find + 1, call_ff_find + 5, find_module);
     patch_rel32(&mut c, call_ff_resolve + 1, call_ff_resolve + 5, resolve_export);
     patch_rel32(&mut c, jz_ff_ret + 2, jz_ff_ret + 6, ff_ret);
     patch_rel32(&mut c, jb_ff_ret + 2, jb_ff_ret + 6, ff_ret);
     patch_rel32(&mut c, jae_ff_ret + 2, jae_ff_ret + 6, ff_ret);
     patch_rel32(&mut c, jz_ff_bad + 2, jz_ff_bad + 6, ff_ret);
-    patch_rel32(&mut c, jz_ff_bad2 + 2, jz_ff_bad2 + 6, ff_ret);
 
     let helpers_end = c.len();
     patch_rel32(&mut c, jmp_over_helpers + 1, jmp_over_helpers + 5, helpers_end);
@@ -620,10 +643,34 @@ fn gen_h00_export_call_tail(
     fail_export: usize,
 ) -> Vec<u8> {
     let mut c: Vec<u8> = Vec::new();
+    let mut fail_jumps: Vec<(usize, usize)> = Vec::new();
 
-    // TEMP bisect: post import+reloc success (rbx=mapped base); no export walk/call.
-    c.extend_from_slice(&[0x31, 0xC9]); // xor ecx, ecx
+    c.extend_from_slice(&[0x8B, 0x73, 0x3C]);
+    c.extend_from_slice(&[0x8B, 0x84, 0x33, 0x88, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x85, 0xC0]);
+    fail_jumps.push((c.len(), fail_export));
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x8D, 0x3C, 0x03]);
+    c.extend_from_slice(&[0x8B, 0x47, 0x1C]);
+    c.extend_from_slice(&[0x48, 0x01, 0xD8]); // add rax, rbx — functions RVA is image-relative
+    c.extend_from_slice(&[0x8B, 0x00]);
+    c.extend_from_slice(&[0x48, 0x01, 0xD8]);
+    // Win64: RSP%16==8 before CALL so callee entry has RSP%16==0 after push retaddr.
+    // H_00 prologue leaves RSP%16==8; map body preserves it; 0x30 shadow keeps alignment.
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x30]); // shadow + alignment fix
+    c.extend_from_slice(&[0xFF, 0xD0]); // call export (yoyo_runtime_selfhost_main)
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x30]);
+    c.extend_from_slice(&[0x89, 0xC1]);
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_EXIT_PROCESS);
+
+    for (at, fail) in fail_jumps {
+        patch_rel32(
+            &mut c,
+            at + 2,
+            chunk_text_off as usize + at + 6,
+            fail,
+        );
+    }
     c
 }
 
