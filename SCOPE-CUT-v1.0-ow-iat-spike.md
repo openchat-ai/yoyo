@@ -67,6 +67,15 @@ cd yoyo-rust && cargo test -p verifier pe_manual_map
 
 Gate prints `OW_IAT_SPIKE status=GREEN` and **`IAT_LoadLibraryA=ABSENT`** (PEB resolve / manual-map wire-up still CUT).
 
+## Wire-up WIP (branch `cursor/ow-iat-manual-map-wireup-4d89`)
+
+| Phase | Status |
+|-------|--------|
+| 1. File-read prelude emit | `h00_manual_map_wireup.rs` · gate `stage17-ow-iat-wireup` |
+| 2. Manual-map x64 body | NOT STARTED — replace PEB `LoadLibraryA` call |
+| 3. Three-peer sync | JS still **71 B** vs Rust **251 B** — lockstep required before land |
+| 4. Gate flip | CLOSED only when `yoyo_rt.dll` sidecar marker absent |
+
 ---
 
 *Post-v1.0 path 2 · OW-IAT begin · spike proves loader algorithm; seed still CUT*
