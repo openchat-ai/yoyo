@@ -11,7 +11,7 @@ const IAT_LOADLIBRARY = 5;
 const IAT_EXIT_PROCESS = 6;
 const PE_STARTUP_LEN = 13;
 const H00_SLOT_LEN = 18;
-const H00_MAIN_STUB_LEN = 97; // pinned to Rust PE ordinal-0 export resolve stub
+const H00_MAIN_STUB_LEN = 84; // pinned to Rust PE ordinal-0 direct export resolve stub
 const SECTION_ALIGN = 0x1000;
 
 function alignUp(v, a) {
@@ -90,22 +90,16 @@ function genH00SelfhostMain(meta, textRva, mainUserOff) {
   const jzExp = c.length;
   c = Buffer.concat([c, Buffer.from([0x0f, 0x84, 0, 0, 0, 0])]);
   c = Buffer.concat([c, Buffer.from([0x48, 0x8d, 0x3c, 0x03])]);
-  c = Buffer.concat([c, Buffer.from([0x83, 0x7f, 0x18, 0x00])]);
-  const jzNames = c.length;
-  c = Buffer.concat([c, Buffer.from([0x0f, 0x84, 0, 0, 0, 0])]);
-  c = Buffer.concat([c, Buffer.from([0x8b, 0x47, 0x24])]);
-  c = Buffer.concat([c, Buffer.from([0x48, 0x01, 0xd8])]);
-  c = Buffer.concat([c, Buffer.from([0x0f, 0xb7, 0x08])]);
   c = Buffer.concat([c, Buffer.from([0x8b, 0x47, 0x1c])]);
-  c = Buffer.concat([c, Buffer.from([0x48, 0x8d, 0x14, 0x03])]);
-  c = Buffer.concat([c, Buffer.from([0x8b, 0x04, 0x8a])]);
+  c = Buffer.concat([c, Buffer.from([0x48, 0x01, 0xd8])]);
+  c = Buffer.concat([c, Buffer.from([0x8b, 0x00])]);
   c = Buffer.concat([c, Buffer.from([0x48, 0x01, 0xd8])]);
   c = Buffer.concat([c, Buffer.from([0xff, 0xd0])]);
   c = Buffer.concat([c, Buffer.from([0x89, 0xc1])]);
   c = emitCallIatMerged(c, textRva, codeBaseOff, meta.iatRva, IAT_EXIT_PROCESS);
 
   const fail = c.length;
-  for (const at of [jzFailFromLl, jzExp, jzNames]) {
+  for (const at of [jzFailFromLl, jzExp]) {
     patchRel32(c, at + 2, at + 6, fail);
   }
   c = Buffer.concat([c, Buffer.from([0xb9, 0x01, 0x00, 0x00, 0x00])]);
@@ -141,7 +135,10 @@ function linkPeH00Runtime(code, data, handlerOffsets) {
   const prep = prependWin32IoIat(withStrings, dataRva);
   const { data: extended, meta } = appendH00RuntimeData(prep.data, dataRva);
 
-  const h00Main = genH00SelfhostMain(meta, textRva, mainUserOff).subarray(0, H00_MAIN_STUB_LEN);
+  const h00Main = genH00SelfhostMain(meta, textRva, mainUserOff);
+  if (h00Main.length !== H00_MAIN_STUB_LEN) {
+    throw new Error(`H_00 stub len ${h00Main.length} != pinned ${H00_MAIN_STUB_LEN}`);
+  }
   const linked = Buffer.concat([outCode, h00Main]);
   linked[0] = 0xe9;
   linked.writeInt32LE(mainUserOff - 5, 1);

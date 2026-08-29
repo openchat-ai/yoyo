@@ -215,25 +215,18 @@ pub fn gen_h00_selfhost_main(
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     // lea rdi, [rbx+rax] ; export dir
     c.extend_from_slice(&[0x48, 0x8D, 0x3C, 0x03]);
-    // cmp dword [rdi+0x18], 0  ; NumberOfNames
-    c.extend_from_slice(&[0x83, 0x7F, 0x18, 0x00]);
-    let jz_names = c.len();
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    // mov eax, [rdi+0x24] ; AddressOfNameOrdinals RVA
-    c.extend_from_slice(&[0x8B, 0x47, 0x24]);
-    c.extend_from_slice(&[0x48, 0x01, 0xD8]); // add rax, rbx
-    c.extend_from_slice(&[0x0F, 0xB7, 0x08]); // movzx ecx, word [rax] ; ord[0]
+    // Ordinal-0 resolve: yoyo_runtime pins first export; skip NameOrdinals table.
     // mov eax, [rdi+0x1C] ; AddressOfFunctions RVA
     c.extend_from_slice(&[0x8B, 0x47, 0x1C]);
-    c.extend_from_slice(&[0x48, 0x8D, 0x14, 0x03]); // lea rdx, [rbx+rax]
-    c.extend_from_slice(&[0x8B, 0x04, 0x8A]); // mov eax, [rdx+rcx*4]
+    c.extend_from_slice(&[0x48, 0x01, 0xD8]); // add rax, rbx
+    c.extend_from_slice(&[0x8B, 0x00]); // mov eax, [rax] ; functions[0]
     c.extend_from_slice(&[0x48, 0x01, 0xD8]); // add rax, rbx
     c.extend_from_slice(&[0xFF, 0xD0]); // call rax
     c.extend_from_slice(&[0x89, 0xC1]); // mov ecx, eax
     emit_call_iat_merged(&mut c, text_rva, code_base_off, meta.iat_rva, IAT_EXIT_PROCESS);
 
     let fail = c.len();
-    for at in [jz_fail_from_ll, jz_exp, jz_names] {
+    for at in [jz_fail_from_ll, jz_exp] {
         patch_rel32(&mut c, at + 2, at + 6, fail);
     }
     c.extend_from_slice(&[0xB9, 0x01, 0x00, 0x00, 0x00]); // ExitProcess(1)

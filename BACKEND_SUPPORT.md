@@ -335,15 +335,15 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Obs** | stub_nz **235**; seed PE **248832**; gen12 `84a8c1c9` / **18432** B; GetProcAddress **ABSENT** on seed |
 | **Gates** | stage11/13/14/15 fail-closed forbid GetProcAddress; inventory CUT evidence `no_GetProcAddress;PE_export_walk` |
 
-### Post-v1.0 path 2 — OW-STUB ordinal-0 export resolve (2026-08-29)
+### Post-v1.0 path 2 — OW-STUB direct ordinal-0 resolve (2026-08-29)
 
 | Item | Detail |
 |------|--------|
 | **Hole** | **OW-STUB** |
-| **Change** | H_00 stub **235→96** B: drop `.data` export name string; resolve **export ordinal 0** in-process (`yoyo_runtime` pins `yoyo_runtime_selfhost_main` as first named export) |
-| **Still CUT** | Rust-only stub outside three-peer EQUAL; **stub≠0 ≠ CLOSED** |
-| **Obs** | stub_nz **96**; seed PE **248320**; gen12 `90ad6d6e` / **17920** B |
-| **Gates** | body-ddc + stage14/15/16 stub pin [40,512]; selfhost-body EQUAL unchanged |
+| **Change** | H_00 stub **96→82** B: skip `AddressOfNameOrdinals` walk; resolve **functions[0]** directly (ordinal-0 already pinned in `yoyo_runtime`) |
+| **Still CUT** | LoadLibraryA stub remains; **stub≠0 ≠ CLOSED** |
+| **Obs** | stub_nz **82**; seed PE **248320**; gen12 `d8e97dad` / **17920** B |
+| **Gates** | three-peer full `.text` EQUAL; body-ddc + stage14/15/16 stub pin [40,512] |
 
 ### Post-v1.0 path 2 — OW-SEED emitter/seed hash pin (2026-08-29)
 

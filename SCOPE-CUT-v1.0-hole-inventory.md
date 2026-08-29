@@ -10,7 +10,7 @@
 
 **Post-v1.0 path 2（关洞）· OW-RT Linux sidecar parity（2026-08-29）：** Linux H_00 **不再 exact-embed** `libyoyo_runtime.so`；仅嵌 trampoline，cwd sidecar `./libyoyo_runtime.so` + `dlopen`。seed ELF **253952**（MAX **300000**；was ~512000）。**仍 CUT**（Rust `.so` + glibc/libdl tramp）— **禁止**标 CLOSED。
 
-**Post-v1.0 path 2（关洞）· OW-STUB shrink（2026-08-29）：** H_00 stub **235→96** B：去掉 export 名字符串 + **ordinal-0** 解析（`yoyo_runtime` 钉 `yoyo_runtime_selfhost_main` 为首个 named export；不再 in-stub strcmp walk）。gen12 `90ad6d6e` / **17920** B；seed PE **248320**。**仍 CUT**（Rust-only stub；窗外）— **禁止**标 CLOSED。
+**Post-v1.0 path 2（关洞）· OW-STUB shrink（2026-08-29）：** H_00 stub **235→96→82** B：ordinal-0 解析后进一步 **direct functions[0]**（跳过 NameOrdinals 表）。gen12 `d8e97dad` / **17920** B；seed PE **248320**。**仍 CUT**（LoadLibrary stub 仍在；窗外）— **禁止**标 CLOSED。
 
 **Post-v1.0 path 2（关洞）· OW-IAT shrink（2026-08-29）：** H_00 宿主 IAT **去掉 GetProcAddress**（host-loader **3→2**：LoadLibraryA + ExitProcess）。LoadLibraryA 之后 in-process PE export resolve（ordinal-0；was full name walk）。**仍 CUT**（LoadLibraryA / libdl 仍在）— **禁止**标 CLOSED。
 
@@ -38,8 +38,8 @@ v0.9 把洞从 lump 变成逐项 `CLOSED|CUT`。v1.0-A 要求洞从「v0.9 枚�
 
 | ID | 区域 | Disposition | 关闭证据（CLOSED 才需要） | CUT 钉（机器） |
 |----|------|-------------|---------------------------|----------------|
-| **OW-H00** | H_00 entry slot（18 B）+ emit tail stub | **CLOSED** | `three_peer_full_text=EQUAL` · full `.text` JS=asm=Rust **17920** B · sha **`90ad6d6e`** · body window EQUAL | — |
-| **OW-STUB** | H_00 LoadLibrary stub tail | **CUT** | `stub_tail_nonzero==0`（所有 peer） | `stub_tail_nonzero` ∈ **[40, 512]**；观测 **96**（ordinal-0 export resolve） |
+| **OW-H00** | H_00 entry slot（18 B）+ emit tail stub | **CLOSED** | `three_peer_full_text=EQUAL` · full `.text` JS=asm=Rust **17920** B · sha **`d8e97dad`** · body window EQUAL | — |
+| **OW-STUB** | H_00 LoadLibrary stub tail | **CUT** | `stub_tail_nonzero==0`（所有 peer） | `stub_tail_nonzero` ∈ **[40, 512]**；观测 **82**（ordinal-0 direct export resolve） |
 | **OW-RT** | Sidecar Rust runtime (Win DLL / Linux `.so`) | **CUT** | 无 exact embed **且** 无 Rust LoadLibrary/libdl sidecar 宿主信任 | Win DLL **≤150000** 观测 **141312**；Linux seed ELF **253952**（MAX **300000**）；sidecar `yoyo_rt.dll` / `./libyoyo_runtime.so`；**no exact .so embed**（tramp still embedded） |
 | **OW-IAT** | LoadLibraryA / libdl host | **CUT** | PE 无 `LoadLibraryA`（YOYO-built loader） | Win：`LoadLibraryA` + `yoyo_rt.dll`；**无** `GetProcAddress`（ordinal-0 PE export resolve）。Linux tramp：`dlopen` only；**无** `dlsym`（ELF dyn sym walk）；仍宿主加载 |
 | **OW-SEED** | Seed 仍由 Rust `yoyo.exe` 发射 | **CUT** | seed 非 Rust host 发射 | Rust `yoyo link`；seed PE **≤270000**（观测 **248320**）；**emitter** size+sha256_prefix + **seed** sha256_prefix≡`SEED_HOST` + **path=h00** |
@@ -105,20 +105,20 @@ Gate 必须同时：
 | Monitor | Value |
 |---------|-------|
 | selfhost-body compared | **17805** B EQUAL |
-| full `.text` JS↔Rust↔asm | **EQUAL** · **17920** B · sha **`90ad6d6e`** |
+| full `.text` JS↔Rust↔asm | **EQUAL** · **17920** B · sha **`d8e97dad`** |
 | three_peer_full | **`EQUAL`**（gate 新字段） |
 | H_00 entry slot (18 B) | **JMP+NOP aligned** JS=Rust=asm (`E9`+rel+13×`90`) |
-| stub_tail_nonzero (all peers) | **96**（pin [40, 512]；ordinal-0 export resolve；仍 CUT） |
+| stub_tail_nonzero (all peers) | **82**（pin [40, 512]；ordinal-0 direct export resolve；仍 CUT） |
 | runtime.dll | **141312**（**no exact embed**；sidecar） |
 | seed PE (Rust link) | **248320**（≤270000；data floor 0x38000 仍主导体积） |
 | seed ELF (Linux link) | **253952**（≪300000；**no exact .so embed**；tramp **9760** B embed；no dlsym） |
-| gen12 / fullbody `.text` | SHA prefix **`90ad6d6e`** · compared **17920** B |
+| gen12 / fullbody `.text` | SHA prefix **`d8e97dad`** · compared **17920** B |
 | Lock pin | `0275802d…` Decision #25（本缩面不改 `yoyo.ty`） |
 | Disposition | **OW-H00 CLOSED** · **6× CUT**（closed=1 cut=6） |
 | Gate | `stage16-scope-cut-finalize.ps1 -SkipBuild` exit **0** · `HOLE_INVENTORY_V10 status=FINAL` |
 | No-regress | nested stage15-A exit 0 · stage14-A nested via stage15 · `stage10-linux-pure-m4.sh` GREEN |
 | OW-IAT shrink | Win GetProcAddress **ABSENT**；Linux tramp dlsym **ABSENT**；LoadLibraryA/dlopen **PRESENT**（仍 CUT） |
-| OW-STUB shrink | ordinal-0 export resolve；was 235B → **96** B（仍 CUT） |
+| OW-STUB shrink | ordinal-0 direct export resolve；was 235B → **96** → **82** B（仍 CUT） |
 | OW-SEED observe | emitter+seed hash + path=h00（仍 CUT） |
 | Obsolete PRs | #1 closed → **bd390b9**；#3 merged → **4f3064d** |
 

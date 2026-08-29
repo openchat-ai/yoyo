@@ -19,7 +19,7 @@ $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
 # Fail-closed pins (do not raise casually). Keep aligned with SCOPE-CUT doc + stage11/13.
-# Post-v1.0 OW-RT: no exact embed; sidecar LoadLibrary. OW-IAT: stub ~96B (ordinal-0 export resolve; was name-walk 235B).
+# Post-v1.0 OW-RT: no exact embed; sidecar LoadLibrary. OW-IAT: stub ~82B (ordinal-0 direct export resolve; was name-walk 235B).
 $MinStubTailNonzero = 40
 $MaxStubTailNonzero = 512
 $MaxDllBytes = 150000
