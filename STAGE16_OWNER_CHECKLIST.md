@@ -142,3 +142,5 @@ Stage 16 毕业项 D：v1.0 毕业收口。
 ---
 
 *创建：2026-08-29 · v0.9.0 后定稿 Stage 16 / v1.0 · 毕业：2026-08-29 · 见 `SCOPE-v1.0.md` · ROADMAP 终站*
+
+**Post-v1.0（2026-08-29）：** OW-H00 slot align — JS/asm ≡ Rust JMP+NOP 18B；SCOPE-CUT-v1.0 更新；**仍 CUT**（禁止假 CLOSED / 假 full `.text` EQUAL）。

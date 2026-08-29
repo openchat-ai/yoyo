@@ -65,6 +65,23 @@ function Find-EmbeddedExact([byte[]]$Hay, [byte[]]$Needle) {
     return -1
 }
 
+function Get-PeTextSection([byte[]]$Pe) {
+    if ($Pe.Length -lt 0x200 -or $Pe[0] -ne 0x4D -or $Pe[1] -ne 0x5A) { return $Pe }
+    $lfanew = [BitConverter]::ToInt32($Pe, 0x3C)
+    if ($lfanew + 0x180 -gt $Pe.Length) { return $Pe }
+    $soh = [BitConverter]::ToInt16($Pe, $lfanew + 0x14)
+    $sec = $lfanew + 0x18 + $soh
+    if ($sec + 40 -gt $Pe.Length) { return $Pe }
+    $vs = [BitConverter]::ToInt32($Pe, $sec + 8)
+    $rawSz = [BitConverter]::ToInt32($Pe, $sec + 16)
+    $rawPtr = [BitConverter]::ToInt32($Pe, $sec + 20)
+    $n = [Math]::Min($vs, [Math]::Min($rawSz, $Pe.Length - $rawPtr))
+    if ($n -le 0) { return @() }
+    $text = New-Object byte[] $n
+    [Array]::Copy($Pe, $rawPtr, $text, 0, $n)
+    return ,$text
+}
+
 function Add-Hole([string]$Id, [string]$Disposition, [string]$Evidence) {
     if ($Disposition -ne "CLOSED" -and $Disposition -ne "CUT") {
         throw ("invalid disposition for {0} : {1}" -f $Id, $Disposition)
@@ -259,6 +276,31 @@ $ErrorActionPreference = $prevEap
 $fullLines | ForEach-Object { Write-Host ("  {0}" -f $_) }
 $fullStatus = if ($fullEc -eq 0) { "EQUAL" } else { "DIFF" }
 
+# OW-H00 slot pin: PE startup 13B + H_00 slot 18B must match JS↔Rust (JMP+NOP aligned).
+$H00StartupLen = 13
+$H00SlotLen = 18
+$jsBytes = [System.IO.File]::ReadAllBytes($jsOut)
+$jsText = Get-PeTextSection $jsBytes
+$rustText = Get-PeTextSection $rustBytes
+if ($jsText.Length -lt ($H00StartupLen + $H00SlotLen) -or $rustText.Length -lt ($H00StartupLen + $H00SlotLen)) {
+    Fail-Out "H_00 slot pin: .text too short for startup+slot"
+}
+$jsSlot = $jsText[$H00StartupLen..($H00StartupLen + $H00SlotLen - 1)]
+$rustSlot = $rustText[$H00StartupLen..($H00StartupLen + $H00SlotLen - 1)]
+$h00SlotAligned = ($jsSlot.Length -eq $rustSlot.Length)
+if ($h00SlotAligned) {
+    for ($i = 0; $i -lt $jsSlot.Length; $i++) {
+        if ($jsSlot[$i] -ne $rustSlot[$i]) { $h00SlotAligned = $false; break }
+    }
+}
+if (-not $h00SlotAligned) {
+    Fail-Out "OW-H00 H_00 entry slot JS/Rust mismatch (expected JMP+NOP 18B aligned)"
+}
+if ($rustSlot[0] -ne 0xE9) {
+    Fail-Out ("OW-H00 Rust H_00 slot missing JMP opcode (got 0x{0:X2})" -f $rustSlot[0])
+}
+Write-Host ("H_00 entry slot: ALIGNED 18B JMP+NOP (first byte 0x{0:X2})" -f $rustSlot[0])
+
 # REL-STUBOS: stage13 gate source still pins stub OS honesty (not inventing I/O).
 $stage13Text = Get-Content -LiteralPath $Stage13Parity -Raw
 $stubOsNeedles = @("freebsd", "haiku", "plan9", "serenity", "stub-OS")
@@ -271,11 +313,11 @@ foreach ($n in $stubOsNeedles) {
 Write-Host ""
 Write-Host "== per-hole disposition (fail-closed CLOSED) =="
 
-# OW-H00: CLOSED only if full .text EQUAL (slot no longer drives DIFF).
+# OW-H00: CLOSED only if full .text EQUAL (slot aligned alone is NOT CLOSED).
 if ($fullStatus -eq "EQUAL") {
     Add-Hole "OW-H00" "CLOSED" ("full_text=EQUAL;body_window=EQUAL;compared={0}" -f $bodyCompared)
 } else {
-    Add-Hole "OW-H00" "CUT" ("full_text=DIFF;body_skips_H00_slot;compared={0}" -f $bodyCompared)
+    Add-Hole "OW-H00" "CUT" ("full_text=DIFF;H00_slot_18B_ALIGNED;stub_still_DIFF;compared={0}" -f $bodyCompared)
 }
 
 # OW-STUB: CLOSED only if stub span gone.

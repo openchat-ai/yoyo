@@ -6,8 +6,7 @@
 #   - compared window >= 17013 (startup 13 + shared handlers >= 17000)
 #   - Rust H_00 LoadLibrary stub present (stub_tail_nonzero >= 40; matches body-ddc)
 # Honest remaining DIFF (documented, not fail):
-#   - H_00 entry slot (Rust JMP+NOPs vs JS/asm SET+RET)
-#   - Rust-only H_00 LoadLibrary stub tail
+#   - Rust-only H_00 LoadLibrary stub tail (OW-STUB; H_00 entry slot now JMP+NOP aligned)
 #   - Embedded Rust runtime DLL / .data host surface / LoadLibrary
 #   - Full .text section-ddc across peers
 param(

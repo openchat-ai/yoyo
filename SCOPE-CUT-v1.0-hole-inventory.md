@@ -16,6 +16,8 @@
 
 **Post-v1.0 path 2（关洞）· OW-IAT Linux tramp shrink（2026-08-29）：** `linux_h00_tramp.elf` **去掉 dlsym**（`dlopen` only + in-process ELF dyn sym walk for `yoyo_runtime_selfhost_main`）。tramp **9760** B（was **9768**）；gen4≡gen3_direct **EQUAL**（sha `26ad9d0e`）。**仍 CUT**（dlopen / libc 仍在）— **禁止**标 CLOSED。
 
+**Post-v1.0 path 2（关洞）· OW-H00 slot align（2026-08-29）：** JS/asm 全量 `yoyo.ty` link 时 H_00 与 Rust 同 **JMP+NOP 18B**（`E9 rel32 + 13×NOP`）；三 peer slot **EQUAL**。**仍 CUT**（Rust-only H_00 stub tail 仍驱动 JS↔Rust full `.text` DIFF）— **禁止**标 CLOSED / 假 full `.text` EQUAL。
+
 **Post-v1.0 path 2（关洞）· OW-SEED observe pin（2026-08-29）：** stage13/15/16 fail-closed 钉 **emitter**（`yoyo.exe` basename + size + sha256_prefix）+ **seed**（PE size + sha256_prefix 与 `SEED_HOST` 一致）+ **path=h00**。`SEED_HOST sha256_prefix` 扩至 **16** hex。**仍 CUT**（seed 仍由 Rust `yoyo.exe` 发射）— **禁止**标 CLOSED / SEED_HOST_GONE。
 
 ---
@@ -34,7 +36,7 @@ v0.9 把洞从 lump 变成逐项 `CLOSED|CUT`。v1.0-A 要求洞从「v0.9 枚�
 
 | ID | 区域 | Disposition | 关闭证据（CLOSED 才需要） | CUT 钉（机器） |
 |----|------|-------------|---------------------------|----------------|
-| **OW-H00** | H_00 entry slot（18 B） | **CUT** | full `.text` EQUAL 且 body 仍 EQUAL | full `.text` DIFF（JS↔Rust）；body 跳过该槽 |
+| **OW-H00** | H_00 entry slot（18 B） | **CUT** | full `.text` EQUAL 且 body 仍 EQUAL | slot **JMP+NOP aligned**（JS=Rust=asm）；full `.text` JS↔Rust **DIFF**（stub）；body 跳过该槽 |
 | **OW-STUB** | H_00 LoadLibrary stub tail | **CUT** | `stub_tail_nonzero==0`（所有 peer） | `stub_tail_nonzero` ∈ **[40, 512]**；观测 **96**（ordinal-0 export resolve） |
 | **OW-RT** | Sidecar Rust runtime (Win DLL / Linux `.so`) | **CUT** | 无 exact embed **且** 无 Rust LoadLibrary/libdl sidecar 宿主信任 | Win DLL **≤150000** 观测 **141312**；Linux seed ELF **253952**（MAX **300000**）；sidecar `yoyo_rt.dll` / `./libyoyo_runtime.so`；**no exact .so embed**（tramp still embedded） |
 | **OW-IAT** | LoadLibraryA / libdl host | **CUT** | PE 无 `LoadLibraryA`（YOYO-built loader） | Win：`LoadLibraryA` + `yoyo_rt.dll`；**无** `GetProcAddress`（ordinal-0 PE export resolve）。Linux tramp：`dlopen` only；**无** `dlsym`（ELF dyn sym walk）；仍宿主加载 |
@@ -96,12 +98,13 @@ Gate 必须同时：
 
 ---
 
-## 观测基线（2026-08-29 · post-v1.0 OW-STUB ordinal-0 + OW-RT sidecar + OW-IAT no-GPA + OW-SEED pin · gate GREEN）
+## 观测基线（2026-08-29 · post-v1.0 OW-STUB ordinal-0 + OW-RT sidecar + OW-IAT no-GPA/dlsym + OW-H00 slot align + OW-SEED pin · gate GREEN）
 
 | Monitor | Value |
 |---------|-------|
 | selfhost-body compared | **17805** B EQUAL |
-| full `.text` JS↔Rust | **DIFF** |
+| full `.text` JS↔Rust | **DIFF**（H_00 slot aligned；stub tail drives DIFF） |
+| H_00 entry slot (18 B) | **JMP+NOP aligned** JS=Rust=asm (`E9`+rel+13×`90`) |
 | stub_tail_nonzero (Rust) | **96**（pin [40, 512]；ordinal-0 export resolve） |
 | runtime.dll | **141312**（**no exact embed**；sidecar） |
 | seed PE (Rust link) | **248320**（≤270000；data floor 0x38000 仍主导体积） |
@@ -114,7 +117,8 @@ Gate 必须同时：
 | OW-IAT shrink | Win GetProcAddress **ABSENT**（ordinal-0 PE export resolve）；Linux tramp dlsym **ABSENT**（ELF dyn walk）；LoadLibraryA/dlopen **PRESENT**（仍 CUT） |
 | OW-STUB shrink | ordinal-0 export resolve；was 235B full name walk → **96** B（仍 CUT） |
 | OW-SEED observe | emitter=`yoyo.exe` size+sha256_prefix；seed sha256_prefix≡`SEED_HOST`（16 hex）；path=h00（仍 CUT） |
+| OW-H00 slot align | JS/asm `patch_h00_jmp_nop` ≡ Rust `link_pe_h00_runtime` slot bytes（仍 CUT · stub DIFF） |
 
 ---
 
-*Stage 16-A · 打破后门魔咒：洞从「v0.9 枚举」变「1.0 FINAL SCOPE-CUT + 可脚本钉」· post-v1.0 OW-RT：Win/Linux exact embed → sidecar（仍 CUT）· post-v1.0 OW-IAT：GetProcAddress → ordinal-0 export resolve；Linux dlsym → ELF dyn walk（仍 CUT）· post-v1.0 OW-STUB：235→96B ordinal-0（仍 CUT）· post-v1.0 OW-SEED：emitter+seed hash pin（仍 CUT）*
+*Stage 16-A · 打破后门魔咒：洞从「v0.9 枚举」变「1.0 FINAL SCOPE-CUT + 可脚本钉」· post-v1.0 OW-RT：Win/Linux exact embed → sidecar（仍 CUT）· post-v1.0 OW-IAT：GetProcAddress → ordinal-0 export resolve；Linux dlsym → ELF dyn walk（仍 CUT）· post-v1.0 OW-STUB：235→96B ordinal-0（仍 CUT）· post-v1.0 OW-H00：JS/asm JMP+NOP slot align（仍 CUT · stub DIFF）· post-v1.0 OW-SEED：emitter+seed hash pin（仍 CUT）*

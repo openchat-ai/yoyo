@@ -384,6 +384,28 @@ def compile_lines(lines, platform=None):
     return bytes(code), bytes(data), labels
 
 
+# Stage 9-A / post-v1.0 OW-H00: H_00 entry slot (JMP+NOP pad matches Rust link_pe_h00_runtime).
+H00_SLOT_LEN = 18
+
+
+def should_h00_selfhost(labels):
+    """Full-body marker: W-SM H_20/H_21 I/O handlers (matches pe_link.rs)."""
+    return 0x20 in labels and 0x21 in labels
+
+
+def patch_h00_jmp_nop(code):
+    """Patch H_00 (user code offset 0) to JMP emit-tail + NOP pad."""
+    code = bytearray(code)
+    if len(code) < H00_SLOT_LEN:
+        return bytes(code)
+    rel = len(code) - 5
+    code[0] = 0xE9
+    struct.pack_into('<i', code, 1, rel)
+    for i in range(5, H00_SLOT_LEN):
+        code[i] = 0x90
+    return bytes(code)
+
+
 # ── PE32+ builder (independent implementation) ───────────────────────
 
 def align_up(v, alignment):
@@ -531,6 +553,8 @@ def main():
 
     lines = parse_ty(src)
     code, data, labels = compile_lines(lines)
+    if target == "win32" and should_h00_selfhost(labels):
+        code = patch_h00_jmp_nop(code)
 
     if target == "win32":
         pe = build_pe(code, data)

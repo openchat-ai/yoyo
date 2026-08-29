@@ -150,3 +150,5 @@ Stage 15 毕业项 D：v0.9 毕业收口。
 ---
 
 *创建：2026-08-29 · v0.9.0 毕业 · Stage 15 A/B/C/D 全绿 · 见 `RELEASE-v0.9.md` · 下一主线 → `SCOPE-v1.0.md` / `STAGE16_OWNER_CHECKLIST.md`*
+
+**Post-v1.0（2026-08-29）：** OW-H00 — JS/asm H_00 entry **JMP+NOP 18B** 与 Rust 对齐；`stage15-hole-inventory.ps1` 钉 slot EQUAL；**仍 CUT**（stub tail 驱动 JS↔Rust full `.text` DIFF）。

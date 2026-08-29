@@ -6,7 +6,7 @@
 
 **Post-v1.0 OW-RT：** Win H_00 **无 exact embed**；sidecar `yoyo_rt.dll`；DLL **141312**。仍 CUT。
 **Post-v1.0 OW-IAT：** GetProcAddress **ABSENT**（PE export walk）；stub_nz **235**；仍 CUT（LoadLibraryA）。
-**Post-v1.0 OW-SEED：** emitter+seed sha256_prefix + path=h00 机器钉；仍 CUT（Rust `yoyo.exe` 发射）。
+**Post-v1.0 OW-H00 slot align（2026-08-29）：** JS/asm 全量 `yoyo.ty` link 时 H_00 与 Rust 同 **JMP+NOP 18B**（`E9 rel32 + 13×NOP`）；三 peer slot **EQUAL**。**仍 CUT**（Rust-only H_00 stub tail 仍驱动 JS↔Rust full `.text` DIFF）— **禁止**标 CLOSED / 假 full `.text` EQUAL。
 
 ---
 
@@ -23,7 +23,7 @@ full `.text` 仍 **DIFF**，因为窗 **外** 仍有宿主 / 发射面字节。�
 
 | ID | 区域 | 在哪 | 观测 / 钉 | v0.8 态度 |
 |----|------|------|-----------|-----------|
-| **OW-H00** | H_00 entry slot（18 B） | PE `.text` emit 头 | selfhost-body **跳过**该槽；Rust JMP+NOPs vs JS/asm SET+RET | **CUT** — 不对齐则 full `.text` DIFF |
+| **OW-H00** | H_00 entry slot（18 B） | PE `.text` emit 头 | selfhost-body **跳过**该槽；三 peer **JMP+NOP 已对齐**（post-v1.0）；full `.text` 仍 DIFF（Rust stub） | **CUT** — slot 对齐 ≠ full `.text` EQUAL |
 | **OW-STUB** | H_00 LoadLibrary stub tail | `.text` emit 后 | `stub_tail_nonzero` 钉 **[40, 512]**；观测 **235** B（Rust-only；PE export walk） | **CUT** — 三 peer EQUAL 窗外 |
 | **OW-RT** | Sidecar Rust `yoyo_runtime.dll` | cwd sidecar（非 PE `.data` embed） | size **≤150000**；观测 **141312**；**no exact embed** | **CUT** — 不在 gen12 / body 窗 |
 | **OW-IAT** | LoadLibraryA / ExitProcess（无 GetProcAddress） | PE IAT + stub 调用 | Stage 11-B + OW-IAT：宿主 LoadLibrary 仍在；GPA→PE export walk | **CUT** — 仍宿主加载，非 YOYO-built loader |

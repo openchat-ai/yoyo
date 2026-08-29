@@ -11,8 +11,27 @@ const { encodeOp, setEmitPlatform } = require('./platform/encode-x64');
 const { buildPe } = require('./platform/pe-builder');
 const { OUTPUT_DATA_NEED } = require('./platform/platform-config');
 
+// Stage 9-A / post-v1.0 OW-H00: H_00 entry slot length (JMP+NOP pad matches Rust link).
+const H00_SLOT_LEN = 18;
+
 // Stage 9-B: production PE path emits real Win32 I/O (not movabs+store stub).
 setEmitPlatform('win32');
+
+/** Full-body marker: W-SM H_20/H_21 I/O handlers present (matches pe_link.rs). */
+function shouldH00Selfhost(labels) {
+  return labels.has(0x20) && labels.has(0x21);
+}
+
+/** Patch H_00 (user code offset 0) to JMP emit-tail + NOP pad — peer of Rust link_pe_h00_runtime. */
+function patchH00JmpNop(code) {
+  const buf = Buffer.from(code);
+  if (buf.length < H00_SLOT_LEN) return buf;
+  const rel = buf.length - 5;
+  buf[0] = 0xE9;
+  buf.writeInt32LE(rel, 1);
+  for (let i = 5; i < H00_SLOT_LEN; i++) buf[i] = 0x90;
+  return buf;
+}
 
 function parseTy(src) {
   const lines = [];
@@ -88,11 +107,12 @@ function main() {
     process.exit(2);
   }
   const src = fs.readFileSync(inFile, 'utf8');
-  const { code, data } = compile(parseTy(src));
-  const pe = buildPe(code, data, OUTPUT_DATA_NEED);
+  const { code, data, labels } = compile(parseTy(src));
+  const emitCode = shouldH00Selfhost(labels) ? patchH00JmpNop(code) : code;
+  const pe = buildPe(emitCode, data, OUTPUT_DATA_NEED);
   fs.mkdirSync(path.dirname(path.resolve(outFile)), { recursive: true });
   fs.writeFileSync(outFile, pe);
-  console.log(`M0: ${inFile} → ${outFile} (${pe.length} bytes, code=${code.length}, dataFloor=0x${OUTPUT_DATA_NEED.toString(16)})`);
+  console.log(`M0: ${inFile} → ${outFile} (${pe.length} bytes, code=${emitCode.length}, dataFloor=0x${OUTPUT_DATA_NEED.toString(16)})`);
 }
 
 main();
