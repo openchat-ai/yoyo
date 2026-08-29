@@ -5,36 +5,18 @@
 
 const { TEXT_RVA } = require('./platform-config');
 const { STR_TABLE_OFF, STR_ENTRY_SIZE } = require('./platform-io');
+const {
+  genH00ManualMapMain,
+  H00_MANUAL_MAP_STUB_LEN,
+} = require('./h00-manual-map-peer');
 
 const TEMP_DLL_NAME = Buffer.from('yoyo_rt.dll\0');
-const IAT_LOADLIBRARY = 5;
-const IAT_EXIT_PROCESS = 6;
 const PE_STARTUP_LEN = 13;
 const H00_SLOT_LEN = 18;
-const H00_MAIN_STUB_LEN = 71; // pinned to Rust PE AddressOfFunctions[0] export resolve stub
 const SECTION_ALIGN = 0x1000;
 
 function alignUp(v, a) {
   return (v + a - 1) & ~(a - 1);
-}
-
-function patchRel32(buf, dispOff, from, to) {
-  buf.writeInt32LE(to - from, dispOff);
-}
-
-function fixRipDisp(buf, dispOff, textRva, codeBaseOff, insnEnd, targetRva) {
-  const next = textRva + codeBaseOff + insnEnd;
-  patchRel32(buf, dispOff, next, targetRva);
-}
-
-function emitCallIatMerged(buf, textRva, codeBaseOff, iatRva, slot) {
-  const at = buf.length;
-  const chunk = Buffer.alloc(6);
-  chunk[0] = 0xff;
-  chunk[1] = 0x15;
-  const nextRva = textRva + codeBaseOff + at + 6;
-  patchRel32(chunk, 2, nextRva, iatRva + slot * 8);
-  return Buffer.concat([buf, chunk]);
 }
 
 function writeCstrEntry(blob, base, s) {
@@ -71,37 +53,7 @@ function appendH00RuntimeData(userData, dataRva) {
 
 function genH00SelfhostMain(meta, textRva, mainUserOff) {
   const codeBaseOff = PE_STARTUP_LEN + mainUserOff;
-  let c = Buffer.alloc(0);
-
-  c = Buffer.concat([c, Buffer.from([0x53])]);
-  c = Buffer.concat([c, Buffer.from([0x48, 0x83, 0xec, 0x28])]);
-
-  const leaTemp = c.length;
-  c = Buffer.concat([c, Buffer.from([0x48, 0x8d, 0x0d, 0, 0, 0, 0])]);
-  c = emitCallIatMerged(c, textRva, codeBaseOff, meta.iatRva, IAT_LOADLIBRARY);
-  c = Buffer.concat([c, Buffer.from([0x48, 0x85, 0xc0])]);
-  const jzFail = c.length;
-  c = Buffer.concat([c, Buffer.from([0x74, 0x00])]);
-  c = Buffer.concat([c, Buffer.from([0x48, 0x89, 0xc3])]);
-
-  c = Buffer.concat([c, Buffer.from([0x8b, 0x43, 0x3c])]);
-  c = Buffer.concat([c, Buffer.from([0x8b, 0x84, 0x03, 0x88, 0x00, 0x00, 0x00])]);
-  c = Buffer.concat([c, Buffer.from([0x48, 0x01, 0xd8])]);
-  c = Buffer.concat([c, Buffer.from([0x8b, 0x40, 0x1c])]);
-  c = Buffer.concat([c, Buffer.from([0x48, 0x01, 0xd8])]);
-  c = Buffer.concat([c, Buffer.from([0x8b, 0x00])]);
-  c = Buffer.concat([c, Buffer.from([0x48, 0x01, 0xd8])]);
-  c = Buffer.concat([c, Buffer.from([0xff, 0xd0])]);
-  c = Buffer.concat([c, Buffer.from([0x89, 0xc1])]);
-  c = emitCallIatMerged(c, textRva, codeBaseOff, meta.iatRva, IAT_EXIT_PROCESS);
-
-  const fail = c.length;
-  c[jzFail + 1] = fail - (jzFail + 2);
-  c = Buffer.concat([c, Buffer.from([0xb9, 0x01, 0x00, 0x00, 0x00])]);
-  c = emitCallIatMerged(c, textRva, codeBaseOff, meta.iatRva, IAT_EXIT_PROCESS);
-
-  fixRipDisp(c, leaTemp + 3, textRva, codeBaseOff, leaTemp + 7, meta.tempNameRva);
-  return c;
+  return genH00ManualMapMain(meta, textRva, codeBaseOff);
 }
 
 function shouldH00Selfhost(handlerOffsets) {
@@ -131,8 +83,8 @@ function linkPeH00Runtime(code, data, handlerOffsets) {
   const { data: extended, meta } = appendH00RuntimeData(prep.data, dataRva);
 
   const h00Main = genH00SelfhostMain(meta, textRva, mainUserOff);
-  if (h00Main.length !== H00_MAIN_STUB_LEN) {
-    throw new Error(`H_00 stub len ${h00Main.length} != pinned ${H00_MAIN_STUB_LEN}`);
+  if (h00Main.length !== H00_MANUAL_MAP_STUB_LEN) {
+    throw new Error(`H_00 stub len ${h00Main.length} != pinned ${H00_MANUAL_MAP_STUB_LEN}`);
   }
   const linked = Buffer.concat([outCode, h00Main]);
   linked[0] = 0xe9;
@@ -152,4 +104,5 @@ module.exports = {
   linkPeH00Runtime,
   PE_STARTUP_LEN,
   H00_SLOT_LEN,
+  H00_MANUAL_MAP_STUB_LEN,
 };
