@@ -459,22 +459,22 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_ascii_chk = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x45, 0x0F, 0xB6, 0x11]); // movzx r10d,byte [r9] (keep r11=IAT cursor)
-    c.extend_from_slice(&[0x45, 0x85, 0xD2]);
+    c.extend_from_slice(&[0x41, 0x0F, 0xB6, 0x09]); // movzx ecx,byte [r9] (preserve r10=list head)
+    c.extend_from_slice(&[0x85, 0xC9]); // test ecx,ecx
     let jz_dll_mismatch = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    // tolower eax and r10b, compare
+    // tolower eax and cl, compare
     c.extend_from_slice(&[0x3C, 0x41]); // cmp al,'A'
     c.extend_from_slice(&[0x72, 0x04]);
     c.extend_from_slice(&[0x3C, 0x5A]);
     c.extend_from_slice(&[0x77, 0x04]);
     c.extend_from_slice(&[0x0C, 0x20]); // or al,0x20
-    c.extend_from_slice(&[0x41, 0x80, 0xFA, 0x41]);
+    c.extend_from_slice(&[0x80, 0xF9, 0x41]); // cmp cl,'A'
     c.extend_from_slice(&[0x72, 0x04]);
-    c.extend_from_slice(&[0x41, 0x80, 0xFA, 0x5A]);
+    c.extend_from_slice(&[0x80, 0xF9, 0x5A]); // cmp cl,'Z'
     c.extend_from_slice(&[0x77, 0x04]);
-    c.extend_from_slice(&[0x41, 0x80, 0xCA, 0x20]); // or r10b,0x20
-    c.extend_from_slice(&[0x41, 0x38, 0xC1]); // cmp al,r10b
+    c.extend_from_slice(&[0x80, 0xC9, 0x20]); // or cl,0x20
+    c.extend_from_slice(&[0x38, 0xC8]); // cmp al,cl
     let jne_dll = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x49, 0xFF, 0xC0]);
