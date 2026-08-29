@@ -57,6 +57,7 @@ if ($needYoyo -or $needRuntime) {
         if ($LASTEXITCODE -ne 0) { throw "verifier build failed" }
     }
     if ($needRuntime -and -not (Test-Path $RuntimeDllPreferred)) {
+        $env:RUSTFLAGS = "-C target-feature=+crt-static"
         & cargo build --profile release-runtime -p yoyo-runtime
         if ($LASTEXITCODE -ne 0) { throw "yoyo-runtime build failed" }
     }
