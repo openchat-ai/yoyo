@@ -18,9 +18,9 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
-# Post-v1.0 OW-RT sidecar + deeper OW-IAT (PEB LoadLibrary): stub grows; DLL ≤150000.
+# Post-v1.0 OW-RT sidecar + OW-IAT manual-map wire-up (PR #8): stub ~905B; DLL ≤150000.
 $MinStubTailNonzero = 40
-$MaxStubTailNonzero = 900
+$MaxStubTailNonzero = 950
 $MaxDllBytes = 150000
 $MaxSeedPeBytes = 270000
 $MinBodyCompared = 17013

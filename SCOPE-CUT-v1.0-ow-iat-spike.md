@@ -8,7 +8,7 @@
 
 Remove host **`LoadLibraryA`** / **`dlopen`** from the approved H_00 seed path by loading cwd sidecar `yoyo_rt.dll` / `./libyoyo_runtime.so` with a **YOYO-emitted in-process loader** instead of the Windows loader / libdl.
 
-**Honest today (post deeper OW-IAT `3c4554d`):** seed PE has **no** ASCII `LoadLibraryA` in kernel32 IAT — H_00 resolves it via PEB→kernel32 ROR13 hash walk (`stub_nz=251`). **Still calls host LoadLibrary.** Manual-map spike **not wired**. **OW-IAT remains CUT.**
+**Honest today (post PR #8 · master `1598cad`):** H_00 **manual-map wired** (`stub_nz=905`); PEB `LoadLibraryA` **DROPPED**; CreateFile/Read/VirtualAlloc + `pe_manual_map`. **Still host-trusted I/O + sidecar `yoyo_rt.dll`.** **OW-IAT remains CUT.**
 
 ## CLOSED criteria (fail-closed · unchanged from SCOPE-CUT v1.0)
 
@@ -42,9 +42,9 @@ H_00 stub (future, larger than 71 B):
 
 | Blocker | Detail |
 |---------|--------|
-| **Stub size** | Manual map + file read ≫ 251 B PEB stub; JS + asm peers must mirror before merge |
-| **OW-H00** | JS peer still **71 B** (LoadLibraryA IAT) vs Rust **251 B** (PEB) — three-peer **DIFF** until sync |
-| **Gates** | `stage11`/`stage13`/`stage15` require IAT/ASCII `LoadLibraryA` **absent** (done); CLOSED needs no `yoyo_rt.dll` |
+| ~~Stub size~~ | **DONE (PR #8)** — manual-map ~907B wired; JS hex template lockstep |
+| ~~OW-H00~~ | **Re-eval CUT** — JS template present but full `.text` **DIFF** (`a9b4cdc8` ≠ `72c27c9f`) |
+| **Gates** | CLOSED still requires no `yoyo_rt.dll` sidecar marker |
 | **Smoke** | Needs Windows cwd sidecar smoke after wire-up |
 
 ## Linux (next slice)
@@ -72,8 +72,8 @@ Gate prints `OW_IAT_SPIKE status=GREEN` and **`IAT_LoadLibraryA=ABSENT`** (PEB r
 | Phase | Status |
 |-------|--------|
 | 1. File-read prelude emit | `h00_manual_map_wireup.rs` · gate `stage17-ow-iat-wireup` |
-| 2. Manual-map x64 body | **WIRED** — `gen_h00_manual_map_main` replaces PEB `LoadLibraryA` (907B stub) |
-| 3. Three-peer sync | JS `h00-manual-map-peer.js` + asm delegate · template lockstep at canonical RVAs |
+| 2. Manual-map x64 body | **WIRED** — `gen_h00_manual_map_main` replaces PEB `LoadLibraryA` (**905B** nz stub; ~907B raw) |
+| 3. Three-peer sync | JS `h00-manual-map-peer.js` + asm delegate · template lockstep — **full `.text` still DIFF** |
 | 4. Gate flip | CLOSED only when `yoyo_rt.dll` sidecar marker absent |
 
 ---

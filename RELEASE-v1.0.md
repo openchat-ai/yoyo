@@ -208,4 +208,16 @@ Stage 16-D re-verify: `verify-lock-pin.ps1` 路 `stage14-lock-harden.ps1 -SkipBu
 
 ---
 
-*Maintainer: update when Stage 16 gates or trust-chain SHA monitors change. v1.0 graduation: 2026-08-29 路 Stage 16 A/B/C/D all green 路 ROADMAP endpoint (no Stage 17).*
+*Maintainer: update when Stage 16 gates or trust-chain SHA monitors change. v1.0 graduation: 2026-08-29 · Stage 16 A/B/C/D all green · ROADMAP endpoint (no Stage 17).*
+
+### Post-v1.0 maintenance（PR #8 · 2026-08-29 · master `1598cad`）
+
+| Monitor | Value | OW disposition |
+|---------|-------|----------------|
+| **gen12 `.text` (Win PE)** | **`72c27c9f`** · **18944** B | gen1≡gen2 EQUAL |
+| **stub_tail_nonzero** | **905** B (pin [40, 950]) | **OW-STUB CUT** |
+| **three_peer_full** | **DIFF** (JS `a9b4cdc8` ≠ Rust `72c27c9f`) | **OW-H00 CUT** (re-eval; not CLOSED) |
+| **OW-IAT** | manual-map wired; PEB LoadLibrary dropped | **CUT** (CreateFile path + `yoyo_rt.dll` sidecar) |
+| **Gates** | body-ddc · gen12 · stage17-ow-iat-wireup · stage10-linux | GREEN (Linux VM) |
+
+**Next tip:** Linux `dlopen` → `open`/`mmap` manual-map; then Win sidecar smoke.
