@@ -16,7 +16,7 @@
 
 **Post-v1.0 path 2（关洞）· deeper OW-IAT（2026-08-29）：** H_00 **再去掉 IAT/ASCII `LoadLibraryA`** — PEB→kernel32 **ROR13** 导出哈希解析后调用；ordinal-0 导出仍保留。host-loader IAT 面仅 **ExitProcess**。**仍 CUT**（仍宿主 LoadLibrary）— **禁止**因「无 LoadLibraryA 字符串」标 CLOSED。
 
-**Post-v1.0 path 2（关洞）· OW-IAT Linux mmap wire-up（2026-08-29）：** `linux_h00_tramp.elf` **去掉 dlopen/libdl**（syscall `open`/`read`/`mmap` + in-process ELF PT_LOAD map；static **9032** B）。gen4≡gen3_direct **EQUAL**（sha `26ad9d0e`）。**仍 CUT**（host syscalls + cwd sidecar `.so` + hardcoded libc path）— **禁止**标 CLOSED。
+**Post-v1.0 path 2（关洞）· OW-IAT Linux hybrid tramp（2026-08-29）：** `linux_h00_tramp.elf` **dynamic -lc only**（no libdl NEEDED）；sidecar via **dlopen@PLT** + sym walk（no dlsym）；**no glibc/ld disk mmap**（fixes CI IRELATIVE/TLS/RELR）。gen4≡gen3_direct **EQUAL**。**仍 CUT**（dlopen + ld.so libc + cwd sidecar `.so`）— **禁止**标 CLOSED。
 
 **Post-v1.0 path 2（关洞）· OW-IAT manual-map wire-up（2026-08-29 · PR #8）：** H_00 stub **905B** manual-map（CreateFile/Read/VirtualAlloc + `pe_manual_map`）；PEB `LoadLibraryA` **DROPPED**；JS `h00-manual-map-stub.hex` lockstep。**仍 CUT**（sidecar `yoyo_rt.dll` + kernel32 I/O）— **禁止**标 CLOSED。
 

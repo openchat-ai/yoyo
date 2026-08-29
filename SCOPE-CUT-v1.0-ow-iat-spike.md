@@ -49,7 +49,7 @@ H_00 stub (future, larger than 71 B):
 
 ## Linux (wired 2026-08-29)
 
-Replaced tramp `dlopen@PLT` with syscall `open`/`read`/`mmap` + in-process ELF PT_LOAD map (`linux_h00_tramp_mmap.c`). Tramp blob is outside Win three-peer `.text` EQUAL but embedded in seed ELF. **Still CUT** (host syscalls + cwd sidecar).
+Hybrid tramp: dynamic `-lc` only (no libdl NEEDED); sidecar via dlopen@PLT + in-process sym walk (no dlsym); **no glibc/ld disk mmap**. **Still CUT** (dlopen + ld.so libc + cwd sidecar).
 
 ## Remaining CUT after Win OW-IAT CLOSED
 

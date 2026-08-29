@@ -1,10 +1,9 @@
-/* Historical Stage 10-B C trampoline (gcc+CRT ~14KB).
- * Stage 11-B builds from linux_h00_tramp_mmap.c via scripts/build-linux-h00-tramp.sh
- * (static syscall mmap loader, ~9KB). Kept only as readable reference of the pre-mmap dlopen contract.
+/* Stage 11-B builds from linux_h00_tramp.S via scripts/build-linux-h00-tramp.sh
+ * Hybrid: dynamic -lc only (no libdl NEEDED); dlopen@PLT + in-process ELF dyn sym walk.
+ * Reference only — committed blob is linux_h00_tramp.elf from .S.
  */
+#if 0
 #include <dlfcn.h>
-#include <stdlib.h>
-
 int main(void) {
     void *h = dlopen("./libyoyo_runtime.so", RTLD_LAZY);
     if (!h) return 1;
@@ -12,3 +11,4 @@ int main(void) {
     if (!fn) return 2;
     return fn();
 }
+#endif

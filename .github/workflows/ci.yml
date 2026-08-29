@@ -69,11 +69,12 @@ jobs:
         with:
           rustflags: ""
 
-      - name: Build release verifier + runtime
-        working-directory: yoyo-rust
-        run: |
-          cargo build --release -p verifier
-          cargo build --profile release-runtime -p yoyo-runtime
+  - name: Build release verifier + runtime
+    working-directory: yoyo-rust
+    run: |
+      cargo build --release -p verifier
+      bash ../scripts/build-linux-h00-tramp.sh
+      cargo build --profile release-runtime -p yoyo-runtime
 
       - name: Stage 10-B Linux pure M4 (H_00 sidecar + no-dlsym tramp)
         run: bash scripts/stage10-linux-pure-m4.sh

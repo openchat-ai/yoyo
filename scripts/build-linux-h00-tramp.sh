@@ -1,30 +1,31 @@
 #!/usr/bin/env bash
 # Rebuild linux_h00_tramp.elf (committed blob for Stage 10-B / 11-B H_00 path).
-# Post-v1.0 OW-IAT: syscall-only manual ELF map (open/read/mmap) — no dlopen/libdl/libc.
+# Hybrid OW-IAT: dynamic -lc only (no libdl NEEDED); dlopen@PLT resolves via ld.so-mapped
+# libc (do NOT static-mmap glibc/ld from disk). Sidecar via dlopen + in-process sym walk.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BLOB_DIR="$ROOT/yoyo-rust/verifier/blobs"
-SRC="$BLOB_DIR/linux_h00_tramp_mmap.c"
+SRC="$BLOB_DIR/linux_h00_tramp.S"
 OUT="$BLOB_DIR/linux_h00_tramp.elf"
-cc -nostdlib -static -fno-pie -fno-stack-protector -fno-asynchronous-unwind-tables -ffreestanding \
-  -O2 -Wl,-z,norelro -Wl,--gc-sections -s \
-  -o "$OUT" "$SRC" -Wl,-e,_start
+cc -nostdlib -no-pie -fno-pie -fno-asynchronous-unwind-tables \
+  -Wl,-z,norelro -Wl,--hash-style=sysv -Wl,--gc-sections -s \
+  -o "$OUT" "$SRC" -lc -lgcc_s -Wl,-e,_start
 chmod +x "$OUT"
 ls -la "$OUT"
 file "$OUT"
 echo "NEEDED:"
-readelf -d "$OUT" 2>/dev/null | grep NEEDED || echo "none (static syscall tramp)"
+readelf -d "$OUT" 2>/dev/null | grep NEEDED || echo "none"
 echo "UNDEF dynamic:"
-nm "$OUT" 2>/dev/null | awk '/ U /{print}' || true
-if readelf -d "$OUT" 2>/dev/null | grep -q NEEDED; then
-  echo "RED: trampoline still has dynamic NEEDED (post-v1.0 OW-IAT requires syscall-only)"
+nm -D "$OUT" 2>/dev/null | awk '/ U /{print}' || true
+if readelf -d "$OUT" 2>/dev/null | grep -qE 'NEEDED.*libdl'; then
+  echo "RED: trampoline still NEEDED libdl (hybrid requires dlopen via libc only)"
   exit 1
 fi
-if nm -D "$OUT" 2>/dev/null | grep -qE 'dlopen|dlsym'; then
-  echo "RED: trampoline still imports dlopen/dlsym"
+if nm -D "$OUT" 2>/dev/null | grep -q 'dlsym'; then
+  echo "RED: trampoline still imports dlsym (post-v1.0 OW-IAT requires ELF dyn walk)"
   exit 1
 fi
-if strings "$OUT" | grep -q 'dlopen'; then
-  echo "RED: trampoline still contains dlopen string"
+if strings "$OUT" | grep -q '/lib/x86_64-linux-gnu/libc.so.6'; then
+  echo "RED: trampoline still hardcodes glibc disk path"
   exit 1
 fi
