@@ -438,6 +438,33 @@ mod tests {
         assert_eq!(iat, 0x7FF0_0000_1234);
     }
 
+    /// When yoyo_runtime.dll is built, prove manual_map + functions[0] on real sidecar bytes.
+    #[test]
+    fn manual_map_real_sidecar_if_present() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let paths = [
+            root.join("target/release-runtime/yoyo_runtime.dll"),
+            root.join("target/release/yoyo_runtime.dll"),
+        ];
+        let Some(path) = paths.iter().find(|p| p.is_file()) else {
+            eprintln!("skip manual_map_real_sidecar_if_present: yoyo_runtime.dll not built");
+            return;
+        };
+        let file = std::fs::read(path).expect("read dll");
+        let load_base = 0x1_8000_0000u64;
+        let mapped = manual_map_pe_dll(&file, load_base, |dll, name| {
+            if dll.eq_ignore_ascii_case("KERNEL32.dll") && name == "ExitProcess" {
+                Some(0x7FFE_0000)
+            } else {
+                // Spike test: any resolved VA suffices to walk export dir.
+                Some(0x7FFE_1000)
+            }
+        })
+        .expect("manual map sidecar");
+        let rva = export_function_rva_functions0(&mapped.image, &mapped.headers).expect("export");
+        assert!(rva > 0x1000, "export RVA should be in image");
+    }
+
     fn write_u16(buf: &mut [u8], off: usize, v: u16) {
         buf[off..off + 2].copy_from_slice(&v.to_le_bytes());
     }

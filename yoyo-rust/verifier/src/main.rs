@@ -53,6 +53,7 @@ mod self_test;
 mod selfhost;
 mod seed_host;
 mod startup;
+mod h00_manual_map_wireup;
 mod win32_selfhost;
 mod linux_selfhost;
 mod tir;

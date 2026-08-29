@@ -6,9 +6,11 @@
 //! Post-v1.0 OW-IAT shrink: H_00 no longer imports GetProcAddress — after load it
 //! resolves export ordinal 0 in-process (yoyo_runtime pins `yoyo_runtime_selfhost_main`
 //! as the first named export).
-//! Deeper OW-IAT: H_00 also drops `LoadLibraryA` from the PE IAT — resolves it via
-//! PEB → kernel32 → ROR13 export hash (still host LoadLibrary; OW-IAT CUT).
+//! Deeper OW-IAT: H_00 drops `LoadLibraryA` from the PE IAT — loads cwd sidecar via
+//! CreateFileA/ReadFile/VirtualAlloc + in-process PE manual-map (`h00_manual_map_wireup`).
 //! genNrt `--selfhost` still embeds + GPA.
+
+use crate::h00_manual_map_wireup::gen_h00_manual_map_main;
 
 use crate::types::{IsaError, IsaResult};
 
@@ -181,10 +183,8 @@ pub fn append_h00_runtime_data(
     ))
 }
 
-/// H_00 runtime body: PEB→kernel32 ROR13-resolve `LoadLibraryA` (no IAT/ASCII) →
-/// load cwd sidecar `yoyo_rt.dll` → export ordinal 0 (`yoyo_runtime_selfhost_main`,
-/// pinned first named export) → invoke → ExitProcess (IAT).
-/// No GetProcAddress / no IAT LoadLibraryA (deeper OW-IAT); no CreateFile extract (OW-RT).
+/// H_00 runtime body: file-read sidecar + in-process manual-map → export ordinal 0 → ExitProcess.
+/// No LoadLibraryA / GetProcAddress / IAT LoadLibrary (OW-IAT wire-up; host file I/O still CUT).
 /// PE entry is `jmp H_00` (not `call`), so this must never return.
 /// Preserves r15 (.data base) for the runtime export.
 pub fn gen_h00_selfhost_main(
@@ -196,128 +196,7 @@ pub fn gen_h00_selfhost_main(
     _h20_user_off: u32,
 ) -> Vec<u8> {
     let code_base_off = pe_startup_len + main_user_off;
-    let mut c: Vec<u8> = Vec::new();
-
-    // push rbx,r12,r14; sub rsp,0x20 (shadow; keeps RSP 16-aligned for call).
-    c.extend_from_slice(&[0x53, 0x41, 0x54, 0x41, 0x56]);
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x20]);
-
-    // mov rax, gs:[0x60] ; PEB → Ldr → InMemoryOrder → ntdll → kernel32 → DllBase in r12
-    c.extend_from_slice(&[0x65, 0x48, 0x8B, 0x04, 0x25, 0x60, 0x00, 0x00, 0x00]);
-    c.extend_from_slice(&[0x48, 0x8B, 0x40, 0x18]);
-    c.extend_from_slice(&[0x48, 0x8B, 0x40, 0x20]);
-    c.extend_from_slice(&[0x48, 0x8B, 0x00]);
-    c.extend_from_slice(&[0x48, 0x8B, 0x00]);
-    c.extend_from_slice(&[0x4C, 0x8B, 0x60, 0x20]);
-
-    // Export Directory of kernel32
-    c.extend_from_slice(&[0x41, 0x8B, 0x44, 0x24, 0x3C]); // mov eax,[r12+0x3C]
-    c.extend_from_slice(&[0x41, 0x8B, 0x84, 0x04, 0x88, 0x00, 0x00, 0x00]); // Export RVA
-    c.extend_from_slice(&[0x85, 0xC0]);
-    let jz_k32_exp = c.len();
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x49, 0x8D, 0x3C, 0x04]); // lea rdi,[r12+rax]
-    c.extend_from_slice(&[0x44, 0x8B, 0x47, 0x18]); // mov r8d,[rdi+0x18] NumberOfNames
-    c.extend_from_slice(&[0x45, 0x85, 0xC0]);
-    let jz_k32_names = c.len();
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    // r9=Names, r10=Ordinals, r11=Functions
-    c.extend_from_slice(&[0x8B, 0x47, 0x20]);
-    c.extend_from_slice(&[0x4D, 0x8D, 0x0C, 0x04]); // lea r9,[r12+rax]
-    c.extend_from_slice(&[0x8B, 0x47, 0x24]);
-    c.extend_from_slice(&[0x4D, 0x8D, 0x14, 0x04]); // lea r10,[r12+rax]
-    c.extend_from_slice(&[0x8B, 0x47, 0x1C]);
-    c.extend_from_slice(&[0x4D, 0x8D, 0x1C, 0x04]); // lea r11,[r12+rax]
-
-    // xor esi,esi ; i=0
-    c.extend_from_slice(&[0x31, 0xF6]);
-    let k32_loop = c.len();
-    // cmp esi, r8d / jae fail
-    c.extend_from_slice(&[0x44, 0x39, 0xC6]);
-    let jae_k32 = c.len();
-    c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-
-    // mov eax, [r9+rsi*4]
-    c.extend_from_slice(&[0x41, 0x8B, 0x04, 0xB1]);
-    // lea rdx, [r12+rax]
-    c.extend_from_slice(&[0x49, 0x8D, 0x14, 0x04]);
-    // xor ebx,ebx ; hash=0 (rbx free until after LoadLibrary sets module base)
-    c.extend_from_slice(&[0x31, 0xDB]);
-    let hash_top = c.len();
-    c.extend_from_slice(&[0x0F, 0xB6, 0x02]); // movzx eax,byte [rdx]
-    c.extend_from_slice(&[0x84, 0xC0]);
-    let jz_hash_done = c.len();
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0xC1, 0xCB, 0x0D]); // ror ebx,13
-    c.extend_from_slice(&[0x01, 0xC3]); // add ebx,eax
-    c.extend_from_slice(&[0x48, 0xFF, 0xC2]); // inc rdx
-    let jmp_hash = c.len();
-    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-    patch_rel32(&mut c, jmp_hash + 1, jmp_hash + 5, hash_top);
-    let hash_done = c.len();
-    patch_rel32(&mut c, jz_hash_done + 2, jz_hash_done + 6, hash_done);
-    // cmp ebx, HASH
-    c.extend_from_slice(&[0x81, 0xFB]);
-    c.extend_from_slice(&HASH_LOAD_LIBRARY_A.to_le_bytes());
-    let jne_next = c.len();
-    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    // found: movzx eax, word [r10+rsi*2]; mov eax,[r11+rax*4]; lea r14,[r12+rax]
-    c.extend_from_slice(&[0x41, 0x0F, 0xB7, 0x04, 0x72]);
-    c.extend_from_slice(&[0x41, 0x8B, 0x04, 0x83]);
-    c.extend_from_slice(&[0x4D, 0x8D, 0x34, 0x04]);
-    let jmp_got_ll = c.len();
-    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-
-    let next_i = c.len();
-    patch_rel32(&mut c, jne_next + 2, jne_next + 6, next_i);
-    c.extend_from_slice(&[0xFF, 0xC6]); // inc esi
-    let jmp_loop = c.len();
-    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-    patch_rel32(&mut c, jmp_loop + 1, jmp_loop + 5, k32_loop);
-
-    let got_ll = c.len();
-    patch_rel32(&mut c, jmp_got_ll + 1, jmp_got_ll + 5, got_ll);
-
-    // lea rcx,[rip+yoyo_rt.dll]; call r14
-    let lea_temp = c.len();
-    c.extend_from_slice(&[0x48, 0x8D, 0x0D, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x41, 0xFF, 0xD6]);
-    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
-    let jz_fail_ll = c.len();
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x48, 0x89, 0xC3]); // mov rbx, rax (sidecar base)
-
-    // Direct functions[0] (yoyo_runtime pins first named export = selfhost_main).
-    c.extend_from_slice(&[0x8B, 0x73, 0x3C]); // mov esi,[rbx+0x3C]
-    c.extend_from_slice(&[0x8B, 0x84, 0x33, 0x88, 0x00, 0x00, 0x00]);
-    c.extend_from_slice(&[0x85, 0xC0]);
-    let jz_exp = c.len();
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x48, 0x8D, 0x3C, 0x03]); // lea rdi,[rbx+rax]
-    c.extend_from_slice(&[0x8B, 0x47, 0x1C]); // AddressOfFunctions
-    c.extend_from_slice(&[0x48, 0x01, 0xD8]);
-    c.extend_from_slice(&[0x8B, 0x00]); // mov eax,[rax] functions[0]
-    c.extend_from_slice(&[0x48, 0x01, 0xD8]);
-    c.extend_from_slice(&[0xFF, 0xD0]);
-    c.extend_from_slice(&[0x89, 0xC1]);
-    emit_call_iat_merged(&mut c, text_rva, code_base_off, meta.iat_rva, IAT_EXIT_PROCESS);
-
-    let fail = c.len();
-    for at in [jz_k32_exp, jz_k32_names, jae_k32, jz_fail_ll, jz_exp] {
-        patch_rel32(&mut c, at + 2, at + 6, fail);
-    }
-    c.extend_from_slice(&[0xB9, 0x01, 0x00, 0x00, 0x00]);
-    emit_call_iat_merged(&mut c, text_rva, code_base_off, meta.iat_rva, IAT_EXIT_PROCESS);
-
-    fix_rip_disp(
-        &mut c,
-        lea_temp + 3,
-        text_rva,
-        code_base_off,
-        lea_temp + 7,
-        meta.temp_name_rva,
-    );
-    c
+    gen_h00_manual_map_main(meta, text_rva, code_base_off)
 }
 
 fn patch_rel32(c: &mut [u8], disp_off: usize, from: usize, to: usize) {
@@ -501,8 +380,8 @@ mod tests {
         };
         let body = gen_h00_selfhost_main(&meta, 0x38_000, 0x1000, 13, 17_810, 0);
         assert!(
-            body.len() < 360,
-            "PEB+ordinal-0 H_00 stub should stay compact (got {}B)",
+            body.len() > 400 && body.len() < 950,
+            "manual-map H_00 stub should fit OW-STUB pin (got {}B)",
             body.len()
         );
     }
