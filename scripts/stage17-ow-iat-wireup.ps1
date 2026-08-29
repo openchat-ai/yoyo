@@ -125,6 +125,8 @@ if (-not $SkipSmoke) {
             7 { "import" }
             8 { "export" }
             9 { "DllMain" }
+            10 { "probe_CreateFile" }
+            11 { "probe_WriteFile" }
             1 { "generic_fail_or_runtime" }
             default { "unknown" }
         }

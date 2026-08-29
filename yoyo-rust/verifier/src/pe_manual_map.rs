@@ -661,19 +661,10 @@ mod tests {
 
         let mapped = manual_map_pe_dll_executable(&file, host_resolve).expect("manual map");
         let base = mapped.base as u64;
-        let hinst = mapped.base as *mut std::ffi::c_void;
         let image = unsafe { std::slice::from_raw_parts(mapped.base, mapped.size) };
 
-        if mapped.headers.entry_rva != 0 {
-            type DllEntry =
-                unsafe extern "system" fn(*mut std::ffi::c_void, u32, *mut std::ffi::c_void) -> i32;
-            let entry: DllEntry = unsafe {
-                std::mem::transmute(base + mapped.headers.entry_rva as u64)
-            };
-            unsafe {
-                assert_ne!(entry(hinst, 1, std::ptr::null_mut()), 0, "DllMain attach");
-            }
-        }
+        // Match H_00 stub: skip DllMain (CRT entry AV on manual-mapped image).
+        std::env::set_var("YOYO_MM_SMOKE_PROBE", "1");
 
         let export_rva =
             export_function_rva_functions0(image, &mapped.headers).expect("export rva");

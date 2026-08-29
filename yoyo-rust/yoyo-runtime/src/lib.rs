@@ -4,6 +4,9 @@
 use std::ffi::CStr;
 use std::os::raw::c_char;
 
+#[cfg(windows)]
+mod win_mm_probe;
+
 #[cfg(target_os = "linux")]
 fn compile_input(input: &[u8]) -> Result<Vec<u8>, i32> {
     verifier::selfhost::bootstrap_compile_linux(input).map_err(|_| 1)
@@ -36,9 +39,10 @@ fn read_input() -> Result<Vec<u8>, i32> {
 /// Main entry — called from embedded startup via LoadLibrary/dlopen export.
 #[no_mangle]
 pub extern "C" fn yoyo_runtime_selfhost_main() -> i32 {
-    if std::env::var("YOYO_MM_SMOKE_PROBE").is_ok() {
-        let _ = std::fs::write(default_output_name(), b"probe");
-        return 0;
+    // Manual-map smoke: no DllMain/CRT — use kernel32 IAT only (resolved by H_00 stub).
+    #[cfg(windows)]
+    if let Some(code) = win_mm_probe::run_if_env_set() {
+        return code;
     }
     let input = match read_input() {
         Ok(d) => d,
