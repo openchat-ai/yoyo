@@ -46,7 +46,7 @@ done
 if [[ ! -x "$YOYO" ]] || [[ -z "$RUNTIME_SO" ]]; then
   echo "== build yoyo + yoyo-runtime (release / release-runtime) =="
   bash "$ROOT/scripts/build-linux-h00-tramp.sh"
-  (cd "$ROOT/yoyo-rust" && cargo build --release -p verifier && cargo build --profile release-runtime -p yoyo-runtime)
+  (cd "$ROOT/yoyo-rust" && cargo clean -p verifier -p yoyo-runtime && cargo build --release -p verifier && cargo build --profile release-runtime -p yoyo-runtime)
   RUNTIME_SO="$ROOT/yoyo-rust/target/release-runtime/libyoyo_runtime.so"
   if [[ ! -f "$RUNTIME_SO" ]]; then
     RUNTIME_SO="$ROOT/yoyo-rust/target/release/libyoyo_runtime.so"
