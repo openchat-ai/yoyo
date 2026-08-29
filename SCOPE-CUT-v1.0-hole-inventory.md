@@ -122,7 +122,7 @@ Gate 必须同时：
 | OW-SEED observe | emitter+seed hash + path=h00（仍 CUT） |
 | Obsolete PRs | #1 closed → **bd390b9**；#3 merged → **4f3064d** |
 
-**Next tip（post-v1.0 path 2）：** **OW-STUB** — shrink **96** B stub to zero（all peers `stub_tail_nonzero=0`）；或 **OW-RT** YOYO-built runtime。
+**Next tip（post-v1.0 path 2）：** **OW-STUB floor** — `stub_tail_nonzero=82` is **LoadLibraryA + ordinal-0 export resolve + ExitProcess** minimum（`push rbx`/`sub rsp,0x28`/IAT×2/PE walk）；further shrink needs **OW-IAT**（drop LoadLibraryA）或 **OW-RT** YOYO-built runtime — not another stub opcode tweak。
 
 ---
 

@@ -343,6 +343,7 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Change** | H_00 stub **96→82** B: skip `AddressOfNameOrdinals` walk; resolve **functions[0]** directly (ordinal-0 already pinned in `yoyo_runtime`) |
 | **Still CUT** | LoadLibraryA stub remains; **stub≠0 ≠ CLOSED** |
 | **Obs** | stub_nz **82**; seed PE **248320**; gen12 `d8e97dad` / **17920** B |
+| **Floor** | **82B** = LoadLibraryA + in-process `functions[0]` + ExitProcess×2; below needs OW-IAT/OW-RT not stub tweak |
 | **Gates** | three-peer full `.text` EQUAL; body-ddc + stage14/15/16 stub pin [40,512] |
 
 ### Post-v1.0 path 2 — OW-SEED emitter/seed hash pin (2026-08-29)
