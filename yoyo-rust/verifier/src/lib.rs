@@ -7,6 +7,7 @@ pub mod executor;
 pub mod fixup;
 pub mod elf_link;
 pub mod pe_link;
+pub mod pe_manual_map;
 pub mod platform;
 pub mod platform_io;
 pub mod render;

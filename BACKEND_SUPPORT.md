@@ -335,6 +335,17 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Obs** | stub_nz **235**; seed PE **248832**; gen12 `84a8c1c9` / **18432** B; GetProcAddress **ABSENT** on seed |
 | **Gates** | stage11/13/14/15 fail-closed forbid GetProcAddress; inventory CUT evidence `no_GetProcAddress;PE_export_walk` |
 
+### Post-v1.0 path 2 — OW-IAT PE manual-map spike (2026-08-29)
+
+| Item | Detail |
+|------|--------|
+| **Hole** | **OW-IAT** |
+| **Change** | Spike `pe_manual_map.rs`: in-process PE32+ map (sections + DIR64 reloc + import callback + `functions[0]` export). **Not wired** into H_00 stub yet. |
+| **Still CUT** | `LoadLibraryA` / `dlopen` **still on seed**; host CreateFile/ReadFile/VirtualAlloc remain after wire-up |
+| **Gate** | `scripts/stage17-ow-iat-spike.ps1` / `.sh` · `cargo test -p verifier --lib pe_manual_map` |
+| **Doc** | `SCOPE-CUT-v1.0-ow-iat-spike.md` |
+| **Next** | Emit larger H_00 stub (CreateFile→Read→map) + JS/asm peer sync; then drop `LoadLibraryA` from `KERNEL32_IO_FUNCS` |
+
 ### Post-v1.0 path 2 — OW-STUB functions[0] export resolve (2026-08-29 · PR #6)
 
 | Item | Detail |

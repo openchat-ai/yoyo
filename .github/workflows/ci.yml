@@ -77,3 +77,6 @@ jobs:
 
       - name: Stage 10-B Linux pure M4 (H_00 sidecar + no-dlsym tramp)
         run: bash scripts/stage10-linux-pure-m4.sh
+
+      - name: Stage 17 OW-IAT spike (pe_manual_map unit tests)
+        run: bash scripts/stage17-ow-iat-spike.sh

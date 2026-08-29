@@ -124,7 +124,9 @@ Gate 必须同时：
 | OW-SEED observe | emitter+seed hash + path=h00（仍 CUT） |
 | Obsolete PRs | #1 closed → **bd390b9**；#3 merged → **4f3064d**；#5 merged → **48af60a**；#6 merged（69B） |
 
-**Next tip（post-v1.0 path 2）：** **OW-STUB floor** — `stub_tail_nonzero=69` is **LoadLibraryA + AddressOfFunctions[0] + ExitProcess×2** minimum（71B raw / 69B nz span）；further shrink needs **OW-IAT**（drop LoadLibraryA）或 **OW-RT** YOYO-built runtime — not another stub opcode tweak。
+**Next tip（post-v1.0 path 2）：** **OW-IAT** — in-process PE mapper spike (`pe_manual_map.rs` + `stage17-ow-iat-spike`); wire H_00 stub (drop `LoadLibraryA` IAT) with **three-peer lockstep**; Linux `dlopen` → `open`/`mmap` tramp second.
+
+**OW-IAT spike begun（本 PR）：** `verifier/src/pe_manual_map.rs`（section map + DIR64 reloc + import resolve + `functions[0]` export）· gate `scripts/stage17-ow-iat-spike.{ps1,sh}` · doc `SCOPE-CUT-v1.0-ow-iat-spike.md` · **LoadLibraryA still PRESENT**（诚实 CUT）· OW-H00 three-peer EQUAL **unchanged**.
 
 ---
 
