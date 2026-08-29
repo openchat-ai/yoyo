@@ -143,4 +143,4 @@ Stage 16 毕业项 D：v1.0 毕业收口。
 
 *创建：2026-08-29 · v0.9.0 后定稿 Stage 16 / v1.0 · 毕业：2026-08-29 · 见 `SCOPE-v1.0.md` · ROADMAP 终站*
 
-**Post-v1.0（2026-08-29 · 4f3064d）：** OW-H00 **CLOSED**（three-peer full `.text` EQUAL）；`stage15/16` gate 钉 `three_peer_full`；PR #1/#3 closed/merged on master。
+**Post-v1.0（2026-08-29 · three-peer EQUAL）：** OW-H00 **CLOSED**（`three_peer_full=EQUAL` · **`72c27c9f`** / 18944 B · stub_nz=905）；OW-IAT manual-map wired · **still CUT**（sidecar）。

@@ -34,7 +34,7 @@ YOYO v1.0 is the **ROADMAP endpoint**: it promotes the v0.9 hole inventory to **
 
 | ID | Disposition |
 |----|-------------|
-| **OW-H00** | **CUT** |
+| **OW-H00** | **CLOSED** |
 | **OW-STUB** | **CUT** |
 | **OW-RT** | **CUT** |
 | **OW-IAT** | **CUT** |
@@ -47,7 +47,7 @@ YOYO v1.0 is the **ROADMAP endpoint**: it promotes the v0.9 hole inventory to **
 | Monitor | Value |
 |---------|-------|
 | **Lock pin** | `0275802d…` (Decision #25, **unchanged** — no Relock) |
-| **HOLE_INVENTORY_V10** | **FINAL** · closed=0 · cut=7 · full `.text` DIFF · body EQUAL **17805** · stub_nz **905** · dll **141312** (sidecar; no exact embed) · OW-SEED emitter+seed sha pin |
+| **HOLE_INVENTORY_V10** | **FINAL** · closed=1 · cut=6 · full `.text` **EQUAL** · body EQUAL **17805** · stub_nz **905** · dll **141312** (sidecar; no exact embed) · OW-H00 **CLOSED** |
 | **gen12 `.text` (Win)** | **`72c27c9f…`** · **18944** bytes |
 | **runtime.dll** | **141312** B sidecar (still Rust-built; **OW-RT CUT**; no exact embed) |
 | **Linux seed ELF** | **253952** B (no exact `.so` embed; trampoline still embedded; **OW-RT CUT**) |

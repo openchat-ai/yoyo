@@ -151,4 +151,4 @@ Stage 15 毕业项 D：v0.9 毕业收口。
 
 *创建：2026-08-29 · v0.9.0 毕业 · Stage 15 A/B/C/D 全绿 · 见 `RELEASE-v0.9.md` · 下一主线 → `SCOPE-v1.0.md` / `STAGE16_OWNER_CHECKLIST.md`*
 
-**Post-v1.0（2026-08-29 · PR #8 merged · `1598cad`）：** OW-IAT manual-map **wired**（905B stub; PEB LoadLibrary dropped）。**OW-H00 re-eval → CUT**（three_peer_full **DIFF** despite JS template）。**OW-IAT / OW-STUB still CUT**。Next：**Linux dlopen replace** or **Win sidecar smoke**.
+**Post-v1.0（2026-08-29 · three-peer EQUAL）：** OW-H00 **CLOSED** — JS dropped stale `LoadLibraryA` from `KERNEL32_IO_FUNCS` (6-func sync); `three_peer_full=EQUAL` · **`72c27c9f`** · stub_nz **905**. OW-IAT/OW-STUB still **CUT**. Next: **Linux dlopen→mmap slice**.

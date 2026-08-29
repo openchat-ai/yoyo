@@ -23,7 +23,7 @@ const KERNEL32_IO_FUNCS = [
   'ReadFile',
   'WriteFile',
   'CloseHandle',
-  'LoadLibraryA',
+  // Deeper OW-IAT: dropped LoadLibraryA from IAT — H_00 manual-map resolves via PEB (Rust peer).
   'ExitProcess',
 ];
 
