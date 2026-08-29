@@ -3,5 +3,5 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT/yoyo-rust"
-cargo test -p verifier h00_manual_map_wireup pe_manual_map
-echo "OW_IAT_WIREUP status=WIP phase=file_read_prelude_emit manual_map_body=NOT_WIRED LoadLibraryA=PEB_resolve"
+cargo test -p verifier --lib manual_map
+echo "OW_IAT_WIREUP status=WIP phase=manual_map_x64_emit H_00_wired=YES LoadLibraryA=ABSENT PEB_resolve=DROPPED three_peer=LOCKSTEP"

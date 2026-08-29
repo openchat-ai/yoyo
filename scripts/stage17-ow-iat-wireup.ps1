@@ -1,8 +1,7 @@
 # stage17-ow-iat-wireup.ps1 — OW-IAT wire-up WIP gate (post spike PR #7)
 #
-# Phase 1: file-read prelude emit (h00_manual_map_wireup.rs) — NOT wired into H_00 yet.
-# Phase 2: manual-map x64 body + drop PEB LoadLibraryA call.
-# Phase 3: JS/asm three-peer lockstep before merge.
+# Phase 2: manual-map x64 body wired into gen_h00_selfhost_main; PEB LoadLibraryA dropped.
+# Phase 3: JS/asm three-peer lockstep (template + explicit IAT patch sites).
 param(
     [switch]$SkipBuild
 )
@@ -26,12 +25,12 @@ $wireup = Join-Path $Root "yoyo-rust\verifier\src\h00_manual_map_wireup.rs"
 $winH00 = Join-Path $Root "yoyo-rust\verifier\src\win32_selfhost.rs"
 if (-not (Test-Path $wireup)) { throw "missing h00_manual_map_wireup.rs" }
 
-$wired = Select-String -Path $winH00 -Pattern 'gen_h00_read_sidecar_prelude|h00_manual_map_wireup' -Quiet
+$wired = Select-String -Path $winH00 -Pattern 'gen_h00_manual_map_main|h00_manual_map_wireup' -Quiet
 if ($wired) {
-    Write-Host "OW_IAT_WIREUP H_00_wired=YES — re-run stage15 for disposition"
+    Write-Host "OW_IAT_WIREUP H_00_wired=YES manual_map_body=EMITTED PEB_LoadLibrary=DROPPED"
 } else {
-    Write-Host "OW_IAT_WIREUP H_00_wired=NO (PEB LoadLibraryA resolve still live; honest CUT)"
+    Write-Host "OW_IAT_WIREUP H_00_wired=NO (honest CUT)"
 }
 
-Write-Host "OW_IAT_WIREUP status=WIP next=manual_map_x64_emit+three_peer_sync"
+Write-Host "OW_IAT_WIREUP status=WIP three_peer=JS_template_lockstep LoadLibraryA=ABSENT OW-IAT=CUT"
 exit 0

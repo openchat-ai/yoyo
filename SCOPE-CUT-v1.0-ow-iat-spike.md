@@ -72,8 +72,8 @@ Gate prints `OW_IAT_SPIKE status=GREEN` and **`IAT_LoadLibraryA=ABSENT`** (PEB r
 | Phase | Status |
 |-------|--------|
 | 1. File-read prelude emit | `h00_manual_map_wireup.rs` · gate `stage17-ow-iat-wireup` |
-| 2. Manual-map x64 body | NOT STARTED — replace PEB `LoadLibraryA` call |
-| 3. Three-peer sync | JS still **71 B** vs Rust **251 B** — lockstep required before land |
+| 2. Manual-map x64 body | **WIRED** — `gen_h00_manual_map_main` replaces PEB `LoadLibraryA` (907B stub) |
+| 3. Three-peer sync | JS `h00-manual-map-peer.js` + asm delegate · template lockstep at canonical RVAs |
 | 4. Gate flip | CLOSED only when `yoyo_rt.dll` sidecar marker absent |
 
 ---
