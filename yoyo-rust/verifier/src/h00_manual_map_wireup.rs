@@ -480,9 +480,9 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x48, 0x01, 0xF8]);
     // strcmp r9 with [rax]
     let cmp_name = c.len();
-    c.extend_from_slice(&[0x0F, 0xB6, 0x08]);
-    c.extend_from_slice(&[0x41, 0x0F, 0xB6, 0x19]);
-    c.extend_from_slice(&[0x38, 0xCB]);
+    c.extend_from_slice(&[0x0F, 0xB6, 0x08]); // movzx eax, byte [rax] export name
+    c.extend_from_slice(&[0x41, 0x0F, 0xB6, 0x19]); // movzx ebx, byte [r9] import name
+    c.extend_from_slice(&[0x38, 0xD8]); // cmp al, bl
     let jne_name = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x84, 0xC9]);
