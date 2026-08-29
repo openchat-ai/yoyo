@@ -16,7 +16,7 @@ Write-Host "=== Stage 17: OW-IAT wire-up (manual-map H_00) ==="
 
 Push-Location (Join-Path $Root "yoyo-rust")
 try {
-    & cargo test -p verifier h00_manual_map_wireup pe_manual_map
+    & cargo test -p verifier manual_map
     if ($LASTEXITCODE -ne 0) { throw "wire-up unit tests failed" }
 } finally {
     Pop-Location
