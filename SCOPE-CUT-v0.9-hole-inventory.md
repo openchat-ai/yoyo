@@ -8,7 +8,7 @@
 
 **Post-v1.0 OW-RT：** Win H_00 **无 exact embed**；cwd sidecar `yoyo_rt.dll`；DLL **141312**。仍 **CUT**（Rust runtime）。
 **Post-v1.0 OW-IAT：** GetProcAddress **ABSENT**；PE export walk；stub_nz **235**。仍 **CUT**（LoadLibraryA）。
-**Post-v1.0 OW-H00 slot align（2026-08-29）：** JS/asm H_00 entry **JMP+NOP 18B** ≡ Rust link patch；三 peer slot EQUAL。**仍 CUT**（Rust stub tail）— **禁止** CLOSED / 假 full `.text` EQUAL。
+**Post-v1.0 OW-H00 peer align（2026-08-29 · CLOSED）：** JS `linkPeWin32` + asm delegate mirror Rust `link_pe_h00_runtime`（H_00 **JMP+NOP** + 97B stub）。three-peer full `.text` **EQUAL** **17920** B · sha **`90ad6d6e`**。**OW-H00 CLOSED**（fail-closed）。**OW-STUB** 仍 CUT（stub_nz=96）。
 
 ---
 
@@ -25,7 +25,7 @@ v0.8 把窗外钉成 SCOPE-CUT ACTIVE（lump）。v0.9-A 要求洞从「清单�
 
 | ID | 区域 | Disposition | 关闭证据（CLOSED 才需要） | CUT 钉（机器） |
 |----|------|-------------|---------------------------|----------------|
-| **OW-H00** | H_00 entry slot（18 B） | **CUT** | full `.text` EQUAL 且 body 仍 EQUAL | slot **JMP+NOP aligned**（JS=Rust=asm）；full `.text` JS↔Rust **DIFF**（stub）；body 跳过该槽 |
+| **OW-H00** | H_00 entry slot（18 B）+ emit tail stub | **CLOSED** | full `.text` EQUAL JS=asm=Rust **17920** B · body window EQUAL | — |
 | **OW-STUB** | H_00 LoadLibrary stub tail | **CUT** | `stub_tail_nonzero==0`（所有 peer） | `stub_tail_nonzero` ∈ **[40, 512]**；观测 **235** |
 | **OW-RT** | Sidecar Rust `yoyo_runtime.dll` | **CUT** | 无 exact embed **且** 无 Rust sidecar LoadLibrary 面 | size **≤150000**；观测 **141312**；**no exact embed** |
 | **OW-IAT** | LoadLibraryA / libdl host | **CUT** | PE 无 `LoadLibraryA`（YOYO-built loader） | 标记 `LoadLibraryA` + `yoyo_rt.dll`；**无** GetProcAddress（PE export walk） |

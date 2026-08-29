@@ -323,7 +323,8 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Hole** | **OW-H00** |
 | **Change** | JS `linkPeWin32` + `win32-h00-selfhost.js` mirror Rust `link_pe_h00_runtime` (H_00 slot **JMP+NOP** + 97B ordinal-0 stub); asm win32 delegates to same JS link CLI |
 | **Gate** | three-peer full `yoyo.ty` PE **byte-equal** Rust (`90ad6d6e` · 17920B `.text`); H_00 slot `e98d45000090909090909090909090909090` |
-| **Still CUT** | OW-STUB / OW-RT / OW-IAT / OW-SEED — disposition unchanged until `stage15-hole-inventory` / `stage16-scope-cut-finalize` re-run on Win |
+| **Disposition** | **OW-H00 CLOSED** (fail-closed: full `.text` EQUAL + body window EQUAL) |
+| **Still CUT** | OW-STUB / OW-RT / OW-IAT / OW-SEED |
 
 
 | Item | Detail |
