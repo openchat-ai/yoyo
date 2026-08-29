@@ -4,7 +4,8 @@
 > **Gate:** `scripts/stage14-outside-window-scope-cut.ps1`  
 > **Rule:** 本文件是 **诚实裁剪**，不是失败。不得用 selfhost-body EQUAL 假装 full `.text` EQUAL。
 
-**Post-v1.0 OW-RT：** Win H_00 **无 exact embed**；sidecar `yoyo_rt.dll`；DLL **141312**；stub_nz **53**。仍 CUT。
+**Post-v1.0 OW-RT：** Win H_00 **无 exact embed**；sidecar `yoyo_rt.dll`；DLL **141312**。仍 CUT。
+**Post-v1.0 OW-IAT：** GetProcAddress **ABSENT**（PE export walk）；stub_nz **235**；仍 CUT（LoadLibraryA）。
 
 ---
 
@@ -22,9 +23,9 @@ full `.text` 仍 **DIFF**，因为窗 **外** 仍有宿主 / 发射面字节。�
 | ID | 区域 | 在哪 | 观测 / 钉 | v0.8 态度 |
 |----|------|------|-----------|-----------|
 | **OW-H00** | H_00 entry slot（18 B） | PE `.text` emit 头 | selfhost-body **跳过**该槽；Rust JMP+NOPs vs JS/asm SET+RET | **CUT** — 不对齐则 full `.text` DIFF |
-| **OW-STUB** | H_00 LoadLibrary stub tail | `.text` emit 后 | `stub_tail_nonzero` 钉 **[40, 512]**；观测 **53** B（Rust-only） | **CUT** — 三 peer EQUAL 窗外 |
+| **OW-STUB** | H_00 LoadLibrary stub tail | `.text` emit 后 | `stub_tail_nonzero` 钉 **[40, 512]**；观测 **235** B（Rust-only；PE export walk） | **CUT** — 三 peer EQUAL 窗外 |
 | **OW-RT** | Sidecar Rust `yoyo_runtime.dll` | cwd sidecar（非 PE `.data` embed） | size **≤150000**；观测 **141312**；**no exact embed** | **CUT** — 不在 gen12 / body 窗 |
-| **OW-IAT** | LoadLibraryA / GetProcAddress / ExitProcess | PE IAT + stub 调用 | Stage 11-B 宿主加载面仍在 | **CUT** — 仍宿主加载，非 YOYO-built loader |
+| **OW-IAT** | LoadLibraryA / ExitProcess（无 GetProcAddress） | PE IAT + stub 调用 | Stage 11-B + OW-IAT：宿主 LoadLibrary 仍在；GPA→PE export walk | **CUT** — 仍宿主加载，非 YOYO-built loader |
 | **OW-SEED** | Seed 仍由 Rust `yoyo.exe` 发射 | host CLI | Stage 13-A 已 observe；不消除 | **CUT** — 不骗 v0.8；继续诚实 |
 
 **可比绿窗（非 CUT）：** selfhost-body / `yoyo test body-ddc` / gen12·fullbody 788-handler 窗。
@@ -67,17 +68,17 @@ Stage 14-A = 把窗外从「口头诚实」变成 **可脚本钉的 SCOPE-CUT �
 
 ---
 
-## 观测基线（2026-08-29 · post-v1.0 OW-RT sidecar）
+## 观测基线（2026-08-29 · post-v1.0 OW-RT + OW-IAT）
 
 | Monitor | Value |
 |---------|-------|
 | selfhost-body compared | **17805** |
 | full `.text` | **DIFF** |
-| stub_tail_nonzero (Rust) | **53** |
+| stub_tail_nonzero (Rust) | **235** |
 | runtime.dll | **141312**（no exact embed） |
-| seed PE (Rust link) | **248320**（≤270000） |
+| seed PE (Rust link) | **248832**（≤270000） |
 | Gate | `stage14-outside-window-scope-cut.ps1 -SkipBuild` |
 
 ---
 
-*Stage 14-A · 打破后门魔咒：窗外从盲区变成 SCOPE-CUT · post-v1.0 OW-RT sidecar sync*
+*Stage 14-A · 打破后门魔咒：窗外从盲区变成 SCOPE-CUT · post-v1.0 OW-RT sidecar + OW-IAT no-GPA sync*

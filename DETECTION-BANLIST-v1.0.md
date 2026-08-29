@@ -34,7 +34,7 @@ BAN id=SEED_HOST_GONE pattern=(?i)seed (is )?(no longer|not) (Rust[- ])?host[- ]
 | **FAKE_EQUAL** | full `.text` three-peer EQUAL 作为毕业话术 | selfhost-body window EQUAL only；full `.text` **DIFF** |
 | **FAKE_PROOF** | DDC ⇒ provably correct / mathematical immunity | detection bar only |
 | **YOYO_RUNTIME_DONE** | YOYO-built runtime 已落地 / 无 Rust runtime | **OW-RT CUT** — still Rust `yoyo_runtime.dll` embed |
-| **IAT_GONE** | LoadLibrary removed | **OW-IAT CUT** — LoadLibraryA / libdl still present |
+| **IAT_GONE** | LoadLibrary removed | **OW-IAT CUT** — LoadLibraryA / libdl still present (GetProcAddress dropped; PE export walk) |
 | **SEED_HOST_GONE** | seed 不再由 Rust host 发射 | **OW-SEED CUT** — still Rust `yoyo.exe` emit |
 
 ---
@@ -46,7 +46,7 @@ BAN id=SEED_HOST_GONE pattern=(?i)seed (is )?(no longer|not) (Rust[- ])?host[- ]
 | **OW-H00** | **CUT** | H_00 entry slot；body 跳过；full `.text` DIFF |
 | **OW-STUB** | **CUT** | Rust extract stub_tail_nonzero |
 | **OW-RT** | **CUT** | Embedded Rust runtime.dll |
-| **OW-IAT** | **CUT** | LoadLibraryA / libdl host trampoline |
+| **OW-IAT** | **CUT** | LoadLibraryA / libdl host trampoline (GetProcAddress dropped; PE export walk) |
 | **OW-SEED** | **CUT** | Seed still Rust-emitted |
 | **REL-FULLTEXT** | **CUT** | full `.text` not graduation EQUAL |
 | **REL-STUBOS** | **CUT** | Stub OS not production I/O |

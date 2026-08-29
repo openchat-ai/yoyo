@@ -36,9 +36,9 @@ YOYO v1.0 **finalizes** the v0.9 hole inventory as **SCOPE-CUT FINAL** (machine 
 | ID | Disposition | Notes |
 |----|-------------|-------|
 | **OW-H00** | **CUT** | H_00 entry slot; full `.text` DIFF; body skips slot |
-| **OW-STUB** | **CUT** | Rust LoadLibrary stub_tail_nonzero (obs. 53) |
+| **OW-STUB** | **CUT** | Rust LoadLibrary stub_tail_nonzero (obs. 235; PE export walk) |
 | **OW-RT** | **CUT** | Sidecar Rust `yoyo_runtime.dll` (141312; no exact embed) |
-| **OW-IAT** | **CUT** | LoadLibraryA / libdl host trampoline still present |
+| **OW-IAT** | **CUT** | LoadLibraryA / libdl still present; **GetProcAddress absent** (in-process PE export walk) |
 | **OW-SEED** | **CUT** | Seed still Rust-emitted (`yoyo.exe`) |
 | **REL-FULLTEXT** | **CUT** | full `.text` not a graduation EQUAL claim |
 | **REL-STUBOS** | **CUT** | Plan9/FreeBSD/Haiku/Serenity stub 鈥?not production I/O |
@@ -48,10 +48,10 @@ YOYO v1.0 **finalizes** the v0.9 hole inventory as **SCOPE-CUT FINAL** (machine 
 | Monitor | Value | Notes |
 |---------|-------|-------|
 | **Lock pin (`yoyo.ty`)** | `0275802d2b4459e6ece0801a73af3e988d203c6a34dacfa382f2e48fe8ad43cb` | Decision #25 鈥?**unchanged** (Stage 16 did not edit locked source) |
-| **gen12 / fullbody `.text` (Win PE)** | SHA prefix **`61110c66`** · full `61110c66f6cef952120bd7b4eb3f3b4dc60f8a940a732c82e8404cee6d873ee5` | **17920**-byte compared window |
+| **gen12 / fullbody `.text` (Win PE)** | SHA prefix **`84a8c1c9`** · full `84a8c1c9d85ca2765a893f0d3840446b57b50fa534e57ef083feaa3e931a2422` | **18432**-byte compared window |
 | **Selfhost-body window** | **17805** B EQUAL (JS=Rust=asm) | Skips H_00 entry slot; full `.text` DIFF (inventory FINAL+CUT) |
 | **Runtime.dll (sidecar)** | size **141312** | Still Rust-built; **OW-RT CUT**; **no exact embed** |
-| **H_00 LoadLibrary stub** | `stub_tail_nonzero` **53** B | **OW-STUB CUT** (Rust-only; outside three-peer EQUAL) |
+| **H_00 LoadLibrary stub** | `stub_tail_nonzero` **235** B | **OW-STUB CUT** (Rust-only; PE export walk; outside three-peer EQUAL) |
 | **Hole inventory** | **FINAL** 路 closed=0 路 cut=7 | All seven **CUT** (honest; no fake CLOSED) |
 | **Detection banlist** | **ACTIVE** | Gate: `stage16-detection-wording.ps1` |
 | **Linux trampoline** | size **9768** (v0.5+) | Still host libdl path |
@@ -131,7 +131,7 @@ cd F:\yoyo
 | **HOLE_INVENTORY_V10 FINAL** | closed=0 cut=7; full `.text` DIFF; body window EQUAL 17805 |
 | **OW-H00 / OW-STUB** | H_00 slot + Rust extract stub (**CUT**) |
 | **OW-RT** | Sidecar Rust `yoyo_runtime.dll` no exact embed (**CUT**) |
-| **OW-IAT** | LoadLibraryA / libdl host trampoline (**CUT**) |
+| **OW-IAT** | LoadLibraryA / libdl host trampoline (**CUT**; GetProcAddress dropped) |
 | **OW-SEED** | Seed still Rust-emitted (**CUT**) |
 | **REL-FULLTEXT / REL-STUBOS** | full `.text` not graduation EQUAL; stub OS not production I/O (**CUT**) |
 | **Non-Win/Linux stub OS** | Plan9/FreeBSD/Haiku/Serenity production I/O still stub |
@@ -196,7 +196,7 @@ Stage 16-D re-verify: `verify-lock-pin.ps1` 路 `stage14-lock-harden.ps1 -SkipBu
 
 - [x] No ROADMAP items listed as 鈥渄one in v1.0鈥?- [x] DDC described as **detection**, not proof
 - [x] HOLE_INVENTORY_V10 FINAL + remaining OW-\* **CUT** surface noted (no fake CLOSED)
-- [x] gen12 window (**17920** bytes, `61110c66`) + selfhost-body (**17805** B EQUAL) documented
+- [x] gen12 window (**18432** bytes, `84a8c1c9`) + selfhost-body (**17805** B EQUAL) documented
 - [x] Banlist cited; seven CUT ids listed
 - [x] No temp `_stage*` / `_tmp*` / `.c11_*` dirs in artifact
 

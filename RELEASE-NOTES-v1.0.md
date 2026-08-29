@@ -47,9 +47,9 @@ YOYO v1.0 is the **ROADMAP endpoint**: it promotes the v0.9 hole inventory to **
 | Monitor | Value |
 |---------|-------|
 | **Lock pin** | `0275802d…` (Decision #25, **unchanged** — no Relock) |
-| **HOLE_INVENTORY_V10** | **FINAL** · closed=0 · cut=7 · full `.text` DIFF · body EQUAL **17805** · stub_nz **159** · dll **154624** |
-| **gen12 `.text` (Win)** | **`d782166d…`** · **18432** bytes |
-| **runtime.dll** | **154624** B (still Rust-built; **OW-RT CUT**) |
+| **HOLE_INVENTORY_V10** | **FINAL** · closed=0 · cut=7 · full `.text` DIFF · body EQUAL **17805** · stub_nz **235** · dll **141312** (sidecar; no exact embed) |
+| **gen12 `.text` (Win)** | **`84a8c1c9…`** · **18432** bytes |
+| **runtime.dll** | **141312** B sidecar (still Rust-built; **OW-RT CUT**; no exact embed) |
 | **Linux trampoline** | **9768** B (still libdl host path) |
 
 ---
@@ -59,7 +59,7 @@ YOYO v1.0 is the **ROADMAP endpoint**: it promotes the v0.9 hole inventory to **
 | Item | Status |
 |------|--------|
 | **Holes closed** | All seven remain **CUT** (inventory FINAL; closed=0) — do **not** claim fully closed / 洞已全关 |
-| **Rust runtime still embedded** | `yoyo_runtime.dll` / `.so` still host-built; **OW-RT** |
+| **Rust runtime still host-built** | cwd sidecar `yoyo_rt.dll` / `.so` still Rust-built; **OW-RT** |
 | **YOYO-built runtime** | Deferred — still Rust cdylib |
 | **LoadLibrary / libdl removed** | Still present (**OW-IAT**) |
 | **Seed no longer Rust-emitted** | Still emitted by Rust `yoyo.exe` (**OW-SEED**) |

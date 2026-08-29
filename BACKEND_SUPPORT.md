@@ -315,6 +315,16 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Obs** | dll **141312** (was 154624); stub_nz **53** (was 159); seed PE **248320**; gen12 `61110c66` / **17920** B |
 | **Linux** | H_00 still exact-embeds `.so` + trampoline (this session Win-only) |
 | **Gates** | stage10/11/12/14/15/16 inventory pins updated; `stage15-hole-inventory -SkipBuild` |
+
+### Post-v1.0 path 2 — OW-IAT GetProcAddress shrink (2026-08-29)
+
+| Item | Detail |
+|------|--------|
+| **Hole** | **OW-IAT** |
+| **Change** | Win H_00 host-loader IAT **3→2**: drop `GetProcAddress`; after `LoadLibraryA` walk PE export dir in-process for `yoyo_runtime_selfhost_main` |
+| **Still CUT** | `LoadLibraryA` / libdl remain; **not** YOYO-built loader; CLOSED still requires LoadLibraryA absent |
+| **Obs** | stub_nz **235**; seed PE **248832**; gen12 `84a8c1c9` / **18432** B; GetProcAddress **ABSENT** on seed |
+| **Gates** | stage11/13/14/15 fail-closed forbid GetProcAddress; inventory CUT evidence `no_GetProcAddress;PE_export_walk` |
 ### Stage 16-A — SCOPE-CUT FINAL (hole inventory)
 
 | Item | Detail |

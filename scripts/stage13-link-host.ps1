@@ -7,11 +7,11 @@
 #   - Canonical seed = H_00 `link_pe_win32` / `link_elf_linux` (Rust: seed_host_compile*)
 #   - link(.ty) ≡ link(.tyb) ≡ bootstrap(.tyb) .text/full DDC EQUAL
 #   - Seed PE/ELF size ≤ STAGE13_MAX (Rust also enforces on H_00 link)
-#   - Win seed markers: yoyo_rt.dll + LoadLibraryA + GetProcAddress; NO GetTempPathA
+#   - Win seed markers: yoyo_rt.dll + LoadLibraryA (no GetProcAddress; PE export walk); NO GetTempPathA
 #   - bootstrap --selfhost MUST DIFF seed (and Win must expose GetTempPathA) — else RED
 #
-# Honest remaining: still trusts Rust-built `yoyo.exe` host to emit the seed; embedded
-# Rust runtime + LoadLibrary/libdl remain (Stages 10–11). This gate observes/contracts
+# Honest remaining: still trusts Rust-built `yoyo.exe` host to emit the seed; sidecar
+# Rust runtime + LoadLibrary/libdl remain (Stages 10–11 + OW-IAT). This gate observes/contracts
 # the seed *entry* surface — it does not eliminate host compile trust.
 param(
     [switch]$SkipBuild,
@@ -168,8 +168,8 @@ if ($bootOut -notmatch 'SEED_HOST cmd=bootstrap target=win32 path=h00') {
 if (-not (Invoke-YoyoDiffEqual $SeedLinkTy $SeedBoot "link(.ty) vs bootstrap(.tyb)")) { exit 1 }
 
 $seedBytes = [System.IO.File]::ReadAllBytes($SeedLinkTy)
-$required = @("LoadLibraryA", "GetProcAddress", "yoyo_rt.dll", "yoyo_runtime_selfhost_main")
-$forbidden = @("GetTempPathA", "lstrcatA")
+$required = @("LoadLibraryA", "yoyo_rt.dll", "yoyo_runtime_selfhost_main")
+$forbidden = @("GetTempPathA", "lstrcatA", "GetProcAddress")
 foreach ($n in $required) {
     if (-not (Find-Ascii $seedBytes $n)) {
         Write-Host "Stage 13-A: RED (seed missing required marker: $n)"
@@ -178,11 +178,11 @@ foreach ($n in $required) {
 }
 foreach ($n in $forbidden) {
     if (Find-Ascii $seedBytes $n) {
-        Write-Host "Stage 13-A: RED (seed has forbidden host API: $n — slipped toward --selfhost surface)"
+        Write-Host "Stage 13-A: RED (seed has forbidden host API: $n — slipped toward --selfhost / pre-OW-IAT surface)"
         exit 1
     }
 }
-Write-Host "Win seed markers: H_00 cwd-relative LoadLibrary surface OK (no GetTempPathA)"
+Write-Host "Win seed markers: H_00 cwd LoadLibrary + PE export walk (no GetTempPathA/GetProcAddress)"
 
 if (-not $SkipSelfhostDiff) {
     Write-Host ""

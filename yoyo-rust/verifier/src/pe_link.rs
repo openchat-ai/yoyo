@@ -15,11 +15,11 @@ const KERNEL32_IO_FUNCS: &[&str] = &[
     "ReadFile",
     "WriteFile",
     "CloseHandle",
-    // Stage 9-A / post-v1.0 H_00: cwd sidecar LoadLibrary (slots 5–7).
+    // Stage 9-A / post-v1.0 H_00: cwd sidecar LoadLibrary (slots 5–6).
     // Stage 11-B dropped GetTempPathA/lstrcatA; post-v1.0 dropped extract+WriteFile
-    // embed — LoadLibraryA `yoyo_rt.dll` in cwd (sidecar; still Rust runtime / OW-RT CUT).
+    // embed; post-v1.0 OW-IAT: dropped GetProcAddress — H_00 walks PE export table
+    // in-process after LoadLibraryA (still host LoadLibrary; OW-IAT CUT).
     "LoadLibraryA",
-    "GetProcAddress",
     "ExitProcess",
 ];
 

@@ -17,7 +17,7 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
-# Post-v1.0 OW-RT sidecar: stub ~53B; DLL 鈮?50000; no exact embed.
+# Post-v1.0 OW-RT sidecar + OW-IAT PE export walk: stub ~235B; DLL ≤150000; no exact embed.
 $MinStubTailNonzero = 40
 $MaxStubTailNonzero = 512
 $MaxDllBytes = 150000
@@ -265,10 +265,15 @@ if ($embedOff -ge 0) {
 }
 
 # OW-IAT: CLOSED only if LoadLibraryA absent.
+# Post-v1.0 OW-IAT shrink: GetProcAddress absent from seed is required while LoadLibrary remains CUT.
+$hasGetProc = Find-Ascii $rustBytes "GetProcAddress"
+if ($hasLoadLibrary -and $hasGetProc) {
+    Fail-Out "OW-IAT GetProcAddress still on seed PE (post-v1.0 requires PE export walk)"
+}
 if (-not $hasLoadLibrary) {
     Add-Hole "OW-IAT" "CLOSED" "LoadLibraryA_absent"
 } else {
-    Add-Hole "OW-IAT" "CUT" ("markers=LoadLibraryA+yoyo_rt.dll;hasYoyoRt={0}" -f $hasYoyoRt)
+    Add-Hole "OW-IAT" "CUT" ("markers=LoadLibraryA+yoyo_rt.dll;no_GetProcAddress;PE_export_walk;hasYoyoRt={0}" -f $hasYoyoRt)
 }
 
 # OW-SEED: v0.9-A does not auto-CLOSE -- Rust yoyo.exe still emits seed.

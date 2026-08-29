@@ -4,9 +4,9 @@
 # Stage 11-B shrinks the Win H_00 extract path (drop GetTempPathA + lstrcatA; write +
 # LoadLibrary cwd-relative `yoyo_rt.dll`, same posture as Linux `./libyoyo_runtime.so`)
 # and puts the remaining host-loader surface under a fail-closed gate:
-#   - Win: import table must expose exactly {LoadLibraryA,GetProcAddress,ExitProcess}
-#     as the host-loader slice (no GetTempPathA / lstrcatA on the H_00 merged IAT)
-#   - Win: H_00 stub must call LoadLibraryA / GetProcAddress IAT slots exactly once each
+#   - Win: import table must expose exactly {LoadLibraryA,ExitProcess}
+#     as the host-loader slice (no GetTempPathA / lstrcatA / GetProcAddress on H_00 IAT)
+#   - Win: H_00 stub resolves export via in-process PE walk (OW-IAT shrink; still LoadLibraryA)
 #   - Linux: committed dlopen trampoline blob size 鈮?MAX + exact embed in linux gen1
 #   - Smoke: gen1 H_00 still compiles via LoadLibrary path (parity optional via 11-A)
 #
@@ -22,12 +22,12 @@ $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
 # Fail-closed ceilings (do not raise casually).
-$MaxHostLoaderIatNames = 3          # LoadLibraryA + GetProcAddress + ExitProcess
+$MaxHostLoaderIatNames = 2          # LoadLibraryA + ExitProcess (OW-IAT: no GetProcAddress)
 # Stage 11-B nostdlib .S tramp (was gcc+CRT 14464). Do not raise casually.
 $MaxTrampBytes = 12000
 $BaselineTrampBytes = 14464
-$ForbiddenWinHostApis = @("GetTempPathA", "lstrcatA")
-$RequiredWinHostApis = @("LoadLibraryA", "GetProcAddress", "ExitProcess")
+$ForbiddenWinHostApis = @("GetTempPathA", "lstrcatA", "GetProcAddress")
+$RequiredWinHostApis = @("LoadLibraryA", "ExitProcess")
 $RequiredIoApis = @("VirtualAlloc", "CreateFileA", "ReadFile", "WriteFile", "CloseHandle")
 
 $WorkDir = Join-Path $Root "scripts\_stage11-loadlibrary-host"
@@ -237,9 +237,9 @@ if ($presentRequired -ne $MaxHostLoaderIatNames) {
     Write-Host "Stage 11-B: RED (host-loader IAT names $presentRequired != $MaxHostLoaderIatNames)"
     exit 1
 }
-foreach ($extra in @("LoadLibraryW", "LoadLibraryExA", "LoadLibraryExW")) {
+foreach ($extra in @("LoadLibraryW", "LoadLibraryExA", "LoadLibraryExW", "GetProcAddress")) {
     if ((Find-Ascii $peFace $extra) -ge 0) {
-        Write-Host "Stage 11-B: RED (extra loader import '$extra')"
+        Write-Host "Stage 11-B: RED (extra/forbidden loader import '$extra')"
         exit 1
     }
 }
@@ -261,8 +261,8 @@ foreach ($name in $RequiredWinHostApis) {
     }
 }
 
-Write-Host "Win IAT host-loader slice: $($RequiredWinHostApis -join ', ') (GetTempPathA/lstrcatA ABSENT)"
-Write-Host "Win sidecar name: yoyo_rt.dll (cwd-relative); no exact embed"
+Write-Host "Win IAT host-loader slice: $($RequiredWinHostApis -join ', ') (GetTempPathA/lstrcatA/GetProcAddress ABSENT)"
+Write-Host "Win sidecar name: yoyo_rt.dll (cwd-relative); no exact embed; export via PE walk"
 
 # --- Pin H_00 loader stub bytes (DDC-comparable .text window) ---
 # gen12 / yoyo diff compare handler .text including H_00 extract stub.
@@ -387,10 +387,10 @@ $report = [ordered]@{
     linux_gen1_bytes      = $linuxGen1Len
     linux_embed_offset    = $linuxEmbedOff
     honest_remaining      = @(
-        "Win H_00 still calls host LoadLibraryA + GetProcAddress (now cwd-relative only)",
+        "Win H_00 still calls host LoadLibraryA (cwd sidecar; export via in-process PE walk)",
         "Linux H_00 still execve's committed glibc/libdl trampoline blob",
-        "gen2rt Stage 8-C regression path may still use GetTempPath private IAT",
-        "Not a YOYO-built loader 鈥?Stage 11-B shrinks + observes the host-loader face"
+        "gen2rt Stage 8-C regression path may still use GetTempPath + GetProcAddress private IAT",
+        "Not a YOYO-built loader — Stage 11-B + OW-IAT shrink observe the host-loader face"
     )
 }
 $reportPath = Join-Path $WorkDir "loadlibrary-host.json"
@@ -400,6 +400,6 @@ Write-Host "report: $reportPath"
 
 Write-Host ""
 Write-Host "Stage 11-B: GREEN"
-Write-Host "  trust-chain: H_00 host-loader IAT 5鈫? APIs (dropped GetTempPathA/lstrcatA); cwd extract"
+Write-Host "  trust-chain: H_00 host-loader IAT 3→2 APIs (dropped GetProcAddress; PE export walk); cwd sidecar"
 Write-Host "  monitored:   import names + cwd yoyo_rt.dll smoke + trampoline size/embed"
 exit 0

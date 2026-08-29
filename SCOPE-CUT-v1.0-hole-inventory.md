@@ -6,7 +6,9 @@
 
 **Upstream:** `SCOPE-CUT-v0.9-hole-inventory.md`（Stage 15-A ACTIVE 枚举）仍有效；本文件把同一七项 **提升为 v1.0 FINAL disposition**（能关则 CLOSED+证据；不能关则 CUT 钉进 RELEASE）。
 
-**Post-v1.0 path 2（关洞）· OW-RT shrink（2026-08-29）：** Win H_00 seed/link **不再 exact-embed** `yoyo_runtime.dll`；改为 cwd sidecar `yoyo_rt.dll` + `LoadLibraryA`。DLL 观测 **141312**（LTO 后）；stub_nz **53**。**仍 CUT**（Rust runtime 宿主信任未灭）— **禁止**把「无 embed」单独标 CLOSED。
+**Post-v1.0 path 2（关洞）· OW-RT shrink（2026-08-29）：** Win H_00 seed/link **不再 exact-embed** `yoyo_runtime.dll`；改为 cwd sidecar `yoyo_rt.dll` + `LoadLibraryA`。DLL 观测 **141312**（LTO 后）。**仍 CUT**（Rust runtime 宿主信任未灭）— **禁止**把「无 embed」单独标 CLOSED。
+
+**Post-v1.0 path 2（关洞）· OW-IAT shrink（2026-08-29）：** H_00 宿主 IAT **去掉 GetProcAddress**（host-loader **3→2**：LoadLibraryA + ExitProcess）。LoadLibraryA 之后 **in-process PE export walk** 解析 `yoyo_runtime_selfhost_main`。stub_nz **235**；gen12 `84a8c1c9` / **18432** B；seed PE **248832**。**仍 CUT**（LoadLibraryA / libdl 仍在）— **禁止**标 CLOSED。
 
 ---
 
@@ -25,10 +27,10 @@ v0.9 把洞从 lump 变成逐项 `CLOSED|CUT`。v1.0-A 要求洞从「v0.9 枚�
 | ID | 区域 | Disposition | 关闭证据（CLOSED 才需要） | CUT 钉（机器） |
 |----|------|-------------|---------------------------|----------------|
 | **OW-H00** | H_00 entry slot（18 B） | **CUT** | full `.text` EQUAL 且 body 仍 EQUAL | full `.text` DIFF（JS↔Rust）；body 跳过该槽 |
-| **OW-STUB** | H_00 LoadLibrary stub tail | **CUT** | `stub_tail_nonzero==0`（所有 peer） | `stub_tail_nonzero` ∈ **[40, 512]**；观测 **53** |
+| **OW-STUB** | H_00 LoadLibrary stub tail | **CUT** | `stub_tail_nonzero==0`（所有 peer） | `stub_tail_nonzero` ∈ **[40, 512]**；观测 **235** |
 | **OW-RT** | Sidecar Rust `yoyo_runtime.dll` | **CUT** | 无 exact embed **且** 无 Rust LoadLibrary sidecar 宿主信任 | size **≤150000**；观测 **141312**；**no exact embed**；sidecar `yoyo_rt.dll` |
-| **OW-IAT** | LoadLibraryA / GetProcAddress | **CUT** | PE 无 `LoadLibraryA`（YOYO-built loader） | 标记 `LoadLibraryA` + `yoyo_rt.dll` 仍在 |
-| **OW-SEED** | Seed 仍由 Rust `yoyo.exe` 发射 | **CUT** | seed 非 Rust host 发射 | Rust `yoyo link` 产出 PE；seed PE **≤270000**（观测 **248320**） |
+| **OW-IAT** | LoadLibraryA / libdl host | **CUT** | PE 无 `LoadLibraryA`（YOYO-built loader） | 标记 `LoadLibraryA` + `yoyo_rt.dll`；**无** `GetProcAddress`（PE export walk）；仍宿主 LoadLibrary |
+| **OW-SEED** | Seed 仍由 Rust `yoyo.exe` 发射 | **CUT** | seed 非 Rust host 发射 | Rust `yoyo link` 产出 PE；seed PE **≤270000**（观测 **248832**） |
 | **REL-FULLTEXT** | full `.text` peer compare | **CUT** | （禁止用 EQUAL 当毕业话术） | `full_text=DIFF` → inventory FINAL+CUT；意外 EQUAL → PARTIAL（OW-RT/IAT 仍 CUT） |
 | **REL-STUBOS** | Plan9/FreeBSD/Haiku/Serenity I/O | **CUT** | 生产 I/O 落地（非本 Stage） | `stage13-cross-platform-parity.ps1` stub 钉仍在源门禁中 |
 
@@ -60,7 +62,7 @@ Gate **只**在下列证据同时成立时打印 `disposition=CLOSED`：
 - ❌ 把「无 exact embed」说成 OW-RT **CLOSED**（sidecar Rust 仍在）
 - ❌ 把 SCOPE-CUT 写成失败或倒退；不得假 EQUAL / 假 CLOSED
 
-允许：✅ 「v1.0 SCOPE-CUT FINAL · 七项 CLOSED|CUT 已机器钉 + selfhost-body EQUAL」；✅ 「OW-RT 已缩：无 exact embed / sidecar（仍 CUT）」
+允许：✅ 「v1.0 SCOPE-CUT FINAL · 七项 CLOSED|CUT 已机器钉 + selfhost-body EQUAL」；✅ 「OW-RT 已缩：无 exact embed / sidecar（仍 CUT）」；✅ 「OW-IAT 已缩：无 GetProcAddress / PE export walk（仍 CUT · LoadLibraryA）」
 
 ---
 
@@ -84,21 +86,22 @@ Gate 必须同时：
 
 ---
 
-## 观测基线（2026-08-29 · post-v1.0 OW-RT sidecar · gate GREEN）
+## 观测基线（2026-08-29 · post-v1.0 OW-RT sidecar + OW-IAT no-GPA · gate GREEN）
 
 | Monitor | Value |
 |---------|-------|
 | selfhost-body compared | **17805** B EQUAL |
 | full `.text` JS↔Rust | **DIFF** |
-| stub_tail_nonzero (Rust) | **53**（pin [40, 512]） |
+| stub_tail_nonzero (Rust) | **235**（pin [40, 512]；PE export walk） |
 | runtime.dll | **141312**（**no exact embed**；sidecar） |
-| seed PE (Rust link) | **248320**（≤270000；data floor 0x38000 仍主导体积） |
-| gen12 / fullbody `.text` | SHA prefix **`61110c66`** · compared **17920** B |
+| seed PE (Rust link) | **248832**（≤270000；data floor 0x38000 仍主导体积） |
+| gen12 / fullbody `.text` | SHA prefix **`84a8c1c9`** · compared **18432** B |
 | Lock pin | `0275802d…` Decision #25（本缩面不改 `yoyo.ty`） |
 | Disposition | **OW-\* + REL-\* all CUT**（closed=0 cut=7） |
 | Gate | `stage16-scope-cut-finalize.ps1 -SkipBuild` exit **0** · `HOLE_INVENTORY_V10 status=FINAL` |
 | No-regress | nested stage15-A exit 0 · stage14-A nested via stage15 |
+| OW-IAT shrink | GetProcAddress **ABSENT**；LoadLibraryA **PRESENT**（仍 CUT） |
 
 ---
 
-*Stage 16-A · 打破后门魔咒：洞从「v0.9 枚举」变「1.0 FINAL SCOPE-CUT + 可脚本钉」· post-v1.0 OW-RT：exact embed → sidecar（仍 CUT）*
+*Stage 16-A · 打破后门魔咒：洞从「v0.9 枚举」变「1.0 FINAL SCOPE-CUT + 可脚本钉」· post-v1.0 OW-RT：exact embed → sidecar（仍 CUT）· post-v1.0 OW-IAT：GetProcAddress → PE export walk（仍 CUT）*
