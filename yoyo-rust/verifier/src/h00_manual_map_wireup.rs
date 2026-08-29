@@ -287,6 +287,10 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jz_reloc_done2 + 2, jz_reloc_done2 + 6, reloc_done);
     patch_rel32(&mut c, jb_reloc_done + 2, jb_reloc_done + 6, reloc_done);
 
+    // TEMP CI isolate: skip import resolve (AV during PEB walk / forwarder fixup).
+    let jmp_skip_imports = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
     // Import resolve: walk descriptors at [r14+import_rva]
     c.extend_from_slice(&[
         0x8B, 0x84, 0x1C, PE_OFF_IMPORT_DIR_RVA, 0x00, 0x00, 0x00,
@@ -369,6 +373,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     patch_rel32(&mut c, jmp_id + 1, jmp_id + 5, import_desc);
     let import_done = c.len();
+    patch_rel32(&mut c, jmp_skip_imports + 1, jmp_skip_imports + 5, import_done);
     patch_rel32(&mut c, jz_import_done + 2, jz_import_done + 6, import_done);
     patch_rel32(&mut c, jz_idone + 2, jz_idone + 6, import_done);
 
