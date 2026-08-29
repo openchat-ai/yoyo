@@ -213,6 +213,18 @@ fn gen_h00_manual_map_body(
 
     c.extend_from_slice(&[0x8B, 0x4F, 0x0C]); // mov ecx,[rdi+0c] VirtualAddress
     c.extend_from_slice(&[0x8B, 0x57, 0x10]); // mov edx,[rdi+10] SizeOfRawData
+    c.extend_from_slice(&[0x8B, 0x47, 0x08]); // mov eax,[rdi+8] VirtualSize
+    c.extend_from_slice(&[0x39, 0xC2]); // cmp edx,eax (raw vs virtual)
+    let jbe_raw_le_virtual = c.len();
+    c.extend_from_slice(&[0x0F, 0x86, 0, 0, 0, 0]); // jbe use_raw_size
+    c.extend_from_slice(&[0x89, 0xC2]); // mov edx,eax — copy min(raw,virtual)
+    let use_raw_size = c.len();
+    patch_rel32(
+        &mut c,
+        jbe_raw_le_virtual + 2,
+        jbe_raw_le_virtual + 6,
+        use_raw_size,
+    );
     c.extend_from_slice(&[0x44, 0x8B, 0x4F, 0x14]); // mov r9d,[rdi+14] PointerToRawData
     c.extend_from_slice(&[0x85, 0xD2]);
     let jz_next_sec = c.len();
