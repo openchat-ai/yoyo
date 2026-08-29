@@ -539,15 +539,27 @@ pub fn gen_h00_manual_map_main(
 
     let prelude_text_off = code_base_off + H00_PROLOGUE_LEN;
 
-    let prelude = gen_h00_read_sidecar_prelude(meta, text_rva, prelude_text_off, usize::MAX);
-    let map_text_off_m = prelude_text_off + prelude.len() as u32;
-    let map = gen_h00_manual_map_body(text_rva, map_text_off_m, meta.iat_rva, usize::MAX);
-    let tail_text_off_m = map_text_off_m + map.len() as u32;
-    let tail = gen_h00_export_call_tail(meta, text_rva, tail_text_off_m, usize::MAX);
-    let fail_label =
-        code_base_off as usize + H00_PROLOGUE_LEN as usize + prelude.len() + map.len() + tail.len();
+    // Size pass (placeholder fail_label) then emit with real fail epilogue offset.
+    let prelude_len =
+        gen_h00_read_sidecar_prelude(meta, text_rva, prelude_text_off, usize::MAX).len();
+    let map_text_off_m = prelude_text_off + prelude_len as u32;
+    let map_len =
+        gen_h00_manual_map_body(text_rva, map_text_off_m, meta.iat_rva, usize::MAX).len();
+    let tail_text_off_m = map_text_off_m + map_len as u32;
+    let tail_len =
+        gen_h00_export_call_tail(meta, text_rva, tail_text_off_m, usize::MAX).len();
+    let fail_label = code_base_off as usize
+        + H00_PROLOGUE_LEN as usize
+        + prelude_len
+        + map_len
+        + tail_len;
 
-    c.extend_from_slice(&prelude);
+    c.extend_from_slice(&gen_h00_read_sidecar_prelude(
+        meta,
+        text_rva,
+        prelude_text_off,
+        fail_label,
+    ));
     let map_text_off = code_base_off + c.len() as u32;
     c.extend_from_slice(&gen_h00_manual_map_body(
         text_rva,

@@ -118,7 +118,7 @@ Gate 必须同时：
 | Lock pin | `0275802d…` Decision #25（本缩面不改 `yoyo.ty`） |
 | Disposition | **OW-H00 CLOSED** · **6× CUT**（closed=1 cut=6） |
 | Gates | body-ddc · gen12 · stage17-ow-iat-wireup (CI smoke) · stage10-linux GREEN |
-| OW-IAT wire-up | PEB LoadLibrary **DROPPED**；manual-map **WIRED**；Win smoke **fail-closed** without cwd `yoyo_rt.dll`；**仍 CUT** |
+| OW-IAT wire-up | PEB LoadLibrary **DROPPED**；manual-map **WIRED**；Win smoke **WIP/RED** (manual-map AV; CI `-SkipSmoke`)；**仍 CUT** |
 
 **Next tip（post-v1.0 path 2）：** **YOYO-built runtime** (drop Rust `yoyo_runtime.dll` / sidecar); **OW-IAT CLOSED** only when `yoyo_rt.dll` / sidecar marker absent.
 

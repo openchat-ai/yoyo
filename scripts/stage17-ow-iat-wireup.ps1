@@ -38,7 +38,9 @@ function Find-Ascii([byte[]]$Bytes, [string]$Needle) {
     return [System.Text.Encoding]::ASCII.GetString($Bytes).Contains($Needle)
 }
 
-$Yoyo = Join-Path $Root "yoyo-rust\target\release\yoyo.exe"
+$YoyoRelease = Join-Path $Root "yoyo-rust\target\release\yoyo.exe"
+$YoyoDebug = Join-Path $Root "yoyo-rust\target\debug\yoyo.exe"
+$Yoyo = if (Test-Path $YoyoRelease) { $YoyoRelease } elseif (Test-Path $YoyoDebug) { $YoyoDebug } else { $YoyoRelease }
 $RuntimeDllPreferred = Join-Path $Root "yoyo-rust\target\release-runtime\yoyo_runtime.dll"
 $RuntimeDllCompat = Join-Path $Root "yoyo-rust\target\release\yoyo_runtime.dll"
 $Ty = Join-Path $Root "yoyo\projects\yoyo.ty"
