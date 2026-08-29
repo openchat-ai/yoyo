@@ -244,9 +244,9 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x48, 0x8D, 0x7E, 0x08]); // lea rdi,[rsi+8]
     c.extend_from_slice(&[0x8D, 0x42, 0xF8]); // lea eax,[rdx-8]
     c.extend_from_slice(&[0xD1, 0xE8]); // shr eax,1  entry count
-    c.extend_from_slice(&[0x89, 0xC3]); // mov ebx, eax
+    c.extend_from_slice(&[0x41, 0x89, 0xC0]); // mov r8d, eax (preserve ebx = e_lfanew)
     let reloc_entry = c.len();
-    c.extend_from_slice(&[0x85, 0xDB]);
+    c.extend_from_slice(&[0x45, 0x85, 0xC0]); // test r8d,r8d
     let jbe_next_block = c.len();
     c.extend_from_slice(&[0x0F, 0x86, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x0F, 0xB7, 0x07]); // movzx eax,word [rdi]
@@ -263,7 +263,7 @@ fn gen_h00_manual_map_body(
     let next_re = c.len();
     patch_rel32(&mut c, jne_re + 2, jne_re + 6, next_re);
     c.extend_from_slice(&[0x48, 0x83, 0xC7, 0x02]); // next reloc entry (rdi preserved)
-    c.extend_from_slice(&[0xFF, 0xCB]);
+    c.extend_from_slice(&[0x41, 0xFF, 0xC8]); // dec r8d
     let jmp_re = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     patch_rel32(&mut c, jmp_re + 1, jmp_re + 5, reloc_entry);
@@ -354,8 +354,7 @@ fn gen_h00_manual_map_body(
     // rdx = ascii dll name → rax = DllBase
     c.extend_from_slice(&[0x65, 0x48, 0x8B, 0x04, 0x25, 0x60, 0x00, 0x00, 0x00]);
     c.extend_from_slice(&[0x48, 0x8B, 0x40, 0x18]); // PEB->Ldr
-    c.extend_from_slice(&[0x48, 0x8B, 0x40, 0x20]); // InMemoryOrderModuleList.Flink
-    c.extend_from_slice(&[0x48, 0x8B, 0x00]); // first entry Flink
+    c.extend_from_slice(&[0x48, 0x8B, 0x40, 0x20]); // InMemoryOrderModuleList.Flink → first module
     c.extend_from_slice(&[0x48, 0x83, 0xE8, LDR_INMEMORY_FLINK_OFF]); // entry = Flink - 0x10
     let mod_loop = c.len();
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
