@@ -441,6 +441,50 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jz_import_done + 2, jz_import_done + 6, import_done);
     patch_rel32(&mut c, jz_idone + 2, jz_idone + 6, import_done);
 
+    // FlushInstructionCache before calling mapped sidecar code (matches reference mapper).
+    c.extend_from_slice(&[0x41, 0x8B, 0x5C, 0x24, 0x3C]); // mov ebx,[r12+3c] e_lfanew (file hdr)
+    c.extend_from_slice(&[
+        0x44, 0x8B, 0x84, 0x1C, PE_OFF_SIZE_OF_IMAGE, 0x00, 0x00, 0x00,
+    ]); // r8d = SizeOfImage
+    c.extend_from_slice(&[
+        0x8B, 0x84, 0x1C, PE_OFF_IMPORT_DIR_RVA, 0x00, 0x00, 0x00,
+    ]);
+    c.extend_from_slice(&[0x85, 0xC0]);
+    let jz_skip_flush = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x49, 0x8D, 0x34, 0x06]);
+    c.extend_from_slice(&[0x8B, 0x4E, 0x0C]);
+    c.extend_from_slice(&[0x49, 0x8D, 0x54, 0x0E, 0x00]);
+    let call_flush_find = c.len();
+    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
+    let jz_skip_flush2 = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = kernel32
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x30]);
+    for (off, ch) in b"FlushInstructionCache\0".iter().enumerate() {
+        c.extend_from_slice(&[0xC6, 0x44, 0x24, off as u8, *ch]);
+    }
+    c.extend_from_slice(&[0x48, 0x8D, 0x14, 0x24]);
+    let call_flush_resolve = c.len();
+    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x30]);
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
+    let jz_skip_flush3 = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[
+        0x44, 0x8B, 0x84, 0x1C, PE_OFF_SIZE_OF_IMAGE, 0x00, 0x00, 0x00,
+    ]); // reload r8d = SizeOfImage (resolve clobbers r8)
+    c.extend_from_slice(&[0x48, 0xC7, 0xC1, 0xFF, 0xFF, 0xFF, 0xFF]); // GetCurrentProcess()
+    c.extend_from_slice(&[0x49, 0x89, 0xF2]); // rdx = r14 base
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]);
+    c.extend_from_slice(&[0xFF, 0xD0]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x28]);
+    let skip_flush = c.len();
+    patch_rel32(&mut c, jz_skip_flush + 2, jz_skip_flush + 6, skip_flush);
+    patch_rel32(&mut c, jz_skip_flush2 + 2, jz_skip_flush2 + 6, skip_flush);
+    patch_rel32(&mut c, jz_skip_flush3 + 2, jz_skip_flush3 + 6, skip_flush);
+
     // Skip DllMain: CRT/TLS entry AVs on manual-mapped image; smoke probe uses kernel32 IAT only.
     // rbx = mapped image (r14)
     c.extend_from_slice(&[0x4C, 0x89, 0xF3]); // mov rbx, r14
@@ -452,6 +496,7 @@ fn gen_h00_manual_map_body(
     let find_module = c.len();
     patch_rel32(&mut c, call_find_mod + 1, call_find_mod + 5, find_module);
     patch_rel32(&mut c, call_boot_find + 1, call_boot_find + 5, find_module);
+    patch_rel32(&mut c, call_flush_find + 1, call_flush_find + 5, find_module);
     // rdx = ascii dll name → rax = DllBase
     // x64: gs:[0x60] = PEB; Ldr.InMemoryOrderModuleList.Flink (+0x20); entry = Flink-0x10.
     c.extend_from_slice(&[0x41, 0x52]); // push r10 — list head
@@ -547,6 +592,12 @@ fn gen_h00_manual_map_body(
         call_boot_resolve + 5,
         resolve_export,
     );
+    patch_rel32(
+        &mut c,
+        call_flush_resolve + 1,
+        call_flush_resolve + 5,
+        resolve_export,
+    );
     // rdi=module, rdx=name → rax=func (preserve thunk rsi; rbx/rcx/rdx = PE tables; r11=IAT cursor)
     c.extend_from_slice(&[0x41, 0x53]); // push r11 — caller IAT cursor survives resolve_export
     c.extend_from_slice(&[0x49, 0x89, 0xD1]); // mov r9, rdx — save import name before table walk
@@ -626,8 +677,9 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x48, 0x01, 0xF8]);
     c.extend_from_slice(&[0x8B, 0x50, 0x1C]);
     c.extend_from_slice(&[0x48, 0x01, 0xFA]);
-    c.extend_from_slice(&[0x89, 0xC8]);
-    c.extend_from_slice(&[0x8B, 0x04, 0x82]);
+    c.extend_from_slice(&[0x44, 0x8B, 0x48, 0x10]); // mov r9d,[rax+10] BaseOrdinal
+    c.extend_from_slice(&[0x29, 0xC9]); // sub ecx,r9d (ordinal index)
+    c.extend_from_slice(&[0x8B, 0x04, 0x8A]);
     c.extend_from_slice(&[0x48, 0x01, 0xF8]);
     let call_fixup_ord = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
@@ -925,8 +977,8 @@ mod tests {
             }
         }
         assert!(
-            body.len() > 400 && body.len() < 1500,
-            "manual-map H_00 stub should fit OW-STUB pin [40,1500] (got {}B)",
+            body.len() > 400 && body.len() < 1700,
+            "manual-map H_00 stub should fit OW-STUB pin [40,1700] (got {}B)",
             body.len()
         );
         // No LoadLibraryA ROR13 hash needle (0x8E 0x4E 0x0E 0xEC)
