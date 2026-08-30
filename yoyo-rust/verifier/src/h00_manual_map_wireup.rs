@@ -255,6 +255,10 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x49, 0x89, 0xC6]); // mov r14, rax (image)
     emit_phase_probe(&mut c, PHASE_MAP_IMAGE_OK);
 
+    // TEMP bisect: exit 133 if VirtualAlloc+headers ok (remove after smoke green).
+    c.extend_from_slice(&[0xB9, 133, 0, 0, 0]);
+    emit_call_iat_merged(&mut c, text_rva, chunk_text_off, iat_rva, IAT_EXIT_PROCESS);
+
     // Copy headers: rep movsb min(SizeOfHeaders, r13d=file bytes read)
     emit_mov_u32_pe_file(&mut c, 1, PE_OFF_SIZE_OF_HEADERS); // mov ecx,[r12+rbx+54h]
     c.extend_from_slice(&[0x44, 0x39, 0xED]); // cmp r13d, ecx
