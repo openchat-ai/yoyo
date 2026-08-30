@@ -339,7 +339,7 @@ fn gen_h00_manual_map_body(
     let jz_next_sec2 = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x49, 0x8D, 0x3C, 0x0E]); // lea rdi,[r14+rcx]
-    c.extend_from_slice(&[0x4B, 0x8D, 0x34, 0x0C]); // lea rsi,[r12+r9]
+    c.extend_from_slice(&[0x4A, 0x8D, 0x34, 0x0C]); // lea rsi,[r12+r9] (REX.X for r9 index)
     c.extend_from_slice(&[0x89, 0xD1]); // mov ecx, edx
     c.extend_from_slice(&[0xF3, 0xA4]);
     let next_sec = c.len();
@@ -541,7 +541,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x49, 0x0F, 0xBA, 0xE2, 0x3F]); // bt r10,63 (not BTS /4→EA)
     let jc_ord = c.len();
     c.extend_from_slice(&[0x0F, 0x82, 0, 0, 0, 0]); // jc ord_gpa
-    c.extend_from_slice(&[0x4B, 0x8D, 0x54, 0x16, 0x02]); // lea rdx,[r14+r10+2] name (REX.R for r10 index)
+    c.extend_from_slice(&[0x4A, 0x8D, 0x54, 0x16, 0x02]); // lea rdx,[r14+r10+2] name (REX.X for r10 index)
     let gpa_call = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     let ord_gpa = c.len();
@@ -820,7 +820,8 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x48, 0x8D, 0x14, 0x0F]); // lea rdx,[rdi+rcx] exp start
     c.extend_from_slice(&[0x49, 0x89, 0xD2]); // mov r10, rdx
     c.extend_from_slice(&[0x8B, 0x94, 0x37, 0x8C, 0x00, 0x00, 0x00]); // export size
-    c.extend_from_slice(&[0x4C, 0x8D, 0x1C, 0x42]); // lea rbx,[rdx+r10] exp end — NOT 49 8D 1C 12 (=rdx+rdx)
+    c.extend_from_slice(&[0x89, 0xD3]); // mov ebx, edx (export dir size)
+    c.extend_from_slice(&[0x48, 0x01, 0xD3]); // add rbx, rdx → export dir end (rdx=start)
     c.extend_from_slice(&[0x4C, 0x39, 0xD0]); // cmp rax,r10
     let jb_ff_ret = c.len();
     c.extend_from_slice(&[0x0F, 0x82, 0, 0, 0, 0]);
@@ -1245,11 +1246,31 @@ mod tests {
         );
         assert!(
             !body.windows(4).any(|w| w == [0x49, 0x8D, 0x1C, 0x12]),
-            "must not emit lea rbx,[rdx+rdx] (49 8D 1C 12) — forwarder end uses [rdx+r10]"
+            "must not emit lea rbx,[rdx+rdx] (49 8D 1C 12)"
         );
         assert!(
-            body.windows(4).any(|w| w == [0x4C, 0x8D, 0x1C, 0x42]),
-            "fix_forward needs lea rbx,[rdx+r10] (4C 8D 1C 42)"
+            !body.windows(4).any(|w| w == [0x4C, 0x8D, 0x1C, 0x42]),
+            "must not emit lea r11,[rdx+rax*2] (4C 8D 1C 42) — forwarder end is rdx+size"
+        );
+        assert!(
+            body.windows(5).any(|w| w == [0x89, 0xD3, 0x48, 0x01, 0xD3]),
+            "fix_forward needs mov ebx,edx; add rbx,rdx (export dir end)"
+        );
+        assert!(
+            body.windows(4).any(|w| w == [0x4A, 0x8D, 0x34, 0x0C]),
+            "section copy needs lea rsi,[r12+r9] (4A 8D 34 0C REX.X)"
+        );
+        assert!(
+            body.windows(5).any(|w| w == [0x4A, 0x8D, 0x54, 0x16, 0x02]),
+            "import name needs lea rdx,[r14+r10+2] (4A 8D 54 16 02 REX.X)"
+        );
+        assert!(
+            !body.windows(4).any(|w| w == [0x4B, 0x8D, 0x34, 0x0C]),
+            "must not emit lea rsi,[r12+rcx] (4B 8D 34 0C) — need r9 index via REX.X"
+        );
+        assert!(
+            !body.windows(5).any(|w| w == [0x4B, 0x8D, 0x54, 0x16, 0x02]),
+            "must not emit lea rdx,[r14+rdx+2] (4B 8D 54 16 02) — need r10 index via REX.X"
         );
         assert!(
             !body.windows(3).any(|w| w == [0x29, 0xC9]),

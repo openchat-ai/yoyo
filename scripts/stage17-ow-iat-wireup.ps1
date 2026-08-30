@@ -135,6 +135,12 @@ if (-not $SkipSmoke) {
             11 { "probe_WriteFile" }
             130 { "import_ok_bisect" }
             131 { "reloc_ok_bisect" }
+            160 { "phase_map_image_ok" }
+            161 { "phase_sections_ok" }
+            162 { "phase_reloc_ok" }
+            163 { "phase_import_ok" }
+            164 { "phase_flush_icache" }
+            165 { "phase_export_call" }
             1 { "generic_fail_or_runtime" }
             -1073741819 { "access_violation" }
             default { "unknown" }
