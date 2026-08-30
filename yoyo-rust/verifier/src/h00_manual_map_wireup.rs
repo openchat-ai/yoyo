@@ -15,7 +15,7 @@ pub const IAT_CREATE_FILE: u32 = 1;
 pub const IAT_READ_FILE: u32 = 2;
 pub const IAT_CLOSE_HANDLE: u32 = 4;
 
-/// Stack scratch for ReadFile nNumberOfBytesRead (above Win64 shadow 0x28).
+/// Stack scratch for ReadFile nNumberOfBytesRead (above 7-arg CreateFile stack frame).
 const READ_BYTES_STACK_OFF: u8 = 0x30;
 /// GPA proc-name spill for FlushICache (same slot — must stay above shadow, not inside it).
 const FLUSH_ICACHE_NAME_STACK_OFF: u8 = READ_BYTES_STACK_OFF;
@@ -57,7 +57,10 @@ const PHASE_FLUSH_ICACHE: u8 = 0x0E;
 const PHASE_EXPORT_CALL: u8 = 0x0F;
 
 /// Win64 home-space before `call` to kernel32 (RSP%16==8 at CALL; prologue already `and rsp,-16`).
-const WIN64_CALL_SHADOW: u8 = 0x28;
+/// 0x38 = 32 B shadow + 3 stack slots (CreateFileA 7th param at [rsp+30h]; ret at [rsp+38h]).
+const WIN64_CALL_SHADOW: u8 = 0x38;
+/// Short dll/api name spill for 2-arg bootstrap calls (inside 32 B home space; ret at [rsp+38h]).
+const WIN64_STACK_STR_OFF: u8 = 0x20;
 
 fn emit_win64_call_shadow(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]);
@@ -592,9 +595,9 @@ fn gen_h00_manual_map_body(
     emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, iat_rva);
     emit_win64_call_shadow(&mut c);
     for (off, ch) in b"kernel32.dll\0".iter().enumerate() {
-        c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_CALL_SHADOW + off as u8, *ch]);
+        c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + off as u8, *ch]);
     }
-    c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_CALL_SHADOW]); // lea rdx,[rsp+28h]
+    c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]); // lea rdx,[rsp+20h]
     let call_boot_find = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
@@ -617,9 +620,9 @@ fn gen_h00_manual_map_body(
         (11, b'A'),
         (12, 0),
     ] {
-        c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_CALL_SHADOW + off, ch]);
+        c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + off, ch]);
     }
-    c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_CALL_SHADOW]); // lea rdx,[rsp+28h]
+    c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]); // lea rdx,[rsp+20h]
     let call_boot_resolve = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
     emit_mov_qword_to_r15_scratch(&mut c, H00_LOADLIBRARY_SCRATCH_OFF, 0); // [r15+scratch]=LoadLibraryA
@@ -642,9 +645,9 @@ fn gen_h00_manual_map_body(
         (13, b's'),
         (14, 0),
     ] {
-        c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_CALL_SHADOW + off, ch]);
+        c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + off, ch]);
     }
-    c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_CALL_SHADOW]);
+    c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]);
     let call_boot_gpa = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
     emit_mov_qword_to_r15_scratch(&mut c, H00_GETPROCADDRESS_SCRATCH_OFF, 0);
@@ -1289,7 +1292,7 @@ mod tests {
         );
         assert!(
             body.windows(4)
-                .filter(|w| **w == [0x48, 0x83, 0xEC, 0x28])
+                .filter(|w| **w == [0x48, 0x83, 0xEC, 0x38])
                 .count()
                 >= 4,
             "prelude needs Win64 shadow before each kernel32 IAT call"
@@ -1302,7 +1305,7 @@ mod tests {
         let body = gen_h00_manual_map_main(&meta, 0x1000, 17_823);
         let mut starts = Vec::new();
         for i in 0..body.len().saturating_sub(8) {
-            if body[i..i + 4] == [0x48, 0x83, 0xEC, 0x28]
+            if body[i..i + 4] == [0x48, 0x83, 0xEC, 0x38]
                 && i + 4 < body.len()
                 && body[i + 4] == 0xB9
             {
@@ -1312,7 +1315,7 @@ mod tests {
         assert_eq!(
             starts.len(),
             8,
-            "expected 8 fail epilogues (sub rsp,28h; mov ecx,imm)"
+            "expected 8 fail epilogues (sub rsp,38h; mov ecx,imm)"
         );
         for w in starts.windows(2) {
             assert_eq!(
@@ -1423,7 +1426,7 @@ mod tests {
             "bootstrap must not use sidecar import[0] name for find_module (use kernel32.dll stack)"
         );
         assert!(
-            body.windows(5).any(|w| w == [0xC6, 0x44, 0x24, WIN64_CALL_SHADOW, b'k']),
+            body.windows(5).any(|w| w == [0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF, b'k']),
             "bootstrap must build kernel32.dll in Win64 shadow (C6 44 24 28 6B)"
         );
         assert!(
@@ -1608,7 +1611,7 @@ mod tests {
             assert_eq!(
                 &tail[0..5],
                 &[0x48, 0x83, 0xC4, WIN64_CALL_SHADOW, 0xE9][..],
-                "after GPA bootstrap store expect add rsp,28h; jmp (skip failure pop)"
+                "after GPA bootstrap store expect add rsp,38h; jmp (skip failure pop)"
             );
             assert!(
                 !body[at + 7..].windows(2).any(|w| w == [0xE9, 0xF7]),
@@ -1626,16 +1629,16 @@ mod tests {
         // Export call: prologue already aligned RSP; shadow sub alone yields RSP%16==8 at call.
         let export_shadow = body
             .windows(4)
-            .position(|w| w == [0x48, 0x83, 0xEC, 0x28]);
+            .position(|w| w == [0x48, 0x83, 0xEC, 0x38]);
         assert!(
             export_shadow.is_some(),
-            "export tail must sub rsp,0x28 before call (Win64 shadow)"
+            "export tail must sub rsp,0x38 before call (Win64 shadow)"
         );
         // Fail epilogues: shadow + mov ecx,imm + FF15
         assert!(
             body.windows(10)
                 .filter(|w| {
-                    w[0..4] == [0x48, 0x83, 0xEC, 0x28]
+                    w[0..4] == [0x48, 0x83, 0xEC, 0x38]
                         && w[4] == 0xB9
                         && w[9] == 0xFF
                 })
@@ -1646,7 +1649,7 @@ mod tests {
         assert!(
             body.windows(7).any(|w| {
                 w[0..3] == [0x89, 0xC1, 0x48]
-                    && w[3..7] == [0x83, 0xEC, 0x28, 0xFF]
+                    && w[3..7] == [0x83, 0xEC, 0x38, 0xFF]
             }),
             "export success path needs mov ecx,eax + Win64 shadow before ExitProcess"
         );
