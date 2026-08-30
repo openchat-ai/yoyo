@@ -533,6 +533,10 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jz_idone + 2, jz_idone + 6, import_done);
     emit_phase_probe(&mut c, PHASE_IMPORT_OK);
 
+    // TEMP bisect: exit 130 if import resolve completed (remove after smoke green).
+    c.extend_from_slice(&[0xB9, 130, 0, 0, 0]);
+    emit_call_iat_merged(&mut c, text_rva, chunk_text_off, iat_rva, IAT_EXIT_PROCESS);
+
     // Realign stack after nested find/resolve helper calls (Win64 movaps safety).
     c.extend_from_slice(&[0x48, 0x83, 0xE4, 0xF0]); // and rsp, -16
 

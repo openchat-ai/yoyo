@@ -1163,6 +1163,115 @@ mod tests {
         eprintln!("STUB_HOST_IAT_COMPARE count={} status=EQUAL", host_iat.len());
     }
 
+    /// Emitted x64 import path uses LoadLibrary once per descriptor + GetProcAddress per thunk.
+    #[test]
+    #[cfg(windows)]
+    fn compare_ll_gpa_vs_host_iat_on_sidecar() {
+        use std::collections::HashMap;
+        use std::ffi::CString;
+
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn LoadLibraryA(name: *const i8) -> *mut std::ffi::c_void;
+            fn GetProcAddress(module: *mut std::ffi::c_void, name: *const i8) -> *mut std::ffi::c_void;
+        }
+
+        fn host_resolve(dll: &str, name: &str) -> Option<u64> {
+            let dll_c = CString::new(dll).ok()?;
+            unsafe {
+                let module = LoadLibraryA(dll_c.as_ptr());
+                if module.is_null() {
+                    return None;
+                }
+                if let Some(rest) = name.strip_prefix('#') {
+                    let ord: u16 = rest.parse().ok()?;
+                    let proc = GetProcAddress(module, ord as usize as *const i8);
+                    if proc.is_null() {
+                        None
+                    } else {
+                        Some(proc as u64)
+                    }
+                } else {
+                    let name_c = CString::new(name).ok()?;
+                    let proc = GetProcAddress(module, name_c.as_ptr());
+                    if proc.is_null() {
+                        None
+                    } else {
+                        Some(proc as u64)
+                    }
+                }
+            }
+        }
+
+        fn ll_gpa_resolve(
+            dll: &str,
+            name: &str,
+            modules: &mut HashMap<String, *mut std::ffi::c_void>,
+        ) -> Option<u64> {
+            let dll_c = CString::new(dll).ok()?;
+            unsafe {
+                let module = if let Some(&m) = modules.get(dll) {
+                    m
+                } else {
+                    let m = LoadLibraryA(dll_c.as_ptr());
+                    if m.is_null() {
+                        return None;
+                    }
+                    modules.insert(dll.to_string(), m);
+                    m
+                };
+                if let Some(rest) = name.strip_prefix('#') {
+                    let ord: u16 = rest.parse().ok()?;
+                    let proc = GetProcAddress(module, ord as usize as *const i8);
+                    if proc.is_null() {
+                        None
+                    } else {
+                        Some(proc as u64)
+                    }
+                } else {
+                    let name_c = CString::new(name).ok()?;
+                    let proc = GetProcAddress(module, name_c.as_ptr());
+                    if proc.is_null() {
+                        None
+                    } else {
+                        Some(proc as u64)
+                    }
+                }
+            }
+        }
+
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let paths = [
+            root.join("target/release-runtime/yoyo_runtime.dll"),
+            root.join("target/release/yoyo_runtime.dll"),
+        ];
+        let Some(path) = paths.iter().find(|p| p.is_file()) else {
+            eprintln!("skip compare_ll_gpa_vs_host_iat_on_sidecar: yoyo_runtime.dll not built");
+            return;
+        };
+        let file = std::fs::read(path).expect("read sidecar");
+        let headers = parse_pe64_headers(&file).expect("headers");
+
+        let mut host_image = map_pe_sections(&file, &headers).expect("host map sections");
+        let load_base = host_image.as_ptr() as u64;
+        apply_base_relocations(&mut host_image, &headers, load_base).expect("host reloc");
+        resolve_imports(&mut host_image, &headers, host_resolve).expect("host imports");
+        let host_iat = collect_resolved_imports(&host_image, &headers).expect("host iat");
+
+        let mut ll_image = map_pe_sections(&file, &headers).expect("ll map sections");
+        apply_base_relocations(&mut ll_image, &headers, load_base).expect("ll reloc");
+        let mut modules = HashMap::new();
+        resolve_imports(&mut ll_image, &headers, |dll, name| {
+            ll_gpa_resolve(dll, name, &mut modules)
+        })
+        .expect("ll gpa imports");
+        let ll_iat = collect_resolved_imports(&ll_image, &headers).expect("ll iat");
+
+        assert_eq!(host_iat, ll_iat, "LL+GPA-per-desc must match host IAT fills");
+        assert_eq!(host_image, ll_image, "full image must match for LL+GPA import path");
+        eprintln!("LL_GPA_HOST_IAT_COMPARE count={} status=EQUAL", host_iat.len());
+    }
+
     fn write_u16(buf: &mut [u8], off: usize, v: u16) {
         buf[off..off + 2].copy_from_slice(&v.to_le_bytes());
     }

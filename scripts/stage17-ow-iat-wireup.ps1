@@ -22,6 +22,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "manual_map_runtime_smoke_host_resolve failed (stub vs reference mapper)" }
     & cargo test -p verifier --lib manual_map_runtime_smoke_stub_resolve
     if ($LASTEXITCODE -ne 0) { throw "manual_map_runtime_smoke_stub_resolve failed (stub_resolve map+export)" }
+    & cargo test -p verifier --lib compare_ll_gpa_vs_host_iat_on_sidecar
+    if ($LASTEXITCODE -ne 0) { throw "compare_ll_gpa_vs_host_iat_on_sidecar failed (LL+GPA import != host)" }
     & cargo test -p verifier --lib compare_stub_vs_host_iat_on_sidecar
     if ($LASTEXITCODE -ne 0) { throw "compare_stub_vs_host_iat_on_sidecar failed (stub IAT != host GetProcAddress)" }
 } finally {
@@ -131,6 +133,7 @@ if (-not $SkipSmoke) {
             9 { "DllMain" }
             10 { "probe_CreateFile" }
             11 { "probe_WriteFile" }
+            130 { "import_ok_bisect" }
             1 { "generic_fail_or_runtime" }
             -1073741819 { "access_violation" }
             default { "unknown" }
