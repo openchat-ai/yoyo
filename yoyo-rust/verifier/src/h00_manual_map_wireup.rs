@@ -551,9 +551,10 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x89, 0xC2]); // mov edx, eax
     let gpa_call_site = c.len();
     patch_rel32(&mut c, gpa_call + 1, gpa_call + 5, gpa_call_site);
-    c.extend_from_slice(&[0x41, 0x53]); // push r11 — GPA clobbers volatile IAT cursor
+    // Spill r11 in home space — push/pop breaks RSP%16==8 inside Win64 shadow.
+    c.extend_from_slice(&[0x4C, 0x89, 0x5C, 0x24, 0x20]); // mov [rsp+0x20], r11
     c.extend_from_slice(&[0x41, 0xFF, 0x57, H00_GETPROCADDRESS_SCRATCH_OFF]); // GetProcAddress
-    c.extend_from_slice(&[0x41, 0x5B]); // pop r11
+    c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x20]); // mov r11, [rsp+0x20]
     c.extend_from_slice(&[0x48, 0x85, 0xC0]); // resolve failed → fail_import
     fail_jumps.push((c.len(), fail_import));
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
@@ -1280,6 +1281,19 @@ mod tests {
                     && w[3..11] == [0x83, 0xE4, 0xF0, 0x48, 0x83, 0xEC, 0x28, 0xFF]
             }),
             "export success path needs mov ecx,eax + Win64 shadow before ExitProcess"
+        );
+        // Import thunk GPA must spill r11 at [rsp+0x20], not push/pop (breaks Win64 alignment in shadow).
+        assert!(
+            body.windows(14).any(|w| {
+                w[0..5] == [0x4C, 0x89, 0x5C, 0x24, 0x20]
+                    && w[5..9] == [0x41, 0xFF, 0x57, H00_GETPROCADDRESS_SCRATCH_OFF]
+                    && w[9..14] == [0x4C, 0x8B, 0x5C, 0x24, 0x20]
+            }),
+            "import GPA path needs mov [rsp+0x20],r11 / call GPA / mov r11,[rsp+0x20]"
+        );
+        assert!(
+            !body.windows(5).any(|w| w == [0x41, 0x53, 0x41, 0xFF, 0x57]),
+            "must not push r11 before call [r15+GPA] (41 53 41 FF 57) — misaligns Win64 shadow"
         );
     }
 }
