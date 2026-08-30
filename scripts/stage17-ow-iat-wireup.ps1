@@ -134,6 +134,7 @@ if (-not $SkipSmoke) {
             10 { "probe_CreateFile" }
             11 { "probe_WriteFile" }
             130 { "import_ok_bisect" }
+            131 { "reloc_ok_bisect" }
             1 { "generic_fail_or_runtime" }
             -1073741819 { "access_violation" }
             default { "unknown" }

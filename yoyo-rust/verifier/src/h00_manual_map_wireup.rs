@@ -372,6 +372,10 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jb_reloc_done + 2, jb_reloc_done + 6, reloc_done);
     emit_phase_probe(&mut c, PHASE_RELOC_OK);
 
+    // TEMP bisect: exit 131 if reloc completed (remove after smoke green).
+    c.extend_from_slice(&[0xB9, 131, 0, 0, 0]);
+    emit_call_iat_merged(&mut c, text_rva, chunk_text_off, iat_rva, IAT_EXIT_PROCESS);
+
     // Bootstrap LoadLibraryA at [r15+scratch] for find_module fallback (api-set forwarders).
     c.extend_from_slice(&[0x49, 0xC7, 0x47, H00_LOADLIBRARY_SCRATCH_OFF, 0, 0, 0, 0]);
     emit_mov_u32_pe_file(&mut c, 0, PE_OFF_IMPORT_DIR_RVA);
