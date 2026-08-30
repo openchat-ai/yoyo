@@ -20,6 +20,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "wire-up unit tests failed" }
     & cargo test -p verifier --lib manual_map_runtime_smoke_host_resolve
     if ($LASTEXITCODE -ne 0) { throw "manual_map_runtime_smoke_host_resolve failed (stub vs reference mapper)" }
+    & cargo test -p verifier --lib manual_map_runtime_smoke_stub_resolve
+    if ($LASTEXITCODE -ne 0) { throw "manual_map_runtime_smoke_stub_resolve failed (stub_resolve map+export)" }
     & cargo test -p verifier --lib compare_stub_vs_host_iat_on_sidecar
     if ($LASTEXITCODE -ne 0) { throw "compare_stub_vs_host_iat_on_sidecar failed (stub IAT != host GetProcAddress)" }
 } finally {
@@ -133,7 +135,8 @@ if (-not $SkipSmoke) {
             -1073741819 { "access_violation" }
             default { "unknown" }
         }
-        throw ("manual-map smoke WITH sidecar failed exit={0} phase={1}" -f $smokeExit, $phase)
+        $outDiag = if (Test-Path $outExe) { "output.exe=present" } else { "output.exe=absent" }
+        throw ("manual-map smoke WITH sidecar failed exit={0} phase={1} {2}" -f $smokeExit, $phase, $outDiag)
     }
     if (-not (Test-Path $outExe)) {
         Write-Host "DIAG: smoke exit=0 output.exe missing (export-tail isolate — map+imports reached)"

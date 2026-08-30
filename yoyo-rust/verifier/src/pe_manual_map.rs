@@ -998,6 +998,78 @@ mod tests {
         );
     }
 
+    /// Windows-only: same as host-resolve smoke but IAT filled via stub_resolve (PEB walk).
+    #[test]
+    #[cfg(windows)]
+    fn manual_map_runtime_smoke_stub_resolve() {
+        use super::stub_resolve;
+        use std::ffi::CString;
+        use std::path::PathBuf;
+
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn SetCurrentDirectoryA(path: *const i8) -> i32;
+        }
+
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let dll_path = [
+            root.join("yoyo-rust/target/release-runtime/yoyo_runtime.dll"),
+            root.join("yoyo-rust/target/release/yoyo_runtime.dll"),
+        ]
+        .into_iter()
+        .find(|p| p.is_file())
+        .expect("yoyo_runtime.dll not built");
+        let file = std::fs::read(&dll_path).expect("read sidecar");
+        let ll = stub_resolve::bootstrap_load_library_a();
+        assert!(ll.is_some(), "LoadLibraryA bootstrap from kernel32 exports");
+
+        let work = std::env::temp_dir().join(format!("yoyo-stub-map-smoke-{}", std::process::id()));
+        std::fs::create_dir_all(&work).expect("mkdir work");
+        let tyb = root.join("yoyo/projects/yoyo.tyb");
+        std::fs::copy(&tyb, work.join("input.tyb")).expect("copy input.tyb");
+
+        let prev_cwd = std::env::current_dir().expect("cwd");
+        struct RestoreCwd(std::path::PathBuf);
+        impl Drop for RestoreCwd {
+            fn drop(&mut self) {
+                let _ = std::env::set_current_dir(&self.0);
+            }
+        }
+        let _cwd_guard = RestoreCwd(prev_cwd);
+
+        let work_c = CString::new(work.to_string_lossy().as_bytes()).expect("work path");
+        unsafe {
+            assert_ne!(SetCurrentDirectoryA(work_c.as_ptr()), 0, "SetCurrentDirectoryA");
+        }
+
+        let mapped = manual_map_pe_dll_executable(&file, |dll, name| {
+            stub_resolve::stub_resolve(dll, name, ll)
+        })
+        .expect("manual map stub_resolve");
+        let base = mapped.base as u64;
+        let image = unsafe { std::slice::from_raw_parts(mapped.base, mapped.size) };
+
+        std::env::set_var("YOYO_MM_SMOKE_PROBE", "1");
+        struct ClearProbe;
+        impl Drop for ClearProbe {
+            fn drop(&mut self) {
+                std::env::remove_var("YOYO_MM_SMOKE_PROBE");
+            }
+        }
+        let _probe_guard = ClearProbe;
+
+        let export_rva =
+            export_function_rva_functions0(image, &mapped.headers).expect("export rva");
+        type ExportFn = unsafe extern "system" fn() -> i32;
+        let export_fn: ExportFn = unsafe { std::mem::transmute(base + export_rva as u64) };
+        let code = unsafe { export_fn() };
+        assert_eq!(code, 0, "yoyo_runtime_selfhost_main exit code (stub_resolve map)");
+        assert!(
+            work.join("output.exe").is_file(),
+            "output.exe missing after manual-map stub_resolve smoke"
+        );
+    }
+
     /// Stub resolver (PEB + forwarders + LoadLibrary fallback) must match host GetProcAddress IAT fills.
     #[test]
     #[cfg(windows)]
