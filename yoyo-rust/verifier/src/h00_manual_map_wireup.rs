@@ -19,8 +19,9 @@ pub const IAT_CLOSE_HANDLE: u32 = 4;
 const READ_BYTES_STACK_OFF: u8 = 0x20;
 /// GPA proc-name spill for FlushICache (same slot — must stay above shadow, not inside it).
 const FLUSH_ICACHE_NAME_STACK_OFF: u8 = READ_BYTES_STACK_OFF;
-/// One Win64 home (0x20) + CreateFile 3 stack args (0x18); must be 0 mod 16 (use 0x40 not 0x38).
-const PRELUDE_IO_FRAME: u8 = 0x40;
+/// One Win64 home (0x20) + CreateFile 3 stack args (0x18); 0x38 bytes total.
+/// After JMP-entry prologue (RSP%16==8), frame must be 8 mod 16 so FF15 CALL is 0 mod 16.
+const PRELUDE_IO_FRAME: u8 = 0x38;
 
 /// PE32+ optional-header field offsets from `e_lfanew` (ebx holds e_lfanew; COFF = 20 B after PE sig).
 const PE_OFF_NUMBER_OF_SECTIONS: u8 = 6; // COFF + 2
@@ -1348,7 +1349,7 @@ mod tests {
                 .filter(|w| **w == [0x48, 0x83, 0xEC, PRELUDE_IO_FRAME])
                 .count()
                 >= 1,
-            "prelude needs unified I/O stack frame (sub rsp,40h)"
+            "prelude needs unified I/O stack frame (sub rsp,38h)"
         );
         assert!(
             body.windows(2)
@@ -1496,6 +1497,11 @@ mod tests {
         assert!(
             !body.windows(7).any(|w| w == [0x48, 0x81, 0xEC, 0x08, 0x02, 0x00, 0x00]),
             "must not sub rsp,0x208 — misaligns CALL after JMP entry (kernel32 movaps AV)"
+        );
+        assert_eq!(
+            PRELUDE_IO_FRAME % 16,
+            8,
+            "prelude I/O frame must be 8 mod 16 for aligned kernel32 FF15 after JMP entry"
         );
         for i in 0..body.len().saturating_sub(10) {
             if body[i..i + 4] == [0x48, 0x83, 0xEC, 0x40]
