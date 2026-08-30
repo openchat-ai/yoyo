@@ -93,7 +93,7 @@ fn emit_jz_pop_shadow_then_fail(c: &mut Vec<u8>, chunk_text_off: usize, fail_imp
     );
 }
 
-/// ExitProcess via `call [r15+ExitProcess]` — reload r15 first (fail epilogues may follow clobber).
+/// ExitProcess via rip-relative IAT (FF15) — validated by `h00_seed_pe_rva_consistency`.
 fn emit_exit_process_iat(
     c: &mut Vec<u8>,
     text_rva: u32,
@@ -101,10 +101,9 @@ fn emit_exit_process_iat(
     iat_rva: u32,
     exit_code: u8,
 ) {
-    emit_reload_r15_data_base(c, text_rva, chunk_text_off, iat_rva);
     emit_win64_call_shadow(c);
     c.extend_from_slice(&[0xB9, exit_code, 0, 0, 0]);
-    emit_call_iat_r15_slot(c, IAT_EXIT_PROCESS);
+    emit_call_iat_merged(c, text_rva, chunk_text_off, iat_rva, IAT_EXIT_PROCESS);
 }
 
 fn emit_mov_qword_to_r15_scratch(c: &mut Vec<u8>, off: u32, reg: u8) {
@@ -145,8 +144,8 @@ fn emit_phase_probe(c: &mut Vec<u8>, phase: u8) {
     c.push(phase);
 }
 
-/// reload r15 + Win64 shadow + `mov ecx,imm32` + `call [r15+ExitProcess]`.
-const FAIL_EPILOGUE_LEN: usize = 23;
+/// Win64 shadow + `mov ecx,imm32` + rip-relative ExitProcess (FF15).
+const FAIL_EPILOGUE_LEN: usize = 15;
 
 /// When `H00_BISECT_EXIT` matches `150 + phase` (151–165), exit after probe (CI bisect).
 fn maybe_bisect_exit_after_phase(
@@ -1344,14 +1343,9 @@ mod tests {
         let from = code_base_off as usize + jz_off + 6;
         let to = (from as i64 + rel as i64) as usize;
         let epilogue_off = body
-            .windows(13)
-            .position(|w| {
-                w[0..3] == [0x4C, 0x8D, 0x3D]
-                    && w[7..11] == [0x48, 0x83, 0xEC, 0x38]
-                    && w[11] == 0xB9
-                    && w[12] == 0x02
-            })
-            .expect("ExitProcess(2) fail epilogue (reload r15 + shadow + mov ecx,2)");
+            .windows(8)
+            .position(|w| w == [0x48, 0x83, 0xEC, 0x38, 0xB9, 0x02, 0x00, 0x00])
+            .expect("ExitProcess(2) fail epilogue (shadow + mov ecx,2)");
         assert_eq!(
             to,
             code_base_off as usize + epilogue_off,
@@ -1389,11 +1383,13 @@ mod tests {
         let meta = sample_meta();
         let body = gen_h00_manual_map_main(&meta, 0x1000, 17_823);
         let mut starts = Vec::new();
-        for i in 0..body.len().saturating_sub(22) {
-            if body[i..i + 3] == [0x4C, 0x8D, 0x3D]
-                && body[i + 7..i + 11] == [0x48, 0x83, 0xEC, 0x38]
-                && body[i + 11] == 0xB9
-                && body[i + 16..i + 23] == [0x41, 0xFF, 0x97, 0x28, 0x00, 0x00, 0x00]
+        for i in 0..body.len().saturating_sub(8) {
+            if body[i..i + 4] == [0x48, 0x83, 0xEC, 0x38]
+                && i + 4 < body.len()
+                && body[i + 4] == 0xB9
+                && i + 9 < body.len()
+                && body[i + 9] == 0xFF
+                && body[i + 10] == 0x15
             {
                 starts.push(i);
             }
@@ -1401,7 +1397,7 @@ mod tests {
         assert_eq!(
             starts.len(),
             8,
-            "expected 8 fail epilogues (reload r15 + shadow + mov ecx + call [r15+ExitProcess])"
+            "expected 8 fail epilogues (shadow + mov ecx + FF15 ExitProcess)"
         );
         for w in starts.windows(2) {
             assert_eq!(
@@ -1436,8 +1432,8 @@ mod tests {
             }
         }
         assert!(
-            body.len() > 400 && body.len() < 2320,
-            "manual-map H_00 stub should fit OW-STUB pin [40,2320] (got {}B)",
+            body.len() > 400 && body.len() < 2300,
+            "manual-map H_00 stub should fit OW-STUB pin [40,2300] (got {}B)",
             body.len()
         );
         // No un-prefixed [r12+rbx] PE reads (without REX.B they decode as [rsp+rbx]).
@@ -1720,18 +1716,17 @@ mod tests {
             export_shadow.is_some(),
             "export tail must sub rsp,0x38 before call (Win64 shadow)"
         );
-        // Fail epilogues: reload r15 + shadow + mov ecx + call [r15+ExitProcess]
+        // Fail epilogues: shadow + mov ecx + FF15 ExitProcess
         assert!(
-            body.windows(23)
+            body.windows(10)
                 .filter(|w| {
-                    w[0..3] == [0x4C, 0x8D, 0x3D]
-                        && w[7..11] == [0x48, 0x83, 0xEC, 0x38]
-                        && w[11] == 0xB9
-                        && w[16..23] == [0x41, 0xFF, 0x97, 0x28, 0x00, 0x00, 0x00]
+                    w[0..4] == [0x48, 0x83, 0xEC, 0x38]
+                        && w[4] == 0xB9
+                        && w[9] == 0xFF
                 })
                 .count()
                 >= 8,
-            "fail epilogues need reload r15 + Win64 shadow + call [r15+ExitProcess]"
+            "fail epilogues need Win64 shadow + FF15 ExitProcess"
         );
         assert!(
             body.windows(7).any(|w| {
