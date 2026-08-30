@@ -754,6 +754,10 @@ pub mod stub_resolve {
 mod tests {
     use super::*;
 
+    /// `SetCurrentDirectoryA` is process-global; serialize cwd-based manual-map smokes.
+    #[cfg(windows)]
+    static MANUAL_MAP_SMOKE_CWD_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     fn write_u32(buf: &mut [u8], off: usize, v: u32) {
         buf[off..off + 4].copy_from_slice(&v.to_le_bytes());
     }
@@ -897,6 +901,9 @@ mod tests {
     #[test]
     #[cfg(windows)]
     fn manual_map_runtime_smoke_host_resolve() {
+        let _cwd_lock = MANUAL_MAP_SMOKE_CWD_LOCK
+            .lock()
+            .expect("manual map smoke cwd lock");
         use std::ffi::CString;
         use std::path::PathBuf;
 
@@ -1002,6 +1009,9 @@ mod tests {
     #[test]
     #[cfg(windows)]
     fn manual_map_runtime_smoke_stub_resolve() {
+        let _cwd_lock = MANUAL_MAP_SMOKE_CWD_LOCK
+            .lock()
+            .expect("manual map smoke cwd lock");
         use super::stub_resolve;
         use std::ffi::CString;
         use std::path::PathBuf;
