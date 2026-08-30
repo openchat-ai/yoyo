@@ -28,15 +28,15 @@ const H00_IAT_SITES = [
   [145, 2], // ReadFile
   [154, 4], // CloseHandle
   [210, 0], // VirtualAlloc (image)
-  [1818, 5], // ExitProcess (export success)
-  [1837, 5], // ExitProcess (fail CreateFile)
-  [1856, 5], // ExitProcess (fail Read)
-  [1875, 5], // ExitProcess (fail VirtualAlloc)
-  [1894, 5], // ExitProcess (fail section_copy)
-  [1913, 5], // ExitProcess (fail reloc)
-  [1932, 5], // ExitProcess (fail import)
-  [1951, 5], // ExitProcess (fail export)
-  [1970, 5], // ExitProcess (fail DllMain — epilogue only, DllMain skipped)
+  [1817, 5], // ExitProcess (export success)
+  [1836, 5], // ExitProcess (fail CreateFile)
+  [1855, 5], // ExitProcess (fail Read)
+  [1874, 5], // ExitProcess (fail VirtualAlloc)
+  [1893, 5], // ExitProcess (fail section_copy)
+  [1912, 5], // ExitProcess (fail reloc)
+  [1931, 5], // ExitProcess (fail import)
+  [1950, 5], // ExitProcess (fail export)
+  [1969, 5], // ExitProcess (fail DllMain — epilogue only, DllMain skipped)
 ];
 
 function rebaseManualMapStub(buf, textRva, codeBaseOff, meta) {
