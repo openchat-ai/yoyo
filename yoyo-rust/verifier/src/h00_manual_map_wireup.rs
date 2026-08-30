@@ -15,8 +15,10 @@ pub const IAT_CREATE_FILE: u32 = 1;
 pub const IAT_READ_FILE: u32 = 2;
 pub const IAT_CLOSE_HANDLE: u32 = 4;
 
-/// Stack scratch for ReadFile nNumberOfBytesRead (above shadow 0x28).
+/// Stack scratch for ReadFile nNumberOfBytesRead (above Win64 shadow 0x28).
 const READ_BYTES_STACK_OFF: u8 = 0x30;
+/// GPA proc-name spill for FlushICache (same slot — must stay above shadow, not inside it).
+const FLUSH_ICACHE_NAME_STACK_OFF: u8 = READ_BYTES_STACK_OFF;
 
 /// PE32+ optional-header field offsets from `e_lfanew` (ebx holds e_lfanew; COFF = 20 B after PE sig).
 const PE_OFF_NUMBER_OF_SECTIONS: u8 = 6; // COFF + 2
@@ -727,13 +729,23 @@ fn gen_h00_manual_map_body(
     );
     emit_win64_call_shadow(&mut c);
     emit_mov_qword_from_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 1); // rcx = kernel32
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x30]);
     for (off, ch) in b"FlushInstructionCache\0".iter().enumerate() {
-        c.extend_from_slice(&[0xC6, 0x44, 0x24, off as u8, *ch]);
+        c.extend_from_slice(&[
+            0xC6,
+            0x44,
+            0x24,
+            FLUSH_ICACHE_NAME_STACK_OFF.wrapping_add(off as u8),
+            *ch,
+        ]);
     }
-    c.extend_from_slice(&[0x48, 0x8D, 0x14, 0x24]);
+    c.extend_from_slice(&[
+        0x48,
+        0x8D,
+        0x54,
+        0x24,
+        FLUSH_ICACHE_NAME_STACK_OFF,
+    ]); // lea rdx,[rsp+30h] — above shadow; sub rsp,30h clobbered Win64 home space
     emit_call_r15_scratch(&mut c, H00_GETPROCADDRESS_SCRATCH_OFF); // rax = FlushICache
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x30]);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_skip_flush2 = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
@@ -1399,6 +1411,17 @@ mod tests {
                 .count()
                 >= 2,
             "FlushICache path needs mov r8d,[r14+rbx+50h] disp8 (45 8B 44 1E 50) twice"
+        );
+        assert!(
+            body.windows(6).any(|w| {
+                w[0..5] == [0x48, 0x8D, 0x54, 0x24, FLUSH_ICACHE_NAME_STACK_OFF]
+                    && w[5] == 0x41
+            }),
+            "FlushICache GPA must lea rdx,[rsp+30h] then call [r15+GPA] (name above Win64 shadow)"
+        );
+        assert!(
+            !body.windows(5).any(|w| w == [0x48, 0x83, 0xEC, 0x30, 0xC6]),
+            "must not sub rsp,30h before FlushICache GPA name (clobbers Win64 shadow → AV)"
         );
         assert!(
             !body.windows(5).any(|w| w == [0x45, 0x8B, 0x84, 0x1E, PE_OFF_SIZE_OF_IMAGE]),
