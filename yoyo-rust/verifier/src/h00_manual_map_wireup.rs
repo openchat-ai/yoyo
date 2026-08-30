@@ -290,6 +290,9 @@ pub fn gen_h00_read_sidecar_prelude(
     c.extend_from_slice(&[0x48, 0x83, 0xF8, 0xFF]);
     let jz_no_file = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]); // test rax,rax — NULL handle
+    let jz_null_file = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x89, 0xC3]);
     emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, meta.iat_rva);
     emit_phase_probe(&mut c, PHASE_PRELUDE_CREATE_OK);
@@ -330,8 +333,7 @@ pub fn gen_h00_read_sidecar_prelude(
     c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x20, 0x00, 0x00, 0x00, 0x00]); // OVERLAPPED NULL
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_READ_FILE);
     c.extend_from_slice(&[0x85, 0xC0]); // test eax,eax — ReadFile BOOL
-    let jz_read_fail = c.len();
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    emit_jz_pop_shadow_then_fail(&mut c, chunk_text_off as usize, fail_read_empty);
     emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, meta.iat_rva);
     emit_phase_probe(&mut c, PHASE_PRELUDE_READ_OK);
     maybe_bisect_exit_after_phase(
@@ -373,8 +375,8 @@ pub fn gen_h00_read_sidecar_prelude(
 
     for (at, fail) in [
         (jz_no_file, fail_create_file),
+        (jz_null_file, fail_create_file),
         (jz_no_buf, fail_virtual_alloc),
-        (jz_read_fail, fail_read_empty),
         (jz_empty, fail_read_empty),
     ] {
         patch_rel32(
@@ -1306,6 +1308,56 @@ mod tests {
                 .count()
                 >= 4,
             "prelude needs Win64 shadow before each kernel32 IAT call"
+        );
+    }
+
+    #[test]
+    fn fail_jump_create_file_lands_on_exit2_epilogue() {
+        let meta = sample_meta();
+        let code_base_off = 17_823u32;
+        let body = gen_h00_manual_map_main(&meta, 0x1000, code_base_off);
+        let cmp_pat = [0x48u8, 0x83, 0xF8, 0xFF];
+        let cmp_off = body
+            .windows(cmp_pat.len())
+            .position(|w| w == cmp_pat)
+            .expect("CreateFile cmp rax,-1");
+        let jz_off = cmp_off + cmp_pat.len();
+        let rel = i32::from_le_bytes(body[jz_off + 2..jz_off + 6].try_into().unwrap());
+        let from = code_base_off as usize + jz_off + 6;
+        let to = (from as i64 + rel as i64) as usize;
+        let epilogue_off = body
+            .windows(8)
+            .position(|w| w == [0x48, 0x83, 0xEC, 0x38, 0xB9, 0x02, 0x00, 0x00])
+            .expect("ExitProcess(2) epilogue");
+        assert_eq!(
+            to,
+            code_base_off as usize + epilogue_off,
+            "CreateFile fail jz must land on ExitProcess(2) epilogue"
+        );
+    }
+
+    #[test]
+    fn read_file_fail_pops_shadow_before_exit3() {
+        let meta = sample_meta();
+        let body = gen_h00_manual_map_main(&meta, 0x1000, 17_823);
+        let mut found = false;
+        for i in 0..body.len().saturating_sub(14) {
+            if body[i..i + 2] != [0x85, 0xC0] || body[i + 2..i + 4] != [0x0F, 0x84] {
+                continue;
+            }
+            for j in i + 4..(i + 20).min(body.len().saturating_sub(5)) {
+                if body[j..j + 4] == [0x48, 0x83, 0xC4, 0x38] && body[j + 4] == 0xE9 {
+                    found = true;
+                    break;
+                }
+            }
+            if found {
+                break;
+            }
+        }
+        assert!(
+            found,
+            "ReadFile fail must pop Win64 shadow (add rsp,38h) before jmp to ExitProcess(3)"
         );
     }
 

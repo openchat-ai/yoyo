@@ -36,7 +36,7 @@ const PRELOAD_RUNTIME_DLL_IMPORTS: &[(&str, &str)] = &[
 pub const WIN32_IO_H00_SCRATCH_BYTES: usize = 32;
 
 /// Offset from r15 / `.data` base to H_00 scratch (pinned by `h00_scratch_off_pinned`).
-pub const WIN32_IO_H00_SCRATCH_OFF: u32 = 0x2D3;
+pub const WIN32_IO_H00_SCRATCH_OFF: u32 = 0x25B;
 
 fn hint_name_bytes(func: &str) -> Vec<u8> {
     let mut hn = Vec::new();
@@ -51,7 +51,8 @@ fn hint_name_bytes(func: &str) -> Vec<u8> {
 
 /// Prepend kernel32 IAT at r15+0 for Stage 8 platform I/O emit.
 fn prepend_win32_io_iat(user_data: &[u8], data_rva: u32) -> (Vec<u8>, u32, u32) {
-    let desc_size = 40usize;
+    const DESC_SIZE: usize = 20; // IMAGE_IMPORT_DESCRIPTOR (was 40 — broke loader chain)
+    let desc_size = DESC_SIZE;
     let kernel32_name = b"kernel32.dll\0";
     let kern_n = KERNEL32_IO_FUNCS.len();
     let preload_n = PRELOAD_RUNTIME_DLL_IMPORTS.len();
@@ -139,7 +140,7 @@ fn prepend_win32_io_iat(user_data: &[u8], data_rva: u32) -> (Vec<u8>, u32, u32) 
     }
 
     blob[user_base..user_base + user_data.len()].copy_from_slice(user_data);
-    let import_dir_bytes = desc_size * (1 + preload_n);
+    let import_dir_bytes = desc_size * num_desc;
     (
         blob,
         data_rva + desc_off as u32,
@@ -534,7 +535,8 @@ mod tests {
 
     #[test]
     fn h00_scratch_off_pinned() {
-        let desc_size = 40usize;
+        const DESC_SIZE: usize = 20; // IMAGE_IMPORT_DESCRIPTOR (was 40 — broke loader chain)
+    let desc_size = DESC_SIZE;
         let kern_n = KERNEL32_IO_FUNCS.len();
         let preload_n = PRELOAD_RUNTIME_DLL_IMPORTS.len();
         let num_desc = 1 + preload_n + 1;
