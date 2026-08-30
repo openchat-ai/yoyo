@@ -421,17 +421,19 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_skip_ll_boot = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x49, 0x8D, 0x34, 0x06]); // lea rsi,[r14+rax] first import desc
-    c.extend_from_slice(&[0x8B, 0x4E, 0x0C]); // Name RVA
-    c.extend_from_slice(&[0x49, 0x8D, 0x54, 0x0E, 0x00]); // lea rdx,[r14+rcx] dll name (KERNEL32)
+    // Bootstrap must find kernel32 via PEB — not sidecar import[0] (order varies).
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x20]); // sub rsp, 0x20
+    for (off, ch) in b"kernel32.dll\0".iter().enumerate() {
+        c.extend_from_slice(&[0xC6, 0x44, 0x24, off as u8, *ch]);
+    }
+    c.extend_from_slice(&[0x48, 0x8D, 0x14, 0x24]); // lea rdx,[rsp]
     let call_boot_find = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_skip_ll_boot2 = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = kernel32
-    // Build export name on stack byte-by-byte (no contiguous "LoadLibraryA" in PE).
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x20]); // sub rsp, 0x20
+    // Reuse stack slot for LoadLibraryA export name (no contiguous needle in PE).
     for (off, ch) in [
         (0u8, b'L'),
         (1, b'o'),
@@ -452,7 +454,6 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x48, 0x8D, 0x14, 0x24]); // lea rdx, [rsp]
     let call_boot_resolve = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]); // add rsp, 0x20
     c.extend_from_slice(&[0x49, 0x89, 0x47, H00_LOADLIBRARY_SCRATCH_OFF]); // [r15+scratch]=LoadLibraryA
     c.extend_from_slice(&[0x49, 0x89, 0x7F, H00_KERNEL32_SCRATCH_OFF]); // [r15+0x60]=kernel32
     // Bootstrap GetProcAddress (sidecar IAT resolve uses host LoadLibrary+GetProcAddress).
@@ -481,9 +482,15 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]);
     c.extend_from_slice(&[0x49, 0x89, 0x47, H00_GETPROCADDRESS_SCRATCH_OFF]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]); // add rsp, 0x20 (kernel32 name / LL+GPA stack)
     let skip_ll_boot = c.len();
     patch_rel32(&mut c, jz_skip_ll_boot + 2, jz_skip_ll_boot + 6, skip_ll_boot);
-    patch_rel32(&mut c, jz_skip_ll_boot2 + 2, jz_skip_ll_boot2 + 6, skip_ll_boot);
+    let skip_ll_boot_pop = c.len();
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]); // find_module failed — pop kernel32 stack
+    let jmp_skip_ll_boot = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    patch_rel32(&mut c, jz_skip_ll_boot2 + 2, jz_skip_ll_boot2 + 6, skip_ll_boot_pop);
+    patch_rel32(&mut c, jmp_skip_ll_boot + 1, jmp_skip_ll_boot + 5, skip_ll_boot);
 
     // Import resolve: walk descriptors at [r14+import_rva]
     emit_mov_u32_pe_file(&mut c, 0, PE_OFF_IMPORT_DIR_RVA); // import dir rva
@@ -509,6 +516,13 @@ fn gen_h00_manual_map_body(
     let process_desc = c.len();
     patch_rel32(&mut c, jnz_process + 2, jnz_process + 6, process_desc);
     patch_rel32(&mut c, jnz_process2 + 2, jnz_process2 + 6, process_desc);
+    // Bootstrap must have filled LL/GPA scratch — null call [r15+50h] AVs (fail-closed → exit 7).
+    c.extend_from_slice(&[0x49, 0x83, 0x7F, H00_LOADLIBRARY_SCRATCH_OFF, 0x00]);
+    fail_jumps.push((c.len(), fail_import));
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x49, 0x83, 0x7F, H00_GETPROCADDRESS_SCRATCH_OFF, 0x00]);
+    fail_jumps.push((c.len(), fail_import));
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     emit_win64_call_shadow(&mut c);
     // FirstThunk rva is in edx — load module first, then lea r11 (LL/GPA clobber r11).
     c.extend_from_slice(&[0x49, 0x8D, 0x14, 0x0E]); // lea rdx,[r14+rcx] module name
@@ -1092,8 +1106,8 @@ mod tests {
             }
         }
         assert!(
-            body.len() > 400 && body.len() < 2000,
-            "manual-map H_00 stub should fit OW-STUB pin [40,2000] (got {}B)",
+            body.len() > 400 && body.len() < 2100,
+            "manual-map H_00 stub should fit OW-STUB pin [40,2100] (got {}B)",
             body.len()
         );
         // No un-prefixed [r12+rbx] PE reads (without REX.B they decode as [rsp+rbx]).
@@ -1162,6 +1176,21 @@ mod tests {
             body.windows(7)
                 .any(|w| *w == [0x8B, 0x84, 0x33, 0x88, 0x00, 0x00, 0x00]),
             "export tail needs mov eax,[rbx+rsi+88h] (SIB 33, esi=e_lfanew)"
+        );
+        assert!(
+            !body.windows(7).any(|w| w == [0x49, 0x8D, 0x34, 0x06, 0x8B, 0x4E, 0x0C]),
+            "bootstrap must not use sidecar import[0] name for find_module (use kernel32.dll stack)"
+        );
+        assert!(
+            body.windows(5).any(|w| w == [0xC6, 0x44, 0x24, 0x00, b'k']),
+            "bootstrap must build kernel32.dll on stack (C6 44 24 00 6B)"
+        );
+        assert!(
+            body.windows(5)
+                .filter(|w| **w == [0x49, 0x83, 0x7F, H00_LOADLIBRARY_SCRATCH_OFF, 0x00])
+                .count()
+                >= 1,
+            "import loop must cmp qword [r15+LoadLibraryA scratch] before call"
         );
         // ImageBase for reloc delta: mov r10,[r12+rbx+30h] needs REX.W|R|B (4D 8B 94 1C).
         assert!(
