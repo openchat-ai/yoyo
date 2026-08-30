@@ -141,7 +141,7 @@ fn emit_mov_e_lfanew_pe_file(c: &mut Vec<u8>) {
 
 /// `mov ebx, [r14+3Ch]` — e_lfanew from mapped image (r14); ModRM disp8, no SIB.
 fn emit_mov_e_lfanew_pe_mapped(c: &mut Vec<u8>) {
-    c.extend_from_slice(&[0x41, 0x8B, 0x5E, 0x3C]);
+    c.extend_from_slice(&[0x41, 0x8B, 0x5C, SIB_R14_ONLY, 0x3C]);
 }
 
 /// `mov r32, [r12+rbx+disp]` — PE optional-header field via e_lfanew in ebx.
@@ -1220,12 +1220,12 @@ mod tests {
             "missing mov ebx,[r12+3Ch] (file PE e_lfanew; SIB 24)"
         );
         assert!(
-            body.windows(4).any(|w| w == [0x41, 0x8B, 0x5E, 0x3C]),
-            "missing mov ebx,[r14+3Ch] (mapped image e_lfanew; 41 8B 5E 3C)"
+            body.windows(5).any(|w| w == [0x41, 0x8B, 0x5C, SIB_R14_ONLY, 0x3C]),
+            "missing mov ebx,[r14+3Ch] (mapped image e_lfanew; SIB 26)"
         );
         assert!(
-            !body.windows(5).any(|w| w == [0x41, 0x8B, 0x5C, SIB_R14_ONLY, 0x3C]),
-            "must not emit mov ebx,[r14+riz*1+3Ch] (SIB 26 indexes rcx garbage)"
+            !body.windows(4).any(|w| w == [0x41, 0x8B, 0x5E, 0x3C]),
+            "must not emit mov ebx,r14 (41 8B 5E 3C mod=11) — need [r14+3Ch] via SIB 26"
         );
         assert!(
             !body.windows(5).any(|w| w == [0x41, 0x8B, 0x5C, 0x3C, 0x3C]),
