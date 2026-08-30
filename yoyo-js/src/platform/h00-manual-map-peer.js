@@ -21,22 +21,22 @@ function patchRel32(buf, dispOff, from, to) {
   buf.writeInt32LE(to - from, dispOff);
 }
 
-const H00_LEA_SITE = 19;
+const H00_LEA_SITE = 15;
 const H00_IAT_SITES = [
   [63, 1], // CreateFileA
   [109, 0], // VirtualAlloc (file buffer)
   [161, 2], // ReadFile
   [183, 4], // CloseHandle
   [238, 0], // VirtualAlloc (image)
-  [1964, 5], // ExitProcess (export success)
-  [1979, 5], // ExitProcess (fail CreateFile)
-  [1994, 5], // ExitProcess (fail Read)
-  [2009, 5], // ExitProcess (fail VirtualAlloc)
-  [2024, 5], // ExitProcess (fail section_copy)
-  [2039, 5], // ExitProcess (fail reloc)
-  [2054, 5], // ExitProcess (fail import)
-  [2069, 5], // ExitProcess (fail export)
-  [2084, 5], // ExitProcess (fail DllMain — epilogue only, DllMain skipped)
+  [1983, 5], // ExitProcess (export success)
+  [1998, 5], // ExitProcess (fail CreateFile)
+  [2013, 5], // ExitProcess (fail Read)
+  [2028, 5], // ExitProcess (fail VirtualAlloc)
+  [2043, 5], // ExitProcess (fail section_copy)
+  [2058, 5], // ExitProcess (fail reloc)
+  [2073, 5], // ExitProcess (fail import)
+  [2088, 5], // ExitProcess (fail export)
+  [2103, 5], // ExitProcess (fail DllMain — epilogue only, DllMain skipped)
 ];
 
 function rebaseManualMapStub(buf, textRva, codeBaseOff, meta) {

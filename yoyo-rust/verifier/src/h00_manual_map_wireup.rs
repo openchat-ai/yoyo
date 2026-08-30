@@ -60,6 +60,28 @@ fn emit_win64_pop_shadow(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x48, 0x83, 0xC4, WIN64_CALL_SHADOW]);
 }
 
+/// `jz` when ZF — pop Win64 shadow (active at je site) then jmp to `fail_import`.
+fn emit_jz_pop_shadow_then_fail(c: &mut Vec<u8>, chunk_text_off: usize, fail_import: usize) {
+    let je = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    let trampoline = c.len();
+    emit_win64_pop_shadow(c);
+    let jmp = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    patch_rel32(
+        c,
+        jmp + 1,
+        chunk_text_off + jmp + 5,
+        fail_import,
+    );
+    patch_rel32(
+        c,
+        je + 2,
+        chunk_text_off + je + 6,
+        trampoline,
+    );
+}
+
 /// ExitProcess via IAT — prologue forces RSP%16==0; shadow sub makes RSP%16==8 at `call`.
 fn emit_exit_process_iat(
     c: &mut Vec<u8>,
@@ -190,8 +212,9 @@ fn emit_mov_e_lfanew_pe_file(c: &mut Vec<u8>) {
 }
 
 /// `mov ebx, [r14+3Ch]` — e_lfanew from mapped image (r14).
+/// MUST use SIB 26 (base r14); 41 8B 5E 3C is mod=11 mov ebx,r14 — NOT a memory load.
 fn emit_mov_e_lfanew_pe_mapped(c: &mut Vec<u8>) {
-    c.extend_from_slice(&[0x41, 0x8B, 0x5E, 0x3C]); // mod=01 disp8 [r14+3Ch]
+    c.extend_from_slice(&[0x41, 0x8B, 0x5C, SIB_R14_ONLY, 0x3C]);
 }
 
 /// `mov r32, [r12+rbx+disp]` — PE optional-header field via e_lfanew in ebx.
@@ -615,8 +638,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x48, 0x89, 0xD1]); // mov rcx, rdx — LoadLibraryA(lpLibFileName)
     emit_call_r15_scratch(&mut c, H00_LOADLIBRARY_SCRATCH_OFF);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
-    fail_jumps.push((c.len(), fail_import));
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    emit_jz_pop_shadow_then_fail(&mut c, chunk_text_off as usize, fail_import);
     c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = hModule
     c.extend_from_slice(&[0x49, 0x89, 0xF5]); // mov r13, rsi (save import descriptor ptr)
     c.extend_from_slice(&[0x41, 0x8B, 0x55, 0x10]); // mov edx,[r13+10] FirstThunk RVA
@@ -656,8 +678,7 @@ fn gen_h00_manual_map_body(
     emit_call_r15_scratch(&mut c, H00_GETPROCADDRESS_SCRATCH_OFF);
     c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x20]); // mov r11, [rsp+0x20]
     c.extend_from_slice(&[0x48, 0x85, 0xC0]); // resolve failed → fail_import
-    fail_jumps.push((c.len(), fail_import));
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    emit_jz_pop_shadow_then_fail(&mut c, chunk_text_off as usize, fail_import);
     c.extend_from_slice(&[0x49, 0x89, 0x03]); // mov [r11], rax (IAT slot)
     c.extend_from_slice(&[0x48, 0x83, 0xC6, 0x08]);
     c.extend_from_slice(&[0x49, 0x83, 0xC3, 0x08]);
@@ -1434,12 +1455,12 @@ mod tests {
             "import walk must reload ebx from [r12+3Ch] before [r12+rbx+import_rva]"
         );
         assert!(
-            body.windows(4).any(|w| w == [0x41, 0x8B, 0x5E, 0x3C]),
-            "missing mov ebx,[r14+3Ch] (mapped e_lfanew; 41 8B 5E 3C disp8)"
+            body.windows(5).any(|w| w == [0x41, 0x8B, 0x5C, SIB_R14_ONLY, 0x3C]),
+            "missing mov ebx,[r14+3Ch] (mapped e_lfanew; SIB 26 base=r14)"
         );
         assert!(
-            !body.windows(5).any(|w| w == [0x41, 0x8B, 0x5C, SIB_R14_ONLY, 0x3C]),
-            "must not emit SIB-26 mapped e_lfanew (41 8B 5C 26 3C) — prefer 41 8B 5E 3C"
+            !body.windows(4).any(|w| w == [0x41, 0x8B, 0x5E, 0x3C]),
+            "must not emit mov ebx,r14 (41 8B 5E 3C mod=11) — NOT [r14+3Ch]"
         );
         assert!(
             !body.windows(4).any(|w| w == [0x41, 0x8B, 0xDE, 0x3C]),
