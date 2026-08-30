@@ -230,9 +230,9 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xB9, 0x40, 0x00, 0x00, 0x00]);
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]); // Win64 shadow for IAT VirtualAlloc
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x20]); // Win64 shadow (0x20 — 0x28 misaligns RSP before call)
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, iat_rva, IAT_VIRTUAL_ALLOC);
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x28]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     fail_jumps.push((c.len(), fail_virtual_alloc));
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
@@ -466,7 +466,7 @@ fn gen_h00_manual_map_body(
     let process_desc = c.len();
     patch_rel32(&mut c, jnz_process + 2, jnz_process + 6, process_desc);
     patch_rel32(&mut c, jnz_process2 + 2, jnz_process2 + 6, process_desc);
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]); // Win64 shadow for LoadLibrary/GetProcAddress
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x20]); // Win64 shadow (0x20 — 0x28 misaligns RSP before call)
     // FirstThunk rva is in edx — load module first, then lea r11 (LL/GPA clobber r11).
     c.extend_from_slice(&[0x49, 0x8D, 0x14, 0x0E]); // lea rdx,[r14+rcx] module name
     c.extend_from_slice(&[0x48, 0x89, 0xD1]); // mov rcx, rdx — LoadLibraryA(lpLibFileName)
@@ -522,7 +522,7 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jmp_thunk + 1, jmp_thunk + 5, thunk_loop);
     let thunk_done = c.len();
     patch_rel32(&mut c, jz_thunk_done + 2, jz_thunk_done + 6, thunk_done);
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x28]); // pop import-desc shadow
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]); // pop import-desc shadow
     c.extend_from_slice(&[0x49, 0x83, 0xC5, 0x14]); // add r13, 20 (next IMAGE_IMPORT_DESCRIPTOR)
     c.extend_from_slice(&[0x4C, 0x89, 0xEE]); // mov rsi, r13
     let jmp_id = c.len();
@@ -547,7 +547,7 @@ fn gen_h00_manual_map_body(
     let jz_skip_flush = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     emit_phase_probe(&mut c, PHASE_FLUSH_ICACHE);
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]); // shadow for GetProcAddress
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x20]); // shadow for GetProcAddress
     c.extend_from_slice(&[0x49, 0x8B, 0x4F, H00_KERNEL32_SCRATCH_OFF]); // rcx = kernel32
     c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x30]);
     for (off, ch) in b"FlushInstructionCache\0".iter().enumerate() {
@@ -562,11 +562,11 @@ fn gen_h00_manual_map_body(
     // rcx=-1, rdx=r14, r8=SizeOfImage already set — do not reload into rax after GPA.
     c.extend_from_slice(&[0x48, 0xC7, 0xC1, 0xFF, 0xFF, 0xFF, 0xFF]); // GetCurrentProcess()
     c.extend_from_slice(&[0x4C, 0x89, 0xF2]); // mov rdx, r14 (FlushInstructionCache lpBaseAddress)
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]);
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x20]);
     c.extend_from_slice(&[0xFF, 0xD0]); // call rax (FlushInstructionCache)
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x28]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]);
     let flush_unwind = c.len();
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x28]); // pop flush shadow
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]); // pop flush shadow
     let skip_flush = c.len();
     patch_rel32(&mut c, jz_skip_flush + 2, jz_skip_flush + 6, skip_flush);
     patch_rel32(&mut c, jz_skip_flush2 + 2, jz_skip_flush2 + 6, flush_unwind);
@@ -652,9 +652,9 @@ fn gen_h00_manual_map_body(
     let jz_ll_fail = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x89, 0xD1]); // mov rcx, rdx (dll name)
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]); // shadow
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x20]); // shadow
     c.extend_from_slice(&[0xFF, 0xD0]); // call rax
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x28]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]);
     c.extend_from_slice(&[0x41, 0x5A]); // pop r10
     c.extend_from_slice(&[0xC3]);
     let ll_fail = c.len();
@@ -1149,6 +1149,11 @@ mod tests {
         assert!(
             body.windows(5).any(|w| w == [0x41, 0xC6, 0x47, H00_PHASE_SCRATCH_OFF, PHASE_FLUSH_ICACHE]),
             "missing FlushICache phase probe at [r15+68h]"
+        );
+        // Win64 call shadow must be 0x20 (0x28 leaves RSP%16==8 before CALL → callee movaps AV).
+        assert!(
+            !body.windows(4).any(|w| w == [0x48, 0x83, 0xEC, 0x28]),
+            "must not emit sub rsp,0x28 Win64 shadow (misaligns stack before call)"
         );
     }
 }
