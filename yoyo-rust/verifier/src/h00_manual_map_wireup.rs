@@ -57,7 +57,7 @@ const PHASE_IMPORT_OK: u8 = 0x0D;
 const PHASE_FLUSH_ICACHE: u8 = 0x0E;
 const PHASE_EXPORT_CALL: u8 = 0x0F;
 
-/// Win64 home-space before `call` to kernel32 (RSP%16==8 at CALL; prologue already `and rsp,-16`).
+/// Win64 home-space before `call` to kernel32 (RSP%16==8 at CALL; entry uses gen2rt `sub rsp,0x208` frame).
 /// 0x38 = 32 B shadow + 3 stack slots (CreateFileA 7th param at [rsp+30h]; ret at [rsp+38h]).
 const WIN64_CALL_SHADOW: u8 = 0x38;
 /// Short dll/api name spill for 2-arg bootstrap calls (inside 32 B home space; ret at [rsp+38h]).
@@ -174,8 +174,8 @@ fn emit_mov_u32_pe_mapped(c: &mut Vec<u8>, disp: u8) {
     }
 }
 
-/// H_00 stub prologue (`push` saves + `sub rsp` + align) before file-read prelude.
-pub const H00_PROLOGUE_LEN: u32 = 22;
+/// H_00 stub prologue (`push` saves + `sub rsp,0x208`) before file-read prelude.
+pub const H00_PROLOGUE_LEN: u32 = 21;
 
 fn patch_rel32(c: &mut [u8], disp_off: usize, from: usize, to: usize) {
     let rel = to as i32 - from as i32;
@@ -1197,9 +1197,8 @@ pub fn gen_h00_manual_map_main(
     let mut c: Vec<u8> = Vec::new();
 
     c.extend_from_slice(&[0x53, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56]);
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x20]);
-    // PE entry is JMP (not CALL) into H_00 — force RSP%16==0 before any Win64 calls.
-    c.extend_from_slice(&[0x48, 0x83, 0xE4, 0xF0]); // and rsp, -16
+    // Match gen2rt entry frame (pe_link: small frame → movaps AV in kernel32 I/O on Windows).
+    c.extend_from_slice(&[0x48, 0x81, 0xEC, 0x08, 0x02, 0x00, 0x00]); // sub rsp, 0x208
 
     // User .text may clobber r15 before the jmp into H_00; reload before any [r15+scratch] probe.
     emit_reload_r15_data_base(&mut c, text_rva, code_base_off, meta.iat_rva);
