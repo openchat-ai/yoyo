@@ -19,8 +19,8 @@ pub const IAT_CLOSE_HANDLE: u32 = 4;
 const READ_BYTES_STACK_OFF: u8 = 0x20;
 /// GPA proc-name spill for FlushICache (same slot — must stay above shadow, not inside it).
 const FLUSH_ICACHE_NAME_STACK_OFF: u8 = READ_BYTES_STACK_OFF;
-/// One Win64 home (0x20) + CreateFile 3 stack args (0x18) for prelude CreateFile/ReadFile/CloseHandle.
-const PRELUDE_IO_FRAME: u8 = 0x38;
+/// One Win64 home (0x20) + CreateFile 3 stack args (0x18); must be 0 mod 16 (use 0x40 not 0x38).
+const PRELUDE_IO_FRAME: u8 = 0x40;
 
 /// PE32+ optional-header field offsets from `e_lfanew` (ebx holds e_lfanew; COFF = 20 B after PE sig).
 const PE_OFF_NUMBER_OF_SECTIONS: u8 = 6; // COFF + 2
@@ -1344,7 +1344,7 @@ mod tests {
                 .filter(|w| **w == [0x48, 0x83, 0xEC, PRELUDE_IO_FRAME])
                 .count()
                 >= 1,
-            "prelude needs unified I/O stack frame (sub rsp,38h)"
+            "prelude needs unified I/O stack frame (sub rsp,40h)"
         );
         assert!(
             body.windows(2)
@@ -1401,7 +1401,7 @@ mod tests {
         }
         assert!(
             found,
-            "ReadFile fail must pop prelude I/O frame (add rsp,38h) before jmp to ExitProcess(3)"
+            "ReadFile fail must pop prelude I/O frame (add rsp,40h) before jmp to ExitProcess(3)"
         );
     }
 
