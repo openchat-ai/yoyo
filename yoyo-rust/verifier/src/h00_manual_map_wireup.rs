@@ -144,10 +144,22 @@ fn emit_phase_probe(c: &mut Vec<u8>, phase: u8) {
     c.push(phase);
 }
 
+/// Bisect exit before phase probe so CI can exit without touching [r15+scratch].
+fn emit_phase_with_bisect(
+    c: &mut Vec<u8>,
+    text_rva: u32,
+    chunk_text_off: u32,
+    iat_rva: u32,
+    phase: u8,
+) {
+    maybe_bisect_exit_after_phase(c, text_rva, chunk_text_off, iat_rva, phase);
+    emit_phase_probe(c, phase);
+}
+
 /// Win64 shadow + `mov ecx,imm32` + rip-relative ExitProcess (FF15).
 const FAIL_EPILOGUE_LEN: usize = 15;
 
-/// When `H00_BISECT_EXIT` matches `150 + phase` (151–165), exit after probe (CI bisect).
+/// When `H00_BISECT_EXIT` matches `150 + phase` (151–165), exit before phase probe (CI bisect).
 fn maybe_bisect_exit_after_phase(
     c: &mut Vec<u8>,
     text_rva: u32,
@@ -303,8 +315,7 @@ pub fn gen_h00_read_sidecar_prelude(
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x89, 0xC3]);
     emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, meta.iat_rva);
-    emit_phase_probe(&mut c, PHASE_PRELUDE_CREATE_OK);
-    maybe_bisect_exit_after_phase(
+    emit_phase_with_bisect(
         &mut c,
         text_rva,
         chunk_text_off,
@@ -324,8 +335,7 @@ pub fn gen_h00_read_sidecar_prelude(
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x49, 0x89, 0xC4]);
     emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, meta.iat_rva);
-    emit_phase_probe(&mut c, PHASE_PRELUDE_BUF_OK);
-    maybe_bisect_exit_after_phase(
+    emit_phase_with_bisect(
         &mut c,
         text_rva,
         chunk_text_off,
@@ -343,8 +353,7 @@ pub fn gen_h00_read_sidecar_prelude(
     c.extend_from_slice(&[0x85, 0xC0]); // test eax,eax — ReadFile BOOL
     emit_jz_pop_shadow_then_fail(&mut c, chunk_text_off as usize, fail_read_empty);
     emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, meta.iat_rva);
-    emit_phase_probe(&mut c, PHASE_PRELUDE_READ_OK);
-    maybe_bisect_exit_after_phase(
+    emit_phase_with_bisect(
         &mut c,
         text_rva,
         chunk_text_off,
@@ -363,8 +372,7 @@ pub fn gen_h00_read_sidecar_prelude(
     let jz_empty = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, meta.iat_rva);
-    emit_phase_probe(&mut c, PHASE_PRELUDE_DONE);
-    maybe_bisect_exit_after_phase(
+    emit_phase_with_bisect(
         &mut c,
         text_rva,
         chunk_text_off,
@@ -396,8 +404,7 @@ pub fn gen_h00_read_sidecar_prelude(
     }
 
     emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, meta.iat_rva);
-    emit_phase_probe(&mut c, PHASE_PRELUDE_OK);
-    maybe_bisect_exit_after_phase(
+    emit_phase_with_bisect(
         &mut c,
         text_rva,
         chunk_text_off,
@@ -435,16 +442,14 @@ fn gen_h00_manual_map_body(
     fail_jumps.push((c.len(), fail_virtual_alloc));
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x49, 0x89, 0xC6]); // mov r14, rax (image)
-    emit_phase_probe(&mut c, PHASE_MAP_VALLOC_OK);
-    maybe_bisect_exit_after_phase(
+    emit_phase_with_bisect(
         &mut c,
         text_rva,
         chunk_text_off,
         iat_rva,
         PHASE_MAP_VALLOC_OK,
     );
-    emit_phase_probe(&mut c, PHASE_MAP_IMAGE_OK);
-    maybe_bisect_exit_after_phase(
+    emit_phase_with_bisect(
         &mut c,
         text_rva,
         chunk_text_off,
@@ -522,8 +527,7 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jmp_sec + 1, jmp_sec + 5, sec_loop);
     let secs_done = c.len();
     patch_rel32(&mut c, jae_secs_done + 2, jae_secs_done + 6, secs_done);
-    emit_phase_probe(&mut c, PHASE_SECTIONS_OK);
-    maybe_bisect_exit_after_phase(
+    emit_phase_with_bisect(
         &mut c,
         text_rva,
         chunk_text_off,
@@ -590,8 +594,7 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jz_reloc_done + 2, jz_reloc_done + 6, reloc_done);
     patch_rel32(&mut c, jz_reloc_done2 + 2, jz_reloc_done2 + 6, reloc_done);
     patch_rel32(&mut c, jb_reloc_done + 2, jb_reloc_done + 6, reloc_done);
-    emit_phase_probe(&mut c, PHASE_RELOC_OK);
-    maybe_bisect_exit_after_phase(
+    emit_phase_with_bisect(
         &mut c,
         text_rva,
         chunk_text_off,
@@ -782,8 +785,7 @@ fn gen_h00_manual_map_body(
         jz_skip_ll_boot + 6,
         import_done,
     );
-    emit_phase_probe(&mut c, PHASE_IMPORT_OK);
-    maybe_bisect_exit_after_phase(
+    emit_phase_with_bisect(
         &mut c,
         text_rva,
         chunk_text_off,
@@ -794,8 +796,7 @@ fn gen_h00_manual_map_body(
     // FlushInstructionCache before calling mapped sidecar code (matches reference mapper).
     emit_mov_e_lfanew_pe_mapped(&mut c);
     emit_mov_u32_pe_mapped(&mut c, PE_OFF_SIZE_OF_IMAGE); // r8d = SizeOfImage (keep through GPA)
-    emit_phase_probe(&mut c, PHASE_FLUSH_ICACHE);
-    maybe_bisect_exit_after_phase(
+    emit_phase_with_bisect(
         &mut c,
         text_rva,
         chunk_text_off,
@@ -1146,8 +1147,7 @@ fn gen_h00_export_call_tail(
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     fail_jumps.push((c.len(), fail_export));
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    emit_phase_probe(&mut c, PHASE_EXPORT_CALL);
-    maybe_bisect_exit_after_phase(
+    emit_phase_with_bisect(
         &mut c,
         text_rva,
         chunk_text_off,
@@ -1203,8 +1203,7 @@ pub fn gen_h00_manual_map_main(
     // User .text may clobber r15 before the jmp into H_00; reload before any [r15+scratch] probe.
     emit_reload_r15_data_base(&mut c, text_rva, code_base_off, meta.iat_rva);
 
-    emit_phase_probe(&mut c, PHASE_H00_ENTERED);
-    maybe_bisect_exit_after_phase(
+    emit_phase_with_bisect(
         &mut c,
         text_rva,
         code_base_off,
