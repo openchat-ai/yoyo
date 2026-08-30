@@ -129,8 +129,10 @@ fn fix_rip_disp(
 
 /// SIB for `[r12 + rbx*1 + disp]` (requires REX.B on the opcode).
 const SIB_R12_RBX: u8 = 0x1C;
-/// SIB for `[r12 + disp8]` (index suppressed; base r12 via REX.B).
-const SIB_R12_ONLY: u8 = 0x3C;
+/// SIB for `[r12 + disp8]` (index=none, base=r12 via REX.B on opcode).
+const SIB_R12_ONLY: u8 = 0x24;
+/// SIB for `[r14 + disp8]` (index=none, base=r14 via REX.B on opcode).
+const SIB_R14_ONLY: u8 = 0x26;
 
 /// `mov ebx, [r12+3Ch]` — e_lfanew from file PE buffer (r12).
 fn emit_mov_e_lfanew_pe_file(c: &mut Vec<u8>) {
@@ -139,8 +141,7 @@ fn emit_mov_e_lfanew_pe_file(c: &mut Vec<u8>) {
 
 /// `mov ebx, [r14+3Ch]` — e_lfanew from mapped image (r14).
 fn emit_mov_e_lfanew_pe_mapped(c: &mut Vec<u8>) {
-    // ModRM 5E = ebx,[r14+disp8] (REX.B); 4E=ecx and 7E=edi — both break [r14+rbx+disp] PE reads.
-    c.extend_from_slice(&[0x41, 0x8B, 0x5E, 0x3C]);
+    c.extend_from_slice(&[0x41, 0x8B, 0x5C, SIB_R14_ONLY, 0x3C]);
 }
 
 /// `mov r32, [r12+rbx+disp]` — PE optional-header field via e_lfanew in ebx.
@@ -796,7 +797,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x8B, 0x50, 0x1C]);
     c.extend_from_slice(&[0x48, 0x01, 0xFA]);
     c.extend_from_slice(&[0x44, 0x8B, 0x48, 0x10]); // mov r9d,[rax+10] BaseOrdinal
-    c.extend_from_slice(&[0x29, 0xC9]); // sub ecx,r9d (ordinal index)
+    c.extend_from_slice(&[0x44, 0x29, 0xC8]); // sub ecx, r9d (ordinal index) — NOT 29 C9 (=sub ecx,ecx)
     c.extend_from_slice(&[0x8B, 0x04, 0x8A]);
     c.extend_from_slice(&[0x48, 0x01, 0xF8]);
     let call_fixup_ord = c.len();
@@ -818,7 +819,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x48, 0x8D, 0x14, 0x0F]); // lea rdx,[rdi+rcx] exp start
     c.extend_from_slice(&[0x49, 0x89, 0xD2]); // mov r10, rdx
     c.extend_from_slice(&[0x8B, 0x94, 0x37, 0x8C, 0x00, 0x00, 0x00]); // export size
-    c.extend_from_slice(&[0x49, 0x8D, 0x1C, 0x12]); // lea rbx,[r10+rdx] exp end — NOT 1C 0A (=+rcx)
+    c.extend_from_slice(&[0x4C, 0x8D, 0x1C, 0x42]); // lea rbx,[rdx+r10] exp end — NOT 49 8D 1C 12 (=rdx+rdx)
     c.extend_from_slice(&[0x4C, 0x39, 0xD0]); // cmp rax,r10
     let jb_ff_ret = c.len();
     c.extend_from_slice(&[0x0F, 0x82, 0, 0, 0, 0]);
@@ -1208,18 +1209,22 @@ mod tests {
             body.windows(5).any(|w| w == [0x41, 0xC6, 0x47, H00_PHASE_SCRATCH_OFF, PHASE_FLUSH_ICACHE]),
             "missing FlushICache phase probe at [r15+68h]"
         );
-        // e_lfanew reads must hit PE base, not [rsp+disp] / wrong reg.
+        // e_lfanew reads must hit PE base, not [rsp+rdi] (SIB 3C) or wrong reg.
         assert!(
             body.windows(5).any(|w| w == [0x41, 0x8B, 0x5C, SIB_R12_ONLY, 0x3C]),
-            "missing mov ebx,[r12+3Ch] (file PE e_lfanew)"
+            "missing mov ebx,[r12+3Ch] (file PE e_lfanew; SIB 24)"
         );
         assert!(
-            !body.windows(5).any(|w| w == [0x41, 0x8B, 0x5C, 0x24, 0x3C]),
-            "must not emit mov ebx,[rsp+3Ch] (SIB 24 = rsp+rsp, not r12)"
+            body.windows(5).any(|w| w == [0x41, 0x8B, 0x5C, SIB_R14_ONLY, 0x3C]),
+            "missing mov ebx,[r14+3Ch] (mapped image e_lfanew; SIB 26)"
         );
         assert!(
-            body.windows(4).any(|w| w == [0x41, 0x8B, 0x5E, 0x3C]),
-            "missing mov ebx,[r14+3Ch] (mapped image e_lfanew; ModRM 5E=ebx)"
+            !body.windows(5).any(|w| w == [0x41, 0x8B, 0x5C, 0x3C, 0x3C]),
+            "must not emit mov ebx,[rsp+rdi+disp] (SIB 3C = rsp+rdi, not r12/r14)"
+        );
+        assert!(
+            !body.windows(4).any(|w| w == [0x41, 0x8B, 0x5E, 0x3C]),
+            "must not emit mov ebx,r14 (5E mod=11) — need [r14+3Ch] via SIB 26"
         );
         assert!(
             !body.windows(4).any(|w| w == [0x41, 0x8B, 0x4E, 0x3C]),
@@ -1228,6 +1233,18 @@ mod tests {
         assert!(
             !body.windows(4).any(|w| w == [0x41, 0x8B, 0x7E, 0x3C]),
             "must not emit mov edi,[r14+3Ch] (7E=edi not ebx)"
+        );
+        assert!(
+            !body.windows(4).any(|w| w == [0x49, 0x8D, 0x1C, 0x12]),
+            "must not emit lea rbx,[rdx+rdx] (49 8D 1C 12) — forwarder end uses [rdx+r10]"
+        );
+        assert!(
+            body.windows(4).any(|w| w == [0x4C, 0x8D, 0x1C, 0x42]),
+            "fix_forward needs lea rbx,[rdx+r10] (4C 8D 1C 42)"
+        );
+        assert!(
+            !body.windows(3).any(|w| w == [0x29, 0xC9]),
+            "must not emit sub ecx,ecx (29 C9) in ordinal export path"
         );
         // Export call after `and rsp,-16` needs sub rsp,0x28 (0x20 → pre-call RSP%16==0 → callee AV).
         let export_align = body
