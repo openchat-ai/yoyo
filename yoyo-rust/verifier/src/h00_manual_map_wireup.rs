@@ -559,7 +559,8 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_skip_flush2 = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    // rcx=-1, rdx=r14, r8=SizeOfImage already set — do not reload into rax after GPA.
+    // rcx=-1, rdx=r14; reload r8d=SizeOfImage (GPA clobbers volatile r8).
+    emit_mov_u32_pe_mapped(&mut c, PE_OFF_SIZE_OF_IMAGE);
     c.extend_from_slice(&[0x48, 0xC7, 0xC1, 0xFF, 0xFF, 0xFF, 0xFF]); // GetCurrentProcess()
     c.extend_from_slice(&[0x4C, 0x89, 0xF2]); // mov rdx, r14 (FlushInstructionCache lpBaseAddress)
     c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x20]);
