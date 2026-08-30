@@ -49,15 +49,10 @@ const PHASE_IMPORT_OK: u8 = 0x0D;
 const PHASE_FLUSH_ICACHE: u8 = 0x0E;
 const PHASE_EXPORT_CALL: u8 = 0x0F;
 
-/// Win64 home-space before `call` to kernel32 (requires RSP%16==8 at CALL → use after `and rsp,-16`).
+/// Win64 home-space before `call` to kernel32 (RSP%16==8 at CALL; prologue already `and rsp,-16`).
 const WIN64_CALL_SHADOW: u8 = 0x28;
 
-fn emit_align_for_win64_call(c: &mut Vec<u8>) {
-    c.extend_from_slice(&[0x48, 0x83, 0xE4, 0xF0]); // and rsp, -16
-}
-
 fn emit_win64_call_shadow(c: &mut Vec<u8>) {
-    emit_align_for_win64_call(c);
     c.extend_from_slice(&[0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]);
 }
 
@@ -65,7 +60,7 @@ fn emit_win64_pop_shadow(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x48, 0x83, 0xC4, WIN64_CALL_SHADOW]);
 }
 
-/// ExitProcess via IAT — Win64 requires RSP%16==8 at `call` (prologue forces RSP%16==0).
+/// ExitProcess via IAT — prologue forces RSP%16==0; shadow sub makes RSP%16==8 at `call`.
 fn emit_exit_process_iat(
     c: &mut Vec<u8>,
     text_rva: u32,
@@ -117,7 +112,7 @@ fn emit_phase_probe(c: &mut Vec<u8>, phase: u8) {
 }
 
 /// Win64 shadow + `mov ecx,imm32` + `call [iat+ExitProcess]`.
-const FAIL_EPILOGUE_LEN: usize = 19;
+const FAIL_EPILOGUE_LEN: usize = 15;
 
 /// When `H00_BISECT_EXIT` matches `150 + phase` (160–165), exit after probe (CI bisect).
 fn maybe_bisect_exit_after_phase(
@@ -195,9 +190,8 @@ fn emit_mov_e_lfanew_pe_file(c: &mut Vec<u8>) {
 }
 
 /// `mov ebx, [r14+3Ch]` — e_lfanew from mapped image (r14).
-/// MUST use SIB 26 (base r14); 41 8B 5E 3C is mod=11 mov ebx,r14 — NOT a memory load.
 fn emit_mov_e_lfanew_pe_mapped(c: &mut Vec<u8>) {
-    c.extend_from_slice(&[0x41, 0x8B, 0x5C, SIB_R14_ONLY, 0x3C]);
+    c.extend_from_slice(&[0x41, 0x8B, 0x5E, 0x3C]); // mod=01 disp8 [r14+3Ch]
 }
 
 /// `mov r32, [r12+rbx+disp]` — PE optional-header field via e_lfanew in ebx.
@@ -698,9 +692,6 @@ fn gen_h00_manual_map_body(
         iat_rva,
         PHASE_IMPORT_OK,
     );
-
-    // Realign stack after nested find/resolve helper calls (Win64 movaps safety).
-    emit_align_for_win64_call(&mut c);
 
     // FlushInstructionCache before calling mapped sidecar code (matches reference mapper).
     emit_mov_e_lfanew_pe_mapped(&mut c);
@@ -1206,8 +1197,8 @@ mod tests {
             body.len()
         );
         assert!(
-            body.windows(8)
-                .filter(|w| **w == [0x48, 0x83, 0xE4, 0xF0, 0x48, 0x83, 0xEC, 0x28])
+            body.windows(4)
+                .filter(|w| **w == [0x48, 0x83, 0xEC, 0x28])
                 .count()
                 >= 4,
             "prelude needs Win64 shadow before each kernel32 IAT call"
@@ -1220,9 +1211,9 @@ mod tests {
         let body = gen_h00_manual_map_main(&meta, 0x1000, 17_823);
         let mut starts = Vec::new();
         for i in 0..body.len().saturating_sub(8) {
-            if body[i..i + 8] == [0x48, 0x83, 0xE4, 0xF0, 0x48, 0x83, 0xEC, 0x28]
-                && i + 8 < body.len()
-                && body[i + 8] == 0xB9
+            if body[i..i + 4] == [0x48, 0x83, 0xEC, 0x28]
+                && i + 4 < body.len()
+                && body[i + 4] == 0xB9
             {
                 starts.push(i);
             }
@@ -1230,7 +1221,7 @@ mod tests {
         assert_eq!(
             starts.len(),
             8,
-            "expected 8 fail epilogues (andrax,-16; sub rsp,28h; mov ecx,imm)"
+            "expected 8 fail epilogues (sub rsp,28h; mov ecx,imm)"
         );
         for w in starts.windows(2) {
             assert_eq!(
@@ -1443,12 +1434,12 @@ mod tests {
             "import walk must reload ebx from [r12+3Ch] before [r12+rbx+import_rva]"
         );
         assert!(
-            body.windows(5).any(|w| w == [0x41, 0x8B, 0x5C, SIB_R14_ONLY, 0x3C]),
-            "missing mov ebx,[r14+3Ch] (mapped e_lfanew; SIB 26 base=r14)"
+            body.windows(4).any(|w| w == [0x41, 0x8B, 0x5E, 0x3C]),
+            "missing mov ebx,[r14+3Ch] (mapped e_lfanew; 41 8B 5E 3C disp8)"
         );
         assert!(
-            !body.windows(4).any(|w| w == [0x41, 0x8B, 0x5E, 0x3C]),
-            "must not emit mov ebx,r14 (41 8B 5E 3C mod=11) — NOT [r14+3Ch]"
+            !body.windows(5).any(|w| w == [0x41, 0x8B, 0x5C, SIB_R14_ONLY, 0x3C]),
+            "must not emit SIB-26 mapped e_lfanew (41 8B 5C 26 3C) — prefer 41 8B 5E 3C"
         );
         assert!(
             !body.windows(4).any(|w| w == [0x41, 0x8B, 0xDE, 0x3C]),
@@ -1526,30 +1517,30 @@ mod tests {
             !body.windows(7).any(|w| w == [0x44, 0x8B, 0x48, 0x10, 0x44, 0x29, 0xC8]),
             "must not emit sub eax,r9d (44 29 C8) after BaseOrdinal — need sub ecx,r9d"
         );
-        // Export call after `and rsp,-16` needs sub rsp,0x28 (0x20 → pre-call RSP%16==0 → callee AV).
-        let export_align = body
-            .windows(8)
-            .position(|w| w == [0x48, 0x83, 0xE4, 0xF0, 0x48, 0x83, 0xEC, 0x28]);
+        // Export call: prologue already aligned RSP; shadow sub alone yields RSP%16==8 at call.
+        let export_shadow = body
+            .windows(4)
+            .position(|w| w == [0x48, 0x83, 0xEC, 0x28]);
         assert!(
-            export_align.is_some(),
-            "export tail must and rsp,-16 then sub rsp,0x28 before call (Win64 alignment)"
+            export_shadow.is_some(),
+            "export tail must sub rsp,0x28 before call (Win64 shadow)"
         );
         // Fail epilogues: shadow + mov ecx,imm + FF15
         assert!(
-            body.windows(14)
+            body.windows(10)
                 .filter(|w| {
-                    w[0..8] == [0x48, 0x83, 0xE4, 0xF0, 0x48, 0x83, 0xEC, 0x28]
-                        && w[8] == 0xB9
-                        && w[13] == 0xFF
+                    w[0..4] == [0x48, 0x83, 0xEC, 0x28]
+                        && w[4] == 0xB9
+                        && w[9] == 0xFF
                 })
                 .count()
                 >= 8,
             "fail epilogues need Win64 shadow before ExitProcess"
         );
         assert!(
-            body.windows(11).any(|w| {
+            body.windows(7).any(|w| {
                 w[0..3] == [0x89, 0xC1, 0x48]
-                    && w[3..11] == [0x83, 0xE4, 0xF0, 0x48, 0x83, 0xEC, 0x28, 0xFF]
+                    && w[3..7] == [0x83, 0xEC, 0x28, 0xFF]
             }),
             "export success path needs mov ecx,eax + Win64 shadow before ExitProcess"
         );

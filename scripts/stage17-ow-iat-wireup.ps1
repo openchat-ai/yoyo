@@ -137,12 +137,14 @@ function Invoke-ManualMapSmoke([string]$RunDir, [string]$Gen1Path) {
 
 function Invoke-H00BisectDiagnostic([string]$RunDir, [string]$TyPath, [string]$TybPath, [string]$DllPath) {
     Write-Host "== bisect: rebuild gen1 with H00_BISECT_EXIT=155..165 (post-AV phase isolate) =="
+    $wireup = Join-Path $Root "yoyo-rust\verifier\src\h00_manual_map_wireup.rs"
     $lines = @()
     foreach ($phase in 155..165) {
         Push-Location (Join-Path $Root "yoyo-rust")
         try {
+            (Get-Item $wireup).LastWriteTime = Get-Date
             $env:H00_BISECT_EXIT = "$phase"
-            & cargo build --release -p verifier 2>&1 | Out-Null
+            & cargo build --release -p verifier --bin yoyo 2>&1 | Out-Null
             if ($LASTEXITCODE -ne 0) { throw "bisect build failed for phase=$phase" }
         } finally {
             Remove-Item Env:H00_BISECT_EXIT -ErrorAction SilentlyContinue
