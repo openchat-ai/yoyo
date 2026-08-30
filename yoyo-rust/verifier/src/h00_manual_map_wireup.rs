@@ -71,8 +71,9 @@ const WIN64_CALL_SHADOW: u8 = 0x38;
 const WIN64_STACK_STR_OFF: u8 = 0x20;
 /// IAT cursor spill during import resolve_export_ordinal — transient at [rsp+28h].
 const IMPORT_IAT_CURSOR_SPILL_OFF: u8 = 0x28;
-/// hModule spill in import-descriptor Win64 shadow — above [rsp+28h] home (not clobbered by resolve_export).
-const HMODULE_SPILL_OFF: u8 = 0x30;
+/// hModule spill below Win64 home slots — [rsp+28h] is clobbered by nested find_module/LoadLibrary
+/// inside fix_forward (stack depth aligns parent spill with callee rdx home).
+const HMODULE_SPILL_OFF: u8 = 0x08;
 
 fn emit_win64_call_shadow(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]);
@@ -769,7 +770,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     emit_jz_pop_shadow_then_fail(&mut c, chunk_text_off as usize, fail_import);
     c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = hModule
-    c.extend_from_slice(&[0x48, 0x89, 0x7C, 0x24, HMODULE_SPILL_OFF]); // [rsp+30h]=hModule
+    c.extend_from_slice(&[0x48, 0x89, 0x7C, 0x24, HMODULE_SPILL_OFF]); // [rsp+08h]=hModule
     c.extend_from_slice(&[0x49, 0x89, 0xF5]); // mov r13, rsi (save import descriptor ptr)
     c.extend_from_slice(&[0x41, 0x8B, 0x55, 0x10]); // mov edx,[r13+10] FirstThunk RVA
     c.extend_from_slice(&[0x4D, 0x8D, 0x1C, 0x16]); // lea r11,[r14+rdx] IAT write cursor
@@ -789,7 +790,7 @@ fn gen_h00_manual_map_body(
     let jz_thunk_done = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x49, 0x89, 0xC2]); // mov r10, rax (save thunk)
-    c.extend_from_slice(&[0x48, 0x8B, 0x7C, 0x24, HMODULE_SPILL_OFF]); // mov rdi,[rsp+30h] hModule
+    c.extend_from_slice(&[0x48, 0x8B, 0x7C, 0x24, HMODULE_SPILL_OFF]); // mov rdi,[rsp+08h] hModule
     c.extend_from_slice(&[0x49, 0x0F, 0xBA, 0xE2, 0x3F]); // bt r10,63 (ordinal if high bit set)
     let jc_ord = c.len();
     c.extend_from_slice(&[0x0F, 0x82, 0, 0, 0, 0]); // jc ord_resolve
@@ -1912,7 +1913,7 @@ mod tests {
                 w[0..5] == [0x48, 0x8B, 0x7C, 0x24, HMODULE_SPILL_OFF]
                     && w[5..10] == [0x49, 0x0F, 0xBA, 0xE2, 0x3F]
             }),
-            "import thunk needs mov rdi,[rsp+30h] before bt r10,63"
+            "import thunk needs mov rdi,[rsp+08h] before bt r10,63"
         );
         assert!(
             body.windows(6).any(|w| {
