@@ -22,23 +22,19 @@ const KERNEL32_IO_FUNCS: &[&str] = &[
     "ExitProcess",
 ];
 
-/// Loaded by the Windows loader before H_00 runs so manual-map PEB walk can resolve
-/// MSVC Rust sidecar imports (gen1 otherwise only maps kernel32).
-const PRELOAD_RUNTIME_DLL_IMPORTS: &[(&str, &str)] = &[
-    ("VCRUNTIME140.dll", "memset"),
-    ("api-ms-win-crt-runtime-l1-1-0.dll", "_initialize_onexit_table"),
-    ("api-ms-win-crt-heap-l1-1-0.dll", "malloc"),
-    ("api-ms-win-crt-stdio-l1-1-0.dll", "__stdio_common_vsprintf"),
-];
+/// Do **not** import UCRT/VCRUNTIME into the seed PE.
+/// Handmade EXEs that import `api-ms-win-crt-*.dll` / `VCRUNTIME140.dll` can AV in
+/// CRT DllMain/attach **before** `AddressOfEntryPoint` (stage17 no-sidecar bisect
+/// 150–155 all 0xC0000005). Sidecar CRT is loaded later via H_00 PEB+LoadLibrary.
+const PRELOAD_RUNTIME_DLL_IMPORTS: &[(&str, &str)] = &[];
 
 /// Bootstrap scratch for H_00 manual-map (LoadLibraryA / GetProcAddress / kernel32 / phase byte).
 /// Placed after import metadata in `prepend_win32_io_iat` — must not overlap IAT or descriptors.
 pub const WIN32_IO_H00_SCRATCH_BYTES: usize = 32;
 
 /// Offset from r15 / `.data` base to H_00 scratch (pinned by `h00_scratch_off_pinned`).
-/// ILT/IAT arrays are 8-byte aligned and null-terminated (unaligned OFT made the
-/// Windows loader fall back to a packed IAT and bind garbage — stage17 AV).
-pub const WIN32_IO_H00_SCRATCH_OFF: u32 = 0x298;
+/// Kernel32-only IAT (no UCRT preload); IAT/ILT null-terminated and 8-aligned.
+pub const WIN32_IO_H00_SCRATCH_OFF: u32 = 0xF8;
 
 fn hint_name_bytes(func: &str) -> Vec<u8> {
     let mut hn = Vec::new();
@@ -462,7 +458,9 @@ fn link_pe_impl(
     write_u32(&mut img, opt + 56, size_of_image);
     write_u32(&mut img, opt + 60, size_of_headers);
     write_u16(&mut img, opt + 68, 3); // Subsystem = CONSOLE
-    write_u16(&mut img, opt + 70, 0x8160); // DllCharacteristics
+    // NX only — no DYNAMIC_BASE / HIGH_ENTROPY_VA: this image has no .reloc.
+    // ASLR rebase of a reloc-less handmade PE is a common startup AV.
+    write_u16(&mut img, opt + 70, 0x0100); // NX_COMPAT
     write_u64(&mut img, opt + 72, 0x100000); // Stack Reserve
     write_u64(&mut img, opt + 80, 0x1000); // Stack Commit
     write_u64(&mut img, opt + 88, 0x100000); // Heap Reserve
@@ -785,6 +783,26 @@ mod tests {
             &img[path_raw..path_raw + 12],
             b"yoyo_rt.dll\0",
             "sidecar path must point at yoyo_rt.dll string in .data"
+        );
+
+        // Seed PE must not import UCRT/VCRUNTIME (CRT attach AV before entry).
+        let imp_rva = u32::from_le_bytes(img[opt + 120..opt + 124].try_into().unwrap());
+        let imp_raw = data_raw + (imp_rva - data_rva) as usize;
+        let name_rva = u32::from_le_bytes(img[imp_raw + 12..imp_raw + 16].try_into().unwrap());
+        let name_raw = data_raw + (name_rva - data_rva) as usize;
+        let dll_end = img[name_raw..].iter().position(|&b| b == 0).unwrap();
+        assert_eq!(
+            &img[name_raw..name_raw + dll_end],
+            b"kernel32.dll",
+            "first import must be kernel32.dll"
+        );
+        let desc1_ilt = u32::from_le_bytes(img[imp_raw + 20..imp_raw + 24].try_into().unwrap());
+        assert_eq!(desc1_ilt, 0, "second import descriptor must be null (no UCRT preload)");
+        let dllchar = u16::from_le_bytes(img[opt + 70..opt + 72].try_into().unwrap());
+        assert_eq!(
+            dllchar & 0x0060,
+            0,
+            "seed PE must not set DYNAMIC_BASE/HIGH_ENTROPY_VA without .reloc"
         );
     }
 }
