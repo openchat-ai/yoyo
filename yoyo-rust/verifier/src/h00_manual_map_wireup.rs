@@ -72,10 +72,6 @@ const PHASE_EXPORT_CALL: u8 = 0x0F;
 const WIN64_CALL_SHADOW: u8 = 0x38;
 /// Short dll/api name spill for 2-arg bootstrap calls (inside 32 B home space; ret at [rsp+38h]).
 const WIN64_STACK_STR_OFF: u8 = 0x20;
-/// Import-descriptor frame (8 mod 16): GPA home clobbers caller [rsp+28h..40h] at CALL.
-const IMPORT_DESC_SHADOW: u8 = 0x58;
-/// IAT cursor spill above GPA home clobber zone — must be >= [rsp+48h] at CALL site.
-const GPA_IAT_CURSOR_SPILL_OFF: u8 = 0x48;
 
 fn emit_win64_call_shadow(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]);
@@ -85,32 +81,13 @@ fn emit_win64_pop_shadow(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x48, 0x83, 0xC4, WIN64_CALL_SHADOW]);
 }
 
-fn emit_import_desc_shadow(c: &mut Vec<u8>) {
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, IMPORT_DESC_SHADOW]);
-}
-
-fn emit_import_desc_pop_shadow(c: &mut Vec<u8>) {
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, IMPORT_DESC_SHADOW]);
-}
-
-fn emit_jz_pop_import_shadow_then_fail(
-    c: &mut Vec<u8>,
-    chunk_text_off: usize,
-    fail_import: usize,
-) {
-    let jnz = c.len();
-    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    emit_import_desc_pop_shadow(c);
-    let jmp = c.len();
-    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-    patch_rel32(c, jmp + 1, chunk_text_off + jmp + 5, fail_import);
-    let success = c.len();
-    patch_rel32(
-        c,
-        jnz + 2,
-        chunk_text_off + jnz + 6,
-        chunk_text_off + success,
-    );
+/// GetProcAddress clobbers volatile r11; r12=file PE (callee-saved). Spill via push/mov/pop.
+fn emit_call_gpa_preserve_r11(c: &mut Vec<u8>) {
+    c.extend_from_slice(&[0x41, 0x54]); // push r12
+    c.extend_from_slice(&[0x4D, 0x89, 0xDC]); // mov r12, r11
+    emit_call_r15_scratch(c, H00_GETPROCADDRESS_SCRATCH_OFF);
+    c.extend_from_slice(&[0x4D, 0x89, 0xE3]); // mov r11, r12
+    c.extend_from_slice(&[0x41, 0x5C]); // pop r12
 }
 
 /// After `test`/`cmp` ZF=1 (fail): pop Win64 shadow then jmp fail; ZF=0 skip
@@ -800,13 +777,13 @@ fn gen_h00_manual_map_body(
     emit_cmp_r15_scratch_qword_zero(&mut c, H00_GETPROCADDRESS_SCRATCH_OFF);
     fail_jumps.push((c.len(), fail_import));
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    emit_import_desc_shadow(&mut c);
+    emit_win64_call_shadow(&mut c);
     // FirstThunk rva is in edx — load module first, then lea r11 (LL/GPA clobber r11).
     c.extend_from_slice(&[0x49, 0x8D, 0x14, 0x0E]); // lea rdx,[r14+rcx] module name
     c.extend_from_slice(&[0x48, 0x89, 0xD1]); // mov rcx, rdx — LoadLibraryA(lpLibFileName)
     emit_call_r15_scratch(&mut c, H00_LOADLIBRARY_SCRATCH_OFF);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
-    emit_jz_pop_import_shadow_then_fail(&mut c, chunk_text_off as usize, fail_import);
+    emit_jz_pop_shadow_then_fail(&mut c, chunk_text_off as usize, fail_import);
     emit_mov_qword_to_r15_scratch(&mut c, H00_IMPORT_HMODULE_SCRATCH_OFF, 0); // [r15+hModule]=LL
     c.extend_from_slice(&[0x49, 0x89, 0xF5]); // mov r13, rsi (save import descriptor ptr)
     c.extend_from_slice(&[0x41, 0x8B, 0x55, 0x10]); // mov edx,[r13+10] FirstThunk RVA
@@ -841,13 +818,10 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x89, 0xC2]); // mov edx, eax
     let gpa_call_site = c.len();
     patch_rel32(&mut c, gpa_call + 1, gpa_call + 5, gpa_call_site);
-    // Spill r11 above GPA home clobber ([rsp+28h..40h] at CALL) — [rsp+48h] is safe.
-    c.extend_from_slice(&[0x4C, 0x89, 0x5C, 0x24, GPA_IAT_CURSOR_SPILL_OFF]); // mov [rsp+48h], r11
-    emit_call_r15_scratch(&mut c, H00_GETPROCADDRESS_SCRATCH_OFF);
-    c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, GPA_IAT_CURSOR_SPILL_OFF]); // mov r11, [rsp+48h]
+    emit_call_gpa_preserve_r11(&mut c);
     let thunk_resolved = c.len();
     c.extend_from_slice(&[0x48, 0x85, 0xC0]); // resolve failed → fail_import
-    emit_jz_pop_import_shadow_then_fail(&mut c, chunk_text_off as usize, fail_import);
+    emit_jz_pop_shadow_then_fail(&mut c, chunk_text_off as usize, fail_import);
     c.extend_from_slice(&[0x49, 0x89, 0x03]); // mov [r11], rax (IAT slot)
     c.extend_from_slice(&[0x48, 0x83, 0xC6, 0x08]);
     c.extend_from_slice(&[0x49, 0x83, 0xC3, 0x08]);
@@ -856,7 +830,7 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jmp_thunk + 1, jmp_thunk + 5, thunk_loop);
     let thunk_done = c.len();
     patch_rel32(&mut c, jz_thunk_done + 2, jz_thunk_done + 6, thunk_done);
-    emit_import_desc_pop_shadow(&mut c);
+    emit_win64_pop_shadow(&mut c);
     c.extend_from_slice(&[0x49, 0x83, 0xC5, 0x14]); // add r13, 20 (next IMAGE_IMPORT_DESCRIPTOR)
     c.extend_from_slice(&[0x4C, 0x89, 0xEE]); // mov rsi, r13
     let jmp_id = c.len();
@@ -1966,35 +1940,35 @@ mod tests {
         assert!(
             body.windows(14).any(|w| {
                 w[0..10] == [0x44, 0x89, 0xD0, 0x25, 0xFF, 0xFF, 0x00, 0x00, 0x89, 0xC2]
-                    && w[10..14] == [0x4C, 0x89, 0x5C, 0x24]
+                    && w[10..14] == [0x41, 0x54, 0x4D, 0x89]
             }),
-            "import ordinal thunk needs and eax,0xffff + mov edx,eax + spill r11"
+            "import ordinal thunk needs and eax,0xffff + mov edx,eax + push r12 spill r11"
         );
         assert!(
-            body.windows(12).any(|w| {
-                w[0..5] == [0x4C, 0x89, 0x5C, 0x24, GPA_IAT_CURSOR_SPILL_OFF]
-                    && w[5..8] == [0x41, 0xFF, 0x97]
-                    && w[8..12] == H00_GETPROCADDRESS_SCRATCH_OFF.to_le_bytes()
+            body.windows(10).any(|w| {
+                w[0..6] == [0x41, 0x54, 0x4D, 0x89, 0xDC, 0x41]
+                    && w[6] == 0xFF
+                    && w[7] == 0x97
             }),
-            "import loop must call [r15+GPA] per thunk with r11 spill at [rsp+48h]"
+            "import loop must call [r15+GPA] per thunk with r12 spill (push r12; mov r12,r11)"
         );
         assert!(
-            !body.windows(5).any(|w| w == [0x4C, 0x89, 0x5C, 0x24, 0x40]),
-            "IAT cursor must not spill at [rsp+40h] — still inside GPA home clobber zone"
+            !body.windows(5).any(|w| w == [0x4C, 0x89, 0x5C, 0x24, 0x48]),
+            "IAT cursor must not spill at [rsp+48h] — use r12 register spill instead"
         );
         assert!(
             body.windows(8).any(|w| {
-                w[0..4] == [0x48, 0x83, 0xEC, IMPORT_DESC_SHADOW]
+                w[0..4] == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]
                     && w[4..8] == [0x49, 0x8D, 0x14, 0x0E]
             }),
-            "import descriptor must sub rsp,58h before LoadLibrary (GPA clobber-safe spill)"
+            "import descriptor must sub rsp,38h before LoadLibrary (standard Win64 shadow)"
         );
         assert!(
             body.windows(8).any(|w| {
-                w[0..4] == [0x48, 0x83, 0xC4, IMPORT_DESC_SHADOW]
+                w[0..4] == [0x48, 0x83, 0xC4, WIN64_CALL_SHADOW]
                     && w[4..8] == [0x49, 0x83, 0xC5, 0x14]
             }),
-            "import descriptor must add rsp,58h after thunk loop (not 38h)"
+            "import descriptor must add rsp,38h after thunk loop"
         );
         assert!(
             !body.windows(10).any(|w| {
