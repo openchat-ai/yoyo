@@ -339,7 +339,7 @@ fn gen_h00_manual_map_body(
     let jz_next_sec2 = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x49, 0x8D, 0x3C, 0x0E]); // lea rdi,[r14+rcx]
-    c.extend_from_slice(&[0x4A, 0x8D, 0x34, 0x0C]); // lea rsi,[r12+r9] (REX.X for r9 index)
+    c.extend_from_slice(&[0x4B, 0x8D, 0x34, 0x0C]); // lea rsi,[r12+r9] (REX.W|X|B — 4A lacks B → [rsp+r9])
     c.extend_from_slice(&[0x89, 0xD1]); // mov ecx, edx
     c.extend_from_slice(&[0xF3, 0xA4]);
     let next_sec = c.len();
@@ -541,7 +541,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x49, 0x0F, 0xBA, 0xE2, 0x3F]); // bt r10,63 (not BTS /4→EA)
     let jc_ord = c.len();
     c.extend_from_slice(&[0x0F, 0x82, 0, 0, 0, 0]); // jc ord_gpa
-    c.extend_from_slice(&[0x4A, 0x8D, 0x54, 0x16, 0x02]); // lea rdx,[r14+r10+2] name (REX.X for r10 index)
+    c.extend_from_slice(&[0x4B, 0x8D, 0x54, 0x16, 0x02]); // lea rdx,[r14+r10+2] (REX.W|X|B — 4A lacks B → [rsi+r10])
     let gpa_call = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     let ord_gpa = c.len();
@@ -1252,20 +1252,20 @@ mod tests {
             "fix_forward needs mov ebx,edx; add rbx,rdx (export dir end)"
         );
         assert!(
-            body.windows(4).any(|w| w == [0x4A, 0x8D, 0x34, 0x0C]),
-            "section copy needs lea rsi,[r12+r9] (4A 8D 34 0C REX.X)"
+            body.windows(4).any(|w| w == [0x4B, 0x8D, 0x34, 0x0C]),
+            "section copy needs lea rsi,[r12+r9] (4B 8D 34 0C REX.W|X|B)"
         );
         assert!(
-            body.windows(5).any(|w| w == [0x4A, 0x8D, 0x54, 0x16, 0x02]),
-            "import name needs lea rdx,[r14+r10+2] (4A 8D 54 16 02 REX.X)"
+            body.windows(5).any(|w| w == [0x4B, 0x8D, 0x54, 0x16, 0x02]),
+            "import name needs lea rdx,[r14+r10+2] (4B 8D 54 16 02 REX.W|X|B)"
         );
         assert!(
-            !body.windows(4).any(|w| w == [0x4B, 0x8D, 0x34, 0x0C]),
-            "must not emit lea rsi,[r12+rcx] (4B 8D 34 0C) — need r9 index via REX.X"
+            !body.windows(4).any(|w| w == [0x4A, 0x8D, 0x34, 0x0C]),
+            "must not emit lea rsi,[rsp+r9] (4A 8D 34 0C — missing REX.B for r12 base)"
         );
         assert!(
-            !body.windows(5).any(|w| w == [0x4B, 0x8D, 0x54, 0x16, 0x02]),
-            "must not emit lea rdx,[r14+rdx+2] (4B 8D 54 16 02) — need r10 index via REX.X"
+            !body.windows(5).any(|w| w == [0x4A, 0x8D, 0x54, 0x16, 0x02]),
+            "must not emit lea rdx,[rsi+r10+2] (4A 8D 54 16 02 — missing REX.B for r14 base)"
         );
         assert!(
             !body.windows(3).any(|w| w == [0x29, 0xC9]),
