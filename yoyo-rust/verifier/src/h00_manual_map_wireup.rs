@@ -356,8 +356,8 @@ fn gen_h00_manual_map_body(
 
     // Reloc delta: r10 = mapped_base - ImageBase
     c.extend_from_slice(&[
-        0x4F, 0x8B, 0x94, 0x1C, PE_OFF_IMAGE_BASE, 0x00, 0x00, 0x00,
-    ]); // mov r10,[r12+rbx+30h] (REX.W+R+B — was 4D 8B 94 = mov rdx)
+        0x4D, 0x8B, 0x94, 0x1C, PE_OFF_IMAGE_BASE, 0x00, 0x00, 0x00,
+    ]); // mov r10,[r12+rbx+30h] — 4D not 4F (REX.X=1 → SIB index r11 not rbx)
     c.extend_from_slice(&[0x4C, 0x89, 0xF0]); // mov rax, r14 (mapped base)
     c.extend_from_slice(&[0x4C, 0x29, 0xD0]); // sub rax, r10 → delta
     c.extend_from_slice(&[0x49, 0x89, 0xC2]); // mov r10, rax
@@ -1167,14 +1167,14 @@ mod tests {
                 .any(|w| *w == [0x8B, 0x84, 0x33, 0x88, 0x00, 0x00, 0x00]),
             "export tail needs mov eax,[rbx+rsi+88h] (SIB 33, esi=e_lfanew)"
         );
-        // REX.W+B without REX.R on [r12+rbx] reads ImageBase into rdx not r10 (breaks reloc delta).
+        // ImageBase for reloc delta: mov r10,[r12+rbx+30h] needs REX.W|R|B without REX.X (4D 8B 94 1C).
         assert!(
-            !body.windows(4).any(|w| w == [0x4D, 0x8B, 0x94, 0x1C]),
-            "must not emit mov rdx,[r12+rbx] (4D 8B 94 1C) for ImageBase — need mov r10 (4F 8B 94 1C)"
+            body.windows(4).any(|w| w == [0x4D, 0x8B, 0x94, 0x1C]),
+            "missing mov r10,[r12+rbx] ImageBase read (4D 8B 94 1C)"
         );
         assert!(
-            body.windows(4).any(|w| w == [0x4F, 0x8B, 0x94, 0x1C]),
-            "missing mov r10,[r12+rbx] ImageBase read (4F 8B 94 1C)"
+            !body.windows(4).any(|w| w == [0x4F, 0x8B, 0x94, 0x1C]),
+            "must not emit mov r10,[r12+r11] (4F 8B 94 1C — REX.X=1 makes SIB index r11 not rbx)"
         );
         // REX.W+B without REX.R on [r14+rbx] reads SizeOfImage into rax — clobbers GPA result before call.
         assert!(
