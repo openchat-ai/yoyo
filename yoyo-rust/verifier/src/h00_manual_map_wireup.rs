@@ -60,9 +60,8 @@ const PHASE_FLUSH_ICACHE: u8 = 0x0E;
 const PHASE_EXPORT_CALL: u8 = 0x0F;
 
 /// Win64 home-space before `call` to kernel32 (RSP%16==8 at callee entry).
-/// Prologue `and rsp,-16` forces 0-mod-16; `sub 0x40` (0 mod 16) keeps CALL aligned.
-/// (0x40 not 0x38) so CALL stays 16-aligned — 0x38 after RSP%16==8 → movaps AV.
-const WIN64_CALL_SHADOW: u8 = 0x40;
+/// gen2rt frame (`sub rsp,0x208` after four pushes) → RSP%16==0; shadow `0x48` → 8 at CALL.
+const WIN64_CALL_SHADOW: u8 = 0x48;
 /// Short dll/api name spill for 2-arg bootstrap calls (inside 32 B home space; ret at [rsp+38h]).
 const WIN64_STACK_STR_OFF: u8 = 0x20;
 
@@ -96,7 +95,7 @@ fn emit_jz_pop_shadow_then_fail(c: &mut Vec<u8>, chunk_text_off: usize, fail_imp
     );
 }
 
-/// ExitProcess via rip-relative IAT (FF15) — validated by `h00_seed_pe_rva_consistency`.
+/// ExitProcess via `[r15+ExitProcess]` after reload (IAT at r15+0).
 fn emit_exit_process_iat(
     c: &mut Vec<u8>,
     text_rva: u32,
@@ -104,9 +103,10 @@ fn emit_exit_process_iat(
     iat_rva: u32,
     exit_code: u8,
 ) {
+    emit_reload_r15_data_base(c, text_rva, chunk_text_off, iat_rva);
     emit_win64_call_shadow(c);
     c.extend_from_slice(&[0xB9, exit_code, 0, 0, 0]);
-    emit_call_iat_merged(c, text_rva, chunk_text_off, iat_rva, IAT_EXIT_PROCESS);
+    emit_call_iat_r15_slot(c, IAT_EXIT_PROCESS);
 }
 
 fn emit_mov_qword_to_r15_scratch(c: &mut Vec<u8>, off: u32, reg: u8) {
@@ -170,8 +170,8 @@ fn emit_phase_with_bisect(
     emit_phase_probe(c, text_rva, chunk_text_off, iat_rva, phase);
 }
 
-/// Win64 shadow + `mov ecx,imm32` + rip-relative ExitProcess (FF15).
-const FAIL_EPILOGUE_LEN: usize = 15;
+/// reload r15 + Win64 shadow + `mov ecx,imm32` + `call [r15+ExitProcess]`.
+const FAIL_EPILOGUE_LEN: usize = 23;
 
 /// When `H00_BISECT_EXIT` matches `150 + phase` (151–165), exit before phase probe (CI bisect).
 /// Returns true when bisect exit was emitted (caller must not emit phase probe).
@@ -228,8 +228,8 @@ fn emit_mov_u32_pe_mapped(c: &mut Vec<u8>, disp: u8) {
     }
 }
 
-/// H_00 stub prologue (`push` saves + `and rsp,-16` + reload r15) before prelude.
-pub const H00_PROLOGUE_LEN: u32 = 18;
+/// H_00 stub prologue (`push` saves + `sub rsp,0x208` + reload r15) before prelude.
+pub const H00_PROLOGUE_LEN: u32 = 21;
 
 fn patch_rel32(c: &mut [u8], disp_off: usize, from: usize, to: usize) {
     let rel = to as i32 - from as i32;
@@ -1097,7 +1097,7 @@ fn gen_h00_manual_map_body(
     let ff_dot = c.len();
     patch_rel32(&mut c, jz_ff_dot + 2, jz_ff_dot + 6, ff_dot);
     // Copy forwarder DLL prefix [r8,r9) to stack — never patch host .rdata forwarders.
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x40]); // sub rsp, 0x40
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]); // spill dll name in shadow frame
     c.extend_from_slice(&[0x48, 0x89, 0xE7]); // mov rdi, rsp
     c.extend_from_slice(&[0x4C, 0x89, 0xC6]); // mov rsi, r8
     let ff_copy = c.len();
@@ -1124,12 +1124,12 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x49, 0x8D, 0x51, 0x01]); // lea rdx,[r9+1] func name
     let call_ff_resolve = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x40]); // add rsp, 0x40
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, WIN64_CALL_SHADOW]);
     let ff_ret = c.len();
     c.extend_from_slice(&[0x5E]); // pop rsi
     c.extend_from_slice(&[0xC3]);
     let ff_ret_pop = c.len();
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x40]); // add rsp, 0x40 (find_module failed)
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, WIN64_CALL_SHADOW]); // find_module failed
     let jmp_ff_ret = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp ff_ret
     patch_rel32(&mut c, jz_ff_bad2 + 2, jz_ff_bad2 + 6, ff_ret_pop);
@@ -1229,10 +1229,8 @@ pub fn gen_h00_manual_map_main(
     let mut c: Vec<u8> = Vec::new();
 
     c.extend_from_slice(&[0x53, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56]);
-    // `and rsp,-16` forces 16-align regardless of loader JMP entry (RSP%16==8).
-    // WIN64_CALL_SHADOW is 0 mod 16 so CALL stays aligned (callee sees RSP%16==8).
-    // Do NOT pair `and -16` with `sub 0x38`: that puts 8-mod-16 at CALL → movaps AV.
-    c.extend_from_slice(&[0x48, 0x83, 0xE4, 0xF0]); // and rsp, -16
+    // gen2rt frame: four pushes + sub 0x208 → RSP%16==0; per-call shadow 0x48 → 8 at kernel32 CALL.
+    c.extend_from_slice(&[0x48, 0x81, 0xEC, 0x08, 0x02, 0x00, 0x00]); // sub rsp, 0x208
 
     // User .text may clobber r15 before the jmp into H_00; reload before any [r15+scratch] probe.
     emit_reload_r15_data_base(&mut c, text_rva, code_base_off, meta.iat_rva);
@@ -1375,8 +1373,11 @@ mod tests {
             "CreateFile fail path must pop prelude I/O frame before ExitProcess(2)"
         );
         assert!(
-            body.windows(8).any(|w| {
-                w == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW, 0xB9, 0x02, 0x00, 0x00]
+            body.windows(23).any(|w| {
+                w[0..3] == [0x4C, 0x8D, 0x3D]
+                    && w[7..11] == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]
+                    && w[11..16] == [0xB9, 0x02, 0x00, 0x00, 0x00]
+                    && w[16..19] == [0x41, 0xFF, 0x97]
             }),
             "ExitProcess(2) fail epilogue present"
         );
@@ -1412,13 +1413,15 @@ mod tests {
         let meta = sample_meta();
         let body = gen_h00_manual_map_main(&meta, 0x1000, 17_823);
         let mut starts = Vec::new();
-        for i in 0..body.len().saturating_sub(8) {
-            if body[i..i + 4] == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]
-                && i + 4 < body.len()
-                && body[i + 4] == 0xB9
-                && i + 9 < body.len()
-                && body[i + 9] == 0xFF
-                && body[i + 10] == 0x15
+        for i in 0..body.len() {
+            if i + 23 > body.len() {
+                break;
+            }
+            let w = &body[i..i + 23];
+            if w[0..3] == [0x4C, 0x8D, 0x3D]
+                && w[7..11] == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]
+                && w[11] == 0xB9
+                && w[16..19] == [0x41, 0xFF, 0x97]
             {
                 starts.push(i);
             }
@@ -1426,7 +1429,7 @@ mod tests {
         assert_eq!(
             starts.len(),
             8,
-            "expected 8 fail epilogues (shadow + mov ecx + FF15 ExitProcess)"
+            "expected 8 fail epilogues (reload + shadow + mov ecx + call [r15+ExitProcess])"
         );
         for w in starts.windows(2) {
             assert_eq!(
@@ -1461,18 +1464,18 @@ mod tests {
             }
         }
         assert!(
-            body.len() > 400 && body.len() < 2300,
-            "manual-map H_00 stub should fit OW-STUB pin [40,2300] (got {}B)",
+            body.len() > 400 && body.len() < 2350,
+            "manual-map H_00 stub should fit OW-STUB pin [40,2350] (got {}B)",
             body.len()
         );
         assert_eq!(
-            &body[7..11],
-            &[0x48, 0x83, 0xE4, 0xF0],
-            "H_00 prologue must and rsp,-16 (Win64 CALL alignment after JMP entry)"
+            &body[7..14],
+            &[0x48, 0x81, 0xEC, 0x08, 0x02, 0x00, 0x00],
+            "H_00 prologue must sub rsp,0x208 (gen2rt Win64 frame)"
         );
         assert!(
-            !body.windows(7).any(|w| w == [0x48, 0x81, 0xEC, 0x00, 0x02, 0x00, 0x00]),
-            "must not sub rsp,0x200 — misaligns CALL after JMP entry (kernel32 movaps AV)"
+            !body.windows(4).any(|w| w == [0x48, 0x83, 0xE4, 0xF0]),
+            "must not and rsp,-16 — use gen2rt sub 0x208 prologue"
         );
         // No un-prefixed [r12+rbx] PE reads (without REX.B they decode as [rsp+rbx]).
         for i in 0..body.len().saturating_sub(3) {
@@ -1745,38 +1748,39 @@ mod tests {
             !body.windows(7).any(|w| w == [0x44, 0x8B, 0x48, 0x10, 0x44, 0x29, 0xC8]),
             "must not emit sub eax,r9d (44 29 C8) after BaseOrdinal — need sub ecx,r9d"
         );
-        // Export call: `and rsp,-16` then 0-mod-16 shadow → CALL site 16-aligned.
+        // Export call: Win64 shadow then `call export` / ExitProcess(FF15).
         let export_shadow = body
             .windows(4)
             .position(|w| w == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]);
         assert!(
             export_shadow.is_some(),
-            "export tail must sub rsp,0x40 before call (Win64 shadow)"
+            "export tail must sub rsp,0x48 before call (Win64 shadow)"
         );
         assert_eq!(
             WIN64_CALL_SHADOW % 16,
-            0,
-            "CALL shadow must be 0 mod 16 so RSP stays 16-aligned at CALL"
+            8,
+            "CALL shadow 0x48 after 0x208 prologue → RSP%16==8 at kernel32 CALL"
         );
         assert!(
-            body.windows(4).any(|w| w == [0x48, 0x83, 0xE4, 0xF0]),
-            "H_00 prologue must and rsp,-16 (process-entry RSP is 8-mod-16)"
+            body.windows(7).any(|w| w == [0x48, 0x81, 0xEC, 0x08, 0x02, 0x00, 0x00]),
+            "H_00 prologue must sub rsp,0x208 (gen2rt Win64 frame)"
         );
         assert!(
-            !body.windows(7).any(|w| w == [0x48, 0x81, 0xEC, 0x00, 0x02, 0x00, 0x00]),
-            "sub rsp,0x200 misaligns IAT calls (Windows CI movaps AV)"
+            !body.windows(4).any(|w| w == [0x48, 0x83, 0xE4, 0xF0]),
+            "must not and rsp,-16"
         );
-        // Fail epilogues: shadow + mov ecx + FF15 ExitProcess
+        // Fail epilogues: reload r15 + shadow + mov ecx + call [r15+ExitProcess]
         assert!(
-            body.windows(10)
+            body.windows(23)
                 .filter(|w| {
-                    w[0..4] == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]
-                        && w[4] == 0xB9
-                        && w[9] == 0xFF
+                    w[0..3] == [0x4C, 0x8D, 0x3D]
+                        && w[7..11] == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]
+                        && w[11] == 0xB9
+                        && w[16..19] == [0x41, 0xFF, 0x97]
                 })
                 .count()
                 >= 8,
-            "fail epilogues need Win64 shadow + FF15 ExitProcess"
+            "fail epilogues need reload r15 + Win64 shadow + call [r15+ExitProcess]"
         );
         assert!(
             body.windows(7).any(|w| {
