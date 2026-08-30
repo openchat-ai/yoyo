@@ -784,24 +784,30 @@ fn gen_h00_manual_map_body(
     let jz_thunk_done = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x49, 0x89, 0xC2]); // mov r10, rax (save thunk)
-    c.extend_from_slice(&[0x48, 0x89, 0xF9]); // mov rcx, rdi — hModule
-    c.extend_from_slice(&[0x49, 0x0F, 0xBA, 0xE2, 0x3F]); // bt r10,63 (not BTS /4→EA)
+    c.extend_from_slice(&[0x49, 0x0F, 0xBA, 0xE2, 0x3F]); // bt r10,63 (ordinal if high bit set)
     let jc_ord = c.len();
-    c.extend_from_slice(&[0x0F, 0x82, 0, 0, 0, 0]); // jc ord_gpa
-    c.extend_from_slice(&[0x4B, 0x8D, 0x54, 0x16, 0x02]); // lea rdx,[r14+r10+2] (REX.W|X|B — 4A lacks B → [rsi+r10])
-    let gpa_call = c.len();
+    c.extend_from_slice(&[0x0F, 0x82, 0, 0, 0, 0]); // jc ord_resolve
+    c.extend_from_slice(&[0x4B, 0x8D, 0x54, 0x16, 0x02]); // lea rdx,[r14+r10+2] import name
+    let call_thunk_by_name = c.len();
+    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]); // call resolve_export (rdi=hModule)
+    let jmp_thunk_resolved = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-    let ord_gpa = c.len();
-    patch_rel32(&mut c, jc_ord + 2, jc_ord + 6, ord_gpa);
+    let ord_resolve = c.len();
+    patch_rel32(&mut c, jc_ord + 2, jc_ord + 6, ord_resolve);
     c.extend_from_slice(&[0x44, 0x89, 0xD0]); // mov eax, r10d
-    c.extend_from_slice(&[0x25, 0xFF, 0xFF, 0x00, 0x00]); // and eax, 0xffff — ordinal LPCSTR
-    c.extend_from_slice(&[0x89, 0xC2]); // mov edx, eax
-    let gpa_call_site = c.len();
-    patch_rel32(&mut c, gpa_call + 1, gpa_call + 5, gpa_call_site);
-    // Spill r11 above GPA home slots — [rsp+20h] is clobbered by GetProcAddress.
+    c.extend_from_slice(&[0x25, 0xFF, 0xFF, 0x00, 0x00]); // and eax, 0xffff — ordinal
+    // resolve_export_ordinal clobbers r11 — spill above Win64 home slots.
     c.extend_from_slice(&[0x4C, 0x89, 0x5C, 0x24, GPA_IAT_CURSOR_SPILL_OFF]); // mov [rsp+30h], r11
-    emit_call_r15_scratch(&mut c, H00_GETPROCADDRESS_SCRATCH_OFF);
+    let call_thunk_by_ord = c.len();
+    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]); // call resolve_export_ordinal
     c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, GPA_IAT_CURSOR_SPILL_OFF]); // mov r11, [rsp+30h]
+    let thunk_resolved = c.len();
+    patch_rel32(
+        &mut c,
+        jmp_thunk_resolved + 1,
+        jmp_thunk_resolved + 5,
+        thunk_resolved,
+    );
     c.extend_from_slice(&[0x48, 0x85, 0xC0]); // resolve failed → fail_import
     emit_jz_pop_shadow_then_fail(&mut c, chunk_text_off as usize, fail_import);
     c.extend_from_slice(&[0x49, 0x89, 0x03]); // mov [r11], rax (IAT slot)
@@ -989,6 +995,12 @@ fn gen_h00_manual_map_body(
         call_boot_gpa + 5,
         resolve_export,
     );
+    patch_rel32(
+        &mut c,
+        call_thunk_by_name + 1,
+        call_thunk_by_name + 5,
+        resolve_export,
+    );
     // rdi=module, rdx=name → rax=func (preserve thunk rsi; rbx/rcx/rdx = PE tables; r11=IAT cursor)
     c.extend_from_slice(&[0x41, 0x53]); // push r11 — caller IAT cursor survives resolve_export
     c.extend_from_slice(&[0x49, 0x89, 0xD1]); // mov r9, rdx — save import name before table walk
@@ -1054,6 +1066,12 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0xC3]);
 
     let resolve_export_ordinal = c.len();
+    patch_rel32(
+        &mut c,
+        call_thunk_by_ord + 1,
+        call_thunk_by_ord + 5,
+        resolve_export_ordinal,
+    );
     c.extend_from_slice(&[0x89, 0xC1]); // mov ecx, eax (ordinal)
     c.extend_from_slice(&[0x8B, 0x47, 0x3C]); // eax = e_lfanew
     c.extend_from_slice(&[0x8B, 0x84, 0x07, 0x88, 0x00, 0x00, 0x00]); // [rdi+rax+88h] export dir RVA
@@ -1837,19 +1855,27 @@ mod tests {
             }),
             "export success path needs mov ecx,eax + Win64 shadow before ExitProcess"
         );
+        // Import thunks: by-name call resolve_export (E8); ordinal spills r11 then E8 resolve_export_ordinal.
         assert!(
-            !body.windows(5).any(|w| w == [0x4C, 0x89, 0x5C, 0x24, 0x20]),
-            "import GPA must not spill r11 at [rsp+20h] — GetProcAddress clobbers home slot"
+            body.windows(6).any(|w| {
+                w[0..5] == [0x4B, 0x8D, 0x54, 0x16, 0x02] && w[5] == 0xE8
+            }),
+            "import name thunk needs lea rdx,[r14+r10+2] then call resolve_export (E8)"
         );
-        // Import thunk GPA must spill r11 at [rsp+30h], not push/pop (breaks Win64 alignment in shadow).
         assert!(
-            body.windows(18).any(|w| {
+            body.windows(14).any(|w| {
+                w[0..10] == [0x44, 0x89, 0xD0, 0x25, 0xFF, 0xFF, 0x00, 0x00, 0x4C, 0x89]
+                    && w[10..14] == [0x5C, 0x24, GPA_IAT_CURSOR_SPILL_OFF, 0xE8]
+            }),
+            "import ordinal thunk needs spill r11 at [rsp+30h] / call resolve_export_ordinal (E8)"
+        );
+        assert!(
+            !body.windows(12).any(|w| {
                 w[0..5] == [0x4C, 0x89, 0x5C, 0x24, GPA_IAT_CURSOR_SPILL_OFF]
                     && w[5..8] == [0x41, 0xFF, 0x97]
                     && w[8..12] == H00_GETPROCADDRESS_SCRATCH_OFF.to_le_bytes()
-                    && w[12..17] == [0x4C, 0x8B, 0x5C, 0x24, GPA_IAT_CURSOR_SPILL_OFF]
             }),
-            "import GPA path needs mov [rsp+30h],r11 / call GPA / mov r11,[rsp+30h]"
+            "import loop must not call [r15+GPA] per thunk — use resolve_export"
         );
         assert!(
             !body.windows(5).any(|w| w == [0x41, 0x53, 0x41, 0xFF, 0x57]),
