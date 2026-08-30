@@ -57,10 +57,9 @@ const PHASE_IMPORT_OK: u8 = 0x0D;
 const PHASE_FLUSH_ICACHE: u8 = 0x0E;
 const PHASE_EXPORT_CALL: u8 = 0x0F;
 
-/// Win64 home-space before `call` to kernel32.
-/// At the CALL insn RSP must be 16-byte aligned (callee then sees RSP%16==8).
-/// Prologue `and rsp,-16` forces 0-mod-16; `sub 0x40` (0 mod 16) keeps CALL aligned.
-/// 0x38 is 8 mod 16 and yields CALL 8-mod-16 → callee 0-mod-16 → movaps AV.
+/// Win64 home-space before `call` to kernel32 (RSP%16==8 at callee entry).
+/// PE entry RSP%16==8; prologue `sub rsp,0x200` preserves that; shadow must be 0 mod 16
+/// (0x40 not 0x38) so CALL stays 16-aligned — 0x38 after RSP%16==8 → movaps AV.
 const WIN64_CALL_SHADOW: u8 = 0x40;
 /// Short dll/api name spill for 2-arg bootstrap calls (inside 32 B home space; ret at [rsp+38h]).
 const WIN64_STACK_STR_OFF: u8 = 0x20;
@@ -188,8 +187,8 @@ fn emit_mov_u32_pe_mapped(c: &mut Vec<u8>, disp: u8) {
     }
 }
 
-/// H_00 stub prologue (`push` saves + `and rsp,-16`) before file-read prelude.
-pub const H00_PROLOGUE_LEN: u32 = 18;
+/// H_00 stub prologue (`push` saves + `sub rsp,0x200` + reload r15) before prelude.
+pub const H00_PROLOGUE_LEN: u32 = 21;
 
 fn patch_rel32(c: &mut [u8], disp_off: usize, from: usize, to: usize) {
     let rel = to as i32 - from as i32;
@@ -1199,10 +1198,8 @@ pub fn gen_h00_manual_map_main(
     let mut c: Vec<u8> = Vec::new();
 
     c.extend_from_slice(&[0x53, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56]);
-    // `and rsp,-16` forces 16-align regardless of loader CALL vs JMP.
-    // WIN64_CALL_SHADOW is 0 mod 16 so CALL stays 16-aligned (callee sees 8).
-    // Do NOT pair `and -16` with `sub 0x38`: that puts 8-mod-16 at CALL → movaps AV.
-    c.extend_from_slice(&[0x48, 0x83, 0xE4, 0xF0]); // and rsp, -16
+    // PE entry via CALL → RSP%16==8; four pushes preserve it; sub 0x200 (0 mod 16) keeps 8.
+    c.extend_from_slice(&[0x48, 0x81, 0xEC, 0x00, 0x02, 0x00, 0x00]); // sub rsp, 0x200
 
     // User .text may clobber r15 before the jmp into H_00; reload before any [r15+scratch] probe.
     emit_reload_r15_data_base(&mut c, text_rva, code_base_off, meta.iat_rva);
@@ -1439,13 +1436,13 @@ mod tests {
             body.len()
         );
         assert_eq!(
-            &body[7..11],
-            &[0x48, 0x83, 0xE4, 0xF0],
-            "H_00 prologue must and rsp,-16 (Win64 CALL alignment after JMP entry)"
+            &body[7..14],
+            &[0x48, 0x81, 0xEC, 0x00, 0x02, 0x00, 0x00],
+            "H_00 prologue must sub rsp,0x200 (PE-entry RSP%16==8 preserved for kernel32)"
         );
         assert!(
             !body.windows(7).any(|w| w == [0x48, 0x81, 0xEC, 0x08, 0x02, 0x00, 0x00]),
-            "must not sub rsp,0x208 — that leaves CALL 0-mod-16 after JMP entry (kernel32 movaps AV)"
+            "must not sub rsp,0x208 — misaligns CALL after JMP entry (kernel32 movaps AV)"
         );
         // No un-prefixed [r12+rbx] PE reads (without REX.B they decode as [rsp+rbx]).
         for i in 0..body.len().saturating_sub(3) {
@@ -1733,12 +1730,12 @@ mod tests {
             "CALL shadow must be 0 mod 16 so RSP stays 16-aligned at CALL"
         );
         assert!(
-            body.windows(4).any(|w| w == [0x48, 0x83, 0xE4, 0xF0]),
-            "H_00 prologue must and rsp,-16 (process-entry RSP is 8-mod-16)"
+            body.windows(7).any(|w| w == [0x48, 0x81, 0xEC, 0x00, 0x02, 0x00, 0x00]),
+            "H_00 prologue must sub rsp,0x200 (PE-entry RSP%16==8 preserved)"
         );
         assert!(
             !body.windows(7).any(|w| w == [0x48, 0x81, 0xEC, 0x08, 0x02, 0x00, 0x00]),
-            "sub rsp,0x208 is 8-mod-16 and misaligns IAT calls (Windows CI movaps AV)"
+            "sub rsp,0x208 misaligns IAT calls (Windows CI movaps AV)"
         );
         // Fail epilogues: shadow + mov ecx + FF15 ExitProcess
         assert!(
