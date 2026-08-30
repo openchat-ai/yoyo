@@ -37,6 +37,30 @@ const LDR_BASEDLLNAME_BUF_OFF: u8 = 0x60;
 const H00_LOADLIBRARY_SCRATCH_OFF: u8 = 0x50;
 const H00_GETPROCADDRESS_SCRATCH_OFF: u8 = 0x58;
 const H00_KERNEL32_SCRATCH_OFF: u8 = 0x60;
+/// Success-path phase probe (survives until crash for post-mortem; not used on fail epilogue).
+const H00_PHASE_SCRATCH_OFF: u8 = 0x68;
+
+const PHASE_MAP_IMAGE_OK: u8 = 0x0A;
+const PHASE_SECTIONS_OK: u8 = 0x0B;
+const PHASE_RELOC_OK: u8 = 0x0C;
+const PHASE_IMPORT_OK: u8 = 0x0D;
+const PHASE_FLUSH_ICACHE: u8 = 0x0E;
+const PHASE_EXPORT_CALL: u8 = 0x0F;
+
+fn emit_phase_probe(c: &mut Vec<u8>, phase: u8) {
+    c.extend_from_slice(&[0x41, 0xC6, 0x47, H00_PHASE_SCRATCH_OFF, phase]);
+}
+
+/// `mov r8d, [r14+rbx+disp]` — mapped-image optional-header field (ebx = e_lfanew).
+fn emit_mov_u32_pe_mapped(c: &mut Vec<u8>, disp: u8) {
+    c.push(0x45); // REX.R+B for r8d + r14 SIB base
+    c.push(0x8B);
+    if disp < 0x80 {
+        c.extend_from_slice(&[0x84, 0x1E, disp]); // mod=10, reg=r8, SIB base=r14 index=rbx
+    } else {
+        c.extend_from_slice(&[0x84, 0x1E, disp, 0, 0, 0]);
+    }
+}
 
 /// H_00 stub prologue (`push` saves + `sub rsp` + align) before file-read prelude.
 pub const H00_PROLOGUE_LEN: u32 = 15;
@@ -213,6 +237,7 @@ fn gen_h00_manual_map_body(
     fail_jumps.push((c.len(), fail_virtual_alloc));
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x49, 0x89, 0xC6]); // mov r14, rax (image)
+    emit_phase_probe(&mut c, PHASE_MAP_IMAGE_OK);
 
     // Copy headers: rep movsb min(SizeOfHeaders, r13d=file bytes read)
     emit_mov_u32_pe_file(&mut c, 1, PE_OFF_SIZE_OF_HEADERS); // mov ecx,[r12+rbx+54h]
@@ -284,11 +309,12 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jmp_sec + 1, jmp_sec + 5, sec_loop);
     let secs_done = c.len();
     patch_rel32(&mut c, jae_secs_done + 2, jae_secs_done + 6, secs_done);
+    emit_phase_probe(&mut c, PHASE_SECTIONS_OK);
 
     // Reloc delta: r10 = mapped_base - ImageBase
     c.extend_from_slice(&[
-        0x4D, 0x8B, 0x94, 0x1C, PE_OFF_IMAGE_BASE, 0x00, 0x00, 0x00,
-    ]); // mov r10,[r12+rbx+30h] (preferred ImageBase — REX.B required for r12 base)
+        0x4F, 0x8B, 0x94, 0x1C, PE_OFF_IMAGE_BASE, 0x00, 0x00, 0x00,
+    ]); // mov r10,[r12+rbx+30h] (REX.W+R+B — was 4D 8B 94 = mov rdx)
     c.extend_from_slice(&[0x4C, 0x89, 0xF0]); // mov rax, r14 (mapped base)
     c.extend_from_slice(&[0x4C, 0x29, 0xD0]); // sub rax, r10 → delta
     c.extend_from_slice(&[0x49, 0x89, 0xC2]); // mov r10, rax
@@ -344,6 +370,7 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jz_reloc_done + 2, jz_reloc_done + 6, reloc_done);
     patch_rel32(&mut c, jz_reloc_done2 + 2, jz_reloc_done2 + 6, reloc_done);
     patch_rel32(&mut c, jb_reloc_done + 2, jb_reloc_done + 6, reloc_done);
+    emit_phase_probe(&mut c, PHASE_RELOC_OK);
 
     // Bootstrap LoadLibraryA at [r15+scratch] for find_module fallback (api-set forwarders).
     c.extend_from_slice(&[0x49, 0xC7, 0x47, H00_LOADLIBRARY_SCRATCH_OFF, 0, 0, 0, 0]);
@@ -504,22 +531,22 @@ fn gen_h00_manual_map_body(
     let import_done = c.len();
     patch_rel32(&mut c, jz_import_done + 2, jz_import_done + 6, import_done);
     patch_rel32(&mut c, jz_idone + 2, jz_idone + 6, import_done);
+    emit_phase_probe(&mut c, PHASE_IMPORT_OK);
 
     // Realign stack after nested find/resolve helper calls (Win64 movaps safety).
     c.extend_from_slice(&[0x48, 0x83, 0xE4, 0xF0]); // and rsp, -16
 
     // FlushInstructionCache before calling mapped sidecar code (matches reference mapper).
-    // r12 was clobbered to last import module base — read PE headers from mapped image r14.
+    // r12 was clobbered — read PE headers from mapped image r14; load r8d before GPA (rax).
     c.extend_from_slice(&[0x41, 0x8B, 0x5E, 0x3C]); // mov ebx,[r14+3c] e_lfanew
-    c.extend_from_slice(&[
-        0x4D, 0x8B, 0x84, 0x1E, PE_OFF_SIZE_OF_IMAGE, 0x00, 0x00, 0x00,
-    ]); // r8d = [r14+rbx+50h] SizeOfImage
+    emit_mov_u32_pe_mapped(&mut c, PE_OFF_SIZE_OF_IMAGE); // r8d = SizeOfImage (keep through GPA)
     c.extend_from_slice(&[
         0x49, 0x8B, 0x84, 0x1E, PE_OFF_IMPORT_DIR_RVA, 0x00, 0x00, 0x00,
     ]); // eax = import dir RVA from mapped image
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_skip_flush = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    emit_phase_probe(&mut c, PHASE_FLUSH_ICACHE);
     c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]); // shadow for GetProcAddress
     c.extend_from_slice(&[0x49, 0x8B, 0x4F, H00_KERNEL32_SCRATCH_OFF]); // rcx = kernel32
     c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x30]);
@@ -527,18 +554,16 @@ fn gen_h00_manual_map_body(
         c.extend_from_slice(&[0xC6, 0x44, 0x24, off as u8, *ch]);
     }
     c.extend_from_slice(&[0x48, 0x8D, 0x14, 0x24]);
-    c.extend_from_slice(&[0x41, 0xFF, 0x57, H00_GETPROCADDRESS_SCRATCH_OFF]);
+    c.extend_from_slice(&[0x41, 0xFF, 0x57, H00_GETPROCADDRESS_SCRATCH_OFF]); // rax = FlushICache
     c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x30]);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_skip_flush2 = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[
-        0x4D, 0x8B, 0x84, 0x1E, PE_OFF_SIZE_OF_IMAGE, 0x00, 0x00, 0x00,
-    ]); // reload r8d = [r14+rbx+50h] SizeOfImage
+    // rcx=-1, rdx=r14, r8=SizeOfImage already set — do not reload into rax after GPA.
     c.extend_from_slice(&[0x48, 0xC7, 0xC1, 0xFF, 0xFF, 0xFF, 0xFF]); // GetCurrentProcess()
     c.extend_from_slice(&[0x4C, 0x89, 0xF2]); // mov rdx, r14 (FlushInstructionCache lpBaseAddress)
     c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]);
-    c.extend_from_slice(&[0xFF, 0xD0]);
+    c.extend_from_slice(&[0xFF, 0xD0]); // call rax (FlushInstructionCache)
     c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x28]);
     let flush_unwind = c.len();
     c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x28]); // pop flush shadow
@@ -855,6 +880,7 @@ fn gen_h00_export_call_tail(
     c.extend_from_slice(&[0x48, 0x01, 0xD8]); // add rax, rbx — functions RVA is image-relative
     c.extend_from_slice(&[0x8B, 0x00]);
     c.extend_from_slice(&[0x48, 0x01, 0xD8]);
+    emit_phase_probe(&mut c, PHASE_EXPORT_CALL);
     // Win64: RSP%16==0 at CALL; prologue aligned once but map helpers may disturb it.
     c.extend_from_slice(&[0x48, 0x83, 0xE4, 0xF0]); // and rsp, -16
     c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x20]); // shadow for export call
@@ -1091,6 +1117,29 @@ mod tests {
                 .count()
                 >= 2,
             "resolve_export + resolve_export_ordinal need mov eax,[rdi+rax+88h]"
+        );
+        // REX.W+B without REX.R on [r12+rbx] reads ImageBase into rdx not r10 (breaks reloc delta).
+        assert!(
+            !body.windows(4).any(|w| w == [0x4D, 0x8B, 0x94, 0x1C]),
+            "must not emit mov rdx,[r12+rbx] (4D 8B 94 1C) for ImageBase — need mov r10 (4F 8B 94 1C)"
+        );
+        assert!(
+            body.windows(4).any(|w| w == [0x4F, 0x8B, 0x94, 0x1C]),
+            "missing mov r10,[r12+rbx] ImageBase read (4F 8B 94 1C)"
+        );
+        // REX.W+B without REX.R on [r14+rbx] reads SizeOfImage into rax — clobbers GPA result before call.
+        assert!(
+            !body.windows(4).any(|w| w == [0x4D, 0x8B, 0x84, 0x1E]),
+            "must not emit mov rax,[r14+rbx] (4D 8B 84 1E) for SizeOfImage — need mov r8d (45 8B 84 1E)"
+        );
+        assert!(
+            body.windows(4).any(|w| w == [0x45, 0x8B, 0x84, 0x1E]),
+            "missing mov r8d,[r14+rbx] SizeOfImage read (45 8B 84 1E)"
+        );
+        // Success-path phase probes (survive until crash).
+        assert!(
+            body.windows(5).any(|w| w == [0x41, 0xC6, 0x47, H00_PHASE_SCRATCH_OFF, PHASE_FLUSH_ICACHE]),
+            "missing FlushICache phase probe at [r15+68h]"
         );
     }
 }
