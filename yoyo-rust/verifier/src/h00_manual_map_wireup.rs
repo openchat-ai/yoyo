@@ -150,15 +150,14 @@ fn fix_rip_disp(
 const SIB_R12_RBX: u8 = 0x1C;
 /// SIB for `[r12 + disp8]` (index=none, base=r12 via REX.B on opcode).
 const SIB_R12_ONLY: u8 = 0x24;
-/// SIB for `[r14 + disp8]` (index=none, base=r14 via REX.B on opcode).
-const SIB_R14_ONLY: u8 = 0x26;
 
 /// `mov ebx, [r12+3Ch]` — e_lfanew from file PE buffer (r12).
 fn emit_mov_e_lfanew_pe_file(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x41, 0x8B, 0x5C, SIB_R12_ONLY, 0x3C]);
 }
 
-/// `mov ebx, [r14+3Ch]` — e_lfanew from mapped image (r14); ModRM disp8 5E (not SIB 26).
+/// `mov ebx, [r14+3Ch]` — e_lfanew from mapped image (r14).
+/// Use disp8 ModRM 5E (mod=01, reg=ebx, rm=r14); NOT DE (mod=11) which is mov ebx,r14d.
 fn emit_mov_e_lfanew_pe_mapped(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x41, 0x8B, 0x5E, 0x3C]);
 }
@@ -858,7 +857,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x8B, 0x50, 0x1C]);
     c.extend_from_slice(&[0x48, 0x01, 0xFA]);
     c.extend_from_slice(&[0x44, 0x8B, 0x48, 0x10]); // mov r9d,[rax+10] BaseOrdinal
-    c.extend_from_slice(&[0x44, 0x29, 0xC8]); // sub ecx, r9d (ordinal index) — NOT 29 C9 (=sub ecx,ecx)
+    c.extend_from_slice(&[0x44, 0x29, 0xC9]); // sub ecx, r9d (ordinal index) — NOT 29 C9 (=sub ecx,ecx)
     c.extend_from_slice(&[0x8B, 0x04, 0x8A]);
     c.extend_from_slice(&[0x48, 0x01, 0xF8]);
     let call_fixup_ord = c.len();
@@ -991,9 +990,6 @@ fn gen_h00_export_call_tail(
         meta.iat_rva,
         PHASE_EXPORT_CALL,
     );
-    if let Some(code) = option_env!("H00_BISECT_EXIT").and_then(|s| s.parse::<u8>().ok()) {
-        emit_exit_process_iat(&mut c, text_rva, chunk_text_off, meta.iat_rva, code);
-    }
     emit_win64_call_shadow(&mut c);
     c.extend_from_slice(&[0xFF, 0xD0]); // call export (yoyo_runtime_selfhost_main)
     emit_win64_pop_shadow(&mut c);
@@ -1359,8 +1355,12 @@ mod tests {
             "missing mov ebx,[r14+3Ch] (mapped e_lfanew; 41 8B 5E 3C disp8)"
         );
         assert!(
-            !body.windows(5).any(|w| w == [0x41, 0x8B, 0x5C, SIB_R14_ONLY, 0x3C]),
+            !body.windows(5).any(|w| w == [0x41, 0x8B, 0x5C, 0x26, 0x3C]),
             "must not emit mov ebx,[r14+riz+3Ch] (SIB 26) before mapped PE reads"
+        );
+        assert!(
+            !body.windows(4).any(|w| w == [0x41, 0x8B, 0xDE, 0x3C]),
+            "must not emit mov ebx,r14d (41 8B DE 3C mod=11) — NOT [r14+3Ch]"
         );
         assert!(
             !body.windows(5).any(|w| w == [0x41, 0x8B, 0x5C, 0x3C, 0x3C]),
