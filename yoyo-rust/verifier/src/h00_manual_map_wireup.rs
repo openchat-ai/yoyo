@@ -185,10 +185,12 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x49, 0x89, 0xC6]); // mov r14, rax (image)
 
-    // Copy headers: rep movsb SizeOfHeaders
+    // Copy headers: rep movsb min(SizeOfHeaders, r13d=file bytes read)
     c.extend_from_slice(&[
         0x8B, 0x8C, 0x1C, PE_OFF_SIZE_OF_HEADERS, 0x00, 0x00, 0x00,
     ]); // mov ecx,[r12+rbx+54h]
+    c.extend_from_slice(&[0x44, 0x39, 0xED]); // cmp r13d, ecx
+    c.extend_from_slice(&[0x41, 0x0F, 0x42, 0xCD]); // cmovb ecx, r13d
     c.extend_from_slice(&[0x4C, 0x89, 0xF7]); // mov rdi, r14
     c.extend_from_slice(&[0x4C, 0x89, 0xE6]); // mov rsi, r12
     c.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
@@ -230,12 +232,31 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x85, 0xD2]);
     let jz_next_sec = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    // Cap copy: edx=min(edx, r13d-r9d, SizeOfImage-ecx).
+    c.extend_from_slice(&[0x44, 0x89, 0xE8]); // mov eax, r13d
+    c.extend_from_slice(&[0x44, 0x29, 0xC8]); // sub eax, r9d (file bytes left)
+    c.extend_from_slice(&[0x85, 0xC0]);
+    let jle_next_sec = c.len();
+    c.extend_from_slice(&[0x0F, 0x8E, 0, 0, 0, 0]); // jle next_sec
+    c.extend_from_slice(&[0x39, 0xC2]); // cmp edx, eax
+    c.extend_from_slice(&[0x0F, 0x42, 0xD0]); // cmovb edx, eax
+    c.extend_from_slice(&[
+        0x8B, 0x84, 0x1C, PE_OFF_SIZE_OF_IMAGE, 0x00, 0x00, 0x00,
+    ]); // eax = SizeOfImage
+    c.extend_from_slice(&[0x29, 0xC8]); // sub eax, ecx
+    c.extend_from_slice(&[0x39, 0xC2]); // cmp edx, eax
+    c.extend_from_slice(&[0x0F, 0x42, 0xD0]); // cmovb edx, eax
+    c.extend_from_slice(&[0x85, 0xD2]);
+    let jz_next_sec2 = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x49, 0x8D, 0x3C, 0x0E]); // lea rdi,[r14+rcx]
     c.extend_from_slice(&[0x4B, 0x8D, 0x34, 0x0C]); // lea rsi,[r12+r9]
     c.extend_from_slice(&[0x89, 0xD1]); // mov ecx, edx
     c.extend_from_slice(&[0xF3, 0xA4]);
     let next_sec = c.len();
     patch_rel32(&mut c, jz_next_sec + 2, jz_next_sec + 6, next_sec);
+    patch_rel32(&mut c, jle_next_sec + 2, jle_next_sec + 6, next_sec);
+    patch_rel32(&mut c, jz_next_sec2 + 2, jz_next_sec2 + 6, next_sec);
     c.extend_from_slice(&[0x41, 0xFF, 0xC0]); // inc r8d
     let jmp_sec = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
@@ -376,6 +397,7 @@ fn gen_h00_manual_map_body(
     let process_desc = c.len();
     patch_rel32(&mut c, jnz_process + 2, jnz_process + 6, process_desc);
     patch_rel32(&mut c, jnz_process2 + 2, jnz_process2 + 6, process_desc);
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]); // Win64 shadow for find/resolve calls
     // edx=FirstThunk rva — save IAT cursor before rdx becomes module-name ptr
     c.extend_from_slice(&[0x4D, 0x8D, 0x1C, 0x16]); // lea r11,[r14+rdx] IAT write cursor
     c.extend_from_slice(&[0x49, 0x8D, 0x14, 0x0E]); // lea rdx,[r14+rcx] module name
@@ -432,6 +454,7 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jmp_thunk + 1, jmp_thunk + 5, thunk_loop);
     let thunk_done = c.len();
     patch_rel32(&mut c, jz_thunk_done + 2, jz_thunk_done + 6, thunk_done);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x28]); // pop import-desc shadow
     c.extend_from_slice(&[0x49, 0x83, 0xC5, 0x14]); // add r13, 20 (next IMAGE_IMPORT_DESCRIPTOR)
     c.extend_from_slice(&[0x4C, 0x89, 0xEE]); // mov rsi, r13
     let jmp_id = c.len();
@@ -440,6 +463,9 @@ fn gen_h00_manual_map_body(
     let import_done = c.len();
     patch_rel32(&mut c, jz_import_done + 2, jz_import_done + 6, import_done);
     patch_rel32(&mut c, jz_idone + 2, jz_idone + 6, import_done);
+
+    // Realign stack after nested find/resolve helper calls (Win64 movaps safety).
+    c.extend_from_slice(&[0x48, 0x83, 0xE4, 0xF0]); // and rsp, -16
 
     // FlushInstructionCache before calling mapped sidecar code (matches reference mapper).
     // r12 was clobbered to last import module base — read PE headers from mapped image r14.
@@ -453,6 +479,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_skip_flush = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]); // shadow for flush find/resolve
     c.extend_from_slice(&[0x49, 0x8D, 0x34, 0x06]);
     c.extend_from_slice(&[0x8B, 0x4E, 0x0C]);
     c.extend_from_slice(&[0x49, 0x8D, 0x54, 0x0E, 0x00]);
@@ -481,10 +508,12 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]);
     c.extend_from_slice(&[0xFF, 0xD0]);
     c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x28]);
+    let flush_unwind = c.len();
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x28]); // pop flush find/resolve shadow
     let skip_flush = c.len();
     patch_rel32(&mut c, jz_skip_flush + 2, jz_skip_flush + 6, skip_flush);
-    patch_rel32(&mut c, jz_skip_flush2 + 2, jz_skip_flush2 + 6, skip_flush);
-    patch_rel32(&mut c, jz_skip_flush3 + 2, jz_skip_flush3 + 6, skip_flush);
+    patch_rel32(&mut c, jz_skip_flush2 + 2, jz_skip_flush2 + 6, flush_unwind);
+    patch_rel32(&mut c, jz_skip_flush3 + 2, jz_skip_flush3 + 6, flush_unwind);
 
     // Skip DllMain: CRT/TLS entry AVs on manual-mapped image; smoke probe uses kernel32 IAT only.
     // rbx = mapped image (r14)

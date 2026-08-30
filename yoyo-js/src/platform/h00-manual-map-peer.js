@@ -28,15 +28,15 @@ const H00_IAT_SITES = [
   [145, 2], // ReadFile
   [154, 4], // CloseHandle
   [208, 0], // VirtualAlloc (image)
-  [1630, 5], // ExitProcess (export success)
-  [1641, 5], // ExitProcess (fail CreateFile)
-  [1652, 5], // ExitProcess (fail Read)
-  [1663, 5], // ExitProcess (fail VirtualAlloc)
-  [1674, 5], // ExitProcess (fail section_copy)
-  [1685, 5], // ExitProcess (fail reloc)
-  [1696, 5], // ExitProcess (fail import)
-  [1707, 5], // ExitProcess (fail export)
-  [1718, 5], // ExitProcess (fail DllMain — epilogue only, DllMain skipped)
+  [1698, 5], // ExitProcess (export success)
+  [1709, 5], // ExitProcess (fail CreateFile)
+  [1720, 5], // ExitProcess (fail Read)
+  [1731, 5], // ExitProcess (fail VirtualAlloc)
+  [1742, 5], // ExitProcess (fail section_copy)
+  [1753, 5], // ExitProcess (fail reloc)
+  [1764, 5], // ExitProcess (fail import)
+  [1775, 5], // ExitProcess (fail export)
+  [1786, 5], // ExitProcess (fail DllMain — epilogue only, DllMain skipped)
 ];
 
 function rebaseManualMapStub(buf, textRva, codeBaseOff, meta) {
@@ -44,29 +44,22 @@ function rebaseManualMapStub(buf, textRva, codeBaseOff, meta) {
     buf,
     H00_LEA_SITE + 3,
     textRva + codeBaseOff + H00_LEA_SITE + 7,
-    meta.tempNameRva,
+    meta.temp_name_rva
   );
-  for (const [at, slot] of H00_IAT_SITES) {
-    patchRel32(
-      buf,
-      at + 2,
-      textRva + codeBaseOff + at + 6,
-      meta.iatRva + slot * 8,
-    );
+  for (const [off, slot] of H00_IAT_SITES) {
+    const next = textRva + codeBaseOff + off + 6;
+    patchRel32(buf, off + 2, next, meta.iat_rva + slot * 8);
   }
-}
-
-function genH00ManualMapMain(meta, textRva, codeBaseOff) {
-  const buf = Buffer.from(H00_MANUAL_MAP_STUB_TEMPLATE_HEX, 'hex');
-  if (buf.length !== H00_MANUAL_MAP_STUB_LEN) {
-    throw new Error(`H_00 manual-map template len ${buf.length} != ${H00_MANUAL_MAP_STUB_LEN}`);
-  }
-  rebaseManualMapStub(buf, textRva, codeBaseOff, meta);
   return buf;
 }
 
 module.exports = {
-  genH00ManualMapMain,
-  H00_MANUAL_MAP_STUB_LEN,
+  CANONICAL_TEXT_RVA,
   CANONICAL_CODE_BASE_OFF,
+  CANONICAL_IAT_RVA,
+  H00_MANUAL_MAP_STUB_TEMPLATE_HEX,
+  H00_MANUAL_MAP_STUB_LEN,
+  H00_LEA_SITE,
+  H00_IAT_SITES,
+  rebaseManualMapStub,
 };

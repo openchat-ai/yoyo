@@ -1084,6 +1084,10 @@ mod tests {
                 "import[{i}] {hd}!{hn} host={hv:#x} stub={sv:#x}",
             );
         }
+        assert_eq!(
+            host_image, stub_image,
+            "full mapped image bytes must match when IAT resolves agree"
+        );
         eprintln!("STUB_HOST_IAT_COMPARE count={} status=EQUAL", host_iat.len());
     }
 
