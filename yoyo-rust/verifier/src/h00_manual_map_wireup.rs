@@ -101,10 +101,9 @@ fn emit_exit_process_iat(
     iat_rva: u32,
     exit_code: u8,
 ) {
-    emit_reload_r15_data_base(c, text_rva, chunk_text_off, iat_rva);
     emit_win64_call_shadow(c);
     c.extend_from_slice(&[0xB9, exit_code, 0, 0, 0]);
-    emit_call_iat_r15_slot(c, IAT_EXIT_PROCESS);
+    emit_call_iat_merged(c, text_rva, chunk_text_off, iat_rva, IAT_EXIT_PROCESS);
 }
 
 fn emit_mov_qword_to_r15_scratch(c: &mut Vec<u8>, off: u32, reg: u8) {
@@ -294,7 +293,7 @@ pub fn gen_h00_read_sidecar_prelude(
     c.extend_from_slice(&[0xC7, 0x44, 0x24, 0x20, 0x03, 0x00, 0x00, 0x00]); // OPEN_EXISTING
     c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x28, 0x80, 0x00, 0x00, 0x00]); // FILE_ATTRIBUTE_NORMAL
     c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x30, 0x00, 0x00, 0x00, 0x00]); // hTemplateFile
-    emit_call_iat_r15_slot(&mut c, IAT_CREATE_FILE);
+    emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_CREATE_FILE);
     emit_win64_pop_shadow(&mut c);
     c.extend_from_slice(&[0x48, 0x83, 0xF8, 0xFF]);
     let jz_no_file = c.len();
@@ -318,7 +317,7 @@ pub fn gen_h00_read_sidecar_prelude(
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xB9, 0x04, 0x00, 0x00, 0x00]);
     emit_win64_call_shadow(&mut c);
-    emit_call_iat_r15_slot(&mut c, IAT_VIRTUAL_ALLOC);
+    emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_VIRTUAL_ALLOC);
     emit_win64_pop_shadow(&mut c);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_no_buf = c.len();
@@ -340,7 +339,7 @@ pub fn gen_h00_read_sidecar_prelude(
     emit_win64_call_shadow(&mut c);
     c.extend_from_slice(&[0x4C, 0x8D, 0x4C, 0x24, READ_BYTES_STACK_OFF]); // &nBytesRead in shadow frame
     c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x20, 0x00, 0x00, 0x00, 0x00]); // OVERLAPPED NULL
-    emit_call_iat_r15_slot(&mut c, IAT_READ_FILE);
+    emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_READ_FILE);
     c.extend_from_slice(&[0x85, 0xC0]); // test eax,eax — ReadFile BOOL
     emit_jz_pop_shadow_then_fail(&mut c, chunk_text_off as usize, fail_read_empty);
     emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, meta.iat_rva);
@@ -357,7 +356,7 @@ pub fn gen_h00_read_sidecar_prelude(
 
     c.extend_from_slice(&[0x48, 0x89, 0xD9]);
     emit_win64_call_shadow(&mut c);
-    emit_call_iat_r15_slot(&mut c, IAT_CLOSE_HANDLE);
+    emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_CLOSE_HANDLE);
     emit_win64_pop_shadow(&mut c);
 
     c.extend_from_slice(&[0x45, 0x85, 0xED]);
@@ -1321,11 +1320,11 @@ mod tests {
             "prelude needs Win64 shadow before each kernel32 IAT call"
         );
         assert!(
-            body.windows(3)
-                .filter(|w| **w == [0x41, 0xFF, 0x97])
+            body.windows(2)
+                .filter(|w| **w == [0xFF, 0x15])
                 .count()
                 >= 4,
-            "prelude kernel32 I/O must call [r15+iat] (41 FF 97) after reload r15"
+            "prelude kernel32 I/O must use rip-relative IAT (FF 15)"
         );
     }
 
@@ -1720,18 +1719,17 @@ mod tests {
             export_shadow.is_some(),
             "export tail must sub rsp,0x38 before call (Win64 shadow)"
         );
-        // Fail epilogues: reload r15 + shadow + mov ecx,imm + call [r15+ExitProcess]
+        // Fail epilogues: shadow + mov ecx,imm + FF15 ExitProcess
         assert!(
-            body.windows(FAIL_EPILOGUE_LEN)
+            body.windows(10)
                 .filter(|w| {
-                    w[0..3] == [0x4C, 0x8D, 0x3D]
-                        && w[7..11] == [0x48, 0x83, 0xEC, 0x38]
-                        && w[11] == 0xB9
-                        && w[16..23] == [0x41, 0xFF, 0x97, 0x28, 0x00, 0x00, 0x00]
+                    w[0..4] == [0x48, 0x83, 0xEC, 0x38]
+                        && w[4] == 0xB9
+                        && w[9] == 0xFF
                 })
                 .count()
                 >= 8,
-            "fail epilogues need reload r15 + Win64 shadow + call [r15+ExitProcess]"
+            "fail epilogues need Win64 shadow before ExitProcess"
         );
         assert!(
             body.windows(7).any(|w| {
