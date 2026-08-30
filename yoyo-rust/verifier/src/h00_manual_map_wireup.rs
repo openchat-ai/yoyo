@@ -93,7 +93,7 @@ fn emit_jz_pop_shadow_then_fail(c: &mut Vec<u8>, chunk_text_off: usize, fail_imp
     );
 }
 
-/// ExitProcess via IAT — prologue forces RSP%16==0; shadow sub makes RSP%16==8 at `call`.
+/// ExitProcess via `call [r15+ExitProcess]` — reload r15 first (fail epilogues may follow clobber).
 fn emit_exit_process_iat(
     c: &mut Vec<u8>,
     text_rva: u32,
