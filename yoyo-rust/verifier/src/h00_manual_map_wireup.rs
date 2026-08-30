@@ -175,7 +175,7 @@ fn emit_mov_u32_pe_mapped(c: &mut Vec<u8>, disp: u8) {
 }
 
 /// H_00 stub prologue (`push` saves + `sub rsp` + align) before file-read prelude.
-pub const H00_PROLOGUE_LEN: u32 = 15;
+pub const H00_PROLOGUE_LEN: u32 = 22;
 
 fn patch_rel32(c: &mut [u8], disp_off: usize, from: usize, to: usize) {
     let rel = to as i32 - from as i32;
@@ -1200,6 +1200,9 @@ pub fn gen_h00_manual_map_main(
     c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x20]);
     // PE entry is JMP (not CALL) into H_00 — force RSP%16==0 before any Win64 calls.
     c.extend_from_slice(&[0x48, 0x83, 0xE4, 0xF0]); // and rsp, -16
+
+    // User .text may clobber r15 before the jmp into H_00; reload before any [r15+scratch] probe.
+    emit_reload_r15_data_base(&mut c, text_rva, code_base_off, meta.iat_rva);
 
     let entered_off = code_base_off + c.len() as u32;
     emit_phase_probe(&mut c, PHASE_H00_ENTERED);

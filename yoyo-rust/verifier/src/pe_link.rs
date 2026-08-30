@@ -379,7 +379,8 @@ fn link_pe_impl(
     let file_align: u32 = 0x200;
     const PE_STARTUP_LEN: u32 = 13;
 
-    let code_raw = align_up(code.len() as u32, file_align);
+    let code_need = code.len() as u32 + PE_STARTUP_LEN;
+    let code_raw = align_up(code_need, file_align);
     let data_need = OUTPUT_DATA_NEED.max(align_up(data.len() as u32 + 0x1000, section_align));
     let data_raw = align_up(data_need, file_align);
 
@@ -388,8 +389,26 @@ fn link_pe_impl(
     // text VA 0x1000, data VA 0x1000 + align(startup + code)
     let headers_raw = 0x400u32;
     let text_rva = section_align; // 0x1000
-    let text_vs = align_up(code.len() as u32 + PE_STARTUP_LEN + 0x40, section_align);
-    let data_rva = data_rva_override.unwrap_or(text_rva + text_vs);
+    let text_vs_fit = align_up(code_need + 0x40, section_align);
+    let (text_vs, data_rva) = match data_rva_override {
+        Some(d) => {
+            if d < text_rva {
+                return Err(crate::types::IsaError::PlatformError {
+                    msg: format!("H_00 link: data_rva 0x{d:x} before text_rva 0x{text_rva:x}"),
+                });
+            }
+            let tvs = d - text_rva;
+            if code_need + 0x40 > tvs {
+                return Err(crate::types::IsaError::PlatformError {
+                    msg: format!(
+                        "H_00 link: code+startup ({code_need}B) exceeds two-pass text VS ({tvs}B)"
+                    ),
+                });
+            }
+            (tvs, d)
+        }
+        None => (text_vs_fit, text_rva + text_vs_fit),
+    };
     let data_vs = data_need;
 
     let size_of_image = align_up(data_rva + data_vs, section_align);
