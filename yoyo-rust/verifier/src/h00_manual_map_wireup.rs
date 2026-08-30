@@ -139,7 +139,8 @@ fn emit_mov_e_lfanew_pe_file(c: &mut Vec<u8>) {
 
 /// `mov ebx, [r14+3Ch]` — e_lfanew from mapped image (r14).
 fn emit_mov_e_lfanew_pe_mapped(c: &mut Vec<u8>) {
-    c.extend_from_slice(&[0x41, 0x8B, 0x4E, 0x3C]);
+    // ModRM 5E = ebx,[r14+disp8] (REX.B); 4E=ecx and 7E=edi — both break [r14+rbx+disp] PE reads.
+    c.extend_from_slice(&[0x41, 0x8B, 0x5E, 0x3C]);
 }
 
 /// `mov r32, [r12+rbx+disp]` — PE optional-header field via e_lfanew in ebx.
@@ -1217,12 +1218,16 @@ mod tests {
             "must not emit mov ebx,[rsp+3Ch] (SIB 24 = rsp+rsp, not r12)"
         );
         assert!(
-            body.windows(4).any(|w| w == [0x41, 0x8B, 0x4E, 0x3C]),
-            "missing mov ebx,[r14+3Ch] (mapped image e_lfanew)"
+            body.windows(4).any(|w| w == [0x41, 0x8B, 0x5E, 0x3C]),
+            "missing mov ebx,[r14+3Ch] (mapped image e_lfanew; ModRM 5E=ebx)"
         );
         assert!(
-            !body.windows(4).any(|w| w == [0x41, 0x8B, 0x5E, 0x3C]),
-            "must not emit mov rdi,[r14+3Ch] (5E = rdi not ebx)"
+            !body.windows(4).any(|w| w == [0x41, 0x8B, 0x4E, 0x3C]),
+            "must not emit mov ecx,[r14+3Ch] (4E=ecx — ebx stays clobbered after import loop)"
+        );
+        assert!(
+            !body.windows(4).any(|w| w == [0x41, 0x8B, 0x7E, 0x3C]),
+            "must not emit mov edi,[r14+3Ch] (7E=edi not ebx)"
         );
         // Export call after `and rsp,-16` needs sub rsp,0x28 (0x20 → pre-call RSP%16==0 → callee AV).
         let export_align = body
