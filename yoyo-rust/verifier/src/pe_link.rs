@@ -36,7 +36,9 @@ const PRELOAD_RUNTIME_DLL_IMPORTS: &[(&str, &str)] = &[
 pub const WIN32_IO_H00_SCRATCH_BYTES: usize = 32;
 
 /// Offset from r15 / `.data` base to H_00 scratch (pinned by `h00_scratch_off_pinned`).
-pub const WIN32_IO_H00_SCRATCH_OFF: u32 = 0x25B;
+/// ILT/IAT arrays are 8-byte aligned and null-terminated (unaligned OFT made the
+/// Windows loader fall back to a packed IAT and bind garbage — stage17 AV).
+pub const WIN32_IO_H00_SCRATCH_OFF: u32 = 0x298;
 
 fn hint_name_bytes(func: &str) -> Vec<u8> {
     let mut hn = Vec::new();
@@ -58,9 +60,13 @@ fn prepend_win32_io_iat(user_data: &[u8], data_rva: u32) -> (Vec<u8>, u32, u32) 
     let preload_n = PRELOAD_RUNTIME_DLL_IMPORTS.len();
     let num_desc = 1 + preload_n + 1; // trailing null descriptor
 
+    // Each IAT/ILT array is null-terminated and 8-byte aligned. Packed IATs without a
+    // terminating thunk made the loader walk kernel32 FirstThunk into CRT names.
     let kern_iat_off = 0usize;
-    let preload_iat_off = kern_n * 8;
-    let desc_off = preload_iat_off + preload_n * 8;
+    let kern_iat_bytes = (kern_n + 1) * 8;
+    let preload_iat_stride = 16; // one thunk + null
+    let preload_iat_base = kern_iat_bytes;
+    let desc_off = preload_iat_base + preload_n * preload_iat_stride;
 
     let kern_hints: Vec<Vec<u8>> = KERNEL32_IO_FUNCS.iter().map(|s| hint_name_bytes(s)).collect();
     let preload_hints: Vec<Vec<u8>> = PRELOAD_RUNTIME_DLL_IMPORTS
@@ -79,6 +85,7 @@ fn prepend_win32_io_iat(user_data: &[u8], data_rva: u32) -> (Vec<u8>, u32, u32) 
         kern_hn_off.push(cursor);
         cursor += hn.len();
     }
+    cursor = align_up_usize(cursor, 8);
     let kern_ilt_off = cursor;
     cursor += (kern_n + 1) * 8;
 
@@ -88,9 +95,10 @@ fn prepend_win32_io_iat(user_data: &[u8], data_rva: u32) -> (Vec<u8>, u32, u32) 
         cursor += dll.len() + 1;
         let hn_off = cursor;
         cursor += preload_hints[i].len();
+        cursor = align_up_usize(cursor, 8);
         let ilt_off = cursor;
         cursor += 16; // one thunk + null
-        let iat_off = preload_iat_off + i * 8;
+        let iat_off = preload_iat_base + i * preload_iat_stride;
         preload_meta.push((name_off, hn_off, ilt_off, iat_off));
     }
 
@@ -98,7 +106,11 @@ fn prepend_win32_io_iat(user_data: &[u8], data_rva: u32) -> (Vec<u8>, u32, u32) 
     cursor += WIN32_IO_H00_SCRATCH_BYTES;
     let header_end = cursor;
     let pad = align_up_usize(header_end, 16);
-    let _ = h00_scratch_off;
+    debug_assert_eq!(
+        h00_scratch_off,
+        WIN32_IO_H00_SCRATCH_OFF as usize,
+        "update WIN32_IO_H00_SCRATCH_OFF (got 0x{h00_scratch_off:x})"
+    );
     let mut blob = vec![0u8; pad + user_data.len()];
     let user_base = pad;
 
@@ -123,6 +135,7 @@ fn prepend_win32_io_iat(user_data: &[u8], data_rva: u32) -> (Vec<u8>, u32, u32) 
         write_u64(&mut blob, kern_ilt_off + i * 8, hn_rva as u64);
         write_u64(&mut blob, kern_iat_off + i * 8, hn_rva as u64);
     }
+    // kern IAT/ILT terminating thunks stay 0 (blob zero-filled)
 
     for (i, ((dll, _), (name_off, hn_off, ilt_off, iat_off))) in PRELOAD_RUNTIME_DLL_IMPORTS
         .iter()
@@ -137,6 +150,7 @@ fn prepend_win32_io_iat(user_data: &[u8], data_rva: u32) -> (Vec<u8>, u32, u32) 
         write_u64(&mut blob, *ilt_off, hn_rva as u64);
         write_u64(&mut blob, *ilt_off + 8, 0);
         write_u64(&mut blob, *iat_off, hn_rva as u64);
+        write_u64(&mut blob, *iat_off + 8, 0);
     }
 
     blob[user_base..user_base + user_data.len()].copy_from_slice(user_data);
@@ -564,12 +578,13 @@ mod tests {
 
     #[test]
     fn h00_scratch_off_pinned() {
-        const DESC_SIZE: usize = 20; // IMAGE_IMPORT_DESCRIPTOR (was 40 — broke loader chain)
-    let desc_size = DESC_SIZE;
+        const DESC_SIZE: usize = 20;
+        let desc_size = DESC_SIZE;
         let kern_n = KERNEL32_IO_FUNCS.len();
         let preload_n = PRELOAD_RUNTIME_DLL_IMPORTS.len();
         let num_desc = 1 + preload_n + 1;
-        let desc_off = kern_n * 8 + preload_n * 8;
+        let kern_iat_bytes = (kern_n + 1) * 8;
+        let desc_off = kern_iat_bytes + preload_n * 16;
         let strings_off = desc_off + desc_size * num_desc;
         let mut cursor = strings_off + b"kernel32.dll\0".len();
         for f in KERNEL32_IO_FUNCS {
@@ -582,6 +597,7 @@ mod tests {
             }
             cursor += hn.len();
         }
+        cursor = super::align_up_usize(cursor, 8);
         cursor += (kern_n + 1) * 8;
         for (dll, f) in PRELOAD_RUNTIME_DLL_IMPORTS {
             cursor += dll.len() + 1;
@@ -593,6 +609,7 @@ mod tests {
                 hn.push(0);
             }
             cursor += hn.len();
+            cursor = super::align_up_usize(cursor, 8);
             cursor += 16;
         }
         let scratch_off = cursor;
@@ -605,6 +622,47 @@ mod tests {
             scratch_off > desc_off,
             "scratch must be past import descriptors (desc_off=0x{desc_off:x})"
         );
+        assert_eq!(scratch_off % 8, 0, "scratch should be 8-byte aligned");
+    }
+
+    #[test]
+    fn h00_seed_pe_import_ilt_aligned_and_iat_null_terminated() {
+        let mut code = vec![0u8; 32];
+        code[0] = 0xC3;
+        let handler_offsets = [(0x20u16, 8, 4), (0x21, 16, 4)];
+        let pe = link_pe_win32(&code, &[1, 2, 3], &handler_offsets).expect("link h00 seed");
+        let img = &pe.bytes;
+        let lfanew = u32::from_le_bytes(img[0x3C..0x40].try_into().unwrap()) as usize;
+        let opt = lfanew + 24;
+        let soh = u16::from_le_bytes(img[lfanew + 20..lfanew + 22].try_into().unwrap()) as usize;
+        let sec = lfanew + 24 + soh;
+        let mut data_rva = 0u32;
+        let mut data_raw = 0usize;
+        for i in 0..2 {
+            let s = sec + i * 40;
+            let name = &img[s..s + 8];
+            let vrva = u32::from_le_bytes(img[s + 12..s + 16].try_into().unwrap());
+            let rawptr = u32::from_le_bytes(img[s + 20..s + 24].try_into().unwrap()) as usize;
+            if name.starts_with(b".data") {
+                data_rva = vrva;
+                data_raw = rawptr;
+            }
+        }
+        let dd1 = opt + 112 + 8;
+        let import_rva = u32::from_le_bytes(img[dd1..dd1 + 4].try_into().unwrap());
+        let desc_raw = data_raw + (import_rva - data_rva) as usize;
+        let ilt_rva = u32::from_le_bytes(img[desc_raw..desc_raw + 4].try_into().unwrap());
+        let iat_rva = u32::from_le_bytes(img[desc_raw + 16..desc_raw + 20].try_into().unwrap());
+        assert_eq!(
+            ilt_rva % 8,
+            0,
+            "kernel32 ILT must be 8-byte aligned (got 0x{ilt_rva:x})"
+        );
+        assert_eq!(iat_rva, data_rva, "kernel32 IAT at .data base");
+        let kern_n = KERNEL32_IO_FUNCS.len();
+        let iat_term = data_raw + kern_n * 8;
+        let term = u64::from_le_bytes(img[iat_term..iat_term + 8].try_into().unwrap());
+        assert_eq!(term, 0, "kernel32 IAT must be null-terminated after {kern_n} slots");
     }
 
     /// H_00 seed PE: startup `lea r15` and prelude `call [r15+iat]` must agree on `.data` base.
