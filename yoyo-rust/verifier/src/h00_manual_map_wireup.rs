@@ -882,11 +882,11 @@ fn gen_h00_export_call_tail(
     c.extend_from_slice(&[0x8B, 0x00]);
     c.extend_from_slice(&[0x48, 0x01, 0xD8]);
     emit_phase_probe(&mut c, PHASE_EXPORT_CALL);
-    // Win64: RSP%16==0 at CALL; prologue aligned once but map helpers may disturb it.
+    // Win64: RSP%16==8 before CALL (callee entry needs %16==0 after push return addr).
     c.extend_from_slice(&[0x48, 0x83, 0xE4, 0xF0]); // and rsp, -16
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x20]); // shadow for export call
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]); // shadow 0x28 → pre-call RSP%16==8
     c.extend_from_slice(&[0xFF, 0xD0]); // call export (yoyo_runtime_selfhost_main)
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x28]);
     c.extend_from_slice(&[0x89, 0xC1]);
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_EXIT_PROCESS);
 
@@ -1151,10 +1151,13 @@ mod tests {
             body.windows(5).any(|w| w == [0x41, 0xC6, 0x47, H00_PHASE_SCRATCH_OFF, PHASE_FLUSH_ICACHE]),
             "missing FlushICache phase probe at [r15+68h]"
         );
-        // Win64 call shadow must be 0x20 (0x28 leaves RSP%16==8 before CALL → callee movaps AV).
+        // Export call after `and rsp,-16` needs sub rsp,0x28 (0x20 → pre-call RSP%16==0 → callee AV).
+        let export_align = body
+            .windows(8)
+            .position(|w| w == [0x48, 0x83, 0xE4, 0xF0, 0x48, 0x83, 0xEC, 0x28]);
         assert!(
-            !body.windows(4).any(|w| w == [0x48, 0x83, 0xEC, 0x28]),
-            "must not emit sub rsp,0x28 Win64 shadow (misaligns stack before call)"
+            export_align.is_some(),
+            "export tail must and rsp,-16 then sub rsp,0x28 before call (Win64 alignment)"
         );
     }
 }
