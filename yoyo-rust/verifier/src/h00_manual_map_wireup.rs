@@ -47,6 +47,22 @@ const PHASE_IMPORT_OK: u8 = 0x0D;
 const PHASE_FLUSH_ICACHE: u8 = 0x0E;
 const PHASE_EXPORT_CALL: u8 = 0x0F;
 
+/// Win64 home-space before `call` to kernel32 (requires RSP%16==8 at CALL → use after `and rsp,-16`).
+const WIN64_CALL_SHADOW: u8 = 0x28;
+
+fn emit_align_for_win64_call(c: &mut Vec<u8>) {
+    c.extend_from_slice(&[0x48, 0x83, 0xE4, 0xF0]); // and rsp, -16
+}
+
+fn emit_win64_call_shadow(c: &mut Vec<u8>) {
+    emit_align_for_win64_call(c);
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]);
+}
+
+fn emit_win64_pop_shadow(c: &mut Vec<u8>) {
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, WIN64_CALL_SHADOW]);
+}
+
 fn emit_phase_probe(c: &mut Vec<u8>, phase: u8) {
     c.extend_from_slice(&[0x41, 0xC6, 0x47, H00_PHASE_SCRATCH_OFF, phase]);
 }
@@ -230,9 +246,9 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xB9, 0x40, 0x00, 0x00, 0x00]);
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x20]); // Win64 shadow (0x20 — 0x28 misaligns RSP before call)
+    emit_win64_call_shadow(&mut c);
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, iat_rva, IAT_VIRTUAL_ALLOC);
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]);
+    emit_win64_pop_shadow(&mut c);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     fail_jumps.push((c.len(), fail_virtual_alloc));
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
@@ -372,10 +388,6 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jb_reloc_done + 2, jb_reloc_done + 6, reloc_done);
     emit_phase_probe(&mut c, PHASE_RELOC_OK);
 
-    // TEMP bisect: exit 131 if reloc completed (remove after smoke green).
-    c.extend_from_slice(&[0xB9, 131, 0, 0, 0]);
-    emit_call_iat_merged(&mut c, text_rva, chunk_text_off, iat_rva, IAT_EXIT_PROCESS);
-
     // Bootstrap LoadLibraryA at [r15+scratch] for find_module fallback (api-set forwarders).
     c.extend_from_slice(&[0x49, 0xC7, 0x47, H00_LOADLIBRARY_SCRATCH_OFF, 0, 0, 0, 0]);
     emit_mov_u32_pe_file(&mut c, 0, PE_OFF_IMPORT_DIR_RVA);
@@ -470,7 +482,7 @@ fn gen_h00_manual_map_body(
     let process_desc = c.len();
     patch_rel32(&mut c, jnz_process + 2, jnz_process + 6, process_desc);
     patch_rel32(&mut c, jnz_process2 + 2, jnz_process2 + 6, process_desc);
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x20]); // Win64 shadow (0x20 — 0x28 misaligns RSP before call)
+    emit_win64_call_shadow(&mut c);
     // FirstThunk rva is in edx — load module first, then lea r11 (LL/GPA clobber r11).
     c.extend_from_slice(&[0x49, 0x8D, 0x14, 0x0E]); // lea rdx,[r14+rcx] module name
     c.extend_from_slice(&[0x48, 0x89, 0xD1]); // mov rcx, rdx — LoadLibraryA(lpLibFileName)
@@ -526,7 +538,7 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jmp_thunk + 1, jmp_thunk + 5, thunk_loop);
     let thunk_done = c.len();
     patch_rel32(&mut c, jz_thunk_done + 2, jz_thunk_done + 6, thunk_done);
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]); // pop import-desc shadow
+    emit_win64_pop_shadow(&mut c);
     c.extend_from_slice(&[0x49, 0x83, 0xC5, 0x14]); // add r13, 20 (next IMAGE_IMPORT_DESCRIPTOR)
     c.extend_from_slice(&[0x4C, 0x89, 0xEE]); // mov rsi, r13
     let jmp_id = c.len();
@@ -538,7 +550,7 @@ fn gen_h00_manual_map_body(
     emit_phase_probe(&mut c, PHASE_IMPORT_OK);
 
     // Realign stack after nested find/resolve helper calls (Win64 movaps safety).
-    c.extend_from_slice(&[0x48, 0x83, 0xE4, 0xF0]); // and rsp, -16
+    emit_align_for_win64_call(&mut c);
 
     // FlushInstructionCache before calling mapped sidecar code (matches reference mapper).
     // r12 was clobbered — read PE headers from mapped image r14; load r8d before GPA (rax).
@@ -551,7 +563,7 @@ fn gen_h00_manual_map_body(
     let jz_skip_flush = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     emit_phase_probe(&mut c, PHASE_FLUSH_ICACHE);
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x20]); // shadow for GetProcAddress
+    emit_win64_call_shadow(&mut c);
     c.extend_from_slice(&[0x49, 0x8B, 0x4F, H00_KERNEL32_SCRATCH_OFF]); // rcx = kernel32
     c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x30]);
     for (off, ch) in b"FlushInstructionCache\0".iter().enumerate() {
@@ -567,14 +579,11 @@ fn gen_h00_manual_map_body(
     emit_mov_u32_pe_mapped(&mut c, PE_OFF_SIZE_OF_IMAGE);
     c.extend_from_slice(&[0x48, 0xC7, 0xC1, 0xFF, 0xFF, 0xFF, 0xFF]); // GetCurrentProcess()
     c.extend_from_slice(&[0x4C, 0x89, 0xF2]); // mov rdx, r14 (FlushInstructionCache lpBaseAddress)
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x20]);
     c.extend_from_slice(&[0xFF, 0xD0]); // call rax (FlushInstructionCache)
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]);
-    let flush_unwind = c.len();
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]); // pop flush shadow
+    emit_win64_pop_shadow(&mut c);
     let skip_flush = c.len();
     patch_rel32(&mut c, jz_skip_flush + 2, jz_skip_flush + 6, skip_flush);
-    patch_rel32(&mut c, jz_skip_flush2 + 2, jz_skip_flush2 + 6, flush_unwind);
+    patch_rel32(&mut c, jz_skip_flush2 + 2, jz_skip_flush2 + 6, skip_flush);
 
     // Skip DllMain: CRT/TLS entry AVs on manual-mapped image; smoke probe uses kernel32 IAT only.
     // rbx = mapped image (r14)
@@ -657,9 +666,9 @@ fn gen_h00_manual_map_body(
     let jz_ll_fail = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x89, 0xD1]); // mov rcx, rdx (dll name)
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x20]); // shadow
+    emit_win64_call_shadow(&mut c);
     c.extend_from_slice(&[0xFF, 0xD0]); // call rax
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]);
+    emit_win64_pop_shadow(&mut c);
     c.extend_from_slice(&[0x41, 0x5A]); // pop r10
     c.extend_from_slice(&[0xC3]);
     let ll_fail = c.len();
@@ -886,11 +895,9 @@ fn gen_h00_export_call_tail(
     c.extend_from_slice(&[0x8B, 0x00]);
     c.extend_from_slice(&[0x48, 0x01, 0xD8]);
     emit_phase_probe(&mut c, PHASE_EXPORT_CALL);
-    // Win64: RSP%16==8 before CALL (callee entry needs %16==0 after push return addr).
-    c.extend_from_slice(&[0x48, 0x83, 0xE4, 0xF0]); // and rsp, -16
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]); // shadow 0x28 → pre-call RSP%16==8
+    emit_win64_call_shadow(&mut c);
     c.extend_from_slice(&[0xFF, 0xD0]); // call export (yoyo_runtime_selfhost_main)
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x28]);
+    emit_win64_pop_shadow(&mut c);
     c.extend_from_slice(&[0x89, 0xC1]);
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_EXIT_PROCESS);
 
