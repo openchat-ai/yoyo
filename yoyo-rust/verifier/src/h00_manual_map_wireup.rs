@@ -357,7 +357,7 @@ fn gen_h00_manual_map_body(
     // Reloc delta: r10 = mapped_base - ImageBase
     c.extend_from_slice(&[
         0x4D, 0x8B, 0x94, 0x1C, PE_OFF_IMAGE_BASE, 0x00, 0x00, 0x00,
-    ]); // mov r10,[r12+rbx+30h] — 4D not 4F (REX.X=1 → SIB index r11 not rbx)
+    ]); // mov r10,[r12+rbx+30h] — 4D=REX.W|R|B; 4F adds REX.X→index r11
     c.extend_from_slice(&[0x4C, 0x89, 0xF0]); // mov rax, r14 (mapped base)
     c.extend_from_slice(&[0x4C, 0x29, 0xD0]); // sub rax, r10 → delta
     c.extend_from_slice(&[0x49, 0x89, 0xC2]); // mov r10, rax
@@ -581,15 +581,8 @@ fn gen_h00_manual_map_body(
     emit_align_for_win64_call(&mut c);
 
     // FlushInstructionCache before calling mapped sidecar code (matches reference mapper).
-    // r12 was clobbered — read PE headers from mapped image r14; load r8d before GPA (rax).
     emit_mov_e_lfanew_pe_mapped(&mut c);
     emit_mov_u32_pe_mapped(&mut c, PE_OFF_SIZE_OF_IMAGE); // r8d = SizeOfImage (keep through GPA)
-    c.extend_from_slice(&[
-        0x49, 0x8B, 0x84, 0x1E, PE_OFF_IMPORT_DIR_RVA, 0x00, 0x00, 0x00,
-    ]); // eax = import dir RVA from mapped image
-    c.extend_from_slice(&[0x85, 0xC0]);
-    let jz_skip_flush = c.len();
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     emit_phase_probe(&mut c, PHASE_FLUSH_ICACHE);
     emit_win64_call_shadow(&mut c);
     c.extend_from_slice(&[0x49, 0x8B, 0x4F, H00_KERNEL32_SCRATCH_OFF]); // rcx = kernel32
@@ -610,7 +603,6 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0xFF, 0xD0]); // call rax (FlushInstructionCache)
     emit_win64_pop_shadow(&mut c);
     let skip_flush = c.len();
-    patch_rel32(&mut c, jz_skip_flush + 2, jz_skip_flush + 6, skip_flush);
     patch_rel32(&mut c, jz_skip_flush2 + 2, jz_skip_flush2 + 6, skip_flush);
 
     // Skip DllMain: CRT/TLS entry AVs on manual-mapped image; smoke probe uses kernel32 IAT only.
@@ -924,6 +916,9 @@ fn gen_h00_export_call_tail(
     c.extend_from_slice(&[0x8B, 0x00]);
     c.extend_from_slice(&[0x48, 0x01, 0xD8]);
     emit_phase_probe(&mut c, PHASE_EXPORT_CALL);
+    if let Some(code) = option_env!("H00_BISECT_EXIT").and_then(|s| s.parse::<u8>().ok()) {
+        emit_exit_process_iat(&mut c, text_rva, chunk_text_off, meta.iat_rva, code);
+    }
     emit_win64_call_shadow(&mut c);
     c.extend_from_slice(&[0xFF, 0xD0]); // call export (yoyo_runtime_selfhost_main)
     emit_win64_pop_shadow(&mut c);
@@ -1168,14 +1163,14 @@ mod tests {
                 .any(|w| *w == [0x8B, 0x84, 0x33, 0x88, 0x00, 0x00, 0x00]),
             "export tail needs mov eax,[rbx+rsi+88h] (SIB 33, esi=e_lfanew)"
         );
-        // ImageBase for reloc delta: mov r10,[r12+rbx+30h] needs REX.W|R|B without REX.X (4D 8B 94 1C).
+        // ImageBase for reloc delta: mov r10,[r12+rbx+30h] needs REX.W|R|B (4D 8B 94 1C).
         assert!(
             body.windows(4).any(|w| w == [0x4D, 0x8B, 0x94, 0x1C]),
             "missing mov r10,[r12+rbx] ImageBase read (4D 8B 94 1C)"
         );
         assert!(
             !body.windows(4).any(|w| w == [0x4F, 0x8B, 0x94, 0x1C]),
-            "must not emit mov r10,[r12+r11] (4F 8B 94 1C — REX.X=1 makes SIB index r11 not rbx)"
+            "must not emit mov rdx,[r12+r11] (4F 8B 94 1C — REX.X=1 makes SIB index r11 not rbx)"
         );
         // REX.W+B without REX.R on [r14+rbx] reads SizeOfImage into rax — clobbers GPA result before call.
         assert!(
