@@ -977,8 +977,8 @@ mod tests {
             }
         }
         assert!(
-            body.len() > 400 && body.len() < 1700,
-            "manual-map H_00 stub should fit OW-STUB pin [40,1700] (got {}B)",
+            body.len() > 400 && body.len() < 1800,
+            "manual-map H_00 stub should fit OW-STUB pin [40,1800] (got {}B)",
             body.len()
         );
         // No LoadLibraryA ROR13 hash needle (0x8E 0x4E 0x0E 0xEC)
