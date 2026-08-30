@@ -195,6 +195,32 @@ Write-Host "OW_IAT_WIREUP seed_pe markers=OK LoadLibraryA=STUB_EMBED yoyo_rt.dll
 
 if (-not $SkipSmoke) {
     if (-not (Test-Path $Tyb)) { throw "missing $Tyb" }
+
+    Write-Host ""
+    Write-Host "== smoke: fail-closed WITHOUT sidecar (expect CreateFile fail, not AV) =="
+    $runFail = Join-Path $WorkDir "smoke-no-sidecar"
+    New-Item -ItemType Directory -Force -Path $runFail | Out-Null
+    Copy-Item $gen1 (Join-Path $runFail "gen1.exe") -Force
+    Copy-Item $Tyb (Join-Path $runFail "input.tyb") -Force
+    $outFail = Join-Path $runFail "output.exe"
+    $rtFail = Join-Path $runFail "yoyo_rt.dll"
+    if (Test-Path $outFail) { Remove-Item $outFail }
+    if (Test-Path $rtFail) { Remove-Item $rtFail }
+    Push-Location $runFail
+    try {
+        & ".\gen1.exe"
+        $failExit = $LASTEXITCODE
+    } finally {
+        Pop-Location
+    }
+    if ($failExit -eq -1073741819) {
+        throw "manual-map smoke WITHOUT sidecar AV (crash before CreateFile fail-closed exit=2)"
+    }
+    if ((Test-Path $outFail) -and $failExit -eq 0) {
+        throw "fail-closed WITHOUT sidecar produced output.exe (manual-map must require cwd yoyo_rt.dll)"
+    }
+    Write-Host ("smoke WITHOUT sidecar: fail-closed OK exit={0} output.exe absent" -f $failExit)
+
     Write-Host ""
     Write-Host "== smoke: cwd yoyo_rt.dll + manual-map H_00 (with sidecar) =="
     $runOk = Join-Path $WorkDir "smoke-with-sidecar"
@@ -222,27 +248,6 @@ if (-not $SkipSmoke) {
         Write-Host ("smoke WITH sidecar: gen1 -> output.exe OK ({0} bytes)" -f $outLen)
     }
 
-    Write-Host ""
-    Write-Host "== smoke: fail-closed WITHOUT sidecar (expect no output.exe) =="
-    $runFail = Join-Path $WorkDir "smoke-no-sidecar"
-    New-Item -ItemType Directory -Force -Path $runFail | Out-Null
-    Copy-Item $gen1 (Join-Path $runFail "gen1.exe") -Force
-    Copy-Item $Tyb (Join-Path $runFail "input.tyb") -Force
-    $outFail = Join-Path $runFail "output.exe"
-    $rtFail = Join-Path $runFail "yoyo_rt.dll"
-    if (Test-Path $outFail) { Remove-Item $outFail }
-    if (Test-Path $rtFail) { Remove-Item $rtFail }
-    Push-Location $runFail
-    try {
-        & ".\gen1.exe"
-        $failExit = $LASTEXITCODE
-    } finally {
-        Pop-Location
-    }
-    if ((Test-Path $outFail) -and $failExit -eq 0) {
-        throw "fail-closed WITHOUT sidecar produced output.exe (manual-map must require cwd yoyo_rt.dll)"
-    }
-    Write-Host ("smoke WITHOUT sidecar: fail-closed OK exit={0} output.exe absent" -f $failExit)
     Write-Host "OW_IAT_WIREUP smoke=GREEN sidecar_required=YES"
 } else {
     Write-Host "OW_IAT_WIREUP smoke=SKIP (-SkipSmoke)"

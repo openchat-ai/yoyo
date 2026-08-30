@@ -21,7 +21,7 @@ function patchRel32(buf, dispOff, from, to) {
   buf.writeInt32LE(to - from, dispOff);
 }
 
-const H00_LEA_SITE = 22;
+const H00_LEA_SITE = 26;
 const H00_IAT_SITES = [
   [70, 1], // CreateFileA
   [124, 0], // VirtualAlloc (file buffer)
@@ -54,16 +54,19 @@ function rebaseManualMapStub(buf, textRva, codeBaseOff, meta) {
       meta.iatRva + slot * 8,
     );
   }
+}
+
+function genH00ManualMapMain(meta, textRva, codeBaseOff) {
+  const buf = Buffer.from(H00_MANUAL_MAP_STUB_TEMPLATE_HEX, 'hex');
+  if (buf.length !== H00_MANUAL_MAP_STUB_LEN) {
+    throw new Error(`H_00 manual-map template len ${buf.length} != ${H00_MANUAL_MAP_STUB_LEN}`);
+  }
+  rebaseManualMapStub(buf, textRva, codeBaseOff, meta);
   return buf;
 }
 
 module.exports = {
-  CANONICAL_TEXT_RVA,
-  CANONICAL_CODE_BASE_OFF,
-  CANONICAL_IAT_RVA,
-  H00_MANUAL_MAP_STUB_TEMPLATE_HEX,
+  genH00ManualMapMain,
   H00_MANUAL_MAP_STUB_LEN,
-  H00_LEA_SITE,
-  H00_IAT_SITES,
-  rebaseManualMapStub,
+  CANONICAL_CODE_BASE_OFF,
 };

@@ -273,13 +273,13 @@ pub fn gen_h00_read_sidecar_prelude(
 
     emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, meta.iat_rva);
 
-    let lea_path = c.len();
-    c.extend_from_slice(&[0x48, 0x8D, 0x0D, 0, 0, 0, 0]);
     // CreateFileA(path, GENERIC_READ, share=0, sa=NULL, OPEN_EXISTING, NORMAL, hTemplate=NULL)
-    c.extend_from_slice(&[0xBA, 0x00, 0x00, 0x00, 0x80]); // GENERIC_READ
+    emit_win64_call_shadow(&mut c);
+    let lea_path = c.len();
+    c.extend_from_slice(&[0x48, 0x8D, 0x0D, 0, 0, 0, 0]); // rcx = path
+    c.extend_from_slice(&[0xBA, 0x00, 0x00, 0x00, 0x80]); // rdx = GENERIC_READ
     c.extend_from_slice(&[0x45, 0x31, 0xC0]); // xor r8d,r8d
     c.extend_from_slice(&[0x45, 0x31, 0xC9]); // xor r9d,r9d
-    emit_win64_call_shadow(&mut c);
     c.extend_from_slice(&[0xC7, 0x44, 0x24, 0x20, 0x03, 0x00, 0x00, 0x00]); // OPEN_EXISTING
     c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x28, 0x80, 0x00, 0x00, 0x00]); // FILE_ATTRIBUTE_NORMAL
     c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x30, 0x00, 0x00, 0x00, 0x00]); // hTemplateFile
