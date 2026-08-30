@@ -157,7 +157,6 @@ fn emit_mov_e_lfanew_pe_file(c: &mut Vec<u8>) {
 }
 
 /// `mov ebx, [r14+3Ch]` — e_lfanew from mapped image (r14).
-/// Use disp8 ModRM 5E (mod=01, reg=ebx, rm=r14); NOT DE (mod=11) which is mov ebx,r14d.
 fn emit_mov_e_lfanew_pe_mapped(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x41, 0x8B, 0x5E, 0x3C]);
 }
@@ -521,17 +520,17 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]);
     c.extend_from_slice(&[0x49, 0x89, 0x47, H00_GETPROCADDRESS_SCRATCH_OFF]);
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]); // add rsp, 0x20 (kernel32 name / LL+GPA stack)
-    let skip_ll_boot = c.len();
-    patch_rel32(&mut c, jz_skip_ll_boot + 2, jz_skip_ll_boot + 6, skip_ll_boot);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]); // add rsp, 0x20 (kernel32 name stack)
+    let jmp_boot_ok = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // success: skip failure pop
     let skip_ll_boot_pop = c.len();
     c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]); // find_module failed — pop kernel32 stack
-    let jmp_skip_ll_boot = c.len();
+    let jmp_boot_fail = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     patch_rel32(&mut c, jz_skip_ll_boot2 + 2, jz_skip_ll_boot2 + 6, skip_ll_boot_pop);
-    patch_rel32(&mut c, jmp_skip_ll_boot + 1, jmp_skip_ll_boot + 5, skip_ll_boot);
 
     // Import resolve: walk descriptors at [r14+import_rva]
+    let import_walk_start = c.len();
     emit_mov_u32_pe_file(&mut c, 0, PE_OFF_IMPORT_DIR_RVA); // import dir rva
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_import_done = c.len();
@@ -628,6 +627,15 @@ fn gen_h00_manual_map_body(
     let import_done = c.len();
     patch_rel32(&mut c, jz_import_done + 2, jz_import_done + 6, import_done);
     patch_rel32(&mut c, jz_idone + 2, jz_idone + 6, import_done);
+    // Bootstrap exits: jmp over failure pop into import walk (not into skip_ll_boot_pop).
+    patch_rel32(&mut c, jmp_boot_ok + 1, jmp_boot_ok + 5, import_walk_start);
+    patch_rel32(&mut c, jmp_boot_fail + 1, jmp_boot_fail + 5, import_walk_start);
+    patch_rel32(
+        &mut c,
+        jz_skip_ll_boot + 2,
+        jz_skip_ll_boot + 6,
+        import_done,
+    );
     emit_phase_probe(&mut c, PHASE_IMPORT_OK);
     maybe_bisect_exit_after_phase(
         &mut c,
@@ -857,7 +865,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x8B, 0x50, 0x1C]);
     c.extend_from_slice(&[0x48, 0x01, 0xFA]);
     c.extend_from_slice(&[0x44, 0x8B, 0x48, 0x10]); // mov r9d,[rax+10] BaseOrdinal
-    c.extend_from_slice(&[0x44, 0x29, 0xC9]); // sub ecx, r9d (ordinal index) — NOT 29 C9 (=sub ecx,ecx)
+    c.extend_from_slice(&[0x44, 0x29, 0xC9]); // sub ecx, r9d (ordinal index)
     c.extend_from_slice(&[0x8B, 0x04, 0x8A]);
     c.extend_from_slice(&[0x48, 0x01, 0xF8]);
     let call_fixup_ord = c.len();
@@ -1407,9 +1415,25 @@ mod tests {
             "must not emit lea rdx,[rsi+r10+2] (4A 8D 54 16 02 — missing REX.B for r14 base)"
         );
         assert!(
-            !body.windows(3).any(|w| w == [0x29, 0xC9]),
+            !body.windows(4).any(|w| w == [0x29, 0xC9]),
             "must not emit sub ecx,ecx (29 C9) in ordinal export path"
         );
+        // Bootstrap success must jmp over failure pop — not fall through into add rsp; jmp add rsp loop.
+        let gpa_store = body
+            .windows(4)
+            .position(|w| w == [0x49, 0x89, 0x47, H00_GETPROCADDRESS_SCRATCH_OFF]);
+        if let Some(at) = gpa_store {
+            let tail = &body[at + 4..at + 4 + 12];
+            assert_eq!(
+                &tail[0..5],
+                &[0x48, 0x83, 0xC4, 0x20, 0xE9][..],
+                "after GPA bootstrap store expect add rsp,20h; jmp (skip failure pop)"
+            );
+            assert!(
+                !body[at + 4..].windows(2).any(|w| w == [0xE9, 0xF7]),
+                "bootstrap must not jmp back into skip_ll_boot_pop (infinite stack unwind)"
+            );
+        }
         // Export call after `and rsp,-16` needs sub rsp,0x28 (0x20 → pre-call RSP%16==0 → callee AV).
         let export_align = body
             .windows(8)

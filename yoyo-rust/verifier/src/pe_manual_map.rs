@@ -1301,16 +1301,26 @@ mod tests {
         .into_iter()
         .find(|p| p.is_file())
         .expect("yoyo_runtime.dll not built");
-        let yoyo_release = root.join("yoyo-rust/target/release/yoyo.exe");
-        let yoyo_debug = root.join("yoyo-rust/target/debug/yoyo.exe");
-        let yoyo = if yoyo_release.is_file() {
-            yoyo_release
-        } else if yoyo_debug.is_file() {
-            yoyo_debug
-        } else {
-            eprintln!("skip manual_map_gen1_exe_smoke: build yoyo.exe first (debug or release)");
-            return;
+        let yoyo = [
+            root.join("yoyo-rust/target/release/yoyo.exe"),
+            root.join("yoyo-rust/target/debug/yoyo.exe"),
+        ]
+        .into_iter()
+        .find(|p| p.is_file());
+        let yoyo = match yoyo {
+            Some(p) => p,
+            None => {
+                eprintln!("building debug yoyo.exe for manual_map_gen1_exe_smoke");
+                let status = Command::new("cargo")
+                    .args(["build", "-p", "verifier"])
+                    .current_dir(root.join("yoyo-rust"))
+                    .status()
+                    .expect("cargo build verifier");
+                assert!(status.success(), "cargo build -p verifier failed");
+                root.join("yoyo-rust/target/debug/yoyo.exe")
+            }
         };
+        assert!(yoyo.is_file(), "yoyo.exe missing after build");
         let ty = root.join("yoyo/projects/yoyo.ty");
         let tyb = root.join("yoyo/projects/yoyo.tyb");
         assert!(tyb.is_file(), "missing input.tyb");
