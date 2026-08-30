@@ -388,8 +388,9 @@ pub fn gen_h00_read_sidecar_prelude(
     c.extend_from_slice(&[0x48, 0x89, 0xD9]);
     c.extend_from_slice(&[0x4C, 0x89, 0xE2]);
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x00, 0x80, 0x00]); // ReadFile size cap
-    c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, READ_BYTES_STACK_OFF, 0, 0, 0, 0]); // lpOverlapped NULL + nBytesRead=0
+    c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, READ_BYTES_STACK_OFF, 0, 0, 0, 0]); // nBytesRead = 0
     c.extend_from_slice(&[0x4C, 0x8D, 0x4C, 0x24, READ_BYTES_STACK_OFF]); // lea r9,[rsp+20h]
+    c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x28, 0, 0, 0, 0]); // lpOverlapped NULL (platform_io [rsp+28h])
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_READ_FILE);
     c.extend_from_slice(&[0x85, 0xC0]); // test eax,eax — ReadFile BOOL
     emit_jz_pop_prelude_frame_then_fail(&mut c, chunk_text_off as usize, fail_read_empty);
