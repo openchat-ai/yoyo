@@ -195,7 +195,7 @@ pub fn link_pe_win32(
         let data_rva = text_rva + text_vs;
         let (extended, import_dir_rva, import_dir_size) = prepend_win32_io_iat(data, data_rva);
         let _ = platform_io::WIN32_IAT_DATA_RESERVE;
-        link_pe_impl(code, &extended, true, import_dir_rva, import_dir_size)
+        link_pe_impl(code, &extended, true, import_dir_rva, import_dir_size, None)
     }
 }
 
@@ -284,7 +284,14 @@ pub fn link_pe_h00_runtime(
         code[i] = 0x90;
     }
     let _ = platform_io::WIN32_IAT_DATA_RESERVE;
-    link_pe_impl(&code, &extended, true, import_dir_rva, import_dir_size)
+    link_pe_impl(
+        &code,
+        &extended,
+        true,
+        import_dir_rva,
+        import_dir_size,
+        Some(data_rva),
+    )
 }
 
 /// Embed default selfhost paths at r15+STR_TABLE_OFF (platform_io layout).
@@ -356,6 +363,7 @@ pub fn link_pe_selfhost(
         true,
         meta.import_dir_rva,
         meta.import_dir_size,
+        None,
     )
 }
 
@@ -365,9 +373,11 @@ fn link_pe_impl(
     is_selfhost: bool,
     import_dir_rva: u32,
     import_dir_size: u32,
+    data_rva_override: Option<u32>,
 ) -> IsaResult<PeImage> {
     let section_align: u32 = 0x1000;
     let file_align: u32 = 0x200;
+    const PE_STARTUP_LEN: u32 = 13;
 
     let code_raw = align_up(code.len() as u32, file_align);
     let data_need = OUTPUT_DATA_NEED.max(align_up(data.len() as u32 + 0x1000, section_align));
@@ -375,11 +385,11 @@ fn link_pe_impl(
 
     // Layout:
     // 0x0000: DOS + PE headers (1 section-align = 0x1000 file, 0x200 min)
-    // text VA 0x1000, data VA 0x1000 + align(code)
+    // text VA 0x1000, data VA 0x1000 + align(startup + code)
     let headers_raw = 0x400u32;
     let text_rva = section_align; // 0x1000
-    let text_vs = align_up(code.len() as u32 + 0x40, section_align); // room for startup
-    let data_rva = text_rva + text_vs;
+    let text_vs = align_up(code.len() as u32 + PE_STARTUP_LEN + 0x40, section_align);
+    let data_rva = data_rva_override.unwrap_or(text_rva + text_vs);
     let data_vs = data_need;
 
     let size_of_image = align_up(data_rva + data_vs, section_align);
@@ -453,7 +463,7 @@ fn link_pe_impl(
     //   lea r15, [rip + disp]  ; r15 = data base (state)
     //   jmp user_code
     let text_file_off = headers_raw as usize;
-    let startup_len = 13u32; // lea r15, [rip+d] (7) + jmp rel32 (5) + align nop
+    let startup_len = PE_STARTUP_LEN; // lea r15, [rip+d] (7) + jmp rel32 (5) + align nop
 
     // lea r15, [rip + disp32]
     // After this 7-byte insn, RIP = text_rva + 7
@@ -575,6 +585,83 @@ mod tests {
         assert!(
             scratch_off > desc_off,
             "scratch must be past import descriptors (desc_off=0x{desc_off:x})"
+        );
+    }
+
+    /// H_00 seed PE: startup `lea r15` and stub `FF 15` IAT calls must agree on `.data` base.
+    #[test]
+    fn h00_seed_pe_rva_consistency() {
+        use crate::ddc::PE_STARTUP_LEN;
+
+        let mut code = vec![0u8; 32];
+        code[0] = 0xC3;
+        let handler_offsets = [(0x20u16, 8, 4), (0x21, 16, 4)];
+        let pe = link_pe_win32(&code, &[1, 2, 3], &handler_offsets).expect("link h00 seed");
+        let img = &pe.bytes;
+
+        let lfanew = u32::from_le_bytes(img[0x3C..0x40].try_into().unwrap()) as usize;
+        let opt = lfanew + 24;
+        let entry_rva = u32::from_le_bytes(img[opt + 16..opt + 20].try_into().unwrap());
+        let soh = u16::from_le_bytes(img[lfanew + 20..lfanew + 22].try_into().unwrap()) as usize;
+        let sec = lfanew + 24 + soh;
+        let mut text_rva = 0u32;
+        let mut text_raw = 0usize;
+        let mut data_rva = 0u32;
+        let mut data_raw = 0usize;
+        for i in 0..2 {
+            let s = sec + i * 40;
+            let name = &img[s..s + 8];
+            let vrva = u32::from_le_bytes(img[s + 12..s + 16].try_into().unwrap());
+            let rawptr = u32::from_le_bytes(img[s + 20..s + 24].try_into().unwrap()) as usize;
+            if name.starts_with(b".text") {
+                text_rva = vrva;
+                text_raw = rawptr;
+            } else if name.starts_with(b".data") {
+                data_rva = vrva;
+                data_raw = rawptr;
+            }
+        }
+        assert_eq!(entry_rva, text_rva, "entry must be startup in .text");
+
+        let lea_disp = i32::from_le_bytes(img[text_raw + 3..text_raw + 7].try_into().unwrap());
+        let r15_from_startup = text_rva + 7 + lea_disp as u32;
+        assert_eq!(
+            r15_from_startup, data_rva,
+            "startup lea r15 must target .data base (got 0x{r15_from_startup:x} data=0x{data_rva:x})"
+        );
+
+        let h00_jmp_rel = i32::from_le_bytes(
+            img[text_raw + PE_STARTUP_LEN + 1..text_raw + PE_STARTUP_LEN + 5]
+                .try_into()
+                .unwrap(),
+        );
+        let stub_off = PE_STARTUP_LEN + 5 + h00_jmp_rel as usize;
+        let stub = &img[text_raw + stub_off..];
+        let create_ff15 = stub
+            .windows(2)
+            .position(|w| w == [0xFF, 0x15])
+            .expect("CreateFile FF 15 in stub");
+        let disp = i32::from_le_bytes(stub[create_ff15 + 2..create_ff15 + 6].try_into().unwrap());
+        let call_rva = text_rva + stub_off as u32 + create_ff15 as u32 + 6;
+        let iat_rva = (call_rva as i32 + disp) as u32;
+        assert_eq!(
+            iat_rva,
+            data_rva + 8,
+            "CreateFile IAT slot must be data_rva+8 (got 0x{iat_rva:x})"
+        );
+
+        let lea_rcx = stub
+            .windows(3)
+            .position(|w| w == [0x48, 0x8D, 0x0D])
+            .expect("lea rcx,[rip+disp] for yoyo_rt.dll");
+        let path_disp =
+            i32::from_le_bytes(stub[lea_rcx + 3..lea_rcx + 7].try_into().unwrap());
+        let path_rva = text_rva + stub_off as u32 + lea_rcx as u32 + 7 + path_disp as u32;
+        let path_raw = data_raw + (path_rva - data_rva) as usize;
+        assert_eq!(
+            &img[path_raw..path_raw + 12],
+            b"yoyo_rt.dll\0",
+            "sidecar path must point at yoyo_rt.dll string in .data"
         );
     }
 }
