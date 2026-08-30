@@ -43,6 +43,7 @@ const H00_KERNEL32_SCRATCH_OFF: u32 = WIN32_IO_H00_SCRATCH_OFF + 16;
 /// Success-path phase probe (survives until crash for post-mortem; not used on fail epilogue).
 const H00_PHASE_SCRATCH_OFF: u32 = WIN32_IO_H00_SCRATCH_OFF + 24;
 
+const PHASE_H00_ENTERED: u8 = 0x00;
 const PHASE_PRELUDE_CREATE_OK: u8 = 0x01;
 const PHASE_PRELUDE_BUF_OK: u8 = 0x02;
 const PHASE_PRELUDE_READ_OK: u8 = 0x03;
@@ -274,8 +275,6 @@ pub fn gen_h00_read_sidecar_prelude(
 ) -> Vec<u8> {
     let mut c: Vec<u8> = Vec::new();
 
-    emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, meta.iat_rva);
-
     // CreateFileA(path, GENERIC_READ, share=0, sa=NULL, OPEN_EXISTING, NORMAL, hTemplate=NULL)
     emit_win64_call_shadow(&mut c);
     let lea_path = c.len();
@@ -292,6 +291,7 @@ pub fn gen_h00_read_sidecar_prelude(
     let jz_no_file = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x89, 0xC3]);
+    emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, meta.iat_rva);
     emit_phase_probe(&mut c, PHASE_PRELUDE_CREATE_OK);
     maybe_bisect_exit_after_phase(
         &mut c,
@@ -312,6 +312,7 @@ pub fn gen_h00_read_sidecar_prelude(
     let jz_no_buf = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x49, 0x89, 0xC4]);
+    emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, meta.iat_rva);
     emit_phase_probe(&mut c, PHASE_PRELUDE_BUF_OK);
     maybe_bisect_exit_after_phase(
         &mut c,
@@ -331,6 +332,7 @@ pub fn gen_h00_read_sidecar_prelude(
     c.extend_from_slice(&[0x85, 0xC0]); // test eax,eax — ReadFile BOOL
     let jz_read_fail = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, meta.iat_rva);
     emit_phase_probe(&mut c, PHASE_PRELUDE_READ_OK);
     maybe_bisect_exit_after_phase(
         &mut c,
@@ -350,6 +352,7 @@ pub fn gen_h00_read_sidecar_prelude(
     c.extend_from_slice(&[0x45, 0x85, 0xED]);
     let jz_empty = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, meta.iat_rva);
     emit_phase_probe(&mut c, PHASE_PRELUDE_DONE);
     maybe_bisect_exit_after_phase(
         &mut c,
@@ -382,6 +385,7 @@ pub fn gen_h00_read_sidecar_prelude(
         );
     }
 
+    emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, meta.iat_rva);
     emit_phase_probe(&mut c, PHASE_PRELUDE_OK);
     maybe_bisect_exit_after_phase(
         &mut c,
@@ -1187,7 +1191,17 @@ pub fn gen_h00_manual_map_main(
     // PE entry is JMP (not CALL) into H_00 — force RSP%16==0 before any Win64 calls.
     c.extend_from_slice(&[0x48, 0x83, 0xE4, 0xF0]); // and rsp, -16
 
-    let prelude_text_off = code_base_off + H00_PROLOGUE_LEN;
+    let entered_off = code_base_off + c.len() as u32;
+    emit_phase_probe(&mut c, PHASE_H00_ENTERED);
+    maybe_bisect_exit_after_phase(
+        &mut c,
+        text_rva,
+        entered_off,
+        meta.iat_rva,
+        PHASE_H00_ENTERED,
+    );
+
+    let prelude_text_off = code_base_off + c.len() as u32;
 
     const EPILOGUE_LEN: usize = 8 * FAIL_EPILOGUE_LEN;
 
@@ -1213,11 +1227,7 @@ pub fn gen_h00_manual_map_main(
     let tail_text_off_m = map_text_off_m + map_len as u32;
     let tail_len =
         gen_h00_export_call_tail(meta, text_rva, tail_text_off_m, usize::MAX).len();
-    let epilogue_base = code_base_off as usize
-        + H00_PROLOGUE_LEN as usize
-        + prelude_len
-        + map_len
-        + tail_len;
+    let epilogue_base = code_base_off as usize + c.len() + prelude_len + map_len + tail_len;
 
     let fail_label = |i: usize| epilogue_base + i * FAIL_EPILOGUE_LEN;
     let fail_create_file = fail_label(0); // ExitProcess(2)
@@ -1350,8 +1360,8 @@ mod tests {
             }
         }
         assert!(
-            body.len() > 400 && body.len() < 2200,
-            "manual-map H_00 stub should fit OW-STUB pin [40,2200] (got {}B)",
+            body.len() > 400 && body.len() < 2300,
+            "manual-map H_00 stub should fit OW-STUB pin [40,2300] (got {}B)",
             body.len()
         );
         // No un-prefixed [r12+rbx] PE reads (without REX.B they decode as [rsp+rbx]).

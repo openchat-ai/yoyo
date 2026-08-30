@@ -107,6 +107,7 @@ function Get-SmokePhase([int]$ExitCode) {
         10 { "probe_CreateFile" }
         11 { "probe_WriteFile" }
         151 { "phase_prelude_create_ok" }
+        150 { "phase_h00_entered" }
         152 { "phase_prelude_buf_ok" }
         153 { "phase_prelude_read_ok" }
         154 { "phase_prelude_done" }
@@ -140,11 +141,12 @@ function Invoke-ManualMapSmoke([string]$RunDir, [string]$Gen1Path) {
     }
 }
 
-function Invoke-H00BisectDiagnostic([string]$RunDir, [string]$TyPath, [string]$TybPath, [string]$DllPath) {
-    Write-Host "== bisect: rebuild gen1 with H00_BISECT_EXIT=151..165 (prelude + map phase isolate) =="
+function Invoke-H00BisectDiagnostic([string]$RunDir, [string]$TyPath, [string]$TybPath, [string]$DllPath, [switch]$NoSidecar) {
+    $range = if ($NoSidecar) { 150..155 } else { 150..165 }
+    Write-Host ("== bisect: rebuild gen1 with H00_BISECT_EXIT={0} ({1}) ==" -f ($range -join ","), $(if ($NoSidecar) { "no-sidecar" } else { "with-sidecar" }))
     $wireup = Join-Path $Root "yoyo-rust\verifier\src\h00_manual_map_wireup.rs"
     $lines = @()
-    foreach ($phase in 151..165) {
+    foreach ($phase in $range) {
         Push-Location (Join-Path $Root "yoyo-rust")
         try {
             (Get-Item $wireup).LastWriteTime = Get-Date
@@ -161,7 +163,12 @@ function Invoke-H00BisectDiagnostic([string]$RunDir, [string]$TyPath, [string]$T
         if ($LASTEXITCODE -ne 0) { throw "bisect link failed for phase=$phase" }
         Copy-Item $gen1 (Join-Path $RunDir "gen1.exe") -Force
         Copy-Item $TybPath (Join-Path $RunDir "input.tyb") -Force
-        Copy-Item $DllPath (Join-Path $RunDir "yoyo_rt.dll") -Force
+        if (-not $NoSidecar) {
+            Copy-Item $DllPath (Join-Path $RunDir "yoyo_rt.dll") -Force
+        } else {
+            $rt = Join-Path $RunDir "yoyo_rt.dll"
+            if (Test-Path $rt) { Remove-Item $rt }
+        }
         $r = Invoke-ManualMapSmoke $RunDir $gen1
         $label = Get-SmokePhase $r.Exit
         $lines += ("phase={0} exit={1} label={2} output.exe={3}" -f $phase, $r.Exit, $label, $(if ($r.OutPresent) { "present" } else { "absent" }))
@@ -214,7 +221,9 @@ if (-not $SkipSmoke) {
         Pop-Location
     }
     if ($failExit -eq -1073741819) {
-        throw "manual-map smoke WITHOUT sidecar AV (crash before CreateFile fail-closed exit=2)"
+        $bisect = Invoke-H00BisectDiagnostic $runFail $Ty $Tyb $dllPath -NoSidecar
+        Write-Host "H00_BISECT_DIAG no-sidecar $bisect"
+        throw ("manual-map smoke WITHOUT sidecar AV (crash before CreateFile fail-closed exit=2) bisect=$bisect")
     }
     if ((Test-Path $outFail) -and $failExit -eq 0) {
         throw "fail-closed WITHOUT sidecar produced output.exe (manual-map must require cwd yoyo_rt.dll)"
