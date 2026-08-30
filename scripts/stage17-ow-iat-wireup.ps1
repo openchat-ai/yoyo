@@ -18,47 +18,15 @@ Write-Host "=== Stage 17: OW-IAT wire-up (manual-map H_00) ==="
 
 if ($BisectExit -gt 0) {
     Write-Host "Bisect: rebuilding verifier with H00_BISECT_EXIT=$BisectExit (compile-time)"
-    Push-Location (Join-Path $Root "yoyo-rust/verifier")
+    Push-Location (Join-Path $Root "yoyo-rust")
     try {
         $env:H00_BISECT_EXIT = "$BisectExit"
-        & cargo build
+        & cargo build --release -p verifier
         if ($LASTEXITCODE -ne 0) { throw "bisect rebuild failed" }
     } finally {
         Remove-Item Env:H00_BISECT_EXIT -ErrorAction SilentlyContinue
         Pop-Location
     }
-}
-
-Push-Location (Join-Path $Root "yoyo-rust")
-try {
-    & cargo test -p verifier manual_map
-    if ($LASTEXITCODE -ne 0) { throw "wire-up unit tests failed" }
-    & cargo test -p verifier --lib manual_map_runtime_smoke_host_resolve
-    if ($LASTEXITCODE -ne 0) { throw "manual_map_runtime_smoke_host_resolve failed (stub vs reference mapper)" }
-    & cargo test -p verifier --lib manual_map_runtime_smoke_stub_resolve
-    if ($LASTEXITCODE -ne 0) { throw "manual_map_runtime_smoke_stub_resolve failed (stub_resolve map+export)" }
-    & cargo test -p verifier --lib compare_ll_gpa_vs_host_iat_on_sidecar
-    if ($LASTEXITCODE -ne 0) { throw "compare_ll_gpa_vs_host_iat_on_sidecar failed (LL+GPA import != host)" }
-    & cargo test -p verifier --lib compare_stub_vs_host_iat_on_sidecar
-    if ($LASTEXITCODE -ne 0) { throw "compare_stub_vs_host_iat_on_sidecar failed (stub IAT != host GetProcAddress)" }
-} finally {
-    Pop-Location
-}
-Write-Host "OW_IAT_WIREUP unit_tests=GREEN phase=manual_map_x64_emit"
-
-$wireup = Join-Path $Root "yoyo-rust\verifier\src\h00_manual_map_wireup.rs"
-$winH00 = Join-Path $Root "yoyo-rust\verifier\src\win32_selfhost.rs"
-if (-not (Test-Path $wireup)) { throw "missing h00_manual_map_wireup.rs" }
-
-$wired = Select-String -Path $winH00 -Pattern 'gen_h00_manual_map_main|h00_manual_map_wireup' -Quiet
-if ($wired) {
-    Write-Host "OW_IAT_WIREUP H_00_wired=YES manual_map_body=EMITTED PEB_LoadLibrary=DROPPED"
-} else {
-    throw "OW_IAT_WIREUP H_00_wired=NO (honest CUT — manual-map not wired)"
-}
-
-function Find-Ascii([byte[]]$Bytes, [string]$Needle) {
-    return [System.Text.Encoding]::ASCII.GetString($Bytes).Contains($Needle)
 }
 
 $YoyoRelease = Join-Path $Root "yoyo-rust\target\release\yoyo.exe"
@@ -91,6 +59,107 @@ if (-not (Test-Path $Yoyo)) { throw "missing yoyo.exe" }
 
 $dllPath = if (Test-Path $RuntimeDllPreferred) { $RuntimeDllPreferred } else { $RuntimeDllCompat }
 if (-not (Test-Path $dllPath)) { throw "missing yoyo_runtime.dll for sidecar smoke" }
+
+Push-Location (Join-Path $Root "yoyo-rust")
+try {
+    & cargo test -p verifier manual_map
+    if ($LASTEXITCODE -ne 0) { throw "wire-up unit tests failed" }
+    & cargo test -p verifier --lib manual_map_runtime_smoke_host_resolve
+    if ($LASTEXITCODE -ne 0) { throw "manual_map_runtime_smoke_host_resolve failed (stub vs reference mapper)" }
+    & cargo test -p verifier --lib manual_map_runtime_smoke_stub_resolve
+    if ($LASTEXITCODE -ne 0) { throw "manual_map_runtime_smoke_stub_resolve failed (stub_resolve map+export)" }
+    & cargo test -p verifier --lib compare_ll_gpa_vs_host_iat_on_sidecar
+    if ($LASTEXITCODE -ne 0) { throw "compare_ll_gpa_vs_host_iat_on_sidecar failed (LL+GPA import != host)" }
+    & cargo test -p verifier --lib compare_stub_vs_host_iat_on_sidecar
+    if ($LASTEXITCODE -ne 0) { throw "compare_stub_vs_host_iat_on_sidecar failed (stub IAT != host GetProcAddress)" }
+    & cargo test -p verifier --lib manual_map_gen1_exe_smoke
+    if ($LASTEXITCODE -ne 0) { throw "manual_map_gen1_exe_smoke failed (gen1 link+smoke before stage17 script smoke)" }
+} finally {
+    Pop-Location
+}
+Write-Host "OW_IAT_WIREUP unit_tests=GREEN phase=manual_map_x64_emit"
+
+$wireup = Join-Path $Root "yoyo-rust\verifier\src\h00_manual_map_wireup.rs"
+$winH00 = Join-Path $Root "yoyo-rust\verifier\src\win32_selfhost.rs"
+if (-not (Test-Path $wireup)) { throw "missing h00_manual_map_wireup.rs" }
+
+$wired = Select-String -Path $winH00 -Pattern 'gen_h00_manual_map_main|h00_manual_map_wireup' -Quiet
+if ($wired) {
+    Write-Host "OW_IAT_WIREUP H_00_wired=YES manual_map_body=EMITTED PEB_LoadLibrary=DROPPED"
+} else {
+    throw "OW_IAT_WIREUP H_00_wired=NO (honest CUT — manual-map not wired)"
+}
+
+function Find-Ascii([byte[]]$Bytes, [string]$Needle) {
+    return [System.Text.Encoding]::ASCII.GetString($Bytes).Contains($Needle)
+}
+
+function Get-SmokePhase([int]$ExitCode) {
+    switch ($ExitCode) {
+        2 { "CreateFile" }
+        3 { "Read/empty" }
+        4 { "VirtualAlloc" }
+        5 { "section_copy" }
+        6 { "reloc" }
+        7 { "import" }
+        8 { "export" }
+        9 { "DllMain" }
+        10 { "probe_CreateFile" }
+        11 { "probe_WriteFile" }
+        130 { "import_ok_bisect" }
+        131 { "reloc_ok_bisect" }
+        160 { "phase_map_image_ok" }
+        161 { "phase_sections_ok" }
+        162 { "phase_reloc_ok" }
+        163 { "phase_import_ok" }
+        164 { "phase_flush_icache" }
+        165 { "phase_export_call" }
+        1 { "generic_fail_or_runtime" }
+        -1073741819 { "access_violation" }
+        default { "unknown" }
+    }
+}
+
+function Invoke-ManualMapSmoke([string]$RunDir, [string]$Gen1Path) {
+    $outExe = Join-Path $RunDir "output.exe"
+    if (Test-Path $outExe) { Remove-Item $outExe }
+    Push-Location $RunDir
+    try {
+        $env:YOYO_MM_SMOKE_PROBE = "1"
+        & ".\gen1.exe"
+        return @{ Exit = $LASTEXITCODE; OutPresent = (Test-Path $outExe) }
+    } finally {
+        Remove-Item Env:YOYO_MM_SMOKE_PROBE -ErrorAction SilentlyContinue
+        Pop-Location
+    }
+}
+
+function Invoke-H00BisectDiagnostic([string]$RunDir, [string]$TyPath, [string]$TybPath, [string]$DllPath) {
+    Write-Host "== bisect: rebuild gen1 with H00_BISECT_EXIT=160..165 (post-AV phase isolate) =="
+    $lines = @()
+    foreach ($phase in 160..165) {
+        Push-Location (Join-Path $Root "yoyo-rust")
+        try {
+            $env:H00_BISECT_EXIT = "$phase"
+            & cargo build --release -p verifier 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "bisect build failed for phase=$phase" }
+        } finally {
+            Remove-Item Env:H00_BISECT_EXIT -ErrorAction SilentlyContinue
+            Pop-Location
+        }
+        $yoyo = if (Test-Path $YoyoRelease) { $YoyoRelease } else { $YoyoDebug }
+        $gen1 = Join-Path $RunDir ("gen1-bisect-{0}.exe" -f $phase)
+        & $yoyo link --target=win32 $TyPath $gen1
+        if ($LASTEXITCODE -ne 0) { throw "bisect link failed for phase=$phase" }
+        Copy-Item $gen1 (Join-Path $RunDir "gen1.exe") -Force
+        Copy-Item $TybPath (Join-Path $RunDir "input.tyb") -Force
+        Copy-Item $DllPath (Join-Path $RunDir "yoyo_rt.dll") -Force
+        $r = Invoke-ManualMapSmoke $RunDir $gen1
+        $label = Get-SmokePhase $r.Exit
+        $lines += ("phase={0} exit={1} label={2} output.exe={3}" -f $phase, $r.Exit, $label, $(if ($r.OutPresent) { "present" } else { "absent" }))
+    }
+    return ($lines -join "; ")
+}
 
 New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
 $gen1 = Join-Path $WorkDir "gen1.exe"
@@ -125,43 +194,18 @@ if (-not $SkipSmoke) {
     Copy-Item $gen1 (Join-Path $runOk "gen1.exe") -Force
     Copy-Item $Tyb (Join-Path $runOk "input.tyb") -Force
     Copy-Item $dllPath (Join-Path $runOk "yoyo_rt.dll") -Force
+    $smoke = Invoke-ManualMapSmoke $runOk $gen1
+    $smokeExit = $smoke.Exit
     $outExe = Join-Path $runOk "output.exe"
-    if (Test-Path $outExe) { Remove-Item $outExe }
-    Push-Location $runOk
-    try {
-        $env:YOYO_MM_SMOKE_PROBE = "1"
-        & ".\gen1.exe"
-        $smokeExit = $LASTEXITCODE
-    } finally {
-        Remove-Item Env:YOYO_MM_SMOKE_PROBE -ErrorAction SilentlyContinue
-        Pop-Location
-    }
     if ($smokeExit -ne 0) {
-        $phase = switch ($smokeExit) {
-            2 { "CreateFile" }
-            3 { "Read/empty" }
-            4 { "VirtualAlloc" }
-            5 { "section_copy" }
-            6 { "reloc" }
-            7 { "import" }
-            8 { "export" }
-            9 { "DllMain" }
-            10 { "probe_CreateFile" }
-            11 { "probe_WriteFile" }
-            130 { "import_ok_bisect" }
-            131 { "reloc_ok_bisect" }
-            160 { "phase_map_image_ok" }
-            161 { "phase_sections_ok" }
-            162 { "phase_reloc_ok" }
-            163 { "phase_import_ok" }
-            164 { "phase_flush_icache" }
-            165 { "phase_export_call" }
-            1 { "generic_fail_or_runtime" }
-            -1073741819 { "access_violation" }
-            default { "unknown" }
+        $phase = Get-SmokePhase $smokeExit
+        $outDiag = if ($smoke.OutPresent) { "output.exe=present" } else { "output.exe=absent" }
+        $bisect = ""
+        if ($smokeExit -eq -1073741819) {
+            $bisect = Invoke-H00BisectDiagnostic $runOk $Ty $Tyb $dllPath
+            Write-Host "H00_BISECT_DIAG $bisect"
         }
-        $outDiag = if (Test-Path $outExe) { "output.exe=present" } else { "output.exe=absent" }
-        throw ("manual-map smoke WITH sidecar failed exit={0} phase={1} {2}" -f $smokeExit, $phase, $outDiag)
+        throw ("manual-map smoke WITH sidecar failed exit={0} phase={1} {2}{3}" -f $smokeExit, $phase, $outDiag, $(if ($bisect) { " bisect=$bisect" } else { "" }))
     }
     if (-not (Test-Path $outExe)) {
         Write-Host "DIAG: smoke exit=0 output.exe missing (export-tail isolate — map+imports reached)"

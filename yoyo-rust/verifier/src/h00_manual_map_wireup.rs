@@ -993,6 +993,9 @@ fn gen_h00_export_call_tail(
     c.extend_from_slice(&[0x48, 0x01, 0xD8]); // add rax, rbx — functions RVA is image-relative
     c.extend_from_slice(&[0x8B, 0x00]);
     c.extend_from_slice(&[0x48, 0x01, 0xD8]);
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
+    fail_jumps.push((c.len(), fail_export));
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     emit_phase_probe(&mut c, PHASE_EXPORT_CALL);
     maybe_bisect_exit_after_phase(
         &mut c,
@@ -1437,6 +1440,14 @@ mod tests {
                 "bootstrap must not jmp back into skip_ll_boot_pop (infinite stack unwind)"
             );
         }
+        assert!(
+            body.windows(3).any(|w| w == [0x44, 0x29, 0xC9]),
+            "resolve_export_ordinal needs sub ecx,r9d (44 29 C9)"
+        );
+        assert!(
+            !body.windows(7).any(|w| w == [0x44, 0x8B, 0x48, 0x10, 0x44, 0x29, 0xC8]),
+            "must not emit sub eax,r9d (44 29 C8) after BaseOrdinal — need sub ecx,r9d"
+        );
         // Export call after `and rsp,-16` needs sub rsp,0x28 (0x20 → pre-call RSP%16==0 → callee AV).
         let export_align = body
             .windows(8)
