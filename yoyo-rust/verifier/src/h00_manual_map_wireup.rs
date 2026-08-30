@@ -74,6 +74,35 @@ fn fix_rip_disp(
     c[disp_off..disp_off + 4].copy_from_slice(&disp.to_le_bytes());
 }
 
+/// SIB for `[r12 + rbx*1 + disp]` (requires REX.B on the opcode).
+const SIB_R12_RBX: u8 = 0x1C;
+
+/// `mov r32, [r12+rbx+disp]` — PE optional-header field via e_lfanew in ebx.
+fn emit_mov_u32_pe_file(c: &mut Vec<u8>, reg: u8, disp: u8) {
+    c.push(0x41);
+    c.push(0x8B);
+    if disp < 0x80 {
+        c.push(0x40 | (reg << 3) | 0x04); // mod=01 disp8
+        c.push(SIB_R12_RBX);
+        c.push(disp);
+    } else {
+        c.extend_from_slice(&[0x80 | (reg << 3) | 0x04, SIB_R12_RBX, disp, 0, 0, 0]);
+    }
+}
+
+/// `movzx r32, word [r12+rbx+disp]`
+fn emit_movzx_u16_pe_file(c: &mut Vec<u8>, reg: u8, disp: u8) {
+    c.push(0x41);
+    c.extend_from_slice(&[0x0F, 0xB7]);
+    if disp < 0x80 {
+        c.push(0x40 | (reg << 3) | 0x04); // mod=01 disp8
+        c.push(SIB_R12_RBX);
+        c.push(disp);
+    } else {
+        c.extend_from_slice(&[0x80 | (reg << 3) | 0x04, SIB_R12_RBX, disp, 0, 0, 0]);
+    }
+}
+
 /// Emit x64 that reads cwd sidecar `yoyo_rt.dll` into a VirtualAlloc buffer.
 ///
 /// On success: `r12` = file bytes pointer, `r13d` = byte count.
@@ -173,9 +202,7 @@ fn gen_h00_manual_map_body(
     // ebx = e_lfanew; r12 = file PE
     c.extend_from_slice(&[0x41, 0x8B, 0x5C, 0x24, 0x3C]); // mov ebx,[r12+3c]
     // VirtualAlloc(0, SizeOfImage, MEM_COMMIT|RESERVE, PAGE_EXECUTE_READWRITE)
-    c.extend_from_slice(&[
-        0x8B, 0x94, 0x1C, PE_OFF_SIZE_OF_IMAGE, 0x00, 0x00, 0x00,
-    ]); // mov edx,[r12+rbx+50h]
+    emit_mov_u32_pe_file(&mut c, 2, PE_OFF_SIZE_OF_IMAGE); // mov edx,[r12+rbx+50h]
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xB9, 0x40, 0x00, 0x00, 0x00]);
@@ -188,9 +215,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x49, 0x89, 0xC6]); // mov r14, rax (image)
 
     // Copy headers: rep movsb min(SizeOfHeaders, r13d=file bytes read)
-    c.extend_from_slice(&[
-        0x8B, 0x8C, 0x1C, PE_OFF_SIZE_OF_HEADERS, 0x00, 0x00, 0x00,
-    ]); // mov ecx,[r12+rbx+54h]
+    emit_mov_u32_pe_file(&mut c, 1, PE_OFF_SIZE_OF_HEADERS); // mov ecx,[r12+rbx+54h]
     c.extend_from_slice(&[0x44, 0x39, 0xED]); // cmp r13d, ecx
     c.extend_from_slice(&[0x41, 0x0F, 0x42, 0xCD]); // cmovb ecx, r13d
     c.extend_from_slice(&[0x4C, 0x89, 0xF7]); // mov rdi, r14
@@ -198,18 +223,14 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
 
     // Section copy loop: esi = NumberOfSections, r8d = index
-    c.extend_from_slice(&[
-        0x0F, 0xB7, 0x74, 0x1C, PE_OFF_NUMBER_OF_SECTIONS,
-    ]); // movzx esi,word [r12+rbx+6]
+    emit_movzx_u16_pe_file(&mut c, 6, PE_OFF_NUMBER_OF_SECTIONS); // movzx esi,[r12+rbx+6]
     c.extend_from_slice(&[0x45, 0x31, 0xC0]); // xor r8d,r8d
     let sec_loop = c.len();
     c.extend_from_slice(&[0x44, 0x39, 0xC6]); // cmp esi,r8d
     let jae_secs_done = c.len();
     c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
     // section hdr = r12 + rbx + 24 + SizeOfOptionalHeader + r8*40
-    c.extend_from_slice(&[
-        0x0F, 0xB7, 0x84, 0x1C, PE_OFF_SIZE_OF_OPTIONAL_HEADER, 0x00, 0x00, 0x00,
-    ]); // movzx eax,word [r12+rbx+14h]
+    emit_movzx_u16_pe_file(&mut c, 0, PE_OFF_SIZE_OF_OPTIONAL_HEADER); // movzx eax,[r12+rbx+14h]
     c.extend_from_slice(&[0x83, 0xC0, PE_OFF_OPTIONAL]); // add eax,24
     c.extend_from_slice(&[0x49, 0x8D, 0x3C, 0x1C]); // lea rdi,[r12+rbx]
     c.extend_from_slice(&[0x48, 0x01, 0xC7]); // add rdi,rax
@@ -242,9 +263,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x0F, 0x8E, 0, 0, 0, 0]); // jle next_sec
     c.extend_from_slice(&[0x39, 0xC2]); // cmp edx, eax
     c.extend_from_slice(&[0x0F, 0x42, 0xD0]); // cmovb edx, eax
-    c.extend_from_slice(&[
-        0x8B, 0x84, 0x1C, PE_OFF_SIZE_OF_IMAGE, 0x00, 0x00, 0x00,
-    ]); // eax = SizeOfImage
+    emit_mov_u32_pe_file(&mut c, 0, PE_OFF_SIZE_OF_IMAGE); // eax = SizeOfImage
     c.extend_from_slice(&[0x29, 0xC8]); // sub eax, ecx
     c.extend_from_slice(&[0x39, 0xC2]); // cmp edx, eax
     c.extend_from_slice(&[0x0F, 0x42, 0xD0]); // cmovb edx, eax
@@ -275,9 +294,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x49, 0x89, 0xC2]); // mov r10, rax
 
     // Base reloc directory RVA (data directory index 5)
-    c.extend_from_slice(&[
-        0x8B, 0x84, 0x1C, PE_OFF_BASERELOC_DIR_RVA, 0x00, 0x00, 0x00,
-    ]);
+    emit_mov_u32_pe_file(&mut c, 0, PE_OFF_BASERELOC_DIR_RVA);
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_reloc_done = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
@@ -330,9 +347,7 @@ fn gen_h00_manual_map_body(
 
     // Bootstrap LoadLibraryA at [r15+scratch] for find_module fallback (api-set forwarders).
     c.extend_from_slice(&[0x49, 0xC7, 0x47, H00_LOADLIBRARY_SCRATCH_OFF, 0, 0, 0, 0]);
-    c.extend_from_slice(&[
-        0x8B, 0x84, 0x1C, PE_OFF_IMPORT_DIR_RVA, 0x00, 0x00, 0x00,
-    ]);
+    emit_mov_u32_pe_file(&mut c, 0, PE_OFF_IMPORT_DIR_RVA);
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_skip_ll_boot = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
@@ -401,9 +416,7 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jz_skip_ll_boot2 + 2, jz_skip_ll_boot2 + 6, skip_ll_boot);
 
     // Import resolve: walk descriptors at [r14+import_rva]
-    c.extend_from_slice(&[
-        0x8B, 0x84, 0x1C, PE_OFF_IMPORT_DIR_RVA, 0x00, 0x00, 0x00,
-    ]); // import dir rva
+    emit_mov_u32_pe_file(&mut c, 0, PE_OFF_IMPORT_DIR_RVA); // import dir rva
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_import_done = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
@@ -1017,6 +1030,24 @@ mod tests {
             "manual-map H_00 stub should fit OW-STUB pin [40,1900] (got {}B)",
             body.len()
         );
+        // No un-prefixed [r12+rbx] PE reads (without REX.B they decode as [rsp+rbx]).
+        for i in 0..body.len().saturating_sub(3) {
+            let slice = &body[i..i + 3];
+            let needs_rex = matches!(
+                slice,
+                [0x8B, 0x84, 0x1C]
+                    | [0x8B, 0x8C, 0x1C]
+                    | [0x8B, 0x94, 0x1C]
+                    | [0x0F, 0xB7, 0x74]
+                    | [0x0F, 0xB7, 0x84]
+            );
+            if needs_rex {
+                assert!(
+                    i > 0 && (body[i - 1] == 0x41 || body[i - 1] == 0x4C),
+                    "missing REX on [r12+rbx] PE read at stub offset {i}"
+                );
+            }
+        }
         // No LoadLibraryA ROR13 hash needle (0x8E 0x4E 0x0E 0xEC)
         assert!(
             !body.windows(4).any(|w| w == [0x8E, 0x4E, 0x0E, 0xEC]),
