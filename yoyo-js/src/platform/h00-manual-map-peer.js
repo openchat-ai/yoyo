@@ -23,16 +23,8 @@ function patchRel32(buf, dispOff, from, to) {
 
 const H00_LEA_SITE = 41;
 const H00_IAT_SITES = [
-  [357, 0], // VirtualAlloc (image) — prelude uses call [r15+slot*8]
-  [2112, 5], // ExitProcess (export success)
-  [2127, 5], // ExitProcess (fail CreateFile)
-  [2142, 5], // ExitProcess (fail Read)
-  [2157, 5], // ExitProcess (fail VirtualAlloc)
-  [2172, 5], // ExitProcess (fail section_copy)
-  [2187, 5], // ExitProcess (fail reloc)
-  [2202, 5], // ExitProcess (fail import)
-  [2217, 5], // ExitProcess (fail export)
-  [2232, 5], // ExitProcess (fail DllMain — epilogue only, DllMain skipped)
+  [357, 0], // VirtualAlloc (image) — prelude/bootstrap use call [r15+slot*8]
+  [2112, 5], // ExitProcess (export success epilogue)
 ];
 
 function rebaseManualMapStub(buf, textRva, codeBaseOff, meta) {
