@@ -558,7 +558,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x41, 0x52]); // push r10 — list head
     c.extend_from_slice(&[0x65, 0x48, 0x8B, 0x04, 0x25, 0x60, 0x00, 0x00, 0x00]);
     c.extend_from_slice(&[0x48, 0x8B, 0x40, 0x18]); // mov rax,[rax+18h] PEB->Ldr
-    c.extend_from_slice(&[0x49, 0x8D, 0x50, 0x20]); // lea r10,[rax+20h] list head
+    c.extend_from_slice(&[0x4C, 0x8D, 0x50, 0x20]); // lea r10,[rax+20h] list head — NOT 49 8D 50 (=lea rdx,[r8+20h])
     c.extend_from_slice(&[0x48, 0x8B, 0x40, 0x20]); // InMemoryOrderModuleList.Flink
     let mod_loop = c.len();
     c.extend_from_slice(&[0x4C, 0x39, 0xD0]); // cmp rax,r10 (back at list head?)
@@ -749,7 +749,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x48, 0x8D, 0x14, 0x0F]); // lea rdx,[rdi+rcx] exp start
     c.extend_from_slice(&[0x49, 0x89, 0xD2]); // mov r10, rdx
     c.extend_from_slice(&[0x8B, 0x94, 0x37, 0x8C, 0x00, 0x00, 0x00]); // export size
-    c.extend_from_slice(&[0x49, 0x8D, 0x1C, 0x0A]); // lea rbx,[r10+rdx] exp end
+    c.extend_from_slice(&[0x49, 0x8D, 0x1C, 0x12]); // lea rbx,[r10+rdx] exp end — NOT 1C 0A (=+rcx)
     c.extend_from_slice(&[0x4C, 0x39, 0xD0]); // cmp rax,r10
     let jb_ff_ret = c.len();
     c.extend_from_slice(&[0x0F, 0x82, 0, 0, 0, 0]);
@@ -1067,6 +1067,14 @@ mod tests {
         assert!(
             !body.windows(3).any(|w| w == [0x49, 0x89, 0xDE]),
             "must not emit mov r14,rbx (49 89 DE) — destroys mapped image base r14"
+        );
+        assert!(
+            !body.windows(4).any(|w| w == [0x49, 0x8D, 0x50, 0x20]),
+            "must not emit lea rdx,[r8+20h] (49 8D 50 20) — PEB list head needs lea r10,[rax+20h]"
+        );
+        assert!(
+            !body.windows(4).any(|w| w == [0x49, 0x8D, 0x1C, 0x0A]),
+            "must not emit lea rbx,[r10+rcx] (49 8D 1C 0A) — forwarder end uses rdx size"
         );
     }
 }
