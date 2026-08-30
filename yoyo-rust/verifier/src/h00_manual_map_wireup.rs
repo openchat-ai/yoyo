@@ -787,10 +787,10 @@ fn gen_h00_manual_map_body(
     let jz_thunk_done = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x49, 0x89, 0xC2]); // mov r10, rax (save thunk)
+    c.extend_from_slice(&[0x48, 0x8B, 0x7C, 0x24, HMODULE_SPILL_OFF]); // mov rdi,[rsp+28h] hModule
     c.extend_from_slice(&[0x49, 0x0F, 0xBA, 0xE2, 0x3F]); // bt r10,63 (ordinal if high bit set)
     let jc_ord = c.len();
     c.extend_from_slice(&[0x0F, 0x82, 0, 0, 0, 0]); // jc ord_resolve
-    c.extend_from_slice(&[0x48, 0x8B, 0x7C, 0x24, HMODULE_SPILL_OFF]); // mov rdi,[rsp+28h] hModule
     c.extend_from_slice(&[0x4B, 0x8D, 0x54, 0x16, 0x02]); // lea rdx,[r14+r10+2] import name
     let call_thunk_by_name = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]); // call resolve_export (rdi=hModule)
@@ -798,7 +798,6 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     let ord_resolve = c.len();
     patch_rel32(&mut c, jc_ord + 2, jc_ord + 6, ord_resolve);
-    c.extend_from_slice(&[0x48, 0x8B, 0x7C, 0x24, HMODULE_SPILL_OFF]); // mov rdi,[rsp+28h] hModule
     c.extend_from_slice(&[0x44, 0x89, 0xD0]); // mov eax, r10d
     c.extend_from_slice(&[0x25, 0xFF, 0xFF, 0x00, 0x00]); // and eax, 0xffff — ordinal
     // resolve_export_ordinal clobbers r11 — spill above Win64 home slots.
@@ -1860,13 +1859,13 @@ mod tests {
             }),
             "export success path needs mov ecx,eax + Win64 shadow before ExitProcess"
         );
-        // Import thunks: reload hModule, then resolve_export / resolve_export_ordinal (fix_forward clobbers rdi).
+        // Import thunks: reload hModule once before bt; resolve_export clobbers rdi.
         assert!(
-            body.windows(10).any(|w| {
+            body.windows(15).any(|w| {
                 w[0..5] == [0x48, 0x8B, 0x7C, 0x24, HMODULE_SPILL_OFF]
-                    && w[5..10] == [0x4B, 0x8D, 0x54, 0x16, 0x02]
+                    && w[5..10] == [0x49, 0x0F, 0xBA, 0xE2, 0x3F]
             }),
-            "import name thunk needs mov rdi,[rsp+28h] then lea rdx,[r14+r10+2]"
+            "import thunk needs mov rdi,[rsp+28h] before bt r10,63"
         );
         assert!(
             body.windows(6).any(|w| {
@@ -1875,11 +1874,11 @@ mod tests {
             "import name thunk needs lea rdx,[r14+r10+2] then call resolve_export (E8)"
         );
         assert!(
-            body.windows(10).any(|w| {
+            !body.windows(10).any(|w| {
                 w[0..5] == [0x48, 0x8B, 0x7C, 0x24, HMODULE_SPILL_OFF]
                     && w[5..10] == [0x44, 0x89, 0xD0, 0x25, 0xFF]
             }),
-            "import ordinal thunk needs mov rdi,[rsp+28h] before resolve_export_ordinal"
+            "import ordinal path must not reload rdi twice per thunk"
         );
         assert!(
             body.windows(14).any(|w| {
