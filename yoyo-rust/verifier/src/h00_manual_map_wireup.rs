@@ -104,9 +104,9 @@ fn emit_mov_u32_pe_mapped(c: &mut Vec<u8>, disp: u8) {
     c.push(0x45); // REX.R+B for r8d + r14 SIB base
     c.push(0x8B);
     if disp < 0x80 {
-        c.extend_from_slice(&[0x84, 0x1E, disp]); // mod=10, reg=r8, SIB base=r14 index=rbx
+        c.extend_from_slice(&[0x44, 0x1E, disp]); // mod=01 disp8, reg=r8, SIB [r14+rbx]
     } else {
-        c.extend_from_slice(&[0x84, 0x1E, disp, 0, 0, 0]);
+        c.extend_from_slice(&[0x84, 0x1E, disp, 0, 0, 0]); // mod=10 disp32
     }
 }
 
@@ -158,11 +158,9 @@ fn emit_mov_e_lfanew_pe_file(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x41, 0x8B, 0x5C, SIB_R12_ONLY, 0x3C]);
 }
 
-/// `mov ebx, [r14+3Ch]` — e_lfanew from mapped image (r14); disp8 ModRM (not SIB 26 — rcx index).
-/// `mov ebx, [r14+3Ch]` — e_lfanew from mapped image (r14).
-/// MUST use SIB 26 (base r14); 41 8B 5E 3C is mod=11 mov ebx,r14 — NOT a memory load.
+/// `mov ebx, [r14+3Ch]` — e_lfanew from mapped image (r14); ModRM disp8 5E (not SIB 26).
 fn emit_mov_e_lfanew_pe_mapped(c: &mut Vec<u8>) {
-    c.extend_from_slice(&[0x41, 0x8B, 0x5C, SIB_R14_ONLY, 0x3C]);
+    c.extend_from_slice(&[0x41, 0x8B, 0x5E, 0x3C]);
 }
 
 /// `mov r32, [r12+rbx+disp]` — PE optional-header field via e_lfanew in ebx.
@@ -1305,11 +1303,18 @@ mod tests {
         // REX.W+B without REX.R on [r14+rbx] reads SizeOfImage into rax — clobbers GPA result before call.
         assert!(
             !body.windows(4).any(|w| w == [0x4D, 0x8B, 0x84, 0x1E]),
-            "must not emit mov rax,[r14+rbx] (4D 8B 84 1E) for SizeOfImage — need mov r8d (45 8B 84 1E)"
+            "must not emit mov rax,[r14+rbx] (4D 8B 84 1E) for SizeOfImage — need mov r8d (45 8B 44 1E)"
         );
         assert!(
-            body.windows(4).any(|w| w == [0x45, 0x8B, 0x84, 0x1E]),
-            "missing mov r8d,[r14+rbx] SizeOfImage read (45 8B 84 1E)"
+            body.windows(5)
+                .filter(|w| **w == [0x45, 0x8B, 0x44, 0x1E, PE_OFF_SIZE_OF_IMAGE])
+                .count()
+                >= 2,
+            "FlushICache path needs mov r8d,[r14+rbx+50h] disp8 (45 8B 44 1E 50) twice"
+        );
+        assert!(
+            !body.windows(5).any(|w| w == [0x45, 0x8B, 0x84, 0x1E, PE_OFF_SIZE_OF_IMAGE]),
+            "must not emit mod=10 disp32 mov r8d with 1-byte disp (45 8B 84 1E 50 misaligns stream)"
         );
         assert!(
             body.windows(4)
@@ -1350,12 +1355,12 @@ mod tests {
             "missing mov ebx,[r12+3Ch] (file PE e_lfanew; SIB 24)"
         );
         assert!(
-            body.windows(5).any(|w| w == [0x41, 0x8B, 0x5C, SIB_R14_ONLY, 0x3C]),
-            "missing mov ebx,[r14+3Ch] (mapped e_lfanew; SIB 26 base=r14 index=none)"
+            body.windows(4).any(|w| w == [0x41, 0x8B, 0x5E, 0x3C]),
+            "missing mov ebx,[r14+3Ch] (mapped e_lfanew; 41 8B 5E 3C disp8)"
         );
         assert!(
-            !body.windows(4).any(|w| w == [0x41, 0x8B, 0x5E, 0x3C]),
-            "must not emit mov ebx,r14 (41 8B 5E 3C mod=11) — NOT [r14+3Ch]"
+            !body.windows(5).any(|w| w == [0x41, 0x8B, 0x5C, SIB_R14_ONLY, 0x3C]),
+            "must not emit mov ebx,[r14+riz+3Ch] (SIB 26) before mapped PE reads"
         );
         assert!(
             !body.windows(5).any(|w| w == [0x41, 0x8B, 0x5C, 0x3C, 0x3C]),
