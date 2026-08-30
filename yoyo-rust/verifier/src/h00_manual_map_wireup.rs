@@ -70,10 +70,10 @@ const PHASE_EXPORT_CALL: u8 = 0x0F;
 const WIN64_CALL_SHADOW: u8 = 0x38;
 /// Short dll/api name spill for 2-arg bootstrap calls (inside 32 B home space; ret at [rsp+38h]).
 const WIN64_STACK_STR_OFF: u8 = 0x20;
-/// Import-descriptor frame: 0x20 home + 0x28 spill above [rsp+30h] (GPA clobber-safe).
+/// Import-descriptor frame: Win64 home + headroom so GPA cannot clobber spills.
 const IMPORT_DESC_SHADOW: u8 = 0x48;
-/// IAT cursor spill across GetProcAddress — above Win64 home ([rsp+20h..30h]).
-const GPA_IAT_CURSOR_SPILL_OFF: u8 = 0x40;
+/// IAT cursor spill above import-descriptor frame — [rsp+48h] after sub rsp,48h.
+const GPA_IAT_CURSOR_SPILL_OFF: u8 = IMPORT_DESC_SHADOW;
 
 fn emit_win64_call_shadow(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]);
@@ -839,9 +839,9 @@ fn gen_h00_manual_map_body(
     let gpa_call_site = c.len();
     patch_rel32(&mut c, gpa_call + 1, gpa_call + 5, gpa_call_site);
     // Spill r11 above import-descriptor home slots — GPA clobbers [rsp+20h..30h].
-    c.extend_from_slice(&[0x4C, 0x89, 0x5C, 0x24, GPA_IAT_CURSOR_SPILL_OFF]); // mov [rsp+40h], r11
+    c.extend_from_slice(&[0x4C, 0x89, 0x5C, 0x24, GPA_IAT_CURSOR_SPILL_OFF]); // mov [rsp+48h], r11
     emit_call_r15_scratch(&mut c, H00_GETPROCADDRESS_SCRATCH_OFF);
-    c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, GPA_IAT_CURSOR_SPILL_OFF]); // mov r11, [rsp+40h]
+    c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, GPA_IAT_CURSOR_SPILL_OFF]); // mov r11, [rsp+48h]
     let thunk_resolved = c.len();
     c.extend_from_slice(&[0x48, 0x85, 0xC0]); // resolve failed → fail_import
     emit_jz_pop_import_shadow_then_fail(&mut c, chunk_text_off as usize, fail_import);
@@ -1950,7 +1950,11 @@ mod tests {
                     && w[5..8] == [0x41, 0xFF, 0x97]
                     && w[8..12] == H00_GETPROCADDRESS_SCRATCH_OFF.to_le_bytes()
             }),
-            "import loop must call [r15+GPA] per thunk with r11 spill at [rsp+40h]"
+            "import loop must call [r15+GPA] per thunk with r11 spill at [rsp+48h]"
+        );
+        assert!(
+            !body.windows(5).any(|w| w == [0x4C, 0x89, 0x5C, 0x24, 0x40]),
+            "IAT cursor must not spill at [rsp+40h] — still inside import-descriptor frame"
         );
         assert!(
             body.windows(8).any(|w| {
