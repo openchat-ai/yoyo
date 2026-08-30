@@ -1042,9 +1042,15 @@ mod tests {
                     | [0x0F, 0xB7, 0x84]
             );
             if needs_rex {
+                let rex = body.get(i.wrapping_sub(1)).copied();
                 assert!(
-                    i > 0 && (body[i - 1] == 0x41 || body[i - 1] == 0x4C),
+                    rex.map(|b| (0x40..=0x4F).contains(&b)).unwrap_or(false),
                     "missing REX on [r12+rbx] PE read at stub offset {i}"
+                );
+                // r12 base in SIB requires REX.B (e.g. 0x4D for mov r10,[r12+rbx+disp32]).
+                assert!(
+                    rex.unwrap() & 1 != 0,
+                    "REX.B not set on [r12+rbx] PE read at stub offset {i}"
                 );
             }
         }
