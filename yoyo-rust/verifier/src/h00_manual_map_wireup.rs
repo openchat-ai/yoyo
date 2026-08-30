@@ -63,6 +63,19 @@ fn emit_win64_pop_shadow(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x48, 0x83, 0xC4, WIN64_CALL_SHADOW]);
 }
 
+/// ExitProcess via IAT — Win64 requires RSP%16==8 at `call` (prologue forces RSP%16==0).
+fn emit_exit_process_iat(
+    c: &mut Vec<u8>,
+    text_rva: u32,
+    chunk_text_off: u32,
+    iat_rva: u32,
+    exit_code: u8,
+) {
+    emit_win64_call_shadow(c);
+    c.extend_from_slice(&[0xB9, exit_code, 0, 0, 0]);
+    emit_call_iat_merged(c, text_rva, chunk_text_off, iat_rva, IAT_EXIT_PROCESS);
+}
+
 fn emit_phase_probe(c: &mut Vec<u8>, phase: u8) {
     c.extend_from_slice(&[0x41, 0xC6, 0x47, H00_PHASE_SCRATCH_OFF, phase]);
 }
@@ -910,7 +923,8 @@ fn gen_h00_export_call_tail(
     emit_win64_call_shadow(&mut c);
     c.extend_from_slice(&[0xFF, 0xD0]); // call export (yoyo_runtime_selfhost_main)
     emit_win64_pop_shadow(&mut c);
-    c.extend_from_slice(&[0x89, 0xC1]);
+    c.extend_from_slice(&[0x89, 0xC1]); // mov ecx, eax — export return → ExitProcess
+    emit_win64_call_shadow(&mut c);
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_EXIT_PROCESS);
 
     for (at, fail) in fail_jumps {
@@ -935,8 +949,7 @@ fn emit_phase_fail_epilogues(
     let mut labels = [0usize; 8];
     for (i, &code) in FAIL_EXIT_CODES.iter().enumerate() {
         labels[i] = code_base_off as usize + c.len();
-        c.extend_from_slice(&[0xB9, code, 0, 0, 0]);
-        emit_call_iat_merged(c, text_rva, code_base_off, iat_rva, IAT_EXIT_PROCESS);
+        emit_exit_process_iat(c, text_rva, code_base_off, iat_rva, code);
     }
     labels
 }
@@ -956,7 +969,7 @@ pub fn gen_h00_manual_map_main(
 
     let prelude_text_off = code_base_off + H00_PROLOGUE_LEN;
 
-    const EPILOGUE_LEN: usize = 8 * 11; // mov ecx,imm32 + FF15 rel32 per phase
+    const EPILOGUE_LEN: usize = 8 * 19; // Win64 shadow + mov ecx,imm32 + FF15 rel32 per phase
 
     // Size pass with placeholder fail labels.
     let prelude_len = gen_h00_read_sidecar_prelude(
@@ -1218,6 +1231,25 @@ mod tests {
         assert!(
             export_align.is_some(),
             "export tail must and rsp,-16 then sub rsp,0x28 before call (Win64 alignment)"
+        );
+        // Fail epilogues: shadow + mov ecx,imm + FF15
+        assert!(
+            body.windows(14)
+                .filter(|w| {
+                    w[0..8] == [0x48, 0x83, 0xE4, 0xF0, 0x48, 0x83, 0xEC, 0x28]
+                        && w[8] == 0xB9
+                        && w[13] == 0xFF
+                })
+                .count()
+                >= 8,
+            "fail epilogues need Win64 shadow before ExitProcess"
+        );
+        assert!(
+            body.windows(11).any(|w| {
+                w[0..3] == [0x89, 0xC1, 0x48]
+                    && w[3..11] == [0x83, 0xE4, 0xF0, 0x48, 0x83, 0xEC, 0x28, 0xFF]
+            }),
+            "export success path needs mov ecx,eax + Win64 shadow before ExitProcess"
         );
     }
 }

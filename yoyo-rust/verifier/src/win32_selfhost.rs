@@ -380,8 +380,8 @@ mod tests {
         };
         let body = gen_h00_selfhost_main(&meta, 0x38_000, 0x1000, 13, 17_810, 0);
         assert!(
-            body.len() > 400 && body.len() < 1900,
-            "manual-map H_00 stub should fit OW-STUB pin [40,1900] (got {}B)",
+            body.len() > 400 && body.len() < 2000,
+            "manual-map H_00 stub should fit OW-STUB pin [40,2000] (got {}B)",
             body.len()
         );
     }
