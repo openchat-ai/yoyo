@@ -101,9 +101,10 @@ fn emit_exit_process_iat(
     iat_rva: u32,
     exit_code: u8,
 ) {
+    emit_reload_r15_data_base(c, text_rva, chunk_text_off, iat_rva);
     emit_win64_call_shadow(c);
     c.extend_from_slice(&[0xB9, exit_code, 0, 0, 0]);
-    emit_call_iat_merged(c, text_rva, chunk_text_off, iat_rva, IAT_EXIT_PROCESS);
+    emit_call_iat_r15_slot(c, IAT_EXIT_PROCESS);
 }
 
 fn emit_mov_qword_to_r15_scratch(c: &mut Vec<u8>, off: u32, reg: u8) {
@@ -1713,17 +1714,18 @@ mod tests {
             export_shadow.is_some(),
             "export tail must sub rsp,0x38 before call (Win64 shadow)"
         );
-        // Fail epilogues: shadow + mov ecx,imm + FF15 ExitProcess
+        // Fail epilogues: reload r15 + shadow + mov ecx + call [r15+ExitProcess]
         assert!(
-            body.windows(10)
+            body.windows(23)
                 .filter(|w| {
-                    w[0..4] == [0x48, 0x83, 0xEC, 0x38]
-                        && w[4] == 0xB9
-                        && w[9] == 0xFF
+                    w[0..3] == [0x4C, 0x8D, 0x3D]
+                        && w[7..11] == [0x48, 0x83, 0xEC, 0x38]
+                        && w[11] == 0xB9
+                        && w[16..23] == [0x41, 0xFF, 0x97, 0x28, 0x00, 0x00, 0x00]
                 })
                 .count()
                 >= 8,
-            "fail epilogues need Win64 shadow before ExitProcess"
+            "fail epilogues need reload r15 + Win64 shadow + call [r15+ExitProcess]"
         );
         assert!(
             body.windows(7).any(|w| {
