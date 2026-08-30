@@ -49,6 +49,8 @@ const H00_GETPROCADDRESS_SCRATCH_OFF: u32 = WIN32_IO_H00_SCRATCH_OFF + 8;
 const H00_KERNEL32_SCRATCH_OFF: u32 = WIN32_IO_H00_SCRATCH_OFF + 16;
 /// Success-path phase probe (survives until crash for post-mortem; not used on fail epilogue).
 const H00_PHASE_SCRATCH_OFF: u32 = WIN32_IO_H00_SCRATCH_OFF + 24;
+/// Per-descriptor hModule during import walk (reuses phase qword; import_ok overwrites).
+const H00_IMPORT_HMODULE_SCRATCH_OFF: u32 = H00_PHASE_SCRATCH_OFF;
 
 const PHASE_H00_ENTERED: u8 = 0x00;
 const PHASE_PRELUDE_CREATE_OK: u8 = 0x01;
@@ -70,10 +72,10 @@ const PHASE_EXPORT_CALL: u8 = 0x0F;
 const WIN64_CALL_SHADOW: u8 = 0x38;
 /// Short dll/api name spill for 2-arg bootstrap calls (inside 32 B home space; ret at [rsp+38h]).
 const WIN64_STACK_STR_OFF: u8 = 0x20;
-/// Import-descriptor frame: Win64 home + headroom so GPA cannot clobber spills.
-const IMPORT_DESC_SHADOW: u8 = 0x48;
-/// IAT cursor spill above import-descriptor frame — [rsp+48h] after sub rsp,48h.
-const GPA_IAT_CURSOR_SPILL_OFF: u8 = IMPORT_DESC_SHADOW;
+/// Import-descriptor frame (8 mod 16): GPA home clobbers caller [rsp+28h..40h] at CALL.
+const IMPORT_DESC_SHADOW: u8 = 0x58;
+/// IAT cursor spill above GPA home clobber zone — must be >= [rsp+48h] at CALL site.
+const GPA_IAT_CURSOR_SPILL_OFF: u8 = 0x48;
 
 fn emit_win64_call_shadow(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]);
@@ -804,7 +806,7 @@ fn gen_h00_manual_map_body(
     emit_call_r15_scratch(&mut c, H00_LOADLIBRARY_SCRATCH_OFF);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     emit_jz_pop_import_shadow_then_fail(&mut c, chunk_text_off as usize, fail_import);
-    c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = hModule
+    emit_mov_qword_to_r15_scratch(&mut c, H00_IMPORT_HMODULE_SCRATCH_OFF, 0); // [r15+hModule]=LL
     c.extend_from_slice(&[0x49, 0x89, 0xF5]); // mov r13, rsi (save import descriptor ptr)
     c.extend_from_slice(&[0x41, 0x8B, 0x55, 0x10]); // mov edx,[r13+10] FirstThunk RVA
     c.extend_from_slice(&[0x4D, 0x8D, 0x1C, 0x16]); // lea r11,[r14+rdx] IAT write cursor
@@ -824,7 +826,7 @@ fn gen_h00_manual_map_body(
     let jz_thunk_done = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x49, 0x89, 0xC2]); // mov r10, rax (save thunk)
-    c.extend_from_slice(&[0x48, 0x89, 0xF9]); // mov rcx, rdi — hModule
+    emit_mov_qword_from_r15_scratch(&mut c, H00_IMPORT_HMODULE_SCRATCH_OFF, 1); // rcx = hModule
     c.extend_from_slice(&[0x49, 0x0F, 0xBA, 0xE2, 0x3F]); // bt r10,63 (ordinal if high bit set)
     let jc_ord = c.len();
     c.extend_from_slice(&[0x0F, 0x82, 0, 0, 0, 0]); // jc ord_gpa
@@ -838,7 +840,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x89, 0xC2]); // mov edx, eax
     let gpa_call_site = c.len();
     patch_rel32(&mut c, gpa_call + 1, gpa_call + 5, gpa_call_site);
-    // Spill r11 above import-descriptor home slots — GPA clobbers [rsp+20h..30h].
+    // Spill r11 above GPA home clobber ([rsp+28h..40h] at CALL) — [rsp+48h] is safe.
     c.extend_from_slice(&[0x4C, 0x89, 0x5C, 0x24, GPA_IAT_CURSOR_SPILL_OFF]); // mov [rsp+48h], r11
     emit_call_r15_scratch(&mut c, H00_GETPROCADDRESS_SCRATCH_OFF);
     c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, GPA_IAT_CURSOR_SPILL_OFF]); // mov r11, [rsp+48h]
@@ -1923,13 +1925,36 @@ mod tests {
             }),
             "export success path needs mov ecx,eax + Win64 shadow before ExitProcess"
         );
-        // Import thunks: LoadLibrary once per descriptor + GetProcAddress per thunk (rdi=hModule).
+        // Import thunks: LoadLibrary once per descriptor + GetProcAddress per thunk (hModule in r15 scratch).
         assert!(
-            body.windows(15).any(|w| {
-                w[0..5] == [0x48, 0x89, 0xF9, 0x49, 0x0F]
-                    && w[5..10] == [0xBA, 0xE2, 0x3F, 0x0F, 0x82]
+            body.windows(18).any(|w| {
+                w[0..3] == [0x49, 0x89, 0xC2]
+                    && w[3..10] == [
+                        0x49,
+                        0x8B,
+                        0x8F,
+                        H00_IMPORT_HMODULE_SCRATCH_OFF as u8,
+                        (H00_IMPORT_HMODULE_SCRATCH_OFF >> 8) as u8,
+                        (H00_IMPORT_HMODULE_SCRATCH_OFF >> 16) as u8,
+                        (H00_IMPORT_HMODULE_SCRATCH_OFF >> 24) as u8,
+                    ]
+                    && w[10..15] == [0x49, 0x0F, 0xBA, 0xE2, 0x3F]
             }),
-            "import thunk needs mov rcx,rdi + bt r10,63 + jc ord_gpa"
+            "import thunk needs mov r10,rax + mov rcx,[r15+hModule] + bt r10,63"
+        );
+        assert!(
+            body.windows(10).any(|w| {
+                w[0..7] == [
+                    0x49,
+                    0x89,
+                    0x87,
+                    H00_IMPORT_HMODULE_SCRATCH_OFF as u8,
+                    (H00_IMPORT_HMODULE_SCRATCH_OFF >> 8) as u8,
+                    (H00_IMPORT_HMODULE_SCRATCH_OFF >> 16) as u8,
+                    (H00_IMPORT_HMODULE_SCRATCH_OFF >> 24) as u8,
+                ]
+            }),
+            "import descriptor must store hModule at [r15+phase scratch] after LoadLibrary"
         );
         assert!(
             body.windows(6).any(|w| {
@@ -1954,21 +1979,21 @@ mod tests {
         );
         assert!(
             !body.windows(5).any(|w| w == [0x4C, 0x89, 0x5C, 0x24, 0x40]),
-            "IAT cursor must not spill at [rsp+40h] — still inside import-descriptor frame"
+            "IAT cursor must not spill at [rsp+40h] — still inside GPA home clobber zone"
         );
         assert!(
             body.windows(8).any(|w| {
                 w[0..4] == [0x48, 0x83, 0xEC, IMPORT_DESC_SHADOW]
                     && w[4..8] == [0x49, 0x8D, 0x14, 0x0E]
             }),
-            "import descriptor must sub rsp,48h before LoadLibrary (GPA clobber-safe spill)"
+            "import descriptor must sub rsp,58h before LoadLibrary (GPA clobber-safe spill)"
         );
         assert!(
             body.windows(8).any(|w| {
                 w[0..4] == [0x48, 0x83, 0xC4, IMPORT_DESC_SHADOW]
                     && w[4..8] == [0x49, 0x83, 0xC5, 0x14]
             }),
-            "import descriptor must add rsp,48h after thunk loop (not 38h)"
+            "import descriptor must add rsp,58h after thunk loop (not 38h)"
         );
         assert!(
             !body.windows(10).any(|w| {
