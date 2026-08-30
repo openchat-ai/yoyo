@@ -5,7 +5,9 @@
 # Phase 4: Windows smoke — cwd yoyo_rt.dll + manual-map H_00 (fail-closed if sidecar missing).
 param(
     [switch]$SkipBuild,
-    [switch]$SkipSmoke
+    [switch]$SkipSmoke,
+    [ValidateRange(0, 255)]
+    [int]$BisectExit = 0
 )
 
 $ErrorActionPreference = "Stop"
@@ -13,6 +15,19 @@ $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
 Write-Host "=== Stage 17: OW-IAT wire-up (manual-map H_00) ==="
+
+if ($BisectExit -gt 0) {
+    Write-Host "Bisect: rebuilding verifier with H00_BISECT_EXIT=$BisectExit (compile-time)"
+    Push-Location (Join-Path $Root "yoyo-rust/verifier")
+    try {
+        $env:H00_BISECT_EXIT = "$BisectExit"
+        & cargo build
+        if ($LASTEXITCODE -ne 0) { throw "bisect rebuild failed" }
+    } finally {
+        Remove-Item Env:H00_BISECT_EXIT -ErrorAction SilentlyContinue
+        Pop-Location
+    }
+}
 
 Push-Location (Join-Path $Root "yoyo-rust")
 try {
