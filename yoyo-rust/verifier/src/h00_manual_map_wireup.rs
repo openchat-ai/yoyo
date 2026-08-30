@@ -467,10 +467,10 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x49, 0x89, 0xC2]); // mov r10, rax (save thunk)
     c.extend_from_slice(&[0x48, 0x89, 0xF9]); // mov rcx, rdi — hModule
-    c.extend_from_slice(&[0x49, 0x0F, 0xBA, 0xEA, 0x3F]); // bt r10,63
+    c.extend_from_slice(&[0x49, 0x0F, 0xBA, 0xE2, 0x3F]); // bt r10,63 (not BTS /4→EA)
     let jc_ord = c.len();
     c.extend_from_slice(&[0x0F, 0x82, 0, 0, 0, 0]); // jc ord_gpa
-    c.extend_from_slice(&[0x49, 0x8D, 0x54, 0x16, 0x02]); // lea rdx,[r14+r10+2] name
+    c.extend_from_slice(&[0x4B, 0x8D, 0x54, 0x16, 0x02]); // lea rdx,[r14+r10+2] name (REX.R for r10 index)
     let gpa_call = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     let ord_gpa = c.len();
