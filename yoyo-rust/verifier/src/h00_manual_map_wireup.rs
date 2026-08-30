@@ -443,12 +443,12 @@ fn gen_h00_manual_map_body(
 
     // FlushInstructionCache before calling mapped sidecar code (matches reference mapper).
     // r12 was clobbered to last import module base — read PE headers from mapped image r14.
-    c.extend_from_slice(&[0x41, 0x8B, 0x5C, 0x36, 0x3C]); // mov ebx,[r14+3c] e_lfanew
+    c.extend_from_slice(&[0x41, 0x8B, 0x5E, 0x3C]); // mov ebx,[r14+3c] e_lfanew
     c.extend_from_slice(&[
-        0x44, 0x8B, 0x84, 0x3E, PE_OFF_SIZE_OF_IMAGE, 0x00, 0x00, 0x00,
+        0x4D, 0x8B, 0x84, 0x1E, PE_OFF_SIZE_OF_IMAGE, 0x00, 0x00, 0x00,
     ]); // r8d = [r14+rbx+50h] SizeOfImage
     c.extend_from_slice(&[
-        0x41, 0x8B, 0x84, 0x3E, PE_OFF_IMPORT_DIR_RVA, 0x00, 0x00, 0x00,
+        0x49, 0x8B, 0x84, 0x1E, PE_OFF_IMPORT_DIR_RVA, 0x00, 0x00, 0x00,
     ]); // eax = import dir RVA from mapped image
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_skip_flush = c.len();
@@ -474,7 +474,7 @@ fn gen_h00_manual_map_body(
     let jz_skip_flush3 = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[
-        0x44, 0x8B, 0x84, 0x3E, PE_OFF_SIZE_OF_IMAGE, 0x00, 0x00, 0x00,
+        0x4D, 0x8B, 0x84, 0x1E, PE_OFF_SIZE_OF_IMAGE, 0x00, 0x00, 0x00,
     ]); // reload r8d = [r14+rbx+50h] SizeOfImage (resolve clobbers r8)
     c.extend_from_slice(&[0x48, 0xC7, 0xC1, 0xFF, 0xFF, 0xFF, 0xFF]); // GetCurrentProcess()
     c.extend_from_slice(&[0x4C, 0x89, 0xF2]); // mov rdx, r14 (FlushInstructionCache lpBaseAddress)
