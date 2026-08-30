@@ -747,7 +747,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x45, 0x39, 0xC2]); // cmp r10d,r8d
     let jae_no_exp = c.len();
     c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x49, 0x8B, 0x04, 0xA3]); // mov eax,[rbx+r10*4] (REX.R+B; 93=rdx index)
+    c.extend_from_slice(&[0x42, 0x8B, 0x04, 0x93]); // mov eax,[rbx+r10*4] (REX.X; SIB 93=scale*4 index=r10 base=rbx)
     c.extend_from_slice(&[0x48, 0x01, 0xF8]);
     // strcmp r9 (import) with [rax] (export) — do not clobber rbx=AddressOfNames
     let cmp_name = c.len();
@@ -765,7 +765,7 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jmp_cmp + 1, jmp_cmp + 5, cmp_name);
     let name_found = c.len();
     patch_rel32(&mut c, jz_name_found + 2, jz_name_found + 6, name_found);
-    c.extend_from_slice(&[0x49, 0x0F, 0xB7, 0x04, 0x61]); // movzx eax,word [rcx+r10*2] (REX.R; 51=rdx index)
+    c.extend_from_slice(&[0x42, 0x0F, 0xB7, 0x04, 0x51]); // movzx eax,word [rcx+r10*2] (REX.X; SIB 51=scale*2 index=r10 base=rcx)
     c.extend_from_slice(&[0x8B, 0x04, 0x82]); // mov eax,[rdx+rax*4]
     c.extend_from_slice(&[0x48, 0x01, 0xF8]);
     let call_fixup_name = c.len();
@@ -1186,23 +1186,31 @@ mod tests {
         );
         assert!(
             body.windows(4)
-                .filter(|w| **w == [0x49, 0x8B, 0x04, 0xA3])
+                .filter(|w| **w == [0x42, 0x8B, 0x04, 0x93])
                 .count()
                 >= 1,
-            "resolve_export needs mov eax,[rbx+r10*4] (49 8B 04 A3); 41 8B 04 93 uses rdx index"
+            "resolve_export needs mov eax,[rbx+r10*4] (42 8B 04 93 REX.X)"
         );
         assert!(
             !body.windows(4).any(|w| w == [0x41, 0x8B, 0x04, 0x93]),
-            "must not emit mov eax,[rbx+rdx*4] (41 8B 04 93) — export name index is r10"
+            "must not emit mov eax,[r11+rdx*4] (41 8B 04 93) — export name index is r10"
+        );
+        assert!(
+            !body.windows(4).any(|w| w == [0x49, 0x8B, 0x04, 0xA3]),
+            "must not emit mov eax,[r11+disp] (49 8B 04 A3) — need REX.X + SIB 93"
         );
         assert!(
             body.windows(5)
-                .any(|w| *w == [0x49, 0x0F, 0xB7, 0x04, 0x61]),
-            "resolve_export needs movzx eax,word [rcx+r10*2] (49 0F B7 04 61)"
+                .any(|w| *w == [0x42, 0x0F, 0xB7, 0x04, 0x51]),
+            "resolve_export needs movzx eax,word [rcx+r10*2] (42 0F B7 04 51)"
         );
         assert!(
             !body.windows(5).any(|w| w == [0x41, 0x0F, 0xB7, 0x04, 0x51]),
             "must not emit movzx eax,word [rcx+rdx*2] (41 0F B7 04 51)"
+        );
+        assert!(
+            !body.windows(5).any(|w| w == [0x49, 0x0F, 0xB7, 0x04, 0x61]),
+            "must not emit movzx eax,word [r9+disp] (49 0F B7 04 61) — need REX.X + SIB 51"
         );
         // Success-path phase probes (survive until crash).
         assert!(
