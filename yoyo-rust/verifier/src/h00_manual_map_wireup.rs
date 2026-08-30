@@ -1731,6 +1731,25 @@ mod tests {
             body.windows(3).filter(|w| **w == [0x4C, 0x8D, 0x3D]).count() >= 3,
             "must reload r15 (lea r15,[rip+disp]) in prelude, bootstrap, and import walk"
         );
+        // Bootstrap scratch zero must follow lea r15 — stale r15 after reloc corrupts .data (import AV).
+        let reloc_ok = body
+            .windows(7)
+            .position(|w| w.len() == 7 && w[0] == 0xC6 && w[5] == 0x00 && w[6] == PHASE_RELOC_OK)
+            .expect("PHASE_RELOC_OK probe");
+        let scratch_zero = body
+            .windows(7)
+            .position(|w| {
+                w[0..3] == [0x49, 0xC7, 0x87]
+                    && w[3..7] == H00_LOADLIBRARY_SCRATCH_OFF.to_le_bytes()
+            })
+            .expect("mov qword [r15+LoadLibrary scratch],0");
+        let lea_r15_before = body[reloc_ok..scratch_zero]
+            .windows(3)
+            .any(|w| *w == [0x4C, 0x8D, 0x3D]);
+        assert!(
+            lea_r15_before && scratch_zero > reloc_ok,
+            "bootstrap must lea r15 before mov qword [r15+LoadLibrary scratch],0 (post-reloc)"
+        );
         // import_walk_start must reload file e_lfanew after bootstrap resolve_export clobbers ebx.
         assert!(
             body.windows(10).any(|w| {
