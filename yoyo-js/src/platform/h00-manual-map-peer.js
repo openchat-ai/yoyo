@@ -27,7 +27,7 @@ const H00_IAT_SITES = [
   [150, 0], // VirtualAlloc (file buffer)
   [226, 2], // ReadFile
   [280, 4], // CloseHandle
-  [361, 0], // VirtualAlloc (image)
+  [357, 0], // VirtualAlloc (image)
   [2112, 5], // ExitProcess (export success)
   [2127, 5], // ExitProcess(2) CreateFile fail
   [2142, 5], // ExitProcess(3) ReadFile fail

@@ -15,10 +15,11 @@ pub const IAT_CREATE_FILE: u32 = 1;
 pub const IAT_READ_FILE: u32 = 2;
 pub const IAT_CLOSE_HANDLE: u32 = 4;
 
-/// Stack scratch for ReadFile nNumberOfBytesRead (Win64 5th-arg slot at [rsp+0x20] in shadow).
-const READ_BYTES_STACK_OFF: u8 = 0x20;
-/// GPA proc-name spill for FlushICache (same slot — must stay above shadow, not inside it).
-const FLUSH_ICACHE_NAME_STACK_OFF: u8 = READ_BYTES_STACK_OFF;
+/// ReadFile `lpNumberOfBytesRead` DWORD at [rsp+0x28] (rdx home in 0x38 shadow).
+/// `lpOverlapped` (5th stack arg) must stay at [rsp+0x20] — separate from nBytesRead.
+const READ_BYTES_STACK_OFF: u8 = 0x28;
+/// GPA proc-name spill for FlushICache (rdx home in 0x38 shadow; separate call frame).
+const FLUSH_ICACHE_NAME_STACK_OFF: u8 = 0x28;
 
 /// PE32+ optional-header field offsets from `e_lfanew` (ebx holds e_lfanew; COFF = 20 B after PE sig).
 const PE_OFF_NUMBER_OF_SECTIONS: u8 = 6; // COFF + 2
@@ -348,9 +349,9 @@ pub fn gen_h00_read_sidecar_prelude(
     c.extend_from_slice(&[0x4C, 0x89, 0xE2]);
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x00, 0x80, 0x00]); // ReadFile size cap
     emit_win64_call_shadow(&mut c);
+    c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x20, 0x00, 0x00, 0x00, 0x00]); // lpOverlapped = NULL
     c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, READ_BYTES_STACK_OFF, 0, 0, 0, 0]); // nBytesRead = 0
-    c.extend_from_slice(&[0x4C, 0x8D, 0x4C, 0x24, READ_BYTES_STACK_OFF]); // &nBytesRead in shadow frame
-    c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x28, 0x00, 0x00, 0x00, 0x00]); // OVERLAPPED NULL
+    c.extend_from_slice(&[0x4C, 0x8D, 0x4C, 0x24, READ_BYTES_STACK_OFF]); // r9 = &nBytesRead
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_READ_FILE);
     c.extend_from_slice(&[0x85, 0xC0]); // test eax,eax — ReadFile BOOL
     emit_jz_pop_shadow_then_fail(&mut c, chunk_text_off as usize, fail_read_empty);
