@@ -637,17 +637,42 @@ mod tests {
         );
         let stub_off = PE_STARTUP_LEN + 5 + h00_jmp_rel as usize;
         let stub = &img[text_raw + stub_off..];
-        let create_ff15 = stub
+
+        // Prelude kernel32 I/O uses call [r15+slot*8] after reload r15 (not FF15 RIP-relative).
+        let reload_r15 = stub
+            .windows(3)
+            .position(|w| w == [0x4C, 0x8D, 0x3D])
+            .expect("prelude reload r15 lea in stub");
+        let reload_disp =
+            i32::from_le_bytes(stub[reload_r15 + 3..reload_r15 + 7].try_into().unwrap());
+        let reload_next = text_rva + stub_off as u32 + reload_r15 as u32 + 7;
+        assert_eq!(
+            reload_next as i32 + reload_disp,
+            data_rva as i32,
+            "prelude reload r15 must target .data base"
+        );
+
+        let create_r15 = stub
+            .windows(7)
+            .position(|w| w == [0x41, 0xFF, 0x97, 0x08, 0x00, 0x00, 0x00])
+            .expect("CreateFile call [r15+8] in stub");
+        assert!(
+            create_r15 > reload_r15,
+            "CreateFile [r15+8] must follow prelude reload r15"
+        );
+
+        // Manual-map body still uses FF15 for VirtualAlloc(image) and ExitProcess epilogues.
+        let va_ff15 = stub
             .windows(2)
             .position(|w| w == [0xFF, 0x15])
-            .expect("CreateFile FF 15 in stub");
-        let disp = i32::from_le_bytes(stub[create_ff15 + 2..create_ff15 + 6].try_into().unwrap());
-        let call_rva = text_rva + stub_off as u32 + create_ff15 as u32 + 6;
+            .expect("VirtualAlloc(image) FF 15 in stub");
+        let disp = i32::from_le_bytes(stub[va_ff15 + 2..va_ff15 + 6].try_into().unwrap());
+        let call_rva = text_rva + stub_off as u32 + va_ff15 as u32 + 6;
         let iat_rva = (call_rva as i32 + disp) as u32;
         assert_eq!(
             iat_rva,
-            data_rva + 8,
-            "CreateFile IAT slot must be data_rva+8 (got 0x{iat_rva:x})"
+            data_rva,
+            "first FF15 IAT slot must be VirtualAlloc at data_rva+0 (got 0x{iat_rva:x})"
         );
 
         let lea_rcx = stub
