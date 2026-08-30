@@ -22,8 +22,10 @@ const FLUSH_ICACHE_NAME_STACK_OFF: u8 = READ_BYTES_STACK_OFF;
 /// One Win64 home (0x20) + CreateFile 3 stack args (0x18); 0x38 bytes total.
 /// After JMP-entry prologue (RSP%16==8), frame must be 8 mod 16 so FF15 CALL is 0 mod 16.
 const PRELUDE_IO_FRAME: u8 = 0x38;
-/// Forwarder DLL-name copy in resolve_export (0 mod 16) so nested find_module entry stays 0-mod-16.
+/// Forwarder DLL-name copy frame in fix_forward (copy buffer + align call to find_module).
 const FORWARDER_NAME_FRAME: u8 = 0x40;
+/// find_module LoadLibraryA fallback: one push r10 (8 B) before shadow → sub 30h not 38h for CALL align.
+const FIND_MODULE_LL_SHADOW: u8 = 0x30;
 
 /// PE32+ optional-header field offsets from `e_lfanew` (ebx holds e_lfanew; COFF = 20 B after PE sig).
 const PE_OFF_NUMBER_OF_SECTIONS: u8 = 6; // COFF + 2
@@ -970,9 +972,9 @@ fn gen_h00_manual_map_body(
     let jz_ll_fail = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x89, 0xD1]); // mov rcx, rdx (dll name)
-    emit_win64_call_shadow(&mut c);
-    c.extend_from_slice(&[0xFF, 0xD0]); // call rax
-    emit_win64_pop_shadow(&mut c);
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, FIND_MODULE_LL_SHADOW]); // after push r10 → RSP%16==0 at CALL
+    c.extend_from_slice(&[0xFF, 0xD0]); // call rax (LoadLibraryA)
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, FIND_MODULE_LL_SHADOW]);
     c.extend_from_slice(&[0x41, 0x5A]); // pop r10
     c.extend_from_slice(&[0xC3]);
     let ll_fail = c.len();
@@ -1150,8 +1152,10 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jae_ff_copy_done + 2, jae_ff_copy_done + 6, ff_copy_done);
     c.extend_from_slice(&[0xC6, 0x07, 0x00]); // mov byte [rdi], 0
     c.extend_from_slice(&[0x48, 0x89, 0xE2]); // mov rdx, rsp (dll name)
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x08]); // RSP%16==0 at CALL (fix_forward frame leaves 8 mod 16)
     let call_ff_find = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x08]);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_ff_bad2 = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
@@ -1795,7 +1799,31 @@ mod tests {
                 w[0..4] == [0x48, 0x83, 0xEC, FORWARDER_NAME_FRAME]
                     && w[4..7] == [0x48, 0x89, 0xE7]
             }),
-            "fix_forward must sub rsp,40h (not 38h) before find_module — nested LL align"
+            "fix_forward must sub rsp,40h for forwarder DLL-name copy frame"
+        );
+        assert!(
+            body.windows(13).any(|w| {
+                w[0..4] == [0x48, 0x83, 0xEC, 0x08]
+                    && w[4] == 0xE8
+                    && w[9..13] == [0x48, 0x83, 0xC4, 0x08]
+            }),
+            "fix_forward must sub/add rsp,8 around call find_module (Win64 CALL align)"
+        );
+        assert!(
+            body.windows(6).any(|w| {
+                w[0..4] == [0x48, 0x83, 0xEC, FIND_MODULE_LL_SHADOW]
+                    && w[4] == 0xFF
+                    && w[5] == 0xD0
+            }),
+            "find_module LL fallback needs sub rsp,30h before call rax (not 38h after push r10)"
+        );
+        assert!(
+            body.windows(6).any(|w| {
+                w[0..4] == [0x48, 0x83, 0xC4, FIND_MODULE_LL_SHADOW]
+                    && w[4] == 0x41
+                    && w[5] == 0x5A
+            }),
+            "find_module LL fallback needs add rsp,30h before pop r10"
         );
         assert!(
             !body.windows(5).any(|w| w == [0x89, 0xD3, 0x48, 0x01, 0xD3]),
