@@ -881,7 +881,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x49, 0x89, 0xD2]); // mov r10, rdx
     c.extend_from_slice(&[0x8B, 0x94, 0x37, 0x8C, 0x00, 0x00, 0x00]); // export size
     c.extend_from_slice(&[0x89, 0xD3]); // mov ebx, edx (export dir size)
-    c.extend_from_slice(&[0x48, 0x01, 0xD3]); // add rbx, rdx → export dir end (rdx=start)
+    c.extend_from_slice(&[0x4C, 0x01, 0xD3]); // add rbx, r10 → export dir end (r10=start; rdx=size)
     c.extend_from_slice(&[0x4C, 0x39, 0xD0]); // cmp rax,r10
     let jb_ff_ret = c.len();
     c.extend_from_slice(&[0x0F, 0x82, 0, 0, 0, 0]);
@@ -1383,8 +1383,12 @@ mod tests {
             "must not emit lea r11,[rdx+rax*2] (4C 8D 1C 42) — forwarder end is rdx+size"
         );
         assert!(
-            body.windows(5).any(|w| w == [0x89, 0xD3, 0x48, 0x01, 0xD3]),
-            "fix_forward needs mov ebx,edx; add rbx,rdx (export dir end)"
+            body.windows(5).any(|w| w == [0x89, 0xD3, 0x4C, 0x01, 0xD3]),
+            "fix_forward needs mov ebx,edx; add rbx,r10 (export dir end = start+size)"
+        );
+        assert!(
+            !body.windows(5).any(|w| w == [0x89, 0xD3, 0x48, 0x01, 0xD3]),
+            "must not add rbx,rdx after rdx holds export dir size (breaks forwarder range)"
         );
         assert!(
             body.windows(4).any(|w| w == [0x4B, 0x8D, 0x34, 0x0C]),
