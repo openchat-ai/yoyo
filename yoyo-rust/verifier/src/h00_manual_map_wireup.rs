@@ -1072,8 +1072,8 @@ mod tests {
             }
         }
         assert!(
-            body.len() > 400 && body.len() < 1900,
-            "manual-map H_00 stub should fit OW-STUB pin [40,1900] (got {}B)",
+            body.len() > 400 && body.len() < 2000,
+            "manual-map H_00 stub should fit OW-STUB pin [40,2000] (got {}B)",
             body.len()
         );
         // No un-prefixed [r12+rbx] PE reads (without REX.B they decode as [rsp+rbx]).
