@@ -673,7 +673,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x38, 0xC8]); // cmp al,cl
     let jne_dll = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x49, 0xFF, 0xC0]);
+    c.extend_from_slice(&[0x49, 0x83, 0xC0, 0x02]); // add r8,2 — UTF-16 BaseDllName (not inc r8)
     c.extend_from_slice(&[0x49, 0xFF, 0xC1]);
     let jmp_cmp_dll = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
@@ -982,7 +982,8 @@ pub fn gen_h00_manual_map_main(
 
     let prelude_text_off = code_base_off + H00_PROLOGUE_LEN;
 
-    const EPILOGUE_LEN: usize = 8 * 19; // Win64 shadow + mov ecx,imm32 + FF15 rel32 per phase
+    const FAIL_EPILOGUE_SIZE: usize = 19; // Win64 shadow + mov ecx,imm32 + FF15 rel32
+    const EPILOGUE_LEN: usize = 8 * FAIL_EPILOGUE_SIZE;
 
     // Size pass with placeholder fail labels.
     let prelude_len = gen_h00_read_sidecar_prelude(
@@ -1012,13 +1013,14 @@ pub fn gen_h00_manual_map_main(
         + map_len
         + tail_len;
 
-    let fail_create_file = epilogue_base;
-    let fail_read_empty = epilogue_base + 11;
-    let fail_virtual_alloc = epilogue_base + 22;
-    let _fail_section_copy = epilogue_base + 33;
-    let _fail_reloc = epilogue_base + 44;
-    let fail_import = epilogue_base + 55;
-    let fail_export = epilogue_base + 66;
+    let fail_label = |i: usize| epilogue_base + i * FAIL_EPILOGUE_SIZE;
+    let fail_create_file = fail_label(0); // ExitProcess(2)
+    let fail_read_empty = fail_label(1); // ExitProcess(3)
+    let fail_virtual_alloc = fail_label(2); // ExitProcess(4)
+    let _fail_section_copy = fail_label(3); // ExitProcess(5)
+    let _fail_reloc = fail_label(4); // ExitProcess(6)
+    let fail_import = fail_label(5); // ExitProcess(7)
+    let fail_export = fail_label(6); // ExitProcess(8)
 
     c.extend_from_slice(&gen_h00_read_sidecar_prelude(
         meta,
@@ -1184,6 +1186,14 @@ mod tests {
         assert!(
             body.windows(5).any(|w| w == [0xC6, 0x44, 0x24, 0x00, b'k']),
             "bootstrap must build kernel32.dll on stack (C6 44 24 00 6B)"
+        );
+        assert!(
+            body.windows(4).any(|w| w == [0x49, 0x83, 0xC0, 0x02]),
+            "find_module must add r8,2 for UTF-16 BaseDllName (not inc r8)"
+        );
+        assert!(
+            !body.windows(3).any(|w| w == [0x49, 0xFF, 0xC0]),
+            "must not inc r8 in find_module (UTF-16 stride is 2 bytes)"
         );
         assert!(
             body.windows(5)
