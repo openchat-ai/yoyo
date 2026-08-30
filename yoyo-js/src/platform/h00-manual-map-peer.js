@@ -21,22 +21,22 @@ function patchRel32(buf, dispOff, from, to) {
   buf.writeInt32LE(to - from, dispOff);
 }
 
-const H00_LEA_SITE = 19;
+const H00_LEA_SITE = 15;
 const H00_IAT_SITES = [
-  [63, 1], // CreateFileA
-  [101, 0], // VirtualAlloc (file buffer)
-  [145, 2], // ReadFile
-  [154, 4], // CloseHandle
-  [210, 0], // VirtualAlloc (image)
-  [1910, 5], // ExitProcess (export success)
-  [1929, 5], // ExitProcess (fail CreateFile)
-  [1948, 5], // ExitProcess (fail Read)
-  [1967, 5], // ExitProcess (fail VirtualAlloc)
-  [1986, 5], // ExitProcess (fail section_copy)
-  [2005, 5], // ExitProcess (fail reloc)
-  [2024, 5], // ExitProcess (fail import)
-  [2043, 5], // ExitProcess (fail export)
-  [2062, 5], // ExitProcess (fail DllMain — epilogue only, DllMain skipped)
+  [67, 1], // CreateFileA
+  [117, 0], // VirtualAlloc (file buffer)
+  [173, 2], // ReadFile
+  [199, 4], // CloseHandle
+  [255, 0], // VirtualAlloc (image)
+  [1955, 5], // ExitProcess (export success)
+  [1974, 5], // ExitProcess (fail CreateFile)
+  [1993, 5], // ExitProcess (fail Read)
+  [2012, 5], // ExitProcess (fail VirtualAlloc)
+  [2031, 5], // ExitProcess (fail section_copy)
+  [2050, 5], // ExitProcess (fail reloc)
+  [2069, 5], // ExitProcess (fail import)
+  [2088, 5], // ExitProcess (fail export)
+  [2107, 5], // ExitProcess (fail DllMain — epilogue only, DllMain skipped)
 ];
 
 function rebaseManualMapStub(buf, textRva, codeBaseOff, meta) {

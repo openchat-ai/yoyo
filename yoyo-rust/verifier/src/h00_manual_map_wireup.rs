@@ -40,6 +40,7 @@ const H00_KERNEL32_SCRATCH_OFF: u8 = 0x60;
 /// Success-path phase probe (survives until crash for post-mortem; not used on fail epilogue).
 const H00_PHASE_SCRATCH_OFF: u8 = 0x68;
 
+const PHASE_PRELUDE_OK: u8 = 0x05;
 const PHASE_MAP_IMAGE_OK: u8 = 0x0A;
 const PHASE_SECTIONS_OK: u8 = 0x0B;
 const PHASE_RELOC_OK: u8 = 0x0C;
@@ -204,18 +205,18 @@ pub fn gen_h00_read_sidecar_prelude(
 ) -> Vec<u8> {
     let mut c: Vec<u8> = Vec::new();
 
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x48]);
-
     let lea_path = c.len();
     c.extend_from_slice(&[0x48, 0x8D, 0x0D, 0, 0, 0, 0]);
     // CreateFileA(path, GENERIC_READ, share=0, sa=NULL, OPEN_EXISTING, NORMAL, hTemplate=NULL)
     c.extend_from_slice(&[0xBA, 0x00, 0x00, 0x00, 0x80]); // GENERIC_READ
     c.extend_from_slice(&[0x45, 0x31, 0xC0]); // xor r8d,r8d
     c.extend_from_slice(&[0x45, 0x31, 0xC9]); // xor r9d,r9d
+    emit_win64_call_shadow(&mut c);
     c.extend_from_slice(&[0xC7, 0x44, 0x24, 0x20, 0x03, 0x00, 0x00, 0x00]); // OPEN_EXISTING
     c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x28, 0x80, 0x00, 0x00, 0x00]); // FILE_ATTRIBUTE_NORMAL
     c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x30, 0x00, 0x00, 0x00, 0x00]); // hTemplateFile
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_CREATE_FILE);
+    emit_win64_pop_shadow(&mut c);
     c.extend_from_slice(&[0x48, 0x83, 0xF8, 0xFF]);
     let jz_no_file = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
@@ -225,7 +226,9 @@ pub fn gen_h00_read_sidecar_prelude(
     c.extend_from_slice(&[0xBA, 0x00, 0x00, 0x80, 0x00]); // max read 8 MiB (crt-static sidecar)
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xB9, 0x04, 0x00, 0x00, 0x00]);
+    emit_win64_call_shadow(&mut c);
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_VIRTUAL_ALLOC);
+    emit_win64_pop_shadow(&mut c);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_no_buf = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
@@ -234,19 +237,21 @@ pub fn gen_h00_read_sidecar_prelude(
     c.extend_from_slice(&[0x48, 0x89, 0xD9]);
     c.extend_from_slice(&[0x4C, 0x89, 0xE2]);
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x00, 0x80, 0x00]); // ReadFile size cap
-    c.extend_from_slice(&[0x4C, 0x8D, 0x4C, 0x24, READ_BYTES_STACK_OFF]);
-    c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x20, 0x00, 0x00, 0x00, 0x00]);
+    emit_win64_call_shadow(&mut c);
+    c.extend_from_slice(&[0x4C, 0x8D, 0x4C, 0x24, READ_BYTES_STACK_OFF]); // &nBytesRead in shadow frame
+    c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x20, 0x00, 0x00, 0x00, 0x00]); // OVERLAPPED NULL
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_READ_FILE);
+    c.extend_from_slice(&[0x44, 0x8B, 0x6C, 0x24, READ_BYTES_STACK_OFF]); // r13d = nBytesRead
+    emit_win64_pop_shadow(&mut c);
 
     c.extend_from_slice(&[0x48, 0x89, 0xD9]);
+    emit_win64_call_shadow(&mut c);
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_CLOSE_HANDLE);
+    emit_win64_pop_shadow(&mut c);
 
-    c.extend_from_slice(&[0x44, 0x8B, 0x6C, 0x24, READ_BYTES_STACK_OFF]);
     c.extend_from_slice(&[0x45, 0x85, 0xED]);
     let jz_empty = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x48]);
 
     fix_rip_disp(
         &mut c,
@@ -269,6 +274,15 @@ pub fn gen_h00_read_sidecar_prelude(
             fail,
         );
     }
+
+    emit_phase_probe(&mut c, PHASE_PRELUDE_OK);
+    maybe_bisect_exit_after_phase(
+        &mut c,
+        text_rva,
+        chunk_text_off,
+        meta.iat_rva,
+        PHASE_PRELUDE_OK,
+    );
 
     c
 }
@@ -1152,9 +1166,16 @@ mod tests {
         let body = gen_h00_read_sidecar_prelude(&meta, 0x1000, 17_823, 0x50_000, 0x50_020, 0x50_010);
         assert!(body.len() > 80, "prelude should be substantial");
         assert!(
-            body.len() < 230,
-            "file-read prelude should stay <230B (got {}B)",
+            body.len() < 320,
+            "file-read prelude should stay <320B (got {}B)",
             body.len()
+        );
+        assert!(
+            body.windows(8)
+                .filter(|w| **w == [0x48, 0x83, 0xE4, 0xF0, 0x48, 0x83, 0xEC, 0x28])
+                .count()
+                >= 4,
+            "prelude needs Win64 shadow before each kernel32 IAT call"
         );
     }
 
@@ -1209,8 +1230,8 @@ mod tests {
             }
         }
         assert!(
-            body.len() > 400 && body.len() < 2100,
-            "manual-map H_00 stub should fit OW-STUB pin [40,2100] (got {}B)",
+            body.len() > 400 && body.len() < 2200,
+            "manual-map H_00 stub should fit OW-STUB pin [40,2200] (got {}B)",
             body.len()
         );
         // No un-prefixed [r12+rbx] PE reads (without REX.B they decode as [rsp+rbx]).

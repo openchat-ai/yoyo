@@ -114,6 +114,7 @@ function Get-SmokePhase([int]$ExitCode) {
         163 { "phase_import_ok" }
         164 { "phase_flush_icache" }
         165 { "phase_export_call" }
+        155 { "phase_prelude_ok" }
         1 { "generic_fail_or_runtime" }
         -1073741819 { "access_violation" }
         default { "unknown" }
@@ -135,9 +136,9 @@ function Invoke-ManualMapSmoke([string]$RunDir, [string]$Gen1Path) {
 }
 
 function Invoke-H00BisectDiagnostic([string]$RunDir, [string]$TyPath, [string]$TybPath, [string]$DllPath) {
-    Write-Host "== bisect: rebuild gen1 with H00_BISECT_EXIT=160..165 (post-AV phase isolate) =="
+    Write-Host "== bisect: rebuild gen1 with H00_BISECT_EXIT=155..165 (post-AV phase isolate) =="
     $lines = @()
-    foreach ($phase in 160..165) {
+    foreach ($phase in 155..165) {
         Push-Location (Join-Path $Root "yoyo-rust")
         try {
             $env:H00_BISECT_EXIT = "$phase"
