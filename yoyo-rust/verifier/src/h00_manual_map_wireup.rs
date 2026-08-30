@@ -57,11 +57,11 @@ const PHASE_IMPORT_OK: u8 = 0x0D;
 const PHASE_FLUSH_ICACHE: u8 = 0x0E;
 const PHASE_EXPORT_CALL: u8 = 0x0F;
 
-/// Win64 home-space before `call` to kernel32 (RSP%16==8 at CALL).
-/// Prologue `and rsp,-16` forces 0-mod-16; this `sub 0x38` (8-mod-16) yields 8 at CALL
-/// whether the loader CALLed or JMPed to the PE entry.
-/// 0x38 = 32 B shadow + 3 stack slots (CreateFileA 7th param at [rsp+30h]; ret at [rsp+38h]).
-const WIN64_CALL_SHADOW: u8 = 0x38;
+/// Win64 home-space before `call` to kernel32.
+/// At the CALL insn RSP must be 16-byte aligned (callee then sees RSP%16==8).
+/// Prologue `and rsp,-16` forces 0-mod-16; `sub 0x40` (0 mod 16) keeps CALL aligned.
+/// 0x38 is 8 mod 16 and yields CALL 8-mod-16 → callee 0-mod-16 → movaps AV.
+const WIN64_CALL_SHADOW: u8 = 0x40;
 /// Short dll/api name spill for 2-arg bootstrap calls (inside 32 B home space; ret at [rsp+38h]).
 const WIN64_STACK_STR_OFF: u8 = 0x20;
 
@@ -189,7 +189,7 @@ fn emit_mov_u32_pe_mapped(c: &mut Vec<u8>, disp: u8) {
 }
 
 /// H_00 stub prologue (`push` saves + `and rsp,-16`) before file-read prelude.
-pub const H00_PROLOGUE_LEN: u32 = 11;
+pub const H00_PROLOGUE_LEN: u32 = 18;
 
 fn patch_rel32(c: &mut [u8], disp_off: usize, from: usize, to: usize) {
     let rel = to as i32 - from as i32;
@@ -1199,9 +1199,9 @@ pub fn gen_h00_manual_map_main(
     let mut c: Vec<u8> = Vec::new();
 
     c.extend_from_slice(&[0x53, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56]);
-    // Force RSP 16-aligned. `sub rsp,0x208` (gen2rt) leaves 8-mod-16 after JMP entry
-    // (loader does not CALL AddressOfEntryPoint) so the next `sub 0x38` made CALL
-    // 0-mod-16 → movaps AV inside kernel32. AND is independent of entry convention.
+    // `and rsp,-16` forces 16-align regardless of loader CALL vs JMP.
+    // WIN64_CALL_SHADOW is 0 mod 16 so CALL stays 16-aligned (callee sees 8).
+    // Do NOT pair `and -16` with `sub 0x38`: that puts 8-mod-16 at CALL → movaps AV.
     c.extend_from_slice(&[0x48, 0x83, 0xE4, 0xF0]); // and rsp, -16
 
     // User .text may clobber r15 before the jmp into H_00; reload before any [r15+scratch] probe.
@@ -1316,7 +1316,7 @@ mod tests {
         );
         assert!(
             body.windows(4)
-                .filter(|w| **w == [0x48, 0x83, 0xEC, 0x38])
+                .filter(|w| **w == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW])
                 .count()
                 >= 4,
             "prelude needs Win64 shadow before each kernel32 IAT call"
@@ -1346,7 +1346,7 @@ mod tests {
         let to = (from as i64 + rel as i64) as usize;
         let epilogue_off = body
             .windows(8)
-            .position(|w| w == [0x48, 0x83, 0xEC, 0x38, 0xB9, 0x02, 0x00, 0x00])
+            .position(|w| w == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW, 0xB9, 0x02, 0x00, 0x00])
             .expect("ExitProcess(2) fail epilogue (shadow + mov ecx,2)");
         assert_eq!(
             to,
@@ -1365,7 +1365,7 @@ mod tests {
                 continue;
             }
             for j in i + 4..(i + 20).min(body.len().saturating_sub(5)) {
-                if body[j..j + 4] == [0x48, 0x83, 0xC4, 0x38] && body[j + 4] == 0xE9 {
+                if body[j..j + 4] == [0x48, 0x83, 0xC4, WIN64_CALL_SHADOW] && body[j + 4] == 0xE9 {
                     found = true;
                     break;
                 }
@@ -1376,7 +1376,7 @@ mod tests {
         }
         assert!(
             found,
-            "ReadFile fail must pop Win64 shadow (add rsp,38h) before jmp to ExitProcess(3)"
+            "ReadFile fail must pop Win64 shadow (add rsp,40h) before jmp to ExitProcess(3)"
         );
     }
 
@@ -1386,7 +1386,7 @@ mod tests {
         let body = gen_h00_manual_map_main(&meta, 0x1000, 17_823);
         let mut starts = Vec::new();
         for i in 0..body.len().saturating_sub(8) {
-            if body[i..i + 4] == [0x48, 0x83, 0xEC, 0x38]
+            if body[i..i + 4] == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]
                 && i + 4 < body.len()
                 && body[i + 4] == 0xB9
                 && i + 9 < body.len()
@@ -1704,7 +1704,7 @@ mod tests {
             assert_eq!(
                 &tail[0..5],
                 &[0x48, 0x83, 0xC4, WIN64_CALL_SHADOW, 0xE9][..],
-                "after GPA bootstrap store expect add rsp,38h; jmp (skip failure pop)"
+                "after GPA bootstrap store expect add rsp,40h; jmp (skip failure pop)"
             );
             assert!(
                 !body[at + 7..].windows(2).any(|w| w == [0xE9, 0xF7]),
@@ -1719,19 +1719,32 @@ mod tests {
             !body.windows(7).any(|w| w == [0x44, 0x8B, 0x48, 0x10, 0x44, 0x29, 0xC8]),
             "must not emit sub eax,r9d (44 29 C8) after BaseOrdinal — need sub ecx,r9d"
         );
-        // Export call: prologue already aligned RSP; shadow sub alone yields RSP%16==8 at call.
+        // Export call: `and rsp,-16` then 0-mod-16 shadow → CALL site 16-aligned.
         let export_shadow = body
             .windows(4)
-            .position(|w| w == [0x48, 0x83, 0xEC, 0x38]);
+            .position(|w| w == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]);
         assert!(
             export_shadow.is_some(),
-            "export tail must sub rsp,0x38 before call (Win64 shadow)"
+            "export tail must sub rsp,0x40 before call (Win64 shadow)"
+        );
+        assert_eq!(
+            WIN64_CALL_SHADOW % 16,
+            0,
+            "CALL shadow must be 0 mod 16 so RSP stays 16-aligned at CALL"
+        );
+        assert!(
+            body.windows(4).any(|w| w == [0x48, 0x83, 0xE4, 0xF0]),
+            "H_00 prologue must and rsp,-16 (process-entry RSP is 8-mod-16)"
+        );
+        assert!(
+            !body.windows(7).any(|w| w == [0x48, 0x81, 0xEC, 0x08, 0x02, 0x00, 0x00]),
+            "sub rsp,0x208 is 8-mod-16 and misaligns IAT calls (Windows CI movaps AV)"
         );
         // Fail epilogues: shadow + mov ecx + FF15 ExitProcess
         assert!(
             body.windows(10)
                 .filter(|w| {
-                    w[0..4] == [0x48, 0x83, 0xEC, 0x38]
+                    w[0..4] == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]
                         && w[4] == 0xB9
                         && w[9] == 0xFF
                 })
@@ -1742,7 +1755,7 @@ mod tests {
         assert!(
             body.windows(7).any(|w| {
                 w[0..3] == [0x89, 0xC1, 0x48]
-                    && w[3..7] == [0x83, 0xEC, 0x38, 0xFF]
+                    && w[3..7] == [0x83, 0xEC, WIN64_CALL_SHADOW, 0xFF]
             }),
             "export success path needs mov ecx,eax + Win64 shadow before ExitProcess"
         );
