@@ -440,8 +440,7 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jnz_process + 2, jnz_process + 6, process_desc);
     patch_rel32(&mut c, jnz_process2 + 2, jnz_process2 + 6, process_desc);
     c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]); // Win64 shadow for LoadLibrary/GetProcAddress
-    // edx=FirstThunk rva — save IAT cursor before rdx becomes module-name ptr
-    c.extend_from_slice(&[0x4D, 0x8D, 0x1C, 0x16]); // lea r11,[r14+rdx] IAT write cursor
+    // FirstThunk rva is in edx — load module first, then lea r11 (LL/GPA clobber r11).
     c.extend_from_slice(&[0x49, 0x8D, 0x14, 0x0E]); // lea rdx,[r14+rcx] module name
     c.extend_from_slice(&[0x48, 0x89, 0xD1]); // mov rcx, rdx — LoadLibraryA(lpLibFileName)
     c.extend_from_slice(&[0x41, 0xFF, 0x57, H00_LOADLIBRARY_SCRATCH_OFF]); // call [r15+LoadLibraryA]
@@ -450,6 +449,8 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = hModule
     c.extend_from_slice(&[0x49, 0x89, 0xF5]); // mov r13, rsi (save import descriptor ptr)
+    c.extend_from_slice(&[0x41, 0x8B, 0x55, 0x10]); // mov edx,[r13+10] FirstThunk RVA
+    c.extend_from_slice(&[0x4D, 0x8D, 0x1C, 0x16]); // lea r11,[r14+rdx] IAT write cursor
     c.extend_from_slice(&[0x85, 0xDB]); // cmp ebx,0 (OriginalFirstThunk)
     let jz_iat_read = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
@@ -480,7 +481,9 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x89, 0xC2]); // mov edx, eax
     let gpa_call_site = c.len();
     patch_rel32(&mut c, gpa_call + 1, gpa_call + 5, gpa_call_site);
+    c.extend_from_slice(&[0x41, 0x53]); // push r11 — GPA clobbers volatile IAT cursor
     c.extend_from_slice(&[0x41, 0xFF, 0x57, H00_GETPROCADDRESS_SCRATCH_OFF]); // GetProcAddress
+    c.extend_from_slice(&[0x41, 0x5B]); // pop r11
     c.extend_from_slice(&[0x48, 0x85, 0xC0]); // resolve failed → fail_import
     fail_jumps.push((c.len(), fail_import));
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
