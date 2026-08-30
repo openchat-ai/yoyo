@@ -534,6 +534,8 @@ fn gen_h00_manual_map_body(
 
     // Import resolve: walk descriptors at [r14+import_rva]
     let import_walk_start = c.len();
+    // Bootstrap resolve_export clobbers ebx (AddressOfNames); reload file e_lfanew.
+    emit_mov_e_lfanew_pe_file(&mut c);
     emit_mov_u32_pe_file(&mut c, 0, PE_OFF_IMPORT_DIR_RVA); // import dir rva
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_import_done = c.len();
@@ -1363,6 +1365,14 @@ mod tests {
         assert!(
             body.windows(5).any(|w| w == [0x41, 0x8B, 0x5C, SIB_R12_ONLY, 0x3C]),
             "missing mov ebx,[r12+3Ch] (file PE e_lfanew; SIB 24)"
+        );
+        // import_walk_start must reload file e_lfanew after bootstrap resolve_export clobbers ebx.
+        assert!(
+            body.windows(10).any(|w| {
+                w[0..5] == [0x41, 0x8B, 0x5C, SIB_R12_ONLY, 0x3C]
+                    && w[5..10] == [0x41, 0x8B, 0x84, 0x1C, PE_OFF_IMPORT_DIR_RVA]
+            }),
+            "import walk must reload ebx from [r12+3Ch] before [r12+rbx+import_rva]"
         );
         assert!(
             body.windows(5).any(|w| w == [0x41, 0x8B, 0x5C, SIB_R14_ONLY, 0x3C]),
