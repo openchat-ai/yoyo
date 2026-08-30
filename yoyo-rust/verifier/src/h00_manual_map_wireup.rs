@@ -182,6 +182,12 @@ fn patch_rel32(c: &mut [u8], disp_off: usize, from: usize, to: usize) {
     c[disp_off..disp_off + 4].copy_from_slice(&rel.to_le_bytes());
 }
 
+/// `call [r15+slot*8]` — prelude uses r15 (.data/IAT base) after `emit_reload_r15_data_base`.
+fn emit_call_iat_r15_slot(c: &mut Vec<u8>, slot: u32) {
+    c.extend_from_slice(&[0x41, 0xFF, 0x97]);
+    c.extend_from_slice(&(slot * 8).to_le_bytes());
+}
+
 /// `chunk_text_off` = RVA offset from `.text` base to the start of the chunk being emitted.
 fn emit_call_iat_merged(
     c: &mut Vec<u8>,
@@ -275,6 +281,8 @@ pub fn gen_h00_read_sidecar_prelude(
 ) -> Vec<u8> {
     let mut c: Vec<u8> = Vec::new();
 
+    emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, meta.iat_rva);
+
     // CreateFileA(path, GENERIC_READ, share=0, sa=NULL, OPEN_EXISTING, NORMAL, hTemplate=NULL)
     emit_win64_call_shadow(&mut c);
     let lea_path = c.len();
@@ -285,7 +293,7 @@ pub fn gen_h00_read_sidecar_prelude(
     c.extend_from_slice(&[0xC7, 0x44, 0x24, 0x20, 0x03, 0x00, 0x00, 0x00]); // OPEN_EXISTING
     c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x28, 0x80, 0x00, 0x00, 0x00]); // FILE_ATTRIBUTE_NORMAL
     c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x30, 0x00, 0x00, 0x00, 0x00]); // hTemplateFile
-    emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_CREATE_FILE);
+    emit_call_iat_r15_slot(&mut c, IAT_CREATE_FILE);
     emit_win64_pop_shadow(&mut c);
     c.extend_from_slice(&[0x48, 0x83, 0xF8, 0xFF]);
     let jz_no_file = c.len();
@@ -309,7 +317,7 @@ pub fn gen_h00_read_sidecar_prelude(
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xB9, 0x04, 0x00, 0x00, 0x00]);
     emit_win64_call_shadow(&mut c);
-    emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_VIRTUAL_ALLOC);
+    emit_call_iat_r15_slot(&mut c, IAT_VIRTUAL_ALLOC);
     emit_win64_pop_shadow(&mut c);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_no_buf = c.len();
@@ -331,7 +339,7 @@ pub fn gen_h00_read_sidecar_prelude(
     emit_win64_call_shadow(&mut c);
     c.extend_from_slice(&[0x4C, 0x8D, 0x4C, 0x24, READ_BYTES_STACK_OFF]); // &nBytesRead in shadow frame
     c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x20, 0x00, 0x00, 0x00, 0x00]); // OVERLAPPED NULL
-    emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_READ_FILE);
+    emit_call_iat_r15_slot(&mut c, IAT_READ_FILE);
     c.extend_from_slice(&[0x85, 0xC0]); // test eax,eax — ReadFile BOOL
     emit_jz_pop_shadow_then_fail(&mut c, chunk_text_off as usize, fail_read_empty);
     emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, meta.iat_rva);
@@ -348,7 +356,7 @@ pub fn gen_h00_read_sidecar_prelude(
 
     c.extend_from_slice(&[0x48, 0x89, 0xD9]);
     emit_win64_call_shadow(&mut c);
-    emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_CLOSE_HANDLE);
+    emit_call_iat_r15_slot(&mut c, IAT_CLOSE_HANDLE);
     emit_win64_pop_shadow(&mut c);
 
     c.extend_from_slice(&[0x45, 0x85, 0xED]);
@@ -1308,6 +1316,13 @@ mod tests {
                 .count()
                 >= 4,
             "prelude needs Win64 shadow before each kernel32 IAT call"
+        );
+        assert!(
+            body.windows(3)
+                .filter(|w| **w == [0x41, 0xFF, 0x97])
+                .count()
+                >= 4,
+            "prelude kernel32 I/O must call [r15+iat] (41 FF 97) after reload r15"
         );
     }
 
