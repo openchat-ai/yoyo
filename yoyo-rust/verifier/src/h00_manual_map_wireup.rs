@@ -73,11 +73,11 @@ fn emit_win64_pop_shadow(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x48, 0x83, 0xC4, WIN64_CALL_SHADOW]);
 }
 
-/// `jz` when ZF — pop Win64 shadow (active at je site) then jmp to `fail_import`.
+/// After `test`/`cmp` ZF=1 (fail): pop Win64 shadow then jmp fail; ZF=0 skip
+/// trampoline. Inline `jz`→trampoline (rel=0) made success fall into exit=7.
 fn emit_jz_pop_shadow_then_fail(c: &mut Vec<u8>, chunk_text_off: usize, fail_import: usize) {
-    let je = c.len();
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    let trampoline = c.len();
+    let jnz = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jnz success
     emit_win64_pop_shadow(c);
     let jmp = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
@@ -87,11 +87,12 @@ fn emit_jz_pop_shadow_then_fail(c: &mut Vec<u8>, chunk_text_off: usize, fail_imp
         chunk_text_off + jmp + 5,
         fail_import,
     );
+    let success = c.len();
     patch_rel32(
         c,
-        je + 2,
-        chunk_text_off + je + 6,
-        chunk_text_off + trampoline,
+        jnz + 2,
+        chunk_text_off + jnz + 6,
+        chunk_text_off + success,
     );
 }
 
@@ -200,20 +201,22 @@ fn emit_prelude_io_frame_free(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x48, 0x83, 0xC4, PRELUDE_IO_FRAME]);
 }
 
-/// `jz` when ZF — pop prelude I/O frame then jmp to fail epilogue.
+/// After `test`/`cmp` ZF=1 (fail): pop prelude I/O frame then jmp fail; ZF=0
+/// skip trampoline. Inline `jz`→trampoline forced CreateFile/ReadFile success
+/// onto exit=2/3 (stage17 sidecar always Read/empty).
 fn emit_jz_pop_prelude_frame_then_fail(c: &mut Vec<u8>, chunk_text_off: usize, fail: usize) {
-    let je = c.len();
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    let trampoline = c.len();
+    let jnz = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jnz success
     emit_prelude_io_frame_free(c);
     let jmp = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     patch_rel32(c, jmp + 1, chunk_text_off + jmp + 5, fail);
+    let success = c.len();
     patch_rel32(
         c,
-        je + 2,
-        chunk_text_off + je + 6,
-        chunk_text_off + trampoline,
+        jnz + 2,
+        chunk_text_off + jnz + 6,
+        chunk_text_off + success,
     );
 }
 
@@ -1386,11 +1389,17 @@ mod tests {
         let body = gen_h00_manual_map_main(&meta, 0x1000, 17_823);
         let mut found = false;
         for i in 0..body.len().saturating_sub(14) {
-            if body[i..i + 2] != [0x85, 0xC0] || body[i + 2..i + 4] != [0x0F, 0x84] {
+            // test eax,eax ; jnz success ; add rsp,imm8 ; jmp fail
+            if body[i..i + 2] != [0x85, 0xC0] || body[i + 2..i + 4] != [0x0F, 0x85] {
                 continue;
             }
             for j in i + 4..(i + 20).min(body.len().saturating_sub(5)) {
                 if body[j..j + 4] == [0x48, 0x83, 0xC4, PRELUDE_IO_FRAME] && body[j + 4] == 0xE9 {
+                    let rel = i32::from_le_bytes(body[i + 4..i + 8].try_into().unwrap());
+                    assert!(
+                        rel > 0,
+                        "ReadFile success jnz must skip fail trampoline (rel={rel})"
+                    );
                     found = true;
                     break;
                 }
@@ -1401,7 +1410,7 @@ mod tests {
         }
         assert!(
             found,
-            "ReadFile fail must pop prelude I/O frame (add rsp,40h) before jmp to ExitProcess(3)"
+            "ReadFile fail must jnz-skip trampoline that pops prelude I/O frame then jmp ExitProcess(3)"
         );
     }
 
