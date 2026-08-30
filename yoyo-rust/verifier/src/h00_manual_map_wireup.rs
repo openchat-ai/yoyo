@@ -458,7 +458,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     let iat_read = c.len();
     patch_rel32(&mut c, jz_iat_read + 2, jz_iat_read + 6, iat_read);
-    c.extend_from_slice(&[0x49, 0x89, 0xDE]); // mov rsi, r11 (read IAT when no OFT)
+    c.extend_from_slice(&[0x4C, 0x89, 0xDE]); // mov rsi, r11 (read IAT when no OFT) — NOT 49 89 DE (=mov r14,rbx)
     let thunk_loop = c.len();
     patch_rel32(&mut c, j_to_loop + 1, j_to_loop + 5, thunk_loop);
     c.extend_from_slice(&[0x48, 0x8B, 0x06]); // thunk
@@ -1058,6 +1058,15 @@ mod tests {
         assert!(
             !body.windows(4).any(|w| w == [0x8E, 0x4E, 0x0E, 0xEC]),
             "stub must not embed LoadLibraryA hash"
+        );
+        // OFT==0 path must mov rsi,r11 (4C 89 DE), not mov r14,rbx (49 89 DE) which clobbers mapped base.
+        assert!(
+            body.windows(3).any(|w| w == [0x4C, 0x89, 0xDE]),
+            "missing mov rsi,r11 for IAT-read fallback (OFT==0)"
+        );
+        assert!(
+            !body.windows(3).any(|w| w == [0x49, 0x89, 0xDE]),
+            "must not emit mov r14,rbx (49 89 DE) — destroys mapped image base r14"
         );
     }
 }
