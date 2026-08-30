@@ -31,6 +31,13 @@ const PRELOAD_RUNTIME_DLL_IMPORTS: &[(&str, &str)] = &[
     ("api-ms-win-crt-stdio-l1-1-0.dll", "__stdio_common_vsprintf"),
 ];
 
+/// Bootstrap scratch for H_00 manual-map (LoadLibraryA / GetProcAddress / kernel32 / phase byte).
+/// Placed after import metadata in `prepend_win32_io_iat` — must not overlap IAT or descriptors.
+pub const WIN32_IO_H00_SCRATCH_BYTES: usize = 32;
+
+/// Offset from r15 / `.data` base to H_00 scratch (pinned by `h00_scratch_off_pinned`).
+pub const WIN32_IO_H00_SCRATCH_OFF: u32 = 0x2D3;
+
 fn hint_name_bytes(func: &str) -> Vec<u8> {
     let mut hn = Vec::new();
     hn.extend_from_slice(&0u16.to_le_bytes());
@@ -86,8 +93,11 @@ fn prepend_win32_io_iat(user_data: &[u8], data_rva: u32) -> (Vec<u8>, u32, u32) 
         preload_meta.push((name_off, hn_off, ilt_off, iat_off));
     }
 
+    let h00_scratch_off = cursor;
+    cursor += WIN32_IO_H00_SCRATCH_BYTES;
     let header_end = cursor;
     let pad = align_up_usize(header_end, 16);
+    let _ = h00_scratch_off;
     let mut blob = vec![0u8; pad + user_data.len()];
     let user_base = pad;
 
@@ -520,5 +530,49 @@ mod tests {
         let pe = link_pe(&[0xC3], &[]).unwrap();
         // file should be large enough to hold data section raw size
         assert!(pe.bytes.len() > 0x38000);
+    }
+
+    #[test]
+    fn h00_scratch_off_pinned() {
+        let desc_size = 40usize;
+        let kern_n = KERNEL32_IO_FUNCS.len();
+        let preload_n = PRELOAD_RUNTIME_DLL_IMPORTS.len();
+        let num_desc = 1 + preload_n + 1;
+        let desc_off = kern_n * 8 + preload_n * 8;
+        let strings_off = desc_off + desc_size * num_desc;
+        let mut cursor = strings_off + b"kernel32.dll\0".len();
+        for f in KERNEL32_IO_FUNCS {
+            let mut hn = Vec::new();
+            hn.extend_from_slice(&0u16.to_le_bytes());
+            hn.extend_from_slice(f.as_bytes());
+            hn.push(0);
+            while hn.len() % 2 != 0 {
+                hn.push(0);
+            }
+            cursor += hn.len();
+        }
+        cursor += (kern_n + 1) * 8;
+        for (dll, f) in PRELOAD_RUNTIME_DLL_IMPORTS {
+            cursor += dll.len() + 1;
+            let mut hn = Vec::new();
+            hn.extend_from_slice(&0u16.to_le_bytes());
+            hn.extend_from_slice(f.as_bytes());
+            hn.push(0);
+            while hn.len() % 2 != 0 {
+                hn.push(0);
+            }
+            cursor += hn.len();
+            cursor += 16;
+        }
+        let scratch_off = cursor;
+        assert_eq!(
+            scratch_off,
+            WIN32_IO_H00_SCRATCH_OFF as usize,
+            "update WIN32_IO_H00_SCRATCH_OFF in pe_link + h00_manual_map_wireup"
+        );
+        assert!(
+            scratch_off > desc_off,
+            "scratch must be past import descriptors (desc_off=0x{desc_off:x})"
+        );
     }
 }
