@@ -588,10 +588,11 @@ mod tests {
         );
     }
 
-    /// H_00 seed PE: startup `lea r15` and stub `FF 15` IAT calls must agree on `.data` base.
+    /// H_00 seed PE: startup `lea r15` and prelude `call [r15+iat]` must agree on `.data` base.
     #[test]
     fn h00_seed_pe_rva_consistency() {
         use crate::ddc::PE_STARTUP_LEN;
+        use crate::h00_manual_map_wireup::IAT_CREATE_FILE;
 
         let mut code = vec![0u8; 32];
         code[0] = 0xC3;
@@ -673,6 +674,16 @@ mod tests {
             iat_rva,
             data_rva,
             "first FF15 IAT slot must be VirtualAlloc at data_rva+0 (got 0x{iat_rva:x})"
+        );
+
+        let create_slot_off = IAT_CREATE_FILE * 8;
+        let iat_raw = data_raw + create_slot_off as usize;
+        let hint_rva = u32::from_le_bytes(img[iat_raw..iat_raw + 4].try_into().unwrap());
+        let hint_raw = data_raw + (hint_rva - data_rva) as usize;
+        assert_eq!(
+            &img[hint_raw + 2..hint_raw + 13],
+            b"CreateFileA",
+            "CreateFile IAT slot at data_rva+8 must reference CreateFileA"
         );
 
         let lea_rcx = stub
