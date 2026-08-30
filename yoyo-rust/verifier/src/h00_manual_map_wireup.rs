@@ -80,6 +80,25 @@ fn emit_phase_probe(c: &mut Vec<u8>, phase: u8) {
     c.extend_from_slice(&[0x41, 0xC6, 0x47, H00_PHASE_SCRATCH_OFF, phase]);
 }
 
+/// Win64 shadow + `mov ecx,imm32` + `call [iat+ExitProcess]`.
+const FAIL_EPILOGUE_LEN: usize = 19;
+
+/// When `H00_BISECT_EXIT` matches `150 + phase` (160–165), exit after probe (CI bisect).
+fn maybe_bisect_exit_after_phase(
+    c: &mut Vec<u8>,
+    text_rva: u32,
+    chunk_text_off: u32,
+    iat_rva: u32,
+    phase: u8,
+) {
+    if let Some(target) = option_env!("H00_BISECT_EXIT").and_then(|s| s.parse::<u8>().ok()) {
+        let exit_code = 150u8.wrapping_add(phase);
+        if exit_code == target {
+            emit_exit_process_iat(c, text_rva, chunk_text_off, iat_rva, exit_code);
+        }
+    }
+}
+
 /// `mov r8d, [r14+rbx+disp]` — mapped-image optional-header field (ebx = e_lfanew).
 fn emit_mov_u32_pe_mapped(c: &mut Vec<u8>, disp: u8) {
     c.push(0x45); // REX.R+B for r8d + r14 SIB base
@@ -281,6 +300,13 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x49, 0x89, 0xC6]); // mov r14, rax (image)
     emit_phase_probe(&mut c, PHASE_MAP_IMAGE_OK);
+    maybe_bisect_exit_after_phase(
+        &mut c,
+        text_rva,
+        chunk_text_off,
+        iat_rva,
+        PHASE_MAP_IMAGE_OK,
+    );
 
     // Copy headers: rep movsb min(SizeOfHeaders, r13d=file bytes read)
     emit_mov_u32_pe_file(&mut c, 1, PE_OFF_SIZE_OF_HEADERS); // mov ecx,[r12+rbx+54h]
@@ -353,6 +379,13 @@ fn gen_h00_manual_map_body(
     let secs_done = c.len();
     patch_rel32(&mut c, jae_secs_done + 2, jae_secs_done + 6, secs_done);
     emit_phase_probe(&mut c, PHASE_SECTIONS_OK);
+    maybe_bisect_exit_after_phase(
+        &mut c,
+        text_rva,
+        chunk_text_off,
+        iat_rva,
+        PHASE_SECTIONS_OK,
+    );
 
     // Reloc delta: r10 = mapped_base - ImageBase
     c.extend_from_slice(&[
@@ -414,6 +447,13 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jz_reloc_done2 + 2, jz_reloc_done2 + 6, reloc_done);
     patch_rel32(&mut c, jb_reloc_done + 2, jb_reloc_done + 6, reloc_done);
     emit_phase_probe(&mut c, PHASE_RELOC_OK);
+    maybe_bisect_exit_after_phase(
+        &mut c,
+        text_rva,
+        chunk_text_off,
+        iat_rva,
+        PHASE_RELOC_OK,
+    );
 
     // Bootstrap LoadLibraryA at [r15+scratch] for find_module fallback (api-set forwarders).
     c.extend_from_slice(&[0x49, 0xC7, 0x47, H00_LOADLIBRARY_SCRATCH_OFF, 0, 0, 0, 0]);
@@ -590,6 +630,13 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jz_import_done + 2, jz_import_done + 6, import_done);
     patch_rel32(&mut c, jz_idone + 2, jz_idone + 6, import_done);
     emit_phase_probe(&mut c, PHASE_IMPORT_OK);
+    maybe_bisect_exit_after_phase(
+        &mut c,
+        text_rva,
+        chunk_text_off,
+        iat_rva,
+        PHASE_IMPORT_OK,
+    );
 
     // Realign stack after nested find/resolve helper calls (Win64 movaps safety).
     emit_align_for_win64_call(&mut c);
@@ -598,6 +645,13 @@ fn gen_h00_manual_map_body(
     emit_mov_e_lfanew_pe_mapped(&mut c);
     emit_mov_u32_pe_mapped(&mut c, PE_OFF_SIZE_OF_IMAGE); // r8d = SizeOfImage (keep through GPA)
     emit_phase_probe(&mut c, PHASE_FLUSH_ICACHE);
+    maybe_bisect_exit_after_phase(
+        &mut c,
+        text_rva,
+        chunk_text_off,
+        iat_rva,
+        PHASE_FLUSH_ICACHE,
+    );
     emit_win64_call_shadow(&mut c);
     c.extend_from_slice(&[0x49, 0x8B, 0x4F, H00_KERNEL32_SCRATCH_OFF]); // rcx = kernel32
     c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x30]);
@@ -930,6 +984,13 @@ fn gen_h00_export_call_tail(
     c.extend_from_slice(&[0x8B, 0x00]);
     c.extend_from_slice(&[0x48, 0x01, 0xD8]);
     emit_phase_probe(&mut c, PHASE_EXPORT_CALL);
+    maybe_bisect_exit_after_phase(
+        &mut c,
+        text_rva,
+        chunk_text_off,
+        meta.iat_rva,
+        PHASE_EXPORT_CALL,
+    );
     if let Some(code) = option_env!("H00_BISECT_EXIT").and_then(|s| s.parse::<u8>().ok()) {
         emit_exit_process_iat(&mut c, text_rva, chunk_text_off, meta.iat_rva, code);
     }
@@ -982,8 +1043,7 @@ pub fn gen_h00_manual_map_main(
 
     let prelude_text_off = code_base_off + H00_PROLOGUE_LEN;
 
-    const FAIL_EPILOGUE_SIZE: usize = 19; // Win64 shadow + mov ecx,imm32 + FF15 rel32
-    const EPILOGUE_LEN: usize = 8 * FAIL_EPILOGUE_SIZE;
+    const EPILOGUE_LEN: usize = 8 * FAIL_EPILOGUE_LEN;
 
     // Size pass with placeholder fail labels.
     let prelude_len = gen_h00_read_sidecar_prelude(
@@ -1013,7 +1073,7 @@ pub fn gen_h00_manual_map_main(
         + map_len
         + tail_len;
 
-    let fail_label = |i: usize| epilogue_base + i * FAIL_EPILOGUE_SIZE;
+    let fail_label = |i: usize| epilogue_base + i * FAIL_EPILOGUE_LEN;
     let fail_create_file = fail_label(0); // ExitProcess(2)
     let fail_read_empty = fail_label(1); // ExitProcess(3)
     let fail_virtual_alloc = fail_label(2); // ExitProcess(4)
@@ -1084,6 +1144,35 @@ mod tests {
             "file-read prelude should stay <230B (got {}B)",
             body.len()
         );
+    }
+
+    #[test]
+    fn fail_epilogue_labels_are_non_overlapping() {
+        let meta = sample_meta();
+        let body = gen_h00_manual_map_main(&meta, 0x1000, 17_823);
+        let mut starts = Vec::new();
+        for i in 0..body.len().saturating_sub(8) {
+            if body[i..i + 8] == [0x48, 0x83, 0xE4, 0xF0, 0x48, 0x83, 0xEC, 0x28]
+                && i + 8 < body.len()
+                && body[i + 8] == 0xB9
+            {
+                starts.push(i);
+            }
+        }
+        assert_eq!(
+            starts.len(),
+            8,
+            "expected 8 fail epilogues (andrax,-16; sub rsp,28h; mov ecx,imm)"
+        );
+        for w in starts.windows(2) {
+            assert_eq!(
+                w[1] - w[0],
+                FAIL_EPILOGUE_LEN,
+                "fail epilogues must be spaced {}B (got {}B)",
+                FAIL_EPILOGUE_LEN,
+                w[1] - w[0]
+            );
+        }
     }
 
     #[test]

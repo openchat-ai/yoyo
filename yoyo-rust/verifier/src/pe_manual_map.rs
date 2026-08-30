@@ -1282,6 +1282,66 @@ mod tests {
         eprintln!("LL_GPA_HOST_IAT_COMPARE count={} status=EQUAL", host_iat.len());
     }
 
+    /// End-to-end: link gen1.exe with emitted H_00 stub and run cwd sidecar smoke (matches stage17).
+    #[test]
+    #[cfg(windows)]
+    fn manual_map_gen1_exe_smoke() {
+        use std::path::PathBuf;
+        use std::process::Command;
+
+        let _cwd_lock = MANUAL_MAP_SMOKE_CWD_LOCK
+            .lock()
+            .expect("manual map smoke cwd lock");
+
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let dll_path = [
+            root.join("yoyo-rust/target/release-runtime/yoyo_runtime.dll"),
+            root.join("yoyo-rust/target/release/yoyo_runtime.dll"),
+        ]
+        .into_iter()
+        .find(|p| p.is_file())
+        .expect("yoyo_runtime.dll not built");
+        let yoyo = root.join("yoyo-rust/target/release/yoyo.exe");
+        if !yoyo.is_file() {
+            eprintln!("skip manual_map_gen1_exe_smoke: build release yoyo.exe first");
+            return;
+        }
+        let ty = root.join("yoyo/projects/yoyo.ty");
+        let tyb = root.join("yoyo/projects/yoyo.tyb");
+        assert!(tyb.is_file(), "missing input.tyb");
+
+        let work = std::env::temp_dir().join(format!("yoyo-gen1-smoke-{}", std::process::id()));
+        std::fs::create_dir_all(&work).expect("mkdir work");
+        let gen1 = work.join("gen1.exe");
+        let out_exe = work.join("output.exe");
+
+        let link = Command::new(&yoyo)
+            .args(["link", "--target=win32", ty.to_str().unwrap(), gen1.to_str().unwrap()])
+            .status()
+            .expect("spawn yoyo link");
+        assert!(link.success(), "yoyo link gen1.exe failed");
+        assert!(gen1.is_file(), "gen1.exe missing after link");
+
+        std::fs::copy(&tyb, work.join("input.tyb")).expect("copy input.tyb");
+        std::fs::copy(&dll_path, work.join("yoyo_rt.dll")).expect("copy sidecar");
+        if out_exe.exists() {
+            std::fs::remove_file(&out_exe).ok();
+        }
+
+        let run = Command::new("cmd")
+            .args(["/C", "set YOYO_MM_SMOKE_PROBE=1&& gen1.exe"])
+            .current_dir(&work)
+            .status()
+            .expect("spawn gen1.exe");
+        let code = run.code().unwrap_or(-1);
+        assert_eq!(
+            code, 0,
+            "gen1 manual-map smoke failed exit={code} output.exe={}",
+            out_exe.is_file()
+        );
+        assert!(out_exe.is_file(), "output.exe missing after gen1 smoke");
+    }
+
     fn write_u16(buf: &mut [u8], off: usize, v: u16) {
         buf[off..off + 2].copy_from_slice(&v.to_le_bytes());
     }
