@@ -116,6 +116,18 @@ fn fix_rip_disp(
 
 /// SIB for `[r12 + rbx*1 + disp]` (requires REX.B on the opcode).
 const SIB_R12_RBX: u8 = 0x1C;
+/// SIB for `[r12 + disp8]` (index suppressed; base r12 via REX.B).
+const SIB_R12_ONLY: u8 = 0x3C;
+
+/// `mov ebx, [r12+3Ch]` — e_lfanew from file PE buffer (r12).
+fn emit_mov_e_lfanew_pe_file(c: &mut Vec<u8>) {
+    c.extend_from_slice(&[0x41, 0x8B, 0x5C, SIB_R12_ONLY, 0x3C]);
+}
+
+/// `mov ebx, [r14+3Ch]` — e_lfanew from mapped image (r14).
+fn emit_mov_e_lfanew_pe_mapped(c: &mut Vec<u8>) {
+    c.extend_from_slice(&[0x41, 0x8B, 0x4E, 0x3C]);
+}
 
 /// `mov r32, [r12+rbx+disp]` — PE optional-header field via e_lfanew in ebx.
 fn emit_mov_u32_pe_file(c: &mut Vec<u8>, reg: u8, disp: u8) {
@@ -240,7 +252,7 @@ fn gen_h00_manual_map_body(
     let mut fail_jumps: Vec<(usize, usize)> = Vec::new();
 
     // ebx = e_lfanew; r12 = file PE
-    c.extend_from_slice(&[0x41, 0x8B, 0x5C, 0x24, 0x3C]); // mov ebx,[r12+3c]
+    emit_mov_e_lfanew_pe_file(&mut c);
     // VirtualAlloc(0, SizeOfImage, MEM_COMMIT|RESERVE, PAGE_EXECUTE_READWRITE)
     emit_mov_u32_pe_file(&mut c, 2, PE_OFF_SIZE_OF_IMAGE); // mov edx,[r12+rbx+50h]
     c.extend_from_slice(&[0x31, 0xC9]);
@@ -254,10 +266,6 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x49, 0x89, 0xC6]); // mov r14, rax (image)
     emit_phase_probe(&mut c, PHASE_MAP_IMAGE_OK);
-
-    // TEMP bisect: exit 133 if VirtualAlloc+headers ok (remove after smoke green).
-    c.extend_from_slice(&[0xB9, 133, 0, 0, 0]);
-    emit_call_iat_merged(&mut c, text_rva, chunk_text_off, iat_rva, IAT_EXIT_PROCESS);
 
     // Copy headers: rep movsb min(SizeOfHeaders, r13d=file bytes read)
     emit_mov_u32_pe_file(&mut c, 1, PE_OFF_SIZE_OF_HEADERS); // mov ecx,[r12+rbx+54h]
@@ -558,7 +566,7 @@ fn gen_h00_manual_map_body(
 
     // FlushInstructionCache before calling mapped sidecar code (matches reference mapper).
     // r12 was clobbered — read PE headers from mapped image r14; load r8d before GPA (rax).
-    c.extend_from_slice(&[0x41, 0x8B, 0x5E, 0x3C]); // mov ebx,[r14+3c] e_lfanew
+    emit_mov_e_lfanew_pe_mapped(&mut c);
     emit_mov_u32_pe_mapped(&mut c, PE_OFF_SIZE_OF_IMAGE); // r8d = SizeOfImage (keep through GPA)
     c.extend_from_slice(&[
         0x49, 0x8B, 0x84, 0x1E, PE_OFF_IMPORT_DIR_RVA, 0x00, 0x00, 0x00,
@@ -1185,6 +1193,23 @@ mod tests {
         assert!(
             body.windows(5).any(|w| w == [0x41, 0xC6, 0x47, H00_PHASE_SCRATCH_OFF, PHASE_FLUSH_ICACHE]),
             "missing FlushICache phase probe at [r15+68h]"
+        );
+        // e_lfanew reads must hit PE base, not [rsp+disp] / wrong reg.
+        assert!(
+            body.windows(5).any(|w| w == [0x41, 0x8B, 0x5C, SIB_R12_ONLY, 0x3C]),
+            "missing mov ebx,[r12+3Ch] (file PE e_lfanew)"
+        );
+        assert!(
+            !body.windows(5).any(|w| w == [0x41, 0x8B, 0x5C, 0x24, 0x3C]),
+            "must not emit mov ebx,[rsp+3Ch] (SIB 24 = rsp+rsp, not r12)"
+        );
+        assert!(
+            body.windows(4).any(|w| w == [0x41, 0x8B, 0x4E, 0x3C]),
+            "missing mov ebx,[r14+3Ch] (mapped image e_lfanew)"
+        );
+        assert!(
+            !body.windows(4).any(|w| w == [0x41, 0x8B, 0x5E, 0x3C]),
+            "must not emit mov rdi,[r14+3Ch] (5E = rdi not ebx)"
         );
         // Export call after `and rsp,-16` needs sub rsp,0x28 (0x20 → pre-call RSP%16==0 → callee AV).
         let export_align = body
