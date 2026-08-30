@@ -35,6 +35,8 @@ const LDR_DLLBASE_OFF: u8 = 0x30;
 const LDR_BASEDLLNAME_BUF_OFF: u8 = 0x60;
 /// Scratch qword past kernel32+preload IAT (6+4 slots × 8 = 0x50) — bootstrap LoadLibraryA.
 const H00_LOADLIBRARY_SCRATCH_OFF: u8 = 0x50;
+const H00_GETPROCADDRESS_SCRATCH_OFF: u8 = 0x58;
+const H00_KERNEL32_SCRATCH_OFF: u8 = 0x60;
 
 /// H_00 stub prologue (`push` saves + `sub rsp` + align) before file-read prelude.
 pub const H00_PROLOGUE_LEN: u32 = 15;
@@ -367,6 +369,33 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]); // add rsp, 0x20
     c.extend_from_slice(&[0x49, 0x89, 0x47, H00_LOADLIBRARY_SCRATCH_OFF]); // [r15+scratch]=LoadLibraryA
+    c.extend_from_slice(&[0x49, 0x89, 0x7F, H00_KERNEL32_SCRATCH_OFF]); // [r15+0x60]=kernel32
+    // Bootstrap GetProcAddress (sidecar IAT resolve uses host LoadLibrary+GetProcAddress).
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x20]);
+    for (off, ch) in [
+        (0u8, b'G'),
+        (1, b'e'),
+        (2, b't'),
+        (3, b'P'),
+        (4, b'r'),
+        (5, b'o'),
+        (6, b'c'),
+        (7, b'A'),
+        (8, b'd'),
+        (9, b'd'),
+        (10, b'r'),
+        (11, b'e'),
+        (12, b's'),
+        (13, b's'),
+        (14, 0),
+    ] {
+        c.extend_from_slice(&[0xC6, 0x44, 0x24, off, ch]);
+    }
+    c.extend_from_slice(&[0x48, 0x8D, 0x14, 0x24]);
+    let call_boot_gpa = c.len();
+    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]);
+    c.extend_from_slice(&[0x49, 0x89, 0x47, H00_GETPROCADDRESS_SCRATCH_OFF]);
     let skip_ll_boot = c.len();
     patch_rel32(&mut c, jz_skip_ll_boot + 2, jz_skip_ll_boot + 6, skip_ll_boot);
     patch_rel32(&mut c, jz_skip_ll_boot2 + 2, jz_skip_ll_boot2 + 6, skip_ll_boot);
@@ -397,17 +426,16 @@ fn gen_h00_manual_map_body(
     let process_desc = c.len();
     patch_rel32(&mut c, jnz_process + 2, jnz_process + 6, process_desc);
     patch_rel32(&mut c, jnz_process2 + 2, jnz_process2 + 6, process_desc);
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]); // Win64 shadow for find/resolve calls
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]); // Win64 shadow for LoadLibrary/GetProcAddress
     // edx=FirstThunk rva — save IAT cursor before rdx becomes module-name ptr
     c.extend_from_slice(&[0x4D, 0x8D, 0x1C, 0x16]); // lea r11,[r14+rdx] IAT write cursor
     c.extend_from_slice(&[0x49, 0x8D, 0x14, 0x0E]); // lea rdx,[r14+rcx] module name
-    let call_find_mod = c.len();
-    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]); // call find_module
+    c.extend_from_slice(&[0x48, 0x89, 0xD1]); // mov rcx, rdx — LoadLibraryA(lpLibFileName)
+    c.extend_from_slice(&[0x41, 0xFF, 0x57, H00_LOADLIBRARY_SCRATCH_OFF]); // call [r15+LoadLibraryA]
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     fail_jumps.push((c.len(), fail_import));
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = module base
-    c.extend_from_slice(&[0x49, 0x89, 0xFC]); // mov r12, rdi — module base survives resolve_export
+    c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = hModule
     c.extend_from_slice(&[0x49, 0x89, 0xF5]); // mov r13, rsi (save import descriptor ptr)
     c.extend_from_slice(&[0x85, 0xDB]); // cmp ebx,0 (OriginalFirstThunk)
     let jz_iat_read = c.len();
@@ -424,26 +452,23 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_thunk_done = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x48, 0x89, 0xC1]); // mov rcx, rax (save thunk)
-    c.extend_from_slice(&[0x48, 0x0F, 0xBA, 0xE8, 0x3F]); // bt rax,63
+    c.extend_from_slice(&[0x49, 0x89, 0xC2]); // mov r10, rax (save thunk)
+    c.extend_from_slice(&[0x48, 0x89, 0xF9]); // mov rcx, rdi — hModule
+    c.extend_from_slice(&[0x49, 0x0F, 0xBA, 0xEA, 0x3F]); // bt r10,63
     let jc_ord = c.len();
-    c.extend_from_slice(&[0x0F, 0x82, 0, 0, 0, 0]); // jc ord_path
-    c.extend_from_slice(&[0x49, 0x8D, 0x54, 0x0E, 0x02]); // lea rdx,[r14+rcx+2] name
-    c.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12 (module base — resolve clobbers rdi)
-    let call_resolve = c.len();
-    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
-    let jmp_store_iat = c.len();
+    c.extend_from_slice(&[0x0F, 0x82, 0, 0, 0, 0]); // jc ord_gpa
+    c.extend_from_slice(&[0x49, 0x8D, 0x54, 0x16, 0x02]); // lea rdx,[r14+r10+2] name
+    let gpa_call = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-    let ord_path = c.len();
-    patch_rel32(&mut c, jc_ord + 2, jc_ord + 6, ord_path);
-    c.extend_from_slice(&[0x89, 0xC8]); // mov eax, ecx
-    c.extend_from_slice(&[0x25, 0xFF, 0xFF, 0x00, 0x00]); // and eax, 0xffff
-    c.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
-    let call_resolve_ord = c.len();
-    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
-    let store_iat = c.len();
-    patch_rel32(&mut c, jmp_store_iat + 1, jmp_store_iat + 5, store_iat);
-    c.extend_from_slice(&[0x48, 0x85, 0xC0]); // test rax, rax (resolve failed → fail_import)
+    let ord_gpa = c.len();
+    patch_rel32(&mut c, jc_ord + 2, jc_ord + 6, ord_gpa);
+    c.extend_from_slice(&[0x44, 0x89, 0xD0]); // mov eax, r10d
+    c.extend_from_slice(&[0x25, 0xFF, 0xFF, 0x00, 0x00]); // and eax, 0xffff — ordinal LPCSTR
+    c.extend_from_slice(&[0x89, 0xC2]); // mov edx, eax
+    let gpa_call_site = c.len();
+    patch_rel32(&mut c, gpa_call + 1, gpa_call + 5, gpa_call_site);
+    c.extend_from_slice(&[0x41, 0xFF, 0x57, H00_GETPROCADDRESS_SCRATCH_OFF]); // GetProcAddress
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]); // resolve failed → fail_import
     fail_jumps.push((c.len(), fail_import));
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x49, 0x89, 0x03]); // mov [r11], rax (IAT slot)
@@ -479,41 +504,31 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_skip_flush = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]); // shadow for flush find/resolve
-    c.extend_from_slice(&[0x49, 0x8D, 0x34, 0x06]);
-    c.extend_from_slice(&[0x8B, 0x4E, 0x0C]);
-    c.extend_from_slice(&[0x49, 0x8D, 0x54, 0x0E, 0x00]);
-    let call_flush_find = c.len();
-    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
-    let jz_skip_flush2 = c.len();
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = kernel32
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]); // shadow for GetProcAddress
+    c.extend_from_slice(&[0x49, 0x8B, 0x4F, H00_KERNEL32_SCRATCH_OFF]); // rcx = kernel32
     c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x30]);
     for (off, ch) in b"FlushInstructionCache\0".iter().enumerate() {
         c.extend_from_slice(&[0xC6, 0x44, 0x24, off as u8, *ch]);
     }
     c.extend_from_slice(&[0x48, 0x8D, 0x14, 0x24]);
-    let call_flush_resolve = c.len();
-    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x41, 0xFF, 0x57, H00_GETPROCADDRESS_SCRATCH_OFF]);
     c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x30]);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
-    let jz_skip_flush3 = c.len();
+    let jz_skip_flush2 = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[
         0x4D, 0x8B, 0x84, 0x1E, PE_OFF_SIZE_OF_IMAGE, 0x00, 0x00, 0x00,
-    ]); // reload r8d = [r14+rbx+50h] SizeOfImage (resolve clobbers r8)
+    ]); // reload r8d = [r14+rbx+50h] SizeOfImage
     c.extend_from_slice(&[0x48, 0xC7, 0xC1, 0xFF, 0xFF, 0xFF, 0xFF]); // GetCurrentProcess()
     c.extend_from_slice(&[0x4C, 0x89, 0xF2]); // mov rdx, r14 (FlushInstructionCache lpBaseAddress)
     c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]);
     c.extend_from_slice(&[0xFF, 0xD0]);
     c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x28]);
     let flush_unwind = c.len();
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x28]); // pop flush find/resolve shadow
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x28]); // pop flush shadow
     let skip_flush = c.len();
     patch_rel32(&mut c, jz_skip_flush + 2, jz_skip_flush + 6, skip_flush);
     patch_rel32(&mut c, jz_skip_flush2 + 2, jz_skip_flush2 + 6, flush_unwind);
-    patch_rel32(&mut c, jz_skip_flush3 + 2, jz_skip_flush3 + 6, flush_unwind);
 
     // Skip DllMain: CRT/TLS entry AVs on manual-mapped image; smoke probe uses kernel32 IAT only.
     // rbx = mapped image (r14)
@@ -524,9 +539,7 @@ fn gen_h00_manual_map_body(
 
     // --- Internal helpers (placed after main path; reached only via call) ---
     let find_module = c.len();
-    patch_rel32(&mut c, call_find_mod + 1, call_find_mod + 5, find_module);
     patch_rel32(&mut c, call_boot_find + 1, call_boot_find + 5, find_module);
-    patch_rel32(&mut c, call_flush_find + 1, call_flush_find + 5, find_module);
     // rdx = ascii dll name → rax = DllBase
     // x64: gs:[0x60] = PEB; Ldr.InMemoryOrderModuleList.Flink (+0x20); entry = Flink-0x10.
     c.extend_from_slice(&[0x41, 0x52]); // push r10 — list head
@@ -615,7 +628,6 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0xC3]);
 
     let resolve_export = c.len();
-    patch_rel32(&mut c, call_resolve + 1, call_resolve + 5, resolve_export);
     patch_rel32(
         &mut c,
         call_boot_resolve + 1,
@@ -624,8 +636,8 @@ fn gen_h00_manual_map_body(
     );
     patch_rel32(
         &mut c,
-        call_flush_resolve + 1,
-        call_flush_resolve + 5,
+        call_boot_gpa + 1,
+        call_boot_gpa + 5,
         resolve_export,
     );
     // rdi=module, rdx=name → rax=func (preserve thunk rsi; rbx/rcx/rdx = PE tables; r11=IAT cursor)
@@ -692,12 +704,6 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0xC3]);
 
     let resolve_export_ordinal = c.len();
-    patch_rel32(
-        &mut c,
-        call_resolve_ord + 1,
-        call_resolve_ord + 5,
-        resolve_export_ordinal,
-    );
     c.extend_from_slice(&[0x89, 0xC1]); // mov ecx, eax (ordinal)
     c.extend_from_slice(&[0x8B, 0x47, 0x3C]);
     c.extend_from_slice(&[0x8B, 0x84, 0x38, 0x88, 0x00, 0x00, 0x00]);
@@ -1007,8 +1013,8 @@ mod tests {
             }
         }
         assert!(
-            body.len() > 400 && body.len() < 1800,
-            "manual-map H_00 stub should fit OW-STUB pin [40,1800] (got {}B)",
+            body.len() > 400 && body.len() < 1900,
+            "manual-map H_00 stub should fit OW-STUB pin [40,1900] (got {}B)",
             body.len()
         );
         // No LoadLibraryA ROR13 hash needle (0x8E 0x4E 0x0E 0xEC)
