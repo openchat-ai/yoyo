@@ -287,8 +287,8 @@ fn gen_h00_manual_map_body(
 
     // Reloc delta: r10 = mapped_base - ImageBase
     c.extend_from_slice(&[
-        0x4C, 0x8B, 0x94, 0x1C, PE_OFF_IMAGE_BASE, 0x00, 0x00, 0x00,
-    ]); // mov r10,[r12+rbx+30h] (preferred ImageBase from file headers)
+        0x4D, 0x8B, 0x94, 0x1C, PE_OFF_IMAGE_BASE, 0x00, 0x00, 0x00,
+    ]); // mov r10,[r12+rbx+30h] (preferred ImageBase — REX.B required for r12 base)
     c.extend_from_slice(&[0x4C, 0x89, 0xF0]); // mov rax, r14 (mapped base)
     c.extend_from_slice(&[0x4C, 0x29, 0xD0]); // sub rax, r10 → delta
     c.extend_from_slice(&[0x49, 0x89, 0xC2]); // mov r10, rax
