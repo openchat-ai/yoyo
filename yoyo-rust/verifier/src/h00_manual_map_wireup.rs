@@ -650,13 +650,13 @@ fn gen_h00_manual_map_body(
     );
 
     // Bootstrap LoadLibraryA at [r15+scratch] for find_module fallback (api-set forwarders).
+    emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, iat_rva);
     emit_mov_qword_r15_scratch_imm0(&mut c, H00_LOADLIBRARY_SCRATCH_OFF);
     emit_mov_u32_pe_file(&mut c, 0, PE_OFF_IMPORT_DIR_RVA);
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_skip_ll_boot = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     // Bootstrap must find kernel32 via PEB — not sidecar import[0] (order varies).
-    emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, iat_rva);
     emit_win64_call_shadow(&mut c);
     for (off, ch) in b"kernel32.dll\0".iter().enumerate() {
         c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + off as u8, *ch]);
