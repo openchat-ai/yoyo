@@ -60,8 +60,8 @@ const PHASE_FLUSH_ICACHE: u8 = 0x0E;
 const PHASE_EXPORT_CALL: u8 = 0x0F;
 
 /// Win64 home-space before `call` to kernel32 (RSP%16==8 at callee entry).
-/// gen2rt frame (`sub rsp,0x208` after four pushes) → RSP%16==0; shadow `0x48` → 8 at CALL.
-const WIN64_CALL_SHADOW: u8 = 0x48;
+/// PE entry is JMP (not CALL) into H_00: four pushes → RSP%16==8; `sub 0x38` → 0 at CALL.
+const WIN64_CALL_SHADOW: u8 = 0x38;
 /// Short dll/api name spill for 2-arg bootstrap calls (inside 32 B home space; ret at [rsp+38h]).
 const WIN64_STACK_STR_OFF: u8 = 0x20;
 
@@ -228,8 +228,8 @@ fn emit_mov_u32_pe_mapped(c: &mut Vec<u8>, disp: u8) {
     }
 }
 
-/// H_00 stub prologue (`push` saves + `sub rsp,0x208` + reload r15) before prelude.
-pub const H00_PROLOGUE_LEN: u32 = 21;
+/// H_00 stub prologue (four `push` saves + reload r15) before prelude.
+pub const H00_PROLOGUE_LEN: u32 = 14;
 
 fn patch_rel32(c: &mut [u8], disp_off: usize, from: usize, to: usize) {
     let rel = to as i32 - from as i32;
@@ -1229,9 +1229,6 @@ pub fn gen_h00_manual_map_main(
     let mut c: Vec<u8> = Vec::new();
 
     c.extend_from_slice(&[0x53, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56]);
-    // gen2rt frame: four pushes + sub 0x208 → RSP%16==0; per-call shadow 0x48 → 8 at kernel32 CALL.
-    c.extend_from_slice(&[0x48, 0x81, 0xEC, 0x08, 0x02, 0x00, 0x00]); // sub rsp, 0x208
-
     // User .text may clobber r15 before the jmp into H_00; reload before any [r15+scratch] probe.
     emit_reload_r15_data_base(&mut c, text_rva, code_base_off, meta.iat_rva);
 
@@ -1469,14 +1466,46 @@ mod tests {
             body.len()
         );
         assert_eq!(
-            &body[7..14],
-            &[0x48, 0x81, 0xEC, 0x08, 0x02, 0x00, 0x00],
-            "H_00 prologue must sub rsp,0x208 (gen2rt Win64 frame)"
+            &body[0..7],
+            &[0x53, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56],
+            "H_00 prologue must save rbx/r12/r13/r14"
+        );
+        assert_eq!(
+            &body[7..10],
+            &[0x4C, 0x8D, 0x3D],
+            "H_00 prologue must reload r15 via lea r15,[rip+disp] (no and rsp,-16)"
         );
         assert!(
             !body.windows(4).any(|w| w == [0x48, 0x83, 0xE4, 0xF0]),
-            "must not and rsp,-16 — use gen2rt sub 0x208 prologue"
+            "must not and rsp,-16 — pairs with 0x40 shadow → 8-mod-16 at CALL (movaps AV)"
         );
+        assert!(
+            !body.windows(7).any(|w| w == [0x48, 0x81, 0xEC, 0x00, 0x02, 0x00, 0x00]),
+            "must not sub rsp,0x200 — misaligns CALL after JMP entry (kernel32 movaps AV)"
+        );
+        assert!(
+            !body.windows(7).any(|w| w == [0x48, 0x81, 0xEC, 0x08, 0x02, 0x00, 0x00]),
+            "must not sub rsp,0x208 — misaligns CALL after JMP entry (kernel32 movaps AV)"
+        );
+        for i in 0..body.len().saturating_sub(10) {
+            if body[i..i + 4] == [0x48, 0x83, 0xEC, 0x40]
+                && body[i + 4] == 0xB9
+                && body[i + 9] == 0xFF
+                && body[i + 10] == 0x15
+            {
+                panic!(
+                    "ExitProcess epilogue/bisect at stub+{i} must sub rsp,38h not 40h (Win64 CALL align)"
+                );
+            }
+            if body[i..i + 4] == [0x48, 0x83, 0xEC, 0x40]
+                && body[i + 4] == 0xFF
+                && body[i + 5] == 0x15
+            {
+                panic!(
+                    "kernel32 IAT call at stub+{i} must sub rsp,38h not 40h (Win64 CALL align)"
+                );
+            }
+        }
         // No un-prefixed [r12+rbx] PE reads (without REX.B they decode as [rsp+rbx]).
         for i in 0..body.len().saturating_sub(3) {
             let slice = &body[i..i + 3];
@@ -1754,20 +1783,12 @@ mod tests {
             .position(|w| w == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]);
         assert!(
             export_shadow.is_some(),
-            "export tail must sub rsp,0x48 before call (Win64 shadow)"
+            "export tail must sub rsp,38h before call (Win64 shadow)"
         );
         assert_eq!(
             WIN64_CALL_SHADOW % 16,
             8,
-            "CALL shadow 0x48 after 0x208 prologue → RSP%16==8 at kernel32 CALL"
-        );
-        assert!(
-            body.windows(7).any(|w| w == [0x48, 0x81, 0xEC, 0x08, 0x02, 0x00, 0x00]),
-            "H_00 prologue must sub rsp,0x208 (gen2rt Win64 frame)"
-        );
-        assert!(
-            !body.windows(4).any(|w| w == [0x48, 0x83, 0xE4, 0xF0]),
-            "must not and rsp,-16"
+            "CALL shadow 0x38 after JMP entry → RSP%16==8 at kernel32 CALL"
         );
         // Fail epilogues: reload r15 + shadow + mov ecx + call [r15+ExitProcess]
         assert!(
