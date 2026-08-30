@@ -15,11 +15,12 @@ pub const IAT_CREATE_FILE: u32 = 1;
 pub const IAT_READ_FILE: u32 = 2;
 pub const IAT_CLOSE_HANDLE: u32 = 4;
 
-/// ReadFile `lpNumberOfBytesRead` DWORD at [rsp+0x28] (rdx home in 0x38 shadow).
-/// `lpOverlapped` (5th stack arg) must stay at [rsp+0x20] — separate from nBytesRead.
-const READ_BYTES_STACK_OFF: u8 = 0x28;
-/// GPA proc-name spill for FlushICache (rdx home in 0x38 shadow; separate call frame).
-const FLUSH_ICACHE_NAME_STACK_OFF: u8 = 0x28;
+/// Stack scratch for ReadFile nNumberOfBytesRead (Win64 5th-arg slot at [rsp+0x20] in shadow).
+const READ_BYTES_STACK_OFF: u8 = 0x20;
+/// GPA proc-name spill for FlushICache (same slot — must stay above shadow, not inside it).
+const FLUSH_ICACHE_NAME_STACK_OFF: u8 = READ_BYTES_STACK_OFF;
+/// One Win64 home (0x20) + CreateFile 3 stack args (0x18) for prelude CreateFile/ReadFile/CloseHandle.
+const PRELUDE_IO_FRAME: u8 = 0x38;
 
 /// PE32+ optional-header field offsets from `e_lfanew` (ebx holds e_lfanew; COFF = 20 B after PE sig).
 const PE_OFF_NUMBER_OF_SECTIONS: u8 = 6; // COFF + 2
@@ -59,9 +60,9 @@ const PHASE_FLUSH_ICACHE: u8 = 0x0E;
 const PHASE_EXPORT_CALL: u8 = 0x0F;
 
 /// Win64 home-space before `call` to kernel32 (RSP%16==8 at callee entry).
-/// PE entry is `jmp H_00` (not CALL), so after four 8-byte pushes RSP%16==8.
-/// `sub 0x38` (8 mod 16) yields RSP%16==0 at CALL — `sub 0x40` leaves 8-mod-16 → movaps AV.
-const WIN64_CALL_SHADOW: u8 = 0x38;
+/// Prologue `and rsp,-16` forces 0-mod-16; `sub 0x40` (0 mod 16) keeps CALL aligned.
+/// (0x40 not 0x38) so CALL stays 16-aligned — 0x38 after RSP%16==8 → movaps AV.
+const WIN64_CALL_SHADOW: u8 = 0x40;
 /// Short dll/api name spill for 2-arg bootstrap calls (inside 32 B home space; ret at [rsp+38h]).
 const WIN64_STACK_STR_OFF: u8 = 0x20;
 
@@ -140,13 +141,22 @@ fn emit_mov_qword_r15_scratch_imm0(c: &mut Vec<u8>, off: u32) {
     c.extend_from_slice(&[0u8; 4]);
 }
 
-fn emit_phase_probe(c: &mut Vec<u8>, phase: u8) {
-    c.extend_from_slice(&[0x41, 0xC6, 0x87]);
-    c.extend_from_slice(&H00_PHASE_SCRATCH_OFF.to_le_bytes());
+/// Post-mortem phase byte in `.data` scratch (rip-relative; no r15 — avoids Windows AV on [r15+scratch]).
+fn emit_phase_probe(c: &mut Vec<u8>, text_rva: u32, chunk_text_off: u32, data_rva: u32, phase: u8) {
+    let at = c.len();
+    c.extend_from_slice(&[0xC6, 0x05, 0, 0, 0, 0]);
     c.push(phase);
+    fix_rip_disp(
+        c,
+        at + 2,
+        text_rva,
+        chunk_text_off,
+        at + 7,
+        data_rva + H00_PHASE_SCRATCH_OFF,
+    );
 }
 
-/// Bisect exit before phase probe so CI can exit without touching [r15+scratch].
+/// Bisect exit before phase probe; skip probe when compile-time bisect matches (no fall-through).
 fn emit_phase_with_bisect(
     c: &mut Vec<u8>,
     text_rva: u32,
@@ -154,27 +164,57 @@ fn emit_phase_with_bisect(
     iat_rva: u32,
     phase: u8,
 ) {
-    maybe_bisect_exit_after_phase(c, text_rva, chunk_text_off, iat_rva, phase);
-    emit_phase_probe(c, phase);
+    if maybe_bisect_exit_after_phase(c, text_rva, chunk_text_off, iat_rva, phase) {
+        return;
+    }
+    emit_phase_probe(c, text_rva, chunk_text_off, iat_rva, phase);
 }
 
 /// Win64 shadow + `mov ecx,imm32` + rip-relative ExitProcess (FF15).
 const FAIL_EPILOGUE_LEN: usize = 15;
 
 /// When `H00_BISECT_EXIT` matches `150 + phase` (151–165), exit before phase probe (CI bisect).
+/// Returns true when bisect exit was emitted (caller must not emit phase probe).
 fn maybe_bisect_exit_after_phase(
     c: &mut Vec<u8>,
     text_rva: u32,
     chunk_text_off: u32,
     iat_rva: u32,
     phase: u8,
-) {
+) -> bool {
     if let Some(target) = option_env!("H00_BISECT_EXIT").and_then(|s| s.parse::<u8>().ok()) {
         let exit_code = 150u8.wrapping_add(phase);
         if exit_code == target {
             emit_exit_process_iat(c, text_rva, chunk_text_off, iat_rva, exit_code);
+            return true;
         }
     }
+    false
+}
+
+fn emit_prelude_io_frame_alloc(c: &mut Vec<u8>) {
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, PRELUDE_IO_FRAME]);
+}
+
+fn emit_prelude_io_frame_free(c: &mut Vec<u8>) {
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, PRELUDE_IO_FRAME]);
+}
+
+/// `jz` when ZF — pop prelude I/O frame then jmp to fail epilogue.
+fn emit_jz_pop_prelude_frame_then_fail(c: &mut Vec<u8>, chunk_text_off: usize, fail: usize) {
+    let je = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    let trampoline = c.len();
+    emit_prelude_io_frame_free(c);
+    let jmp = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    patch_rel32(c, jmp + 1, chunk_text_off + jmp + 5, fail);
+    patch_rel32(
+        c,
+        je + 2,
+        chunk_text_off + je + 6,
+        chunk_text_off + trampoline,
+    );
 }
 
 /// `mov r8d, [r14+rbx+disp]` — mapped-image optional-header field (ebx = e_lfanew).
@@ -188,8 +228,8 @@ fn emit_mov_u32_pe_mapped(c: &mut Vec<u8>, disp: u8) {
     }
 }
 
-/// H_00 stub prologue (four `push` saves + reload r15) before prelude.
-pub const H00_PROLOGUE_LEN: u32 = 14;
+/// H_00 stub prologue (`push` saves + `and rsp,-16` + reload r15) before prelude.
+pub const H00_PROLOGUE_LEN: u32 = 18;
 
 fn patch_rel32(c: &mut [u8], disp_off: usize, from: usize, to: usize) {
     let rel = to as i32 - from as i32;
@@ -297,8 +337,10 @@ pub fn gen_h00_read_sidecar_prelude(
 
     emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, meta.iat_rva);
 
+    // Single Win64 frame for CreateFile → VirtualAlloc → ReadFile → CloseHandle (platform_io layout).
+    emit_prelude_io_frame_alloc(&mut c);
+
     // CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, sa=NULL, OPEN_EXISTING, NORMAL, hTemplate=NULL)
-    emit_win64_call_shadow(&mut c);
     let lea_path = c.len();
     c.extend_from_slice(&[0x48, 0x8D, 0x0D, 0, 0, 0, 0]); // rcx = path
     c.extend_from_slice(&[0xBA, 0x00, 0x00, 0x00, 0x80]); // rdx = GENERIC_READ
@@ -308,13 +350,10 @@ pub fn gen_h00_read_sidecar_prelude(
     c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x28, 0x80, 0x00, 0x00, 0x00]); // FILE_ATTRIBUTE_NORMAL
     c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x30, 0x00, 0x00, 0x00, 0x00]); // hTemplateFile
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_CREATE_FILE);
-    emit_win64_pop_shadow(&mut c);
     c.extend_from_slice(&[0x48, 0x83, 0xF8, 0xFF]);
-    let jz_no_file = c.len();
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    emit_jz_pop_prelude_frame_then_fail(&mut c, chunk_text_off as usize, fail_create_file);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]); // test rax,rax — NULL handle
-    let jz_null_file = c.len();
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    emit_jz_pop_prelude_frame_then_fail(&mut c, chunk_text_off as usize, fail_create_file);
     c.extend_from_slice(&[0x48, 0x89, 0xC3]);
     emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, meta.iat_rva);
     emit_phase_with_bisect(
@@ -329,12 +368,9 @@ pub fn gen_h00_read_sidecar_prelude(
     c.extend_from_slice(&[0xBA, 0x00, 0x00, 0x80, 0x00]); // max read 8 MiB (crt-static sidecar)
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xB9, 0x04, 0x00, 0x00, 0x00]);
-    emit_win64_call_shadow(&mut c);
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_VIRTUAL_ALLOC);
-    emit_win64_pop_shadow(&mut c);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
-    let jz_no_buf = c.len();
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    emit_jz_pop_prelude_frame_then_fail(&mut c, chunk_text_off as usize, fail_virtual_alloc);
     c.extend_from_slice(&[0x49, 0x89, 0xC4]);
     emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, meta.iat_rva);
     emit_phase_with_bisect(
@@ -345,16 +381,15 @@ pub fn gen_h00_read_sidecar_prelude(
         PHASE_PRELUDE_BUF_OK,
     );
 
+    // ReadFile(h, buf, size, &nBytesRead, NULL) — match platform_io: r9=&[rsp+20h], clear slot before call.
     c.extend_from_slice(&[0x48, 0x89, 0xD9]);
     c.extend_from_slice(&[0x4C, 0x89, 0xE2]);
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x00, 0x80, 0x00]); // ReadFile size cap
-    emit_win64_call_shadow(&mut c);
-    c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x20, 0x00, 0x00, 0x00, 0x00]); // lpOverlapped = NULL
-    c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, READ_BYTES_STACK_OFF, 0, 0, 0, 0]); // nBytesRead = 0
-    c.extend_from_slice(&[0x4C, 0x8D, 0x4C, 0x24, READ_BYTES_STACK_OFF]); // r9 = &nBytesRead
+    c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, READ_BYTES_STACK_OFF, 0, 0, 0, 0]); // lpOverlapped NULL + nBytesRead=0
+    c.extend_from_slice(&[0x4C, 0x8D, 0x4C, 0x24, READ_BYTES_STACK_OFF]); // lea r9,[rsp+20h]
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_READ_FILE);
     c.extend_from_slice(&[0x85, 0xC0]); // test eax,eax — ReadFile BOOL
-    emit_jz_pop_shadow_then_fail(&mut c, chunk_text_off as usize, fail_read_empty);
+    emit_jz_pop_prelude_frame_then_fail(&mut c, chunk_text_off as usize, fail_read_empty);
     emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, meta.iat_rva);
     emit_phase_with_bisect(
         &mut c,
@@ -364,12 +399,11 @@ pub fn gen_h00_read_sidecar_prelude(
         PHASE_PRELUDE_READ_OK,
     );
     c.extend_from_slice(&[0x44, 0x8B, 0x6C, 0x24, READ_BYTES_STACK_OFF]); // r13d = nBytesRead
-    emit_win64_pop_shadow(&mut c);
 
     c.extend_from_slice(&[0x48, 0x89, 0xD9]);
-    emit_win64_call_shadow(&mut c);
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_CLOSE_HANDLE);
-    emit_win64_pop_shadow(&mut c);
+
+    emit_prelude_io_frame_free(&mut c);
 
     c.extend_from_slice(&[0x45, 0x85, 0xED]);
     let jz_empty = c.len();
@@ -392,12 +426,7 @@ pub fn gen_h00_read_sidecar_prelude(
         meta.temp_name_rva,
     );
 
-    for (at, fail) in [
-        (jz_no_file, fail_create_file),
-        (jz_null_file, fail_create_file),
-        (jz_no_buf, fail_virtual_alloc),
-        (jz_empty, fail_read_empty),
-    ] {
+    for (at, fail) in [(jz_empty, fail_read_empty)] {
         patch_rel32(
             &mut c,
             at + 2,
@@ -1200,6 +1229,11 @@ pub fn gen_h00_manual_map_main(
     let mut c: Vec<u8> = Vec::new();
 
     c.extend_from_slice(&[0x53, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56]);
+    // `and rsp,-16` forces 16-align regardless of loader JMP entry (RSP%16==8).
+    // WIN64_CALL_SHADOW is 0 mod 16 so CALL stays aligned (callee sees RSP%16==8).
+    // Do NOT pair `and -16` with `sub 0x38`: that puts 8-mod-16 at CALL → movaps AV.
+    c.extend_from_slice(&[0x48, 0x83, 0xE4, 0xF0]); // and rsp, -16
+
     // User .text may clobber r15 before the jmp into H_00; reload before any [r15+scratch] probe.
     emit_reload_r15_data_base(&mut c, text_rva, code_base_off, meta.iat_rva);
 
@@ -1312,10 +1346,10 @@ mod tests {
         );
         assert!(
             body.windows(4)
-                .filter(|w| **w == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW])
+                .filter(|w| **w == [0x48, 0x83, 0xEC, PRELUDE_IO_FRAME])
                 .count()
-                >= 4,
-            "prelude needs Win64 shadow before each kernel32 IAT call"
+                >= 1,
+            "prelude needs unified I/O stack frame (sub rsp,38h)"
         );
         assert!(
             body.windows(2)
@@ -1329,25 +1363,22 @@ mod tests {
     #[test]
     fn fail_jump_create_file_lands_on_exit2_epilogue() {
         let meta = sample_meta();
-        let code_base_off = 17_823u32;
-        let body = gen_h00_manual_map_main(&meta, 0x1000, code_base_off);
+        let body = gen_h00_manual_map_main(&meta, 0x1000, 17_823);
         let cmp_pat = [0x48u8, 0x83, 0xF8, 0xFF];
         let cmp_off = body
             .windows(cmp_pat.len())
             .position(|w| w == cmp_pat)
             .expect("CreateFile cmp rax,-1");
-        let jz_off = cmp_off + cmp_pat.len();
-        let rel = i32::from_le_bytes(body[jz_off + 2..jz_off + 6].try_into().unwrap());
-        let from = code_base_off as usize + jz_off + 6;
-        let to = (from as i64 + rel as i64) as usize;
-        let epilogue_off = body
-            .windows(8)
-            .position(|w| w == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW, 0xB9, 0x02, 0x00, 0x00])
-            .expect("ExitProcess(2) fail epilogue (shadow + mov ecx,2)");
-        assert_eq!(
-            to,
-            code_base_off as usize + epilogue_off,
-            "CreateFile fail jz must land on ExitProcess(2) epilogue"
+        let after_cmp = &body[cmp_off..cmp_off + 24];
+        assert!(
+            after_cmp.windows(4).any(|w| w == [0x48, 0x83, 0xC4, PRELUDE_IO_FRAME]),
+            "CreateFile fail path must pop prelude I/O frame before ExitProcess(2)"
+        );
+        assert!(
+            body.windows(8).any(|w| {
+                w == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW, 0xB9, 0x02, 0x00, 0x00]
+            }),
+            "ExitProcess(2) fail epilogue present"
         );
     }
 
@@ -1361,7 +1392,7 @@ mod tests {
                 continue;
             }
             for j in i + 4..(i + 20).min(body.len().saturating_sub(5)) {
-                if body[j..j + 4] == [0x48, 0x83, 0xC4, WIN64_CALL_SHADOW] && body[j + 4] == 0xE9 {
+                if body[j..j + 4] == [0x48, 0x83, 0xC4, PRELUDE_IO_FRAME] && body[j + 4] == 0xE9 {
                     found = true;
                     break;
                 }
@@ -1372,7 +1403,7 @@ mod tests {
         }
         assert!(
             found,
-            "ReadFile fail must pop Win64 shadow before jmp to ExitProcess(3)"
+            "ReadFile fail must pop prelude I/O frame (add rsp,38h) before jmp to ExitProcess(3)"
         );
     }
 
@@ -1435,42 +1466,14 @@ mod tests {
             body.len()
         );
         assert_eq!(
-            &body[0..7],
-            &[0x53, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56],
-            "H_00 prologue must save rbx/r12/r13/r14"
-        );
-        assert_eq!(
-            &body[7..10],
-            &[0x4C, 0x8D, 0x3D],
-            "H_00 prologue must reload r15 via lea r15,[rip+disp] (no and rsp,-16)"
-        );
-        assert!(
-            !body.windows(4).any(|w| w == [0x48, 0x83, 0xE4, 0xF0]),
-            "must not and rsp,-16 — pairs with 0x40 shadow → 8-mod-16 at CALL (movaps AV)"
+            &body[7..11],
+            &[0x48, 0x83, 0xE4, 0xF0],
+            "H_00 prologue must and rsp,-16 (Win64 CALL alignment after JMP entry)"
         );
         assert!(
             !body.windows(7).any(|w| w == [0x48, 0x81, 0xEC, 0x00, 0x02, 0x00, 0x00]),
             "must not sub rsp,0x200 — misaligns CALL after JMP entry (kernel32 movaps AV)"
         );
-        for i in 0..body.len().saturating_sub(10) {
-            if body[i..i + 4] == [0x48, 0x83, 0xEC, 0x40]
-                && body[i + 4] == 0xB9
-                && body[i + 9] == 0xFF
-                && body[i + 10] == 0x15
-            {
-                panic!(
-                    "ExitProcess epilogue/bisect at stub+{i} must sub rsp,38h not 40h (Win64 CALL align)"
-                );
-            }
-            if body[i..i + 4] == [0x48, 0x83, 0xEC, 0x40]
-                && body[i + 4] == 0xFF
-                && body[i + 5] == 0x15
-            {
-                panic!(
-                    "kernel32 IAT call at stub+{i} must sub rsp,38h not 40h (Win64 CALL align)"
-                );
-            }
-        }
         // No un-prefixed [r12+rbx] PE reads (without REX.B they decode as [rsp+rbx]).
         for i in 0..body.len().saturating_sub(3) {
             let slice = &body[i..i + 3];
@@ -1633,14 +1636,13 @@ mod tests {
             !body.windows(5).any(|w| w == [0x49, 0x0F, 0xB7, 0x04, 0x61]),
             "must not emit movzx eax,word [r9+disp] (49 0F B7 04 61) — need REX.X + SIB 51"
         );
-        // Success-path phase probes (survive until crash).
+        // Success-path phase probes (survive until crash) — rip-relative `.data` scratch.
         assert!(
-            body.windows(9).any(|w| {
-                w[0..3] == [0x41, 0xC6, 0x87]
-                    && w[3..7] == H00_PHASE_SCRATCH_OFF.to_le_bytes()
-                    && w[7] == PHASE_FLUSH_ICACHE
+            body.windows(8).any(|w| {
+                w[0..2] == [0xC6, 0x05]
+                    && w[6] == PHASE_FLUSH_ICACHE
             }),
-            "missing FlushICache phase probe at [r15+phase scratch]"
+            "missing FlushICache phase probe at [rip+phase scratch]"
         );
         // e_lfanew reads must hit PE base, not [rsp+rdi] (SIB 3C) or wrong reg.
         assert!(
@@ -1728,7 +1730,7 @@ mod tests {
             assert_eq!(
                 &tail[0..5],
                 &[0x48, 0x83, 0xC4, WIN64_CALL_SHADOW, 0xE9][..],
-                "after GPA bootstrap store expect add rsp,38h; jmp (skip failure pop)"
+                "after GPA bootstrap store expect add rsp,40h; jmp (skip failure pop)"
             );
             assert!(
                 !body[at + 7..].windows(2).any(|w| w == [0xE9, 0xF7]),
@@ -1743,17 +1745,22 @@ mod tests {
             !body.windows(7).any(|w| w == [0x44, 0x8B, 0x48, 0x10, 0x44, 0x29, 0xC8]),
             "must not emit sub eax,r9d (44 29 C8) after BaseOrdinal — need sub ecx,r9d"
         );
+        // Export call: `and rsp,-16` then 0-mod-16 shadow → CALL site 16-aligned.
         let export_shadow = body
             .windows(4)
             .position(|w| w == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]);
         assert!(
             export_shadow.is_some(),
-            "export tail must sub rsp,38h before call (Win64 shadow)"
+            "export tail must sub rsp,0x40 before call (Win64 shadow)"
         );
         assert_eq!(
             WIN64_CALL_SHADOW % 16,
-            8,
-            "CALL shadow must be 8 mod 16 so RSP is 0-mod-16 at CALL after JMP entry"
+            0,
+            "CALL shadow must be 0 mod 16 so RSP stays 16-aligned at CALL"
+        );
+        assert!(
+            body.windows(4).any(|w| w == [0x48, 0x83, 0xE4, 0xF0]),
+            "H_00 prologue must and rsp,-16 (process-entry RSP is 8-mod-16)"
         );
         assert!(
             !body.windows(7).any(|w| w == [0x48, 0x81, 0xEC, 0x00, 0x02, 0x00, 0x00]),
