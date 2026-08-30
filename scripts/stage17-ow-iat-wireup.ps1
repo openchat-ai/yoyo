@@ -106,6 +106,12 @@ function Get-SmokePhase([int]$ExitCode) {
         9 { "DllMain" }
         10 { "probe_CreateFile" }
         11 { "probe_WriteFile" }
+        151 { "phase_prelude_create_ok" }
+        152 { "phase_prelude_buf_ok" }
+        153 { "phase_prelude_read_ok" }
+        154 { "phase_prelude_done" }
+        155 { "phase_prelude_ok" }
+        159 { "phase_map_valloc_ok" }
         130 { "import_ok_bisect" }
         131 { "reloc_ok_bisect" }
         160 { "phase_map_image_ok" }
@@ -114,7 +120,6 @@ function Get-SmokePhase([int]$ExitCode) {
         163 { "phase_import_ok" }
         164 { "phase_flush_icache" }
         165 { "phase_export_call" }
-        155 { "phase_prelude_ok" }
         1 { "generic_fail_or_runtime" }
         -1073741819 { "access_violation" }
         default { "unknown" }
@@ -136,10 +141,10 @@ function Invoke-ManualMapSmoke([string]$RunDir, [string]$Gen1Path) {
 }
 
 function Invoke-H00BisectDiagnostic([string]$RunDir, [string]$TyPath, [string]$TybPath, [string]$DllPath) {
-    Write-Host "== bisect: rebuild gen1 with H00_BISECT_EXIT=155..165 (post-AV phase isolate) =="
+    Write-Host "== bisect: rebuild gen1 with H00_BISECT_EXIT=151..165 (prelude + map phase isolate) =="
     $wireup = Join-Path $Root "yoyo-rust\verifier\src\h00_manual_map_wireup.rs"
     $lines = @()
-    foreach ($phase in 155..165) {
+    foreach ($phase in 151..165) {
         Push-Location (Join-Path $Root "yoyo-rust")
         try {
             (Get-Item $wireup).LastWriteTime = Get-Date
@@ -152,7 +157,7 @@ function Invoke-H00BisectDiagnostic([string]$RunDir, [string]$TyPath, [string]$T
         }
         $yoyo = if (Test-Path $YoyoRelease) { $YoyoRelease } else { $YoyoDebug }
         $gen1 = Join-Path $RunDir ("gen1-bisect-{0}.exe" -f $phase)
-        & $yoyo link --target=win32 $TyPath $gen1
+        & $yoyo link --target=win32 $TyPath $gen1 2>&1 | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "bisect link failed for phase=$phase" }
         Copy-Item $gen1 (Join-Path $RunDir "gen1.exe") -Force
         Copy-Item $TybPath (Join-Path $RunDir "input.tyb") -Force

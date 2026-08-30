@@ -43,7 +43,12 @@ const H00_KERNEL32_SCRATCH_OFF: u32 = WIN32_IO_H00_SCRATCH_OFF + 16;
 /// Success-path phase probe (survives until crash for post-mortem; not used on fail epilogue).
 const H00_PHASE_SCRATCH_OFF: u32 = WIN32_IO_H00_SCRATCH_OFF + 24;
 
+const PHASE_PRELUDE_CREATE_OK: u8 = 0x01;
+const PHASE_PRELUDE_BUF_OK: u8 = 0x02;
+const PHASE_PRELUDE_READ_OK: u8 = 0x03;
+const PHASE_PRELUDE_DONE: u8 = 0x04;
 const PHASE_PRELUDE_OK: u8 = 0x05;
+const PHASE_MAP_VALLOC_OK: u8 = 0x09;
 const PHASE_MAP_IMAGE_OK: u8 = 0x0A;
 const PHASE_SECTIONS_OK: u8 = 0x0B;
 const PHASE_RELOC_OK: u8 = 0x0C;
@@ -138,7 +143,7 @@ fn emit_phase_probe(c: &mut Vec<u8>, phase: u8) {
 /// Win64 shadow + `mov ecx,imm32` + `call [iat+ExitProcess]`.
 const FAIL_EPILOGUE_LEN: usize = 15;
 
-/// When `H00_BISECT_EXIT` matches `150 + phase` (160–165), exit after probe (CI bisect).
+/// When `H00_BISECT_EXIT` matches `150 + phase` (151–165), exit after probe (CI bisect).
 fn maybe_bisect_exit_after_phase(
     c: &mut Vec<u8>,
     text_rva: u32,
@@ -275,6 +280,14 @@ pub fn gen_h00_read_sidecar_prelude(
     let jz_no_file = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x89, 0xC3]);
+    emit_phase_probe(&mut c, PHASE_PRELUDE_CREATE_OK);
+    maybe_bisect_exit_after_phase(
+        &mut c,
+        text_rva,
+        chunk_text_off,
+        meta.iat_rva,
+        PHASE_PRELUDE_CREATE_OK,
+    );
 
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0xBA, 0x00, 0x00, 0x80, 0x00]); // max read 8 MiB (crt-static sidecar)
@@ -287,6 +300,14 @@ pub fn gen_h00_read_sidecar_prelude(
     let jz_no_buf = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x49, 0x89, 0xC4]);
+    emit_phase_probe(&mut c, PHASE_PRELUDE_BUF_OK);
+    maybe_bisect_exit_after_phase(
+        &mut c,
+        text_rva,
+        chunk_text_off,
+        meta.iat_rva,
+        PHASE_PRELUDE_BUF_OK,
+    );
 
     c.extend_from_slice(&[0x48, 0x89, 0xD9]);
     c.extend_from_slice(&[0x4C, 0x89, 0xE2]);
@@ -295,6 +316,17 @@ pub fn gen_h00_read_sidecar_prelude(
     c.extend_from_slice(&[0x4C, 0x8D, 0x4C, 0x24, READ_BYTES_STACK_OFF]); // &nBytesRead in shadow frame
     c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x20, 0x00, 0x00, 0x00, 0x00]); // OVERLAPPED NULL
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_READ_FILE);
+    c.extend_from_slice(&[0x85, 0xC0]); // test eax,eax — ReadFile BOOL
+    let jz_read_fail = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    emit_phase_probe(&mut c, PHASE_PRELUDE_READ_OK);
+    maybe_bisect_exit_after_phase(
+        &mut c,
+        text_rva,
+        chunk_text_off,
+        meta.iat_rva,
+        PHASE_PRELUDE_READ_OK,
+    );
     c.extend_from_slice(&[0x44, 0x8B, 0x6C, 0x24, READ_BYTES_STACK_OFF]); // r13d = nBytesRead
     emit_win64_pop_shadow(&mut c);
 
@@ -306,6 +338,14 @@ pub fn gen_h00_read_sidecar_prelude(
     c.extend_from_slice(&[0x45, 0x85, 0xED]);
     let jz_empty = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    emit_phase_probe(&mut c, PHASE_PRELUDE_DONE);
+    maybe_bisect_exit_after_phase(
+        &mut c,
+        text_rva,
+        chunk_text_off,
+        meta.iat_rva,
+        PHASE_PRELUDE_DONE,
+    );
 
     fix_rip_disp(
         &mut c,
@@ -319,6 +359,7 @@ pub fn gen_h00_read_sidecar_prelude(
     for (at, fail) in [
         (jz_no_file, fail_create_file),
         (jz_no_buf, fail_virtual_alloc),
+        (jz_read_fail, fail_read_empty),
         (jz_empty, fail_read_empty),
     ] {
         patch_rel32(
@@ -368,6 +409,14 @@ fn gen_h00_manual_map_body(
     fail_jumps.push((c.len(), fail_virtual_alloc));
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x49, 0x89, 0xC6]); // mov r14, rax (image)
+    emit_phase_probe(&mut c, PHASE_MAP_VALLOC_OK);
+    maybe_bisect_exit_after_phase(
+        &mut c,
+        text_rva,
+        chunk_text_off,
+        iat_rva,
+        PHASE_MAP_VALLOC_OK,
+    );
     emit_phase_probe(&mut c, PHASE_MAP_IMAGE_OK);
     maybe_bisect_exit_after_phase(
         &mut c,
