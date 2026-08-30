@@ -659,8 +659,9 @@ fn gen_h00_manual_map_body(
     // rdi=module, rdx=name → rax=func (preserve thunk rsi; rbx/rcx/rdx = PE tables; r11=IAT cursor)
     c.extend_from_slice(&[0x41, 0x53]); // push r11 — caller IAT cursor survives resolve_export
     c.extend_from_slice(&[0x49, 0x89, 0xD1]); // mov r9, rdx — save import name before table walk
-    c.extend_from_slice(&[0x8B, 0x47, 0x3C]);
-    c.extend_from_slice(&[0x8B, 0x84, 0x38, 0x88, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x8B, 0x47, 0x3C]); // eax = e_lfanew
+    // mov eax,[rdi+rax+88h] — SIB base=rdi index=rax (NOT 38=[rax+rsi] which clobbers with import-desc rsi)
+    c.extend_from_slice(&[0x8B, 0x84, 0x27, 0x88, 0x00, 0x00, 0x00]);
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_no_exp = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
@@ -721,8 +722,8 @@ fn gen_h00_manual_map_body(
 
     let resolve_export_ordinal = c.len();
     c.extend_from_slice(&[0x89, 0xC1]); // mov ecx, eax (ordinal)
-    c.extend_from_slice(&[0x8B, 0x47, 0x3C]);
-    c.extend_from_slice(&[0x8B, 0x84, 0x38, 0x88, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x8B, 0x47, 0x3C]); // eax = e_lfanew
+    c.extend_from_slice(&[0x8B, 0x84, 0x27, 0x88, 0x00, 0x00, 0x00]); // [rdi+rax+88h] export dir RVA
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_no_ord = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
@@ -1078,6 +1079,18 @@ mod tests {
         assert!(
             !body.windows(4).any(|w| w == [0x49, 0x8D, 0x1C, 0x0A]),
             "must not emit lea rbx,[r10+rcx] (49 8D 1C 0A) — forwarder end uses rdx size"
+        );
+        // resolve_export reads export dir via [rdi+rax+88h]; [rax+rsi+88h] uses live rsi (import desc) → wrong GPA bootstrap.
+        assert!(
+            !body.windows(7).any(|w| w == [0x8B, 0x84, 0x38, 0x88, 0x00, 0x00, 0x00]),
+            "must not emit mov eax,[rax+rsi+88h] in resolve_export (bootstrap AV)"
+        );
+        assert!(
+            body.windows(7)
+                .filter(|w| **w == [0x8B, 0x84, 0x27, 0x88, 0x00, 0x00, 0x00])
+                .count()
+                >= 2,
+            "resolve_export + resolve_export_ordinal need mov eax,[rdi+rax+88h]"
         );
     }
 }
