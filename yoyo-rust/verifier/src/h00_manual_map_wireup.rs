@@ -67,6 +67,8 @@ const PHASE_EXPORT_CALL: u8 = 0x0F;
 const WIN64_CALL_SHADOW: u8 = 0x38;
 /// Short dll/api name spill for 2-arg bootstrap calls (inside 32 B home space; ret at [rsp+38h]).
 const WIN64_STACK_STR_OFF: u8 = 0x20;
+/// IAT cursor spill during import GetProcAddress — above 1st/2nd home slots ([rsp+20h]/[rsp+28h]).
+const GPA_IAT_CURSOR_SPILL_OFF: u8 = 0x30;
 
 fn emit_win64_call_shadow(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]);
@@ -796,10 +798,10 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x89, 0xC2]); // mov edx, eax
     let gpa_call_site = c.len();
     patch_rel32(&mut c, gpa_call + 1, gpa_call + 5, gpa_call_site);
-    // Spill r11 in home space — push/pop breaks RSP%16==8 inside Win64 shadow.
-    c.extend_from_slice(&[0x4C, 0x89, 0x5C, 0x24, 0x20]); // mov [rsp+0x20], r11
+    // Spill r11 above GPA home slots — [rsp+20h] is clobbered by GetProcAddress.
+    c.extend_from_slice(&[0x4C, 0x89, 0x5C, 0x24, GPA_IAT_CURSOR_SPILL_OFF]); // mov [rsp+30h], r11
     emit_call_r15_scratch(&mut c, H00_GETPROCADDRESS_SCRATCH_OFF);
-    c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x20]); // mov r11, [rsp+0x20]
+    c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, GPA_IAT_CURSOR_SPILL_OFF]); // mov r11, [rsp+30h]
     c.extend_from_slice(&[0x48, 0x85, 0xC0]); // resolve failed → fail_import
     emit_jz_pop_shadow_then_fail(&mut c, chunk_text_off as usize, fail_import);
     c.extend_from_slice(&[0x49, 0x89, 0x03]); // mov [r11], rax (IAT slot)
@@ -1835,15 +1837,19 @@ mod tests {
             }),
             "export success path needs mov ecx,eax + Win64 shadow before ExitProcess"
         );
-        // Import thunk GPA must spill r11 at [rsp+0x20], not push/pop (breaks Win64 alignment in shadow).
+        assert!(
+            !body.windows(5).any(|w| w == [0x4C, 0x89, 0x5C, 0x24, 0x20]),
+            "import GPA must not spill r11 at [rsp+20h] — GetProcAddress clobbers home slot"
+        );
+        // Import thunk GPA must spill r11 at [rsp+30h], not push/pop (breaks Win64 alignment in shadow).
         assert!(
             body.windows(18).any(|w| {
-                w[0..5] == [0x4C, 0x89, 0x5C, 0x24, 0x20]
+                w[0..5] == [0x4C, 0x89, 0x5C, 0x24, GPA_IAT_CURSOR_SPILL_OFF]
                     && w[5..8] == [0x41, 0xFF, 0x97]
                     && w[8..12] == H00_GETPROCADDRESS_SCRATCH_OFF.to_le_bytes()
-                    && w[12..17] == [0x4C, 0x8B, 0x5C, 0x24, 0x20]
+                    && w[12..17] == [0x4C, 0x8B, 0x5C, 0x24, GPA_IAT_CURSOR_SPILL_OFF]
             }),
-            "import GPA path needs mov [rsp+0x20],r11 / call GPA / mov r11,[rsp+0x20]"
+            "import GPA path needs mov [rsp+30h],r11 / call GPA / mov r11,[rsp+30h]"
         );
         assert!(
             !body.windows(5).any(|w| w == [0x41, 0x53, 0x41, 0xFF, 0x57]),
