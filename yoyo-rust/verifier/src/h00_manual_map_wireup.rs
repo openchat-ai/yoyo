@@ -213,6 +213,13 @@ const SIB_R12_ONLY: u8 = 0x24;
 /// SIB for `[r14 + disp8]` (index=none, base=r14 via REX.B on opcode).
 const SIB_R14_ONLY: u8 = 0x26;
 
+/// `lea r15, [rip+disp]` — reload .data base (IAT at r15+0) before [r15+scratch] probes.
+fn emit_reload_r15_data_base(c: &mut Vec<u8>, text_rva: u32, chunk_text_off: u32, data_rva: u32) {
+    let at = c.len();
+    c.extend_from_slice(&[0x4C, 0x8D, 0x3D, 0, 0, 0, 0]);
+    fix_rip_disp(c, at + 3, text_rva, chunk_text_off, at + 7, data_rva);
+}
+
 /// `mov ebx, [r12+3Ch]` — e_lfanew from file PE buffer (r12).
 fn emit_mov_e_lfanew_pe_file(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x41, 0x8B, 0x5C, SIB_R12_ONLY, 0x3C]);
@@ -263,6 +270,8 @@ pub fn gen_h00_read_sidecar_prelude(
     fail_virtual_alloc: usize,
 ) -> Vec<u8> {
     let mut c: Vec<u8> = Vec::new();
+
+    emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, meta.iat_rva);
 
     let lea_path = c.len();
     c.extend_from_slice(&[0x48, 0x8D, 0x0D, 0, 0, 0, 0]);
@@ -580,11 +589,12 @@ fn gen_h00_manual_map_body(
     let jz_skip_ll_boot = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     // Bootstrap must find kernel32 via PEB — not sidecar import[0] (order varies).
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x20]); // sub rsp, 0x20
+    emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, iat_rva);
+    emit_win64_call_shadow(&mut c);
     for (off, ch) in b"kernel32.dll\0".iter().enumerate() {
-        c.extend_from_slice(&[0xC6, 0x44, 0x24, off as u8, *ch]);
+        c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_CALL_SHADOW + off as u8, *ch]);
     }
-    c.extend_from_slice(&[0x48, 0x8D, 0x14, 0x24]); // lea rdx,[rsp]
+    c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_CALL_SHADOW]); // lea rdx,[rsp+28h]
     let call_boot_find = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
@@ -607,15 +617,14 @@ fn gen_h00_manual_map_body(
         (11, b'A'),
         (12, 0),
     ] {
-        c.extend_from_slice(&[0xC6, 0x44, 0x24, off, ch]);
+        c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_CALL_SHADOW + off, ch]);
     }
-    c.extend_from_slice(&[0x48, 0x8D, 0x14, 0x24]); // lea rdx, [rsp]
+    c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_CALL_SHADOW]); // lea rdx,[rsp+28h]
     let call_boot_resolve = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
     emit_mov_qword_to_r15_scratch(&mut c, H00_LOADLIBRARY_SCRATCH_OFF, 0); // [r15+scratch]=LoadLibraryA
-    emit_mov_qword_to_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // [r15+scratch+16]=kernel32
+    emit_mov_qword_to_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // [r15+0x60]=kernel32
     // Bootstrap GetProcAddress (sidecar IAT resolve uses host LoadLibrary+GetProcAddress).
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x20]);
     for (off, ch) in [
         (0u8, b'G'),
         (1, b'e'),
@@ -633,18 +642,17 @@ fn gen_h00_manual_map_body(
         (13, b's'),
         (14, 0),
     ] {
-        c.extend_from_slice(&[0xC6, 0x44, 0x24, off, ch]);
+        c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_CALL_SHADOW + off, ch]);
     }
-    c.extend_from_slice(&[0x48, 0x8D, 0x14, 0x24]);
+    c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_CALL_SHADOW]);
     let call_boot_gpa = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]);
     emit_mov_qword_to_r15_scratch(&mut c, H00_GETPROCADDRESS_SCRATCH_OFF, 0);
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]); // add rsp, 0x20 (kernel32 name stack)
+    emit_win64_pop_shadow(&mut c);
     let jmp_boot_ok = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // success: skip failure pop
     let skip_ll_boot_pop = c.len();
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x20]); // find_module failed — pop kernel32 stack
+    emit_win64_pop_shadow(&mut c); // find_module failed — pop bootstrap shadow
     let jmp_boot_fail = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     patch_rel32(&mut c, jz_skip_ll_boot2 + 2, jz_skip_ll_boot2 + 6, skip_ll_boot_pop);
@@ -652,6 +660,7 @@ fn gen_h00_manual_map_body(
     // Import resolve: walk descriptors at [r14+import_rva]
     let import_walk_start = c.len();
     // Bootstrap resolve_export clobbers ebx (AddressOfNames); reload file e_lfanew.
+    emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, iat_rva);
     emit_mov_e_lfanew_pe_file(&mut c);
     emit_mov_u32_pe_file(&mut c, 0, PE_OFF_IMPORT_DIR_RVA); // import dir rva
     c.extend_from_slice(&[0x85, 0xC0]);
@@ -1414,8 +1423,8 @@ mod tests {
             "bootstrap must not use sidecar import[0] name for find_module (use kernel32.dll stack)"
         );
         assert!(
-            body.windows(5).any(|w| w == [0xC6, 0x44, 0x24, 0x00, b'k']),
-            "bootstrap must build kernel32.dll on stack (C6 44 24 00 6B)"
+            body.windows(5).any(|w| w == [0xC6, 0x44, 0x24, WIN64_CALL_SHADOW, b'k']),
+            "bootstrap must build kernel32.dll in Win64 shadow (C6 44 24 28 6B)"
         );
         assert!(
             body.windows(4).any(|w| w == [0x49, 0x83, 0xC0, 0x02]),
@@ -1518,6 +1527,10 @@ mod tests {
             body.windows(5).any(|w| w == [0x41, 0x8B, 0x5C, SIB_R12_ONLY, 0x3C]),
             "missing mov ebx,[r12+3Ch] (file PE e_lfanew; SIB 24)"
         );
+        assert!(
+            body.windows(3).filter(|w| **w == [0x4C, 0x8D, 0x3D]).count() >= 3,
+            "must reload r15 (lea r15,[rip+disp]) in prelude, bootstrap, and import walk"
+        );
         // import_walk_start must reload file e_lfanew after bootstrap resolve_export clobbers ebx.
         assert!(
             body.windows(10).any(|w| {
@@ -1594,8 +1607,8 @@ mod tests {
             let tail = &body[at + 7..at + 7 + 12];
             assert_eq!(
                 &tail[0..5],
-                &[0x48, 0x83, 0xC4, 0x20, 0xE9][..],
-                "after GPA bootstrap store expect add rsp,20h; jmp (skip failure pop)"
+                &[0x48, 0x83, 0xC4, WIN64_CALL_SHADOW, 0xE9][..],
+                "after GPA bootstrap store expect add rsp,28h; jmp (skip failure pop)"
             );
             assert!(
                 !body[at + 7..].windows(2).any(|w| w == [0xE9, 0xF7]),
