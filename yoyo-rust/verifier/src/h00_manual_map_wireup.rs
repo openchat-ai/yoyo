@@ -22,6 +22,8 @@ const FLUSH_ICACHE_NAME_STACK_OFF: u8 = READ_BYTES_STACK_OFF;
 /// One Win64 home (0x20) + CreateFile 3 stack args (0x18); 0x38 bytes total.
 /// After JMP-entry prologue (RSP%16==8), frame must be 8 mod 16 so FF15 CALL is 0 mod 16.
 const PRELUDE_IO_FRAME: u8 = 0x38;
+/// Forwarder DLL-name copy in resolve_export (0 mod 16) so nested find_module entry stays 0-mod-16.
+const FORWARDER_NAME_FRAME: u8 = 0x40;
 
 /// PE32+ optional-header field offsets from `e_lfanew` (ebx holds e_lfanew; COFF = 20 B after PE sig).
 const PE_OFF_NUMBER_OF_SECTIONS: u8 = 6; // COFF + 2
@@ -187,6 +189,10 @@ fn maybe_bisect_exit_after_phase(
     if let Some(target) = option_env!("H00_BISECT_EXIT").and_then(|s| s.parse::<u8>().ok()) {
         let exit_code = 150u8.wrapping_add(phase);
         if exit_code == target {
+            // Bisect inside prelude I/O frame: pop frame before ExitProcess shadow (else double-sub AV).
+            if (PHASE_PRELUDE_CREATE_OK..=PHASE_PRELUDE_READ_OK).contains(&phase) {
+                emit_prelude_io_frame_free(c);
+            }
             emit_exit_process_iat(c, text_rva, chunk_text_off, iat_rva, exit_code);
             return true;
         }
@@ -1102,7 +1108,7 @@ fn gen_h00_manual_map_body(
     let ff_dot = c.len();
     patch_rel32(&mut c, jz_ff_dot + 2, jz_ff_dot + 6, ff_dot);
     // Copy forwarder DLL prefix [r8,r9) to stack — never patch host .rdata forwarders.
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]); // spill dll name in shadow frame
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, FORWARDER_NAME_FRAME]); // 0 mod 16 → find_module entry aligned
     c.extend_from_slice(&[0x48, 0x89, 0xE7]); // mov rdi, rsp
     c.extend_from_slice(&[0x4C, 0x89, 0xC6]); // mov rsi, r8
     let ff_copy = c.len();
@@ -1129,12 +1135,12 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x49, 0x8D, 0x51, 0x01]); // lea rdx,[r9+1] func name
     let call_ff_resolve = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, WIN64_CALL_SHADOW]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, FORWARDER_NAME_FRAME]);
     let ff_ret = c.len();
     c.extend_from_slice(&[0x5E]); // pop rsi
     c.extend_from_slice(&[0xC3]);
     let ff_ret_pop = c.len();
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, WIN64_CALL_SHADOW]); // find_module failed
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, FORWARDER_NAME_FRAME]); // find_module failed
     let jmp_ff_ret = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp ff_ret
     patch_rel32(&mut c, jz_ff_bad2 + 2, jz_ff_bad2 + 6, ff_ret_pop);
@@ -1742,8 +1748,11 @@ mod tests {
             "must not emit lea r11,[rdx+rax*2] (4C 8D 1C 42) — forwarder end is rdx+size"
         );
         assert!(
-            body.windows(5).any(|w| w == [0x89, 0xD3, 0x4C, 0x01, 0xD3]),
-            "fix_forward needs mov ebx,edx; add rbx,r10 (export dir end = start+size)"
+            body.windows(7).any(|w| {
+                w[0..4] == [0x48, 0x83, 0xEC, FORWARDER_NAME_FRAME]
+                    && w[4..7] == [0x48, 0x89, 0xE7]
+            }),
+            "fix_forward must sub rsp,40h (not 38h) before find_module — nested LL align"
         );
         assert!(
             !body.windows(5).any(|w| w == [0x89, 0xD3, 0x48, 0x01, 0xD3]),
