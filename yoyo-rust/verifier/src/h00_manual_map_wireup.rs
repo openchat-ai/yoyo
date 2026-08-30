@@ -15,8 +15,8 @@ pub const IAT_CREATE_FILE: u32 = 1;
 pub const IAT_READ_FILE: u32 = 2;
 pub const IAT_CLOSE_HANDLE: u32 = 4;
 
-/// Stack scratch for ReadFile nNumberOfBytesRead (above 7-arg CreateFile stack frame).
-const READ_BYTES_STACK_OFF: u8 = 0x30;
+/// Stack scratch for ReadFile nNumberOfBytesRead (Win64 5th-arg slot at [rsp+0x20] in shadow).
+const READ_BYTES_STACK_OFF: u8 = 0x20;
 /// GPA proc-name spill for FlushICache (same slot — must stay above shadow, not inside it).
 const FLUSH_ICACHE_NAME_STACK_OFF: u8 = READ_BYTES_STACK_OFF;
 
@@ -350,7 +350,7 @@ pub fn gen_h00_read_sidecar_prelude(
     emit_win64_call_shadow(&mut c);
     c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, READ_BYTES_STACK_OFF, 0, 0, 0, 0]); // nBytesRead = 0
     c.extend_from_slice(&[0x4C, 0x8D, 0x4C, 0x24, READ_BYTES_STACK_OFF]); // &nBytesRead in shadow frame
-    c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x20, 0x00, 0x00, 0x00, 0x00]); // OVERLAPPED NULL
+    c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x28, 0x00, 0x00, 0x00, 0x00]); // OVERLAPPED NULL
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_READ_FILE);
     c.extend_from_slice(&[0x85, 0xC0]); // test eax,eax — ReadFile BOOL
     emit_jz_pop_shadow_then_fail(&mut c, chunk_text_off as usize, fail_read_empty);
