@@ -237,6 +237,9 @@ if (-not $SkipSmoke) {
     Copy-Item $gen1 (Join-Path $runOk "gen1.exe") -Force
     Copy-Item $Tyb (Join-Path $runOk "input.tyb") -Force
     Copy-Item $dllPath (Join-Path $runOk "yoyo_rt.dll") -Force
+    $sidecarLen = (Get-Item (Join-Path $runOk "yoyo_rt.dll")).Length
+    Write-Host ("sidecar yoyo_rt.dll bytes={0} src={1}" -f $sidecarLen, $dllPath)
+    if ($sidecarLen -lt 64) { throw "cwd yoyo_rt.dll too small for ReadFile" }
     $smoke = Invoke-ManualMapSmoke $runOk $gen1
     $smokeExit = $smoke.Exit
     $outExe = Join-Path $runOk "output.exe"

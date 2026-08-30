@@ -296,12 +296,12 @@ pub fn gen_h00_read_sidecar_prelude(
 
     emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, meta.iat_rva);
 
-    // CreateFileA(path, GENERIC_READ, share=0, sa=NULL, OPEN_EXISTING, NORMAL, hTemplate=NULL)
+    // CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, sa=NULL, OPEN_EXISTING, NORMAL, hTemplate=NULL)
     emit_win64_call_shadow(&mut c);
     let lea_path = c.len();
     c.extend_from_slice(&[0x48, 0x8D, 0x0D, 0, 0, 0, 0]); // rcx = path
     c.extend_from_slice(&[0xBA, 0x00, 0x00, 0x00, 0x80]); // rdx = GENERIC_READ
-    c.extend_from_slice(&[0x45, 0x31, 0xC0]); // xor r8d,r8d
+    c.extend_from_slice(&[0x41, 0xB8, 0x01, 0x00, 0x00, 0x00]); // r8d = FILE_SHARE_READ
     c.extend_from_slice(&[0x45, 0x31, 0xC9]); // xor r9d,r9d
     c.extend_from_slice(&[0xC7, 0x44, 0x24, 0x20, 0x03, 0x00, 0x00, 0x00]); // OPEN_EXISTING
     c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x28, 0x80, 0x00, 0x00, 0x00]); // FILE_ATTRIBUTE_NORMAL
@@ -348,6 +348,7 @@ pub fn gen_h00_read_sidecar_prelude(
     c.extend_from_slice(&[0x4C, 0x89, 0xE2]);
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x00, 0x80, 0x00]); // ReadFile size cap
     emit_win64_call_shadow(&mut c);
+    c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, READ_BYTES_STACK_OFF, 0, 0, 0, 0]); // nBytesRead = 0
     c.extend_from_slice(&[0x4C, 0x8D, 0x4C, 0x24, READ_BYTES_STACK_OFF]); // &nBytesRead in shadow frame
     c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x20, 0x00, 0x00, 0x00, 0x00]); // OVERLAPPED NULL
     emit_call_iat_merged(&mut c, text_rva, chunk_text_off, meta.iat_rva, IAT_READ_FILE);
