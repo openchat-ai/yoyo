@@ -23,7 +23,7 @@ function patchRel32(buf, dispOff, from, to) {
 
 const H00_LEA_SITE = 32;
 const H00_RELOAD_R15_SITES = [
-  7, 21, 125, 185, 257, 298, 312, 716, 1013, 2106, 2129, 2152, 2175, 2198, 2221, 2244, 2267,
+  7, 21, 125, 185, 257, 298, 312, 716, 1013, 2121, 2144, 2167, 2190, 2213, 2236, 2259, 2282,
 ];
 const H00_IAT_SITES = [
   [79, 1], // CreateFileA
@@ -31,7 +31,7 @@ const H00_IAT_SITES = [
   [234, 2], // ReadFile
   [279, 4], // CloseHandle
   [354, 0], // VirtualAlloc (image)
-  [2100, 5], // ExitProcess (export success)
+  [2115, 5], // ExitProcess (export success)
 ];
 
 function rebaseManualMapStub(buf, textRva, codeBaseOff, meta) {

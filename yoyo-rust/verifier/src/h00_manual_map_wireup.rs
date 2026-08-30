@@ -67,8 +67,10 @@ const PHASE_EXPORT_CALL: u8 = 0x0F;
 const WIN64_CALL_SHADOW: u8 = 0x38;
 /// Short dll/api name spill for 2-arg bootstrap calls (inside 32 B home space; ret at [rsp+38h]).
 const WIN64_STACK_STR_OFF: u8 = 0x20;
-/// IAT cursor spill during import GetProcAddress — above 1st/2nd home slots ([rsp+20h]/[rsp+28h]).
+/// IAT cursor spill during import resolve_export_ordinal — above home slots ([rsp+20h]/[rsp+28h]).
 const GPA_IAT_CURSOR_SPILL_OFF: u8 = 0x30;
+/// hModule spill in import-descriptor Win64 shadow (resolve_export clobbers rdi in fix_forward).
+const HMODULE_SPILL_OFF: u8 = 0x28;
 
 fn emit_win64_call_shadow(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]);
@@ -765,6 +767,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     emit_jz_pop_shadow_then_fail(&mut c, chunk_text_off as usize, fail_import);
     c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = hModule
+    c.extend_from_slice(&[0x48, 0x89, 0x7C, 0x24, HMODULE_SPILL_OFF]); // [rsp+28h]=hModule
     c.extend_from_slice(&[0x49, 0x89, 0xF5]); // mov r13, rsi (save import descriptor ptr)
     c.extend_from_slice(&[0x41, 0x8B, 0x55, 0x10]); // mov edx,[r13+10] FirstThunk RVA
     c.extend_from_slice(&[0x4D, 0x8D, 0x1C, 0x16]); // lea r11,[r14+rdx] IAT write cursor
@@ -787,6 +790,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x49, 0x0F, 0xBA, 0xE2, 0x3F]); // bt r10,63 (ordinal if high bit set)
     let jc_ord = c.len();
     c.extend_from_slice(&[0x0F, 0x82, 0, 0, 0, 0]); // jc ord_resolve
+    c.extend_from_slice(&[0x48, 0x8B, 0x7C, 0x24, HMODULE_SPILL_OFF]); // mov rdi,[rsp+28h] hModule
     c.extend_from_slice(&[0x4B, 0x8D, 0x54, 0x16, 0x02]); // lea rdx,[r14+r10+2] import name
     let call_thunk_by_name = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]); // call resolve_export (rdi=hModule)
@@ -794,6 +798,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     let ord_resolve = c.len();
     patch_rel32(&mut c, jc_ord + 2, jc_ord + 6, ord_resolve);
+    c.extend_from_slice(&[0x48, 0x8B, 0x7C, 0x24, HMODULE_SPILL_OFF]); // mov rdi,[rsp+28h] hModule
     c.extend_from_slice(&[0x44, 0x89, 0xD0]); // mov eax, r10d
     c.extend_from_slice(&[0x25, 0xFF, 0xFF, 0x00, 0x00]); // and eax, 0xffff — ordinal
     // resolve_export_ordinal clobbers r11 — spill above Win64 home slots.
@@ -1855,12 +1860,26 @@ mod tests {
             }),
             "export success path needs mov ecx,eax + Win64 shadow before ExitProcess"
         );
-        // Import thunks: by-name call resolve_export (E8); ordinal spills r11 then E8 resolve_export_ordinal.
+        // Import thunks: reload hModule, then resolve_export / resolve_export_ordinal (fix_forward clobbers rdi).
+        assert!(
+            body.windows(10).any(|w| {
+                w[0..5] == [0x48, 0x8B, 0x7C, 0x24, HMODULE_SPILL_OFF]
+                    && w[5..10] == [0x4B, 0x8D, 0x54, 0x16, 0x02]
+            }),
+            "import name thunk needs mov rdi,[rsp+28h] then lea rdx,[r14+r10+2]"
+        );
         assert!(
             body.windows(6).any(|w| {
                 w[0..5] == [0x4B, 0x8D, 0x54, 0x16, 0x02] && w[5] == 0xE8
             }),
             "import name thunk needs lea rdx,[r14+r10+2] then call resolve_export (E8)"
+        );
+        assert!(
+            body.windows(10).any(|w| {
+                w[0..5] == [0x48, 0x8B, 0x7C, 0x24, HMODULE_SPILL_OFF]
+                    && w[5..10] == [0x44, 0x89, 0xD0, 0x25, 0xFF]
+            }),
+            "import ordinal thunk needs mov rdi,[rsp+28h] before resolve_export_ordinal"
         );
         assert!(
             body.windows(14).any(|w| {
