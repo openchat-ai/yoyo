@@ -30,7 +30,7 @@ const PRELOAD_RUNTIME_DLL_IMPORTS: &[(&str, &str)] = &[];
 
 /// Bootstrap scratch for H_00 manual-map (LoadLibraryA / GetProcAddress / kernel32 / phase byte).
 /// Placed after import metadata in `prepend_win32_io_iat` — must not overlap IAT or descriptors.
-pub const WIN32_IO_H00_SCRATCH_BYTES: usize = 32;
+pub const WIN32_IO_H00_SCRATCH_BYTES: usize = 40;
 
 /// Offset from r15 / `.data` base to H_00 scratch (pinned by `h00_scratch_off_pinned`).
 /// Kernel32-only IAT (no UCRT preload); IAT/ILT null-terminated and 8-aligned.

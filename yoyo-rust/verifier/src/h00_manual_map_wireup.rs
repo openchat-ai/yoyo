@@ -51,6 +51,8 @@ const H00_KERNEL32_SCRATCH_OFF: u32 = WIN32_IO_H00_SCRATCH_OFF + 16;
 const H00_PHASE_SCRATCH_OFF: u32 = WIN32_IO_H00_SCRATCH_OFF + 24;
 /// Per-descriptor hModule during import walk (reuses phase qword; import_ok overwrites).
 const H00_IMPORT_HMODULE_SCRATCH_OFF: u32 = H00_PHASE_SCRATCH_OFF;
+/// IAT write cursor spill across GetProcAddress (must not use stack below import shadow).
+const H00_IAT_CURSOR_SCRATCH_OFF: u32 = WIN32_IO_H00_SCRATCH_OFF + 32;
 
 const PHASE_H00_ENTERED: u8 = 0x00;
 const PHASE_PRELUDE_CREATE_OK: u8 = 0x01;
@@ -81,17 +83,15 @@ fn emit_win64_pop_shadow(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x48, 0x83, 0xC4, WIN64_CALL_SHADOW]);
 }
 
-/// GetProcAddress clobbers volatile r11 (IAT write cursor); r12=file PE (callee-saved).
-/// Inside import-descriptor `sub rsp,38h`, bare `push r12` misaligns CALL — pad with `sub/add rsp,8`
-/// (same pattern as find_module `push r10` + `sub rsp,30h`). Do not spill to [rsp+30h] home — GPA clobbers it.
+/// GetProcAddress clobbers volatile r11 (IAT write cursor).
+/// Do not push/sub rsp below import-descriptor `sub rsp,38h` — GPA shadow then writes past the
+/// allocated frame → AV. Do not spill to [rsp+30h] home — GPA clobbers Win64 homes.
 fn emit_call_gpa_preserve_r11(c: &mut Vec<u8>) {
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x08]); // sub rsp, 8 — align for push r12 before GPA
-    c.extend_from_slice(&[0x41, 0x54]); // push r12
-    c.extend_from_slice(&[0x4D, 0x89, 0xDC]); // mov r12, r11
+    c.extend_from_slice(&[0x4D, 0x89, 0x9F]); // mov [r15+scratch], r11
+    c.extend_from_slice(&H00_IAT_CURSOR_SCRATCH_OFF.to_le_bytes());
     emit_call_r15_scratch(c, H00_GETPROCADDRESS_SCRATCH_OFF);
-    c.extend_from_slice(&[0x4D, 0x89, 0xE3]); // mov r11, r12
-    c.extend_from_slice(&[0x41, 0x5C]); // pop r12
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x08]); // add rsp, 8
+    c.extend_from_slice(&[0x4D, 0x8B, 0x9F]); // mov r11, [r15+scratch]
+    c.extend_from_slice(&H00_IAT_CURSOR_SCRATCH_OFF.to_le_bytes());
 }
 
 /// After `test`/`cmp` ZF=1 (fail): pop Win64 shadow then jmp fail; ZF=0 skip
@@ -1944,24 +1944,29 @@ mod tests {
         assert!(
             body.windows(20).any(|w| {
                 w[0..10] == [0x44, 0x89, 0xD0, 0x25, 0xFF, 0xFF, 0x00, 0x00, 0x89, 0xC2]
-                    && w[10..20]
-                        == [0x48, 0x83, 0xEC, 0x08, 0x41, 0x54, 0x4D, 0x89, 0xDC, 0x41]
+                    && w[10] == 0x4D
+                    && w[11] == 0x89
+                    && w[12] == 0x9F
             }),
-            "import ordinal thunk needs and eax,0xffff + sub rsp,8 + push r12 spill r11 before GPA"
+            "import ordinal thunk needs and eax,0xffff + mov [r15+iat_cursor],r11 before GPA"
         );
         assert!(
-            body.windows(12).any(|w| {
-                w[0..6] == [0x48, 0x83, 0xEC, 0x08, 0x41, 0x54]
-                    && w[6..12] == [0x4D, 0x89, 0xDC, 0x41, 0xFF, 0x97]
+            body.windows(10).any(|w| {
+                w[0..3] == [0x4D, 0x89, 0x9F]
+                    && w[7..10] == [0x41, 0xFF, 0x97]
             }),
-            "import loop must sub rsp,8 + push r12 before call [r15+GPA] (Win64 align inside descriptor shadow)"
+            "import loop must mov [r15+iat_cursor],r11 before call [r15+GPA]"
         );
         assert!(
-            body.windows(8).any(|w| {
-                w[0..4] == [0x4D, 0x89, 0xE3, 0x41]
-                    && w[4..8] == [0x5C, 0x48, 0x83, 0xC4]
+            body.windows(10).any(|w| {
+                w[0..3] == [0x4D, 0x8B, 0x9F]
+                    && w[7..10] == [0x48, 0x85, 0xC0]
             }),
-            "import GPA must pop r12 + add rsp,8 after call [r15+GPA]"
+            "import GPA must mov r11,[r15+iat_cursor] then test rax before IAT store"
+        );
+        assert!(
+            !body.windows(6).any(|w| w == [0x48, 0x83, 0xEC, 0x08, 0x41, 0x54]),
+            "import GPA must not sub rsp,8+push r12 — writes below import shadow frame"
         );
         assert!(
             !body.windows(5).any(|w| w == [0x4C, 0x89, 0x5C, 0x24, 0x30]),
