@@ -103,21 +103,18 @@ PE/ELF **不得**改 master 看板。AUTO 下两板完成后若仍有未勾项�
 
 0. **右侧打开当前主线看板**（读文件前）：
    - MCP `cursor-app-control` → `open_resource`
-   - 现主线：`file:///F:/yoyo/STAGE14_OWNER_CHECKLIST.md`（直至 Stage14 全绿）
-   - 之后：打开 ROADMAP 当前 `STAGE*_OWNER_CHECKLIST.md`
+   - **post-v1.0 关洞**（`ACTIVE=0` · 用户 `继续`/`关洞`）：`file:///F:/yoyo/POST-1.0-HOLE-CHECKLIST.md`
+   - **历史 Stage**（只读 · 勿回改）：`STAGE16_OWNER_CHECKLIST.md`（v1.0 已毕业）
+   - 更早 Stage：`STAGE*_OWNER_CHECKLIST.md`（4→15 已毕业则跳过）
    - 失败不阻塞
 
 1. **读看板**；历史 Stage 勾选勿回改  
 
 2. **选下一项**（跳过 `[x]`）：
-   - Stage 4→9 历史已绿则跳过  
-   - Stage 10 / v0.4：已毕业 → 跳过  
-   - Stage 11 / v0.5：已毕业 → 跳过  
-   - Stage 12 / v0.6：已毕业 → 跳过  
-   - Stage 13 / v0.7：已毕业 → 跳过  
-   - Stage 14 / v0.8：`STAGE14` + `SCOPE-v0.8`（A→D）  
-   - 之后：当前 `STAGEk`；若全绿 → **自动定**下一版（见上）再取第一项  
-   - 直至 v1.0 毕业或 hard block  
+   - **post-v1.0**（`ACTIVE=0` · `COMPLETED=1` · 用户 `继续`/`关洞`）：读 `POST-1.0-HOLE-CHECKLIST.md` → A→B→C 下一未勾；**禁止** invent Stage 17  
+   - Stage 4→16 / v1.0：已毕业 → 跳过（勿回改 STAGE16）  
+   - **AUTO**（仅 `ACTIVE=1`）：Stage 4→16 历史逻辑；v1.0 已毕业则 **停**（见 Post-v1.0 节）  
+   - hard block → 写入看板「阻塞」节  
 
 3. **执行** + 验收（PowerShell）：
    ```powershell
@@ -148,15 +145,25 @@ PE/ELF **不得**改 master 看板。AUTO 下两板完成后若仍有未勾项�
 
 | 项 | 主题 |
 |----|------|
-| S10 | v0.4 已毕业（跳过） |
-| S11 | v0.5 已毕业（跳过） |
-| S12 | v0.6 已毕业（跳过） |
-| S13 | v0.7 已毕业（跳过） |
-| S14-A | 窗外字节 / SCOPE-CUT 草案 |
-| S14-B | Lock 硬化 |
-| S14-C | v0.7 回归不退化 |
-| S14-D | v0.8 毕业 + Relock + RELEASE + tag |
-| →1.0 | `ROADMAP-TO-1.0.md`（AUTO 自动定 Stage15…16） |
+| S10–S16 | v0.4→v1.0 已毕业（跳过 · 勿回改） |
+| **post-v1.0** | `POST-1.0-HOLE-CHECKLIST.md` — path 2 关洞 A→B→C |
+| post-A | Win OW-IAT wire-up smoke GREEN（**阻塞：with-sidecar AV**） |
+| post-B | Linux OW-IAT / tramp 回归 |
+| post-C | SCOPE-CUT + BACKEND_SUPPORT 诚实 sync |
+
+## Post-v1.0 关洞（`ACTIVE=0` · 用户 `继续`/`关洞`）
+
+v1.0 / Stage 16 已毕业；`AUTO_TO_1.0.md` **`ACTIVE=0` · `COMPLETED=1`** → **勿启 AUTO invent Stage 17**。
+
+| 触发 | 行为 |
+| ---- | ---- |
+| `继续` / `关洞` / `post-1.0` / `path 2` | 读 `POST-1.0-HOLE-CHECKLIST.md`；**一项** A→B→C per tick |
+| 验收 | 本地先跑看板该项 PowerShell 门禁；绿了才勾 |
+| push | 遵守 **CI anti-thrash**（`.cursor/rules/ci-anti-thrash.mdc`）：本地 smoke 先绿 → 一次 CI push；WIP `[skip ci]` |
+| 诚实 | OW-IAT smoke GREEN **≠** CLOSED；sidecar 仍在则 CUT |
+| 阻塞 | 写入看板「阻塞」节；with-sidecar AV → 本地 bisect（`H00_BISECT` opt-in） |
+
+**下一项（2026-08-31）** = **A** — `& .\scripts\stage17-ow-iat-wireup.ps1`（with-sidecar RED）。
 
 ## 约束
 
