@@ -51,8 +51,8 @@ const H00_KERNEL32_SCRATCH_OFF: u32 = WIN32_IO_H00_SCRATCH_OFF + 16;
 const H00_PHASE_SCRATCH_OFF: u32 = WIN32_IO_H00_SCRATCH_OFF + 24;
 /// Per-descriptor hModule during import walk (reuses phase qword; import_ok overwrites).
 const H00_IMPORT_HMODULE_SCRATCH_OFF: u32 = H00_PHASE_SCRATCH_OFF;
-/// IAT write cursor spill across GetProcAddress (must not use stack below import shadow).
-const H00_IAT_CURSOR_SCRATCH_OFF: u32 = WIN32_IO_H00_SCRATCH_OFF + 32;
+/// IAT cursor spill slot above import-descriptor `sub rsp,38h` frame (not in Win64 homes).
+const IMPORT_GPA_IAT_CURSOR_SPILL: u8 = WIN64_CALL_SHADOW;
 
 const PHASE_H00_ENTERED: u8 = 0x00;
 const PHASE_PRELUDE_CREATE_OK: u8 = 0x01;
@@ -86,12 +86,11 @@ fn emit_win64_pop_shadow(c: &mut Vec<u8>) {
 /// GetProcAddress clobbers volatile r11 (IAT write cursor).
 /// Do not push/sub rsp below import-descriptor `sub rsp,38h` — GPA shadow then writes past the
 /// allocated frame → AV. Do not spill to [rsp+30h] home — GPA clobbers Win64 homes.
+/// Do not spill to [r15+scratch] — stale r15 / scratch past 32 B pin can AV on Windows.
 fn emit_call_gpa_preserve_r11(c: &mut Vec<u8>) {
-    c.extend_from_slice(&[0x4D, 0x89, 0x9F]); // mov [r15+scratch], r11
-    c.extend_from_slice(&H00_IAT_CURSOR_SCRATCH_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x4C, 0x89, 0x5C, 0x24, IMPORT_GPA_IAT_CURSOR_SPILL]); // mov [rsp+38h], r11
     emit_call_r15_scratch(c, H00_GETPROCADDRESS_SCRATCH_OFF);
-    c.extend_from_slice(&[0x4D, 0x8B, 0x9F]); // mov r11, [r15+scratch]
-    c.extend_from_slice(&H00_IAT_CURSOR_SCRATCH_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, IMPORT_GPA_IAT_CURSOR_SPILL]); // mov r11, [rsp+38h]
 }
 
 /// After `test`/`cmp` ZF=1 (fail): pop Win64 shadow then jmp fail; ZF=0 skip
@@ -1942,27 +1941,25 @@ mod tests {
             "import name thunk needs lea rdx,[r14+r10+2] then jmp gpa_call_site (E9)"
         );
         assert!(
-            body.windows(20).any(|w| {
+            body.windows(14).any(|w| {
                 w[0..10] == [0x44, 0x89, 0xD0, 0x25, 0xFF, 0xFF, 0x00, 0x00, 0x89, 0xC2]
-                    && w[10] == 0x4D
-                    && w[11] == 0x89
-                    && w[12] == 0x9F
+                    && w[10..14] == [0x4C, 0x89, 0x5C, 0x24]
             }),
-            "import ordinal thunk needs and eax,0xffff + mov [r15+iat_cursor],r11 before GPA"
+            "import ordinal thunk needs and eax,0xffff + mov [rsp+38h],r11 before GPA"
         );
         assert!(
             body.windows(10).any(|w| {
-                w[0..3] == [0x4D, 0x89, 0x9F]
-                    && w[7..10] == [0x41, 0xFF, 0x97]
+                w[0..5] == [0x4C, 0x89, 0x5C, 0x24, IMPORT_GPA_IAT_CURSOR_SPILL]
+                    && w[5..8] == [0x41, 0xFF, 0x97]
             }),
-            "import loop must mov [r15+iat_cursor],r11 before call [r15+GPA]"
+            "import loop must mov [rsp+38h],r11 before call [r15+GPA]"
         );
         assert!(
             body.windows(10).any(|w| {
-                w[0..3] == [0x4D, 0x8B, 0x9F]
-                    && w[7..10] == [0x48, 0x85, 0xC0]
+                w[0..5] == [0x4C, 0x8B, 0x5C, 0x24, IMPORT_GPA_IAT_CURSOR_SPILL]
+                    && w[5..8] == [0x48, 0x85, 0xC0]
             }),
-            "import GPA must mov r11,[r15+iat_cursor] then test rax before IAT store"
+            "import GPA must mov r11,[rsp+38h] then test rax before IAT store"
         );
         assert!(
             !body.windows(6).any(|w| w == [0x48, 0x83, 0xEC, 0x08, 0x41, 0x54]),
@@ -1974,7 +1971,11 @@ mod tests {
         );
         assert!(
             !body.windows(5).any(|w| w == [0x4C, 0x89, 0x5C, 0x24, 0x48]),
-            "IAT cursor must not spill at [rsp+48h] — use [rsp+30h] inside import-descriptor shadow"
+            "import GPA must not spill r11 to [rsp+48h] — use [rsp+38h] above import shadow"
+        );
+        assert!(
+            !body.windows(7).any(|w| w == [0x4D, 0x89, 0x9F, 0x18, 0x01, 0x00, 0x00]),
+            "import GPA must not spill IAT cursor to [r15+118h] — use [rsp+38h]"
         );
         assert!(
             body.windows(8).any(|w| {
