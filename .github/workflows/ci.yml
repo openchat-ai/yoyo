@@ -4,6 +4,17 @@ on:
   push:
     branches: [master]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      h00_bisect:
+        description: "Enable Stage17 H00 multi-phase bisect (expensive; 150–165 rebuilds). Default off — use for debug only."
+        type: boolean
+        default: false
+
+# One active run per workflow+ref; newer pushes cancel older Stage17 thrash.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -60,8 +71,12 @@ jobs:
         working-directory: yoyo-rust/verifier
         run: cargo run -- info
 
+      # Default: smoke once. Multi-phase H00 bisect is opt-in only (H00_BISECT=1 /
+      # workflow_dispatch input h00_bisect=true). Do NOT enable on routine PR pushes.
       - name: Stage 17 OW-IAT wire-up (manual-map H_00 + cwd sidecar smoke)
         shell: pwsh
+        env:
+          H00_BISECT: ${{ github.event.inputs.h00_bisect == 'true' && '1' || '' }}
         run: pwsh -NoProfile -File scripts/stage17-ow-iat-wireup.ps1
 
   linux-m4:

@@ -3,9 +3,16 @@
 # Phase 2: manual-map x64 body wired into gen_h00_selfhost_main; PEB LoadLibraryA dropped.
 # Phase 3: JS/asm three-peer lockstep (template + explicit IAT patch sites).
 # Phase 4: Windows smoke — cwd yoyo_rt.dll + manual-map H_00 (fail-closed if sidecar missing).
+#
+# H00 multi-phase bisect (150–165 rebuilds) is OPT-IN only:
+#   $env:H00_BISECT = "1"; .\scripts\stage17-ow-iat-wireup.ps1
+#   or: .\scripts\stage17-ow-iat-wireup.ps1 -EnableBisect
+#   or CI: workflow_dispatch input h00_bisect=true
+# Default / CI push+PR: smoke once; on AV fail closed with a clear message (no rebuild loop).
 param(
     [switch]$SkipBuild,
     [switch]$SkipSmoke,
+    [switch]$EnableBisect,
     [ValidateRange(0, 255)]
     [int]$BisectExit = 0
 )
@@ -14,7 +21,16 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
+function Test-H00BisectEnabled {
+    if ($EnableBisect) { return $true }
+    $v = $env:H00_BISECT
+    if ([string]::IsNullOrWhiteSpace($v)) { return $false }
+    return $v -match '^(?i)(1|true|yes|on)$'
+}
+$H00BisectOn = Test-H00BisectEnabled
+
 Write-Host "=== Stage 17: OW-IAT wire-up (manual-map H_00) ==="
+Write-Host ("H00_BISECT={0} (multi-phase rebuild diagnostic; default off)" -f $(if ($H00BisectOn) { "ON" } else { "off" }))
 
 if ($BisectExit -gt 0) {
     Write-Host "Bisect: rebuilding verifier with H00_BISECT_EXIT=$BisectExit (compile-time)"
@@ -221,9 +237,13 @@ if (-not $SkipSmoke) {
         Pop-Location
     }
     if ($failExit -eq -1073741819) {
-        $bisect = Invoke-H00BisectDiagnostic $runFail $Ty $Tyb $dllPath -NoSidecar
-        Write-Host "H00_BISECT_DIAG no-sidecar $bisect"
-        throw ("manual-map smoke WITHOUT sidecar AV (crash before CreateFile fail-closed exit=2) bisect=$bisect")
+        if ($H00BisectOn) {
+            $bisect = Invoke-H00BisectDiagnostic $runFail $Ty $Tyb $dllPath -NoSidecar
+            Write-Host "H00_BISECT_DIAG no-sidecar $bisect"
+            throw ("manual-map smoke WITHOUT sidecar AV (crash before CreateFile fail-closed exit=2) bisect=$bisect")
+        }
+        Write-Host "H00_BISECT skipped — set H00_BISECT=1 or -EnableBisect for multi-phase rebuild diagnostic (local/debug only)"
+        throw "manual-map smoke WITHOUT sidecar AV (crash before CreateFile fail-closed exit=2); re-run with H00_BISECT=1 for phase bisect"
     }
     if ((Test-Path $outFail) -and $failExit -eq 0) {
         throw "fail-closed WITHOUT sidecar produced output.exe (manual-map must require cwd yoyo_rt.dll)"
@@ -248,8 +268,12 @@ if (-not $SkipSmoke) {
         $outDiag = if ($smoke.OutPresent) { "output.exe=present" } else { "output.exe=absent" }
         $bisect = ""
         if ($smokeExit -eq -1073741819) {
-            $bisect = Invoke-H00BisectDiagnostic $runOk $Ty $Tyb $dllPath
-            Write-Host "H00_BISECT_DIAG $bisect"
+            if ($H00BisectOn) {
+                $bisect = Invoke-H00BisectDiagnostic $runOk $Ty $Tyb $dllPath
+                Write-Host "H00_BISECT_DIAG $bisect"
+            } else {
+                Write-Host "H00_BISECT skipped — set H00_BISECT=1 or -EnableBisect for multi-phase rebuild diagnostic (local/debug only)"
+            }
         }
         throw ("manual-map smoke WITH sidecar failed exit={0} phase={1} {2}{3}" -f $smokeExit, $phase, $outDiag, $(if ($bisect) { " bisect=$bisect" } else { "" }))
     }
