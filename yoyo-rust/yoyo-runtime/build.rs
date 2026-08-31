@@ -13,4 +13,6 @@ fn main() {
     )
     .expect("write exports.def");
     println!("cargo:rustc-cdylib-link-arg=/DEF:{}", def.display());
+    // Manual-map smoke calls export without DllMain — disable /GS stack cookies (else AV).
+    println!("cargo:rustc-link-arg=/GS-");
 }

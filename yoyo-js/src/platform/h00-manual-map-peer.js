@@ -21,15 +21,17 @@ function patchRel32(buf, dispOff, from, to) {
   buf.writeInt32LE(to - from, dispOff);
 }
 
-const H00_LEA_SITE = 15;
+const H00_LEA_SITE = 32;
+const H00_RELOAD_R15_SITES = [
+  7, 21, 125, 185, 257, 298, 312, 689, 1027, 2138, 2161, 2184, 2207, 2230, 2253, 2276, 2299,
+];
 const H00_IAT_SITES = [
-  [54, 1], // CreateFileA
-  [92, 0], // VirtualAlloc (file buffer)
-  [136, 2], // ReadFile
-  [145, 4], // CloseHandle
-  [195, 0], // VirtualAlloc (image)
-  [890, 5], // ExitProcess (success)
-  [901, 5], // ExitProcess (fail)
+  [79, 1], // CreateFileA
+  [158, 0], // VirtualAlloc (file buffer)
+  [234, 2], // ReadFile
+  [279, 4], // CloseHandle
+  [354, 0], // VirtualAlloc (image)
+  [2132, 5], // ExitProcess (export success)
 ];
 
 function rebaseManualMapStub(buf, textRva, codeBaseOff, meta) {
@@ -39,6 +41,9 @@ function rebaseManualMapStub(buf, textRva, codeBaseOff, meta) {
     textRva + codeBaseOff + H00_LEA_SITE + 7,
     meta.tempNameRva,
   );
+  for (const at of H00_RELOAD_R15_SITES) {
+    patchRel32(buf, at + 3, textRva + codeBaseOff + at + 7, meta.iatRva);
+  }
   for (const [at, slot] of H00_IAT_SITES) {
     patchRel32(
       buf,

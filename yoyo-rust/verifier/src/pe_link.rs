@@ -22,63 +22,139 @@ const KERNEL32_IO_FUNCS: &[&str] = &[
     "ExitProcess",
 ];
 
+/// Do **not** import UCRT/VCRUNTIME into the seed PE.
+/// Handmade EXEs that import `api-ms-win-crt-*.dll` / `VCRUNTIME140.dll` can AV in
+/// CRT DllMain/attach **before** `AddressOfEntryPoint` (stage17 no-sidecar bisect
+/// 150–155 all 0xC0000005). Sidecar CRT is loaded later via H_00 PEB+LoadLibrary.
+const PRELOAD_RUNTIME_DLL_IMPORTS: &[(&str, &str)] = &[];
+
+/// Bootstrap scratch for H_00 manual-map (LoadLibraryA / GetProcAddress / kernel32 / phase byte).
+/// Placed after import metadata in `prepend_win32_io_iat` — must not overlap IAT or descriptors.
+pub const WIN32_IO_H00_SCRATCH_BYTES: usize = 32;
+
+/// Offset from r15 / `.data` base to H_00 scratch (pinned by `h00_scratch_off_pinned`).
+/// Kernel32-only IAT (no UCRT preload); IAT/ILT null-terminated and 8-aligned.
+pub const WIN32_IO_H00_SCRATCH_OFF: u32 = 0xF8;
+
+fn hint_name_bytes(func: &str) -> Vec<u8> {
+    let mut hn = Vec::new();
+    hn.extend_from_slice(&0u16.to_le_bytes());
+    hn.extend_from_slice(func.as_bytes());
+    hn.push(0);
+    while hn.len() % 2 != 0 {
+        hn.push(0);
+    }
+    hn
+}
+
 /// Prepend kernel32 IAT at r15+0 for Stage 8 platform I/O emit.
 fn prepend_win32_io_iat(user_data: &[u8], data_rva: u32) -> (Vec<u8>, u32, u32) {
-    let n = KERNEL32_IO_FUNCS.len();
-    let desc_size = 40usize;
+    const DESC_SIZE: usize = 20; // IMAGE_IMPORT_DESCRIPTOR (was 40 — broke loader chain)
+    let desc_size = DESC_SIZE;
     let kernel32_name = b"kernel32.dll\0";
-    let iat_slots_off = 0usize; // r15+0 .. r15+40
+    let kern_n = KERNEL32_IO_FUNCS.len();
+    let preload_n = PRELOAD_RUNTIME_DLL_IMPORTS.len();
+    let num_desc = 1 + preload_n + 1; // trailing null descriptor
 
-    let mut hint_names: Vec<Vec<u8>> = Vec::new();
-    for name in KERNEL32_IO_FUNCS {
-        let mut hn = Vec::new();
-        hn.extend_from_slice(&0u16.to_le_bytes());
-        hn.extend_from_slice(name.as_bytes());
-        hn.push(0);
-        while hn.len() % 2 != 0 {
-            hn.push(0);
-        }
-        hint_names.push(hn);
+    // Each IAT/ILT array is null-terminated and 8-byte aligned. Packed IATs without a
+    // terminating thunk made the loader walk kernel32 FirstThunk into CRT names.
+    let kern_iat_off = 0usize;
+    let kern_iat_bytes = (kern_n + 1) * 8;
+    let preload_iat_stride = 16; // one thunk + null
+    let preload_iat_base = kern_iat_bytes;
+    let desc_off = preload_iat_base + preload_n * preload_iat_stride;
+
+    let kern_hints: Vec<Vec<u8>> = KERNEL32_IO_FUNCS.iter().map(|s| hint_name_bytes(s)).collect();
+    let preload_hints: Vec<Vec<u8>> = PRELOAD_RUNTIME_DLL_IMPORTS
+        .iter()
+        .map(|(_, f)| hint_name_bytes(f))
+        .collect();
+
+    let strings_off = desc_off + desc_size * num_desc;
+    let mut cursor = strings_off;
+
+    let kern_name_off = cursor;
+    cursor += kernel32_name.len();
+
+    let mut kern_hn_off = Vec::new();
+    for hn in &kern_hints {
+        kern_hn_off.push(cursor);
+        cursor += hn.len();
+    }
+    cursor = align_up_usize(cursor, 8);
+    let kern_ilt_off = cursor;
+    cursor += (kern_n + 1) * 8;
+
+    let mut preload_meta: Vec<(usize, usize, usize, usize)> = Vec::new();
+    for (i, (dll, _)) in PRELOAD_RUNTIME_DLL_IMPORTS.iter().enumerate() {
+        let name_off = cursor;
+        cursor += dll.len() + 1;
+        let hn_off = cursor;
+        cursor += preload_hints[i].len();
+        cursor = align_up_usize(cursor, 8);
+        let ilt_off = cursor;
+        cursor += 16; // one thunk + null
+        let iat_off = preload_iat_base + i * preload_iat_stride;
+        preload_meta.push((name_off, hn_off, ilt_off, iat_off));
     }
 
-    let desc_off = (n + 1) * 8;
-    let kern_off = desc_off + desc_size;
-    let hn_start = kern_off + kernel32_name.len();
-    let mut hn_off = hn_start;
-    let mut hn_rvas: Vec<u32> = Vec::new();
-    for hn in &hint_names {
-        hn_rvas.push(data_rva + hn_off as u32);
-        hn_off += hn.len();
-    }
-
-    let ilt_off = hn_off;
-    let header_end = ilt_off + (n + 1) * 8;
+    let h00_scratch_off = cursor;
+    cursor += WIN32_IO_H00_SCRATCH_BYTES;
+    let header_end = cursor;
     let pad = align_up_usize(header_end, 16);
+    debug_assert_eq!(
+        h00_scratch_off,
+        WIN32_IO_H00_SCRATCH_OFF as usize,
+        "update WIN32_IO_H00_SCRATCH_OFF (got 0x{h00_scratch_off:x})"
+    );
     let mut blob = vec![0u8; pad + user_data.len()];
     let user_base = pad;
 
-    write_u32(&mut blob, desc_off, data_rva + ilt_off as u32);
-    write_u32(&mut blob, desc_off + 12, data_rva + kern_off as u32);
-    write_u32(&mut blob, desc_off + 16, data_rva + iat_slots_off as u32);
+    // kernel32 descriptor
+    write_u32(&mut blob, desc_off, data_rva + kern_ilt_off as u32);
+    write_u32(&mut blob, desc_off + 12, data_rva + kern_name_off as u32);
+    write_u32(&mut blob, desc_off + 16, data_rva + kern_iat_off as u32);
 
-    blob[kern_off..kern_off + kernel32_name.len()].copy_from_slice(kernel32_name);
-
-    let mut off = hn_start;
-    for hn in &hint_names {
-        blob[off..off + hn.len()].copy_from_slice(hn);
-        off += hn.len();
+    for (i, (name_off, hn_off, ilt_off, iat_off)) in preload_meta.iter().enumerate() {
+        let at = desc_off + desc_size * (1 + i);
+        write_u32(&mut blob, at, data_rva + *ilt_off as u32);
+        write_u32(&mut blob, at + 12, data_rva + *name_off as u32);
+        write_u32(&mut blob, at + 16, data_rva + *iat_off as u32);
     }
 
-    for (i, &hn_rva) in hn_rvas.iter().enumerate() {
-        write_u64(&mut blob, ilt_off + i * 8, hn_rva as u64);
-        write_u64(&mut blob, iat_slots_off + i * 8, hn_rva as u64);
+    blob[kern_name_off..kern_name_off + kernel32_name.len()].copy_from_slice(kernel32_name);
+    for (off, hn) in kern_hn_off.iter().zip(&kern_hints) {
+        blob[*off..*off + hn.len()].copy_from_slice(hn);
+    }
+    for (i, &hn_off) in kern_hn_off.iter().enumerate() {
+        let hn_rva = data_rva + hn_off as u32;
+        write_u64(&mut blob, kern_ilt_off + i * 8, hn_rva as u64);
+        write_u64(&mut blob, kern_iat_off + i * 8, hn_rva as u64);
+    }
+    // kern IAT/ILT terminating thunks stay 0 (blob zero-filled)
+
+    for (i, ((dll, _), (name_off, hn_off, ilt_off, iat_off))) in PRELOAD_RUNTIME_DLL_IMPORTS
+        .iter()
+        .zip(preload_meta.iter())
+        .enumerate()
+    {
+        blob[*name_off..*name_off + dll.len() + 1]
+            .copy_from_slice(&[dll.as_bytes(), b"\0"].concat());
+        let hn = &preload_hints[i];
+        blob[*hn_off..*hn_off + hn.len()].copy_from_slice(hn);
+        let hn_rva = data_rva + *hn_off as u32;
+        write_u64(&mut blob, *ilt_off, hn_rva as u64);
+        write_u64(&mut blob, *ilt_off + 8, 0);
+        write_u64(&mut blob, *iat_off, hn_rva as u64);
+        write_u64(&mut blob, *iat_off + 8, 0);
     }
 
     blob[user_base..user_base + user_data.len()].copy_from_slice(user_data);
+    let import_dir_bytes = desc_size * num_desc;
     (
         blob,
         data_rva + desc_off as u32,
-        desc_size as u32,
+        import_dir_bytes as u32,
     )
 }
 
@@ -129,7 +205,7 @@ pub fn link_pe_win32(
         let data_rva = text_rva + text_vs;
         let (extended, import_dir_rva, import_dir_size) = prepend_win32_io_iat(data, data_rva);
         let _ = platform_io::WIN32_IAT_DATA_RESERVE;
-        link_pe_impl(code, &extended, true, import_dir_rva, import_dir_size)
+        link_pe_impl(code, &extended, true, import_dir_rva, import_dir_size, None)
     }
 }
 
@@ -218,7 +294,14 @@ pub fn link_pe_h00_runtime(
         code[i] = 0x90;
     }
     let _ = platform_io::WIN32_IAT_DATA_RESERVE;
-    link_pe_impl(&code, &extended, true, import_dir_rva, import_dir_size)
+    link_pe_impl(
+        &code,
+        &extended,
+        true,
+        import_dir_rva,
+        import_dir_size,
+        Some(data_rva),
+    )
 }
 
 /// Embed default selfhost paths at r15+STR_TABLE_OFF (platform_io layout).
@@ -290,6 +373,7 @@ pub fn link_pe_selfhost(
         true,
         meta.import_dir_rva,
         meta.import_dir_size,
+        None,
     )
 }
 
@@ -299,21 +383,42 @@ fn link_pe_impl(
     is_selfhost: bool,
     import_dir_rva: u32,
     import_dir_size: u32,
+    data_rva_override: Option<u32>,
 ) -> IsaResult<PeImage> {
     let section_align: u32 = 0x1000;
     let file_align: u32 = 0x200;
+    const PE_STARTUP_LEN: u32 = 13;
 
-    let code_raw = align_up(code.len() as u32, file_align);
+    let code_need = code.len() as u32 + PE_STARTUP_LEN;
+    let code_raw = align_up(code_need, file_align);
     let data_need = OUTPUT_DATA_NEED.max(align_up(data.len() as u32 + 0x1000, section_align));
     let data_raw = align_up(data_need, file_align);
 
     // Layout:
     // 0x0000: DOS + PE headers (1 section-align = 0x1000 file, 0x200 min)
-    // text VA 0x1000, data VA 0x1000 + align(code)
+    // text VA 0x1000, data VA 0x1000 + align(startup + code)
     let headers_raw = 0x400u32;
     let text_rva = section_align; // 0x1000
-    let text_vs = align_up(code.len() as u32 + 0x40, section_align); // room for startup
-    let data_rva = text_rva + text_vs;
+    let text_vs_fit = align_up(code_need + 0x40, section_align);
+    let (text_vs, data_rva) = match data_rva_override {
+        Some(d) => {
+            if d < text_rva {
+                return Err(crate::types::IsaError::PlatformError {
+                    msg: format!("H_00 link: data_rva 0x{d:x} before text_rva 0x{text_rva:x}"),
+                });
+            }
+            let tvs = d - text_rva;
+            if code_need + 0x40 > tvs {
+                return Err(crate::types::IsaError::PlatformError {
+                    msg: format!(
+                        "H_00 link: code+startup ({code_need}B) exceeds two-pass text VS ({tvs}B)"
+                    ),
+                });
+            }
+            (tvs, d)
+        }
+        None => (text_vs_fit, text_rva + text_vs_fit),
+    };
     let data_vs = data_need;
 
     let size_of_image = align_up(data_rva + data_vs, section_align);
@@ -353,7 +458,9 @@ fn link_pe_impl(
     write_u32(&mut img, opt + 56, size_of_image);
     write_u32(&mut img, opt + 60, size_of_headers);
     write_u16(&mut img, opt + 68, 3); // Subsystem = CONSOLE
-    write_u16(&mut img, opt + 70, 0x8160); // DllCharacteristics
+    // NX only — no DYNAMIC_BASE / HIGH_ENTROPY_VA: this image has no .reloc.
+    // ASLR rebase of a reloc-less handmade PE is a common startup AV.
+    write_u16(&mut img, opt + 70, 0x0100); // NX_COMPAT
     write_u64(&mut img, opt + 72, 0x100000); // Stack Reserve
     write_u64(&mut img, opt + 80, 0x1000); // Stack Commit
     write_u64(&mut img, opt + 88, 0x100000); // Heap Reserve
@@ -387,7 +494,7 @@ fn link_pe_impl(
     //   lea r15, [rip + disp]  ; r15 = data base (state)
     //   jmp user_code
     let text_file_off = headers_raw as usize;
-    let startup_len = 13u32; // lea r15, [rip+d] (7) + jmp rel32 (5) + align nop
+    let startup_len = PE_STARTUP_LEN; // lea r15, [rip+d] (7) + jmp rel32 (5) + align nop
 
     // lea r15, [rip + disp32]
     // After this 7-byte insn, RIP = text_rva + 7
@@ -465,5 +572,237 @@ mod tests {
         let pe = link_pe(&[0xC3], &[]).unwrap();
         // file should be large enough to hold data section raw size
         assert!(pe.bytes.len() > 0x38000);
+    }
+
+    #[test]
+    fn h00_scratch_off_pinned() {
+        const DESC_SIZE: usize = 20;
+        let desc_size = DESC_SIZE;
+        let kern_n = KERNEL32_IO_FUNCS.len();
+        let preload_n = PRELOAD_RUNTIME_DLL_IMPORTS.len();
+        let num_desc = 1 + preload_n + 1;
+        let kern_iat_bytes = (kern_n + 1) * 8;
+        let desc_off = kern_iat_bytes + preload_n * 16;
+        let strings_off = desc_off + desc_size * num_desc;
+        let mut cursor = strings_off + b"kernel32.dll\0".len();
+        for f in KERNEL32_IO_FUNCS {
+            let mut hn = Vec::new();
+            hn.extend_from_slice(&0u16.to_le_bytes());
+            hn.extend_from_slice(f.as_bytes());
+            hn.push(0);
+            while hn.len() % 2 != 0 {
+                hn.push(0);
+            }
+            cursor += hn.len();
+        }
+        cursor = super::align_up_usize(cursor, 8);
+        cursor += (kern_n + 1) * 8;
+        for (dll, f) in PRELOAD_RUNTIME_DLL_IMPORTS {
+            cursor += dll.len() + 1;
+            let mut hn = Vec::new();
+            hn.extend_from_slice(&0u16.to_le_bytes());
+            hn.extend_from_slice(f.as_bytes());
+            hn.push(0);
+            while hn.len() % 2 != 0 {
+                hn.push(0);
+            }
+            cursor += hn.len();
+            cursor = super::align_up_usize(cursor, 8);
+            cursor += 16;
+        }
+        let scratch_off = cursor;
+        assert_eq!(
+            scratch_off,
+            WIN32_IO_H00_SCRATCH_OFF as usize,
+            "update WIN32_IO_H00_SCRATCH_OFF in pe_link + h00_manual_map_wireup"
+        );
+        assert!(
+            scratch_off > desc_off,
+            "scratch must be past import descriptors (desc_off=0x{desc_off:x})"
+        );
+        assert_eq!(scratch_off % 8, 0, "scratch should be 8-byte aligned");
+    }
+
+    #[test]
+    fn h00_seed_pe_import_ilt_aligned_and_iat_null_terminated() {
+        let mut code = vec![0u8; 32];
+        code[0] = 0xC3;
+        let handler_offsets = [(0x20u16, 8, 4), (0x21, 16, 4)];
+        let pe = link_pe_win32(&code, &[1, 2, 3], &handler_offsets).expect("link h00 seed");
+        let img = &pe.bytes;
+        let lfanew = u32::from_le_bytes(img[0x3C..0x40].try_into().unwrap()) as usize;
+        let opt = lfanew + 24;
+        let soh = u16::from_le_bytes(img[lfanew + 20..lfanew + 22].try_into().unwrap()) as usize;
+        let sec = lfanew + 24 + soh;
+        let mut data_rva = 0u32;
+        let mut data_raw = 0usize;
+        for i in 0..2 {
+            let s = sec + i * 40;
+            let name = &img[s..s + 8];
+            let vrva = u32::from_le_bytes(img[s + 12..s + 16].try_into().unwrap());
+            let rawptr = u32::from_le_bytes(img[s + 20..s + 24].try_into().unwrap()) as usize;
+            if name.starts_with(b".data") {
+                data_rva = vrva;
+                data_raw = rawptr;
+            }
+        }
+        let dd1 = opt + 112 + 8;
+        let import_rva = u32::from_le_bytes(img[dd1..dd1 + 4].try_into().unwrap());
+        let desc_raw = data_raw + (import_rva - data_rva) as usize;
+        let ilt_rva = u32::from_le_bytes(img[desc_raw..desc_raw + 4].try_into().unwrap());
+        let iat_rva = u32::from_le_bytes(img[desc_raw + 16..desc_raw + 20].try_into().unwrap());
+        assert_eq!(
+            ilt_rva % 8,
+            0,
+            "kernel32 ILT must be 8-byte aligned (got 0x{ilt_rva:x})"
+        );
+        assert_eq!(iat_rva, data_rva, "kernel32 IAT at .data base");
+        let kern_n = KERNEL32_IO_FUNCS.len();
+        let iat_term = data_raw + kern_n * 8;
+        let term = u64::from_le_bytes(img[iat_term..iat_term + 8].try_into().unwrap());
+        assert_eq!(term, 0, "kernel32 IAT must be null-terminated after {kern_n} slots");
+    }
+
+    /// H_00 seed PE: startup `lea r15` and prelude `call [r15+iat]` must agree on `.data` base.
+    #[test]
+    fn h00_seed_pe_rva_consistency() {
+        use crate::ddc::PE_STARTUP_LEN;
+        use crate::h00_manual_map_wireup::IAT_CREATE_FILE;
+
+        let mut code = vec![0u8; 32];
+        code[0] = 0xC3;
+        let handler_offsets = [(0x20u16, 8, 4), (0x21, 16, 4)];
+        let pe = link_pe_win32(&code, &[1, 2, 3], &handler_offsets).expect("link h00 seed");
+        let img = &pe.bytes;
+
+        let lfanew = u32::from_le_bytes(img[0x3C..0x40].try_into().unwrap()) as usize;
+        let opt = lfanew + 24;
+        let entry_rva = u32::from_le_bytes(img[opt + 16..opt + 20].try_into().unwrap());
+        let soh = u16::from_le_bytes(img[lfanew + 20..lfanew + 22].try_into().unwrap()) as usize;
+        let sec = lfanew + 24 + soh;
+        let mut text_rva = 0u32;
+        let mut text_raw = 0usize;
+        let mut data_rva = 0u32;
+        let mut data_raw = 0usize;
+        for i in 0..2 {
+            let s = sec + i * 40;
+            let name = &img[s..s + 8];
+            let vrva = u32::from_le_bytes(img[s + 12..s + 16].try_into().unwrap());
+            let rawptr = u32::from_le_bytes(img[s + 20..s + 24].try_into().unwrap()) as usize;
+            if name.starts_with(b".text") {
+                text_rva = vrva;
+                text_raw = rawptr;
+            } else if name.starts_with(b".data") {
+                data_rva = vrva;
+                data_raw = rawptr;
+            }
+        }
+        assert_eq!(entry_rva, text_rva, "entry must be startup in .text");
+
+        let lea_disp = i32::from_le_bytes(img[text_raw + 3..text_raw + 7].try_into().unwrap());
+        let r15_from_startup = text_rva + 7 + lea_disp as u32;
+        assert_eq!(
+            r15_from_startup, data_rva,
+            "startup lea r15 must target .data base (got 0x{r15_from_startup:x} data=0x{data_rva:x})"
+        );
+
+        let h00_jmp_rel = i32::from_le_bytes(
+            img[text_raw + PE_STARTUP_LEN + 1..text_raw + PE_STARTUP_LEN + 5]
+                .try_into()
+                .unwrap(),
+        );
+        let stub_off = PE_STARTUP_LEN + 5 + h00_jmp_rel as usize;
+        let stub = &img[text_raw + stub_off..];
+
+        // Prelude CreateFile uses rip-relative FF15; reload r15 precedes phase probes.
+        let reload_r15 = stub
+            .windows(3)
+            .position(|w| w == [0x4C, 0x8D, 0x3D])
+            .expect("reload r15 lea in stub");
+        let reload_disp =
+            i32::from_le_bytes(stub[reload_r15 + 3..reload_r15 + 7].try_into().unwrap());
+        let reload_next = text_rva + stub_off as u32 + reload_r15 as u32 + 7;
+        assert_eq!(
+            reload_next as i32 + reload_disp,
+            data_rva as i32,
+            "reload r15 must target .data base"
+        );
+
+        let create_ff15 = stub
+            .windows(2)
+            .position(|w| w == [0xFF, 0x15])
+            .expect("CreateFile FF 15 in prelude");
+        assert!(
+            create_ff15 > reload_r15,
+            "CreateFile FF15 must follow reload r15"
+        );
+        let disp = i32::from_le_bytes(stub[create_ff15 + 2..create_ff15 + 6].try_into().unwrap());
+        let call_rva = text_rva + stub_off as u32 + create_ff15 as u32 + 6;
+        let iat_rva = (call_rva as i32 + disp) as u32;
+        assert_eq!(
+            iat_rva,
+            data_rva + 8,
+            "CreateFile IAT slot must be data_rva+8 (got 0x{iat_rva:x})"
+        );
+
+        // Manual-map body VirtualAlloc(image) is the second FF15 in the stub.
+        let va_ff15 = stub[create_ff15 + 6..]
+            .windows(2)
+            .position(|w| w == [0xFF, 0x15])
+            .expect("VirtualAlloc(image) FF 15 in stub")
+            + create_ff15
+            + 6;
+        let disp = i32::from_le_bytes(stub[va_ff15 + 2..va_ff15 + 6].try_into().unwrap());
+        let call_rva = text_rva + stub_off as u32 + va_ff15 as u32 + 6;
+        let iat_rva = (call_rva as i32 + disp) as u32;
+        assert_eq!(
+            iat_rva,
+            data_rva,
+            "first FF15 IAT slot must be VirtualAlloc at data_rva+0 (got 0x{iat_rva:x})"
+        );
+
+        let create_slot_off = IAT_CREATE_FILE * 8;
+        let iat_raw = data_raw + create_slot_off as usize;
+        let hint_rva = u32::from_le_bytes(img[iat_raw..iat_raw + 4].try_into().unwrap());
+        let hint_raw = data_raw + (hint_rva - data_rva) as usize;
+        assert_eq!(
+            &img[hint_raw + 2..hint_raw + 13],
+            b"CreateFileA",
+            "CreateFile IAT slot at data_rva+8 must reference CreateFileA"
+        );
+
+        let lea_rcx = stub
+            .windows(3)
+            .position(|w| w == [0x48, 0x8D, 0x0D])
+            .expect("lea rcx,[rip+disp] for yoyo_rt.dll");
+        let path_disp =
+            i32::from_le_bytes(stub[lea_rcx + 3..lea_rcx + 7].try_into().unwrap());
+        let path_rva = text_rva + stub_off as u32 + lea_rcx as u32 + 7 + path_disp as u32;
+        let path_raw = data_raw + (path_rva - data_rva) as usize;
+        assert_eq!(
+            &img[path_raw..path_raw + 12],
+            b"yoyo_rt.dll\0",
+            "sidecar path must point at yoyo_rt.dll string in .data"
+        );
+
+        // Seed PE must not import UCRT/VCRUNTIME (CRT attach AV before entry).
+        let imp_rva = u32::from_le_bytes(img[opt + 120..opt + 124].try_into().unwrap());
+        let imp_raw = data_raw + (imp_rva - data_rva) as usize;
+        let name_rva = u32::from_le_bytes(img[imp_raw + 12..imp_raw + 16].try_into().unwrap());
+        let name_raw = data_raw + (name_rva - data_rva) as usize;
+        let dll_end = img[name_raw..].iter().position(|&b| b == 0).unwrap();
+        assert_eq!(
+            &img[name_raw..name_raw + dll_end],
+            b"kernel32.dll",
+            "first import must be kernel32.dll"
+        );
+        let desc1_ilt = u32::from_le_bytes(img[imp_raw + 20..imp_raw + 24].try_into().unwrap());
+        assert_eq!(desc1_ilt, 0, "second import descriptor must be null (no UCRT preload)");
+        let dllchar = u16::from_le_bytes(img[opt + 70..opt + 72].try_into().unwrap());
+        assert_eq!(
+            dllchar & 0x0060,
+            0,
+            "seed PE must not set DYNAMIC_BASE/HIGH_ENTROPY_VA without .reloc"
+        );
     }
 }

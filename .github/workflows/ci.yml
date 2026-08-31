@@ -20,19 +20,21 @@ jobs:
         with:
           rustflags: ""
 
+      # crt-static sidecar MUST build before verifier — otherwise reused verifier rlibs
+      # keep /MD and yoyo_runtime.dll still imports VCRUNTIME140 (manual-map PEB walk fails).
+      - name: Build yoyo-runtime DLL
+        working-directory: yoyo-rust
+        env:
+          RUSTFLAGS: "-C target-feature=+crt-static"
+        run: cargo build --profile release-runtime -p yoyo-runtime
+
       - name: Build verifier
         working-directory: yoyo-rust/verifier
         run: cargo build
 
-      # gen2rt / --selfhost still embeds; release-runtime also keeps DLL size under OW-RT MAX.
-      # H_00 seed/link itself no longer exact-embeds (post-v1.0 sidecar).
-      - name: Build yoyo-runtime DLL
-        working-directory: yoyo-rust
-        run: cargo build --profile release-runtime -p yoyo-runtime
-
       - name: Unit tests
         working-directory: yoyo-rust/verifier
-        run: cargo test
+        run: cargo test -- --test-threads=1
 
       - name: Golden tests
         working-directory: yoyo-rust/verifier
@@ -60,8 +62,7 @@ jobs:
 
       - name: Stage 17 OW-IAT wire-up (manual-map H_00 + cwd sidecar smoke)
         shell: pwsh
-        # Runtime smoke RED (manual-map AV 0xC0000005) — unit tests + PE markers only until fixed.
-        run: pwsh -NoProfile -File scripts/stage17-ow-iat-wireup.ps1 -SkipSmoke
+        run: pwsh -NoProfile -File scripts/stage17-ow-iat-wireup.ps1
 
   linux-m4:
     # Post-v1.0 OW-RT Linux sidecar + OW-IAT no-dlsym tramp — prevent Windows-only CI regressions.
