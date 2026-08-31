@@ -81,12 +81,17 @@ fn emit_win64_pop_shadow(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x48, 0x83, 0xC4, WIN64_CALL_SHADOW]);
 }
 
-/// GetProcAddress clobbers volatile r11 (IAT write cursor). Spill to Win64 home slot inside
-/// import-descriptor shadow — must NOT push (misaligns CALL after `sub rsp,38h`).
+/// GetProcAddress clobbers volatile r11 (IAT write cursor); r12=file PE (callee-saved).
+/// Inside import-descriptor `sub rsp,38h`, bare `push r12` misaligns CALL — pad with `sub/add rsp,8`
+/// (same pattern as find_module `push r10` + `sub rsp,30h`). Do not spill to [rsp+30h] home — GPA clobbers it.
 fn emit_call_gpa_preserve_r11(c: &mut Vec<u8>) {
-    c.extend_from_slice(&[0x4C, 0x89, 0x5C, 0x24, 0x30]); // mov [rsp+30h], r11
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x08]); // sub rsp, 8 — align for push r12 before GPA
+    c.extend_from_slice(&[0x41, 0x54]); // push r12
+    c.extend_from_slice(&[0x4D, 0x89, 0xDC]); // mov r12, r11
     emit_call_r15_scratch(c, H00_GETPROCADDRESS_SCRATCH_OFF);
-    c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x30]); // mov r11, [rsp+30h]
+    c.extend_from_slice(&[0x4D, 0x89, 0xE3]); // mov r11, r12
+    c.extend_from_slice(&[0x41, 0x5C]); // pop r12
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x08]); // add rsp, 8
 }
 
 /// After `test`/`cmp` ZF=1 (fail): pop Win64 shadow then jmp fail; ZF=0 skip
@@ -1937,24 +1942,30 @@ mod tests {
             "import name thunk needs lea rdx,[r14+r10+2] then jmp gpa_call_site (E9)"
         );
         assert!(
-            body.windows(15).any(|w| {
+            body.windows(20).any(|w| {
                 w[0..10] == [0x44, 0x89, 0xD0, 0x25, 0xFF, 0xFF, 0x00, 0x00, 0x89, 0xC2]
-                    && w[10..15] == [0x4C, 0x89, 0x5C, 0x24, 0x30]
+                    && w[10..20]
+                        == [0x48, 0x83, 0xEC, 0x08, 0x41, 0x54, 0x4D, 0x89, 0xDC, 0x41]
             }),
-            "import ordinal thunk needs and eax,0xffff + mov edx,eax + mov [rsp+30h],r11 spill"
+            "import ordinal thunk needs and eax,0xffff + sub rsp,8 + push r12 spill r11 before GPA"
         );
         assert!(
-            body.windows(10).any(|w| {
-                w[0..5] == [0x4C, 0x89, 0x5C, 0x24, 0x30]
-                    && w[5] == 0x41
-                    && w[6] == 0xFF
-                    && w[7] == 0x97
+            body.windows(12).any(|w| {
+                w[0..6] == [0x48, 0x83, 0xEC, 0x08, 0x41, 0x54]
+                    && w[6..12] == [0x4D, 0x89, 0xDC, 0x41, 0xFF, 0x97]
             }),
-            "import loop must call [r15+GPA] per thunk with [rsp+30h] r11 spill (no push — misaligns shadow)"
+            "import loop must sub rsp,8 + push r12 before call [r15+GPA] (Win64 align inside descriptor shadow)"
         );
         assert!(
-            !body.windows(6).any(|w| w == [0x41, 0x54, 0x4D, 0x89, 0xDC, 0x41]),
-            "import GPA must not push r12 before call [r15+GPA] — misaligns Win64 shadow"
+            body.windows(8).any(|w| {
+                w[0..4] == [0x4D, 0x89, 0xE3, 0x41]
+                    && w[4..8] == [0x5C, 0x48, 0x83, 0xC4]
+            }),
+            "import GPA must pop r12 + add rsp,8 after call [r15+GPA]"
+        );
+        assert!(
+            !body.windows(5).any(|w| w == [0x4C, 0x89, 0x5C, 0x24, 0x30]),
+            "import GPA must not spill r11 to [rsp+30h] — GetProcAddress clobbers Win64 home"
         );
         assert!(
             !body.windows(5).any(|w| w == [0x4C, 0x89, 0x5C, 0x24, 0x48]),
