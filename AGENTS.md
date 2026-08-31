@@ -4,10 +4,11 @@
 
 ## Stage 4 负责人看板（零指令）
 
-- **现主线看板**：`STAGE11_OWNER_CHECKLIST.md` + `SCOPE-v0.5.md`（Stage 11 / v0.5）
-- **历史看板**：`STAGE10_OWNER_CHECKLIST.md`（v0.4 已毕业）；`STAGE4`–`STAGE9` 见各 STAGE*_OWNER_CHECKLIST
-- **自动规则**：`.cursor/rules/stage4-auto-owner.mdc` — `继续` 单轨 master；`继续 两板` PE+ELF 并行 worktree（`scripts/stage4-two-board.ps1`）
-- **CI anti-thrash**：`.cursor/rules/ci-anti-thrash.mdc` — 允许 auto-fix；禁止 push 风暴 / 默认 H00 bisect；本地先 smoke
+- **现主线看板（post-v1.0 关洞）**：`POST-1.0-HOLE-CHECKLIST.md` — path 2 缩宿主信任 A→B→C；用户 `继续`/`关洞` 时读此文件（`AUTO_TO_1.0.md` **`ACTIVE=0` · `COMPLETED=1`** · 勿 invent Stage 17）
+- **v1.0 毕业看板（历史）**：`STAGE16_OWNER_CHECKLIST.md` + `SCOPE-v1.0.md`（Stage 16 / v1.0 全绿 · 勿回改）
+- **更早历史看板**：`STAGE4`–`STAGE15` 见各 `STAGE*_OWNER_CHECKLIST`
+- **自动规则**：`.cursor/rules/stage4-auto-owner.mdc` — post-v1.0：`继续`/`关洞` → `POST-1.0-HOLE-CHECKLIST` 单轨；`继续 两板` PE+ELF 并行 worktree（`scripts/stage4-two-board.ps1`）
+- **CI anti-thrash**：`.cursor/rules/ci-anti-thrash.mdc` — 允许 auto-fix；禁止 push 风暴 / 默认 H00 bisect；本地先 `& .\scripts\stage17-ow-iat-wireup.ps1`
 
 ## CI anti-thrash（摘要）
 
