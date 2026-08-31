@@ -1,0 +1,25 @@
+---
+description: CI anti-thrash — keep auto-fix, stop overnight email spam
+alwaysApply: true
+---
+
+# CI anti-thrash (auto-fix OK, spam not OK)
+
+CI is a **gate**, not a debugger. Agents may still push fixes and use Actions as a gate; these limits only cap thrash (push-every-tiny-fix × Stage17 × parallel runs).
+
+## Rules
+
+1. Prefer **local** smoke/bisect before push:
+   - Smoke: `& .\scripts\stage17-ow-iat-wireup.ps1`
+   - Multi-phase H00 bisect (expensive): `$env:H00_BISECT='1'; & .\scripts\stage17-ow-iat-wireup.ps1`
+   - CI default leaves `H00_BISECT` off; enable only via `workflow_dispatch` input `h00_bisect=true`.
+
+2. On a single PR/branch: after **2 consecutive red** full CI runs (or **3 pushes** that only tweak stub spill offsets without new local evidence) → **STOP pushing**; switch to local repro. Do not open parallel CI.
+
+3. WIP commits: use `[skip ci]` until a candidate tip; then **one** full-CI push.
+
+4. Never push another Stage17-triggering commit while a CI run for that ref is still `in_progress` (workflow concurrency cancels older runs, but agents must wait or use `[skip ci]`).
+
+5. Do **not** delete/declare success by clearing failed Actions runs.
+
+6. Auto-fix is still allowed — push a real candidate after local green evidence; these caps only prevent overnight email storms.

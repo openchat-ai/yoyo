@@ -7,6 +7,15 @@
 - **现主线看板**：`STAGE11_OWNER_CHECKLIST.md` + `SCOPE-v0.5.md`（Stage 11 / v0.5）
 - **历史看板**：`STAGE10_OWNER_CHECKLIST.md`（v0.4 已毕业）；`STAGE4`–`STAGE9` 见各 STAGE*_OWNER_CHECKLIST
 - **自动规则**：`.cursor/rules/stage4-auto-owner.mdc` — `继续` 单轨 master；`继续 两板` PE+ELF 并行 worktree（`scripts/stage4-two-board.ps1`）
+- **CI anti-thrash**：`.cursor/rules/ci-anti-thrash.mdc` — 允许 auto-fix；禁止 push 风暴 / 默认 H00 bisect；本地先 smoke
+
+## CI anti-thrash（摘要）
+
+- CI = gate，不是 debugger；先本地 `& .\scripts\stage17-ow-iat-wireup.ps1`
+- H00 多相 bisect 仅 opt-in：`$env:H00_BISECT='1'` 或 CI `workflow_dispatch` → `h00_bisect=true`（默认关）
+- 同 PR：连续 2 次红全量 CI，或 3 次无新本地证据的微调 push → **停推**，改本地复现
+- WIP 用 `[skip ci]`；同 ref 有 in_progress 时勿再推 Stage17 触发 commit
+- 勿删 failed Actions 假装成功
 
 ## "Pre-existing bug" 调查：先用最小测试隔离，再判断是代码还是用法 (2026-06-30)
 
