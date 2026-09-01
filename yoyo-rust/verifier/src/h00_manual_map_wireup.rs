@@ -81,11 +81,11 @@ fn emit_win64_pop_shadow(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x48, 0x83, 0xC4, WIN64_CALL_SHADOW]);
 }
 
-/// GetProcAddress clobbers volatile r11 (IAT write cursor) but preserves callee-saved r12.
-/// Spill file PE r12 via kernel32 scratch (rax holds kernel32); hold IAT cursor in r12 across GPA.
-/// Avoids [rsp+30h] home clash, push under import shadow, and [r15+118h] past scratch pin.
+/// GetProcAddress clobbers volatile r11 (IAT write cursor) but preserves callee-saved r12/rdi.
+/// Spill file PE r12 via kernel32 scratch; hold IAT cursor in r12 across GPA; restore kernel32
+/// from rdi after (post-import FlushICache GPA needs valid hModule — not last thunk pointer).
 fn emit_call_gpa_preserve_r11(c: &mut Vec<u8>) {
-    emit_mov_qword_from_r15_scratch(c, H00_KERNEL32_SCRATCH_OFF, 0); // mov rax,[r15+kernel32]
+    emit_mov_qword_from_r15_scratch(c, H00_KERNEL32_SCRATCH_OFF, 7); // mov rdi,[r15+kernel32]
     c.extend_from_slice(&[0x4D, 0x89, 0xA7]); // mov [r15+disp32], r12 — file PE spill
     c.extend_from_slice(&H00_KERNEL32_SCRATCH_OFF.to_le_bytes());
     c.extend_from_slice(&[0x4C, 0x89, 0xDC]); // mov r12, r11 — IAT cursor in callee-saved
@@ -93,7 +93,7 @@ fn emit_call_gpa_preserve_r11(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x4D, 0x89, 0xE3]); // mov r11, r12 — restore IAT write cursor
     c.extend_from_slice(&[0x4D, 0x8B, 0xA7]); // mov r12, [r15+disp32] — restore file PE
     c.extend_from_slice(&H00_KERNEL32_SCRATCH_OFF.to_le_bytes());
-    emit_mov_qword_to_r15_scratch(c, H00_KERNEL32_SCRATCH_OFF, 0); // mov [r15+kernel32], rax
+    emit_mov_qword_to_r15_scratch(c, H00_KERNEL32_SCRATCH_OFF, 7); // mov [r15+kernel32], rdi
 }
 
 /// After `test`/`cmp` ZF=1 (fail): pop Win64 shadow then jmp fail; ZF=0 skip
@@ -1949,7 +1949,23 @@ mod tests {
                     && w[10] == 0x49
                     && w[11] == 0x8B
             }),
-            "import ordinal thunk converges to GPA spill (mov rax,[r15+kernel32])"
+            "import ordinal thunk converges to GPA spill (mov rdi,[r15+kernel32])"
+        );
+        assert!(
+            body.windows(16).any(|w| {
+                w[0..3] == [0x4D, 0x89, 0xE3]
+                    && w[3..6] == [0x4D, 0x8B, 0xA7]
+                    && w[10..13] == [0x49, 0x89, 0xBF]
+            }),
+            "import GPA must restore kernel32 from rdi (49 89 BF), not clobber with rax (49 89 87)"
+        );
+        assert!(
+            !body.windows(13).any(|w| {
+                w[0..3] == [0x4D, 0x89, 0xE3]
+                    && w[3..6] == [0x4D, 0x8B, 0xA7]
+                    && w[10..13] == [0x49, 0x89, 0x87]
+            }),
+            "import GPA must not restore kernel32 scratch from rax (last GPA result poisons FlushICache hModule)"
         );
         assert!(
             body.windows(10).any(|w| {
