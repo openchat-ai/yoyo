@@ -49,6 +49,8 @@ const H00_GETPROCADDRESS_SCRATCH_OFF: u32 = WIN32_IO_H00_SCRATCH_OFF + 8;
 const H00_KERNEL32_SCRATCH_OFF: u32 = WIN32_IO_H00_SCRATCH_OFF + 16;
 /// Success-path phase probe (survives until crash for post-mortem; not used on fail epilogue).
 const H00_PHASE_SCRATCH_OFF: u32 = WIN32_IO_H00_SCRATCH_OFF + 24;
+/// File PE pointer (r12) spill — bootstrap resolve_export + import GPA must not clobber r12.
+const H00_FILE_PE_SCRATCH_OFF: u32 = WIN32_IO_H00_SCRATCH_OFF + 32;
 /// Per-descriptor hModule during import walk (reuses phase qword; import_ok overwrites).
 const H00_IMPORT_HMODULE_SCRATCH_OFF: u32 = H00_PHASE_SCRATCH_OFF;
 
@@ -59,6 +61,8 @@ const PHASE_PRELUDE_READ_OK: u8 = 0x03;
 const PHASE_PRELUDE_DONE: u8 = 0x04;
 const PHASE_PRELUDE_OK: u8 = 0x05;
 const PHASE_BOOTSTRAP_OK: u8 = 0x06;
+const PHASE_BOOTSTRAP_LL_OK: u8 = 0x07;
+const PHASE_BOOTSTRAP_GPA_OK: u8 = 0x08;
 const PHASE_MAP_VALLOC_OK: u8 = 0x09;
 const PHASE_MAP_IMAGE_OK: u8 = 0x0A;
 const PHASE_SECTIONS_OK: u8 = 0x0B;
@@ -81,13 +85,14 @@ fn emit_win64_pop_shadow(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x48, 0x83, 0xC4, WIN64_CALL_SHADOW]);
 }
 
-/// GetProcAddress clobbers volatile r11; r12=file PE (callee-saved). Spill via push/mov/pop.
+/// GetProcAddress clobbers volatile r11 (IAT cursor); r12=file PE (callee-saved).
+/// Spill file PE to [r15+file_pe]; hold IAT cursor in r12 across GPA (no push under import shadow).
 fn emit_call_gpa_preserve_r11(c: &mut Vec<u8>) {
-    c.extend_from_slice(&[0x41, 0x54]); // push r12
-    c.extend_from_slice(&[0x4D, 0x89, 0xDC]); // mov r12, r11
+    emit_mov_qword_to_r15_scratch(c, H00_FILE_PE_SCRATCH_OFF, 12);
+    c.extend_from_slice(&[0x4C, 0x89, 0xDC]); // mov r12, r11
     emit_call_r15_scratch(c, H00_GETPROCADDRESS_SCRATCH_OFF);
     c.extend_from_slice(&[0x4D, 0x89, 0xE3]); // mov r11, r12
-    c.extend_from_slice(&[0x41, 0x5C]); // pop r12
+    emit_mov_qword_from_r15_scratch(c, H00_FILE_PE_SCRATCH_OFF, 12);
 }
 
 /// After `test`/`cmp` ZF=1 (fail): pop Win64 shadow then jmp fail; ZF=0 skip
@@ -128,17 +133,25 @@ fn emit_exit_process_iat(
 }
 
 fn emit_mov_qword_to_r15_scratch(c: &mut Vec<u8>, off: u32, reg: u8) {
-    // reg: 0=rax, 7=rdi
-    c.push(0x49);
+    // reg: x64 reg id (0=rax, 7=rdi, 12=r12)
+    let mut rex = 0x48u8 | 0x01; // W|B (r15 base)
+    if reg >= 8 {
+        rex |= 0x04;
+    } // REX.R for r12+
+    c.push(rex);
     c.push(0x89);
-    c.push(0x87 | (reg << 3));
+    c.push(0x87 | ((reg & 7) << 3));
     c.extend_from_slice(&off.to_le_bytes());
 }
 
 fn emit_mov_qword_from_r15_scratch(c: &mut Vec<u8>, off: u32, reg: u8) {
-    c.push(0x49);
+    let mut rex = 0x48u8 | 0x01;
+    if reg >= 8 {
+        rex |= 0x04;
+    }
+    c.push(rex);
     c.push(0x8B);
-    c.push(0x87 | (reg << 3));
+    c.push(0x87 | ((reg & 7) << 3));
     c.extend_from_slice(&off.to_le_bytes());
 }
 
@@ -666,6 +679,8 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_skip_ll_boot = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    // resolve_export clobbers rsi/rbx; save file PE r12 before bootstrap helper calls.
+    emit_mov_qword_to_r15_scratch(&mut c, H00_FILE_PE_SCRATCH_OFF, 12);
     // Bootstrap must find kernel32 via PEB — not sidecar import[0] (order varies).
     emit_win64_call_shadow(&mut c);
     for (off, ch) in b"kernel32.dll\0".iter().enumerate() {
@@ -700,7 +715,17 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]); // lea rdx,[rsp+20h]
     let call_boot_resolve = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
+    let jz_boot_ll_fail = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     emit_mov_qword_to_r15_scratch(&mut c, H00_LOADLIBRARY_SCRATCH_OFF, 0); // [r15+scratch]=LoadLibraryA
+    emit_phase_with_bisect(
+        &mut c,
+        text_rva,
+        chunk_text_off,
+        iat_rva,
+        PHASE_BOOTSTRAP_LL_OK,
+    );
     emit_mov_qword_from_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // rdi=kernel32 (fix_forward may clobber)
     // Bootstrap GetProcAddress (sidecar IAT resolve uses host LoadLibrary+GetProcAddress).
     for (off, ch) in [
@@ -725,18 +750,31 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]);
     let call_boot_gpa = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
+    let jz_boot_gpa_fail = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     emit_mov_qword_to_r15_scratch(&mut c, H00_GETPROCADDRESS_SCRATCH_OFF, 0);
+    emit_phase_with_bisect(
+        &mut c,
+        text_rva,
+        chunk_text_off,
+        iat_rva,
+        PHASE_BOOTSTRAP_GPA_OK,
+    );
     emit_win64_pop_shadow(&mut c);
     let jmp_boot_ok = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // success: skip failure pop
     let skip_ll_boot_pop = c.len();
-    emit_win64_pop_shadow(&mut c); // find_module failed — pop bootstrap shadow
+    emit_win64_pop_shadow(&mut c); // find_module / resolve failed — pop bootstrap shadow
     let jmp_boot_fail = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     patch_rel32(&mut c, jz_skip_ll_boot2 + 2, jz_skip_ll_boot2 + 6, skip_ll_boot_pop);
+    patch_rel32(&mut c, jz_boot_ll_fail + 2, jz_boot_ll_fail + 6, skip_ll_boot_pop);
+    patch_rel32(&mut c, jz_boot_gpa_fail + 2, jz_boot_gpa_fail + 6, skip_ll_boot_pop);
 
     // Import resolve: walk descriptors at [r14+import_rva]
     let import_walk_start = c.len();
+    emit_mov_qword_from_r15_scratch(&mut c, H00_FILE_PE_SCRATCH_OFF, 12); // restore file PE r12 after bootstrap
     emit_phase_with_bisect(
         &mut c,
         text_rva,
@@ -1500,8 +1538,8 @@ mod tests {
             }
         }
         assert!(
-            body.len() > 400 && body.len() < 2350,
-            "manual-map H_00 stub should fit OW-STUB pin [40,2350] (got {}B)",
+            body.len() > 400 && body.len() < 2400,
+            "manual-map H_00 stub should fit OW-STUB pin [40,2400] (got {}B)",
             body.len()
         );
         assert_eq!(
@@ -1848,11 +1886,21 @@ mod tests {
             w[0..3] == [0x49, 0x89, 0x87] && w[3..7] == H00_GETPROCADDRESS_SCRATCH_OFF.to_le_bytes()
         });
         if let Some(at) = gpa_store {
-            let tail = &body[at + 7..at + 7 + 12];
+            let tail = &body[at + 7..at + 7 + 14];
             assert_eq!(
-                &tail[0..5],
-                &[0x48, 0x83, 0xC4, WIN64_CALL_SHADOW, 0xE9][..],
-                "after GPA bootstrap store expect add rsp,40h; jmp (skip failure pop)"
+                tail[0..2],
+                [0xC6, 0x05],
+                "after GPA bootstrap store expect phase probe (157/158 bisect)"
+            );
+            assert_eq!(
+                tail[6],
+                PHASE_BOOTSTRAP_GPA_OK,
+                "GPA bootstrap phase byte must be PHASE_BOOTSTRAP_GPA_OK"
+            );
+            assert_eq!(
+                &tail[7..11],
+                [0x48, 0x83, 0xC4, WIN64_CALL_SHADOW],
+                "after GPA phase probe expect pop bootstrap shadow"
             );
             assert!(
                 !body[at + 7..].windows(2).any(|w| w == [0xE9, 0xF7]),
@@ -1938,23 +1986,43 @@ mod tests {
             "import name thunk needs lea rdx,[r14+r10+2] then jmp gpa_call_site (E9)"
         );
         assert!(
-            body.windows(14).any(|w| {
+            body.windows(12).any(|w| {
                 w[0..10] == [0x44, 0x89, 0xD0, 0x25, 0xFF, 0xFF, 0x00, 0x00, 0x89, 0xC2]
-                    && w[10..14] == [0x41, 0x54, 0x4D, 0x89]
+                    && w[10] == 0x4D
+                    && w[11] == 0x89
             }),
-            "import ordinal thunk needs and eax,0xffff + mov edx,eax + push r12 spill r11"
+            "import ordinal thunk converges to GPA spill (mov [r15+file_pe],r12)"
         );
         assert!(
-            body.windows(10).any(|w| {
-                w[0..6] == [0x41, 0x54, 0x4D, 0x89, 0xDC, 0x41]
-                    && w[6] == 0xFF
-                    && w[7] == 0x97
-            }),
-            "import loop must call [r15+GPA] per thunk with r12 spill (push r12; mov r12,r11)"
+            body.windows(10).any(|w| w[0..3] == [0x4C, 0x89, 0xDC] && w[3..6] == [0x41, 0xFF, 0x97]),
+            "import loop must mov r12,r11 before call [r15+GPA]"
         );
         assert!(
-            !body.windows(5).any(|w| w == [0x4C, 0x89, 0x5C, 0x24, 0x48]),
-            "IAT cursor must not spill at [rsp+48h] — use r12 register spill instead"
+            body.windows(10).any(|w| w[0..3] == [0x4D, 0x89, 0xE3]),
+            "import GPA must mov r11,r12 after call [r15+GPA]"
+        );
+        assert!(
+            !body.windows(6).any(|w| w == [0x41, 0x54, 0x4D, 0x89, 0xDC, 0x41]),
+            "import GPA must not push r12 — use [r15+file_pe] spill"
+        );
+        assert!(
+            body.windows(7).any(|w| {
+                w[0..3] == [0x4D, 0x89, 0xA7]
+                    && w[3..7] == H00_FILE_PE_SCRATCH_OFF.to_le_bytes()
+            }),
+            "bootstrap/import must spill file PE r12 to [r15+file_pe] (4D 89 A7 +118h)"
+        );
+        assert!(
+            body.windows(8).any(|w| {
+                w[0..2] == [0xC6, 0x05] && w[6] == PHASE_BOOTSTRAP_LL_OK
+            }),
+            "missing bootstrap LoadLibraryA ok phase probe (157)"
+        );
+        assert!(
+            body.windows(8).any(|w| {
+                w[0..2] == [0xC6, 0x05] && w[6] == PHASE_BOOTSTRAP_GPA_OK
+            }),
+            "missing bootstrap GetProcAddress ok phase probe (158)"
         );
         assert!(
             body.windows(8).any(|w| {
