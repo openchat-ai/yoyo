@@ -17,8 +17,8 @@ pub const IAT_CLOSE_HANDLE: u32 = 4;
 
 /// Stack scratch for ReadFile nNumberOfBytesRead (Win64 5th-arg slot at [rsp+0x20] in shadow).
 const READ_BYTES_STACK_OFF: u8 = 0x20;
-/// GPA proc-name spill for FlushICache (same slot — must stay above shadow, not inside it).
-const FLUSH_ICACHE_NAME_STACK_OFF: u8 = READ_BYTES_STACK_OFF;
+/// GPA proc-name spill for FlushICache — above `sub rsp,38h` shadow (not in Win64 homes at +20h).
+const FLUSH_ICACHE_NAME_STACK_OFF: u8 = WIN64_CALL_SHADOW;
 /// One Win64 home (0x20) + CreateFile 3 stack args (0x18); 0x38 bytes total.
 /// After JMP-entry prologue (RSP%16==8), frame must be 8 mod 16 so FF15 CALL is 0 mod 16.
 const PRELUDE_IO_FRAME: u8 = 0x38;
@@ -888,7 +888,7 @@ fn gen_h00_manual_map_body(
         0x54,
         0x24,
         FLUSH_ICACHE_NAME_STACK_OFF,
-    ]); // lea rdx,[rsp+30h] — above shadow; sub rsp,30h clobbered Win64 home space
+    ]); // lea rdx,[rsp+38h] — above Win64 shadow; homes at +20h clobbered by kernel32 GPA
     emit_call_r15_scratch(&mut c, H00_GETPROCADDRESS_SCRATCH_OFF); // rax = FlushICache
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_skip_flush2 = c.len();
@@ -1679,7 +1679,7 @@ mod tests {
                 w[0..5] == [0x48, 0x8D, 0x54, 0x24, FLUSH_ICACHE_NAME_STACK_OFF]
                     && w[5] == 0x41
             }),
-            "FlushICache GPA must lea rdx,[rsp+30h] then call [r15+GPA] (name above Win64 shadow)"
+            "FlushICache GPA must lea rdx,[rsp+38h] then call [r15+GPA] (name above Win64 shadow)"
         );
         assert!(
             !body.windows(5).any(|w| w == [0x48, 0x83, 0xEC, 0x30, 0xC6]),
