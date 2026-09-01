@@ -82,10 +82,10 @@ fn emit_win64_pop_shadow(c: &mut Vec<u8>) {
 }
 
 /// GetProcAddress clobbers volatile r11 (IAT write cursor) but preserves callee-saved r12.
-/// Spill file PE r12 via kernel32 scratch (rax holds kernel32); hold IAT cursor in r12 across GPA.
-/// Avoids [rsp+30h] home clash, push under import shadow, and [r15+118h] past scratch pin.
+/// Spill file PE r12 via kernel32 scratch (rdi holds kernel32 base); hold IAT cursor in r12 across GPA.
+/// Must restore kernel32 base from rdi — rax is the GPA result and must not be written to scratch.
 fn emit_call_gpa_preserve_r11(c: &mut Vec<u8>) {
-    emit_mov_qword_from_r15_scratch(c, H00_KERNEL32_SCRATCH_OFF, 0); // mov rax,[r15+kernel32]
+    emit_mov_qword_from_r15_scratch(c, H00_KERNEL32_SCRATCH_OFF, 7); // mov rdi,[r15+kernel32]
     c.extend_from_slice(&[0x4D, 0x89, 0xA7]); // mov [r15+disp32], r12 — file PE spill
     c.extend_from_slice(&H00_KERNEL32_SCRATCH_OFF.to_le_bytes());
     c.extend_from_slice(&[0x4C, 0x89, 0xDC]); // mov r12, r11 — IAT cursor in callee-saved
@@ -93,7 +93,7 @@ fn emit_call_gpa_preserve_r11(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x4D, 0x89, 0xE3]); // mov r11, r12 — restore IAT write cursor
     c.extend_from_slice(&[0x4D, 0x8B, 0xA7]); // mov r12, [r15+disp32] — restore file PE
     c.extend_from_slice(&H00_KERNEL32_SCRATCH_OFF.to_le_bytes());
-    emit_mov_qword_to_r15_scratch(c, H00_KERNEL32_SCRATCH_OFF, 0); // mov [r15+kernel32], rax
+    emit_mov_qword_to_r15_scratch(c, H00_KERNEL32_SCRATCH_OFF, 7); // mov [r15+kernel32], rdi
 }
 
 /// After `test`/`cmp` ZF=1 (fail): pop Win64 shadow then jmp fail; ZF=0 skip
@@ -783,15 +783,16 @@ fn gen_h00_manual_map_body(
     emit_cmp_r15_scratch_qword_zero(&mut c, H00_GETPROCADDRESS_SCRATCH_OFF);
     fail_jumps.push((c.len(), fail_import));
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x49, 0x89, 0xF5]); // mov r13, rsi — descriptor before LL (rsi=desc ptr)
     emit_win64_call_shadow(&mut c);
-    // FirstThunk rva is in edx — load module first, then lea r11 (LL/GPA clobber r11).
+    // Name RVA from descriptor — reload from r13 (ecx may not survive bootstrap checks).
+    c.extend_from_slice(&[0x41, 0x8B, 0x4D, 0x0C]); // mov ecx,[r13+0c]
     c.extend_from_slice(&[0x49, 0x8D, 0x14, 0x0E]); // lea rdx,[r14+rcx] module name
     c.extend_from_slice(&[0x48, 0x89, 0xD1]); // mov rcx, rdx — LoadLibraryA(lpLibFileName)
     emit_call_r15_scratch(&mut c, H00_LOADLIBRARY_SCRATCH_OFF);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     emit_jz_pop_shadow_then_fail(&mut c, chunk_text_off as usize, fail_import);
     emit_mov_qword_to_r15_scratch(&mut c, H00_IMPORT_HMODULE_SCRATCH_OFF, 0); // [r15+hModule]=LL
-    c.extend_from_slice(&[0x49, 0x89, 0xF5]); // mov r13, rsi (save import descriptor ptr)
     c.extend_from_slice(&[0x41, 0x8B, 0x55, 0x10]); // mov edx,[r13+10] FirstThunk RVA
     c.extend_from_slice(&[0x4D, 0x8D, 0x1C, 0x16]); // lea r11,[r14+rdx] IAT write cursor
     c.extend_from_slice(&[0x85, 0xDB]); // cmp ebx,0 (OriginalFirstThunk)
@@ -1944,12 +1945,11 @@ mod tests {
             "import name thunk needs lea rdx,[r14+r10+2] then jmp gpa_call_site (E9)"
         );
         assert!(
-            body.windows(12).any(|w| {
+            body.windows(13).any(|w| {
                 w[0..10] == [0x44, 0x89, 0xD0, 0x25, 0xFF, 0xFF, 0x00, 0x00, 0x89, 0xC2]
-                    && w[10] == 0x49
-                    && w[11] == 0x8B
+                    && w[10..13] == [0x49, 0x8B, 0xBF]
             }),
-            "import ordinal thunk converges to GPA spill (mov rax,[r15+kernel32])"
+            "import ordinal thunk converges to GPA spill (mov rdi,[r15+kernel32])"
         );
         assert!(
             body.windows(10).any(|w| {
@@ -1972,6 +1972,24 @@ mod tests {
             "import GPA must mov r11,r12 then test rax before IAT store"
         );
         assert!(
+            body.windows(17).any(|w| {
+                w[0..3] == [0x4D, 0x89, 0xE3]
+                    && w.windows(7).skip(3).any(|x| {
+                        x == [0x49, 0x89, 0xBF, 0x08, 0x01, 0x00, 0x00]
+                    })
+            }),
+            "import GPA must restore kernel32 base via rdi (49 89 BF), not GPA result in rax"
+        );
+        assert!(
+            !body.windows(20).any(|w| {
+                w[0..3] == [0x4D, 0x89, 0xE3]
+                    && w.windows(7).skip(3).any(|x| {
+                        x == [0x49, 0x89, 0x87, 0x08, 0x01, 0x00, 0x00]
+                    })
+            }),
+            "import GPA must not mov [r15+kernel32],rax — clobbers module base with proc pointer"
+        );
+        assert!(
             !body.windows(6).any(|w| w == [0x48, 0x83, 0xEC, 0x08, 0x41, 0x54]),
             "import GPA must not sub rsp,8+push r12 — writes below import shadow frame"
         );
@@ -1985,10 +2003,17 @@ mod tests {
         );
         assert!(
             body.windows(8).any(|w| {
-                w[0..4] == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]
-                    && w[4..8] == [0x49, 0x8D, 0x14, 0x0E]
+                w[0..3] == [0x49, 0x89, 0xF5]
+                    && w[3..8] == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW, 0x41]
             }),
-            "import descriptor must sub rsp,38h before LoadLibrary (standard Win64 shadow)"
+            "import descriptor must mov r13,rsi before sub rsp,38h (descriptor before LoadLibrary)"
+        );
+        assert!(
+            body.windows(8).any(|w| {
+                w[0..4] == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]
+                    && w[4..8] == [0x41, 0x8B, 0x4D, 0x0C]
+            }),
+            "import descriptor must reload Name RVA from [r13+0c] before lea module name"
         );
         assert!(
             body.windows(8).any(|w| {
