@@ -672,9 +672,10 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_skip_ll_boot = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    // Bootstrap must find kernel32 via PEB — not sidecar import[0] (order varies).
+    // Bootstrap resolves from KERNELBASE (Win10+ home of LL/GPA) — not kernel32 forwarders.
+    // kernel32!LoadLibraryA → KERNELBASE.LoadLibraryA hits fix_forward while LL scratch=0.
     emit_win64_call_shadow(&mut c);
-    for (off, ch) in b"kernel32.dll\0".iter().enumerate() {
+    for (off, ch) in b"kernelbase.dll\0".iter().enumerate() {
         c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + off as u8, *ch]);
     }
     c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]); // lea rdx,[rsp+20h]
@@ -683,7 +684,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_skip_ll_boot2 = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = kernel32
+    c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = bootstrap module (KERNELBASE)
     emit_mov_qword_to_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // save before resolve_export/fix_forward clobbers rdi
     // Reuse stack slot for LoadLibraryA export name (no contiguous needle in PE).
     for (off, ch) in [
@@ -707,7 +708,7 @@ fn gen_h00_manual_map_body(
     let call_boot_resolve = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
     emit_mov_qword_to_r15_scratch(&mut c, H00_LOADLIBRARY_SCRATCH_OFF, 0); // [r15+scratch]=LoadLibraryA
-    emit_mov_qword_from_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // rdi=kernel32 (fix_forward may clobber)
+    emit_mov_qword_from_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // rdi=KERNELBASE (fix_forward may clobber)
     // Bootstrap GetProcAddress (sidecar IAT resolve uses host LoadLibrary+GetProcAddress).
     for (off, ch) in [
         (0u8, b'G'),
@@ -1505,8 +1506,8 @@ mod tests {
             }
         }
         assert!(
-            body.len() > 400 && body.len() < 2350,
-            "manual-map H_00 stub should fit OW-STUB pin [40,2350] (got {}B)",
+            body.len() > 400 && body.len() < 2360,
+            "manual-map H_00 stub should fit OW-STUB pin [40,2360] (got {}B)",
             body.len()
         );
         assert_eq!(
@@ -1624,11 +1625,13 @@ mod tests {
         );
         assert!(
             !body.windows(7).any(|w| w == [0x49, 0x8D, 0x34, 0x06, 0x8B, 0x4E, 0x0C]),
-            "bootstrap must not use sidecar import[0] name for find_module (use kernel32.dll stack)"
+            "bootstrap must not use sidecar import[0] name for find_module (use kernelbase.dll stack)"
         );
         assert!(
-            body.windows(5).any(|w| w == [0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF, b'k']),
-            "bootstrap must build kernel32.dll in Win64 shadow (C6 44 24 28 6B)"
+            body.windows(5).any(|w| w == [0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF, b'k'])
+                && body.windows(5)
+                    .any(|w| w == [0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + 6, b'b']),
+            "bootstrap must build kernelbase.dll in Win64 shadow"
         );
         assert!(
             body.windows(4).any(|w| w == [0x49, 0x83, 0xC0, 0x02]),
