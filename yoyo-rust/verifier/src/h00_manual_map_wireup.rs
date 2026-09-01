@@ -51,6 +51,8 @@ const H00_KERNEL32_SCRATCH_OFF: u32 = WIN32_IO_H00_SCRATCH_OFF + 16;
 const H00_PHASE_SCRATCH_OFF: u32 = WIN32_IO_H00_SCRATCH_OFF + 24;
 /// Per-descriptor hModule during import walk (reuses phase qword; import_ok overwrites).
 const H00_IMPORT_HMODULE_SCRATCH_OFF: u32 = H00_PHASE_SCRATCH_OFF;
+/// Import GPA: spill file PE r12 while IAT cursor lives in callee-saved r12 (must not alias kernel32).
+const H00_FILE_PE_SPILL_OFF: u32 = WIN32_IO_H00_SCRATCH_OFF + 32;
 
 const PHASE_H00_ENTERED: u8 = 0x00;
 const PHASE_PRELUDE_CREATE_OK: u8 = 0x01;
@@ -82,18 +84,16 @@ fn emit_win64_pop_shadow(c: &mut Vec<u8>) {
 }
 
 /// GetProcAddress clobbers volatile r11 (IAT write cursor) but preserves callee-saved r12.
-/// Spill file PE r12 via kernel32 scratch (rax holds kernel32); hold IAT cursor in r12 across GPA.
-/// Avoids [rsp+30h] home clash, push under import shadow, and [r15+118h] past scratch pin.
+/// Spill file PE r12 to [r15+file_pe_spill]; hold IAT cursor in r12 across GPA.
+/// Must not touch kernel32 scratch — FlushICache GPA needs hModule there after import loop.
 fn emit_call_gpa_preserve_r11(c: &mut Vec<u8>) {
-    emit_mov_qword_from_r15_scratch(c, H00_KERNEL32_SCRATCH_OFF, 0); // mov rax,[r15+kernel32]
-    c.extend_from_slice(&[0x4D, 0x89, 0xA7]); // mov [r15+disp32], r12 — file PE spill
-    c.extend_from_slice(&H00_KERNEL32_SCRATCH_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x4D, 0x89, 0xA7]); // mov [r15+file_pe_spill], r12
+    c.extend_from_slice(&H00_FILE_PE_SPILL_OFF.to_le_bytes());
     c.extend_from_slice(&[0x4C, 0x89, 0xDC]); // mov r12, r11 — IAT cursor in callee-saved
     emit_call_r15_scratch(c, H00_GETPROCADDRESS_SCRATCH_OFF);
     c.extend_from_slice(&[0x4D, 0x89, 0xE3]); // mov r11, r12 — restore IAT write cursor
-    c.extend_from_slice(&[0x4D, 0x8B, 0xA7]); // mov r12, [r15+disp32] — restore file PE
-    c.extend_from_slice(&H00_KERNEL32_SCRATCH_OFF.to_le_bytes());
-    emit_mov_qword_to_r15_scratch(c, H00_KERNEL32_SCRATCH_OFF, 0); // mov [r15+kernel32], rax
+    c.extend_from_slice(&[0x4D, 0x8B, 0xA7]); // mov r12, [r15+file_pe_spill]
+    c.extend_from_slice(&H00_FILE_PE_SPILL_OFF.to_le_bytes());
 }
 
 /// After `test`/`cmp` ZF=1 (fail): pop Win64 shadow then jmp fail; ZF=0 skip
@@ -668,6 +668,8 @@ fn gen_h00_manual_map_body(
     // Bootstrap LoadLibraryA at [r15+scratch] for find_module fallback (api-set forwarders).
     emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, iat_rva);
     emit_mov_qword_r15_scratch_imm0(&mut c, H00_LOADLIBRARY_SCRATCH_OFF);
+    // resolve_export clobbers ebx; reload file e_lfanew before reading import dir for bootstrap gate.
+    emit_mov_e_lfanew_pe_file(&mut c);
     emit_mov_u32_pe_file(&mut c, 0, PE_OFF_IMPORT_DIR_RVA);
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_skip_ll_boot = c.len();
@@ -1946,23 +1948,31 @@ mod tests {
         assert!(
             body.windows(12).any(|w| {
                 w[0..10] == [0x44, 0x89, 0xD0, 0x25, 0xFF, 0xFF, 0x00, 0x00, 0x89, 0xC2]
-                    && w[10] == 0x49
-                    && w[11] == 0x8B
+                    && w[10] == 0x4D
+                    && w[11] == 0x89
             }),
-            "import ordinal thunk converges to GPA spill (mov rax,[r15+kernel32])"
+            "import ordinal thunk converges to GPA spill (mov [r15+file_pe_spill],r12)"
         );
         assert!(
             body.windows(10).any(|w| {
-                w[0..3] == [0x4C, 0x89, 0xDC]
-                    && w[3..6] == [0x41, 0xFF, 0x97]
+                w[0..3] == [0x4D, 0x89, 0xA7]
+                    && w[3..7] == H00_FILE_PE_SPILL_OFF.to_le_bytes()
+                    && w[7..10] == [0x4C, 0x89, 0xDC]
             }),
-            "import loop must mov r12,r11 before call [r15+GPA]"
+            "import loop must spill file PE to [r15+file_pe_spill] then mov r12,r11 before GPA"
         );
         assert!(
             body.windows(10).any(|w| {
                 w[0..3] == [0x4D, 0x89, 0xE3]
             }),
             "import GPA must mov r11,r12 after call [r15+GPA]"
+        );
+        assert!(
+            !body.windows(10).any(|w| {
+                w[0..3] == [0x4D, 0x89, 0xE3]
+                    && w[3..7] == H00_KERNEL32_SCRATCH_OFF.to_le_bytes()
+            }),
+            "import GPA must not store GPA result into kernel32 scratch (breaks FlushICache hModule)"
         );
         assert!(
             body.windows(20).any(|w| {
