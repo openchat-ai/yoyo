@@ -59,6 +59,10 @@ const PHASE_PRELUDE_READ_OK: u8 = 0x03;
 const PHASE_PRELUDE_DONE: u8 = 0x04;
 const PHASE_PRELUDE_OK: u8 = 0x05;
 const PHASE_BOOTSTRAP_OK: u8 = 0x06;
+/// Bisect 157: find_module succeeded (bootstrap module in rdi + scratch).
+const PHASE_BOOTSTRAP_FIND_OK: u8 = 0x07;
+/// Bisect 158: LoadLibraryA resolved (scratch filled; GPA resolve next).
+const PHASE_BOOTSTRAP_LL_OK: u8 = 0x08;
 const PHASE_MAP_VALLOC_OK: u8 = 0x09;
 const PHASE_MAP_IMAGE_OK: u8 = 0x0A;
 const PHASE_SECTIONS_OK: u8 = 0x0B;
@@ -666,9 +670,10 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_skip_ll_boot = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    // Bootstrap must find kernel32 via PEB — not sidecar import[0] (order varies).
+    // Bootstrap resolves from KERNELBASE (Win10+ home of LL/GPA) — not kernel32 forwarders.
+    // kernel32!LoadLibraryA → KERNELBASE.LoadLibraryA hits fix_forward while LL scratch=0.
     emit_win64_call_shadow(&mut c);
-    for (off, ch) in b"kernel32.dll\0".iter().enumerate() {
+    for (off, ch) in b"kernelbase.dll\0".iter().enumerate() {
         c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + off as u8, *ch]);
     }
     c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]); // lea rdx,[rsp+20h]
@@ -677,8 +682,15 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_skip_ll_boot2 = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = kernel32
+    c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = bootstrap module (KERNELBASE)
     emit_mov_qword_to_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // save before resolve_export/fix_forward clobbers rdi
+    emit_phase_with_bisect(
+        &mut c,
+        text_rva,
+        chunk_text_off,
+        iat_rva,
+        PHASE_BOOTSTRAP_FIND_OK,
+    );
     // Reuse stack slot for LoadLibraryA export name (no contiguous needle in PE).
     for (off, ch) in [
         (0u8, b'L'),
@@ -701,7 +713,14 @@ fn gen_h00_manual_map_body(
     let call_boot_resolve = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
     emit_mov_qword_to_r15_scratch(&mut c, H00_LOADLIBRARY_SCRATCH_OFF, 0); // [r15+scratch]=LoadLibraryA
-    emit_mov_qword_from_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // rdi=kernel32 (fix_forward may clobber)
+    emit_phase_with_bisect(
+        &mut c,
+        text_rva,
+        chunk_text_off,
+        iat_rva,
+        PHASE_BOOTSTRAP_LL_OK,
+    );
+    emit_mov_qword_from_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // rdi=KERNELBASE (fix_forward may clobber)
     // Bootstrap GetProcAddress (sidecar IAT resolve uses host LoadLibrary+GetProcAddress).
     for (off, ch) in [
         (0u8, b'G'),
@@ -1619,11 +1638,27 @@ mod tests {
         );
         assert!(
             !body.windows(7).any(|w| w == [0x49, 0x8D, 0x34, 0x06, 0x8B, 0x4E, 0x0C]),
-            "bootstrap must not use sidecar import[0] name for find_module (use kernel32.dll stack)"
+            "bootstrap must not use sidecar import[0] name for find_module (use kernelbase.dll stack)"
         );
         assert!(
-            body.windows(5).any(|w| w == [0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF, b'k']),
-            "bootstrap must build kernel32.dll in Win64 shadow (C6 44 24 28 6B)"
+            body.windows(5).any(|w| w == [0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF, b'k'])
+                && body.windows(5)
+                    .any(|w| w == [0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + 6, b'b']),
+            "bootstrap must build kernelbase.dll in Win64 shadow"
+        );
+        assert!(
+            body.windows(8)
+                .filter(|w| w[0..2] == [0xC6, 0x05] && w[6] == PHASE_BOOTSTRAP_FIND_OK)
+                .count()
+                >= 1,
+            "missing bootstrap find_module phase probe (bisect 157)"
+        );
+        assert!(
+            body.windows(8)
+                .filter(|w| w[0..2] == [0xC6, 0x05] && w[6] == PHASE_BOOTSTRAP_LL_OK)
+                .count()
+                >= 1,
+            "missing bootstrap LoadLibraryA phase probe (bisect 158)"
         );
         assert!(
             body.windows(4).any(|w| w == [0x49, 0x83, 0xC0, 0x02]),

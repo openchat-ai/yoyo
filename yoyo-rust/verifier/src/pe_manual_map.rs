@@ -745,6 +745,11 @@ pub mod stub_resolve {
     }
 
     pub fn bootstrap_load_library_a() -> Option<u64> {
+        if let Some(kb) = find_module_peb("KERNELBASE.dll") {
+            if let Some(ll) = resolve_export_in_module(kb, "LoadLibraryA", None, 0) {
+                return Some(ll);
+            }
+        }
         let k32 = find_module_peb("KERNEL32.dll")?;
         resolve_export_in_module(k32, "LoadLibraryA", None, 0)
     }

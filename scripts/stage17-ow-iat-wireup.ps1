@@ -128,6 +128,9 @@ function Get-SmokePhase([int]$ExitCode) {
         153 { "phase_prelude_read_ok" }
         154 { "phase_prelude_done" }
         155 { "phase_prelude_ok" }
+        157 { "phase_bootstrap_find_ok" }
+        158 { "phase_bootstrap_ll_ok" }
+        156 { "phase_bootstrap_ok" }
         159 { "phase_map_valloc_ok" }
         130 { "import_ok_bisect" }
         131 { "reloc_ok_bisect" }
