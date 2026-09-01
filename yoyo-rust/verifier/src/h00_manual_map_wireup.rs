@@ -51,6 +51,10 @@ const H00_KERNEL32_SCRATCH_OFF: u32 = WIN32_IO_H00_SCRATCH_OFF + 16;
 const H00_PHASE_SCRATCH_OFF: u32 = WIN32_IO_H00_SCRATCH_OFF + 24;
 /// Per-descriptor hModule during import walk (reuses phase qword; import_ok overwrites).
 const H00_IMPORT_HMODULE_SCRATCH_OFF: u32 = H00_PHASE_SCRATCH_OFF;
+/// Import GPA: spill file PE r12 while IAT cursor lives in callee-saved r12 (must not push — misaligns shadow CALL).
+const H00_FILE_PE_SPILL_OFF: u32 = WIN32_IO_H00_SCRATCH_OFF + 32;
+/// Post-import FlushICache: SizeOfImage survives FlushICache GPA (r8 volatile; ebx may be stale).
+const H00_FLUSH_SIZE_SCRATCH_OFF: u32 = H00_PHASE_SCRATCH_OFF;
 
 const PHASE_H00_ENTERED: u8 = 0x00;
 const PHASE_PRELUDE_CREATE_OK: u8 = 0x01;
@@ -81,13 +85,27 @@ fn emit_win64_pop_shadow(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x48, 0x83, 0xC4, WIN64_CALL_SHADOW]);
 }
 
-/// GetProcAddress clobbers volatile r11; r12=file PE (callee-saved). Spill via push/mov/pop.
+/// GetProcAddress clobbers volatile r11 (IAT write cursor) but preserves callee-saved r12.
+/// Spill file PE r12 to [r15+file_pe_spill]; hold IAT cursor in r12 across GPA.
+/// Must not push r12 inside Win64 shadow — push breaks RSP%16==0 at CALL → GPA/stack AV.
 fn emit_call_gpa_preserve_r11(c: &mut Vec<u8>) {
-    c.extend_from_slice(&[0x41, 0x54]); // push r12
-    c.extend_from_slice(&[0x4D, 0x89, 0xDC]); // mov r12, r11
+    c.extend_from_slice(&[0x4D, 0x89, 0xA7]); // mov [r15+file_pe_spill], r12
+    c.extend_from_slice(&H00_FILE_PE_SPILL_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x4C, 0x89, 0xDC]); // mov r12, r11 — IAT cursor in callee-saved
     emit_call_r15_scratch(c, H00_GETPROCADDRESS_SCRATCH_OFF);
-    c.extend_from_slice(&[0x4D, 0x89, 0xE3]); // mov r11, r12
-    c.extend_from_slice(&[0x41, 0x5C]); // pop r12
+    c.extend_from_slice(&[0x4D, 0x89, 0xE3]); // mov r11, r12 — restore IAT write cursor
+    c.extend_from_slice(&[0x4D, 0x8B, 0xA7]); // mov r12, [r15+file_pe_spill]
+    c.extend_from_slice(&H00_FILE_PE_SPILL_OFF.to_le_bytes());
+}
+
+fn emit_mov_dword_r15_scratch_from_r8d(c: &mut Vec<u8>, off: u32) {
+    c.extend_from_slice(&[0x45, 0x89, 0x87]);
+    c.extend_from_slice(&off.to_le_bytes());
+}
+
+fn emit_mov_r8d_from_r15_scratch_dword(c: &mut Vec<u8>, off: u32) {
+    c.extend_from_slice(&[0x45, 0x8B, 0x87]);
+    c.extend_from_slice(&off.to_le_bytes());
 }
 
 /// After `test`/`cmp` ZF=1 (fail): pop Win64 shadow then jmp fail; ZF=0 skip
@@ -857,8 +875,10 @@ fn gen_h00_manual_map_body(
     );
 
     // FlushInstructionCache before calling mapped sidecar code (matches reference mapper).
+    // Pin SizeOfImage in scratch before GPA — r8 is volatile; re-read via ebx after GPA mis-decodes if ebx stale.
     emit_mov_e_lfanew_pe_mapped(&mut c);
-    emit_mov_u32_pe_mapped(&mut c, PE_OFF_SIZE_OF_IMAGE); // r8d = SizeOfImage (keep through GPA)
+    emit_mov_u32_pe_mapped(&mut c, PE_OFF_SIZE_OF_IMAGE); // r8d = SizeOfImage
+    emit_mov_dword_r15_scratch_from_r8d(&mut c, H00_FLUSH_SIZE_SCRATCH_OFF);
     emit_phase_with_bisect(
         &mut c,
         text_rva,
@@ -888,8 +908,8 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_skip_flush2 = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    // rcx=-1, rdx=r14; reload r8d=SizeOfImage (GPA clobbers volatile r8).
-    emit_mov_u32_pe_mapped(&mut c, PE_OFF_SIZE_OF_IMAGE);
+    // rcx=-1, rdx=r14 mapped base; r8d from scratch (not re-read via ebx — import may have clobbered ebx).
+    emit_mov_r8d_from_r15_scratch_dword(&mut c, H00_FLUSH_SIZE_SCRATCH_OFF);
     c.extend_from_slice(&[0x48, 0xC7, 0xC1, 0xFF, 0xFF, 0xFF, 0xFF]); // GetCurrentProcess()
     c.extend_from_slice(&[0x4C, 0x89, 0xF2]); // mov rdx, r14 (FlushInstructionCache lpBaseAddress)
     c.extend_from_slice(&[0xFF, 0xD0]); // call rax (FlushInstructionCache)
@@ -1189,7 +1209,7 @@ fn gen_h00_manual_map_body(
     c
 }
 
-/// Export ordinal-0 tail: rbx=module → call functions[0] → ExitProcess.
+/// Export ordinal-0 tail: rbx=mapped module (r14) → call functions[0] → ExitProcess.
 fn gen_h00_export_call_tail(
     meta: &SelfhostMeta,
     text_rva: u32,
@@ -1199,6 +1219,8 @@ fn gen_h00_export_call_tail(
     let mut c: Vec<u8> = Vec::new();
     let mut fail_jumps: Vec<(usize, usize)> = Vec::new();
 
+    // Map body sets rbx before jmp-over-helpers; re-pin mapped base for export dir walk (phase 165).
+    c.extend_from_slice(&[0x4C, 0x89, 0xF3]); // mov rbx, r14
     c.extend_from_slice(&[0x8B, 0x73, 0x3C]);
     c.extend_from_slice(&[0x8B, 0x84, 0x33, 0x88, 0x00, 0x00, 0x00]);
     c.extend_from_slice(&[0x85, 0xC0]);
@@ -1666,8 +1688,8 @@ mod tests {
             body.windows(5)
                 .filter(|w| **w == [0x45, 0x8B, 0x44, 0x1E, PE_OFF_SIZE_OF_IMAGE])
                 .count()
-                >= 2,
-            "FlushICache path needs mov r8d,[r14+rbx+50h] disp8 (45 8B 44 1E 50) twice"
+                >= 1,
+            "FlushICache path needs mov r8d,[r14+rbx+50h] disp8 (45 8B 44 1E 50) before scratch spill"
         );
         assert!(
             body.windows(6).any(|w| {
@@ -1938,23 +1960,71 @@ mod tests {
             "import name thunk needs lea rdx,[r14+r10+2] then jmp gpa_call_site (E9)"
         );
         assert!(
-            body.windows(14).any(|w| {
+            body.windows(12).any(|w| {
                 w[0..10] == [0x44, 0x89, 0xD0, 0x25, 0xFF, 0xFF, 0x00, 0x00, 0x89, 0xC2]
-                    && w[10..14] == [0x41, 0x54, 0x4D, 0x89]
+                    && w[10] == 0x4D
+                    && w[11] == 0x89
             }),
-            "import ordinal thunk needs and eax,0xffff + mov edx,eax + push r12 spill r11"
+            "import ordinal thunk converges to GPA spill (mov [r15+file_pe_spill],r12)"
         );
         assert!(
             body.windows(10).any(|w| {
-                w[0..6] == [0x41, 0x54, 0x4D, 0x89, 0xDC, 0x41]
-                    && w[6] == 0xFF
-                    && w[7] == 0x97
+                w[0..3] == [0x4D, 0x89, 0xA7]
+                    && w[3..7] == H00_FILE_PE_SPILL_OFF.to_le_bytes()
+                    && w[7..10] == [0x4C, 0x89, 0xDC]
             }),
-            "import loop must call [r15+GPA] per thunk with r12 spill (push r12; mov r12,r11)"
+            "import loop must spill file PE to [r15+file_pe_spill] then mov r12,r11 before GPA"
         );
         assert!(
-            !body.windows(5).any(|w| w == [0x4C, 0x89, 0x5C, 0x24, 0x48]),
-            "IAT cursor must not spill at [rsp+48h] — use r12 register spill instead"
+            !body.windows(6).any(|w| w == [0x41, 0x54, 0x4D, 0x89, 0xDC, 0x41]),
+            "import GPA must not push r12 — misaligns Win64 shadow CALL inside import descriptor"
+        );
+        assert!(
+            body.windows(10).any(|w| {
+                w[0..3] == [0x4D, 0x89, 0xE3]
+            }),
+            "import GPA must mov r11,r12 after call [r15+GPA]"
+        );
+        assert!(
+            body.windows(20).any(|w| {
+                w[0..3] == [0x4D, 0x89, 0xE3]
+                    && w.windows(3).skip(3).any(|x| x == [0x48, 0x85, 0xC0])
+            }),
+            "import GPA must mov r11,r12 then test rax before mov [r11], rax IAT store"
+        );
+        assert!(
+            !body.windows(6).any(|w| w == [0x48, 0x83, 0xEC, 0x08, 0x41, 0x54]),
+            "import GPA must not sub rsp,8+push r12 — writes below import shadow frame"
+        );
+        assert!(
+            !body.windows(5).any(|w| w == [0x4C, 0x89, 0x5C, 0x24, 0x30]),
+            "import GPA must not spill r11 to [rsp+30h] — GetProcAddress clobbers Win64 home"
+        );
+        assert!(
+            !body.windows(5).any(|w| w == [0x4C, 0x89, 0x5C, 0x24, WIN64_CALL_SHADOW]),
+            "import GPA must not spill IAT cursor to [rsp+38h] — use callee-saved r12"
+        );
+        assert!(
+            body.windows(12).any(|w| {
+                w[0..3] == [0x45, 0x89, 0x87]
+                    && w[3..7] == H00_FLUSH_SIZE_SCRATCH_OFF.to_le_bytes()
+            }),
+            "FlushICache must spill SizeOfImage to scratch before GPA (45 89 87)"
+        );
+        assert!(
+            body.windows(12).any(|w| {
+                w[0..3] == [0x45, 0x8B, 0x87]
+                    && w[3..7] == H00_FLUSH_SIZE_SCRATCH_OFF.to_le_bytes()
+            }),
+            "FlushICache must reload r8d from scratch after GPA (45 8B 87)"
+        );
+        assert!(
+            !body.windows(5).any(|w| w == [0x45, 0x8B, 0x84, 0x1E, PE_OFF_SIZE_OF_IMAGE]),
+            "FlushICache post-GPA must not re-read SizeOfImage via [r14+rbx+disp] — ebx may be stale"
+        );
+        assert!(
+            body.windows(4).any(|w| w == [0x4C, 0x89, 0xF3, 0x8B]),
+            "export tail must mov rbx,r14 before export dir walk (phase 165)"
         );
         assert!(
             body.windows(8).any(|w| {
