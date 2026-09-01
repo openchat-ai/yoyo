@@ -785,9 +785,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x49, 0x89, 0xF5]); // mov r13, rsi — descriptor before LL (rsi=desc ptr)
     emit_win64_call_shadow(&mut c);
-    // Name RVA from descriptor — reload from r13 (ecx may not survive bootstrap checks).
-    c.extend_from_slice(&[0x41, 0x8B, 0x4D, 0x0C]); // mov ecx,[r13+0c]
-    c.extend_from_slice(&[0x49, 0x8D, 0x14, 0x0E]); // lea rdx,[r14+rcx] module name
+    c.extend_from_slice(&[0x49, 0x8D, 0x14, 0x0E]); // lea rdx,[r14+rcx] module name (ecx=Name RVA from desc read)
     c.extend_from_slice(&[0x48, 0x89, 0xD1]); // mov rcx, rdx — LoadLibraryA(lpLibFileName)
     emit_call_r15_scratch(&mut c, H00_LOADLIBRARY_SCRATCH_OFF);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
@@ -2004,16 +2002,9 @@ mod tests {
         assert!(
             body.windows(8).any(|w| {
                 w[0..3] == [0x49, 0x89, 0xF5]
-                    && w[3..8] == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW, 0x41]
+                    && w[3..7] == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]
             }),
             "import descriptor must mov r13,rsi before sub rsp,38h (descriptor before LoadLibrary)"
-        );
-        assert!(
-            body.windows(8).any(|w| {
-                w[0..4] == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]
-                    && w[4..8] == [0x41, 0x8B, 0x4D, 0x0C]
-            }),
-            "import descriptor must reload Name RVA from [r13+0c] before lea module name"
         );
         assert!(
             body.windows(8).any(|w| {
