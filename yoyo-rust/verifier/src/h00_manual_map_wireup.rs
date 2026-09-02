@@ -686,7 +686,7 @@ fn gen_h00_manual_map_body(
     let jz_skip_ll_boot2 = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = KERNELBASE
-    c.extend_from_slice(&[0x57]); // push rdi — save KERNELBASE across resolve_export
+    emit_mov_qword_to_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // save before resolve_export/fix_forward clobbers rdi
     // Reuse stack slot for LoadLibraryA export name (no contiguous needle in PE).
     for (off, ch) in [
         (0u8, b'L'),
@@ -709,7 +709,7 @@ fn gen_h00_manual_map_body(
     let call_boot_resolve = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
     emit_mov_qword_to_r15_scratch(&mut c, H00_LOADLIBRARY_SCRATCH_OFF, 0); // [r15+scratch]=LoadLibraryA
-    c.extend_from_slice(&[0x5F]); // pop rdi — restore KERNELBASE for GPA resolve
+    emit_mov_qword_from_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // rdi=KERNELBASE (fix_forward may clobber)
     // Bootstrap GetProcAddress (sidecar IAT resolve uses host LoadLibrary+GetProcAddress).
     for (off, ch) in [
         (0u8, b'G'),
