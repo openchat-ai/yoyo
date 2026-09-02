@@ -129,6 +129,9 @@ function Get-SmokePhase([int]$ExitCode) {
         154 { "phase_prelude_done" }
         155 { "phase_prelude_ok" }
         156 { "phase_bootstrap_ok" }
+        166 { "phase_bootstrap_find_ok" }
+        167 { "phase_bootstrap_gpa_ok" }
+        168 { "phase_bootstrap_ll_ok" }
         159 { "phase_map_valloc_ok" }
         130 { "import_ok_bisect" }
         131 { "reloc_ok_bisect" }
@@ -163,7 +166,7 @@ function Invoke-H00BisectDiagnostic([string]$RunDir, [string]$TyPath, [string]$T
     $range = if ($NoSidecar) {
         150..155
     } elseif ($narrow) {
-        @(155, 156, 162, 163, 164, 165)
+        @(155, 166, 167, 168, 156, 162, 163, 164, 165)
     } else {
         150..165
     }

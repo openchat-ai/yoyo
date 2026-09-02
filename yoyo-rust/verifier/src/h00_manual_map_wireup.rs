@@ -59,6 +59,9 @@ const PHASE_PRELUDE_READ_OK: u8 = 0x03;
 const PHASE_PRELUDE_DONE: u8 = 0x04;
 const PHASE_PRELUDE_OK: u8 = 0x05;
 const PHASE_BOOTSTRAP_OK: u8 = 0x06;
+const PHASE_BOOTSTRAP_FIND_OK: u8 = 0x10; // bisect 166
+const PHASE_BOOTSTRAP_GPA_OK: u8 = 0x11; // bisect 167
+const PHASE_BOOTSTRAP_LL_OK: u8 = 0x12; // bisect 168
 const PHASE_MAP_VALLOC_OK: u8 = 0x09;
 const PHASE_MAP_IMAGE_OK: u8 = 0x0A;
 const PHASE_SECTIONS_OK: u8 = 0x0B;
@@ -687,6 +690,13 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = kernel32 (PEB)
     emit_mov_qword_to_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // save before resolve_export/fix_forward clobbers rdi
+    emit_phase_with_bisect(
+        &mut c,
+        text_rva,
+        chunk_text_off,
+        iat_rva,
+        PHASE_BOOTSTRAP_FIND_OK,
+    );
     // GetProcAddress export walk first (native in kernel32 or fix_forward + .dll suffix).
     for (off, ch) in [
         (0u8, b'G'),
@@ -710,7 +720,17 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]);
     let call_boot_gpa_resolve = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
+    let jz_boot_gpa_resolve_fail = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     emit_mov_qword_to_r15_scratch(&mut c, H00_GETPROCADDRESS_SCRATCH_OFF, 0);
+    emit_phase_with_bisect(
+        &mut c,
+        text_rva,
+        chunk_text_off,
+        iat_rva,
+        PHASE_BOOTSTRAP_GPA_OK,
+    );
     emit_mov_qword_from_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // rcx = kernel32 module
     c.extend_from_slice(&[0x48, 0x89, 0xF9]); // mov rcx, rdi
     for (off, ch) in [
@@ -732,7 +752,17 @@ fn gen_h00_manual_map_body(
     }
     c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]); // lea rdx,[rsp+20h]
     emit_call_r15_scratch(&mut c, H00_GETPROCADDRESS_SCRATCH_OFF); // rax = LoadLibraryA (host GPA handles forwarders)
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
+    let jz_boot_ll_fail = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     emit_mov_qword_to_r15_scratch(&mut c, H00_LOADLIBRARY_SCRATCH_OFF, 0);
+    emit_phase_with_bisect(
+        &mut c,
+        text_rva,
+        chunk_text_off,
+        iat_rva,
+        PHASE_BOOTSTRAP_LL_OK,
+    );
     emit_win64_pop_shadow(&mut c);
     let jmp_boot_ok = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // success: skip failure pop
@@ -741,6 +771,13 @@ fn gen_h00_manual_map_body(
     let jmp_boot_fail = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     patch_rel32(&mut c, jz_skip_ll_boot2 + 2, jz_skip_ll_boot2 + 6, skip_ll_boot_pop);
+    patch_rel32(
+        &mut c,
+        jz_boot_gpa_resolve_fail + 2,
+        jz_boot_gpa_resolve_fail + 6,
+        skip_ll_boot_pop,
+    );
+    patch_rel32(&mut c, jz_boot_ll_fail + 2, jz_boot_ll_fail + 6, skip_ll_boot_pop);
 
     // Import resolve: walk descriptors at [r14+import_rva]
     let import_walk_start = c.len();
@@ -1520,8 +1557,8 @@ mod tests {
             }
         }
         assert!(
-            body.len() > 400 && body.len() < 2460,
-            "manual-map H_00 stub should fit OW-STUB pin [40,2460] (got {}B)",
+            body.len() > 400 && body.len() < 2520,
+            "manual-map H_00 stub should fit OW-STUB pin [40,2520] (got {}B)",
             body.len()
         );
         assert_eq!(
@@ -1881,11 +1918,10 @@ mod tests {
             w[0..3] == [0x49, 0x89, 0x87] && w[3..7] == H00_LOADLIBRARY_SCRATCH_OFF.to_le_bytes()
         });
         if let Some(at) = ll_store {
-            let tail = &body[at + 7..at + 7 + 12];
-            assert_eq!(
-                &tail[0..5],
-                &[0x48, 0x83, 0xC4, WIN64_CALL_SHADOW, 0xE9][..],
-                "after LoadLibraryA bootstrap store expect add rsp,38h; jmp (skip failure pop)"
+            let tail = &body[at + 7..at + 7 + 40];
+            assert!(
+                tail.windows(4).any(|w| w == [0x48, 0x83, 0xC4, WIN64_CALL_SHADOW]),
+                "after LoadLibraryA bootstrap store expect add rsp,38h before jmp (skip failure pop)"
             );
             assert!(
                 !body[at + 7..].windows(2).any(|w| w == [0xE9, 0xF7]),
