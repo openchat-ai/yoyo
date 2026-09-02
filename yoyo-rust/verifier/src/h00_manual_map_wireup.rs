@@ -216,6 +216,10 @@ fn maybe_bisect_exit_after_phase(
             if (PHASE_PRELUDE_CREATE_OK..=PHASE_PRELUDE_READ_OK).contains(&phase) {
                 emit_prelude_io_frame_free(c);
             }
+            // Bisect inside bootstrap I/O shadow: pop before ExitProcess (else nested shadow AV).
+            if (PHASE_BOOTSTRAP_FIND_OK..=PHASE_BOOTSTRAP_LL_OK).contains(&phase) {
+                emit_win64_pop_shadow(c);
+            }
             emit_exit_process_iat(c, text_rva, chunk_text_off, iat_rva, exit_code);
             return true;
         }
@@ -677,19 +681,19 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_skip_ll_boot = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    // Bootstrap via kernel32 PEB walk; GPA-first then GPA(kernel32,"LoadLibraryA") for forwarders.
+    // Bootstrap: KERNELBASE native GetProcAddress → GPA(kernel32,"LoadLibraryA") (skip k32 forwarders).
     emit_win64_call_shadow(&mut c);
-    for (off, ch) in b"kernel32.dll\0".iter().enumerate() {
+    for (off, ch) in b"kernelbase.dll\0".iter().enumerate() {
         c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + off as u8, *ch]);
     }
     c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]); // lea rdx,[rsp+20h]
-    let call_boot_find = c.len();
+    let call_boot_find_kb = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_skip_ll_boot2 = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = kernel32 (PEB)
-    emit_mov_qword_to_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // save before resolve_export/fix_forward clobbers rdi
+    c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = KERNELBASE
+    emit_mov_qword_to_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // save across k32 find
     emit_phase_with_bisect(
         &mut c,
         text_rva,
@@ -697,7 +701,7 @@ fn gen_h00_manual_map_body(
         iat_rva,
         PHASE_BOOTSTRAP_FIND_OK,
     );
-    // GetProcAddress export walk first (native in kernel32 or fix_forward + .dll suffix).
+    // GetProcAddress from KERNELBASE export dir (native — no kernel32 forwarder).
     for (off, ch) in [
         (0u8, b'G'),
         (1, b'e'),
@@ -731,8 +735,16 @@ fn gen_h00_manual_map_body(
         iat_rva,
         PHASE_BOOTSTRAP_GPA_OK,
     );
-    emit_mov_qword_from_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // rcx = kernel32 module
-    c.extend_from_slice(&[0x48, 0x89, 0xF9]); // mov rcx, rdi
+    for (off, ch) in b"kernel32.dll\0".iter().enumerate() {
+        c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + off as u8, *ch]);
+    }
+    c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]); // lea rdx,[rsp+20h]
+    let call_boot_find_k32 = c.len();
+    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
+    let jz_boot_k32_fail = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x89, 0xC1]); // mov rcx, rax — kernel32 for LoadLibraryA
     for (off, ch) in [
         (0u8, b'L'),
         (1, b'o'),
@@ -777,6 +789,7 @@ fn gen_h00_manual_map_body(
         jz_boot_gpa_resolve_fail + 6,
         skip_ll_boot_pop,
     );
+    patch_rel32(&mut c, jz_boot_k32_fail + 2, jz_boot_k32_fail + 6, skip_ll_boot_pop);
     patch_rel32(&mut c, jz_boot_ll_fail + 2, jz_boot_ll_fail + 6, skip_ll_boot_pop);
 
     // Import resolve: walk descriptors at [r14+import_rva]
@@ -963,7 +976,8 @@ fn gen_h00_manual_map_body(
 
     // --- Internal helpers (placed after main path; reached only via call) ---
     let find_module = c.len();
-    patch_rel32(&mut c, call_boot_find + 1, call_boot_find + 5, find_module);
+    patch_rel32(&mut c, call_boot_find_kb + 1, call_boot_find_kb + 5, find_module);
+    patch_rel32(&mut c, call_boot_find_k32 + 1, call_boot_find_k32 + 5, find_module);
     // rdx = ascii dll name → rax = DllBase
     // x64: gs:[0x60] = PEB; Ldr.InMemoryOrderModuleList.Flink (+0x20); entry = Flink-0x10.
     c.extend_from_slice(&[0x41, 0x52]); // push r10 — list head
@@ -1557,8 +1571,8 @@ mod tests {
             }
         }
         assert!(
-            body.len() > 400 && body.len() < 2520,
-            "manual-map H_00 stub should fit OW-STUB pin [40,2520] (got {}B)",
+            body.len() > 400 && body.len() < 2600,
+            "manual-map H_00 stub should fit OW-STUB pin [40,2600] (got {}B)",
             body.len()
         );
         assert_eq!(
@@ -1676,13 +1690,13 @@ mod tests {
         );
         assert!(
             !body.windows(7).any(|w| w == [0x49, 0x8D, 0x34, 0x06, 0x8B, 0x4E, 0x0C]),
-            "bootstrap must not use sidecar import[0] name for find_module (use kernel32.dll stack)"
+            "bootstrap must not use sidecar import[0] name for find_module (use kernelbase.dll stack)"
         );
         assert!(
             body.windows(5).any(|w| w == [0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF, b'k'])
                 && body.windows(5)
-                    .any(|w| w == [0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + 6, b'3']),
-            "bootstrap must build kernel32.dll in Win64 shadow"
+                    .any(|w| w == [0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + 6, b'b']),
+            "bootstrap must build kernelbase.dll in Win64 shadow"
         );
         assert!(
             body.windows(10).any(|w| {
