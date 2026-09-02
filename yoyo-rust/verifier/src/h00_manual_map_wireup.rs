@@ -1968,19 +1968,29 @@ mod tests {
             !body.windows(4).any(|w| w == [0x29, 0xC9]),
             "must not emit sub ecx,ecx (29 C9) in ordinal export path"
         );
-        // Bootstrap success must jmp over failure pop — not fall through into add rsp; jmp add rsp loop.
+        // Bootstrap: LL before GPA — LL store then GPA spill; GPA store then pop shadow + jmp ok.
         let ll_store = body.windows(7).position(|w| {
             w[0..3] == [0x49, 0x89, 0x87] && w[3..7] == H00_LOADLIBRARY_SCRATCH_OFF.to_le_bytes()
         });
         if let Some(at) = ll_store {
-            let tail = &body[at + 7..at + 7 + 40];
+            let tail = &body[at + 7..at + 7 + 80];
             assert!(
-                tail.windows(4).any(|w| w == [0x48, 0x83, 0xC4, WIN64_CALL_SHADOW]),
-                "after LoadLibraryA bootstrap store expect add rsp,38h before jmp (skip failure pop)"
+                tail.windows(5).any(|w| w == [0xC6, 0x44, 0x24, 0x20, b'G']),
+                "after LoadLibraryA bootstrap store expect GetProcAddress name spill (LL before GPA)"
             );
             assert!(
                 !body[at + 7..].windows(2).any(|w| w == [0xE9, 0xF7]),
                 "bootstrap must not jmp back into skip_ll_boot_pop (infinite stack unwind)"
+            );
+        }
+        let gpa_store = body.windows(7).position(|w| {
+            w[0..3] == [0x49, 0x89, 0x87] && w[3..7] == H00_GETPROCADDRESS_SCRATCH_OFF.to_le_bytes()
+        });
+        if let Some(at) = gpa_store {
+            let tail = &body[at + 7..at + 7 + 40];
+            assert!(
+                tail.windows(4).any(|w| w == [0x48, 0x83, 0xC4, WIN64_CALL_SHADOW]),
+                "after GetProcAddress bootstrap store expect add rsp,38h (skip failure pop)"
             );
         }
         assert!(
