@@ -723,8 +723,40 @@ fn gen_h00_manual_map_body(
         iat_rva,
         PHASE_BOOTSTRAP_FIND_OK,
     );
-    emit_mov_qword_from_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // rdi = kernel32
-    // GetProcAddress via export walk (matches Rust stub_resolve bootstrap).
+    emit_mov_qword_from_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // rdi = host module
+    // LoadLibraryA first — fix_forward during GPA resolve needs LL in scratch.
+    for (off, ch) in [
+        (0u8, b'L'),
+        (1, b'o'),
+        (2, b'a'),
+        (3, b'd'),
+        (4, b'L'),
+        (5, b'i'),
+        (6, b'b'),
+        (7, b'r'),
+        (8, b'a'),
+        (9, b'r'),
+        (10, b'y'),
+        (11, b'A'),
+        (12, 0),
+    ] {
+        c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + off, ch]);
+    }
+    c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]); // lea rdx,[rsp+20h]
+    let call_boot_ll_resolve = c.len();
+    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
+    let jz_boot_ll_fail = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    emit_mov_qword_to_r15_scratch(&mut c, H00_LOADLIBRARY_SCRATCH_OFF, 0);
+    emit_phase_with_bisect(
+        &mut c,
+        text_rva,
+        chunk_text_off,
+        iat_rva,
+        PHASE_BOOTSTRAP_LL_OK,
+    );
+    emit_mov_qword_from_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // rdi = host module
     for (off, ch) in [
         (0u8, b'G'),
         (1, b'e'),
@@ -757,38 +789,6 @@ fn gen_h00_manual_map_body(
         chunk_text_off,
         iat_rva,
         PHASE_BOOTSTRAP_GPA_OK,
-    );
-    emit_mov_qword_from_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // rdi = kernel32
-    for (off, ch) in [
-        (0u8, b'L'),
-        (1, b'o'),
-        (2, b'a'),
-        (3, b'd'),
-        (4, b'L'),
-        (5, b'i'),
-        (6, b'b'),
-        (7, b'r'),
-        (8, b'a'),
-        (9, b'r'),
-        (10, b'y'),
-        (11, b'A'),
-        (12, 0),
-    ] {
-        c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + off, ch]);
-    }
-    c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]); // lea rdx,[rsp+20h]
-    let call_boot_ll_resolve = c.len();
-    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
-    let jz_boot_ll_fail = c.len();
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    emit_mov_qword_to_r15_scratch(&mut c, H00_LOADLIBRARY_SCRATCH_OFF, 0);
-    emit_phase_with_bisect(
-        &mut c,
-        text_rva,
-        chunk_text_off,
-        iat_rva,
-        PHASE_BOOTSTRAP_LL_OK,
     );
     emit_win64_pop_shadow(&mut c);
     let jmp_boot_ok = c.len();
