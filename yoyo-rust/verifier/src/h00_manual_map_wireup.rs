@@ -75,6 +75,34 @@ const WIN64_CALL_SHADOW: u8 = 0x38;
 /// Short dll/api name spill for 2-arg bootstrap calls (inside 32 B home space; ret at [rsp+38h]).
 const WIN64_STACK_STR_OFF: u8 = 0x20;
 
+/// Derive host module base from a filled prelude IAT slot: page-align pointer, bounded MZ scan back.
+/// On success: rdi = DllBase, rax = DllBase. On failure: rax = 0.
+fn emit_derive_module_base_from_iat_safe(c: &mut Vec<u8>, iat_slot: u32) {
+    c.extend_from_slice(&[0x49, 0x8B, 0x87]); // mov rax,[r15+slot*8]
+    c.extend_from_slice(&(iat_slot * 8).to_le_bytes());
+    c.extend_from_slice(&[0x48, 0x89, 0xC3]); // mov rbx,rax
+    c.extend_from_slice(&[0x48, 0x81, 0xE3, 0x00, 0xF0, 0xFF, 0xFF]); // and rbx,~0xFFF (page align)
+    c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x01, 0x00, 0x00]); // mov r8d,256 pages max
+    let scan = c.len();
+    c.extend_from_slice(&[0x66, 0x81, 0x3B, 0x4D, 0x5A]); // cmp word [rbx],'MZ'
+    let jz_found = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x81, 0xEB, 0x00, 0x10, 0x00, 0x00]); // sub rbx,0x1000
+    c.extend_from_slice(&[0x41, 0xFF, 0xC8]); // dec r8d
+    let jnz_scan = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x31, 0xC0]); // xor eax,eax
+    let jmp_merge = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let found = c.len();
+    patch_rel32(c, jz_found + 2, jz_found + 6, found);
+    patch_rel32(c, jnz_scan + 2, jnz_scan + 6, scan);
+    c.extend_from_slice(&[0x48, 0x89, 0xDF]); // mov rdi,rbx
+    c.extend_from_slice(&[0x48, 0x89, 0xD8]); // mov rax,rbx
+    let merge = c.len();
+    patch_rel32(c, jmp_merge + 1, jmp_merge + 5, merge);
+}
+
 fn emit_win64_call_shadow(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]);
 }
@@ -680,18 +708,13 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_skip_ll_boot = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    // Bootstrap: PEB find kernel32.dll → native resolve_export(GPA + LoadLibraryA).
+    // Bootstrap: host module from prelude IAT[CreateFileA] page-aligned MZ scan → native resolve_export.
     emit_win64_call_shadow(&mut c);
-    for (off, ch) in b"kernel32.dll\0".iter().enumerate() {
-        c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + off as u8, *ch]);
-    }
-    c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]); // lea rdx,[rsp+20h]
-    let call_boot_find_k32 = c.len();
-    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, iat_rva);
+    emit_derive_module_base_from_iat_safe(&mut c, IAT_CREATE_FILE);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_skip_ll_boot2 = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = kernel32
     emit_mov_qword_to_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7);
     emit_phase_with_bisect(
         &mut c,
@@ -991,6 +1014,10 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_no_mod = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x0F, 0xB7, 0x48, 0x58]); // movzx ecx,word [rax+58h] BaseDllName.Length
+    c.extend_from_slice(&[0x85, 0xC9]);
+    let jz_next_mod_len = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x4C, 0x8B, 0x40, LDR_BASEDLLNAME_BUF_OFF]); // BaseDllName.Buffer
     c.extend_from_slice(&[0x4D, 0x85, 0xC0]);
     let jz_next_mod = c.len();
@@ -1043,6 +1070,7 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jz_no_mod_peb + 2, jz_no_mod_peb + 6, no_mod);
     patch_rel32(&mut c, jz_no_mod_ldr + 2, jz_no_mod_ldr + 6, no_mod);
     patch_rel32(&mut c, jz_no_mod_flink + 2, jz_no_mod_flink + 6, no_mod);
+    patch_rel32(&mut c, jz_next_mod_len + 2, jz_next_mod_len + 6, dll_mismatch);
     patch_rel32(&mut c, jz_next_mod + 2, jz_next_mod + 6, dll_mismatch);
     // LoadLibraryA fallback when PEB walk misses (api-set / forwarder targets).
     emit_mov_qword_from_r15_scratch(&mut c, H00_LOADLIBRARY_SCRATCH_OFF, 0); // mov rax,[r15+scratch]
@@ -1078,12 +1106,6 @@ fn gen_h00_manual_map_body(
         call_boot_ll_resolve + 1,
         call_boot_ll_resolve + 5,
         resolve_export,
-    );
-    patch_rel32(
-        &mut c,
-        call_boot_find_k32 + 1,
-        call_boot_find_k32 + 5,
-        find_module,
     );
     // rdi=module, rdx=name → rax=func (preserve thunk rsi; rbx/rcx/rdx = PE tables; r11=IAT cursor)
     c.extend_from_slice(&[0x41, 0x53]); // push r11 — caller IAT cursor survives resolve_export
@@ -1702,8 +1724,13 @@ mod tests {
             "export tail needs mov eax,[rbx+rsi+88h] (SIB 33, esi=e_lfanew)"
         );
         assert!(
-            body.windows(5).any(|w| w == [0xC6, 0x44, 0x24, 0x20, b'k']),
-            "bootstrap must spell kernel32.dll on stack for PEB find_module"
+            body.windows(7)
+                .any(|w| w == [0x48, 0x81, 0xE3, 0x00, 0xF0, 0xFF, 0xFF]),
+            "bootstrap must page-align IAT ptr before MZ scan (and rbx,~0xFFF)"
+        );
+        assert!(
+            body.windows(5).any(|w| w == [0x66, 0x81, 0x3B, 0x4D, 0x5A]),
+            "bootstrap must MZ-scan from IAT[CreateFileA] for host module base"
         );
         assert!(
             body.windows(3)
