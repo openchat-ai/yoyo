@@ -747,6 +747,7 @@ fn gen_h00_manual_map_body(
     let jz_skip_ll_boot2 = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = module base
+    emit_mov_qword_to_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // spill host module for LL/GPA resolve
     emit_phase_with_bisect(
         &mut c,
         text_rva,
@@ -1763,6 +1764,14 @@ mod tests {
         assert!(
             body.windows(5).any(|w| w == [0x66, 0x81, 0x3B, 0x4D, 0x5A]),
             "bootstrap must MZ-scan from IAT[CreateFileA] for host module base"
+        );
+        assert!(
+            body.windows(10).any(|w| {
+                w[0..3] == [0x48, 0x89, 0xC7]
+                    && w[3..6] == [0x49, 0x89, 0xBF]
+                    && w[6..10] == H00_KERNEL32_SCRATCH_OFF.to_le_bytes()
+            }),
+            "bootstrap must mov [r15+kernel32 scratch],rdi after module base in rdi"
         );
         assert!(
             body.windows(3)
