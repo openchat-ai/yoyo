@@ -1338,8 +1338,8 @@ fn gen_h00_export_call_tail(
     let mut c: Vec<u8> = Vec::new();
     let mut fail_jumps: Vec<(usize, usize)> = Vec::new();
 
-    c.extend_from_slice(&[0x8B, 0x73, 0x3C]);
-    c.extend_from_slice(&[0x8B, 0x84, 0x33, 0x88, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x8B, 0x43, 0x3C]); // mov eax,[rbx+3c] e_lfanew (not esi — SIB 33 uses rsi)
+    c.extend_from_slice(&[0x8B, 0x84, 0x03, 0x88, 0x00, 0x00, 0x00]); // mov eax,[rbx+rax+88h] export dir RVA
     c.extend_from_slice(&[0x85, 0xC0]);
     fail_jumps.push((c.len(), fail_export));
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
@@ -1752,9 +1752,16 @@ mod tests {
             "resolve_export + resolve_export_ordinal need mov eax,[rdi+rax+88h] (SIB 07)"
         );
         assert!(
-            body.windows(7)
-                .any(|w| *w == [0x8B, 0x84, 0x33, 0x88, 0x00, 0x00, 0x00]),
-            "export tail needs mov eax,[rbx+rsi+88h] (SIB 33, esi=e_lfanew)"
+            body.windows(8)
+                .any(|w| *w == [0x8B, 0x84, 0x03, 0x88, 0x00, 0x00, 0x00, 0x85])
+                || body.windows(7).any(|w| {
+                    *w == [0x8B, 0x84, 0x03, 0x88, 0x00, 0x00, 0x00]
+                }),
+            "export tail needs mov eax,[rbx+rax+88h] (SIB 03, rax=e_lfanew)"
+        );
+        assert!(
+            !body.windows(7).any(|w| *w == [0x8B, 0x84, 0x33, 0x88, 0x00, 0x00, 0x00]),
+            "must not mov eax,[rbx+rsi+88h] (SIB 33) after esi=e_lfanew — rsi high dwords AV"
         );
         assert!(
             body.windows(7)
