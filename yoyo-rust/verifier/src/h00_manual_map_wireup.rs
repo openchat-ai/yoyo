@@ -76,6 +76,7 @@ const WIN64_CALL_SHADOW: u8 = 0x38;
 const WIN64_STACK_STR_OFF: u8 = 0x20;
 
 /// Derive host module base from a filled prelude IAT slot: page-align pointer, bounded MZ scan back.
+/// Accept only MZ with a non-zero PE export directory (skip bogus MZ in mapped image).
 /// On success: rdi = DllBase, rax = DllBase. On failure: rax = 0.
 fn emit_derive_module_base_from_iat_safe(c: &mut Vec<u8>, iat_slot: u32) {
     c.extend_from_slice(&[0x49, 0x8B, 0x87]); // mov rax,[r15+slot*8]
@@ -84,21 +85,36 @@ fn emit_derive_module_base_from_iat_safe(c: &mut Vec<u8>, iat_slot: u32) {
     c.extend_from_slice(&[0x48, 0x81, 0xE3, 0x00, 0xF0, 0xFF, 0xFF]); // and rbx,~0xFFF (page align)
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x01, 0x00, 0x00]); // mov r8d,256 pages max
     let scan = c.len();
-    c.extend_from_slice(&[0x66, 0x81, 0x3B, 0x4D, 0x5A]); // cmp word [rbx],'MZ'
-    let jz_found = c.len();
+    c.extend_from_slice(&[0x45, 0x85, 0xC0]); // test r8d,r8d
+    let jz_fail = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x48, 0x81, 0xEB, 0x00, 0x10, 0x00, 0x00]); // sub rbx,0x1000
-    c.extend_from_slice(&[0x41, 0xFF, 0xC8]); // dec r8d
-    let jnz_scan = c.len();
+    c.extend_from_slice(&[0x66, 0x81, 0x3B, 0x4D, 0x5A]); // cmp word [rbx],'MZ'
+    let jne_next_page = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x31, 0xC0]); // xor eax,eax
-    let jmp_merge = c.len();
-    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-    let found = c.len();
-    patch_rel32(c, jz_found + 2, jz_found + 6, found);
-    patch_rel32(c, jnz_scan + 2, jnz_scan + 6, scan);
+    c.extend_from_slice(&[0x8B, 0x43, 0x3C]); // mov eax,[rbx+3c] e_lfanew
+    c.extend_from_slice(&[0x3D, 0x00, 0x10, 0x00, 0x00]); // cmp eax,0x1000
+    let ja_next_page = c.len();
+    c.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x8B, 0x84, 0x03, 0x88, 0x00, 0x00, 0x00]); // mov eax,[rbx+rax+88h] export RVA
+    c.extend_from_slice(&[0x85, 0xC0]);
+    let jz_next_page = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x89, 0xDF]); // mov rdi,rbx
     c.extend_from_slice(&[0x48, 0x89, 0xD8]); // mov rax,rbx
+    let jmp_merge = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let next_page = c.len();
+    patch_rel32(c, jne_next_page + 2, jne_next_page + 6, next_page);
+    patch_rel32(c, ja_next_page + 2, ja_next_page + 6, next_page);
+    patch_rel32(c, jz_next_page + 2, jz_next_page + 6, next_page);
+    c.extend_from_slice(&[0x48, 0x81, 0xEB, 0x00, 0x10, 0x00, 0x00]); // sub rbx,0x1000
+    c.extend_from_slice(&[0x41, 0xFF, 0xC8]); // dec r8d
+    let jmp_scan = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    patch_rel32(c, jmp_scan + 1, jmp_scan + 5, scan);
+    let fail = c.len();
+    patch_rel32(c, jz_fail + 2, jz_fail + 6, fail);
+    c.extend_from_slice(&[0x31, 0xC0]); // xor eax,eax
     let merge = c.len();
     patch_rel32(c, jmp_merge + 1, jmp_merge + 5, merge);
 }
@@ -708,14 +724,29 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_skip_ll_boot = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    // Bootstrap: host module from prelude IAT[CreateFileA] page-aligned MZ scan → native resolve_export.
+    // Bootstrap: IAT MZ scan (export-validated) → PEB find_module(kernel32) fallback → native resolve_export.
     emit_win64_call_shadow(&mut c);
     emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, iat_rva);
     emit_derive_module_base_from_iat_safe(&mut c, IAT_CREATE_FILE);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
+    let jz_boot_peb_find = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    let got_boot_module = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // skip PEB find when IAT MZ ok
+    let peb_find_boot = c.len();
+    patch_rel32(&mut c, jz_boot_peb_find + 2, jz_boot_peb_find + 6, peb_find_boot);
+    for (off, ch) in b"kernel32.dll\0".iter().enumerate() {
+        c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + off as u8, *ch]);
+    }
+    c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]);
+    let call_boot_find_k32 = c.len();
+    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    let after_boot_find_k32 = c.len();
+    patch_rel32(&mut c, got_boot_module + 1, got_boot_module + 5, after_boot_find_k32);
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_skip_ll_boot2 = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    emit_mov_qword_to_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7);
+    c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = module base
     emit_phase_with_bisect(
         &mut c,
         text_rva,
@@ -1272,6 +1303,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp ff_ret
     patch_rel32(&mut c, jz_ff_bad2 + 2, jz_ff_bad2 + 6, ff_ret_pop);
     patch_rel32(&mut c, jmp_ff_ret + 1, jmp_ff_ret + 5, ff_ret);
+    patch_rel32(&mut c, call_boot_find_k32 + 1, call_boot_find_k32 + 5, find_module);
     patch_rel32(&mut c, call_flush_find_k32 + 1, call_flush_find_k32 + 5, find_module);
     patch_rel32(&mut c, call_ff_find + 1, call_ff_find + 5, find_module);
     patch_rel32(&mut c, call_ff_resolve + 1, call_ff_resolve + 5, resolve_export);
@@ -1606,8 +1638,8 @@ mod tests {
             }
         }
         assert!(
-            body.len() > 400 && body.len() < 2600,
-            "manual-map H_00 stub should fit OW-STUB pin [40,2600] (got {}B)",
+            body.len() > 400 && body.len() < 2700,
+            "manual-map H_00 stub should fit OW-STUB pin [40,2700] (got {}B)",
             body.len()
         );
         assert_eq!(
