@@ -674,9 +674,9 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_skip_ll_boot = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    // Bootstrap from KERNELBASE (native LL/GPA) — skip kernel32 forwarder + fix_forward.
+    // Bootstrap via kernel32 PEB walk; GPA-first then GPA(kernel32,"LoadLibraryA") for forwarders.
     emit_win64_call_shadow(&mut c);
-    for (off, ch) in b"kernelbase.dll\0".iter().enumerate() {
+    for (off, ch) in b"kernel32.dll\0".iter().enumerate() {
         c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + off as u8, *ch]);
     }
     c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]); // lea rdx,[rsp+20h]
@@ -685,32 +685,9 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_skip_ll_boot2 = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = KERNELBASE
+    c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = kernel32 (PEB)
     emit_mov_qword_to_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // save before resolve_export/fix_forward clobbers rdi
-    // Reuse stack slot for LoadLibraryA export name (no contiguous needle in PE).
-    for (off, ch) in [
-        (0u8, b'L'),
-        (1, b'o'),
-        (2, b'a'),
-        (3, b'd'),
-        (4, b'L'),
-        (5, b'i'),
-        (6, b'b'),
-        (7, b'r'),
-        (8, b'a'),
-        (9, b'r'),
-        (10, b'y'),
-        (11, b'A'),
-        (12, 0),
-    ] {
-        c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + off, ch]);
-    }
-    c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]); // lea rdx,[rsp+20h]
-    let call_boot_resolve = c.len();
-    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
-    emit_mov_qword_to_r15_scratch(&mut c, H00_LOADLIBRARY_SCRATCH_OFF, 0); // [r15+scratch]=LoadLibraryA
-    emit_mov_qword_from_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // rdi=KERNELBASE (fix_forward may clobber)
-    // Bootstrap GetProcAddress (sidecar IAT resolve uses host LoadLibrary+GetProcAddress).
+    // GetProcAddress export walk first (native in kernel32 or fix_forward + .dll suffix).
     for (off, ch) in [
         (0u8, b'G'),
         (1, b'e'),
@@ -731,9 +708,31 @@ fn gen_h00_manual_map_body(
         c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + off, ch]);
     }
     c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]);
-    let call_boot_gpa = c.len();
+    let call_boot_gpa_resolve = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
     emit_mov_qword_to_r15_scratch(&mut c, H00_GETPROCADDRESS_SCRATCH_OFF, 0);
+    emit_mov_qword_from_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // rcx = kernel32 module
+    c.extend_from_slice(&[0x48, 0x89, 0xF9]); // mov rcx, rdi
+    for (off, ch) in [
+        (0u8, b'L'),
+        (1, b'o'),
+        (2, b'a'),
+        (3, b'd'),
+        (4, b'L'),
+        (5, b'i'),
+        (6, b'b'),
+        (7, b'r'),
+        (8, b'a'),
+        (9, b'r'),
+        (10, b'y'),
+        (11, b'A'),
+        (12, 0),
+    ] {
+        c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + off, ch]);
+    }
+    c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]); // lea rdx,[rsp+20h]
+    emit_call_r15_scratch(&mut c, H00_GETPROCADDRESS_SCRATCH_OFF); // rax = LoadLibraryA (host GPA handles forwarders)
+    emit_mov_qword_to_r15_scratch(&mut c, H00_LOADLIBRARY_SCRATCH_OFF, 0);
     emit_win64_pop_shadow(&mut c);
     let jmp_boot_ok = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // success: skip failure pop
@@ -1018,14 +1017,8 @@ fn gen_h00_manual_map_body(
     let resolve_export = c.len();
     patch_rel32(
         &mut c,
-        call_boot_resolve + 1,
-        call_boot_resolve + 5,
-        resolve_export,
-    );
-    patch_rel32(
-        &mut c,
-        call_boot_gpa + 1,
-        call_boot_gpa + 5,
+        call_boot_gpa_resolve + 1,
+        call_boot_gpa_resolve + 5,
         resolve_export,
     );
     // rdi=module, rdx=name → rax=func (preserve thunk rsi; rbx/rcx/rdx = PE tables; r11=IAT cursor)
@@ -1165,7 +1158,12 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jmp_ff_copy + 1, jmp_ff_copy + 5, ff_copy);
     let ff_copy_done = c.len();
     patch_rel32(&mut c, jae_ff_copy_done + 2, jae_ff_copy_done + 6, ff_copy_done);
-    c.extend_from_slice(&[0xC6, 0x07, 0x00]); // mov byte [rdi], 0
+    // Forwarder prefix is "KERNELBASE" not "KERNELBASE.dll" — append .dll for PEB BaseDllName match.
+    c.extend_from_slice(&[0xC6, 0x07, b'.']); // mov byte [rdi], '.'
+    c.extend_from_slice(&[0xC6, 0x47, 0x01, b'd']); // mov byte [rdi+1], 'd'
+    c.extend_from_slice(&[0xC6, 0x47, 0x02, b'l']); // mov byte [rdi+2], 'l'
+    c.extend_from_slice(&[0xC6, 0x47, 0x03, b'l']); // mov byte [rdi+3], 'l'
+    c.extend_from_slice(&[0xC6, 0x47, 0x04, 0x00]); // mov byte [rdi+4], 0
     c.extend_from_slice(&[0x48, 0x89, 0xE2]); // mov rdx, rsp (dll name)
     c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x08]); // RSP%16==0 at CALL (fix_forward frame leaves 8 mod 16)
     let call_ff_find = c.len();
@@ -1522,8 +1520,8 @@ mod tests {
             }
         }
         assert!(
-            body.len() > 400 && body.len() < 2440,
-            "manual-map H_00 stub should fit OW-STUB pin [40,2440] (got {}B)",
+            body.len() > 400 && body.len() < 2460,
+            "manual-map H_00 stub should fit OW-STUB pin [40,2460] (got {}B)",
             body.len()
         );
         assert_eq!(
@@ -1641,13 +1639,13 @@ mod tests {
         );
         assert!(
             !body.windows(7).any(|w| w == [0x49, 0x8D, 0x34, 0x06, 0x8B, 0x4E, 0x0C]),
-            "bootstrap must not use sidecar import[0] name for find_module (use kernelbase.dll stack)"
+            "bootstrap must not use sidecar import[0] name for find_module (use kernel32.dll stack)"
         );
         assert!(
             body.windows(5).any(|w| w == [0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF, b'k'])
                 && body.windows(5)
-                    .any(|w| w == [0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + 6, b'b']),
-            "bootstrap must build kernelbase.dll in Win64 shadow"
+                    .any(|w| w == [0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + 6, b'3']),
+            "bootstrap must build kernel32.dll in Win64 shadow"
         );
         assert!(
             body.windows(10).any(|w| {
@@ -1827,6 +1825,10 @@ mod tests {
             "fix_forward must sub rsp,40h for forwarder DLL-name copy frame"
         );
         assert!(
+            body.windows(3).any(|w| w == [0xC6, 0x07, b'.']),
+            "fix_forward must append .dll after forwarder DLL prefix"
+        );
+        assert!(
             body.windows(13).any(|w| {
                 w[0..4] == [0x48, 0x83, 0xEC, 0x08]
                     && w[4] == 0xE8
@@ -1875,15 +1877,15 @@ mod tests {
             "must not emit sub ecx,ecx (29 C9) in ordinal export path"
         );
         // Bootstrap success must jmp over failure pop — not fall through into add rsp; jmp add rsp loop.
-        let gpa_store = body.windows(7).position(|w| {
-            w[0..3] == [0x49, 0x89, 0x87] && w[3..7] == H00_GETPROCADDRESS_SCRATCH_OFF.to_le_bytes()
+        let ll_store = body.windows(7).position(|w| {
+            w[0..3] == [0x49, 0x89, 0x87] && w[3..7] == H00_LOADLIBRARY_SCRATCH_OFF.to_le_bytes()
         });
-        if let Some(at) = gpa_store {
+        if let Some(at) = ll_store {
             let tail = &body[at + 7..at + 7 + 12];
             assert_eq!(
                 &tail[0..5],
                 &[0x48, 0x83, 0xC4, WIN64_CALL_SHADOW, 0xE9][..],
-                "after GPA bootstrap store expect add rsp,40h; jmp (skip failure pop)"
+                "after LoadLibraryA bootstrap store expect add rsp,38h; jmp (skip failure pop)"
             );
             assert!(
                 !body[at + 7..].windows(2).any(|w| w == [0xE9, 0xF7]),
