@@ -159,7 +159,14 @@ function Invoke-ManualMapSmoke([string]$RunDir, [string]$Gen1Path) {
 }
 
 function Invoke-H00BisectDiagnostic([string]$RunDir, [string]$TyPath, [string]$TybPath, [string]$DllPath, [switch]$NoSidecar) {
-    $range = if ($NoSidecar) { 150..155 } else { 150..165 }
+    $narrow = ($env:GITHUB_ACTIONS -eq 'true') -or ($env:H00_BISECT_NARROW -match '^(?i)(1|true|yes|on)$')
+    $range = if ($NoSidecar) {
+        150..155
+    } elseif ($narrow) {
+        @(155, 156, 162, 163, 164, 165)
+    } else {
+        150..165
+    }
     Write-Host ("== bisect: rebuild gen1 with H00_BISECT_EXIT={0} ({1}) ==" -f ($range -join ","), $(if ($NoSidecar) { "no-sidecar" } else { "with-sidecar" }))
     $wireup = Join-Path $Root "yoyo-rust\verifier\src\h00_manual_map_wireup.rs"
     $lines = @()
@@ -269,7 +276,11 @@ if (-not $SkipSmoke) {
         $outDiag = if ($smoke.OutPresent) { "output.exe=present" } else { "output.exe=absent" }
         $bisect = ""
         if ($smokeExit -eq -1073741819) {
-            if ($H00BisectOn) {
+            if ($H00BisectOn -or $env:GITHUB_ACTIONS -eq 'true') {
+                if (-not $H00BisectOn) {
+                    Write-Host "CI: auto narrow H00 bisect on AV (phases 155-165 gate)"
+                    $env:H00_BISECT_NARROW = '1'
+                }
                 $bisect = Invoke-H00BisectDiagnostic $runOk $Ty $Tyb $dllPath
                 Write-Host "H00_BISECT_DIAG $bisect"
             } else {
