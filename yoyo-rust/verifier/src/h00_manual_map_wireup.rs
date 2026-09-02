@@ -70,7 +70,38 @@ const PHASE_IMPORT_OK: u8 = 0x0D;
 const PHASE_FLUSH_ICACHE: u8 = 0x0E;
 const PHASE_EXPORT_CALL: u8 = 0x0F;
 
-/// Win64 home-space before `call` to kernel32 (RSP%16==8 at callee entry).
+/// Derive host kernel32/kernelbase base from a filled prelude IAT slot (page MZ scan).
+/// On success: rdi = DllBase, rax = DllBase. On failure: rax = 0.
+fn emit_derive_module_base_from_iat(c: &mut Vec<u8>, iat_slot: u32) {
+    c.extend_from_slice(&[0x49, 0x8B, 0x87]); // mov rax,[r15+slot*8]
+    c.extend_from_slice(&(iat_slot * 8).to_le_bytes());
+    c.extend_from_slice(&[0x48, 0x89, 0xC3]); // mov rbx,rax — scan cursor
+    c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x02, 0x00, 0x00]); // mov r8d,512 (2 MiB max)
+    let scan = c.len();
+    c.extend_from_slice(&[0x45, 0x85, 0xC0]); // test r8d,r8d
+    let jz_fail = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x81, 0xEB, 0x00, 0x10, 0x00, 0x00]); // sub rbx,0x1000
+    c.extend_from_slice(&[0x66, 0x81, 0x3B, 0x4D, 0x5A]); // cmp word [rbx],'MZ'
+    let jz_found = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x41, 0xFF, 0xC8]); // dec r8d
+    let jmp_scan = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let found = c.len();
+    patch_rel32(c, jz_found + 2, jz_found + 6, found);
+    c.extend_from_slice(&[0x48, 0x89, 0xDF]); // mov rdi,rbx
+    c.extend_from_slice(&[0x48, 0x89, 0xD8]); // mov rax,rbx
+    let jmp_merge = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let fail = c.len();
+    patch_rel32(c, jz_fail + 2, jz_fail + 6, fail);
+    patch_rel32(c, jmp_scan + 1, jmp_scan + 5, scan);
+    c.extend_from_slice(&[0x31, 0xC0]); // xor eax,eax
+    let merge = c.len();
+    patch_rel32(c, jmp_merge + 1, jmp_merge + 5, merge);
+}
+
 /// PE entry is JMP (not CALL) into H_00: four pushes → RSP%16==8; `sub 0x38` → 0 at CALL.
 const WIN64_CALL_SHADOW: u8 = 0x38;
 /// Short dll/api name spill for 2-arg bootstrap calls (inside 32 B home space; ret at [rsp+38h]).
@@ -681,19 +712,14 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_skip_ll_boot = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    // Bootstrap: KERNELBASE native GetProcAddress → GPA(kernel32,"LoadLibraryA") (skip k32 forwarders).
+    // Bootstrap: derive host module from IAT[CreateFileA] MZ scan → native GPA resolve.
     emit_win64_call_shadow(&mut c);
-    for (off, ch) in b"kernelbase.dll\0".iter().enumerate() {
-        c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + off as u8, *ch]);
-    }
-    c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]); // lea rdx,[rsp+20h]
-    let call_boot_find_kb = c.len();
-    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, iat_rva);
+    emit_derive_module_base_from_iat(&mut c, IAT_CREATE_FILE);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_skip_ll_boot2 = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = KERNELBASE
-    emit_mov_qword_to_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // save across k32 find
+    emit_mov_qword_to_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // save module base
     emit_phase_with_bisect(
         &mut c,
         text_rva,
@@ -701,7 +727,8 @@ fn gen_h00_manual_map_body(
         iat_rva,
         PHASE_BOOTSTRAP_FIND_OK,
     );
-    // GetProcAddress from KERNELBASE export dir (native — no kernel32 forwarder).
+    emit_mov_qword_from_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // rdi = host module
+    // GetProcAddress via export walk (native in KERNELBASE when IAT points at forwarder).
     for (off, ch) in [
         (0u8, b'G'),
         (1, b'e'),
@@ -735,16 +762,8 @@ fn gen_h00_manual_map_body(
         iat_rva,
         PHASE_BOOTSTRAP_GPA_OK,
     );
-    for (off, ch) in b"kernel32.dll\0".iter().enumerate() {
-        c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + off as u8, *ch]);
-    }
-    c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]); // lea rdx,[rsp+20h]
-    let call_boot_find_k32 = c.len();
-    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
-    let jz_boot_k32_fail = c.len();
-    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x48, 0x89, 0xC1]); // mov rcx, rax — kernel32 for LoadLibraryA
+    emit_mov_qword_from_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // rcx = host module
+    c.extend_from_slice(&[0x48, 0x89, 0xF9]); // mov rcx, rdi
     for (off, ch) in [
         (0u8, b'L'),
         (1, b'o'),
@@ -789,7 +808,6 @@ fn gen_h00_manual_map_body(
         jz_boot_gpa_resolve_fail + 6,
         skip_ll_boot_pop,
     );
-    patch_rel32(&mut c, jz_boot_k32_fail + 2, jz_boot_k32_fail + 6, skip_ll_boot_pop);
     patch_rel32(&mut c, jz_boot_ll_fail + 2, jz_boot_ll_fail + 6, skip_ll_boot_pop);
 
     // Import resolve: walk descriptors at [r14+import_rva]
@@ -976,8 +994,6 @@ fn gen_h00_manual_map_body(
 
     // --- Internal helpers (placed after main path; reached only via call) ---
     let find_module = c.len();
-    patch_rel32(&mut c, call_boot_find_kb + 1, call_boot_find_kb + 5, find_module);
-    patch_rel32(&mut c, call_boot_find_k32 + 1, call_boot_find_k32 + 5, find_module);
     // rdx = ascii dll name → rax = DllBase
     // x64: gs:[0x60] = PEB; Ldr.InMemoryOrderModuleList.Flink (+0x20); entry = Flink-0x10.
     c.extend_from_slice(&[0x41, 0x52]); // push r10 — list head
@@ -1690,13 +1706,11 @@ mod tests {
         );
         assert!(
             !body.windows(7).any(|w| w == [0x49, 0x8D, 0x34, 0x06, 0x8B, 0x4E, 0x0C]),
-            "bootstrap must not use sidecar import[0] name for find_module (use kernelbase.dll stack)"
+            "bootstrap must not use sidecar import[0] name for find_module (IAT MZ scan)"
         );
         assert!(
-            body.windows(5).any(|w| w == [0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF, b'k'])
-                && body.windows(5)
-                    .any(|w| w == [0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + 6, b'b']),
-            "bootstrap must build kernelbase.dll in Win64 shadow"
+            body.windows(5).any(|w| w == [0x66, 0x81, 0x3B, 0x4D, 0x5A]),
+            "bootstrap must MZ-scan from IAT[CreateFileA] for host module base"
         );
         assert!(
             body.windows(10).any(|w| {
