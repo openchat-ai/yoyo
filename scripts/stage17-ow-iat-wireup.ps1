@@ -17,7 +17,11 @@ param(
     [int]$BisectExit = 0
 )
 
-$ErrorActionPreference = "Stop"
+# Continue: cargo/rustc write progress to stderr; Stop would abort before $LASTEXITCODE checks.
+$ErrorActionPreference = "Continue"
+if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) {
+    $PSNativeCommandUseErrorActionPreference = $false
+}
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 

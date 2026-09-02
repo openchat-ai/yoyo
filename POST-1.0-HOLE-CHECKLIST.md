@@ -24,7 +24,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 | 项 | 状态 | 说明 |
 |----|------|------|
 | **with-sidecar manual-map AV** | 🔴 **当前阻塞 Gate A** | master 上 no-sidecar fail-closed **GREEN**（exit≠0，非 AV）；with-sidecar **RED** — `gen1.exe` + cwd `yoyo_rt.dll` → AV（import/GPA 阶段；`Get-SmokePhase` → `access_violation` 或 phase=import） |
-| **修复策略** | 本地优先 | 先本地 `& .\scripts\stage17-ow-iat-wireup.ps1` 绿再 **一次** CI push；遵守 `.cursor/rules/ci-anti-thrash.mdc`（PR #14）：禁止 push 风暴 / 默认关 `H00_BISECT` |
+| **修复策略** | **本地 Windows only** | **H00 / Stage17 smoke debugging: local Windows only; CI is merge gate after local green, not a debugger.** 先 `cargo build --release -p verifier` + `& .\scripts\stage17-ow-iat-wireup.ps1`（bisect：`$env:H00_BISECT='1'`）本地绿再 **一次** push；遵守 `.cursor/rules/ci-anti-thrash.mdc`；禁止 push→等 Actions→push |
 | **勿做** | — | 勿 fake OW-IAT CLOSED；勿启 `AUTO_TO_1.0 ACTIVE=1`；勿 invent Stage 17 功能轨 |
 
 ---
