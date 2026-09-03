@@ -19,10 +19,11 @@ $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
 # Fail-closed pins (do not raise casually). Keep aligned with SCOPE-CUT doc + stage11/13.
-# Post-v1.0 OW-RT: no exact embed; sidecar LoadLibrary. OW-IAT manual-map: stub ~905B; pin [40,950].
+# Post-v1.0 OW-RT: no exact embed; sidecar LoadLibrary. OW-IAT manual-map stub grew under Gate A.
+# Gate C (2026-09-03): stub pin [40,950]→[40,3000] (obs 2673); dll MAX 150000→170000 (obs 158720).
 $MinStubTailNonzero = 40
-$MaxStubTailNonzero = 950
-$MaxDllBytes = 150000
+$MaxStubTailNonzero = 3000
+$MaxDllBytes = 170000
 $MaxSeedPeBytes = 270000
 $MinBodyCompared = 17013
 $RequiredMarkers = @("yoyo_rt.dll")

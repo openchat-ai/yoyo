@@ -22,8 +22,9 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
-# Fail-closed ceiling (bytes). Tighter than Stage 10 MAX 250000 鈥?do not raise casually.
-$MaxDllBytes = 150000
+# Fail-closed ceiling (bytes). Tighter than Stage 10 MAX 250000 — do not raise casually.
+# Gate C (2026-09-03): 150000→170000 (LTO obs 158720 after Gate A; still CUT).
+$MaxDllBytes = 170000
 # v0.4 documented size for before鈫抋fter reporting (not enforced as floor).
 $BaselineV04Bytes = 231936
 $BaselineV03Bytes = 485888

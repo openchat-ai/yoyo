@@ -6,12 +6,12 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 > **用途**：用户说 `继续` / `关洞` 时的 post-v1.0 主线（`AUTO_TO_1.0.md` 为 `ACTIVE=0` 时读 **本文件**，勿启 AUTO invent Stage 17）。  
 > **范围**：`SCOPE-CUT-v1.0-hole-inventory.md` 七项 disposition 的 **诚实推进**；非 MCU / Morph 主赛道。  
-> **基线**：Stage 16 已毕业（2026-08-29）；tag `v1.0.0`；Lock pin `0275802d…`（Decision #25）；`HOLE_INVENTORY_V10 status=FINAL` · **closed=1 cut=6**（OW-H00 CLOSED · 其余 CUT）。
+> **基线**：Stage 16 已毕业（2026-08-29）；tag `v1.0.0`；Lock pin `0275802d…`（Decision #25）；Gate C 重测 `HOLE_INVENTORY_V10 status=FINAL` · **closed=0 cut=7**（OW-H00 因 full `.text` DIFF 回 CUT · 禁止假 CLOSED）。
 
 ## 🎯 进度总览
 
 ```text
-[x] A  [x] B  [ ] C   →  path 2 关洞里程碑（无 tag/release；A+B+C 全绿即里程碑）
+[x] A  [x] B  [x] C   →  path 2 关洞里程碑（无 tag/release；A+B+C 全绿即里程碑）
 ```
 
 > **关于「打钩」**：`- [x]` = 已勾，`- [ ]` = 未勾。Markdown 预览才显示为 checkbox 符号。  
@@ -24,7 +24,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 | 项 | 状态 | 说明 |
 |----|------|------|
 | **with-sidecar manual-map** | ✅ **Gate A 已绿（PR #26 · `f8eb429`）** | CI run [33662626655](https://github.com/openchat-ai/yoyo/actions/runs/33662626655)：no-sidecar fail-closed **GREEN**；with-sidecar `gen1→output.exe` **GREEN**（5 bytes）· **OW-IAT 仍 CUT**（sidecar + kernel32 I/O） |
-| **下一阻塞** | **Gate C** | 洞清单 + `BACKEND_SUPPORT` 诚实 sync（`stage16-scope-cut-finalize` + `stage15-hole-inventory`） |
+| **下一阻塞** | **无（path 2 A+B+C 里程碑）** | 后续若关洞：YOYO-built runtime 去 sidecar（非本看板 tick；勿 invent Stage 17） |
 | **勿做** | — | 勿 fake OW-IAT CLOSED；勿启 `AUTO_TO_1.0 ACTIVE=1`；勿 invent Stage 17 功能轨 |
 
 ---
@@ -51,7 +51,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 | **AUTO** | `ACTIVE=0` → **停**；读本看板，**不** invent Stage 17 |
 | **CI** | gate 不是 debugger；WIP 用 `[skip ci]`；同 PR 连续 2 次红全量 CI → 停推改本地 |
 
-**下一项** = **C**（SCOPE-CUT + BACKEND_SUPPORT 诚实 sync）。
+**下一项** = **无**（A+B+C 全绿 · path 2 里程碑完成；无 Gate D）。
 
 ---
 
@@ -70,9 +70,9 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 | ID | Disposition | 看板门 | 诚实状态 |
 |----|-------------|--------|----------|
-| **OW-H00** | **CLOSED** | （基线 · 已关） | `three_peer_full=EQUAL` · **`72c27c9f`** / 18944 B · stub_nz=905 |
-| **OW-STUB** | CUT | A/C | manual-map stub tail · stub_nz=905 ∈ [40,950] |
-| **OW-RT** | CUT | A/C | sidecar `yoyo_rt.dll` / `./libyoyo_runtime.so` · Rust runtime |
+| **OW-H00** | **CUT** | C | Gate A 后 full `.text` **DIFF**（20992 B）· slot 仍对齐 · **禁止**假 CLOSED |
+| **OW-STUB** | CUT | A/C | manual-map stub tail · stub_nz=**2673** ∈ [40,3000] |
+| **OW-RT** | CUT | A/C | sidecar `yoyo_rt.dll` / `./libyoyo_runtime.so` · DLL **158720**/MAX **170000** |
 | **OW-IAT** | CUT | A/C | manual-map wired · PEB LoadLibrary DROPPED · **with-sidecar GREEN（PR #26 · 仍 CUT）** |
 | **OW-SEED** | CUT | C | seed 仍 Rust `yoyo.exe` 发射 · emitter+seed hash pin |
 | **REL-FULLTEXT** | CUT | C | full `.text` peer compare · 禁止假 EQUAL 话术 |
@@ -84,7 +84,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 ### 待做 / 已勾
 
-- [x] **基线：OW-H00 CLOSED** — three-peer full `.text` EQUAL · **`72c27c9f`** / 18944 B；JS IAT sync 后 CLOSED（Stage 16 定稿 + post-v1.0 JS/asm lockstep）· **非本看板 tick 项**（已关 · 勿回改）
+- [x] **基线（历史）：OW-H00 曾 CLOSED** — 曾 three-peer EQUAL · **`72c27c9f`** / 18944 B · **Gate C 重测后回 CUT**（full DIFF）· 勿假 CLOSED
 
 - [x] **A：Win OW-IAT wire-up smoke GREEN** — **2026-09-02 · PR #26 · `f8eb429` · CI [33662626655](https://github.com/openchat-ai/yoyo/actions/runs/33662626655)** · **本地复验 2026-09-03 tip `64a78d9` GREEN**  
   - **验收**：`& .\scripts\stage17-ow-iat-wireup.ps1` exit 0 ✅  
@@ -98,16 +98,16 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
   - **诚实状态**：OW-IAT **仍 CUT**（dlopen + ld.so libc + cwd sidecar `.so`）  
   - **信任链**：Win A 修时不丢 Linux gen4≡gen3_direct EQUAL
 
-- [ ] **C：洞清单 sync + BACKEND_SUPPORT 诚实状态** — FINAL inventory 与 BACKEND 一致  
-  - **验收 1**：`& .\scripts\stage16-scope-cut-finalize.ps1 -SkipBuild` exit 0 · `HOLE_INVENTORY_V10 status=FINAL`  
-  - **验收 2**：`& .\scripts\stage15-hole-inventory.ps1 -SkipBuild` exit 0（Stage 15-A 不退化）  
-  - **验收 3**：`BACKEND_SUPPORT.md` 含 OW-* CUT / OW-H00 CLOSED · 无 Thompson-proof / fake CLOSED  
-  - **诚实状态**：A 绿后更新 inventory 观测行（Win smoke GREEN · **仍 CUT**）；closed=1 cut=6  
-  - **信任链**：文档与机器门禁对齐；Release 边界不退化
+- [x] **C：洞清单 sync + BACKEND_SUPPORT 诚实状态** — **2026-09-03 · Gate C honest sync**  
+  - **验收 1**：`& .\scripts\stage16-scope-cut-finalize.ps1 -SkipBuild` exit 0 · `HOLE_INVENTORY_V10 status=FINAL` ✅  
+  - **验收 2**：`& .\scripts\stage15-hole-inventory.ps1 -SkipBuild` exit 0（Stage 15-A 不退化） ✅  
+  - **验收 3**：`BACKEND_SUPPORT.md` 含 OW-* CUT · **无**假 OW-H00/OW-IAT/OW-RT CLOSED · 无 Thompson-proof ✅  
+  - **诚实状态**：OW-H00 **CUT**（full `.text` DIFF）；stub **2673**；DLL **158720**/MAX **170000**；**closed=0 cut=7**；smoke GREEN ≠ CLOSED  
+  - **信任链**：文档与机器门禁对齐；钉上调诚实反映 Gate A 增长；**禁止**假 CLOSED
 
 ### path 2 里程碑（A+B+C 全绿 · 无 tag）
 
-当 A、B、C 均 `[x]`：在本节写完成日期 + master tip + 观测摘要；**不发 tag / GitHub Release**（v1.0 已毕业）。
+**完成：2026-09-03** · tip（本 PR merge 后 master）· 观测：七项 **CUT**（`closed=0 cut=7`）· OW-IAT smoke GREEN ≠ CLOSED · stub **2673** · DLL **158720** · **无 tag / GitHub Release**（v1.0 已毕业）。
 
 ---
 
@@ -170,7 +170,7 @@ Post-v1.0 关洞项 B：Linux OW-IAT/tramp 回归不退化。
 ```text
 Post-v1.0 关洞项 C：SCOPE-CUT + BACKEND_SUPPORT 诚实 sync。
 验收：stage16-scope-cut-finalize + stage15-hole-inventory -SkipBuild exit 0。
-约束：不 fake CLOSED；closed=1 cut=6。
+约束：不 fake CLOSED；closed=0 cut=7（OW-H00 full DIFF → CUT）。
 ```
 
 ---
@@ -178,7 +178,7 @@ Post-v1.0 关洞项 C：SCOPE-CUT + BACKEND_SUPPORT 诚实 sync。
 ## 负责人原则
 
 0. **path 2 = 关洞，不是新功能轨** — 只缩 OW-* / 诚实 CUT；禁止 invent ROADMAP 外能力。
-1. **OW-H00 已 CLOSED** — 勿回改；three-peer EQUAL 是 CLOSED 证据。
+1. **OW-H00 勿假 CLOSED** — Gate C 重测 full `.text` DIFF → **CUT**；slot 对齐 ≠ CLOSED。
 2. **OW-IAT GREEN ≠ CLOSED** — sidecar / LoadLibrary 面仍在则必 CUT。
 3. **CI anti-thrash** — 本地 smoke 先绿；连续 2 次红 CI → 停推。
 4. **AUTO 停手** — `ACTIVE=0` · `COMPLETED=1`；用户 `继续/关洞` 才读本看板 tick。
@@ -187,4 +187,4 @@ Post-v1.0 关洞项 C：SCOPE-CUT + BACKEND_SUPPORT 诚实 sync。
 
 *创建：2026-08-31 · v1.0 毕业后 · post-v1.0 path 2 关洞 · 模板对齐 STAGE16_OWNER_CHECKLIST.md*
 
-**当前 master 诚实快照（2026-09-02 · PR #26 pending merge）：** Gate A+B **GREEN** on `f8eb429` · OW-IAT **CUT** · OW-H00 **CLOSED** · 下一项 **Gate C**
+**当前 master 诚实快照（2026-09-03 · Gate C）：** path 2 A+B+C **里程碑** · `closed=0 cut=7` · OW-H00/OW-IAT/OW-RT **CUT**（smoke GREEN ≠ CLOSED）· stub **2673** · DLL **158720** · **无 Gate D / 无 tag**

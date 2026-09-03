@@ -436,16 +436,40 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Honest** | HOLE_INVENTORY_V10 FINAL closed=1 cut=6（OW-H00 CLOSED）；DDC=detection；其余 CUT（无假 CLOSED）；Rust runtime / sidecar / seed |
 | **Next** | **ROADMAP DONE** — no Stage 17；`AUTO_TO_1.0.md` COMPLETED + ACTIVE=0 |
 
-### Post-v1.0 path 2 — Win OW-IAT wire-up smoke (2026-08-29)
+### Post-v1.0 path 2 — Win OW-IAT wire-up smoke (Gate A · 2026-09-02 · PR #26)
 
 | Item | Detail |
 |------|--------|
 | **Hole** | **OW-IAT** (Win manual-map H_00 + cwd sidecar) |
-| **Change** | `stage17-ow-iat-wireup.ps1` smoke: link H_00 seed PE; **with** cwd `yoyo_rt.dll` → `output.exe`; **without** sidecar → fail-closed (no output) |
-| **Still CUT** | manual-map + kernel32 I/O + Rust `yoyo_runtime.dll` sidecar — **not** OW-IAT CLOSED |
+| **Change** | `stage17-ow-iat-wireup.ps1` smoke: link H_00 seed PE; **with** cwd `yoyo_rt.dll` → `output.exe`; **without** sidecar → fail-closed exit=2 (no AV) |
+| **Status** | **GREEN** — PR #26 merged master `8f9d98c` · CI [33662626655](https://github.com/openchat-ai/yoyo/actions/runs/33662626655) · local re-verify tip `64a78d9` |
+| **Still CUT** | manual-map + kernel32 I/O + Rust `yoyo_rt.dll` sidecar — **GREEN ≠ OW-IAT CLOSED** |
 | **Gate** | `scripts/stage17-ow-iat-wireup.ps1` · CI `windows-latest` after `cargo build` |
-| **Obs** | stub_nz **905**; seed PE **~249344**; LoadLibraryA **ABSENT**; `yoyo_rt.dll` marker **PRESENT** |
+| **Obs** | stub_nz **2673**（Gate C 重测；was 905）；LoadLibraryA **ABSENT**; `yoyo_rt.dll` marker **PRESENT**; with-sidecar `gen1→output.exe` exit 0 (5 bytes) |
+| **Honest** | Gate A smoke GREEN；Gate C：OW-H00 **CUT**（full `.text` DIFF）；closed=0 cut=7 |
 | **Next** | **YOYO-built runtime** (drop Rust sidecar); OW-IAT CLOSED only when `yoyo_rt.dll` marker absent |
+
+### Post-v1.0 path 2 — Linux OW-IAT / tramp regress (Gate B · 2026-09-02)
+
+| Item | Detail |
+|------|--------|
+| **Hole** | **OW-IAT** / **OW-RT** (Linux hybrid tramp + cwd `.so` sidecar) |
+| **Status** | **GREEN** — same PR #26 / CI run · `stage10-linux-pure-m4.sh` `H_00 chain gen1→gen4` |
+| **Still CUT** | dlopen@PLT + ld.so libc + cwd `./libyoyo_runtime.so` — **not** CLOSED |
+| **Gate** | `scripts/stage10-linux-pure-m4.sh` |
+| **Honest** | Win Gate A fix must not regress Linux gen4≡gen3_direct EQUAL |
+
+### Post-v1.0 path 2 — hole inventory + BACKEND sync (Gate C · 2026-09-03)
+
+| Item | Detail |
+|------|--------|
+| **Scope** | Align `SCOPE-CUT-v1.0-hole-inventory.md` + this matrix with Gate A/B reality |
+| **Disposition** | **7× CUT**（`closed=0 cut=7`）— OW-H00 因 full `.text` JS↔Rust **DIFF** 回 CUT（**禁止**假 CLOSED） |
+| **Obs** | Win DLL LTO **158720**（MAX **170000**）· stub_nz **2673**（pin [40,3000]）· full `.text` **20992** DIFF · OW-IAT smoke **GREEN ≠ CLOSED** |
+| **Pins** | stage14/15 MaxStub **3000** · MaxDll **170000**（诚实上调；非缩信任） |
+| **Gate** | `scripts/stage16-scope-cut-finalize.ps1 -SkipBuild` · `scripts/stage15-hole-inventory.ps1 -SkipBuild` |
+| **Ban** | No Thompson-proof · no fake CLOSED · no invent ROADMAP Stage 17 |
+| **Board** | `POST-1.0-HOLE-CHECKLIST.md` path 2 A+B+C milestone（无 tag/release） |
 
 ### Full body compiler (Stage 8-B · W5.5 body)
 
