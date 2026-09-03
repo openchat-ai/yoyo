@@ -17,15 +17,16 @@ pub const IAT_CLOSE_HANDLE: u32 = 4;
 
 /// Stack scratch for ReadFile nNumberOfBytesRead (Win64 5th-arg slot at [rsp+0x20] in shadow).
 const READ_BYTES_STACK_OFF: u8 = 0x20;
-/// GPA proc-name spill for FlushICache (same slot — must stay above shadow, not inside it).
-const FLUSH_ICACHE_NAME_STACK_OFF: u8 = READ_BYTES_STACK_OFF;
+/// GPA proc-name spill — first byte above 32 B Win64 homes; must stay inside `sub rsp,38h`
+/// (offset 0x38 is the return slot / past the frame → stack smash).
+const FLUSH_ICACHE_NAME_STACK_OFF: u8 = 0x20;
 /// One Win64 home (0x20) + CreateFile 3 stack args (0x18); 0x38 bytes total.
 /// After JMP-entry prologue (RSP%16==8), frame must be 8 mod 16 so FF15 CALL is 0 mod 16.
 const PRELUDE_IO_FRAME: u8 = 0x38;
 /// Forwarder DLL-name copy frame in fix_forward (copy buffer + align call to find_module).
 const FORWARDER_NAME_FRAME: u8 = 0x40;
-/// find_module LoadLibraryA fallback: one push r10 (8 B) before shadow → sub 30h not 38h for CALL align.
-const FIND_MODULE_LL_SHADOW: u8 = 0x30;
+/// find_module LoadLibraryA fallback: one push r10 (8 B) → RSP%16==8; sub 28h → 0 mod 16 at CALL.
+const FIND_MODULE_LL_SHADOW: u8 = 0x28;
 
 /// PE32+ optional-header field offsets from `e_lfanew` (ebx holds e_lfanew; COFF = 20 B after PE sig).
 const PE_OFF_NUMBER_OF_SECTIONS: u8 = 6; // COFF + 2
@@ -59,6 +60,9 @@ const PHASE_PRELUDE_READ_OK: u8 = 0x03;
 const PHASE_PRELUDE_DONE: u8 = 0x04;
 const PHASE_PRELUDE_OK: u8 = 0x05;
 const PHASE_BOOTSTRAP_OK: u8 = 0x06;
+const PHASE_BOOTSTRAP_FIND_OK: u8 = 0x10; // bisect 166
+const PHASE_BOOTSTRAP_GPA_OK: u8 = 0x11; // bisect 167
+const PHASE_BOOTSTRAP_LL_OK: u8 = 0x12; // bisect 168
 const PHASE_MAP_VALLOC_OK: u8 = 0x09;
 const PHASE_MAP_IMAGE_OK: u8 = 0x0A;
 const PHASE_SECTIONS_OK: u8 = 0x0B;
@@ -67,11 +71,57 @@ const PHASE_IMPORT_OK: u8 = 0x0D;
 const PHASE_FLUSH_ICACHE: u8 = 0x0E;
 const PHASE_EXPORT_CALL: u8 = 0x0F;
 
-/// Win64 home-space before `call` to kernel32 (RSP%16==8 at callee entry).
-/// PE entry is JMP (not CALL) into H_00: four pushes → RSP%16==8; `sub 0x38` → 0 at CALL.
+/// When `H00_BISECT_EXIT` matches `150 + phase` (151–165), exit before phase probe (CI bisect).
 const WIN64_CALL_SHADOW: u8 = 0x38;
 /// Short dll/api name spill for 2-arg bootstrap calls (inside 32 B home space; ret at [rsp+38h]).
 const WIN64_STACK_STR_OFF: u8 = 0x20;
+
+/// Derive host module base from a filled prelude IAT slot: page-align pointer, bounded MZ scan back.
+/// Accept only MZ with a non-zero PE export directory (skip bogus MZ in mapped image).
+/// On success: rdi = DllBase, rax = DllBase. On failure: rax = 0.
+///
+/// Must page-align before scanning: unaligned `sub 1000h` never hits ImageBase and walks
+/// into unmapped pages → AV (Gate A with-sidecar bootstrap).
+fn emit_derive_module_base_from_iat_safe(c: &mut Vec<u8>, iat_slot: u32) {
+    c.extend_from_slice(&[0x49, 0x8B, 0x87]); // mov rax,[r15+slot*8]
+    c.extend_from_slice(&(iat_slot * 8).to_le_bytes());
+    c.extend_from_slice(&[0x48, 0x89, 0xC3]); // mov rbx,rax
+    c.extend_from_slice(&[0x48, 0x81, 0xE3, 0x00, 0xF0, 0xFF, 0xFF]); // and rbx,~0xFFF (page align)
+    c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x01, 0x00, 0x00]); // mov r8d,256 pages max
+    let scan = c.len();
+    c.extend_from_slice(&[0x45, 0x85, 0xC0]); // test r8d,r8d
+    let jz_fail = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x66, 0x81, 0x3B, 0x4D, 0x5A]); // cmp word [rbx],'MZ'
+    let jne_next_page = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x8B, 0x43, 0x3C]); // mov eax,[rbx+3c] e_lfanew
+    c.extend_from_slice(&[0x3D, 0x00, 0x10, 0x00, 0x00]); // cmp eax,0x1000
+    let ja_next_page = c.len();
+    c.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x8B, 0x84, 0x03, 0x88, 0x00, 0x00, 0x00]); // mov eax,[rbx+rax+88h] export RVA
+    c.extend_from_slice(&[0x85, 0xC0]);
+    let jz_next_page = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x89, 0xDF]); // mov rdi,rbx
+    c.extend_from_slice(&[0x48, 0x89, 0xD8]); // mov rax,rbx
+    let jmp_merge = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let next_page = c.len();
+    patch_rel32(c, jne_next_page + 2, jne_next_page + 6, next_page);
+    patch_rel32(c, ja_next_page + 2, ja_next_page + 6, next_page);
+    patch_rel32(c, jz_next_page + 2, jz_next_page + 6, next_page);
+    c.extend_from_slice(&[0x48, 0x81, 0xEB, 0x00, 0x10, 0x00, 0x00]); // sub rbx,0x1000
+    c.extend_from_slice(&[0x41, 0xFF, 0xC8]); // dec r8d
+    let jmp_scan = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    patch_rel32(c, jmp_scan + 1, jmp_scan + 5, scan);
+    let fail = c.len();
+    patch_rel32(c, jz_fail + 2, jz_fail + 6, fail);
+    c.extend_from_slice(&[0x31, 0xC0]); // xor eax,eax
+    let merge = c.len();
+    patch_rel32(c, jmp_merge + 1, jmp_merge + 5, merge);
+}
 
 fn emit_win64_call_shadow(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]);
@@ -81,13 +131,20 @@ fn emit_win64_pop_shadow(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x48, 0x83, 0xC4, WIN64_CALL_SHADOW]);
 }
 
-/// GetProcAddress clobbers volatile r11; r12=file PE (callee-saved). Spill via push/mov/pop.
+/// GetProcAddress clobbers volatile r11 (IAT write cursor) but preserves callee-saved r12.
+/// Spill file PE r12 via kernel32 scratch (rdi holds kernel32 base); hold IAT cursor in r12 across GPA.
+/// Must restore kernel32 base from rdi — rax is the GPA result and must not be written to scratch.
 fn emit_call_gpa_preserve_r11(c: &mut Vec<u8>) {
-    c.extend_from_slice(&[0x41, 0x54]); // push r12
-    c.extend_from_slice(&[0x4D, 0x89, 0xDC]); // mov r12, r11
+    emit_mov_qword_from_r15_scratch(c, H00_KERNEL32_SCRATCH_OFF, 7); // mov rdi,[r15+kernel32]
+    c.extend_from_slice(&[0x4D, 0x89, 0xA7]); // mov [r15+disp32], r12 — file PE spill
+    c.extend_from_slice(&H00_KERNEL32_SCRATCH_OFF.to_le_bytes());
+    // 4D 89 DC = mov r12,r11 (REX.W|R|B). 4C 89 DC is mov rsp,r11 — smashes stack → AV.
+    c.extend_from_slice(&[0x4D, 0x89, 0xDC]); // mov r12, r11 — IAT cursor in callee-saved
     emit_call_r15_scratch(c, H00_GETPROCADDRESS_SCRATCH_OFF);
-    c.extend_from_slice(&[0x4D, 0x89, 0xE3]); // mov r11, r12
-    c.extend_from_slice(&[0x41, 0x5C]); // pop r12
+    c.extend_from_slice(&[0x4D, 0x89, 0xE3]); // mov r11, r12 — restore IAT write cursor
+    c.extend_from_slice(&[0x4D, 0x8B, 0xA7]); // mov r12, [r15+disp32] — restore file PE
+    c.extend_from_slice(&H00_KERNEL32_SCRATCH_OFF.to_le_bytes());
+    emit_mov_qword_to_r15_scratch(c, H00_KERNEL32_SCRATCH_OFF, 7); // mov [r15+kernel32], rdi
 }
 
 /// After `test`/`cmp` ZF=1 (fail): pop Win64 shadow then jmp fail; ZF=0 skip
@@ -206,6 +263,10 @@ fn maybe_bisect_exit_after_phase(
             // Bisect inside prelude I/O frame: pop frame before ExitProcess shadow (else double-sub AV).
             if (PHASE_PRELUDE_CREATE_OK..=PHASE_PRELUDE_READ_OK).contains(&phase) {
                 emit_prelude_io_frame_free(c);
+            }
+            // Bisect inside bootstrap I/O shadow: pop before ExitProcess (else nested shadow AV).
+            if (PHASE_BOOTSTRAP_FIND_OK..=PHASE_BOOTSTRAP_LL_OK).contains(&phase) {
+                emit_win64_pop_shadow(c);
             }
             emit_exit_process_iat(c, text_rva, chunk_text_off, iat_rva, exit_code);
             return true;
@@ -522,11 +583,12 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x4C, 0x89, 0xE6]); // mov rsi, r12
     c.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
 
-    // Section copy loop: esi = NumberOfSections, r8d = index
-    emit_movzx_u16_pe_file(&mut c, 6, PE_OFF_NUMBER_OF_SECTIONS); // movzx esi,[r12+rbx+6]
+    // Section copy loop: r10d = NumberOfSections (not esi — rep movsb clobbers rsi), r8d = index
+    emit_movzx_u16_pe_file(&mut c, 2, PE_OFF_NUMBER_OF_SECTIONS); // movzx edx,[r12+rbx+6]
+    c.extend_from_slice(&[0x41, 0x89, 0xD2]); // mov r10d, edx — survive rep movsb
     c.extend_from_slice(&[0x45, 0x31, 0xC0]); // xor r8d,r8d
     let sec_loop = c.len();
-    c.extend_from_slice(&[0x44, 0x39, 0xC6]); // cmp esi,r8d
+    c.extend_from_slice(&[0x45, 0x39, 0xD0]); // cmp r8d,r10d — done when index >= count
     let jae_secs_done = c.len();
     c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
     // section hdr = r12 + rbx + 24 + SizeOfOptionalHeader + r8*40
@@ -612,6 +674,7 @@ fn gen_h00_manual_map_body(
     let jz_reloc_done2 = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x8B, 0x56, 0x04]); // mov edx,[rsi+4] block size
+    c.extend_from_slice(&[0x41, 0x89, 0xD1]); // mov r9d, edx — keep SizeOfBlock (edx clobbered in entry loop)
     c.extend_from_slice(&[0x83, 0xFA, 0x08]);
     let jb_reloc_done = c.len();
     c.extend_from_slice(&[0x0F, 0x82, 0, 0, 0, 0]);
@@ -643,7 +706,7 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jmp_re + 1, jmp_re + 5, reloc_entry);
     let next_block = c.len();
     patch_rel32(&mut c, jbe_next_block + 2, jbe_next_block + 6, next_block);
-    c.extend_from_slice(&[0x48, 0x01, 0xD6]); // add rsi, rdx
+    c.extend_from_slice(&[0x4C, 0x01, 0xCE]); // add rsi, r9 — SizeOfBlock (not clobbered edx page ofs)
     let jmp_rb = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     patch_rel32(&mut c, jmp_rb + 1, jmp_rb + 5, reloc_block);
@@ -662,24 +725,45 @@ fn gen_h00_manual_map_body(
     // Bootstrap LoadLibraryA at [r15+scratch] for find_module fallback (api-set forwarders).
     emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, iat_rva);
     emit_mov_qword_r15_scratch_imm0(&mut c, H00_LOADLIBRARY_SCRATCH_OFF);
+    // resolve_export clobbers ebx; reload file e_lfanew before PE optional-header reads.
+    emit_mov_e_lfanew_pe_file(&mut c);
     emit_mov_u32_pe_file(&mut c, 0, PE_OFF_IMPORT_DIR_RVA);
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_skip_ll_boot = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    // Bootstrap must find kernel32 via PEB — not sidecar import[0] (order varies).
+    // Bootstrap: IAT MZ scan (export-validated) → PEB find_module(kernel32) fallback → native resolve_export.
     emit_win64_call_shadow(&mut c);
+    emit_reload_r15_data_base(&mut c, text_rva, chunk_text_off, iat_rva);
+    emit_derive_module_base_from_iat_safe(&mut c, IAT_CREATE_FILE);
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
+    let jz_boot_peb_find = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    let got_boot_module = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // skip PEB find when IAT MZ ok
+    let peb_find_boot = c.len();
+    patch_rel32(&mut c, jz_boot_peb_find + 2, jz_boot_peb_find + 6, peb_find_boot);
     for (off, ch) in b"kernel32.dll\0".iter().enumerate() {
         c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + off as u8, *ch]);
     }
-    c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]); // lea rdx,[rsp+20h]
-    let call_boot_find = c.len();
+    c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]);
+    let call_boot_find_k32 = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    let after_boot_find_k32 = c.len();
+    patch_rel32(&mut c, got_boot_module + 1, got_boot_module + 5, after_boot_find_k32);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_skip_ll_boot2 = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = kernel32
-    emit_mov_qword_to_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // save before resolve_export/fix_forward clobbers rdi
-    // Reuse stack slot for LoadLibraryA export name (no contiguous needle in PE).
+    c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi = module base
+    emit_mov_qword_to_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // spill host module for LL/GPA resolve
+    emit_phase_with_bisect(
+        &mut c,
+        text_rva,
+        chunk_text_off,
+        iat_rva,
+        PHASE_BOOTSTRAP_FIND_OK,
+    );
+    emit_mov_qword_from_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // rdi = host module
+    // LoadLibraryA first — fix_forward during GPA resolve needs LL in scratch.
     for (off, ch) in [
         (0u8, b'L'),
         (1, b'o'),
@@ -698,11 +782,20 @@ fn gen_h00_manual_map_body(
         c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + off, ch]);
     }
     c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]); // lea rdx,[rsp+20h]
-    let call_boot_resolve = c.len();
+    let call_boot_ll_resolve = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
-    emit_mov_qword_to_r15_scratch(&mut c, H00_LOADLIBRARY_SCRATCH_OFF, 0); // [r15+scratch]=LoadLibraryA
-    emit_mov_qword_from_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // rdi=kernel32 (fix_forward may clobber)
-    // Bootstrap GetProcAddress (sidecar IAT resolve uses host LoadLibrary+GetProcAddress).
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
+    let jz_boot_ll_fail = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    emit_mov_qword_to_r15_scratch(&mut c, H00_LOADLIBRARY_SCRATCH_OFF, 0);
+    emit_phase_with_bisect(
+        &mut c,
+        text_rva,
+        chunk_text_off,
+        iat_rva,
+        PHASE_BOOTSTRAP_LL_OK,
+    );
+    emit_mov_qword_from_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 7); // rdi = host module
     for (off, ch) in [
         (0u8, b'G'),
         (1, b'e'),
@@ -723,9 +816,19 @@ fn gen_h00_manual_map_body(
         c.extend_from_slice(&[0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF + off, ch]);
     }
     c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]);
-    let call_boot_gpa = c.len();
+    let call_boot_gpa_resolve = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
+    let jz_boot_gpa_resolve_fail = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     emit_mov_qword_to_r15_scratch(&mut c, H00_GETPROCADDRESS_SCRATCH_OFF, 0);
+    emit_phase_with_bisect(
+        &mut c,
+        text_rva,
+        chunk_text_off,
+        iat_rva,
+        PHASE_BOOTSTRAP_GPA_OK,
+    );
     emit_win64_pop_shadow(&mut c);
     let jmp_boot_ok = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // success: skip failure pop
@@ -734,6 +837,13 @@ fn gen_h00_manual_map_body(
     let jmp_boot_fail = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     patch_rel32(&mut c, jz_skip_ll_boot2 + 2, jz_skip_ll_boot2 + 6, skip_ll_boot_pop);
+    patch_rel32(
+        &mut c,
+        jz_boot_gpa_resolve_fail + 2,
+        jz_boot_gpa_resolve_fail + 6,
+        skip_ll_boot_pop,
+    );
+    patch_rel32(&mut c, jz_boot_ll_fail + 2, jz_boot_ll_fail + 6, skip_ll_boot_pop);
 
     // Import resolve: walk descriptors at [r14+import_rva]
     let import_walk_start = c.len();
@@ -777,15 +887,16 @@ fn gen_h00_manual_map_body(
     emit_cmp_r15_scratch_qword_zero(&mut c, H00_GETPROCADDRESS_SCRATCH_OFF);
     fail_jumps.push((c.len(), fail_import));
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x49, 0x89, 0xF5]); // mov r13, rsi — descriptor before LL (rsi=desc ptr)
     emit_win64_call_shadow(&mut c);
-    // FirstThunk rva is in edx — load module first, then lea r11 (LL/GPA clobber r11).
+    // Name RVA from descriptor — reload from r13 (ecx clobbered by bootstrap / GPA paths).
+    c.extend_from_slice(&[0x41, 0x8B, 0x4D, 0x0C]); // mov ecx,[r13+0c]
     c.extend_from_slice(&[0x49, 0x8D, 0x14, 0x0E]); // lea rdx,[r14+rcx] module name
     c.extend_from_slice(&[0x48, 0x89, 0xD1]); // mov rcx, rdx — LoadLibraryA(lpLibFileName)
     emit_call_r15_scratch(&mut c, H00_LOADLIBRARY_SCRATCH_OFF);
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     emit_jz_pop_shadow_then_fail(&mut c, chunk_text_off as usize, fail_import);
     emit_mov_qword_to_r15_scratch(&mut c, H00_IMPORT_HMODULE_SCRATCH_OFF, 0); // [r15+hModule]=LL
-    c.extend_from_slice(&[0x49, 0x89, 0xF5]); // mov r13, rsi (save import descriptor ptr)
     c.extend_from_slice(&[0x41, 0x8B, 0x55, 0x10]); // mov edx,[r13+10] FirstThunk RVA
     c.extend_from_slice(&[0x4D, 0x8D, 0x1C, 0x16]); // lea r11,[r14+rdx] IAT write cursor
     c.extend_from_slice(&[0x85, 0xDB]); // cmp ebx,0 (OriginalFirstThunk)
@@ -867,7 +978,19 @@ fn gen_h00_manual_map_body(
         PHASE_FLUSH_ICACHE,
     );
     emit_win64_call_shadow(&mut c);
-    emit_mov_qword_from_r15_scratch(&mut c, H00_KERNEL32_SCRATCH_OFF, 1); // rcx = kernel32
+    for (off, ch) in b"kernel32.dll\0".iter().enumerate() {
+        c.extend_from_slice(&[
+            0xC6,
+            0x44,
+            0x24,
+            WIN64_STACK_STR_OFF.wrapping_add(off as u8),
+            *ch,
+        ]);
+    }
+    c.extend_from_slice(&[0x48, 0x8D, 0x54, 0x24, WIN64_STACK_STR_OFF]); // lea rdx,[rsp+20h]
+    let call_flush_find_k32 = c.len();
+    c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x89, 0xC1]); // mov rcx, rax — kernel32 for FlushICache GPA
     for (off, ch) in b"FlushInstructionCache\0".iter().enumerate() {
         c.extend_from_slice(&[
             0xC6,
@@ -883,7 +1006,7 @@ fn gen_h00_manual_map_body(
         0x54,
         0x24,
         FLUSH_ICACHE_NAME_STACK_OFF,
-    ]); // lea rdx,[rsp+30h] — above shadow; sub rsp,30h clobbered Win64 home space
+    ]); // lea rdx,[rsp+20h] — above Win64 homes; inside sub 0x38 frame
     emit_call_r15_scratch(&mut c, H00_GETPROCADDRESS_SCRATCH_OFF); // rax = FlushICache
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_skip_flush2 = c.len();
@@ -906,21 +1029,34 @@ fn gen_h00_manual_map_body(
 
     // --- Internal helpers (placed after main path; reached only via call) ---
     let find_module = c.len();
-    patch_rel32(&mut c, call_boot_find + 1, call_boot_find + 5, find_module);
     // rdx = ascii dll name → rax = DllBase
     // x64: gs:[0x60] = PEB; Ldr.InMemoryOrderModuleList.Flink (+0x20); entry = Flink-0x10.
     c.extend_from_slice(&[0x41, 0x52]); // push r10 — list head
     c.extend_from_slice(&[0x65, 0x48, 0x8B, 0x04, 0x25, 0x60, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]); // test rax,rax (PEB)
+    let jz_no_mod_peb = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x8B, 0x40, 0x18]); // mov rax,[rax+18h] PEB->Ldr
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]); // test rax,rax (Ldr)
+    let jz_no_mod_ldr = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x4C, 0x8D, 0x50, 0x20]); // lea r10,[rax+20h] list head — NOT 49 8D 50 (=lea rdx,[r8+20h])
     c.extend_from_slice(&[0x48, 0x8B, 0x40, 0x20]); // InMemoryOrderModuleList.Flink
     let mod_loop = c.len();
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]); // test rax,rax (null Flink — before sub would AV)
+    let jz_no_mod_flink = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x4C, 0x39, 0xD0]); // cmp rax,r10 (back at list head?)
     let je_no_mod = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x83, 0xE8, LDR_INMEMORY_FLINK_OFF]); // entry = Flink - 0x10
     c.extend_from_slice(&[0x48, 0x85, 0xC0]);
     let jz_no_mod = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x49, 0x89, 0xC3]); // mov r11, rax — LDR entry (rax clobbered by strcmp)
+    c.extend_from_slice(&[0x0F, 0xB7, 0x48, 0x58]); // movzx ecx,word [rax+58h] BaseDllName.Length
+    c.extend_from_slice(&[0x85, 0xC9]);
+    let jz_next_mod_len = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x4C, 0x8B, 0x40, LDR_BASEDLLNAME_BUF_OFF]); // BaseDllName.Buffer
     c.extend_from_slice(&[0x4D, 0x85, 0xC0]);
@@ -937,16 +1073,17 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x85, 0xC9]); // test ecx,ecx
     let jz_dll_mismatch = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    // tolower eax and cl, compare
+    // tolower al: jb/ja must skip only `or al,20h` (2 B) — ja +4 landed mid next insn → AV
     c.extend_from_slice(&[0x3C, 0x41]); // cmp al,'A'
-    c.extend_from_slice(&[0x72, 0x04]);
-    c.extend_from_slice(&[0x3C, 0x5A]);
-    c.extend_from_slice(&[0x77, 0x04]);
+    c.extend_from_slice(&[0x72, 0x06]); // jb not_up_al (skip cmp Z + ja + or = 6)
+    c.extend_from_slice(&[0x3C, 0x5A]); // cmp al,'Z'
+    c.extend_from_slice(&[0x77, 0x02]); // ja not_up_al (skip or = 2)
     c.extend_from_slice(&[0x0C, 0x20]); // or al,0x20
+    // tolower cl: cmp cl is 3 B; jb skips cmpZ+ja+or=8; ja skips or=3
     c.extend_from_slice(&[0x80, 0xF9, 0x41]); // cmp cl,'A'
-    c.extend_from_slice(&[0x72, 0x04]);
+    c.extend_from_slice(&[0x72, 0x08]); // jb not_up_cl
     c.extend_from_slice(&[0x80, 0xF9, 0x5A]); // cmp cl,'Z'
-    c.extend_from_slice(&[0x77, 0x04]);
+    c.extend_from_slice(&[0x77, 0x03]); // ja not_up_cl
     c.extend_from_slice(&[0x80, 0xC9, 0x20]); // or cl,0x20
     c.extend_from_slice(&[0x38, 0xC8]); // cmp al,cl
     let jne_dll = c.len();
@@ -964,13 +1101,17 @@ fn gen_h00_manual_map_body(
     let dll_mismatch = c.len();
     patch_rel32(&mut c, jz_dll_mismatch + 2, jz_dll_mismatch + 6, dll_mismatch);
     patch_rel32(&mut c, jne_dll + 2, jne_dll + 6, dll_mismatch);
-    c.extend_from_slice(&[0x48, 0x8B, 0x40, LDR_INMEMORY_FLINK_OFF]); // next Flink
+    c.extend_from_slice(&[0x49, 0x8B, 0x43, LDR_INMEMORY_FLINK_OFF]); // next Flink from saved entry
     let jmp_mod = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     patch_rel32(&mut c, jmp_mod + 1, jmp_mod + 5, mod_loop);
     let no_mod = c.len();
     patch_rel32(&mut c, je_no_mod + 2, je_no_mod + 6, no_mod);
     patch_rel32(&mut c, jz_no_mod + 2, jz_no_mod + 6, no_mod);
+    patch_rel32(&mut c, jz_no_mod_peb + 2, jz_no_mod_peb + 6, no_mod);
+    patch_rel32(&mut c, jz_no_mod_ldr + 2, jz_no_mod_ldr + 6, no_mod);
+    patch_rel32(&mut c, jz_no_mod_flink + 2, jz_no_mod_flink + 6, no_mod);
+    patch_rel32(&mut c, jz_next_mod_len + 2, jz_next_mod_len + 6, dll_mismatch);
     patch_rel32(&mut c, jz_next_mod + 2, jz_next_mod + 6, dll_mismatch);
     // LoadLibraryA fallback when PEB walk misses (api-set / forwarder targets).
     emit_mov_qword_from_r15_scratch(&mut c, H00_LOADLIBRARY_SCRATCH_OFF, 0); // mov rax,[r15+scratch]
@@ -990,26 +1131,28 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0xC3]);
     let mod_found = c.len();
     patch_rel32(&mut c, jz_mod_found + 2, jz_mod_found + 6, mod_found);
-    c.extend_from_slice(&[0x48, 0x8B, 0x40, LDR_DLLBASE_OFF]); // DllBase
+    c.extend_from_slice(&[0x49, 0x8B, 0x43, LDR_DLLBASE_OFF]); // mov rax,[r11+DllBase]
     c.extend_from_slice(&[0x41, 0x5A]); // pop r10
     c.extend_from_slice(&[0xC3]);
 
     let resolve_export = c.len();
     patch_rel32(
         &mut c,
-        call_boot_resolve + 1,
-        call_boot_resolve + 5,
+        call_boot_gpa_resolve + 1,
+        call_boot_gpa_resolve + 5,
         resolve_export,
     );
     patch_rel32(
         &mut c,
-        call_boot_gpa + 1,
-        call_boot_gpa + 5,
+        call_boot_ll_resolve + 1,
+        call_boot_ll_resolve + 5,
         resolve_export,
     );
     // rdi=module, rdx=name → rax=func (preserve thunk rsi; rbx/rcx/rdx = PE tables; r11=IAT cursor)
+    // r11 saved then reused as import-name base (rdx becomes AddressOfFunctions).
+    // AddressOfNameOrdinals lives on stack — strcmp uses ecx for chars.
     c.extend_from_slice(&[0x41, 0x53]); // push r11 — caller IAT cursor survives resolve_export
-    c.extend_from_slice(&[0x49, 0x89, 0xD1]); // mov r9, rdx — save import name before table walk
+    c.extend_from_slice(&[0x49, 0x89, 0xD3]); // mov r11, rdx — import name base (rdx later clobbered)
     c.extend_from_slice(&[0x8B, 0x47, 0x3C]); // eax = e_lfanew
     // mov eax,[rdi+rax+88h] — SIB 07 (index=rax, base=rdi); 27=[rdi+disp] (index suppressed); 38=[rax+rsi]
     c.extend_from_slice(&[0x8B, 0x84, 0x07, 0x88, 0x00, 0x00, 0x00]);
@@ -1025,6 +1168,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x48, 0x01, 0xFB]); // add rbx, rdi
     c.extend_from_slice(&[0x8B, 0x48, 0x24]); // mov ecx,[rax+24] AddressOfNameOrdinals
     c.extend_from_slice(&[0x48, 0x01, 0xF9]); // add rcx, rdi
+    c.extend_from_slice(&[0x51]); // push rcx — ordinals survive movzx ecx in strcmp
     c.extend_from_slice(&[0x8B, 0x50, 0x1C]); // mov edx,[rax+1c] AddressOfFunctions
     c.extend_from_slice(&[0x48, 0x01, 0xFA]); // add rdx, rdi
     c.extend_from_slice(&[0x45, 0x31, 0xD2]); // xor r10d,r10d — export index (keep rsi=thunk ptr)
@@ -1034,13 +1178,14 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x42, 0x8B, 0x04, 0x93]); // mov eax,[rbx+r10*4] (REX.X; SIB 93=scale*4 index=r10 base=rbx)
     c.extend_from_slice(&[0x48, 0x01, 0xF8]);
-    // strcmp r9 (import) with [rax] (export) — do not clobber rbx=AddressOfNames
+    c.extend_from_slice(&[0x4D, 0x89, 0xD9]); // mov r9, r11 — reset import name cursor each export
+    // strcmp r9 (import) with [rax] (export) — char in cl (movzx ecx); ordinals at [rsp]
     let cmp_name = c.len();
-    c.extend_from_slice(&[0x0F, 0xB6, 0x08]); // movzx eax, byte [rax] export name
-    c.extend_from_slice(&[0x41, 0x38, 0x01]); // cmp byte ptr [r9], al
+    c.extend_from_slice(&[0x0F, 0xB6, 0x08]); // movzx ecx, byte [rax] export name (keep rax cursor)
+    c.extend_from_slice(&[0x41, 0x38, 0x09]); // cmp byte ptr [r9], cl
     let jne_name = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x84, 0xC0]); // test al, al (export char — both strings ended)
+    c.extend_from_slice(&[0x84, 0xC9]); // test cl, cl (export char — both strings ended)
     let jz_name_found = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0xFF, 0xC0]);
@@ -1050,11 +1195,13 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jmp_cmp + 1, jmp_cmp + 5, cmp_name);
     let name_found = c.len();
     patch_rel32(&mut c, jz_name_found + 2, jz_name_found + 6, name_found);
+    c.extend_from_slice(&[0x48, 0x8B, 0x0C, 0x24]); // mov rcx,[rsp] — restore AddressOfNameOrdinals
     c.extend_from_slice(&[0x42, 0x0F, 0xB7, 0x04, 0x51]); // movzx eax,word [rcx+r10*2] (REX.X; SIB 51=scale*2 index=r10 base=rcx)
     c.extend_from_slice(&[0x8B, 0x04, 0x82]); // mov eax,[rdx+rax*4]
     c.extend_from_slice(&[0x48, 0x01, 0xF8]);
     let call_fixup_name = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x08]); // pop ordinals spill
     c.extend_from_slice(&[0x41, 0x5B]); // pop r11
     c.extend_from_slice(&[0xC3]);
     let next_name = c.len();
@@ -1063,10 +1210,12 @@ fn gen_h00_manual_map_body(
     let jmp_exp = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     patch_rel32(&mut c, jmp_exp + 1, jmp_exp + 5, exp_loop);
-    let no_exp = c.len();
+    let no_exp_pop = c.len(); // after push rcx (ordinals spill)
+    patch_rel32(&mut c, jae_no_exp + 2, jae_no_exp + 6, no_exp_pop);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x08]); // pop ordinals spill
+    let no_exp = c.len(); // before push rcx — only r11 on stack
     patch_rel32(&mut c, jz_no_exp + 2, jz_no_exp + 6, no_exp);
     patch_rel32(&mut c, jz_no_exp2 + 2, jz_no_exp2 + 6, no_exp);
-    patch_rel32(&mut c, jae_no_exp + 2, jae_no_exp + 6, no_exp);
     c.extend_from_slice(&[0x41, 0x5B]); // pop r11
     c.extend_from_slice(&[0x31, 0xC0]);
     c.extend_from_slice(&[0xC3]);
@@ -1088,7 +1237,10 @@ fn gen_h00_manual_map_body(
     let call_fixup_ord = c.len();
     c.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
     c.extend_from_slice(&[0xC3]);
-    patch_rel32(&mut c, jz_no_ord + 2, jz_no_ord + 6, no_exp);
+    let no_ord = c.len();
+    patch_rel32(&mut c, jz_no_ord + 2, jz_no_ord + 6, no_ord);
+    c.extend_from_slice(&[0x31, 0xC0]); // ordinal path does not push r11
+    c.extend_from_slice(&[0xC3]);
 
     // KERNEL32 forwarders land in export dir as "OTHERDLL.name" — recurse resolve.
     let fix_forward = c.len();
@@ -1144,7 +1296,12 @@ fn gen_h00_manual_map_body(
     patch_rel32(&mut c, jmp_ff_copy + 1, jmp_ff_copy + 5, ff_copy);
     let ff_copy_done = c.len();
     patch_rel32(&mut c, jae_ff_copy_done + 2, jae_ff_copy_done + 6, ff_copy_done);
-    c.extend_from_slice(&[0xC6, 0x07, 0x00]); // mov byte [rdi], 0
+    // Forwarder prefix is "KERNELBASE" not "KERNELBASE.dll" — append .dll for PEB BaseDllName match.
+    c.extend_from_slice(&[0xC6, 0x07, b'.']); // mov byte [rdi], '.'
+    c.extend_from_slice(&[0xC6, 0x47, 0x01, b'd']); // mov byte [rdi+1], 'd'
+    c.extend_from_slice(&[0xC6, 0x47, 0x02, b'l']); // mov byte [rdi+2], 'l'
+    c.extend_from_slice(&[0xC6, 0x47, 0x03, b'l']); // mov byte [rdi+3], 'l'
+    c.extend_from_slice(&[0xC6, 0x47, 0x04, 0x00]); // mov byte [rdi+4], 0
     c.extend_from_slice(&[0x48, 0x89, 0xE2]); // mov rdx, rsp (dll name)
     c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x08]); // RSP%16==0 at CALL (fix_forward frame leaves 8 mod 16)
     let call_ff_find = c.len();
@@ -1167,6 +1324,8 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp ff_ret
     patch_rel32(&mut c, jz_ff_bad2 + 2, jz_ff_bad2 + 6, ff_ret_pop);
     patch_rel32(&mut c, jmp_ff_ret + 1, jmp_ff_ret + 5, ff_ret);
+    patch_rel32(&mut c, call_boot_find_k32 + 1, call_boot_find_k32 + 5, find_module);
+    patch_rel32(&mut c, call_flush_find_k32 + 1, call_flush_find_k32 + 5, find_module);
     patch_rel32(&mut c, call_ff_find + 1, call_ff_find + 5, find_module);
     patch_rel32(&mut c, call_ff_resolve + 1, call_ff_resolve + 5, resolve_export);
     patch_rel32(&mut c, jz_ff_ret + 2, jz_ff_ret + 6, ff_ret);
@@ -1199,8 +1358,8 @@ fn gen_h00_export_call_tail(
     let mut c: Vec<u8> = Vec::new();
     let mut fail_jumps: Vec<(usize, usize)> = Vec::new();
 
-    c.extend_from_slice(&[0x8B, 0x73, 0x3C]);
-    c.extend_from_slice(&[0x8B, 0x84, 0x33, 0x88, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x8B, 0x43, 0x3C]); // mov eax,[rbx+3c] e_lfanew (not esi — SIB 33 uses rsi)
+    c.extend_from_slice(&[0x8B, 0x84, 0x03, 0x88, 0x00, 0x00, 0x00]); // mov eax,[rbx+rax+88h] export dir RVA
     c.extend_from_slice(&[0x85, 0xC0]);
     fail_jumps.push((c.len(), fail_export));
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
@@ -1500,8 +1659,8 @@ mod tests {
             }
         }
         assert!(
-            body.len() > 400 && body.len() < 2350,
-            "manual-map H_00 stub should fit OW-STUB pin [40,2350] (got {}B)",
+            body.len() > 400 && body.len() < 2700,
+            "manual-map H_00 stub should fit OW-STUB pin [40,2700] (got {}B)",
             body.len()
         );
         assert_eq!(
@@ -1613,17 +1772,51 @@ mod tests {
             "resolve_export + resolve_export_ordinal need mov eax,[rdi+rax+88h] (SIB 07)"
         );
         assert!(
+            body.windows(8)
+                .any(|w| *w == [0x8B, 0x84, 0x03, 0x88, 0x00, 0x00, 0x00, 0x85])
+                || body.windows(7).any(|w| {
+                    *w == [0x8B, 0x84, 0x03, 0x88, 0x00, 0x00, 0x00]
+                }),
+            "export tail needs mov eax,[rbx+rax+88h] (SIB 03, rax=e_lfanew)"
+        );
+        assert!(
+            !body.windows(7).any(|w| *w == [0x8B, 0x84, 0x33, 0x88, 0x00, 0x00, 0x00]),
+            "must not mov eax,[rbx+rsi+88h] (SIB 33) after esi=e_lfanew — rsi high dwords AV"
+        );
+        assert!(
             body.windows(7)
-                .any(|w| *w == [0x8B, 0x84, 0x33, 0x88, 0x00, 0x00, 0x00]),
-            "export tail needs mov eax,[rbx+rsi+88h] (SIB 33, esi=e_lfanew)"
+                .any(|w| w == [0x48, 0x81, 0xE3, 0x00, 0xF0, 0xFF, 0xFF]),
+            "bootstrap must page-align IAT ptr before MZ scan (and rbx,~0xFFF)"
         );
         assert!(
-            !body.windows(7).any(|w| w == [0x49, 0x8D, 0x34, 0x06, 0x8B, 0x4E, 0x0C]),
-            "bootstrap must not use sidecar import[0] name for find_module (use kernel32.dll stack)"
+            body.windows(5).any(|w| w == [0x66, 0x81, 0x3B, 0x4D, 0x5A]),
+            "bootstrap must MZ-scan from IAT[CreateFileA] for host module base"
         );
         assert!(
-            body.windows(5).any(|w| w == [0xC6, 0x44, 0x24, WIN64_STACK_STR_OFF, b'k']),
-            "bootstrap must build kernel32.dll in Win64 shadow (C6 44 24 28 6B)"
+            body.windows(7).any(|w| w == [0x48, 0x81, 0xE3, 0x00, 0xF0, 0xFF, 0xFF]),
+            "MZ scan must page-align (and rbx,~0xFFF) before cmp — else never hits ImageBase → AV"
+        );
+        assert!(
+            body.windows(10).any(|w| {
+                w[0..3] == [0x48, 0x89, 0xC7]
+                    && w[3..6] == [0x49, 0x89, 0xBF]
+                    && w[6..10] == H00_KERNEL32_SCRATCH_OFF.to_le_bytes()
+            }),
+            "bootstrap must mov [r15+kernel32 scratch],rdi after module base in rdi"
+        );
+        assert!(
+            body.windows(3)
+                .filter(|w| **w == [0x48, 0x85, 0xC0])
+                .count()
+                >= 4,
+            "find_module must null-guard PEB, Ldr, and Flink (test rax,rax)"
+        );
+        assert!(
+            body.windows(10).any(|w| {
+                w[0..5] == [0x41, 0x8B, 0x5C, SIB_R12_ONLY, 0x3C]
+                    && w[5..10] == [0x41, 0x8B, 0x84, 0x1C, PE_OFF_IMPORT_DIR_RVA]
+            }),
+            "bootstrap must reload ebx from [r12+3Ch] before import-dir read (post-reloc)"
         );
         assert!(
             body.windows(4).any(|w| w == [0x49, 0x83, 0xC0, 0x02]),
@@ -1674,7 +1867,7 @@ mod tests {
                 w[0..5] == [0x48, 0x8D, 0x54, 0x24, FLUSH_ICACHE_NAME_STACK_OFF]
                     && w[5] == 0x41
             }),
-            "FlushICache GPA must lea rdx,[rsp+30h] then call [r15+GPA] (name above Win64 shadow)"
+            "FlushICache GPA must lea rdx,[rsp+20h] then call [r15+GPA] (name above Win64 homes, inside frame)"
         );
         assert!(
             !body.windows(5).any(|w| w == [0x48, 0x83, 0xEC, 0x30, 0xC6]),
@@ -1796,6 +1989,10 @@ mod tests {
             "fix_forward must sub rsp,40h for forwarder DLL-name copy frame"
         );
         assert!(
+            body.windows(3).any(|w| w == [0xC6, 0x07, b'.']),
+            "fix_forward must append .dll after forwarder DLL prefix"
+        );
+        assert!(
             body.windows(13).any(|w| {
                 w[0..4] == [0x48, 0x83, 0xEC, 0x08]
                     && w[4] == 0xE8
@@ -1809,7 +2006,7 @@ mod tests {
                     && w[4] == 0xFF
                     && w[5] == 0xD0
             }),
-            "find_module LL fallback needs sub rsp,30h before call rax (not 38h after push r10)"
+            "find_module LL fallback needs sub rsp,28h before call rax (push r10 → RSP%16==8)"
         );
         assert!(
             body.windows(6).any(|w| {
@@ -1817,7 +2014,7 @@ mod tests {
                     && w[4] == 0x41
                     && w[5] == 0x5A
             }),
-            "find_module LL fallback needs add rsp,30h before pop r10"
+            "find_module LL fallback needs add rsp,28h before pop r10"
         );
         assert!(
             !body.windows(5).any(|w| w == [0x89, 0xD3, 0x48, 0x01, 0xD3]),
@@ -1843,20 +2040,29 @@ mod tests {
             !body.windows(4).any(|w| w == [0x29, 0xC9]),
             "must not emit sub ecx,ecx (29 C9) in ordinal export path"
         );
-        // Bootstrap success must jmp over failure pop — not fall through into add rsp; jmp add rsp loop.
-        let gpa_store = body.windows(7).position(|w| {
-            w[0..3] == [0x49, 0x89, 0x87] && w[3..7] == H00_GETPROCADDRESS_SCRATCH_OFF.to_le_bytes()
+        // Bootstrap: LL before GPA — LL store then GPA spill; GPA store then pop shadow + jmp ok.
+        let ll_store = body.windows(7).position(|w| {
+            w[0..3] == [0x49, 0x89, 0x87] && w[3..7] == H00_LOADLIBRARY_SCRATCH_OFF.to_le_bytes()
         });
-        if let Some(at) = gpa_store {
-            let tail = &body[at + 7..at + 7 + 12];
-            assert_eq!(
-                &tail[0..5],
-                &[0x48, 0x83, 0xC4, WIN64_CALL_SHADOW, 0xE9][..],
-                "after GPA bootstrap store expect add rsp,40h; jmp (skip failure pop)"
+        if let Some(at) = ll_store {
+            let tail = &body[at + 7..at + 7 + 80];
+            assert!(
+                tail.windows(5).any(|w| w == [0xC6, 0x44, 0x24, 0x20, b'G']),
+                "after LoadLibraryA bootstrap store expect GetProcAddress name spill (LL before GPA)"
             );
             assert!(
                 !body[at + 7..].windows(2).any(|w| w == [0xE9, 0xF7]),
                 "bootstrap must not jmp back into skip_ll_boot_pop (infinite stack unwind)"
+            );
+        }
+        let gpa_store = body.windows(7).position(|w| {
+            w[0..3] == [0x49, 0x89, 0x87] && w[3..7] == H00_GETPROCADDRESS_SCRATCH_OFF.to_le_bytes()
+        });
+        if let Some(at) = gpa_store {
+            let tail = &body[at + 7..at + 7 + 40];
+            assert!(
+                tail.windows(4).any(|w| w == [0x48, 0x83, 0xC4, WIN64_CALL_SHADOW]),
+                "after GetProcAddress bootstrap store expect add rsp,38h (skip failure pop)"
             );
         }
         assert!(
@@ -1938,30 +2144,79 @@ mod tests {
             "import name thunk needs lea rdx,[r14+r10+2] then jmp gpa_call_site (E9)"
         );
         assert!(
-            body.windows(14).any(|w| {
+            body.windows(13).any(|w| {
                 w[0..10] == [0x44, 0x89, 0xD0, 0x25, 0xFF, 0xFF, 0x00, 0x00, 0x89, 0xC2]
-                    && w[10..14] == [0x41, 0x54, 0x4D, 0x89]
+                    && w[10..13] == [0x49, 0x8B, 0xBF]
             }),
-            "import ordinal thunk needs and eax,0xffff + mov edx,eax + push r12 spill r11"
+            "import ordinal thunk converges to GPA spill (mov rdi,[r15+kernel32])"
         );
         assert!(
             body.windows(10).any(|w| {
-                w[0..6] == [0x41, 0x54, 0x4D, 0x89, 0xDC, 0x41]
-                    && w[6] == 0xFF
-                    && w[7] == 0x97
+                w[0..3] == [0x4D, 0x89, 0xDC]
+                    && w[3..6] == [0x41, 0xFF, 0x97]
             }),
-            "import loop must call [r15+GPA] per thunk with r12 spill (push r12; mov r12,r11)"
+            "import loop must mov r12,r11 (4D 89 DC) before call [r15+GPA]"
         );
         assert!(
-            !body.windows(5).any(|w| w == [0x4C, 0x89, 0x5C, 0x24, 0x48]),
-            "IAT cursor must not spill at [rsp+48h] — use r12 register spill instead"
+            !body.windows(6).any(|w| w == [0x4C, 0x89, 0xDC, 0x41, 0xFF, 0x97]),
+            "must not emit 4C 89 DC before GPA — that is mov rsp,r11 (stack smash AV)"
+        );
+        assert!(
+            body.windows(10).any(|w| {
+                w[0..3] == [0x4D, 0x89, 0xE3]
+            }),
+            "import GPA must mov r11,r12 after call [r15+GPA]"
+        );
+        assert!(
+            body.windows(20).any(|w| {
+                w[0..3] == [0x4D, 0x89, 0xE3]
+                    && w.windows(3).skip(3).any(|x| x == [0x48, 0x85, 0xC0])
+            }),
+            "import GPA must mov r11,r12 then test rax before IAT store"
+        );
+        assert!(
+            body.windows(17).any(|w| {
+                w[0..3] == [0x4D, 0x89, 0xE3]
+                    && w.windows(7).skip(3).any(|x| {
+                        x == [0x49, 0x89, 0xBF, 0x08, 0x01, 0x00, 0x00]
+                    })
+            }),
+            "import GPA must restore kernel32 base via rdi (49 89 BF), not GPA result in rax"
+        );
+        assert!(
+            !body.windows(20).any(|w| {
+                w[0..3] == [0x4D, 0x89, 0xE3]
+                    && w.windows(7).skip(3).any(|x| {
+                        x == [0x49, 0x89, 0x87, 0x08, 0x01, 0x00, 0x00]
+                    })
+            }),
+            "import GPA must not mov [r15+kernel32],rax — clobbers module base with proc pointer"
+        );
+        assert!(
+            !body.windows(6).any(|w| w == [0x48, 0x83, 0xEC, 0x08, 0x41, 0x54]),
+            "import GPA must not sub rsp,8+push r12 — writes below import shadow frame"
+        );
+        assert!(
+            !body.windows(5).any(|w| w == [0x4C, 0x89, 0x5C, 0x24, 0x30]),
+            "import GPA must not spill r11 to [rsp+30h] — GetProcAddress clobbers Win64 home"
+        );
+        assert!(
+            !body.windows(5).any(|w| w == [0x4C, 0x89, 0x5C, 0x24, WIN64_CALL_SHADOW]),
+            "import GPA must not spill IAT cursor to [rsp+38h] — use callee-saved r12"
+        );
+        assert!(
+            body.windows(8).any(|w| {
+                w[0..3] == [0x49, 0x89, 0xF5]
+                    && w[3..8] == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW, 0x41]
+            }),
+            "import descriptor must mov r13,rsi before sub rsp,38h (descriptor before LoadLibrary)"
         );
         assert!(
             body.windows(8).any(|w| {
                 w[0..4] == [0x48, 0x83, 0xEC, WIN64_CALL_SHADOW]
-                    && w[4..8] == [0x49, 0x8D, 0x14, 0x0E]
+                    && w[4..8] == [0x41, 0x8B, 0x4D, 0x0C]
             }),
-            "import descriptor must sub rsp,38h before LoadLibrary (standard Win64 shadow)"
+            "import descriptor must reload Name RVA from [r13+0c] before lea module name"
         );
         assert!(
             body.windows(8).any(|w| {
@@ -1979,6 +2234,58 @@ mod tests {
         assert!(
             !body.windows(5).any(|w| w == [0x41, 0x53, 0x41, 0xFF, 0x57]),
             "must not push r11 before call [r15+GPA] (41 53 41 FF 57) — misaligns Win64 shadow"
+        );
+        assert!(
+            body.windows(6).any(|w| w == [0x0F, 0xB6, 0x08, 0x41, 0x38, 0x09]),
+            "resolve_export strcmp must movzx ecx,[rax] then cmp [r9],cl (not al)"
+        );
+        assert!(
+            !body.windows(6).any(|w| w == [0x0F, 0xB6, 0x08, 0x41, 0x38, 0x01]),
+            "must not cmp [r9],al after movzx ecx — al is stale pointer low byte"
+        );
+        assert!(
+            body.windows(6).any(|w| w == [0x48, 0x01, 0xF8, 0x4D, 0x89, 0xD9]),
+            "resolve_export must mov r9,r11 to reset import name each export (rdx=AddressOfFunctions)"
+        );
+        assert!(
+            body.windows(3).any(|w| w == [0x49, 0x89, 0xD3]),
+            "resolve_export must mov r11,rdx for import name base before clobbering rdx"
+        );
+        assert!(
+            body.windows(5).any(|w| w == [0x48, 0x01, 0xF9, 0x51, 0x8B]),
+            "resolve_export must push AddressOfNameOrdinals before AddressOfFunctions (strcmp uses ecx)"
+        );
+        assert!(
+            body.windows(8).any(|w| {
+                w[0..4] == [0x48, 0x8B, 0x0C, 0x24] && w[4..8] == [0x42, 0x0F, 0xB7, 0x04]
+            }),
+            "name_found must reload ordinals from [rsp] before movzx [rcx+r10*2]"
+        );
+        assert!(
+            body.windows(6).any(|w| w == [0x8B, 0x56, 0x04, 0x41, 0x89, 0xD1]),
+            "reloc must mov r9d,edx after SizeOfBlock load (edx clobbered in entry loop)"
+        );
+        assert!(
+            body.windows(3).any(|w| w == [0x4C, 0x01, 0xCE]),
+            "reloc next block must add rsi,r9 (SizeOfBlock), not add rsi,rdx"
+        );
+        assert!(
+            !body.windows(6).any(|w| {
+                w[0..3] == [0x41, 0xFF, 0xC8] && w[3..6] == [0x48, 0x01, 0xD6]
+            }),
+            "must not add rsi,rdx after dec r8d — rdx holds page offset, corrupts .rdata/imports"
+        );
+        assert!(
+            body.windows(3).any(|w| w == [0x45, 0x39, 0xD0]),
+            "section loop must cmp r8d,r10d (index>=count); cmp esi,r8d skips all sections"
+        );
+        assert!(
+            !body.windows(6).any(|w| w == [0x45, 0x31, 0xC0, 0x44, 0x39, 0xC6]),
+            "must not xor r8d; cmp esi,r8d — jae taken on first iter when NumberOfSections>0"
+        );
+        assert!(
+            body.windows(3).any(|w| w == [0x41, 0x89, 0xD2]),
+            "section count must live in r10d (mov r10d,edx) — rep movsb clobbers rsi"
         );
     }
 }

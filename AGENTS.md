@@ -12,10 +12,11 @@
 
 ## CI anti-thrash（摘要）
 
-- CI = gate，不是 debugger；先本地 `& .\scripts\stage17-ow-iat-wireup.ps1`
-- H00 多相 bisect 仅 opt-in：`$env:H00_BISECT='1'` 或 CI `workflow_dispatch` → `h00_bisect=true`（默认关）
+- **H00 / Stage17 smoke debugging: local Windows only; CI is merge gate after local green, not a debugger**
+- CI = gate，不是 debugger；先本地 `cargo build --release -p verifier` 再 `& .\scripts\stage17-ow-iat-wireup.ps1`
+- H00 多相 bisect **仅本地** opt-in：`$env:H00_BISECT='1'` 或 `-EnableBisect`（勿用远程 Actions 当调试器）
 - 同 PR：连续 2 次红全量 CI，或 3 次无新本地证据的微调 push → **停推**，改本地复现
-- WIP 用 `[skip ci]`；同 ref 有 in_progress 时勿再推 Stage17 触发 commit
+- WIP 用 `[skip ci]`；本地绿后再 **一次** push 作 merge gate
 - 勿删 failed Actions 假装成功
 
 ## "Pre-existing bug" 调查：先用最小测试隔离，再判断是代码还是用法 (2026-06-30)

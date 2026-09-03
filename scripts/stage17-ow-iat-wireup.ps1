@@ -17,7 +17,11 @@ param(
     [int]$BisectExit = 0
 )
 
-$ErrorActionPreference = "Stop"
+# Continue: cargo/rustc write progress to stderr; Stop would abort before $LASTEXITCODE checks.
+$ErrorActionPreference = "Continue"
+if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) {
+    $PSNativeCommandUseErrorActionPreference = $false
+}
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
@@ -128,6 +132,10 @@ function Get-SmokePhase([int]$ExitCode) {
         153 { "phase_prelude_read_ok" }
         154 { "phase_prelude_done" }
         155 { "phase_prelude_ok" }
+        156 { "phase_bootstrap_ok" }
+        166 { "phase_bootstrap_find_ok" }
+        167 { "phase_bootstrap_gpa_ok" }
+        168 { "phase_bootstrap_ll_ok" }
         159 { "phase_map_valloc_ok" }
         130 { "import_ok_bisect" }
         131 { "reloc_ok_bisect" }
@@ -158,7 +166,15 @@ function Invoke-ManualMapSmoke([string]$RunDir, [string]$Gen1Path) {
 }
 
 function Invoke-H00BisectDiagnostic([string]$RunDir, [string]$TyPath, [string]$TybPath, [string]$DllPath, [switch]$NoSidecar) {
-    $range = if ($NoSidecar) { 150..155 } else { 150..165 }
+    # Narrow only via local H00_BISECT_NARROW — never auto from GITHUB_ACTIONS (CI is gate, not debugger).
+    $narrow = ($env:H00_BISECT_NARROW -match '^(?i)(1|true|yes|on)$')
+    $range = if ($NoSidecar) {
+        150..155
+    } elseif ($narrow) {
+        @(155, 166, 167, 168, 156, 162, 163, 164, 165)
+    } else {
+        150..165
+    }
     Write-Host ("== bisect: rebuild gen1 with H00_BISECT_EXIT={0} ({1}) ==" -f ($range -join ","), $(if ($NoSidecar) { "no-sidecar" } else { "with-sidecar" }))
     $wireup = Join-Path $Root "yoyo-rust\verifier\src\h00_manual_map_wireup.rs"
     $lines = @()
@@ -272,7 +288,7 @@ if (-not $SkipSmoke) {
                 $bisect = Invoke-H00BisectDiagnostic $runOk $Ty $Tyb $dllPath
                 Write-Host "H00_BISECT_DIAG $bisect"
             } else {
-                Write-Host "H00_BISECT skipped — set H00_BISECT=1 or -EnableBisect for multi-phase rebuild diagnostic (local/debug only)"
+                Write-Host "H00_BISECT skipped — set H00_BISECT=1 or -EnableBisect for multi-phase rebuild diagnostic (local/debug only; never auto on CI)"
             }
         }
         throw ("manual-map smoke WITH sidecar failed exit={0} phase={1} {2}{3}" -f $smokeExit, $phase, $outDiag, $(if ($bisect) { " bisect=$bisect" } else { "" }))

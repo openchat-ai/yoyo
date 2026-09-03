@@ -11,7 +11,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 ## 🎯 进度总览
 
 ```text
-[ ] A  [ ] B  [ ] C   →  path 2 关洞里程碑（无 tag/release；A+B+C 全绿即里程碑）
+[x] A  [x] B  [ ] C   →  path 2 关洞里程碑（无 tag/release；A+B+C 全绿即里程碑）
 ```
 
 > **关于「打钩」**：`- [x]` = 已勾，`- [ ]` = 未勾。Markdown 预览才显示为 checkbox 符号。  
@@ -23,8 +23,8 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 | 项 | 状态 | 说明 |
 |----|------|------|
-| **with-sidecar manual-map AV** | 🔴 **当前阻塞 Gate A** | master 上 no-sidecar fail-closed **GREEN**（exit≠0，非 AV）；with-sidecar **RED** — `gen1.exe` + cwd `yoyo_rt.dll` → AV（import/GPA 阶段；`Get-SmokePhase` → `access_violation` 或 phase=import） |
-| **修复策略** | 本地优先 | 先本地 `& .\scripts\stage17-ow-iat-wireup.ps1` 绿再 **一次** CI push；遵守 `.cursor/rules/ci-anti-thrash.mdc`（PR #14）：禁止 push 风暴 / 默认关 `H00_BISECT` |
+| **with-sidecar manual-map** | ✅ **Gate A 已绿（PR #26 · `f8eb429`）** | CI run [33662626655](https://github.com/openchat-ai/yoyo/actions/runs/33662626655)：no-sidecar fail-closed **GREEN**；with-sidecar `gen1→output.exe` **GREEN**（5 bytes）· **OW-IAT 仍 CUT**（sidecar + kernel32 I/O） |
+| **下一阻塞** | **Gate C** | 洞清单 + `BACKEND_SUPPORT` 诚实 sync（`stage16-scope-cut-finalize` + `stage15-hole-inventory`） |
 | **勿做** | — | 勿 fake OW-IAT CLOSED；勿启 `AUTO_TO_1.0 ACTIVE=1`；勿 invent Stage 17 功能轨 |
 
 ---
@@ -51,7 +51,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 | **AUTO** | `ACTIVE=0` → **停**；读本看板，**不** invent Stage 17 |
 | **CI** | gate 不是 debugger；WIP 用 `[skip ci]`；同 PR 连续 2 次红全量 CI → 停推改本地 |
 
-**下一项** = **A**（Win OW-IAT with-sidecar smoke GREEN）。
+**下一项** = **C**（SCOPE-CUT + BACKEND_SUPPORT 诚实 sync）。
 
 ---
 
@@ -73,7 +73,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 | **OW-H00** | **CLOSED** | （基线 · 已关） | `three_peer_full=EQUAL` · **`72c27c9f`** / 18944 B · stub_nz=905 |
 | **OW-STUB** | CUT | A/C | manual-map stub tail · stub_nz=905 ∈ [40,950] |
 | **OW-RT** | CUT | A/C | sidecar `yoyo_rt.dll` / `./libyoyo_runtime.so` · Rust runtime |
-| **OW-IAT** | CUT | **A**（主阻塞） | manual-map wired · PEB LoadLibrary DROPPED · **with-sidecar RED** |
+| **OW-IAT** | CUT | A/C | manual-map wired · PEB LoadLibrary DROPPED · **with-sidecar GREEN（PR #26 · 仍 CUT）** |
 | **OW-SEED** | CUT | C | seed 仍 Rust `yoyo.exe` 发射 · emitter+seed hash pin |
 | **REL-FULLTEXT** | CUT | C | full `.text` peer compare · 禁止假 EQUAL 话术 |
 | **REL-STUBOS** | CUT | C | Plan9/FreeBSD/Haiku/Serenity stub I/O |
@@ -86,16 +86,15 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 - [x] **基线：OW-H00 CLOSED** — three-peer full `.text` EQUAL · **`72c27c9f`** / 18944 B；JS IAT sync 后 CLOSED（Stage 16 定稿 + post-v1.0 JS/asm lockstep）· **非本看板 tick 项**（已关 · 勿回改）
 
-- [ ] **A：Win OW-IAT wire-up smoke GREEN** — **当前阻塞**  
-  - **验收**：`& .\scripts\stage17-ow-iat-wireup.ps1` exit 0  
-  - **子项 1（GREEN）**：no-sidecar fail-closed — exit≠0，**非 AV**（CreateFile fail-closed；master **已绿**）  
-  - **子项 2（RED）**：with-sidecar — cwd `yoyo_rt.dll` + manual-map H_00 → `gen1.exe` → `output.exe` exit 0（master **AV · import/GPA**）  
+- [x] **A：Win OW-IAT wire-up smoke GREEN** — **2026-09-02 · PR #26 · `f8eb429` · CI [33662626655](https://github.com/openchat-ai/yoyo/actions/runs/33662626655)** · **本地复验 2026-09-03 tip `64a78d9` GREEN**  
+  - **验收**：`& .\scripts\stage17-ow-iat-wireup.ps1` exit 0 ✅  
+  - **子项 1**：no-sidecar fail-closed — exit=2，非 AV ✅  
+  - **子项 2**：with-sidecar — cwd `yoyo_rt.dll` + manual-map H_00 → `gen1.exe` → `output.exe` exit 0 ✅（5 bytes）  
   - **诚实状态**：OW-IAT **仍 CUT**（sidecar + kernel32 I/O）；全脚本 GREEN **≠ CLOSED**  
   - **信任链**：manual-map 自举链可跑通；为后续去 sidecar / YOYO-built runtime 铺路
 
-- [ ] **B：Linux OW-IAT / tramp 回归不退化** — dlopen@PLT hybrid tramp · no libdl NEEDED  
-  - **验收**：`& wsl -e bash /mnt/f/yoyo/scripts/stage10-linux-pure-m4.sh` exit 0  
-  - **或**：`& .\scripts\stage16-v09-regress.ps1 -SkipBuild` 内 stage10-linux 子门 exit 0  
+- [x] **B：Linux OW-IAT / tramp 回归不退化** — **2026-09-02 · 同 CI run · `f8eb429`**  
+  - **验收**：`stage10-linux-pure-m4.sh` — `H_00 chain gen1→gen4: GREEN` ✅  
   - **诚实状态**：OW-IAT **仍 CUT**（dlopen + ld.so libc + cwd sidecar `.so`）  
   - **信任链**：Win A 修时不丢 Linux gen4≡gen3_direct EQUAL
 
@@ -188,4 +187,4 @@ Post-v1.0 关洞项 C：SCOPE-CUT + BACKEND_SUPPORT 诚实 sync。
 
 *创建：2026-08-31 · v1.0 毕业后 · post-v1.0 path 2 关洞 · 模板对齐 STAGE16_OWNER_CHECKLIST.md*
 
-**当前 master 诚实快照（2026-08-31）：** no-sidecar **GREEN** · with-sidecar **RED AV** · anti-thrash **ACTIVE**（PR #14）· OW-IAT **CUT** · OW-H00 **CLOSED**
+**当前 master 诚实快照（2026-09-02 · PR #26 pending merge）：** Gate A+B **GREEN** on `f8eb429` · OW-IAT **CUT** · OW-H00 **CLOSED** · 下一项 **Gate C**
