@@ -107,7 +107,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 ### path 2 里程碑（A+B+C 全绿 · 无 tag）
 
-**完成：2026-09-03** · tip（本 PR merge 后 master）· 观测：七项 **CUT**（`closed=0 cut=7`）· OW-IAT smoke GREEN ≠ CLOSED · stub **2673** · DLL **158720** · **无 tag / GitHub Release**（v1.0 已毕业）。
+**完成：2026-09-03** · master tip **`11a2cea`**（PR #27）· 观测：七项 **CUT**（`closed=0 cut=7`）· OW-IAT smoke GREEN ≠ CLOSED · stub **2673** · DLL **158720** · **无 tag / GitHub Release**（v1.0 已毕业）。
 
 ---
 
