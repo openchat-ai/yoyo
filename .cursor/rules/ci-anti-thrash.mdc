@@ -12,6 +12,7 @@ CI is a **gate**, not a debugger. Agents may still push fixes and use Actions as
 **H00 / Stage17 smoke debugging: local Windows only; CI is merge gate after local green, not a debugger.**
 
 - Do **not** use `gh workflow run`, push→wait-Actions→push, or remote Actions logs as the primary debug loop.
+- Do **not** auto-enable `H00_BISECT` / `H00_BISECT_NARROW` under `GITHUB_ACTIONS` — AV on CI must fail closed (print local re-run hint); never rebuild phases on the runner.
 - Debug on `F:\yoyo` (or equivalent local Windows): `cargo build --release -p verifier` then `& .\scripts\stage17-ow-iat-wireup.ps1`.
 - Bisect only locally: `$env:H00_BISECT='1'; & .\scripts\stage17-ow-iat-wireup.ps1` (or `-EnableBisect`).
 - Push **once** (or rarely) only after local with-sidecar GREEN + no-sidecar fail-closed; CI then validates the tip as a merge gate.

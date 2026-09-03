@@ -166,7 +166,8 @@ function Invoke-ManualMapSmoke([string]$RunDir, [string]$Gen1Path) {
 }
 
 function Invoke-H00BisectDiagnostic([string]$RunDir, [string]$TyPath, [string]$TybPath, [string]$DllPath, [switch]$NoSidecar) {
-    $narrow = ($env:GITHUB_ACTIONS -eq 'true') -or ($env:H00_BISECT_NARROW -match '^(?i)(1|true|yes|on)$')
+    # Narrow only via local H00_BISECT_NARROW — never auto from GITHUB_ACTIONS (CI is gate, not debugger).
+    $narrow = ($env:H00_BISECT_NARROW -match '^(?i)(1|true|yes|on)$')
     $range = if ($NoSidecar) {
         150..155
     } elseif ($narrow) {
@@ -283,15 +284,11 @@ if (-not $SkipSmoke) {
         $outDiag = if ($smoke.OutPresent) { "output.exe=present" } else { "output.exe=absent" }
         $bisect = ""
         if ($smokeExit -eq -1073741819) {
-            if ($H00BisectOn -or $env:GITHUB_ACTIONS -eq 'true') {
-                if (-not $H00BisectOn) {
-                    Write-Host "CI: auto narrow H00 bisect on AV (phases 155-165 gate)"
-                    $env:H00_BISECT_NARROW = '1'
-                }
+            if ($H00BisectOn) {
                 $bisect = Invoke-H00BisectDiagnostic $runOk $Ty $Tyb $dllPath
                 Write-Host "H00_BISECT_DIAG $bisect"
             } else {
-                Write-Host "H00_BISECT skipped — set H00_BISECT=1 or -EnableBisect for multi-phase rebuild diagnostic (local/debug only)"
+                Write-Host "H00_BISECT skipped — set H00_BISECT=1 or -EnableBisect for multi-phase rebuild diagnostic (local/debug only; never auto on CI)"
             }
         }
         throw ("manual-map smoke WITH sidecar failed exit={0} phase={1} {2}{3}" -f $smokeExit, $phase, $outDiag, $(if ($bisect) { " bisect=$bisect" } else { "" }))

@@ -86,9 +86,9 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 - [x] **基线：OW-H00 CLOSED** — three-peer full `.text` EQUAL · **`72c27c9f`** / 18944 B；JS IAT sync 后 CLOSED（Stage 16 定稿 + post-v1.0 JS/asm lockstep）· **非本看板 tick 项**（已关 · 勿回改）
 
-- [x] **A：Win OW-IAT wire-up smoke GREEN** — **2026-09-02 · PR #26 · `f8eb429` · CI [33662626655](https://github.com/openchat-ai/yoyo/actions/runs/33662626655)**  
+- [x] **A：Win OW-IAT wire-up smoke GREEN** — **2026-09-02 · PR #26 · `f8eb429` · CI [33662626655](https://github.com/openchat-ai/yoyo/actions/runs/33662626655)** · **本地复验 2026-09-03 tip `64a78d9` GREEN**  
   - **验收**：`& .\scripts\stage17-ow-iat-wireup.ps1` exit 0 ✅  
-  - **子项 1**：no-sidecar fail-closed — exit≠0，非 AV ✅  
+  - **子项 1**：no-sidecar fail-closed — exit=2，非 AV ✅  
   - **子项 2**：with-sidecar — cwd `yoyo_rt.dll` + manual-map H_00 → `gen1.exe` → `output.exe` exit 0 ✅（5 bytes）  
   - **诚实状态**：OW-IAT **仍 CUT**（sidecar + kernel32 I/O）；全脚本 GREEN **≠ CLOSED**  
   - **信任链**：manual-map 自举链可跑通；为后续去 sidecar / YOYO-built runtime 铺路
