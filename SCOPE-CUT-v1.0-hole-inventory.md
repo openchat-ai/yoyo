@@ -6,7 +6,7 @@
 
 **Upstream:** `SCOPE-CUT-v0.9-hole-inventory.md`（Stage 15-A ACTIVE 枚举）仍有效；本文件把同一七项 **提升为 v1.0 FINAL disposition**（能关则 CLOSED+证据；不能关则 CUT 钉进 RELEASE）。
 
-**Post-v1.0 path 2（关洞）· OW-RT shrink（2026-08-29）：** Win H_00 seed/link **不再 exact-embed** `yoyo_runtime.dll`；改为 cwd sidecar `yoyo_rt.dll` + `LoadLibraryA`。DLL 观测 **141312**（LTO 后）。**仍 CUT**（Rust runtime 宿主信任未灭）— **禁止**把「无 embed」单独标 CLOSED。
+**Post-v1.0 path 2（关洞）· OW-RT shrink（2026-08-29）：** Win H_00 seed/link **不再 exact-embed** `yoyo_runtime.dll`；改为 cwd sidecar `yoyo_rt.dll` + `LoadLibraryA`。DLL 观测 **158720**（LTO · Gate C 2026-09-03；was 141312）。**仍 CUT**（Rust runtime 宿主信任未灭）— **禁止**把「无 embed」单独标 CLOSED。
 
 **Post-v1.0 path 2（关洞）· OW-RT Linux sidecar parity（2026-08-29）：** Linux H_00 **不再 exact-embed** `libyoyo_runtime.so`；仅嵌 trampoline，cwd sidecar `./libyoyo_runtime.so` + `dlopen`。seed ELF **253952**（MAX **300000**；was ~512000）。**仍 CUT**（Rust `.so` + glibc/libdl tramp）— **禁止**标 CLOSED。
 
@@ -20,9 +20,11 @@
 
 **Post-v1.0 path 2（关洞）· OW-IAT manual-map wire-up（2026-08-29 · PR #8）：** H_00 stub **905B** manual-map（CreateFile/Read/VirtualAlloc + `pe_manual_map`）；PEB `LoadLibraryA` **DROPPED**；JS `h00-manual-map-stub.hex` lockstep。**仍 CUT**（sidecar `yoyo_rt.dll` + kernel32 I/O）— **禁止**标 CLOSED。
 
-**Post-v1.0 path 2（关洞）· OW-H00 CLOSED（JS IAT sync）：** JS `KERNEL32_IO_FUNCS` dropped stale `LoadLibraryA`（7→6，对齐 Rust `pe_link.rs`）；`tempNameRva` lea disp32 对齐。**three_peer_full=EQUAL** · **`72c27c9f`** / **18944** B。**OW-H00 CLOSED**。
+**Post-v1.0 path 2（关洞）· OW-H00 曾 CLOSED（JS IAT sync · 历史）：** 当时 `three_peer_full=EQUAL` · **`72c27c9f`** / **18944** B。**Gate C（2026-09-03）重测：full `.text` DIFF → OW-H00 回 CUT** — **禁止**沿用 CLOSED。
 
 **Post-v1.0 path 2（关洞）· OW-SEED observe pin（2026-08-29）：** stage13/15/16 fail-closed 钉 **emitter**（`yoyo.exe` basename + size + sha256_prefix）+ **seed**（PE size + sha256_prefix 与 `SEED_HOST` 一致）+ **path=h00**。`SEED_HOST sha256_prefix` 扩至 **16** hex。**仍 CUT**（seed 仍由 Rust `yoyo.exe` 发射）— **禁止**标 CLOSED / SEED_HOST_GONE。
+
+**Post-v1.0 path 2（关洞）· Gate A+B GREEN（2026-09-02 · PR #26 · master `8f9d98c`）：** Win `stage17-ow-iat-wireup.ps1` with-sidecar **GREEN**（no-sidecar fail-closed exit=2）；Linux `stage10-linux-pure-m4.sh` **GREEN**。**OW-IAT 仍 CUT**（sidecar + kernel32 I/O / dlopen）— **GREEN ≠ CLOSED**。**OW-H00：Gate C 重测 full `.text` DIFF → CUT**（slot 仍对齐；**禁止**沿用旧 CLOSED 话术）。
 
 ---
 
@@ -40,11 +42,11 @@ v0.9 把洞从 lump 变成逐项 `CLOSED|CUT`。v1.0-A 要求洞从「v0.9 枚�
 
 | ID | 区域 | Disposition | 关闭证据（CLOSED 才需要） | CUT 钉（机器） |
 |----|------|-------------|---------------------------|----------------|
-| **OW-H00** | H_00 entry slot（18 B）+ manual-map stub | **CLOSED** | `three_peer_full=EQUAL` · full `.text` JS=asm=Rust **18944** B | — |
-| **OW-STUB** | H_00 manual-map stub tail | **CUT** | `stub_tail_nonzero==0`（所有 peer） | `stub_tail_nonzero` ∈ **[40, 950]**；观测 **905** |
-| **OW-RT** | Sidecar Rust runtime (Win DLL / Linux `.so`) | **CUT** | 无 exact embed **且** 无 Rust LoadLibrary/libdl sidecar 宿主信任 | Win DLL **≤150000** 观测 **141312**；Linux seed ELF **253952**（MAX **300000**）；sidecar `yoyo_rt.dll` / `./libyoyo_runtime.so`；**no exact .so embed**（tramp still embedded） |
+| **OW-H00** | H_00 entry slot（18 B）+ manual-map stub | **CUT** | `three_peer_full=EQUAL` · full `.text` JS=asm=Rust（Gate A 后 **DIFF** · 观测 **20992** B） | `full_text=DIFF`；H_00 slot 18B JMP+NOP 仍对齐；stub 仍窗外 |
+| **OW-STUB** | H_00 manual-map stub tail | **CUT** | `stub_tail_nonzero==0`（所有 peer） | `stub_tail_nonzero` ∈ **[40, 3000]**；观测 **2673** |
+| **OW-RT** | Sidecar Rust runtime (Win DLL / Linux `.so`) | **CUT** | 无 exact embed **且** 无 Rust LoadLibrary/libdl sidecar 宿主信任 | Win DLL **≤170000** 观测 **158720**；Linux seed ELF **253952**（MAX **300000**）；sidecar `yoyo_rt.dll` / `./libyoyo_runtime.so`；**no exact .so embed**（tramp still embedded） |
 | **OW-IAT** | Host file I/O + sidecar | **CUT** | 无宿主 DLL 加载面（无 `yoyo_rt.dll`） | Win：**无** PEB/ASCII LoadLibraryA；CreateFile/Read/VirtualAlloc + manual-map；`yoyo_rt.dll` cwd sidecar。Linux tramp：**dlopen@PLT**（dynamic `-lc` only；**no libdl NEEDED**）；no dlsym；cwd `./libyoyo_runtime.so` |
-| **OW-SEED** | Seed 仍由 Rust `yoyo.exe` 发射 | **CUT** | seed 非 Rust host 发射 | Rust `yoyo link`；seed PE **≤270000**（观测 **248320**）；**emitter** size+sha256_prefix + **seed** sha256_prefix≡`SEED_HOST` + **path=h00** |
+| **OW-SEED** | Seed 仍由 Rust `yoyo.exe` 发射 | **CUT** | seed 非 Rust host 发射 | Rust `yoyo link`；seed PE **≤270000**（观测 **251392**）；**emitter** size+sha256_prefix + **seed** sha256_prefix≡`SEED_HOST` + **path=h00** |
 | **REL-FULLTEXT** | full `.text` peer compare | **CUT** | （禁止用 EQUAL 当毕业话术） | `full_text=DIFF` → inventory FINAL+CUT；意外 EQUAL → PARTIAL（OW-RT/IAT 仍 CUT） |
 | **REL-STUBOS** | Plan9/FreeBSD/Haiku/Serenity I/O | **CUT** | 生产 I/O 落地（非本 Stage） | `stage13-cross-platform-parity.ps1` stub 钉仍在源门禁中 |
 
@@ -64,7 +66,7 @@ Gate **只**在下列证据同时成立时打印 `disposition=CLOSED`：
 6. **REL-FULLTEXT** — **永不**标 CLOSED 作为毕业（EQUAL 时仅 PARTIAL / 观测）  
 7. **REL-STUBOS** — **永不**标 CLOSED 除非 stage13 stub 门改为 production I/O
 
-当前基线下 **OW-H00 CLOSED**（1）；其余 **CUT**（6）。`status=FINAL` 表可含 CLOSED+CUT 混排。
+当前基线下 **OW-H00 CUT**（Gate A 后 full `.text` JS↔Rust **DIFF** · 禁止假 CLOSED）；其余 **CUT**（6）。合计 **closed=0 cut=7**。`status=FINAL` 表可含 CLOSED+CUT 混排（现无 CLOSED）。
 
 ---
 
@@ -102,23 +104,25 @@ Gate 必须同时：
 
 ---
 
-## 观测基线（2026-08-29 · post JS IAT sync · three-peer EQUAL）
+## 观测基线（2026-09-03 · Gate C 重测 · tip `8f9d98c`）
 
 | Monitor | Value |
 |---------|-------|
 | selfhost-body compared | **17805** B EQUAL |
-| full `.text` JS↔Rust↔asm | **EQUAL** · **`72c27c9f`** · **18944** B |
-| three_peer_full | **EQUAL** |
-| H_00 entry slot (18 B) | **JMP+NOP aligned** JS=Rust=asm |
-| stub_tail_nonzero (JS=Rust) | **905**（pin [40, 950]） |
-| runtime.dll | **141312**（**no exact embed**；sidecar） |
-| seed PE (Rust link) | **249344**（≤270000） |
+| full `.text` JS↔Rust↔asm | **DIFF** · compared **20992** B（was EQUAL `72c27c9f` / 18944 · Gate A 后 lockstep 漂移） |
+| three_peer_full | **DIFF** |
+| H_00 entry slot (18 B) | **JMP+NOP aligned** JS=Rust（slot 对齐 ≠ CLOSED） |
+| stub_tail_nonzero (JS=Rust) | **2673**（pin [40, 3000]；was 905/[40,950]） |
+| runtime.dll | **158720**（**no exact embed**；sidecar；MAX **170000**） |
+| seed PE (Rust link) | **251392**（≤270000） |
 | seed ELF (Linux link) | **253952**（≪300000；**no exact .so embed**；tramp **9032** B static mmap embed；no dlopen） |
-| gen12 / fullbody `.text` | SHA prefix **`72c27c9f`** · compared **18944** B |
+| gen12 / fullbody `.text` | compared **20992** B（窗扩大；勿用旧 `72c27c9f`/18944 话术） |
 | Lock pin | `0275802d…` Decision #25（本缩面不改 `yoyo.ty`） |
-| Disposition | **OW-H00 CLOSED** · **6× CUT**（closed=1 cut=6） |
-| Gates | body-ddc · gen12 · stage17-ow-iat-wireup (CI smoke) · stage10-linux GREEN |
-| OW-IAT wire-up | PEB LoadLibrary **DROPPED**；manual-map **WIRED**；Win smoke **WIP/RED** (manual-map AV; CI `-SkipSmoke`)；**仍 CUT** |
+| Disposition | **7× CUT**（closed=0 cut=7；OW-H00 因 full DIFF 回 CUT） |
+| Gates | body-ddc · gen12 · stage17-ow-iat-wireup (Win smoke GREEN) · stage10-linux GREEN |
+| OW-IAT wire-up | PEB LoadLibrary **DROPPED**；manual-map **WIRED**；Win smoke **GREEN**（PR #26 · tip `8f9d98c`）；**仍 CUT**（sidecar `yoyo_rt.dll` + kernel32 I/O） |
+
+**Post-v1.0 path 2 · Gate C honest sync（2026-09-03）：** A+B GREEN 后机器重测 — Win OW-IAT smoke **GREEN ≠ CLOSED**；OW-H00 **CUT**（full `.text` DIFF · **禁止**假 CLOSED）；stub **2673** / DLL **158720**；`closed=0 cut=7`；**禁止**假 CLOSED。
 
 **Next tip（post-v1.0 path 2）：** **YOYO-built runtime** (drop Rust `yoyo_runtime.dll` / sidecar); **OW-IAT CLOSED** only when `yoyo_rt.dll` / sidecar marker absent.
 

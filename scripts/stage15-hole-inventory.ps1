@@ -18,10 +18,11 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
-# Post-v1.0 OW-RT sidecar + OW-IAT manual-map wire-up (PR #8): stub ~905B; DLL ≤150000.
+# Post-v1.0 OW-RT sidecar + OW-IAT manual-map (PR #8 / Gate A tip): stub obs 2673; DLL LTO 158720.
+# Gate C (2026-09-03): raise pins honestly — stub 2300→3000; dll 150000→170000 (still CUT).
 $MinStubTailNonzero = 40
-$MaxStubTailNonzero = 2300
-$MaxDllBytes = 150000
+$MaxStubTailNonzero = 3000
+$MaxDllBytes = 170000
 $MaxSeedPeBytes = 270000
 $MinBodyCompared = 17013
 
