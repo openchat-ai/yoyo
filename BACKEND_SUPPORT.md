@@ -471,6 +471,17 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Ban** | No Thompson-proof · no fake CLOSED · no invent ROADMAP Stage 17 |
 | **Board** | `POST-1.0-HOLE-CHECKLIST.md` path 2 A+B+C milestone（无 tag/release） |
 
+### Post-v1.0 path 2 — OW-RT PE DLL emit spike (Gate D · 整仓竣工 · 2026-09-04)
+
+| Item | Detail |
+|------|--------|
+| **Hole** | **OW-RT** (YOYO-built runtime long pole) |
+| **Change** | `pe_dll_link.rs` emits PE32+ DLL with ordinal-0 export `yoyo_runtime_selfhost_main` (H_00 contract); probe returns exit **2** |
+| **Still CUT** | Production sidecar still Rust `yoyo_runtime.dll` / `yoyo_rt.dll` — **`yoyo_built=ABSENT`** · spike ≠ CLOSED |
+| **Gate** | `scripts/stage17-ow-rt-yoyo-runtime.ps1` · `cargo test -p verifier pe_dll_link` |
+| **Doc** | `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md` |
+| **Next** | Gate E — YOYO-origin stub fills export body；then F compile loop；G drop Rust sidecar |
+
 ### Full body compiler (Stage 8-B · W5.5 body)
 
 | Path | What it validates | DDC scope |
