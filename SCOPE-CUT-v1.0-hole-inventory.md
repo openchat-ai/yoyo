@@ -124,7 +124,7 @@ Gate 必须同时：
 
 **Post-v1.0 path 2 · Gate C honest sync（2026-09-03）：** A+B GREEN 后机器重测 — Win OW-IAT smoke **GREEN ≠ CLOSED**；OW-H00 **CUT**（full `.text` DIFF · **禁止**假 CLOSED）；stub **2673** / DLL **158720**；`closed=0 cut=7`；**禁止**假 CLOSED。
 
-**Next tip（post-v1.0 path 2 · 整仓竣工）：** Gate **F** landed YOYO-built R→C→W effect（yoyo_built=EFFECT · yoyo_built_effect=PRESENT · 仍 CUT）。**G** = drop Rust sidecar；**OW-RT CLOSED** only then；**OW-IAT CLOSED** only when yoyo_rt.dll marker absent。
+**Next tip（post-v1.0 path 2 · 整仓竣工）：** Gate **G 切片** landed YOYO alt sidecar emit（yoyo_built=ALT_SIDECAR · yoyo_alt_sidecar=EMITTED · production_default=RUST · 仍 CUT · **G 未勾**）。**G CLOSED** = production drop Rust sidecar only with evidence；**OW-IAT CLOSED** only when yoyo_rt.dll marker absent。
 
 ---
 

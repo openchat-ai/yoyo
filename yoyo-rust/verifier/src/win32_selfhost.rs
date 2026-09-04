@@ -2,7 +2,10 @@
 //!
 //! Post-v1.0 OW-RT shrink: the approved H_00 seed/link path (`append_h00_runtime_data`
 //! / `gen_h00_selfhost_main`) no longer exact-embeds `yoyo_runtime.dll` in PE `.data`.
-//! It loads cwd sidecar `yoyo_rt.dll` (still Rust-built — OW-RT stays CUT).
+//! It loads cwd sidecar `yoyo_rt.dll` (still Rust-built by default — OW-RT stays CUT).
+//! Gate G slice: place YOYO `pe_dll` bytes as cwd `yoyo_rt.dll` via `emit-rt-sidecar`
+//! / `pe_dll_link::write_yoyo_alt_sidecar` (opt-in placement; H_00 loads whatever is
+//! in cwd — production scripts still Copy-Item Rust `yoyo_runtime.dll`).
 //! Post-v1.0 OW-IAT shrink: H_00 no longer imports GetProcAddress — after load it
 //! resolves export ordinal 0 in-process (yoyo_runtime pins `yoyo_runtime_selfhost_main`
 //! as the first named export).

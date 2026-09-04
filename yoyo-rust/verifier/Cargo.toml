@@ -14,6 +14,10 @@ path = "src/main.rs"
 name = "yoyo-sh"
 path = "src/bin/yoyo-sh.rs"
 
+[[bin]]
+name = "emit-rt-sidecar"
+path = "src/bin/emit-rt-sidecar.rs"
+
 [lib]
 name = "verifier"
 path = "src/lib.rs"

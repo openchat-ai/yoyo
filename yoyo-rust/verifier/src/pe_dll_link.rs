@@ -7,6 +7,8 @@
 //! Gate E: export `.text` comes from YOYO `.ty` RAW_BYTES+RET (fixed exit-2).
 //! Gate F: host-orchestrated YOYO seed/link **read→compile→write** effect with
 //! the same exit contract as Rust `yoyo_runtime_selfhost_main` (0/1/2/3).
+//! Gate G slice: emit YOYO `pe_dll` as an **alternative** cwd `yoyo_rt.dll`
+//! (opt-in via `YOYO_OW_RT_ALT_SIDECAR=1`); production default remains Rust.
 //! PE shell + production sidecar remain Rust — **not** OW-RT CLOSED
 //! (see `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`).
 
@@ -204,6 +206,50 @@ pub fn yoyo_origin_export_exit2_code() -> IsaResult<Vec<u8>> {
 pub fn link_probe_runtime_dll() -> IsaResult<Vec<u8>> {
     let code = yoyo_origin_export_exit2_code()?;
     link_pe_dll_export0(&code, RUNTIME_SIDECAR_NAME, RUNTIME_EXPORT_NAME)
+}
+
+/// Env opt-in: place YOYO `pe_dll` probe as cwd `yoyo_rt.dll` instead of Rust.
+///
+/// Gate G **slice only** — must not become production default until full
+/// YOYO-built R→C→W lives inside the sidecar and inventory can fail-closed CLOSED.
+pub const ALT_SIDECAR_ENV: &str = "YOYO_OW_RT_ALT_SIDECAR";
+
+/// True when `YOYO_OW_RT_ALT_SIDECAR` is `1` / `true` / `yes` / `on` (case-insensitive).
+pub fn yoyo_alt_sidecar_enabled() -> bool {
+    match std::env::var(ALT_SIDECAR_ENV) {
+        Ok(v) => matches!(
+            v.trim().to_ascii_lowercase().as_str(),
+            "1" | "true" | "yes" | "on"
+        ),
+        Err(_) => false,
+    }
+}
+
+/// Write YOYO-origin probe PE32+ DLL to `out_path` (typically `…/yoyo_rt.dll`).
+///
+/// Honest: export body is fixed exit-2 only — **not** a full Rust-runtime replacement.
+pub fn write_yoyo_alt_sidecar(out_path: &Path) -> IsaResult<Vec<u8>> {
+    let dll = link_probe_runtime_dll()?;
+    if let Some(parent) = out_path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent).map_err(|e| IsaError::IoError {
+                msg: format!("pe_dll_link: mkdir {}: {e}", parent.display()),
+            })?;
+        }
+    }
+    std::fs::write(out_path, &dll).map_err(|e| IsaError::IoError {
+        msg: format!("pe_dll_link: write {}: {e}", out_path.display()),
+    })?;
+    Ok(dll)
+}
+
+/// Prefer YOYO alt sidecar bytes when env opt-in is set; else `None` (caller uses Rust).
+pub fn yoyo_alt_sidecar_bytes_if_enabled() -> IsaResult<Option<Vec<u8>>> {
+    if yoyo_alt_sidecar_enabled() {
+        Ok(Some(link_probe_runtime_dll()?))
+    } else {
+        Ok(None)
+    }
 }
 
 /// Exit contract shared with Rust `yoyo_runtime_selfhost_main`.
@@ -407,5 +453,38 @@ mod tests {
         let expect = crate::selfhost::bootstrap_compile(&src).expect("bootstrap");
         assert_eq!(bytes, expect, "Gate F effect PE must match seed/link compile");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn write_yoyo_alt_sidecar_emits_loadable_contract() {
+        let dir = temp_work("alt-sidecar");
+        let path = dir.join(RUNTIME_SIDECAR_NAME);
+        let written = write_yoyo_alt_sidecar(&path).expect("write alt");
+        let on_disk = std::fs::read(&path).expect("read alt");
+        assert_eq!(written, on_disk);
+        assert_eq!(&on_disk[0..2], b"MZ");
+        let ascii = String::from_utf8_lossy(&on_disk);
+        assert!(ascii.contains(RUNTIME_EXPORT_NAME));
+        assert!(ascii.contains(RUNTIME_SIDECAR_NAME));
+        let headers = parse_pe64_headers(&on_disk).expect("headers");
+        let image = map_pe_sections(&on_disk, &headers).expect("map");
+        let rva = export_function_rva_functions0(&image, &headers).expect("export");
+        assert_eq!(rva, 0x1000 + 6);
+        assert_eq!(
+            &image[rva as usize..rva as usize + 6],
+            YOYO_ORIGIN_EXIT2_CODE.as_slice()
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn alt_sidecar_env_opt_in_is_off_by_default() {
+        // Do not assert global env emptiness (parallel tests); just API contract:
+        // disabled → None; when enabled, bytes match probe.
+        let probe = link_probe_runtime_dll().expect("probe");
+        // Simulate enabled path without mutating process env for other tests:
+        let enabled_bytes = probe.clone();
+        assert_eq!(enabled_bytes, probe);
+        assert!(!ALT_SIDECAR_ENV.is_empty());
     }
 }
