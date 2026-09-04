@@ -28,9 +28,9 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 [x] A  [x] B  [x] C   →  path 2 里程碑（无 tag）
 
-[x] D  [x] E          →  OW-RT DLL emit + YOYO-origin export stub（仍 CUT）
+[x] D  [x] E  [x] F   →  OW-RT DLL emit + origin stub + YOYO-built effect（仍 CUT）
 
-[ ] F  [ ] G          →  YOYO-built compile loop → drop Rust sidecar → CLOSED
+[ ] G                 →  drop Rust sidecar → OW-RT CLOSED
 
 ```
 
@@ -56,7 +56,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 | **with-sidecar manual-map** | ✅ **Gate A 已绿（PR #26 · `f8eb429`）** | no-sidecar fail-closed + with-sidecar GREEN · **OW-IAT 仍 CUT** |
 
-| **整仓竣工长杆** | **OW-RT YOYO-built runtime** | Gate D+E 已绿；F→G 才可能 CLOSED；**禁止**假 CLOSED |
+| **整仓竣工长杆** | **OW-RT YOYO-built runtime** | Gate D–F 已绿；G 才可能 CLOSED；**禁止**假 CLOSED |
 
 | **勿做** | — | 勿 fake OW-IAT/OW-RT CLOSED；勿启 `AUTO_TO_1.0 ACTIVE=1`；勿 invent Stage 17 |
 
@@ -112,7 +112,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 
 
-**下一项** = **F** — YOYO-built read→compile→write 效应（仍 CUT；未去 sidecar 禁止 CLOSED）。
+**下一项** = **G** — 生产去 Rust sidecar → OW-RT CLOSED 证据（未去 sidecar 禁止 CLOSED）。
 
 
 
@@ -230,11 +230,15 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 
 
-- [ ] **F：YOYO-built read→compile→write 效应**  
+- [x] **F：YOYO-built read→compile→write 效应** — **2026-09-04 · 整仓竣工**  
 
-  - **目标**：YOYO-built 体与 Rust runtime 同契约（exit 0/1/2/3 + 写出 PE）  
+  - **验收**：& .\scripts\stage17-ow-rt-yoyo-runtime.ps1 exit 0 · yoyo_built_effect=PRESENT · exits 0/1/2/3 ✅  
 
-  - **验收**：对照 fixture；生产仍可双轨 · **仍 CUT**
+  - **产物**：pe_dll_link::yoyo_built_runtime_effect · fixture selfhost_min_nop.ty  
+
+  - **诚实状态**：yoyo_built=EFFECT · Rust sidecar **PRESENT** · **OW-RT 仍 CUT**  
+
+  - **信任链**：YOYO seed/link 路径完成 R→C→W（无 LoadLibrary）；生产仍 Rust sidecar · **≠ CLOSED**
 
 
 
@@ -262,7 +266,9 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 **Gate D 完成：2026-09-04** · `pe_dll_link` + gate GREEN · **仍 cut=7**。  
 
-**Gate E 完成：2026-09-04** · YOYO-origin export stub · `yoyo_origin_export=PRESENT` · **仍 CUT** · 下一项 **F**。
+**Gate E 完成：2026-09-04** · YOYO-origin export stub · `yoyo_origin_export=PRESENT` · **仍 CUT**。  
+
+**Gate F 完成：2026-09-04** · YOYO-built R→C→W effect · `yoyo_built=EFFECT` · **仍 CUT** · 下一项 **G**。
 
 
 
@@ -396,6 +402,6 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 
 
 
-**当前分支诚实快照（2026-09-04 · Gate E）：** path 2 A–E · `closed=0 cut=7` · OW-RT **CUT**（`yoyo_origin_export=PRESENT` · `yoyo_built=ABSENT`）· 下一项 **F** · **无 tag**
+**当前分支诚实快照（2026-09-04 · Gate F）：** path 2 A–F · `closed=0 cut=7` · OW-RT **CUT**（`yoyo_built_effect=PRESENT` · `yoyo_built=EFFECT` · Rust sidecar PRESENT）· 下一项 **G** · **无 tag**
 
 
