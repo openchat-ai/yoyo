@@ -4,11 +4,11 @@
 //! `AddressOfFunctions[0]` — the same contract H_00 manual-map / ordinal-0
 //! resolve uses for cwd sidecar `yoyo_rt.dll`.
 //!
-//! This is **infrastructure**, not OW-RT CLOSED:
-//! - Bytes here are still Rust-host emitted (seed of a YOYO-built path).
-//! - CLOSED still requires a YOYO-built sidecar **and** no Rust `yoyo_rt.dll`
-//!   host trust (see `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`).
+//! Gate E: export `.text` comes from YOYO `.ty` RAW_BYTES+RET (fixed exit-2).
+//! PE shell is still Rust `pe_dll_link` — **not** OW-RT CLOSED until production
+//! drops Rust `yoyo_rt.dll` host trust (see `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`).
 
+use crate::platform::PlatformKind;
 use crate::types::{IsaError, IsaResult};
 
 /// Canonical H_00 / runtime export name (must stay ordinal-0 / functions[0]).
@@ -19,6 +19,18 @@ pub const RUNTIME_SIDECAR_NAME: &str = "yoyo_rt.dll";
 
 /// Probe body: `mov eax, imm32; ret` — exit code matches runtime no-input (`2`).
 pub const PROBE_EXIT_NO_INPUT: i32 = 2;
+
+/// YOYO `.ty` stub (mirrors `yoyo/tests/golden/ow_rt_yoyo_origin_exit2.ty`).
+/// RAW_BYTES emits `mov eax,2`; RET emits `C3`.
+pub const YOYO_ORIGIN_EXIT2_TY: &str = "\
+; OW-RT Gate E — YOYO-origin fixed-exit probe\n\
+40 00\n\
+  A1 B8 02 00 00 00\n\
+  FF\n\
+";
+
+/// Expected YOYO-emitted export body (`mov eax,2; ret`).
+pub const YOYO_ORIGIN_EXIT2_CODE: [u8; 6] = [0xB8, 0x02, 0x00, 0x00, 0x00, 0xC3];
 
 /// Link a PE32+ DLL whose `AddressOfFunctions[0]` runs `export_code`.
 ///
@@ -170,17 +182,23 @@ pub fn link_pe_dll_export0(export_code: &[u8], dll_name: &str, export_name: &str
     Ok(img)
 }
 
-/// Probe DLL: export returns `PROBE_EXIT_NO_INPUT` (runtime missing-input code).
+/// Compile YOYO-origin fixed-exit export body (`yoyo_origin_export=PRESENT`).
+pub fn yoyo_origin_export_exit2_code() -> IsaResult<Vec<u8>> {
+    let out = crate::executor::compile_ty_source(YOYO_ORIGIN_EXIT2_TY, PlatformKind::Stub)?;
+    if out.code.as_slice() != YOYO_ORIGIN_EXIT2_CODE.as_slice() {
+        return Err(IsaError::PlatformError {
+            msg: format!(
+                "pe_dll_link: YOYO-origin exit2 mismatch (got {:02X?}, want {:02X?})",
+                out.code, YOYO_ORIGIN_EXIT2_CODE
+            ),
+        });
+    }
+    Ok(out.code)
+}
+
+/// Probe DLL: YOYO-origin export returns `PROBE_EXIT_NO_INPUT` (no-input code).
 pub fn link_probe_runtime_dll() -> IsaResult<Vec<u8>> {
-    // mov eax, 2; ret
-    let code = [
-        0xB8,
-        (PROBE_EXIT_NO_INPUT as u32).to_le_bytes()[0],
-        (PROBE_EXIT_NO_INPUT as u32).to_le_bytes()[1],
-        (PROBE_EXIT_NO_INPUT as u32).to_le_bytes()[2],
-        (PROBE_EXIT_NO_INPUT as u32).to_le_bytes()[3],
-        0xC3,
-    ];
+    let code = yoyo_origin_export_exit2_code()?;
     link_pe_dll_export0(&code, RUNTIME_SIDECAR_NAME, RUNTIME_EXPORT_NAME)
 }
 
@@ -234,13 +252,35 @@ mod tests {
     }
 
     #[test]
+    fn yoyo_origin_export_is_mov_eax_2_ret() {
+        let code = yoyo_origin_export_exit2_code().expect("yoyo-origin");
+        assert_eq!(code.as_slice(), YOYO_ORIGIN_EXIT2_CODE.as_slice());
+    }
+
+    #[test]
     fn probe_export_body_is_mov_eax_2_ret() {
         let dll = link_probe_runtime_dll().expect("link");
         let headers = parse_pe64_headers(&dll).expect("headers");
         let image = map_pe_sections(&dll, &headers).expect("map");
         let rva = export_function_rva_functions0(&image, &headers).expect("export");
         let off = rva as usize;
-        assert_eq!(&image[off..off + 6], &[0xB8, 0x02, 0x00, 0x00, 0x00, 0xC3]);
+        assert_eq!(&image[off..off + 6], YOYO_ORIGIN_EXIT2_CODE.as_slice());
+    }
+
+    #[test]
+    fn golden_ty_file_matches_embedded_stub() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()
+            .expect("repo root");
+        let path = root.join("yoyo/tests/golden/ow_rt_yoyo_origin_exit2.ty");
+        let src = std::fs::read_to_string(&path).expect("read golden .ty");
+        let out = crate::executor::compile_ty_source(&src, PlatformKind::Stub).expect("compile");
+        assert_eq!(out.code.as_slice(), YOYO_ORIGIN_EXIT2_CODE.as_slice());
+        let hex_path = root.join("yoyo/tests/golden/expected/ow_rt_yoyo_origin_exit2.code.hex");
+        let hex = std::fs::read_to_string(&hex_path).expect("read hex pin");
+        let hex = hex.trim();
+        assert_eq!(hex, "b802000000c3");
     }
 
     #[cfg(windows)]
