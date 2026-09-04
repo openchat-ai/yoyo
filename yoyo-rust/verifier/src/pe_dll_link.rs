@@ -90,13 +90,19 @@ pub fn link_pe_dll_export0(export_code: &[u8], dll_name: &str, export_name: &str
     //   +0x32 pad to 4
     //   +0x34 dll name
     //   +…   export name
+    //   +…   pad4 + null IMAGE_IMPORT_DESCRIPTOR (20 B)
+    // H_00 skips LL/GPA bootstrap when ImportDir RVA==0, then FlushICache
+    // call [GPA scratch] AVs — null descriptor keeps ImportDir non-zero.
     let exp_dir_off = 0u32;
     let functions_off = 0x28u32;
     let names_off = 0x2Cu32;
     let ordinals_off = 0x30u32;
     let dll_name_off = 0x34u32;
     let export_name_off = dll_name_off + dll_bytes.len() as u32;
-    let rdata_payload = export_name_off + export_bytes.len() as u32;
+    let after_names = export_name_off + export_bytes.len() as u32;
+    let import_desc_off = align_up(after_names, 4);
+    const IMPORT_DESC_SIZE: u32 = 20; // one null IMAGE_IMPORT_DESCRIPTOR
+    let rdata_payload = import_desc_off + IMPORT_DESC_SIZE;
     let rdata_raw = align_up(rdata_payload, FILE_ALIGN);
     let rdata_rva = text_rva + text_vs; // 0x2000 when text fits one section
     let rdata_vs = align_up(rdata_payload, SECTION_ALIGN);
@@ -147,6 +153,11 @@ pub fn link_pe_dll_export0(export_code: &[u8], dll_name: &str, export_name: &str
     write_u32(&mut img, opt + 112, export_dir_rva);
     write_u32(&mut img, opt + 116, export_dir_size);
 
+    // Import data directory [1] — null descriptor only (triggers H_00 bootstrap).
+    let import_dir_rva = rdata_rva + import_desc_off;
+    write_u32(&mut img, opt + 120, import_dir_rva);
+    write_u32(&mut img, opt + 124, IMPORT_DESC_SIZE);
+
     // Section .text
     let s1 = 0x98 + 0xF0; // 0x188
     write_name(&mut img, s1, b".text");
@@ -187,6 +198,7 @@ pub fn link_pe_dll_export0(export_code: &[u8], dll_name: &str, export_name: &str
     exp[dll_name_off as usize..dll_name_off as usize + dll_bytes.len()].copy_from_slice(dll_bytes);
     exp[export_name_off as usize..export_name_off as usize + export_bytes.len()]
         .copy_from_slice(export_bytes);
+    // Null IMAGE_IMPORT_DESCRIPTOR — already zero-filled in `img`.
 
     Ok(img)
 }
@@ -385,6 +397,8 @@ mod tests {
         assert_eq!(&dll[0..2], b"MZ");
         let headers = parse_pe64_headers(&dll).expect("headers");
         assert_ne!(headers.export_dir_rva, 0);
+        // Non-zero import dir (null descriptor) — required for H_00 GPA bootstrap.
+        assert_ne!(headers.import_dir_rva, 0, "null import descriptor required");
         let image = map_pe_sections(&dll, &headers).expect("map");
         let rva = export_function_rva_functions0(&image, &headers).expect("export");
         // DllMain 6 bytes then export body at text_rva+6

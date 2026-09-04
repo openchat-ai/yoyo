@@ -252,7 +252,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
   - **本 tick 切片（仍 CUT · 勿勾 CLOSED）**：`yoyo_sidecar_path_rcw` + `emit-rt-sidecar --rcw` · place cwd `yoyo_rt.dll` + YOYO R→C→W · gate `yoyo_sidecar_rcw=PRESENT` · `yoyo_built=SIDECAR_RCW` · `gate_g_slice=sidecar_rcw` · production_default=RUST · export 仍 exit-2  
 
-  - **Win 本地**（云无 Win）：`& .\scripts\stage17-ow-rt-yoyo-runtime.ps1`；sidecar-path RCW exit 0；H_00+YOYO probe 可能 `NOT_STABLE`/AV（诚实记录 · 不挡门）  
+  - **Win 本地**（云无 Win）：`& .\scripts\stage17-ow-rt-yoyo-runtime.ps1`；sidecar-path RCW exit 0；H_00+YOYO probe no-input **exit=2**（null import 触发 H_00 GPA bootstrap）  
 
   - **Linux/云**：`bash scripts/stage17-ow-rt-yoyo-runtime.sh`（unit + sidecar-path RCW）
 

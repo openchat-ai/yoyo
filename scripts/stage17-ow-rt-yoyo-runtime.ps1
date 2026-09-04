@@ -154,9 +154,7 @@ if ($IsWin) {
         if ($altExit -eq 2) {
             Write-Host "OW_RT_SPIKE yoyo_alt_sidecar_smoke=GREEN exit=2 (H_00 loaded YOYO pe_dll; export still stub)"
         } else {
-            # Honest: pe_dll probe may AV under H_00 manual-map (0xC0000005) even when
-            # Rust pe_manual_map unit + sidecar-path RCW are green. Do not fail the gate.
-            Write-Host ("OW_RT_SPIKE yoyo_alt_sidecar_smoke=NOT_STABLE exit={0} (H_00+probe; RCW path still GREEN; export still stub)" -f $altExit)
+            throw ("Gate G YOYO sidecar no-input smoke expected exit=2 got={0}" -f $altExit)
         }
     } else {
         Write-Host "OW_RT_SPIKE yoyo_alt_sidecar_smoke=SKIP (missing yoyo.exe or yoyo.ty)"
