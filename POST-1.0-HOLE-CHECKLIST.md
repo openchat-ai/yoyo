@@ -112,7 +112,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 
 
-**下一项** = **G**（续）— 生产去 Rust sidecar → OW-RT CLOSED（本 tick 仅 export-compile 切片 · 生产默认仍 Rust · **仍 CUT**）。
+**下一项** = **G**（续）— 生产去 Rust sidecar → OW-RT CLOSED（本 tick 仅 dll-recompile 切片 · 生产默认仍 Rust · pe_dll 内仍无 compiler ISA · **仍 CUT**）。
 
 
 
@@ -250,11 +250,12 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
   - **依赖**：E+F；随后才可能推进 OW-IAT CLOSED  
 
-  - **本 tick 切片（仍 CUT · 勿勾 CLOSED）**：`yoyo_sidecar_export_compile` + `emit-rt-sidecar --export-compile` · emit-time `bootstrap_compile` 烘焙进 pe_dll；调用 export 写 `output.exe` · gate `yoyo_export_compile=PRESENT` · `yoyo_built=EXPORT_COMPILE` · `gate_g_slice=export_compile` · production_default=RUST · call-time **非**通用再编译  
+  - **本 tick 切片（仍 CUT · 勿勾 CLOSED）**：`yoyo_sidecar_dll_recompile` + `emit-rt-sidecar --dll-recompile` · 通用 pe_dll bake 槽；call-time YOYO `bootstrap_compile` 注入任意 cwd 输入；export 写 `output.exe` · gate `yoyo_dll_recompile=PRESENT` · `yoyo_built=DLL_RECOMPILE` · `gate_g_slice=dll_recompile` · production_default=RUST · pe_dll 内 **仍无** compiler ISA  
 
-  - **Win 本地**（云无 Win）：`& .\scripts\stage17-ow-rt-yoyo-runtime.ps1`；export-compile exit 0；H_00+YOYO no-input **exit=2**（可 NOT_STABLE）  
 
-  - **Linux/云**：`bash scripts/stage17-ow-rt-yoyo-runtime.sh`（unit + export-compile）
+  - **Win 本地**（云无 Win）：`& .\scripts\stage17-ow-rt-yoyo-runtime.ps1`；dll-recompile exit 0；H_00+YOYO no-input **exit=2**（可 NOT_STABLE）  
+
+  - **Linux/云**：`bash scripts/stage17-ow-rt-yoyo-runtime.sh`（unit + dll-recompile）
 
 
 
@@ -276,7 +277,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 **Gate F 完成：2026-09-04** · YOYO-built R→C→W effect · `yoyo_built=EFFECT` · **仍 CUT**。  
 
-**Gate G 切片（未勾）：2026-09-04** · export-compile · `yoyo_export_compile=PRESENT` · `yoyo_built=EXPORT_COMPILE` · production_default=RUST · call-time 非通用再编译 · **仍 CUT** · **G 仍 `[ ]`**。
+**Gate G 切片（未勾）：2026-09-04** · dll-recompile · `yoyo_dll_recompile=PRESENT` · `yoyo_built=DLL_RECOMPILE` · production_default=RUST · pe_dll 内无 compiler ISA · **仍 CUT** · **G 仍 `[ ]`**。
 
 
 
@@ -410,6 +411,6 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 
 
 
-**当前分支诚实快照（2026-09-04 · Gate G 切片）：** path 2 A–F · G 切片 export-compile · `closed=0 cut=7` · OW-RT **CUT**（`yoyo_export_compile=PRESENT` · `yoyo_built=EXPORT_COMPILE` · Rust production default PRESENT · call-time 非通用重编译）· **G 仍 `[ ]`** · **无 tag**
+**当前分支诚实快照（2026-09-04 · Gate G 切片）：** path 2 A–F · G 切片 dll-recompile · `closed=0 cut=7` · OW-RT **CUT**（`yoyo_dll_recompile=PRESENT` · `yoyo_built=DLL_RECOMPILE` · Rust production default PRESENT · pe_dll 内无 compiler ISA）· **G 仍 `[ ]`** · **无 tag**
 
 

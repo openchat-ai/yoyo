@@ -124,7 +124,7 @@ Gate 必须同时：
 
 **Post-v1.0 path 2 · Gate C honest sync（2026-09-03）：** A+B GREEN 后机器重测 — Win OW-IAT smoke **GREEN ≠ CLOSED**；OW-H00 **CUT**（full `.text` DIFF · **禁止**假 CLOSED）；stub **2673** / DLL **158720**；`closed=0 cut=7`；**禁止**假 CLOSED。
 
-**Next tip（post-v1.0 path 2 · 整仓竣工）：** Gate **G 切片** landed export-compile（yoyo_built=EXPORT_COMPILE · yoyo_export_compile=PRESENT · production_default=RUST · call-time 非通用重编译 · 仍 CUT · **G 未勾**）。**Next** = general in-DLL re-compile → flip production default off Rust → inventory CLOSED；**OW-IAT CLOSED** only when yoyo_rt.dll marker absent。
+**Next tip（post-v1.0 path 2 · 整仓竣工）：** Gate **G 切片** landed dll-recompile（yoyo_built=DLL_RECOMPILE · yoyo_dll_recompile=PRESENT · production_default=RUST · pe_dll 内无 compiler ISA · 仍 CUT · **G 未勾**）。**Next** = embed compile ISA in pe_dll / YOYO-built compile sidecar → flip production default off Rust → inventory CLOSED；**OW-IAT CLOSED** only when yoyo_rt.dll marker absent。
 
 ---
 

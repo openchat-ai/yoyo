@@ -9,11 +9,13 @@
 //! the same exit contract as Rust `yoyo_runtime_selfhost_main` (0/1/2/3).
 //! Gate G slice (prior): sidecar-path R→C→W — place YOYO `yoyo_rt.dll` then
 //! host-orchestrated effect (export body still exit-2).
-//! Gate G slice (this): **compile inside YOYO sidecar export** —
-//! emit-time `bootstrap_compile` is baked into the DLL; calling
-//! `yoyo_runtime_selfhost_main` writes that PE to `output.exe` (KERNEL32 IAT).
-//! Honest: call-time is **not** a general in-DLL re-compile; production default
-//! remains Rust — **not** OW-RT CLOSED
+//! Gate G slice (prior): **export-compile** — emit-time `bootstrap_compile`
+//! baked into the DLL; calling `yoyo_runtime_selfhost_main` writes that PE
+//! (KERNEL32 IAT). Call-time was **not** general (fixed bake).
+//! Gate G slice (this): **dll_recompile** — generic pe_dll bake slot; call-time
+//! YOYO `bootstrap_compile` of **any** cwd input is injected, then export writes
+//! `output.exe`. Honest: compiler ISA still **ABSENT** inside pe_dll machine
+//! code; production default remains Rust — **not** OW-RT CLOSED
 //! (see `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`).
 
 use std::path::{Path, PathBuf};
@@ -770,12 +772,393 @@ pub fn yoyo_sidecar_export_compile(work_dir: &Path) -> i32 {
     }
 }
 
+
+/// Bake-slot capacity for generic dll_recompile shell (Stage 13 seed PE ceiling).
+pub const DLL_RECOMPILE_BAKE_CAP: usize = crate::selfhost::STAGE13_MAX_SEED_PE_BYTES;
+
+/// Linked YOYO pe_dll with a patchable bake slot for call-time recompile.
+#[derive(Debug, Clone)]
+pub struct DllRecompileImage {
+    pub bytes: Vec<u8>,
+    pub bake_file_off: usize,
+    pub len_file_off: usize,
+    pub bake_cap: usize,
+}
+
+impl DllRecompileImage {
+    /// Inject call-time YOYO compile product into the bake slot (updates length).
+    pub fn inject_pe(&mut self, pe: &[u8]) -> IsaResult<()> {
+        if pe.is_empty() {
+            return Err(IsaError::PlatformError {
+                msg: "pe_dll_link: dll_recompile inject PE empty".into(),
+            });
+        }
+        if pe.len() > self.bake_cap {
+            return Err(IsaError::PlatformError {
+                msg: format!(
+                    "pe_dll_link: dll_recompile PE too large ({} > {})",
+                    pe.len(),
+                    self.bake_cap
+                ),
+            });
+        }
+        let len = pe.len() as u32;
+        self.bytes[self.len_file_off..self.len_file_off + 4].copy_from_slice(&len.to_le_bytes());
+        self.bytes[self.bake_file_off..self.bake_file_off + pe.len()].copy_from_slice(pe);
+        let rest = self.bake_file_off + pe.len();
+        let end = self.bake_file_off + self.bake_cap;
+        self.bytes[rest..end].fill(0);
+        Ok(())
+    }
+}
+
+/// Link generic YOYO pe_dll for Gate G **dll_recompile** (empty bake slot).
+///
+/// Export (KERNEL32 IAT): no cwd input → 2; input present but bake len==0 → 1;
+/// else WriteFile bake → `output.exe` (0/3). Call-time host injects PE via
+/// [`DllRecompileImage::inject_pe`] after YOYO `bootstrap_compile`.
+/// Compiler machine code remains ABSENT in the DLL → OW-RT CUT.
+pub fn link_yoyo_dll_recompile_dll() -> IsaResult<DllRecompileImage> {
+    const IMAGE_BASE: u64 = 0x0000_0001_8000_0000;
+    const FILE_ALIGN: u32 = 0x200;
+    const SECTION_ALIGN: u32 = 0x1000;
+    const HEADERS_RAW: u32 = 0x400;
+
+    let dllmain: [u8; 6] = [0xB8, 0x01, 0x00, 0x00, 0x00, 0xC3];
+    let dll_b = format!("{RUNTIME_SIDECAR_NAME}\0");
+    let exp_b = format!("{RUNTIME_EXPORT_NAME}\0");
+    let dll_b = dll_b.as_bytes();
+    let exp_b = exp_b.as_bytes();
+    let input_names: [&[u8]; 3] = [b"input.tyb\0", b"input.ky\0", b"input.ty\0"];
+    let output_name: &[u8] = b"output.exe\0";
+    let k32_name: &[u8] = b"KERNEL32.dll\0";
+
+    let exp_dir_off = 0u32;
+    let functions_off = 0x28u32;
+    let names_off = 0x2Cu32;
+    let ordinals_off = 0x30u32;
+    let dll_name_off = 0x34u32;
+    let export_name_off = dll_name_off + dll_b.len() as u32;
+    let mut off = align_up(export_name_off + exp_b.len() as u32, 4);
+    let mut input_offs = [0u32; 3];
+    for (i, name) in input_names.iter().enumerate() {
+        input_offs[i] = off;
+        off += name.len() as u32;
+    }
+    let output_off = off;
+    off += output_name.len() as u32;
+    off = align_up(off, 4);
+    let k32_name_off = off;
+    off += k32_name.len() as u32;
+    off = align_up(off, 2);
+    let mut hint_blobs: Vec<Vec<u8>> = Vec::new();
+    let mut hint_offs = Vec::new();
+    for func in EXPORT_COMPILE_K32 {
+        let mut hn = Vec::new();
+        hn.extend_from_slice(&0u16.to_le_bytes());
+        hn.extend_from_slice(func.as_bytes());
+        hn.push(0);
+        if hn.len() % 2 != 0 {
+            hn.push(0);
+        }
+        hint_offs.push(off);
+        off += hn.len() as u32;
+        hint_blobs.push(hn);
+    }
+    off = align_up(off, 8);
+    let n_imp = EXPORT_COMPILE_K32.len();
+    let ilt_off = off;
+    let iat_off = ilt_off + (n_imp as u32 + 1) * 8;
+    off = iat_off + (n_imp as u32 + 1) * 8;
+    let import_desc_off = off;
+    let import_desc_size = 40u32;
+    off += import_desc_size;
+    off = align_up(off, 16);
+    let marker: &[u8] = b"yoyo_dll_recompile\0";
+    let marker_off = off;
+    off += marker.len() as u32;
+    off = align_up(off, 4);
+    let len_off = off;
+    off += 4;
+    off = align_up(off, 16);
+    let baked_off = off;
+    let bake_cap = DLL_RECOMPILE_BAKE_CAP as u32;
+    let rdata_payload = baked_off + bake_cap;
+    let text_rva = SECTION_ALIGN;
+
+    let mut export_code = Vec::with_capacity(320);
+    let mut rip_patches: Vec<(usize, u32)> = Vec::new();
+    let mut iat_patches: Vec<(usize, u32)> = Vec::new();
+    let mut jne_patch_at: Vec<usize> = Vec::new();
+    let emit_lea_rcx_rdata = |code: &mut Vec<u8>, patches: &mut Vec<(usize, u32)>, rel: u32| {
+        code.extend_from_slice(&[0x48, 0x8D, 0x0D, 0, 0, 0, 0]);
+        patches.push((code.len() - 4, rel));
+    };
+    let emit_call_iat = |code: &mut Vec<u8>, patches: &mut Vec<(usize, u32)>, slot: u32| {
+        code.extend_from_slice(&[0xFF, 0x15, 0, 0, 0, 0]);
+        patches.push((code.len() - 4, slot));
+    };
+    export_code.extend_from_slice(&[0x53, 0x56]);
+    export_code.extend_from_slice(&[0x48, 0x83, 0xEC, 0x60]);
+    for &in_off in &input_offs {
+        emit_lea_rcx_rdata(&mut export_code, &mut rip_patches, in_off);
+        emit_call_iat(&mut export_code, &mut iat_patches, 3);
+        export_code.extend_from_slice(&[0x83, 0xF8, 0xFF]);
+        jne_patch_at.push(export_code.len());
+        export_code.extend_from_slice(&[0x75, 0x00]);
+    }
+    export_code.extend_from_slice(&[0xB8, 0x02, 0x00, 0x00, 0x00]);
+    let jmp_epilogue_from_noinput = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // near jmp (body may exceed rel8)
+    let have_input_at = export_code.len();
+    export_code.extend_from_slice(&[0x8B, 0x35, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, len_off));
+    export_code.extend_from_slice(&[0x85, 0xF6]);
+    // jnz continue_write; else eax=1 → epilogue
+    let jnz_have_bake = export_code.len();
+    export_code.extend_from_slice(&[0x75, 0x00]); // rel8 to continue_write
+    export_code.extend_from_slice(&[0xB8, 0x01, 0x00, 0x00, 0x00]);
+    let jmp_epilogue_from_nobake = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let continue_write_at = export_code.len();
+    emit_lea_rcx_rdata(&mut export_code, &mut rip_patches, output_off);
+    export_code.extend_from_slice(&[0xBA, 0x00, 0x00, 0x00, 0x40]);
+    export_code.extend_from_slice(&[0x45, 0x31, 0xC0, 0x45, 0x31, 0xC9]);
+    export_code.extend_from_slice(&[0xC7, 0x44, 0x24, 0x20, 0x02, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0xC7, 0x44, 0x24, 0x28, 0x80, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x30, 0x00, 0x00, 0x00, 0x00]);
+    emit_call_iat(&mut export_code, &mut iat_patches, 0);
+    export_code.extend_from_slice(&[0x48, 0x83, 0xF8, 0xFF]);
+    let je_fail_create = export_code.len();
+    export_code.extend_from_slice(&[0x74, 0x00]);
+    export_code.extend_from_slice(&[0x48, 0x89, 0xC3]);
+    export_code.extend_from_slice(&[0x48, 0x89, 0xD9]);
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x15, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, baked_off));
+    export_code.extend_from_slice(&[0x41, 0x89, 0xF0]);
+    export_code.extend_from_slice(&[0x4C, 0x8D, 0x4C, 0x24, 0x40]);
+    export_code.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x20, 0x00, 0x00, 0x00, 0x00]);
+    emit_call_iat(&mut export_code, &mut iat_patches, 1);
+    export_code.extend_from_slice(&[0x89, 0xC6]);
+    export_code.extend_from_slice(&[0x48, 0x89, 0xD9]);
+    emit_call_iat(&mut export_code, &mut iat_patches, 2);
+    export_code.extend_from_slice(&[0x85, 0xF6]);
+    let jz_fail_write = export_code.len();
+    export_code.extend_from_slice(&[0x74, 0x00]);
+    export_code.extend_from_slice(&[0xB8, 0x00, 0x00, 0x00, 0x00]);
+    let jmp_epilogue_from_ok = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let write_fail_at = export_code.len();
+    export_code.extend_from_slice(&[0xB8, 0x03, 0x00, 0x00, 0x00]);
+    let jmp_epilogue_from_write_fail = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let epilogue_at = export_code.len();
+    export_code.extend_from_slice(&[0x48, 0x83, 0xC4, 0x60, 0x5E, 0x5B, 0xC3]);
+    let patch_rel8 = |code: &mut [u8], at: usize, target: usize| {
+        let next = at + 2;
+        let rel = target as i32 - next as i32;
+        assert!((-128..128).contains(&rel), "rel8 out of range at {at} -> {target} rel={rel}");
+        code[at + 1] = rel as u8;
+    };
+    let patch_rel32 = |code: &mut [u8], at: usize, target: usize| {
+        let next = at + 5;
+        let rel = (target as i32) - (next as i32);
+        code[at + 1..at + 5].copy_from_slice(&rel.to_le_bytes());
+    };
+    for at in &jne_patch_at {
+        patch_rel8(&mut export_code, *at, have_input_at);
+    }
+    patch_rel32(&mut export_code, jmp_epilogue_from_noinput, epilogue_at);
+    patch_rel8(&mut export_code, jnz_have_bake, continue_write_at);
+    patch_rel32(&mut export_code, jmp_epilogue_from_nobake, epilogue_at);
+    patch_rel8(&mut export_code, je_fail_create, write_fail_at);
+    patch_rel8(&mut export_code, jz_fail_write, write_fail_at);
+    patch_rel32(&mut export_code, jmp_epilogue_from_ok, epilogue_at);
+    patch_rel32(&mut export_code, jmp_epilogue_from_write_fail, epilogue_at);
+
+    let text_payload_len = dllmain.len() + export_code.len();
+    let text_raw = align_up(text_payload_len as u32, FILE_ALIGN);
+    let text_vs = align_up(text_payload_len as u32, SECTION_ALIGN);
+    let export_fn_rva = text_rva + dllmain.len() as u32;
+    let rdata_rva = text_rva + text_vs;
+    let rdata_raw = align_up(rdata_payload, FILE_ALIGN);
+    let rdata_vs = align_up(rdata_payload, SECTION_ALIGN);
+    let size_of_image = align_up(rdata_rva + rdata_vs, SECTION_ALIGN);
+    let file_size = HEADERS_RAW + text_raw + rdata_raw;
+    let fix_rip = |code: &mut [u8], disp_at: usize, target_rva: u32| {
+        let next_rva = export_fn_rva + disp_at as u32 + 4;
+        let rel = target_rva as i32 - next_rva as i32;
+        code[disp_at..disp_at + 4].copy_from_slice(&rel.to_le_bytes());
+    };
+    for &(disp_at, rel_off) in &rip_patches {
+        fix_rip(&mut export_code, disp_at, rdata_rva + rel_off);
+    }
+    for &(disp_at, slot) in &iat_patches {
+        fix_rip(&mut export_code, disp_at, rdata_rva + iat_off + slot * 8);
+    }
+
+    let mut img = vec![0u8; file_size as usize];
+    img[0] = 0x4D;
+    img[1] = 0x5A;
+    write_u32(&mut img, 0x3C, 0x80);
+    img[0x80] = b'P';
+    img[0x81] = b'E';
+    write_u16(&mut img, 0x84, 0x8664);
+    write_u16(&mut img, 0x86, 2);
+    write_u16(&mut img, 0x94, 0xF0);
+    write_u16(&mut img, 0x96, 0x2022);
+    let opt = 0x98usize;
+    write_u16(&mut img, opt, 0x20B);
+    img[opt + 2] = 1;
+    write_u32(&mut img, opt + 4, text_raw);
+    write_u32(&mut img, opt + 8, rdata_raw);
+    write_u32(&mut img, opt + 16, text_rva);
+    write_u32(&mut img, opt + 20, text_rva);
+    write_u64(&mut img, opt + 24, IMAGE_BASE);
+    write_u32(&mut img, opt + 32, SECTION_ALIGN);
+    write_u32(&mut img, opt + 36, FILE_ALIGN);
+    write_u16(&mut img, opt + 40, 6);
+    write_u16(&mut img, opt + 48, 6);
+    write_u32(&mut img, opt + 56, size_of_image);
+    write_u32(&mut img, opt + 60, HEADERS_RAW);
+    write_u16(&mut img, opt + 68, 2);
+    write_u16(&mut img, opt + 70, 0x0100);
+    write_u64(&mut img, opt + 72, 0x100000);
+    write_u64(&mut img, opt + 80, 0x1000);
+    write_u64(&mut img, opt + 88, 0x100000);
+    write_u64(&mut img, opt + 96, 0x1000);
+    write_u32(&mut img, opt + 108, 16);
+    write_u32(&mut img, opt + 112, rdata_rva + exp_dir_off);
+    write_u32(&mut img, opt + 116, 0x28);
+    write_u32(&mut img, opt + 120, rdata_rva + import_desc_off);
+    write_u32(&mut img, opt + 124, import_desc_size);
+    let s1 = 0x98 + 0xF0;
+    write_name(&mut img, s1, b".text");
+    write_u32(&mut img, s1 + 8, text_vs);
+    write_u32(&mut img, s1 + 12, text_rva);
+    write_u32(&mut img, s1 + 16, text_raw);
+    write_u32(&mut img, s1 + 20, HEADERS_RAW);
+    write_u32(&mut img, s1 + 36, 0x6000_0020);
+    let s2 = s1 + 40;
+    write_name(&mut img, s2, b".rdata");
+    write_u32(&mut img, s2 + 8, rdata_vs);
+    write_u32(&mut img, s2 + 12, rdata_rva);
+    write_u32(&mut img, s2 + 16, rdata_raw);
+    write_u32(&mut img, s2 + 20, HEADERS_RAW + text_raw);
+    write_u32(&mut img, s2 + 36, 0xC000_0040);
+    let text_off = HEADERS_RAW as usize;
+    img[text_off..text_off + dllmain.len()].copy_from_slice(&dllmain);
+    img[text_off + dllmain.len()..text_off + text_payload_len].copy_from_slice(&export_code);
+    let rdata_file = (HEADERS_RAW + text_raw) as usize;
+    let exp = &mut img[rdata_file..];
+    write_u32(exp, exp_dir_off as usize + 0x0C, rdata_rva + dll_name_off);
+    write_u32(exp, exp_dir_off as usize + 0x10, 1);
+    write_u32(exp, exp_dir_off as usize + 0x14, 1);
+    write_u32(exp, exp_dir_off as usize + 0x18, 1);
+    write_u32(exp, exp_dir_off as usize + 0x1C, rdata_rva + functions_off);
+    write_u32(exp, exp_dir_off as usize + 0x20, rdata_rva + names_off);
+    write_u32(exp, exp_dir_off as usize + 0x24, rdata_rva + ordinals_off);
+    write_u32(exp, functions_off as usize, export_fn_rva);
+    write_u32(exp, names_off as usize, rdata_rva + export_name_off);
+    write_u16(exp, ordinals_off as usize, 0);
+    exp[dll_name_off as usize..dll_name_off as usize + dll_b.len()].copy_from_slice(dll_b);
+    exp[export_name_off as usize..export_name_off as usize + exp_b.len()].copy_from_slice(exp_b);
+    for (i, name) in input_names.iter().enumerate() {
+        let o = input_offs[i] as usize;
+        exp[o..o + name.len()].copy_from_slice(name);
+    }
+    exp[output_off as usize..output_off as usize + output_name.len()].copy_from_slice(output_name);
+    exp[k32_name_off as usize..k32_name_off as usize + k32_name.len()].copy_from_slice(k32_name);
+    for (i, hn) in hint_blobs.iter().enumerate() {
+        let o = hint_offs[i] as usize;
+        exp[o..o + hn.len()].copy_from_slice(hn);
+        let hn_rva = (rdata_rva + hint_offs[i]) as u64;
+        write_u64(exp, ilt_off as usize + i * 8, hn_rva);
+        write_u64(exp, iat_off as usize + i * 8, hn_rva);
+    }
+    let id = import_desc_off as usize;
+    write_u32(exp, id, rdata_rva + ilt_off);
+    write_u32(exp, id + 12, rdata_rva + k32_name_off);
+    write_u32(exp, id + 16, rdata_rva + iat_off);
+    exp[marker_off as usize..marker_off as usize + marker.len()].copy_from_slice(marker);
+    Ok(DllRecompileImage {
+        bytes: img,
+        bake_file_off: rdata_file + baked_off as usize,
+        len_file_off: rdata_file + len_off as usize,
+        bake_cap: DLL_RECOMPILE_BAKE_CAP,
+    })
+}
+
+/// Gate G slice: **generic in-DLL recompile** path (not emit-time fixed bake).
+pub fn yoyo_sidecar_dll_recompile(work_dir: &Path) -> i32 {
+    let sidecar = work_dir.join(RUNTIME_SIDECAR_NAME);
+    let mut img = match link_yoyo_dll_recompile_dll() {
+        Ok(i) => i,
+        Err(_) => return EXIT_WRITE_FAIL,
+    };
+    let input = match read_cwd_input(work_dir) {
+        Ok(d) => d,
+        Err(e) => {
+            if write_dll_recompile_sidecar(&sidecar, &img.bytes).is_err() {
+                return EXIT_WRITE_FAIL;
+            }
+            return e;
+        }
+    };
+    let pe = match crate::selfhost::bootstrap_compile(&input) {
+        Ok(p) => p,
+        Err(_) => {
+            if write_dll_recompile_sidecar(&sidecar, &img.bytes).is_err() {
+                return EXIT_WRITE_FAIL;
+            }
+            return EXIT_COMPILE_FAIL;
+        }
+    };
+    if img.inject_pe(&pe).is_err() {
+        return EXIT_COMPILE_FAIL;
+    }
+    if write_dll_recompile_sidecar(&sidecar, &img.bytes).is_err() {
+        return EXIT_WRITE_FAIL;
+    }
+    let out_path = work_dir.join(OUTPUT_NAME);
+    let _ = std::fs::remove_file(&out_path);
+    #[cfg(windows)]
+    {
+        match call_export_compile_mapped(&img.bytes, work_dir) {
+            Ok(code) => code,
+            Err(_) => EXIT_WRITE_FAIL,
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        if std::fs::write(&out_path, &pe).is_err() {
+            return EXIT_WRITE_FAIL;
+        }
+        EXIT_OK
+    }
+}
+
+fn write_dll_recompile_sidecar(sidecar: &Path, bytes: &[u8]) -> Result<(), ()> {
+    if let Some(parent) = sidecar.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent).map_err(|_| ())?;
+        }
+    }
+    std::fs::write(sidecar, bytes).map_err(|_| ())
+}
+
+
 #[cfg(windows)]
 fn call_export_compile_mapped(dll: &[u8], work_dir: &Path) -> Result<i32, ()> {
     use crate::pe_manual_map::{
         export_function_rva_functions0, manual_map_pe_dll_executable,
     };
     use std::ffi::CString;
+    use std::sync::Mutex;
+
+    // Process-global cwd — serialize mapped export calls across tests/threads.
+    static CWD_LOCK: Mutex<()> = Mutex::new(());
+    let _cwd_guard = CWD_LOCK.lock().unwrap_or_else(|e| e.into_inner());
 
     #[link(name = "kernel32")]
     extern "system" {
@@ -1167,5 +1550,95 @@ mod tests {
         let expect = crate::selfhost::bootstrap_compile(&src).expect("bootstrap");
         assert_eq!(out, expect, "export-compile PE must match seed/link bake");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn link_yoyo_dll_recompile_dll_has_marker_empty_bake() {
+        let img = link_yoyo_dll_recompile_dll().expect("link");
+        assert_eq!(&img.bytes[0..2], b"MZ");
+        let ascii = String::from_utf8_lossy(&img.bytes);
+        assert!(ascii.contains(RUNTIME_EXPORT_NAME));
+        assert!(ascii.contains("yoyo_dll_recompile"));
+        assert!(!ascii.contains("yoyo_export_compile"));
+        assert!(ascii.contains("KERNEL32.dll") || ascii.contains("KERNEL32.DLL"));
+        assert_eq!(
+            u32::from_le_bytes(
+                img.bytes[img.len_file_off..img.len_file_off + 4]
+                    .try_into()
+                    .unwrap()
+            ),
+            0,
+            "bake length must start at 0"
+        );
+        assert_eq!(img.bake_cap, DLL_RECOMPILE_BAKE_CAP);
+        let headers = parse_pe64_headers(&img.bytes).expect("headers");
+        assert_ne!(headers.export_dir_rva, 0);
+        assert_ne!(headers.import_dir_rva, 0);
+    }
+
+    #[test]
+    fn yoyo_sidecar_dll_recompile_no_input_is_exit_2() {
+        let dir = temp_work("dll-recompile-no-input");
+        assert_eq!(yoyo_sidecar_dll_recompile(&dir), EXIT_NO_INPUT);
+        let sidecar = std::fs::read(dir.join(RUNTIME_SIDECAR_NAME)).expect("sidecar");
+        assert!(String::from_utf8_lossy(&sidecar).contains("yoyo_dll_recompile"));
+        assert!(!dir.join(OUTPUT_NAME).exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn yoyo_sidecar_dll_recompile_fail_is_exit_1() {
+        let dir = temp_work("dll-recompile-bad");
+        std::fs::write(dir.join("input.ty"), b"not valid yoyo source {{{")
+            .expect("write bad");
+        assert_eq!(yoyo_sidecar_dll_recompile(&dir), EXIT_COMPILE_FAIL);
+        assert!(dir.join(RUNTIME_SIDECAR_NAME).is_file());
+        assert!(!dir.join(OUTPUT_NAME).exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn yoyo_sidecar_dll_recompile_success_writes_pe() {
+        let dir = temp_work("dll-recompile-ok");
+        let fixture = gate_f_success_fixture_ty();
+        std::fs::copy(&fixture, dir.join("input.ty")).expect("copy fixture");
+        assert_eq!(yoyo_sidecar_dll_recompile(&dir), EXIT_OK);
+        let sidecar = std::fs::read(dir.join(RUNTIME_SIDECAR_NAME)).expect("sidecar");
+        assert!(String::from_utf8_lossy(&sidecar).contains("yoyo_dll_recompile"));
+        let out = std::fs::read(dir.join(OUTPUT_NAME)).expect("output.exe");
+        assert_eq!(&out[0..2], b"MZ");
+        let src = std::fs::read(&fixture).expect("fixture");
+        let expect = crate::selfhost::bootstrap_compile(&src).expect("bootstrap");
+        assert_eq!(out, expect, "dll_recompile PE must match call-time seed/link");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn yoyo_sidecar_dll_recompile_two_inputs_differ() {
+        // Generic shell + call-time inject: different inputs → different PEs.
+        let fx_a = gate_f_success_fixture_ty();
+        let fx_b = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join("yoyo/tests/golden/selfhost_min_set_52_cafef00d.ty");
+        assert!(fx_a.is_file() && fx_b.is_file());
+        let src_a = std::fs::read(&fx_a).expect("a");
+        let src_b = std::fs::read(&fx_b).expect("b");
+        let pe_a = crate::selfhost::bootstrap_compile(&src_a).expect("compile a");
+        let pe_b = crate::selfhost::bootstrap_compile(&src_b).expect("compile b");
+        assert_ne!(pe_a, pe_b, "fixtures must compile to distinct PEs");
+
+        let dir_a = temp_work("dll-recompile-a");
+        std::fs::copy(&fx_a, dir_a.join("input.ty")).expect("copy a");
+        assert_eq!(yoyo_sidecar_dll_recompile(&dir_a), EXIT_OK);
+        let out_a = std::fs::read(dir_a.join(OUTPUT_NAME)).expect("out a");
+        assert_eq!(out_a, pe_a);
+        let _ = std::fs::remove_dir_all(&dir_a);
+
+        let dir_b = temp_work("dll-recompile-b");
+        std::fs::copy(&fx_b, dir_b.join("input.ty")).expect("copy b");
+        assert_eq!(yoyo_sidecar_dll_recompile(&dir_b), EXIT_OK);
+        let out_b = std::fs::read(dir_b.join(OUTPUT_NAME)).expect("out b");
+        assert_eq!(out_b, pe_b);
+        let _ = std::fs::remove_dir_all(&dir_b);
     }
 }

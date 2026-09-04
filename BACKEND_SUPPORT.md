@@ -535,7 +535,18 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Still CUT** | Production default still Rust — **`yoyo_built=EXPORT_COMPILE`** · **`yoyo_export_compile=PRESENT`** · call-time **not** general in-DLL re-compile · ≠ CLOSED · Gate G checkbox stays open |
 | **Gate** | `scripts/stage17-ow-rt-yoyo-runtime.ps1` · Linux `scripts/stage17-ow-rt-yoyo-runtime.sh` · `cargo test -p verifier pe_dll_link` |
 | **Doc** | `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md` |
-| **Next** | Grow export to general in-DLL re-compile; flip production default off Rust; then inventory OW-RT CLOSED |
+| **Next** | dll-recompile slice landed below |
+
+### Post-v1.0 path 2 — OW-RT YOYO dll-recompile (Gate G slice · 整仓竣工 · 2026-09-04)
+
+| Item | Detail |
+|------|--------|
+| **Hole** | **OW-RT** (YOYO-built runtime long pole) |
+| **Change** | `yoyo_sidecar_dll_recompile` + `emit-rt-sidecar --dll-recompile` — generic pe_dll bake slot; call-time YOYO `bootstrap_compile` of any cwd input injected; export (KERNEL32 IAT) writes `output.exe` (exits 0/1/2/3); two-input parity |
+| **Still CUT** | Production default still Rust — **`yoyo_built=DLL_RECOMPILE`** · **`yoyo_dll_recompile=PRESENT`** · compiler ISA still **ABSENT** in pe_dll · ≠ CLOSED · Gate G checkbox stays open |
+| **Gate** | `scripts/stage17-ow-rt-yoyo-runtime.ps1` · Linux `scripts/stage17-ow-rt-yoyo-runtime.sh` · `cargo test -p verifier pe_dll_link` |
+| **Doc** | `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md` |
+| **Next** | Embed real compile ISA in pe_dll (or YOYO-built compile sidecar); flip production default off Rust; then inventory OW-RT CLOSED |
 
 ### Full body compiler (Stage 8-B · W5.5 body)
 
