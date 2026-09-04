@@ -2,8 +2,9 @@
 //!
 //! Usage:
 //!   emit-rt-sidecar <out.dll>
-//!   emit-rt-sidecar --rcw <workdir>              # place + host-orchestrated R→C→W
-//!   emit-rt-sidecar --export-compile <workdir>   # bake YOYO compile into export
+//!   emit-rt-sidecar --rcw <workdir>
+//!   emit-rt-sidecar --export-compile <workdir>
+//!   emit-rt-sidecar --in-dll-recompile <workdir>
 //!
 //! Honest: production default remains Rust; still CUT — not OW-RT CLOSED.
 
@@ -13,6 +14,30 @@ use std::process::ExitCode;
 
 fn main() -> ExitCode {
     let mut args: Vec<String> = env::args().skip(1).collect();
+    if args.first().map(|s| s.as_str()) == Some("--in-dll-recompile") {
+        args.remove(0);
+        let Some(work) = args.first() else {
+            eprintln!("usage: emit-rt-sidecar --in-dll-recompile <workdir>");
+            eprintln!("  call-time ReadFile + multi-entry YOYO oracle match;");
+            eprintln!("  writes output.exe (exits 0/1/2/3). Still CUT.");
+            return ExitCode::from(2);
+        };
+        let work_dir = Path::new(work);
+        if let Err(e) = std::fs::create_dir_all(work_dir) {
+            eprintln!("error: mkdir {}: {e}", work_dir.display());
+            return ExitCode::FAILURE;
+        }
+        let code = verifier::pe_dll_link::yoyo_sidecar_in_dll_recompile(work_dir);
+        let sidecar = work_dir.join(verifier::pe_dll_link::RUNTIME_SIDECAR_NAME);
+        let side_bytes = std::fs::metadata(&sidecar).map(|m| m.len()).unwrap_or(0);
+        println!(
+            "OW_RT_IN_DLL_RECOMPILE workdir={} sidecar_bytes={} exit={} disposition=CUT",
+            work_dir.display(),
+            side_bytes,
+            code
+        );
+        return ExitCode::from(u8::try_from(code).unwrap_or(1));
+    }
     if args.first().map(|s| s.as_str()) == Some("--export-compile") {
         args.remove(0);
         let Some(work) = args.first() else {
@@ -66,7 +91,8 @@ fn main() -> ExitCode {
         eprintln!("usage: emit-rt-sidecar <out.dll>");
         eprintln!("       emit-rt-sidecar --rcw <workdir>");
         eprintln!("       emit-rt-sidecar --export-compile <workdir>");
-        eprintln!("  Gate G: YOYO pe_dll alt / sidecar-path R→C→W / export-compile");
+        eprintln!("       emit-rt-sidecar --in-dll-recompile <workdir>");
+        eprintln!("  Gate G: alt / RCW / export-compile / in-DLL recompile");
         eprintln!("  Still CUT — not OW-RT CLOSED");
         return ExitCode::from(2);
     };
