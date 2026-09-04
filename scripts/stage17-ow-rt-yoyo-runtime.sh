@@ -1,23 +1,18 @@
 #!/usr/bin/env bash
 # stage17-ow-rt-yoyo-runtime.sh — Linux/cloud gate for OW-RT Gate G slice
 #
-# Runs pe_dll_link unit tests + emits YOYO alt sidecar bytes.
+# Runs pe_dll_link unit tests + sidecar-path R→C→W (place yoyo_rt.dll + effect).
 # Windows H_00 smoke is documented below (no Win PE on Linux cloud).
 #
 # Local Windows (preferred for full smoke):
 #   cd F:\yoyo
-#   cargo build --release -p verifier   # in yoyo-rust
 #   & .\scripts\stage17-ow-rt-yoyo-runtime.ps1
-# Optional alt no-input smoke (expect exit 2):
-#   cargo run -p verifier --bin emit-rt-sidecar -- <workdir>\yoyo_rt.dll
-#   yoyo link --target=win32 yoyo\projects\yoyo.ty <workdir>\gen1.exe
-#   pushd <workdir>; .\gen1.exe; popd   # exit 2, no input.*
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-echo "=== Post-v1.0: OW-RT Gate G slice (Linux/cloud: tests + alt emit) ==="
+echo "=== Post-v1.0: OW-RT Gate G slice (Linux/cloud: tests + sidecar-path RCW) ==="
 
 TY_STUB="$ROOT/yoyo/tests/golden/ow_rt_yoyo_origin_exit2.ty"
 TY_FX="$ROOT/yoyo/tests/golden/selfhost_min_nop.ty"
@@ -27,39 +22,49 @@ SPIKE_DOC="$ROOT/SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md"
 [[ -f "$SPIKE_DOC" ]] || { echo "missing $SPIKE_DOC"; exit 1; }
 
 cd "$ROOT/yoyo-rust"
-# --lib + no wasmtime: pe_dll_link is lib-only; cloud Rust may lack edition2024 for wasmtime
 cargo test -p verifier --lib pe_dll_link --no-default-features --features full-backends
 echo "OW_RT_SPIKE pe_dll_link_tests=GREEN"
 echo "OW_RT_SPIKE yoyo_origin_export=PRESENT stub=$TY_STUB"
 echo "OW_RT_SPIKE yoyo_built_effect=PRESENT fixture=$TY_FX exits=0/1/2/3"
 
-WORK="$ROOT/scripts/_stage17-ow-rt-alt-sidecar"
+WORK="$ROOT/scripts/_stage17-ow-rt-sidecar-rcw"
+rm -rf "$WORK"
 mkdir -p "$WORK"
-ALT="$WORK/yoyo_rt.dll"
-rm -f "$ALT"
+cp "$TY_FX" "$WORK/input.ty"
 
-cargo run -q -p verifier --bin emit-rt-sidecar --no-default-features --features full-backends -- "$ALT"
-[[ -f "$ALT" ]] || { echo "missing alt sidecar $ALT"; exit 1; }
-
-ALT_LEN=$(wc -c <"$ALT" | tr -d ' ')
-if [[ "$ALT_LEN" -lt 64 ]]; then
-  echo "YOYO alt sidecar too small ($ALT_LEN)"
+set +e
+cargo run -q -p verifier --bin emit-rt-sidecar --no-default-features --features full-backends -- --rcw "$WORK"
+RCW_EXIT=$?
+set -e
+if [[ "$RCW_EXIT" -ne 0 ]]; then
+  echo "emit-rt-sidecar --rcw expected exit=0 got=$RCW_EXIT"
   exit 1
 fi
-# MZ magic
+
+ALT="$WORK/yoyo_rt.dll"
+OUT="$WORK/output.exe"
+[[ -f "$ALT" ]] || { echo "missing alt sidecar $ALT"; exit 1; }
+[[ -f "$OUT" ]] || { echo "missing output.exe $OUT"; exit 1; }
+
 python3 - <<PY
 from pathlib import Path
-p = Path("$ALT")
-b = p.read_bytes()
-assert b[:2] == b"MZ", "not MZ"
+work = Path("$WORK")
+alt = work / "yoyo_rt.dll"
+out = work / "output.exe"
+b = alt.read_bytes()
+assert b[:2] == b"MZ", "sidecar not MZ"
 assert b"yoyo_runtime_selfhost_main" in b, "missing export"
 assert b"yoyo_rt.dll" in b, "missing dll name"
-print(f"OW_RT_SPIKE yoyo_alt_sidecar=EMITTED path={p} bytes={len(b)}")
+o = out.read_bytes()
+assert o[:2] == b"MZ" and len(o) >= 64, "output.exe not PE"
+print(f"OW_RT_SPIKE yoyo_sidecar_rcw=PRESENT path={work} sidecar_bytes={len(b)} output_bytes={len(o)}")
+print("OW_RT_SPIKE yoyo_alt_sidecar=EMITTED (placed under sidecar-path RCW)")
+print("OW_RT_SPIKE gate_g_slice=sidecar_rcw")
 PY
 
 echo "OW_RT_SPIKE production_default=RUST"
-echo "OW_RT_SPIKE yoyo_alt_sidecar_smoke=SKIP (non-Windows; see script header for Win steps)"
-echo "OW_RT_SPIKE yoyo_built=ALT_SIDECAR yoyo_alt_sidecar=EMITTED disposition=CUT"
-echo "OW_RT_SPIKE note=Gate_G_slice_alt_emit_only; CLOSED requires production YOYO-built sidecar + no Rust yoyo_rt.dll host trust"
+echo "OW_RT_SPIKE yoyo_alt_sidecar_smoke=SKIP (non-Windows; see Win ps1 for H_00 exit=2)"
+echo "OW_RT_SPIKE yoyo_built=SIDECAR_RCW yoyo_sidecar_rcw=PRESENT disposition=CUT"
+echo "OW_RT_SPIKE note=Gate_G_slice_sidecar_rcw; CLOSED requires production YOYO-built compile sidecar + no Rust yoyo_rt.dll host trust"
 echo "OW_RT_SPIKE status=GREEN doc=SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md"
 exit 0

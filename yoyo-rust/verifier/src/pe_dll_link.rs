@@ -7,9 +7,12 @@
 //! Gate E: export `.text` comes from YOYO `.ty` RAW_BYTES+RET (fixed exit-2).
 //! Gate F: host-orchestrated YOYO seed/link **read→compile→write** effect with
 //! the same exit contract as Rust `yoyo_runtime_selfhost_main` (0/1/2/3).
-//! Gate G slice: emit YOYO `pe_dll` as an **alternative** cwd `yoyo_rt.dll`
+//! Gate G slice (prior): emit YOYO `pe_dll` as **alternative** cwd `yoyo_rt.dll`
 //! (opt-in via `YOYO_OW_RT_ALT_SIDECAR=1`); production default remains Rust.
-//! PE shell + production sidecar remain Rust — **not** OW-RT CLOSED
+//! Gate G slice (this): put fuller YOYO R→C→W on the **sidecar path** —
+//! place YOYO `yoyo_rt.dll` then host-orchestrated `yoyo_built_runtime_effect`
+//! under the same cwd (export body still exit-2; compile not yet inside DLL).
+//! PE shell + production default remain Rust — **not** OW-RT CLOSED
 //! (see `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`).
 
 use std::path::{Path, PathBuf};
@@ -87,13 +90,19 @@ pub fn link_pe_dll_export0(export_code: &[u8], dll_name: &str, export_name: &str
     //   +0x32 pad to 4
     //   +0x34 dll name
     //   +…   export name
+    //   +…   pad4 + null IMAGE_IMPORT_DESCRIPTOR (20 B)
+    // H_00 skips LL/GPA bootstrap when ImportDir RVA==0, then FlushICache
+    // call [GPA scratch] AVs — null descriptor keeps ImportDir non-zero.
     let exp_dir_off = 0u32;
     let functions_off = 0x28u32;
     let names_off = 0x2Cu32;
     let ordinals_off = 0x30u32;
     let dll_name_off = 0x34u32;
     let export_name_off = dll_name_off + dll_bytes.len() as u32;
-    let rdata_payload = export_name_off + export_bytes.len() as u32;
+    let after_names = export_name_off + export_bytes.len() as u32;
+    let import_desc_off = align_up(after_names, 4);
+    const IMPORT_DESC_SIZE: u32 = 20; // one null IMAGE_IMPORT_DESCRIPTOR
+    let rdata_payload = import_desc_off + IMPORT_DESC_SIZE;
     let rdata_raw = align_up(rdata_payload, FILE_ALIGN);
     let rdata_rva = text_rva + text_vs; // 0x2000 when text fits one section
     let rdata_vs = align_up(rdata_payload, SECTION_ALIGN);
@@ -144,6 +153,11 @@ pub fn link_pe_dll_export0(export_code: &[u8], dll_name: &str, export_name: &str
     write_u32(&mut img, opt + 112, export_dir_rva);
     write_u32(&mut img, opt + 116, export_dir_size);
 
+    // Import data directory [1] — null descriptor only (triggers H_00 bootstrap).
+    let import_dir_rva = rdata_rva + import_desc_off;
+    write_u32(&mut img, opt + 120, import_dir_rva);
+    write_u32(&mut img, opt + 124, IMPORT_DESC_SIZE);
+
     // Section .text
     let s1 = 0x98 + 0xF0; // 0x188
     write_name(&mut img, s1, b".text");
@@ -184,6 +198,7 @@ pub fn link_pe_dll_export0(export_code: &[u8], dll_name: &str, export_name: &str
     exp[dll_name_off as usize..dll_name_off as usize + dll_bytes.len()].copy_from_slice(dll_bytes);
     exp[export_name_off as usize..export_name_off as usize + export_bytes.len()]
         .copy_from_slice(export_bytes);
+    // Null IMAGE_IMPORT_DESCRIPTOR — already zero-filled in `img`.
 
     Ok(img)
 }
@@ -252,6 +267,38 @@ pub fn yoyo_alt_sidecar_bytes_if_enabled() -> IsaResult<Option<Vec<u8>>> {
     }
 }
 
+/// Which bytes were placed as cwd `yoyo_rt.dll` by [`place_cwd_runtime_sidecar`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CwdSidecarKind {
+    /// YOYO `pe_dll` probe (env opt-in).
+    YoyoAlt,
+    /// Rust `yoyo_runtime.dll` bytes (production default).
+    Rust,
+}
+
+/// Place cwd `yoyo_rt.dll`: YOYO probe when `YOYO_OW_RT_ALT_SIDECAR` is on, else `rust_dll`.
+///
+/// Moves toward replacing the Rust production default **without** flipping it —
+/// default path still writes Rust bytes. Not OW-RT CLOSED.
+pub fn place_cwd_runtime_sidecar(out_path: &Path, rust_dll: &[u8]) -> IsaResult<CwdSidecarKind> {
+    if yoyo_alt_sidecar_enabled() {
+        write_yoyo_alt_sidecar(out_path)?;
+        Ok(CwdSidecarKind::YoyoAlt)
+    } else {
+        if let Some(parent) = out_path.parent() {
+            if !parent.as_os_str().is_empty() {
+                std::fs::create_dir_all(parent).map_err(|e| IsaError::IoError {
+                    msg: format!("pe_dll_link: mkdir {}: {e}", parent.display()),
+                })?;
+            }
+        }
+        std::fs::write(out_path, rust_dll).map_err(|e| IsaError::IoError {
+            msg: format!("pe_dll_link: write {}: {e}", out_path.display()),
+        })?;
+        Ok(CwdSidecarKind::Rust)
+    }
+}
+
 /// Exit contract shared with Rust `yoyo_runtime_selfhost_main`.
 pub const EXIT_OK: i32 = 0;
 pub const EXIT_COMPILE_FAIL: i32 = 1;
@@ -282,6 +329,21 @@ pub fn yoyo_built_runtime_effect(work_dir: &Path) -> i32 {
         return EXIT_WRITE_FAIL;
     }
     EXIT_OK
+}
+
+/// Gate G slice: YOYO R→C→W on the **sidecar path**.
+///
+/// 1. Place YOYO `pe_dll` probe as cwd `yoyo_rt.dll` (H_00 load contract).
+/// 2. Run [`yoyo_built_runtime_effect`] in the same `work_dir` (full exits 0/1/2/3).
+///
+/// Honest: step 2 is still host-orchestrated YOYO seed/link — **not** compile
+/// machine code inside the DLL export. Production default remains Rust → CUT.
+pub fn yoyo_sidecar_path_rcw(work_dir: &Path) -> i32 {
+    let sidecar = work_dir.join(RUNTIME_SIDECAR_NAME);
+    if write_yoyo_alt_sidecar(&sidecar).is_err() {
+        return EXIT_WRITE_FAIL;
+    }
+    yoyo_built_runtime_effect(work_dir)
 }
 
 fn read_cwd_input(work_dir: &Path) -> Result<Vec<u8>, i32> {
@@ -335,6 +397,8 @@ mod tests {
         assert_eq!(&dll[0..2], b"MZ");
         let headers = parse_pe64_headers(&dll).expect("headers");
         assert_ne!(headers.export_dir_rva, 0);
+        // Non-zero import dir (null descriptor) — required for H_00 GPA bootstrap.
+        assert_ne!(headers.import_dir_rva, 0, "null import descriptor required");
         let image = map_pe_sections(&dll, &headers).expect("map");
         let rva = export_function_rva_functions0(&image, &headers).expect("export");
         // DllMain 6 bytes then export body at text_rva+6
@@ -486,5 +550,67 @@ mod tests {
         let enabled_bytes = probe.clone();
         assert_eq!(enabled_bytes, probe);
         assert!(!ALT_SIDECAR_ENV.is_empty());
+    }
+
+    #[test]
+    fn place_cwd_runtime_sidecar_defaults_to_rust_bytes() {
+        let dir = temp_work("place-rust");
+        let path = dir.join(RUNTIME_SIDECAR_NAME);
+        let rustish = b"MZ\0RUST_PLACEHOLDER_NOT_A_REAL_DLL______________";
+        let kind = place_cwd_runtime_sidecar(&path, rustish).expect("place");
+        // Without env opt-in this process should get Rust (tests must not set env).
+        if yoyo_alt_sidecar_enabled() {
+            assert_eq!(kind, CwdSidecarKind::YoyoAlt);
+            let on_disk = std::fs::read(&path).expect("read");
+            assert_eq!(&on_disk[0..2], b"MZ");
+            assert!(on_disk.len() > rustish.len());
+        } else {
+            assert_eq!(kind, CwdSidecarKind::Rust);
+            assert_eq!(std::fs::read(&path).expect("read"), rustish);
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn yoyo_sidecar_path_rcw_no_input_places_dll_exit_2() {
+        let dir = temp_work("sidecar-rcw-no-input");
+        assert_eq!(yoyo_sidecar_path_rcw(&dir), EXIT_NO_INPUT);
+        let sidecar = dir.join(RUNTIME_SIDECAR_NAME);
+        assert!(sidecar.is_file(), "YOYO sidecar must be placed before RCW");
+        let bytes = std::fs::read(&sidecar).expect("read sidecar");
+        assert_eq!(&bytes[0..2], b"MZ");
+        let ascii = String::from_utf8_lossy(&bytes);
+        assert!(ascii.contains(RUNTIME_EXPORT_NAME));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn yoyo_sidecar_path_rcw_success_writes_pe_with_sidecar() {
+        let dir = temp_work("sidecar-rcw-ok");
+        let fixture = gate_f_success_fixture_ty();
+        assert!(fixture.is_file(), "missing {:?}", fixture);
+        std::fs::copy(&fixture, dir.join("input.ty")).expect("copy fixture");
+        assert_eq!(yoyo_sidecar_path_rcw(&dir), EXIT_OK);
+        let sidecar = dir.join(RUNTIME_SIDECAR_NAME);
+        assert!(sidecar.is_file());
+        let out = dir.join(OUTPUT_NAME);
+        let bytes = std::fs::read(&out).expect("read output.exe");
+        assert!(bytes.len() > 64);
+        assert_eq!(&bytes[0..2], b"MZ");
+        let src = std::fs::read(&fixture).expect("read fixture");
+        let expect = crate::selfhost::bootstrap_compile(&src).expect("bootstrap");
+        assert_eq!(bytes, expect, "sidecar-path RCW PE must match seed/link");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn yoyo_sidecar_path_rcw_compile_fail_keeps_sidecar() {
+        let dir = temp_work("sidecar-rcw-bad");
+        std::fs::write(dir.join("input.ty"), b"not valid yoyo source {{{")
+            .expect("write bad");
+        assert_eq!(yoyo_sidecar_path_rcw(&dir), EXIT_COMPILE_FAIL);
+        assert!(dir.join(RUNTIME_SIDECAR_NAME).is_file());
+        assert!(!dir.join(OUTPUT_NAME).exists());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

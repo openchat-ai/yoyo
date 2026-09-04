@@ -4,8 +4,10 @@
 //! / `gen_h00_selfhost_main`) no longer exact-embeds `yoyo_runtime.dll` in PE `.data`.
 //! It loads cwd sidecar `yoyo_rt.dll` (still Rust-built by default — OW-RT stays CUT).
 //! Gate G slice: place YOYO `pe_dll` bytes as cwd `yoyo_rt.dll` via `emit-rt-sidecar`
-//! / `pe_dll_link::write_yoyo_alt_sidecar` (opt-in placement; H_00 loads whatever is
-//! in cwd — production scripts still Copy-Item Rust `yoyo_runtime.dll`).
+//! / `pe_dll_link::write_yoyo_alt_sidecar` / `yoyo_sidecar_path_rcw` (opt-in placement;
+//! H_00 loads whatever is in cwd — production scripts still Copy-Item Rust
+//! `yoyo_runtime.dll`). `place_cwd_runtime_sidecar` flips to YOYO only when
+//! `YOYO_OW_RT_ALT_SIDECAR` is set (default remains Rust).
 //! Post-v1.0 OW-IAT shrink: H_00 no longer imports GetProcAddress — after load it
 //! resolves export ordinal 0 in-process (yoyo_runtime pins `yoyo_runtime_selfhost_main`
 //! as the first named export).
@@ -68,6 +70,27 @@ pub fn runtime_dll_bytes() -> IsaResult<Vec<u8>> {
     Err(IsaError::IoError {
         msg: "yoyo_runtime.dll not found — run `cargo build --profile release-runtime -p yoyo-runtime`".into(),
     })
+}
+
+/// Place cwd `yoyo_rt.dll` for H_00: YOYO alt when `YOYO_OW_RT_ALT_SIDECAR` is on, else Rust.
+///
+/// Gate G progress toward dropping Rust production default — **opt-in only**.
+/// Scripts that still `Copy-Item` Rust are unchanged until they call this helper.
+pub fn write_cwd_runtime_sidecar(
+    out_dir: &std::path::Path,
+) -> IsaResult<(std::path::PathBuf, crate::pe_dll_link::CwdSidecarKind)> {
+    use crate::pe_dll_link::{
+        place_cwd_runtime_sidecar, write_yoyo_alt_sidecar, yoyo_alt_sidecar_enabled, CwdSidecarKind,
+        RUNTIME_SIDECAR_NAME,
+    };
+    let path = out_dir.join(RUNTIME_SIDECAR_NAME);
+    if yoyo_alt_sidecar_enabled() {
+        write_yoyo_alt_sidecar(&path)?;
+        return Ok((path, CwdSidecarKind::YoyoAlt));
+    }
+    let rust = runtime_dll_bytes()?;
+    let kind = place_cwd_runtime_sidecar(&path, &rust)?;
+    Ok((path, kind))
 }
 
 pub fn build_selfhost_metadata(

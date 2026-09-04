@@ -1,21 +1,16 @@
 # stage17-ow-rt-yoyo-runtime.ps1 — OW-RT YOYO-built runtime spike gate (post-v1.0 path 2)
 #
-# Gate G slice: emit YOYO pe_dll as alternative cwd yoyo_rt.dll (opt-in path).
-# Still NOT OW-RT CLOSED — Rust sidecar remains production default.
+# Gate G slice: YOYO R→C→W on the sidecar path (place yoyo_rt.dll + effect).
+# Still NOT OW-RT CLOSED — Rust sidecar remains production default;
+# DLL export body is still fixed exit-2 (compile not yet inside PE).
 #
 # Script name stage17-* = post-v1.0 gate id (NOT ROADMAP Stage 17).
 #
-# Local Windows verify (cloud Linux has no Win PE smoke):
+# Local Windows verify (preferred; cloud Linux has no Win PE smoke):
 #   cd F:\yoyo\yoyo-rust
 #   cargo build --release -p verifier
 #   cargo build --profile release-runtime -p yoyo-runtime   # production Rust default
 #   & ..\scripts\stage17-ow-rt-yoyo-runtime.ps1
-# Optional H_00 load of YOYO alt (expect exit 2, no input.tyb):
-#   $work = Join-Path $env:TEMP 'yoyo-ow-rt-alt'
-#   New-Item -ItemType Directory -Force -Path $work | Out-Null
-#   cargo run -p verifier --bin emit-rt-sidecar -- (Join-Path $work 'yoyo_rt.dll')
-#   & ..\target\release\yoyo.exe link --target=win32 ..\yoyo\projects\yoyo.ty (Join-Path $work 'gen1.exe')
-#   Push-Location $work; & .\gen1.exe; Pop-Location   # expect exit 2
 param(
     [switch]$SkipBuild
 )
@@ -24,7 +19,7 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
-Write-Host "=== Post-v1.0: OW-RT Gate G slice (YOYO pe_dll alt sidecar emit) ==="
+Write-Host "=== Post-v1.0: OW-RT Gate G slice (YOYO sidecar-path R→C→W) ==="
 
 $tyStub = Join-Path $Root "yoyo\tests\golden\ow_rt_yoyo_origin_exit2.ty"
 if (-not (Test-Path $tyStub)) { throw "missing YOYO-origin stub $tyStub" }
@@ -33,10 +28,8 @@ if (-not (Test-Path $tyFx)) { throw "missing Gate F success fixture $tyFx" }
 
 Push-Location (Join-Path $Root "yoyo-rust")
 try {
-    # cargo writes warnings to stderr; don't treat as terminating under Stop
     $prevEap = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
-    # --lib: pe_dll_link lives in verifier lib; avoid bin/wasmtime when toolchain lacks edition2024
     & cargo test -p verifier --lib pe_dll_link --no-default-features --features full-backends
     $cargoExit = $LASTEXITCODE
     $ErrorActionPreference = $prevEap
@@ -51,38 +44,48 @@ Write-Host "OW_RT_SPIKE yoyo_built_effect=PRESENT fixture=$tyFx exits=0/1/2/3"
 $spikeDoc = Join-Path $Root "SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md"
 if (-not (Test-Path $spikeDoc)) { throw "missing $spikeDoc" }
 
-$WorkDir = Join-Path $Root "scripts\_stage17-ow-rt-alt-sidecar"
+$WorkDir = Join-Path $Root "scripts\_stage17-ow-rt-sidecar-rcw"
 New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
-$AltDll = Join-Path $WorkDir "yoyo_rt.dll"
-if (Test-Path $AltDll) { Remove-Item $AltDll -Force }
+Get-ChildItem $WorkDir -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
+Copy-Item $tyFx (Join-Path $WorkDir "input.ty") -Force
 
 Push-Location (Join-Path $Root "yoyo-rust")
 try {
     $prevEap = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
-    & cargo run -q -p verifier --bin emit-rt-sidecar --no-default-features --features full-backends -- $AltDll
-    $emitExit = $LASTEXITCODE
+    & cargo run -q -p verifier --bin emit-rt-sidecar --no-default-features --features full-backends -- --rcw $WorkDir
+    $rcwExit = $LASTEXITCODE
     $ErrorActionPreference = $prevEap
-    if ($emitExit -ne 0) { throw "emit-rt-sidecar failed" }
+    if ($rcwExit -ne 0) {
+        throw ("emit-rt-sidecar --rcw expected exit=0 got={0}" -f $rcwExit)
+    }
 } finally {
     Pop-Location
 }
-if (-not (Test-Path $AltDll)) { throw "missing YOYO alt sidecar $AltDll" }
+
+$AltDll = Join-Path $WorkDir "yoyo_rt.dll"
+$OutExe = Join-Path $WorkDir "output.exe"
+if (-not (Test-Path $AltDll)) { throw "missing YOYO sidecar $AltDll after --rcw" }
+if (-not (Test-Path $OutExe)) { throw "missing output.exe after sidecar-path RCW" }
 
 $altBytes = [System.IO.File]::ReadAllBytes($AltDll)
 $altLen = $altBytes.Length
-if ($altLen -lt 64) { throw "YOYO alt sidecar too small" }
+if ($altLen -lt 64) { throw "YOYO sidecar too small" }
 $ascii = [System.Text.Encoding]::ASCII.GetString($altBytes)
 if (-not $ascii.Contains("yoyo_runtime_selfhost_main")) {
-    throw "YOYO alt sidecar missing export yoyo_runtime_selfhost_main"
-}
-if (-not $ascii.Contains("yoyo_rt.dll")) {
-    throw "YOYO alt sidecar missing dll name yoyo_rt.dll"
+    throw "YOYO sidecar missing export yoyo_runtime_selfhost_main"
 }
 if ($altBytes[0] -ne 0x4D -or $altBytes[1] -ne 0x5A) {
-    throw "YOYO alt sidecar not MZ"
+    throw "YOYO sidecar not MZ"
 }
-Write-Host ("OW_RT_SPIKE yoyo_alt_sidecar=EMITTED path={0} bytes={1}" -f $AltDll, $altLen)
+$outBytes = [System.IO.File]::ReadAllBytes($OutExe)
+if ($outBytes.Length -lt 64 -or $outBytes[0] -ne 0x4D -or $outBytes[1] -ne 0x5A) {
+    throw "sidecar-path RCW output.exe not a PE"
+}
+Write-Host ("OW_RT_SPIKE yoyo_sidecar_rcw=PRESENT path={0} sidecar_bytes={1} output_bytes={2}" -f $WorkDir, $altLen, $outBytes.Length)
+Write-Host "OW_RT_SPIKE yoyo_alt_sidecar=EMITTED (placed under sidecar-path RCW)"
+Write-Host "OW_RT_SPIKE gate_g_slice=sidecar_rcw"
 
 $RuntimePreferred = Join-Path $Root "yoyo-rust\target\release-runtime\yoyo_runtime.dll"
 $RuntimeCompat = Join-Path $Root "yoyo-rust\target\release\yoyo_runtime.dll"
@@ -124,7 +127,7 @@ if ($RuntimeDll) {
     Write-Host "OW_RT_SPIKE production_default=RUST rust_sidecar=NOT_BUILT_HERE"
 }
 
-# Win-only: optional no-input smoke with YOYO alt (expect exit 2).
+# Win-only: H_00 loads YOYO probe with no input → exit 2 (export still stub).
 $IsWin = $env:OS -eq "Windows_NT"
 if ($IsWin) {
     $YoyoRelease = Join-Path $Root "yoyo-rust\target\release\yoyo.exe"
@@ -137,10 +140,9 @@ if ($IsWin) {
         $gen1 = Join-Path $smokeDir "gen1.exe"
         & $Yoyo link --target=win32 $Ty $gen1
         if ($LASTEXITCODE -ne 0 -or -not (Test-Path $gen1)) {
-            throw "Gate G alt-sidecar smoke: H_00 link failed"
+            throw "Gate G sidecar-rcw smoke: H_00 link failed"
         }
         Copy-Item $AltDll (Join-Path $smokeDir "yoyo_rt.dll") -Force
-        # No input.* → export should return 2 (YOYO-origin probe)
         Get-ChildItem $smokeDir -Filter "input.*" -ErrorAction SilentlyContinue | Remove-Item -Force
         Push-Location $smokeDir
         try {
@@ -149,19 +151,20 @@ if ($IsWin) {
         } finally {
             Pop-Location
         }
-        if ($altExit -ne 2) {
-            throw ("Gate G alt-sidecar no-input smoke expected exit=2 got={0}" -f $altExit)
+        if ($altExit -eq 2) {
+            Write-Host "OW_RT_SPIKE yoyo_alt_sidecar_smoke=GREEN exit=2 (H_00 loaded YOYO pe_dll; export still stub)"
+        } else {
+            throw ("Gate G YOYO sidecar no-input smoke expected exit=2 got={0}" -f $altExit)
         }
-        Write-Host "OW_RT_SPIKE yoyo_alt_sidecar_smoke=GREEN exit=2 (H_00 loaded YOYO pe_dll)"
     } else {
         Write-Host "OW_RT_SPIKE yoyo_alt_sidecar_smoke=SKIP (missing yoyo.exe or yoyo.ty)"
     }
 } else {
-    Write-Host "OW_RT_SPIKE yoyo_alt_sidecar_smoke=SKIP (non-Windows; use local Win commands above)"
+    Write-Host "OW_RT_SPIKE yoyo_alt_sidecar_smoke=SKIP (non-Windows; use local Win)"
 }
 
-# Honest: alt emit wired; production default still Rust → OW-RT remains CUT.
-Write-Host "OW_RT_SPIKE yoyo_built=ALT_SIDECAR yoyo_alt_sidecar=EMITTED disposition=CUT"
-Write-Host "OW_RT_SPIKE note=Gate_G_slice_alt_emit_only; CLOSED requires production YOYO-built sidecar + no Rust yoyo_rt.dll host trust"
+# Honest: RCW on sidecar path; export still stub; production default still Rust.
+Write-Host "OW_RT_SPIKE yoyo_built=SIDECAR_RCW yoyo_sidecar_rcw=PRESENT disposition=CUT"
+Write-Host "OW_RT_SPIKE note=Gate_G_slice_sidecar_rcw; CLOSED requires production YOYO-built compile sidecar + no Rust yoyo_rt.dll host trust"
 Write-Host "OW_RT_SPIKE status=GREEN doc=SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md"
 exit 0
