@@ -504,6 +504,17 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Doc** | `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md` |
 | **Next** | Gate G — production drop Rust sidecar → OW-RT CLOSED only with evidence |
 
+### Post-v1.0 path 2 — OW-RT YOYO alt sidecar emit (Gate G slice · 整仓竣工 · 2026-09-04)
+
+| Item | Detail |
+|------|--------|
+| **Hole** | **OW-RT** (YOYO-built runtime long pole) |
+| **Change** | `write_yoyo_alt_sidecar` / bin `emit-rt-sidecar` emits YOYO `pe_dll` as alt cwd `yoyo_rt.dll`; place-sidecar opt-in (H_00 loads cwd file; production scripts still Copy-Item Rust) |
+| **Still CUT** | Production default still Rust — **`yoyo_built=ALT_SIDECAR`** · **`yoyo_alt_sidecar=EMITTED`** · ≠ CLOSED · Gate G checkbox stays open |
+| **Gate** | `scripts/stage17-ow-rt-yoyo-runtime.ps1` · Linux `scripts/stage17-ow-rt-yoyo-runtime.sh` · `cargo test -p verifier pe_dll_link` |
+| **Doc** | `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md` |
+| **Next** | Put full YOYO R→C→W **inside** sidecar; make it production default; then inventory OW-RT CLOSED |
+
 ### Full body compiler (Stage 8-B · W5.5 body)
 
 | Path | What it validates | DDC scope |

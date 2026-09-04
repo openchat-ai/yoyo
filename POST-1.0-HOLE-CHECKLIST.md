@@ -112,7 +112,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 
 
-**下一项** = **G** — 生产去 Rust sidecar → OW-RT CLOSED 证据（未去 sidecar 禁止 CLOSED）。
+**下一项** = **G**（续）— 生产去 Rust sidecar → OW-RT CLOSED（本 tick 仅 alt emit 切片 · **仍 CUT**）。
 
 
 
@@ -248,7 +248,13 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
   - **验收**：`stage16-scope-cut-finalize` 含 OW-RT CLOSED；无 `yoyo_rt.dll` Rust 宿主信任  
 
-  - **依赖**：E+F；随后才可能推进 OW-IAT CLOSED
+  - **依赖**：E+F；随后才可能推进 OW-IAT CLOSED  
+
+  - **本 tick 切片（仍 CUT · 勿勾 CLOSED）**：`emit-rt-sidecar` + `write_yoyo_alt_sidecar` · place as cwd `yoyo_rt.dll` · gate `yoyo_alt_sidecar=EMITTED` · `yoyo_built=ALT_SIDECAR` · production_default=RUST  
+
+  - **Win 本地**（云无 Win）：`& .\scripts\stage17-ow-rt-yoyo-runtime.ps1`；可选 no-input gen1+alt → exit 2  
+
+  - **Linux/云**：`bash scripts/stage17-ow-rt-yoyo-runtime.sh`（unit + emit）
 
 
 
@@ -268,7 +274,9 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 **Gate E 完成：2026-09-04** · YOYO-origin export stub · `yoyo_origin_export=PRESENT` · **仍 CUT**。  
 
-**Gate F 完成：2026-09-04** · YOYO-built R→C→W effect · `yoyo_built=EFFECT` · **仍 CUT** · 下一项 **G**。
+**Gate F 完成：2026-09-04** · YOYO-built R→C→W effect · `yoyo_built=EFFECT` · **仍 CUT**。  
+
+**Gate G 切片（未勾）：2026-09-04** · YOYO alt sidecar emit · `yoyo_alt_sidecar=EMITTED` · `yoyo_built=ALT_SIDECAR` · production_default=RUST · **仍 CUT** · **G 仍 `[ ]`**。
 
 
 
@@ -402,6 +410,6 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 
 
 
-**当前分支诚实快照（2026-09-04 · Gate F）：** path 2 A–F · `closed=0 cut=7` · OW-RT **CUT**（`yoyo_built_effect=PRESENT` · `yoyo_built=EFFECT` · Rust sidecar PRESENT）· 下一项 **G** · **无 tag**
+**当前分支诚实快照（2026-09-04 · Gate G 切片）：** path 2 A–F · G 切片 emit · `closed=0 cut=7` · OW-RT **CUT**（`yoyo_alt_sidecar=EMITTED` · `yoyo_built=ALT_SIDECAR` · Rust production default PRESENT）· **G 仍 `[ ]`** · **无 tag**
 
 
