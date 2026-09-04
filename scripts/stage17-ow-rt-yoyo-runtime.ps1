@@ -1,6 +1,6 @@
 # stage17-ow-rt-yoyo-runtime.ps1 — OW-RT YOYO-built runtime spike gate (post-v1.0 path 2)
 #
-# Gate E: YOYO-origin stub fills pe_dll_link export body (fixed exit-2).
+# Gate F: YOYO-built read→compile→write effect (exit 0/1/2/3 + PE write).
 # Still NOT OW-RT CLOSED — Rust sidecar yoyo_rt.dll remains production path.
 #
 # Script name stage17-* = post-v1.0 gate id (NOT ROADMAP Stage 17).
@@ -12,20 +12,28 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
-Write-Host "=== Post-v1.0: OW-RT YOYO-origin export stub (pe_dll_link Gate E) ==="
+Write-Host "=== Post-v1.0: OW-RT YOYO-built read-compile-write (pe_dll_link Gate F) ==="
 
 $tyStub = Join-Path $Root "yoyo\tests\golden\ow_rt_yoyo_origin_exit2.ty"
 if (-not (Test-Path $tyStub)) { throw "missing YOYO-origin stub $tyStub" }
+$tyFx = Join-Path $Root "yoyo\tests\golden\selfhost_min_nop.ty"
+if (-not (Test-Path $tyFx)) { throw "missing Gate F success fixture $tyFx" }
 
 Push-Location (Join-Path $Root "yoyo-rust")
 try {
+    # cargo writes warnings to stderr; don't treat as terminating under Stop
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
     & cargo test -p verifier pe_dll_link
-    if ($LASTEXITCODE -ne 0) { throw "pe_dll_link tests failed" }
+    $cargoExit = $LASTEXITCODE
+    $ErrorActionPreference = $prevEap
+    if ($cargoExit -ne 0) { throw "pe_dll_link tests failed" }
 } finally {
     Pop-Location
 }
 Write-Host "OW_RT_SPIKE pe_dll_link_tests=GREEN"
 Write-Host "OW_RT_SPIKE yoyo_origin_export=PRESENT stub=$tyStub"
+Write-Host "OW_RT_SPIKE yoyo_built_effect=PRESENT fixture=$tyFx exits=0/1/2/3"
 
 $spikeDoc = Join-Path $Root "SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md"
 if (-not (Test-Path $spikeDoc)) { throw "missing $spikeDoc" }
@@ -62,8 +70,8 @@ $dllBytes = (Get-Item $RuntimeDll).Length
 $dllSha = (Get-FileHash -Algorithm SHA256 -Path $RuntimeDll).Hash.ToLowerInvariant().Substring(0, 16)
 Write-Host "OW_RT_SPIKE rust_sidecar path=$RuntimeDll bytes=$dllBytes sha256_prefix=$dllSha"
 
-# Honest: production sidecar is still Rust-built; YOYO-origin is export probe only.
-Write-Host "OW_RT_SPIKE yoyo_built=ABSENT rust_sidecar=PRESENT disposition=CUT"
-Write-Host "OW_RT_SPIKE note=Gate_E_YOYO_origin_export_only; CLOSED requires YOYO-built sidecar + no Rust yoyo_rt.dll host trust"
+# Honest: effect proven on YOYO seed/link path; production sidecar still Rust.
+Write-Host "OW_RT_SPIKE yoyo_built=EFFECT rust_sidecar=PRESENT disposition=CUT"
+Write-Host "OW_RT_SPIKE note=Gate_F_YOYO_built_effect_only; CLOSED requires production YOYO-built sidecar + no Rust yoyo_rt.dll host trust"
 Write-Host "OW_RT_SPIKE status=GREEN doc=SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md"
 exit 0

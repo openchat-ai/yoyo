@@ -5,8 +5,12 @@
 //! resolve uses for cwd sidecar `yoyo_rt.dll`.
 //!
 //! Gate E: export `.text` comes from YOYO `.ty` RAW_BYTES+RET (fixed exit-2).
-//! PE shell is still Rust `pe_dll_link` — **not** OW-RT CLOSED until production
-//! drops Rust `yoyo_rt.dll` host trust (see `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`).
+//! Gate F: host-orchestrated YOYO seed/link **read→compile→write** effect with
+//! the same exit contract as Rust `yoyo_runtime_selfhost_main` (0/1/2/3).
+//! PE shell + production sidecar remain Rust — **not** OW-RT CLOSED
+//! (see `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`).
+
+use std::path::{Path, PathBuf};
 
 use crate::platform::PlatformKind;
 use crate::types::{IsaError, IsaResult};
@@ -202,6 +206,55 @@ pub fn link_probe_runtime_dll() -> IsaResult<Vec<u8>> {
     link_pe_dll_export0(&code, RUNTIME_SIDECAR_NAME, RUNTIME_EXPORT_NAME)
 }
 
+/// Exit contract shared with Rust `yoyo_runtime_selfhost_main`.
+pub const EXIT_OK: i32 = 0;
+pub const EXIT_COMPILE_FAIL: i32 = 1;
+pub const EXIT_NO_INPUT: i32 = 2;
+pub const EXIT_WRITE_FAIL: i32 = 3;
+
+const INPUT_NAMES: &[&str] = &["input.tyb", "input.ky", "input.ty"];
+const OUTPUT_NAME: &str = "output.exe";
+
+/// Gate F: YOYO-built **read→compile→write** effect under `work_dir`.
+///
+/// Same cwd contract as Rust sidecar (`input.tyb`/`input.ky`/`input.ty` →
+/// `output.exe`, exits 0/1/2/3) but compile uses the YOYO seed/link path
+/// (`bootstrap_compile`) — **no** `LoadLibrary(yoyo_rt.dll)`.
+///
+/// Honest: production H_00 still ships Rust sidecar → OW-RT remains CUT.
+pub fn yoyo_built_runtime_effect(work_dir: &Path) -> i32 {
+    let input = match read_cwd_input(work_dir) {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+    let out = match crate::selfhost::bootstrap_compile(&input) {
+        Ok(p) => p,
+        Err(_) => return EXIT_COMPILE_FAIL,
+    };
+    let out_path = work_dir.join(OUTPUT_NAME);
+    if std::fs::write(&out_path, &out).is_err() {
+        return EXIT_WRITE_FAIL;
+    }
+    EXIT_OK
+}
+
+fn read_cwd_input(work_dir: &Path) -> Result<Vec<u8>, i32> {
+    for name in INPUT_NAMES {
+        let p = work_dir.join(name);
+        if let Ok(data) = std::fs::read(&p) {
+            return Ok(data);
+        }
+    }
+    Err(EXIT_NO_INPUT)
+}
+
+/// Repo-relative golden used for Gate F success fixture.
+pub fn gate_f_success_fixture_ty() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join("yoyo/tests/golden/selfhost_min_nop.ty")
+}
+
 fn align_up(v: u32, a: u32) -> u32 {
     (v + a - 1) & !(a - 1)
 }
@@ -296,5 +349,63 @@ mod tests {
         let f: extern "C" fn() -> i32 = unsafe { std::mem::transmute(fn_ptr) };
         let code = f();
         assert_eq!(code, PROBE_EXIT_NO_INPUT);
+    }
+
+    fn temp_work(label: &str) -> PathBuf {
+        let p = std::env::temp_dir().join(format!(
+            "yoyo-ow-rt-gate-f-{}-{}",
+            label,
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&p);
+        std::fs::create_dir_all(&p).expect("mkdir");
+        p
+    }
+
+    #[test]
+    fn yoyo_built_effect_no_input_is_exit_2() {
+        let dir = temp_work("no-input");
+        assert_eq!(yoyo_built_runtime_effect(&dir), EXIT_NO_INPUT);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn yoyo_built_effect_compile_fail_is_exit_1() {
+        let dir = temp_work("bad-input");
+        std::fs::write(dir.join("input.ty"), b"not valid yoyo source {{{")
+            .expect("write bad");
+        assert_eq!(yoyo_built_runtime_effect(&dir), EXIT_COMPILE_FAIL);
+        assert!(!dir.join(OUTPUT_NAME).exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn yoyo_built_effect_write_fail_is_exit_3() {
+        let dir = temp_work("write-fail");
+        let fixture = gate_f_success_fixture_ty();
+        std::fs::copy(&fixture, dir.join("input.ty")).expect("copy fixture");
+        // Block write: output.exe as a directory
+        std::fs::create_dir(dir.join(OUTPUT_NAME)).expect("mkdir blocker");
+        assert_eq!(yoyo_built_runtime_effect(&dir), EXIT_WRITE_FAIL);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn yoyo_built_effect_success_writes_pe_exit_0() {
+        let dir = temp_work("ok");
+        let fixture = gate_f_success_fixture_ty();
+        assert!(fixture.is_file(), "missing {:?}", fixture);
+        std::fs::copy(&fixture, dir.join("input.ty")).expect("copy fixture");
+        assert_eq!(yoyo_built_runtime_effect(&dir), EXIT_OK);
+        let out = dir.join(OUTPUT_NAME);
+        let bytes = std::fs::read(&out).expect("read output.exe");
+        assert!(bytes.len() > 64, "PE too small");
+        assert_eq!(&bytes[0..2], b"MZ");
+        // Parity: same bytes as seed/link compile of the fixture (Rust runtime
+        // uses bootstrap_compile for the compile step — contract match).
+        let src = std::fs::read(&fixture).expect("read fixture");
+        let expect = crate::selfhost::bootstrap_compile(&src).expect("bootstrap");
+        assert_eq!(bytes, expect, "Gate F effect PE must match seed/link compile");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
