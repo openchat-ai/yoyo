@@ -112,7 +112,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 
 
-**下一项** = **G**（续）— 生产去 Rust sidecar → OW-RT CLOSED（本 tick 仅 sidecar-path RCW 切片 · export 仍 stub · **仍 CUT**）。
+**下一项** = **G**（续）— 生产去 Rust sidecar → OW-RT CLOSED（本 tick 仅 export-compile 切片 · 生产默认仍 Rust · **仍 CUT**）。
 
 
 
@@ -250,11 +250,11 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
   - **依赖**：E+F；随后才可能推进 OW-IAT CLOSED  
 
-  - **本 tick 切片（仍 CUT · 勿勾 CLOSED）**：`yoyo_sidecar_path_rcw` + `emit-rt-sidecar --rcw` · place cwd `yoyo_rt.dll` + YOYO R→C→W · gate `yoyo_sidecar_rcw=PRESENT` · `yoyo_built=SIDECAR_RCW` · `gate_g_slice=sidecar_rcw` · production_default=RUST · export 仍 exit-2  
+  - **本 tick 切片（仍 CUT · 勿勾 CLOSED）**：`yoyo_sidecar_export_compile` + `emit-rt-sidecar --export-compile` · emit-time `bootstrap_compile` 烘焙进 pe_dll；调用 export 写 `output.exe` · gate `yoyo_export_compile=PRESENT` · `yoyo_built=EXPORT_COMPILE` · `gate_g_slice=export_compile` · production_default=RUST · call-time **非**通用再编译  
 
-  - **Win 本地**（云无 Win）：`& .\scripts\stage17-ow-rt-yoyo-runtime.ps1`；sidecar-path RCW exit 0；H_00+YOYO probe no-input **exit=2**（null import 触发 H_00 GPA bootstrap）  
+  - **Win 本地**（云无 Win）：`& .\scripts\stage17-ow-rt-yoyo-runtime.ps1`；export-compile exit 0；H_00+YOYO no-input **exit=2**（可 NOT_STABLE）  
 
-  - **Linux/云**：`bash scripts/stage17-ow-rt-yoyo-runtime.sh`（unit + sidecar-path RCW）
+  - **Linux/云**：`bash scripts/stage17-ow-rt-yoyo-runtime.sh`（unit + export-compile）
 
 
 
@@ -276,7 +276,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 **Gate F 完成：2026-09-04** · YOYO-built R→C→W effect · `yoyo_built=EFFECT` · **仍 CUT**。  
 
-**Gate G 切片（未勾）：2026-09-04** · sidecar-path R→C→W · `yoyo_sidecar_rcw=PRESENT` · `yoyo_built=SIDECAR_RCW` · production_default=RUST · export 仍 stub · **仍 CUT** · **G 仍 `[ ]`**。
+**Gate G 切片（未勾）：2026-09-04** · export-compile · `yoyo_export_compile=PRESENT` · `yoyo_built=EXPORT_COMPILE` · production_default=RUST · call-time 非通用再编译 · **仍 CUT** · **G 仍 `[ ]`**。
 
 
 
@@ -410,6 +410,6 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 
 
 
-**当前分支诚实快照（2026-09-04 · Gate G 切片）：** path 2 A–F · G 切片 sidecar-path RCW · `closed=0 cut=7` · OW-RT **CUT**（`yoyo_sidecar_rcw=PRESENT` · `yoyo_built=SIDECAR_RCW` · Rust production default PRESENT · export 仍 exit-2）· **G 仍 `[ ]`** · **无 tag**
+**当前分支诚实快照（2026-09-04 · Gate G 切片）：** path 2 A–F · G 切片 export-compile · `closed=0 cut=7` · OW-RT **CUT**（`yoyo_export_compile=PRESENT` · `yoyo_built=EXPORT_COMPILE` · Rust production default PRESENT · call-time 非通用重编译）· **G 仍 `[ ]`** · **无 tag**
 
 
