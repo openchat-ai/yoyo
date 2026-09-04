@@ -9,6 +9,7 @@ pub mod elf_link;
 pub mod pe_link;
 pub mod h00_manual_map_wireup;
 pub mod pe_manual_map;
+pub mod pe_dll_link;
 pub mod platform;
 pub mod platform_io;
 pub mod render;

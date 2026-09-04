@@ -146,24 +146,24 @@ PE/ELF **不得**改 master 看板。AUTO 下两板完成后若仍有未勾项�
 | 项 | 主题 |
 |----|------|
 | S10–S16 | v0.4→v1.0 已毕业（跳过 · 勿回改） |
-| **post-v1.0** | `POST-1.0-HOLE-CHECKLIST.md` — path 2 关洞 A→B→C |
-| post-A | Win OW-IAT wire-up smoke GREEN（**阻塞：with-sidecar AV**） |
-| post-B | Linux OW-IAT / tramp 回归 |
-| post-C | SCOPE-CUT + BACKEND_SUPPORT 诚实 sync |
+| **post-v1.0** | `POST-1.0-HOLE-CHECKLIST.md` — path 2 + 整仓竣工 D→G |
+| post-A/B/C | 已绿（里程碑）· OW-* 仍 CUT |
+| post-D | OW-RT PE DLL emit spike 已绿 · 仍 CUT |
+| **post-E** | YOYO-origin stub 填 export body（下一项） |
 
-## Post-v1.0 关洞（`ACTIVE=0` · 用户 `继续`/`关洞`）
+## Post-v1.0 关洞（`ACTIVE=0` · 用户 `继续`/`关洞`/`整仓竣工`）
 
 v1.0 / Stage 16 已毕业；`AUTO_TO_1.0.md` **`ACTIVE=0` · `COMPLETED=1`** → **勿启 AUTO invent Stage 17**。
 
 | 触发 | 行为 |
 | ---- | ---- |
-| `继续` / `关洞` / `post-1.0` / `path 2` | 读 `POST-1.0-HOLE-CHECKLIST.md`；**一项** A→B→C per tick |
+| `继续` / `关洞` / `post-1.0` / `path 2` / `整仓竣工` | 读 `POST-1.0-HOLE-CHECKLIST.md`；**一项** A→G per tick |
 | 验收 | 本地先跑看板该项 PowerShell 门禁；绿了才勾 |
 | push | 遵守 **CI anti-thrash**（`.cursor/rules/ci-anti-thrash.mdc`）：本地 smoke 先绿 → 一次 CI push；WIP `[skip ci]` |
-| 诚实 | OW-IAT smoke GREEN **≠** CLOSED；sidecar 仍在则 CUT |
-| 阻塞 | 写入看板「阻塞」节；with-sidecar AV → 本地 bisect（`H00_BISECT` opt-in） |
+| 诚实 | OW-IAT/OW-RT smoke GREEN **≠** CLOSED；sidecar / Rust runtime 仍在则 CUT |
+| 阻塞 | 写入看板「阻塞」节；长杆 = YOYO-built runtime（多月） |
 
-**下一项（2026-08-31）** = **A** — `& .\scripts\stage17-ow-iat-wireup.ps1`（with-sidecar RED）。
+**下一项（2026-09-04）** = **E** — YOYO-origin stub 填 `pe_dll_link` export body（仍 CUT）。
 
 ## 约束
 
