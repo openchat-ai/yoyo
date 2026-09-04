@@ -480,7 +480,7 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Still CUT** | Production sidecar still Rust `yoyo_runtime.dll` / `yoyo_rt.dll` — **`yoyo_built=ABSENT`** · spike ≠ CLOSED |
 | **Gate** | `scripts/stage17-ow-rt-yoyo-runtime.ps1` · `cargo test -p verifier pe_dll_link` |
 | **Doc** | `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md` |
-| **Next** | Gate E — YOYO-origin stub fills export body；then F compile loop；G drop Rust sidecar |
+| **Next** | Gate E landed；then F compile loop；G drop Rust sidecar |
 
 ### Post-v1.0 path 2 — OW-RT YOYO-origin export stub (Gate E · 整仓竣工 · 2026-09-04)
 
