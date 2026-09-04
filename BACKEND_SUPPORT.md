@@ -535,7 +535,18 @@ Known gaps: **none** for Stage 4 DDC graduation fixtures (00–04 + container al
 | **Still CUT** | Production default still Rust — **`yoyo_built=EXPORT_COMPILE`** · **`yoyo_export_compile=PRESENT`** · call-time **not** general in-DLL re-compile · ≠ CLOSED · Gate G checkbox stays open |
 | **Gate** | `scripts/stage17-ow-rt-yoyo-runtime.ps1` · Linux `scripts/stage17-ow-rt-yoyo-runtime.sh` · `cargo test -p verifier pe_dll_link` |
 | **Doc** | `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md` |
-| **Next** | Grow export to general in-DLL re-compile; flip production default off Rust; then inventory OW-RT CLOSED |
+| **Next** | In-DLL recompile slice landed below |
+
+### Post-v1.0 path 2 — OW-RT YOYO in-DLL recompile (Gate G slice · 整仓竣工 · 2026-09-04)
+
+| Item | Detail |
+|------|--------|
+| **Hole** | **OW-RT** (YOYO-built runtime long pole) |
+| **Change** | `yoyo_sidecar_in_dll_recompile` + `emit-rt-sidecar --in-dll-recompile` — call-time `ReadFile` + multi-entry YOYO-precompiled oracle (match→write PE); ≥2 fixtures without re-emit |
+| **Still CUT** | Production default still Rust — **`yoyo_built=IN_DLL_RECOMPILE`** · **`yoyo_in_dll_recompile=PRESENT`** · oracle ≠ full YOYO compiler · ≠ CLOSED · Gate G checkbox stays open |
+| **Gate** | `scripts/stage17-ow-rt-yoyo-runtime.ps1` · Linux `scripts/stage17-ow-rt-yoyo-runtime.sh` · `cargo test -p verifier pe_dll_link` |
+| **Doc** | `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md` |
+| **Next** | Grow to full YOYO in-DLL compile; flip production default off Rust; then inventory OW-RT CLOSED |
 
 ### Full body compiler (Stage 8-B · W5.5 body)
 
