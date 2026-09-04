@@ -54,6 +54,8 @@ mod selfhost;
 mod seed_host;
 mod startup;
 mod h00_manual_map_wireup;
+mod pe_dll_link;
+mod pe_manual_map;
 mod win32_selfhost;
 mod linux_selfhost;
 mod tir;
