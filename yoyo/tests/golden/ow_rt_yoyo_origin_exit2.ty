@@ -1,0 +1,7 @@
+; OW-RT Gate E — YOYO-origin fixed exit probe (runtime no-input = 2)
+; RAW_BYTES (0xA1) emits mov eax,2; handler END (0xFF) appends RET.
+; Expected .text: B8 02 00 00 00 C3
+; Mirrors pe_dll_link::YOYO_ORIGIN_EXIT2_TY
+40 00
+  A1 B8 02 00 00 00
+  FF
