@@ -14,6 +14,11 @@
 //!
 //! Usage: min_probe [fixture]
 
+// Windows-only by construction: it imports manual_map_pe_dll_executable
+// (#[cfg(windows)]) and kernel32's AddVectoredExceptionHandler. Without this
+// gate it is still compiled as a bin test target on Linux and fails to build
+// with E0432 — which is how a debug helper broke the whole CI matrix.
+#![cfg(windows)]
 #![allow(unsafe_code, dead_code)]
 
 use std::ffi::CString;
