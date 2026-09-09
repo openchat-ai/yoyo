@@ -1582,17 +1582,16 @@ pub fn yoyo_sidecar_in_dll_recompile(work_dir: &Path) -> i32 {
     }
 }
 
-/// Serializes the cwd swap in [`call_export_compile_mapped`].
+/// Call the DLL's `functions0` export through the in-process manual mapper.
 ///
-/// `SetCurrentDirectoryA` mutates process-global state; two concurrent export
-/// probes with different work dirs would otherwise race (lost input → spurious
-/// exit 2, or the wrong PE written into another test's dir). Test-only lock.
-#[cfg(windows)]
-static CWD_PROBE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
+/// `SetCurrentDirectoryA` mutates process-global state, so this holds the
+/// shared [`crate::cwd_guard::TEST_CWD_LOCK`] for the entire chdir-restore
+/// window; see that module for the race it closes.
 #[cfg(windows)]
 fn call_export_compile_mapped(dll: &[u8], work_dir: &Path) -> Result<i32, ()> {
-    let _lock = CWD_PROBE_LOCK.lock().map_err(|_| ())?;
+    // cwd is process-global; pe_manual_map's smokes chdir too. Share one lock
+    // (see cwd_guard) — two per-module mutexes do not exclude each other.
+    let _lock = crate::cwd_guard::test_cwd_lock();
     use crate::pe_manual_map::{
         export_function_rva_functions0, manual_map_pe_dll_executable,
     };
