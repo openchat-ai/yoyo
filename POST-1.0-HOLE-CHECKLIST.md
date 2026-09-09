@@ -278,6 +278,14 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 **Gate G 切片（未勾）：2026-09-04** · in-DLL recompile · `yoyo_in_dll_recompile=PRESENT` · `yoyo_built=IN_DLL_RECOMPILE` · production_default=RUST · oracle ≠ 完整编译器 · **仍 CUT** · **G 仍 `[ ]`**。
 
+**Gate G 切片硬化（未勾）：2026-09-09 · commit `0da9ef1`** · `pe_dll_link` AV 根因定位并修复 · coverage 1→3 fixture · **仍 CUT** · **G 仍 `[ ]`**。
+
+  - **根因（硬证据）**：`mov r13, rcx` 编码错 —— `0x48 0x89 0xCE` 实为 `mov rdx, rcx`（r/m 010），r13 从未赋值 → 手动映射 fresh 状态下 r13=0 → `mov eax,[r13]` 即 `0xC0000005` AV。正确编码 = `0x49 0x89 0xCD`（全 64 位需 REX.W+REX.B，R13 的 r/m 为 101 → ModRM 0xCD）。三天定位靠 `min_probe.rs`（VEH + 异常安全：handler 内零分配）。
+  - **连带修**：oracle 表用绝对 16 边界填充，而发射代码用条目相对 stride `8 + align4(input) + align16(pe)` → fixture 1/2（input 165/289 字节）错配。现统一 16 边界 + stride `16 + align16(input) + align16(pe)`，r13 条目相对。另 ReadFile 返回值原存 r8d 被 CloseHandle 覆盖 → 改存 callee-saved r12d；rbx 承载条目计数。
+  - **验收（本地）**：`cargo test -p verifier --lib --features full-backends` → **123 passed / 0 failed**；`pe_dll_link` 子集 → **26 passed / 0 failed**；`& .\scripts\stage17-ow-rt-yoyo-runtime.ps1` → `status=GREEN` · `yoyo_in_dll_recompile_smoke=GREEN` · `disposition=CUT`。
+  - **诚实状态**：AV 修复 ≠ OW-RT CLOSED。Rust `yoyo_rt.dll` 仍是 production default（`rust_sidecar=PRESENT`）；oracle 表 ≠ 完整 YOYO 编译器；H_00 no-input 在 YOYO-built sidecar 上 exit=0 写表首 PE，与 seed/link 宿主 exit=2 fail-closed **发散**（已文档化为 `PROBE_EXIT_NO_INPUT_IN_DLL_RECOMPILE`）。
+  - **下一步**：YOYO-built runtime 替换生产 sidecar（长杆 · 多月），届时才可能推进 OW-RT / OW-IAT CLOSED。
+
 
 
 ---
@@ -411,5 +419,7 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 
 
 **当前分支诚实快照（2026-09-04 · Gate G 切片）：** path 2 A–F · G 切片 in-DLL recompile · `closed=0 cut=7` · OW-RT **CUT**（`yoyo_in_dll_recompile=PRESENT` · `yoyo_built=IN_DLL_RECOMPILE` · Rust production default PRESENT · oracle ≠ 完整 YOYO 编译器）· **G 仍 `[ ]`** · **无 tag**
+
+**当前分支诚实快照（2026-09-09 · Gate G 切片硬化 · commit `0da9ef1`）：** path 2 A–F · G 切片 in-DLL recompile **AV 已修**（`mov r13,rcx` = `49 89 CD`）· oracle scan 16 字节对齐 · coverage 1→3 fixture · 本地 `123 passed` / `pe_dll_link 26 passed` / `stage17-ow-rt-yoyo-runtime.ps1 status=GREEN` · OW-RT **仍 CUT**（Rust `yoyo_rt.dll` production default PRESENT · oracle ≠ 完整 YOYO 编译器 · H_00 no-input 宿主发散已文档化）· `closed=0 cut=7` · **G 仍 `[ ]`** · **无 tag**
 
 
