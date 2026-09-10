@@ -56,9 +56,49 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 | **with-sidecar manual-map** | ✅ **Gate A 已绿（PR #26 · `f8eb429`）** | no-sidecar fail-closed + with-sidecar GREEN · **OW-IAT 仍 CUT** |
 
+| **HARD BLOCK — CI Windows AV（需人类）** | 🔴 **本地不可复现 · 已停推** | `pe_dll_link::tests::yoyo_sidecar_export_compile_success_writes_pe` 在 GitHub runner `debug` 构建下 AV（`0xc0000005`）；master 自 **PR #33（`0514933`，09-04）** 起每次红。**见下节** |
+
 | **整仓竣工长杆** | **OW-RT YOYO-built runtime** | Gate D–F 已绿；G 才可能 CLOSED；**禁止**假 CLOSED |
 
 | **勿做** | — | 勿 fake OW-IAT/OW-RT CLOSED；勿启 `AUTO_TO_1.0 ACTIVE=1`；勿 invent Stage 17 |
+
+---
+
+## HARD BLOCK 详情 — CI Windows AV（2026-09-10）
+
+**现象**：CI `build` job（windows-latest）第 6 步 `cargo test -- --test-threads=1`（**debug** 构建、**default features**）崩溃：
+
+```
+process didn't exit successfully:
+  ...target\debug\deps\verifier-*.exe --test-threads=1
+  (exit code: 0xc0000005, STATUS_ACCESS_VIOLATION)
+test pe_dll_link::tests::yoyo_sidecar_export_compile_success_writes_pe ...
+```
+
+崩溃前最后一个成功测试恒为 `yoyo_sidecar_export_compile_no_input_is_exit_2`；崩溃点是**第一个真正调用 `call_export_compile_mapped`（手动映射 + `bootstrap_compile`）的测试**。
+
+**已排除（都有证据）**：
+
+| 假设 | 排除方式 |
+|------|----------|
+| 我引入的回归 | `git checkout a80e02f`（merge-base）跑同命令 → 同样红（`120 passed; 1 failed`）。**预先存在** |
+| `full-backends` vs default features | 两者在**并行**下都失败；default features 下该测试单独跑是绿的 |
+| 并行 cwd 竞态 | 已修（`cwd_guard::TEST_CWD_LOCK`，commit `7366ab1`），并行 32 线程 5/5 绿。但**修完 CI 仍红** → AV 不是 cwd 竞态 |
+| 重定位缺失（`IMAGE_BASE` 固定 `0x100000` 且无 reloc 表） | 已证伪：该 DLL **全部地址访问都是 RIP/栈相对**（`lea rcx,[rip+..]`、`call [rip+..]`、`[rsp+..]`），无绝对 64 位指针 |
+| 栈对齐 | 已核：CALL 前 RSP ≡ 8 (mod 16)，符合 Windows x64 要求 |
+| IAT slot 编号 | 已核：0=CreateFileA 1=WriteFile 2=CloseHandle 3=GetFileAttributesA，与 hint 表一致 |
+| sidecar 版本漂移（本地下有两个 `yoyo_runtime.dll`） | 已核：`runtime_dll_bytes()` 明确优先 `target/release-runtime/` |
+| 本地可复现 | **复现不了**：CI 精确步骤（`cargo build --profile release-runtime -p yoyo-runtime` → `cargo test -- --test-threads=1`）本地 `exit=0`；循环 12 次全绿 |
+
+**剩余差异（唯一已知）**：只有 runner 环境不同。本地 `rustc 1.96.0`；runner 版本未知，DEP/ASLR/地址布局不同。
+
+**下一步需要人类决定**：
+1. 在 `call_export_compile_mapped` 里加 VEH（可复用 `verifier/src/bin/min_probe.rs` 的零分配 handler），把 `rip` / `r13` / `r12` / `rsp` 打到日志，**只在 CI 上跑一次**拿实际 RIP —— 这是唯一能把"runner-only AV"定位到具体指令的办法；
+2. 或接受现状：master 已红 6 天，把该测试 `#[ignore]` 掉并开 issue，消除持续红噪音。
+
+**禁止**：用 `gh workflow run` / push→等 CI 当调试器（`.cursor/rules/ci-anti-thrash.mdc` H00）。已连续 2 次红 CI，按规则停推。
+
+---
 
 
 
@@ -421,5 +461,8 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-09-04 · Gate G 切片）：** path 2 A–F · G 切片 in-DLL recompile · `closed=0 cut=7` · OW-RT **CUT**（`yoyo_in_dll_recompile=PRESENT` · `yoyo_built=IN_DLL_RECOMPILE` · Rust production default PRESENT · oracle ≠ 完整 YOYO 编译器）· **G 仍 `[ ]`** · **无 tag**
 
 **当前分支诚实快照（2026-09-09 · Gate G 切片硬化 · commit `0da9ef1`）：** path 2 A–F · G 切片 in-DLL recompile **AV 已修**（`mov r13,rcx` = `49 89 CD`）· oracle scan 16 字节对齐 · coverage 1→3 fixture · 本地 `123 passed` / `pe_dll_link 26 passed` / `stage17-ow-rt-yoyo-runtime.ps1 status=GREEN` · OW-RT **仍 CUT**（Rust `yoyo_rt.dll` production default PRESENT · oracle ≠ 完整 YOYO 编译器 · H_00 no-input 宿主发散已文档化）· `closed=0 cut=7` · **G 仍 `[ ]`** · **无 tag**
+
+**当前分支诚实快照（2026-09-10 · CI 失败真因定位 · PR #36）**：三天定位的两个真问题都是**并行测试 cwd 竞态**（非 feature、非 flake）—— `pe_dll_link` 与 `pe_manual_map` 各持一把锁，两把锁互不互斥，`SetCurrentDirectoryA` 却改**进程级** cwd → 并行时 A 线程读到 B 线程的 `input.tyb`。已统一为 `cwd_guard::TEST_CWD_LOCK`（`7366ab1`）；并行 32 线程由 **0/8 绿 → 5/5 绿**。另修 `min_probe.rs` 缺 `#![cfg(windows)]` 造成 linux-m4 构建直接挂（`2753cdc`）；回退了一份引用不存在的 `--in-dll-compile` 的半成品 ps1。**HARD BLOCK**：`export_compile_success_writes_pe` 在 runner 上 AV，master 自 PR #33（`0514933`）起每次红，**本地 12 次全绿复现不了** → 已按 anti-thrash 停推，需人类（见「HARD BLOCK 详情」节）。OW-RT **仍 CUT** · `closed=0 cut=7` · **G 仍 `[ ]`** · **无 tag**
+
 
 
