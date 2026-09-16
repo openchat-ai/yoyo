@@ -2137,6 +2137,158 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    // ---- CI Windows AV localization (runner-only; local 0/12 repro) ----
+    //
+    // `yoyo_sidecar_export_compile_success_writes_pe` AVs on the windows-latest
+    // runner in the debug build but reproduces on 0/12 local attempts, so the
+    // harness's own address layout is the only differentiator. These two tests
+    // install a vectored exception handler before the call the runner faults
+    // in, so a single CI run yields the faulting RIP + register state without
+    // burning more pushes. Local green is expected.
+
+    fn probe_work_dir(label: &str) -> PathBuf {
+        let p = std::env::temp_dir().join(format!(
+            "yoyo-ow-rt-probe-{}-{}",
+            label,
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&p);
+        std::fs::create_dir_all(&p).expect("probe mkdir");
+        let fixture = gate_f_success_fixture_ty();
+        std::fs::copy(&fixture, p.join("input.ty")).expect("probe copy fixture");
+        p
+    }
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn AddVectoredExceptionHandler(first: usize, h: usize) -> usize;
+    }
+
+    /// Zero-heap VEH that prints AV code + registers + RIP-relative-to-image.
+    ///
+    /// The context comes from `EXCEPTION_POINTERS`'s second member (see
+    /// `src/bin/min_probe.rs`) — **not** `GetCurrentThreadContext`, which is
+    /// not exported by any system DLL on this platform (verified via dumpbin)
+    /// and therefore does not link. `usize::MAX` keeps the normal unwind path
+    /// so a runner AV still fails the test; this only adds the diagnostic line.
+    #[cfg(windows)]
+    extern "system" fn probe_av_handler(
+        ep: *mut std::os::raw::c_void,
+        _uc: *mut std::os::raw::c_void,
+    ) -> usize {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        static SEEN: AtomicUsize = AtomicUsize::new(0);
+        if ep.is_null() || SEEN.fetch_add(1, Ordering::Relaxed) >= 1 {
+            return usize::MAX;
+        }
+        unsafe {
+            // EXCEPTION_POINTERS { PEXCEPTION_RECORD; PCONTEXT; }
+            let ep = ep as *mut usize;
+            let rec = *ep.offset(0) as *mut u32;
+            let code = if rec.is_null() { 0u32 } else { *rec };
+            // Only report access violations. This VEH is armed for the whole
+            // test process, and non-AV exceptions (e.g. `0xe06d7363` SEH on
+            // Windows) otherwise consume the single report before the AV we
+            // are actually looking for.
+            if code != 0xC000_0005 {
+                return usize::MAX;
+            }
+            let ctx = *ep.offset(1) as *mut u8;
+            let r = |o: usize| -> u64 {
+                let mut b = [0u8; 8];
+                for i in 0..8 {
+                    b[i] = std::ptr::read_volatile(ctx.add(o + i));
+                }
+                u64::from_le_bytes(b)
+            };
+            // IMAGE_BASE of the emitted DLL (`link_yoyo_export_compile_dll`).
+            // The DLL is manual-mapped at an arbitrary base, so also report the
+            // displacement against IMAGE_BASE — the emitted code is
+            // RIP-relative only, so rip - IMAGE_BASE pins the faulting
+            // instruction regardless of where VirtualAlloc landed.
+            const IMAGE_BASE: u64 = 0x0000_0001_8000_0000;
+            const CTX_RIP: usize = 0xF8;
+            let rip = r(CTX_RIP);
+            eprintln!(
+                "[probe-av] code=0x{:08x} rip=0x{:x} image_base_rel=0x{:x} rax=0x{:x} rcx=0x{:x} rdx=0x{:x} rbx=0x{:x} rsp=0x{:x} r12=0x{:x} r13=0x{:x}",
+                code,
+                rip,
+                rip.wrapping_sub(IMAGE_BASE),
+                r(0x78),
+                r(0x80),
+                r(0x88),
+                r(0x90),
+                r(0x98),
+                r(0xD8),
+                r(0xE0)
+            );
+        }
+        usize::MAX
+    }
+
+    /// In-process probe: reproduces the runner's failing call in this same
+    /// debug-built harness process, with harness-style allocations in front of
+    /// it, and repeats it 4x to catch state that only appears on repeat
+    /// mapping. Prints a marker before each call so the last marker in the CI
+    /// output names the faulting call.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_sidecar_export_compile_probe_inproc() {
+        unsafe {
+            AddVectoredExceptionHandler(1, probe_av_handler as *const () as usize);
+        }
+        eprintln!("[probe-inproc] start");
+        let mut codes = Vec::with_capacity(4);
+        for n in 1..=4 {
+            let dir = probe_work_dir("inproc");
+            eprintln!("[probe-inproc] call {n}");
+            codes.push(yoyo_sidecar_export_compile(&dir));
+            eprintln!(
+                "[probe-inproc] call {n} exit={}",
+                codes.last().copied().unwrap_or(-1)
+            );
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+        assert_eq!(
+            codes,
+            [EXIT_OK; 4],
+            "manual-map export compile must be repeatable"
+        );
+    }
+
+    /// Fresh-process probe: the control. The runner's AV never appears in a
+    /// fresh process locally, so if it shows up here the fault is in the emit
+    /// itself rather than in harness address layout. Repeats the call twice in
+    /// one process with no harness preamble.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_sidecar_export_compile_probe_subproc() {
+        let me = std::env::current_exe().expect("current_exe");
+        let mut cmd = std::process::Command::new(&me);
+        cmd.arg("--exact").arg("yoyo_sidecar_export_compile_probe_subproc");
+        if std::env::var("PROBE_EXPORT_COMPILE_SUB").is_err() {
+            cmd.env_remove("PROBE_EXPORT_COMPILE_SUB");
+            let status = cmd.status().expect("spawn probe subprocess");
+            assert!(status.success(), "export-compile probe subprocess failed");
+            return;
+        }
+        // Sub-invocation: no harness preamble, VEH armed, two back-to-back
+        // calls in the same process.
+        unsafe {
+            AddVectoredExceptionHandler(1, probe_av_handler as *const () as usize);
+        }
+        for n in 1..=2 {
+            let dir = probe_work_dir("sub");
+            assert_eq!(
+                yoyo_sidecar_export_compile(&dir),
+                EXIT_OK,
+                "subprocess call {n} must write the PE"
+            );
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+        eprintln!("[probe-subproc] green");
+    }
+
     #[test]
     fn gate_g_coverage_sweep_compiles_all_appendix_f_fixtures() {
         // Coverage of the seed/link compiler — no DLL bake. Proves the

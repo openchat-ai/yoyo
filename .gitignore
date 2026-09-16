@@ -39,6 +39,7 @@ yoyo-rust/target-nosidecar/
 yoyo-rust/target-selfhost-build/
 yoyo-rust/target-sh-build/
 yoyo-rust/target-runtime-z/
+yoyo-rust/target-ciwin/
 yoyo-rust/target-stage*/
 yoyo-test/
 __pycache__/

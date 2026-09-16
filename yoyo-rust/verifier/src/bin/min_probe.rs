@@ -15,20 +15,25 @@
 //! Usage: min_probe [fixture]
 
 // Windows-only by construction: it imports manual_map_pe_dll_executable
-// (#[cfg(windows)]) and kernel32's AddVectoredExceptionHandler. Without this
-// gate it is still compiled as a bin test target on Linux and fails to build
-// with E0432 — which is how a debug helper broke the whole CI matrix.
-#![cfg(windows)]
+// (#[cfg(windows)]) and kernel32's AddVectoredExceptionHandler.
+//
+// Do NOT use `#![cfg(windows)]` on this file: with automatic target discovery
+// the file is still a bin, so stripping every item leaves no `main` and the
+// linux-m4 job dies at build time with E0601 (seen on commit `2753cdc`).
+// Guarding the real `main` below keeps the bin compilable everywhere while
+// only the Windows body does anything.
 #![allow(unsafe_code, dead_code)]
 
-use std::ffi::CString;
-use std::os::raw::c_void;
-use std::sync::atomic::{AtomicUsize, Ordering};
+#[cfg(windows)]
+mod win {
+    use std::ffi::CString;
+    use std::os::raw::c_void;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
-use verifier::pe_dll_link::{gate_g_recompile_entries, link_yoyo_in_dll_recompile_dll};
-use verifier::pe_manual_map::{
-    export_function_rva_functions0, manual_map_pe_dll_executable,
-};
+    use verifier::pe_dll_link::{gate_g_recompile_entries, link_yoyo_in_dll_recompile_dll};
+    use verifier::pe_manual_map::{
+        export_function_rva_functions0, manual_map_pe_dll_executable,
+    };
 
 #[link(name = "kernel32")]
 extern "system" {
@@ -273,7 +278,7 @@ fn host_resolve(dll: &str, name: &str) -> Option<u64> {
     }
 }
 
-fn worker(fix: usize) {
+    pub fn worker(fix: usize) {
     let entries = gate_g_recompile_entries().expect("entries");
     // Diagnose the oracle table on the host: are the inputs distinct, and
     // do the PEs differ? If two entries have byte-identical PEs, the DLL's
@@ -338,11 +343,19 @@ fn worker(fix: usize) {
     out(format!("out_len={out_len:?}\n").as_bytes());
 }
 
+} // mod win
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let fix = args
         .get(1)
         .and_then(|s| s.parse::<usize>().ok())
         .unwrap_or(0);
-    worker(fix);
+    #[cfg(windows)]
+    win::worker(fix);
+    #[cfg(not(windows))]
+    {
+        let _ = fix;
+        eprintln!("min_probe: Windows-only manual-map probe; nothing to do here");
+    }
 }
