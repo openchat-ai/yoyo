@@ -325,7 +325,10 @@ test pe_dll_link::tests::yoyo_sidecar_export_compile_success_writes_pe ...
   - **根因（硬证据）**：`mov r13, rcx` 编码错 —— `0x48 0x89 0xCE` 实为 `mov rdx, rcx`（r/m 010），r13 从未赋值 → 手动映射 fresh 状态下 r13=0 → `mov eax,[r13]` 即 `0xC0000005` AV。正确编码 = `0x49 0x89 0xCD`（全 64 位需 REX.W+REX.B，R13 的 r/m 为 101 → ModRM 0xCD）。三天定位靠 `min_probe.rs`（VEH + 异常安全：handler 内零分配）。
   - **连带修**：oracle 表用绝对 16 边界填充，而发射代码用条目相对 stride `8 + align4(input) + align16(pe)` → fixture 1/2（input 165/289 字节）错配。现统一 16 边界 + stride `16 + align16(input) + align16(pe)`，r13 条目相对。另 ReadFile 返回值原存 r8d 被 CloseHandle 覆盖 → 改存 callee-saved r12d；rbx 承载条目计数。
   - **验收（本地）**：`cargo test -p verifier --lib --features full-backends` → **123 passed / 0 failed**；`pe_dll_link` 子集 → **26 passed / 0 failed**；`& .\scripts\stage17-ow-rt-yoyo-runtime.ps1` → `status=GREEN` · `yoyo_in_dll_recompile_smoke=GREEN` · `disposition=CUT`。
-  - **诚实状态**：AV 修复 ≠ OW-RT CLOSED。Rust `yoyo_rt.dll` 仍是 production default（`rust_sidecar=PRESENT`）；oracle 表 ≠ 完整 YOYO 编译器；H_00 no-input 在 YOYO-built sidecar 上 exit=0 写表首 PE，与 seed/link 宿主 exit=2 fail-closed **发散**（已文档化为 `PROBE_EXIT_NO_INPUT_IN_DLL_RECOMPILE`）。
+  - **诚实状态**：AV 修复 ≠ OW-RT CLOSED。Rust `yoyo_rt.dll` 仍是 production default（`rust_sidecar=PRESENT`）；oracle 表 ≠ 完整 YOYO 编译器。
+  - **2026-09-16 更正**：删除 `PROBE_EXIT_NO_INPUT_IN_DLL_RECOMPILE`（曾 = `EXIT_OK`）。该常量断言「YOYO-built sidecar 在 no-input 时 exit=0 并写表首 PE，与 seed/link 宿主 exit=2 发散」——但代码自本 commit 起就发 `mov eax,2; jmp epilogue`（`jmp_epi_noinput`），测试 `yoyo_sidecar_in_dll_recompile_no_input_is_exit_2` 断言 `EXIT_NO_INPUT` 且两平台通过。**两条路径 fail-closed 一致，无 exit-code 发散**。`0da9ef1` 同时改了对的代码、留了对的常量文本（stale），故静默失真。
+  - **执行证据**：`& .\scripts\stage17-ow-rt-yoyo-runtime.ps1` → `yoyo_in_dll_recompile_smoke=GREEN exit=2 (H_00 loaded in-dll-recompile pe_dll; no input)`、`yoyo_built=IN_DLL_RECOMPILE disposition=CUT`、`status=GREEN`。即真实 H_00 手动映射路径也返回 2 —— 反证「exit=0 写表首 PE」从未成立。**当前不稳定点是 runner-only AV（已装 in-harness VEH probe），不是 exit code。**
+  - **同步修正**：`pe_dll_link.rs` 模块头「no-input exit (3)」→ `EXIT_NO_INPUT` (2)（3 实为 `EXIT_WRITE_FAIL`）；`yoyo_sidecar_in_dll_recompile` doc 改为与宿主一致的 fail-closed 描述。
   - **下一步**：YOYO-built runtime 替换生产 sidecar（长杆 · 多月），届时才可能推进 OW-RT / OW-IAT CLOSED。
 
 

@@ -12,9 +12,10 @@
 //! Gate G slice (this): **generic in-DLL recompile** — call-time `ReadFile` of
 //! cwd input + multi-entry YOYO-precompiled oracle table (match → write PE).
 //! Gate G slice (latest): oracle coverage widened to 3 real `bootstrap_compile`
-//! fixtures (selfhost_min_nop + 01_set_get + 03_cmp_je), a **documented**
-//! fail-closed no-input exit (3) on the sidecar path, `.tyb` extension parity,
-//! and the H_00 embed-vs-cwd sidecar divergence made explicit.
+//! fixtures (selfhost_min_nop + 01_set_get + 03_cmp_je), `.tyb` extension
+//! parity, and the H_00 embed-vs-cwd sidecar posture made explicit. No-input is
+//! fail-closed on the sidecar path exactly like the seed/link host: exit
+//! `EXIT_NO_INPUT` (`2`), no `output.exe` written.
 //! Honest: table ≠ full YOYO compiler in DLL; production default remains Rust —
 //! **not** OW-RT CLOSED (see `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`).
 
@@ -328,17 +329,32 @@ pub const EXIT_WRITE_FAIL: i32 = 3;
 const INPUT_NAMES: &[&str] = &["input.tyb", "input.ky", "input.ty"];
 const OUTPUT_NAME: &str = "output.exe";
 
-/// Documented exit split on the in-DLL recompile path.
+/// Note: the in-DLL recompile path's no-input exit is **not** divergent from the
+/// seed/link host. Both return [`PROBE_EXIT_NO_INPUT`] (`2`) and write **no**
+/// `output.exe` — there is no exit-code special case on the sidecar path:
 ///
-/// * Seed/link host ([`yoyo_built_runtime_effect`] / Rust `yoyo_rt.dll`): no
-///   cwd input → `EXIT_NO_INPUT` (`2`) → fail-closed before any write.
-/// * in-DLL recompile export: no cwd input + non-empty baked oracle table →
-///   `EXIT_OK` (`0`), writing the table's first PE. The table is a compile-time
-///   YOYO bake, so the export cannot distinguish "no input" from "known input".
+/// * The export checks `GetFileAttributesA` on each known input name first and
+///   emits `mov eax, 2; jmp epilogue` before the baked table is touched, so an
+///   empty-oracle and a non-empty-oracle DLL behave the same when cwd has no
+///   `input.{tyb,ky,ty}`.
+/// * The `in_dll_recompile_no_input_is_exit_2` unit test asserts this on both
+///   platforms (it was written against `PROBE_EXIT_NO_INPUT` directly, which is
+///   why the removed constant could drift away from the code without failing a
+///   test).
 ///
-/// This divergence is why the H_00 no-input probe is NOT_STABLE against a
-/// YOYO-built sidecar and why production still defaults to Rust.
-pub const PROBE_EXIT_NO_INPUT_IN_DLL_RECOMPILE: i32 = EXIT_OK;
+/// What is genuinely unstable about the H_00 + in-DLL-recompile path is
+/// **manual-map AV** on the runner (see `stage10-linux-pure-m4.sh` / the
+/// `yoyo_in_dll_recompile_smoke=NOT_STABLE` output of
+/// `scripts/stage17-ow-rt-yoyo-runtime.ps1`), **not** the exit code. Production
+/// still defaults to the Rust sidecar for OW-RT reasons — the oracle table is a
+/// finite YOYO-precompiled lookup, not an in-DLL YOYO compiler — not because of
+/// exit-code divergence.
+///
+/// History: a `PROBE_EXIT_NO_INPUT_IN_DLL_RECOMPILE: i32 = EXIT_OK` constant
+/// asserted the divergent (`0`) behavior here. Commit `0da9ef1` (2026-09-09,
+/// Gate G slice hardening) fixed the export body to emit `PROBE_EXIT_NO_INPUT`
+/// but left this constant behind, so the constant silently contradicted the
+/// code and the test. Removed; this doc block is the record.
 
 /// Gate F: YOYO-built **read→compile→write** effect under `work_dir`.
 ///
@@ -1527,10 +1543,12 @@ pub fn gate_g_recompile_coverage_sweep() -> IsaResult<Vec<RecompileEntry>> {
 /// 2. Place as cwd `yoyo_rt.dll`.
 /// 3. Invoke export (Win manual-map) or host match simulate (non-Windows).
 ///
-/// No-input diverges from the seed/link host by design: the export reads cwd
-/// input but a non-empty table still lets the first `WriteFile` succeed, so
-/// exit is `0` with `output.exe` = the first baked PE
-/// ([`PROBE_EXIT_NO_INPUT_IN_DLL_RECOMPILE`]).
+/// No cwd input fails closed identically to the seed/link host: exit
+/// [`PROBE_EXIT_NO_INPUT`] (`2`) and **no** `output.exe` written. The export
+/// checks `GetFileAttributesA` on each known input name first and jumps to the
+/// exit-2 stub before touching the baked oracle table, so a non-empty table does
+/// not leak through as "write the first baked PE". (`0` is success; `3` is
+/// `EXIT_WRITE_FAIL` — writing a PE is the success path, not the no-input one.)
 ///
 /// Honest: oracle table ≠ full YOYO compiler; production default remains Rust → CUT.
 pub fn yoyo_sidecar_in_dll_recompile(work_dir: &Path) -> i32 {
