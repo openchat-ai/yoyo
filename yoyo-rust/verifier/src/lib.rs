@@ -8,6 +8,7 @@ pub mod fixup;
 pub mod elf_link;
 pub mod pe_link;
 pub mod h00_manual_map_wireup;
+pub mod cwd_guard;
 pub mod pe_manual_map;
 pub mod pe_dll_link;
 pub mod platform;

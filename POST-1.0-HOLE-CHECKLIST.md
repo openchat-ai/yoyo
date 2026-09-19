@@ -56,9 +56,51 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 | **with-sidecar manual-map** | ✅ **Gate A 已绿（PR #26 · `f8eb429`）** | no-sidecar fail-closed + with-sidecar GREEN · **OW-IAT 仍 CUT** |
 
+| **HARD BLOCK — CI Windows AV（需人类）** | 🔴 **本地不可复现 · 已停推** | `pe_dll_link::tests::yoyo_sidecar_export_compile_success_writes_pe` 在 GitHub runner `debug` 构建下 AV（`0xc0000005`）；master 自 **PR #33（`0514933`，09-04）** 起每次红。**2026-09-16 更正：master 是 `build` + `linux-m4` 两个 job 独立红；`linux-m4` 已本地修绿。详见下节** |
+
 | **整仓竣工长杆** | **OW-RT YOYO-built runtime** | Gate D–F 已绿；G 才可能 CLOSED；**禁止**假 CLOSED |
 
 | **勿做** | — | 勿 fake OW-IAT/OW-RT CLOSED；勿启 `AUTO_TO_1.0 ACTIVE=1`；勿 invent Stage 17 |
+
+---
+
+## HARD BLOCK 详情 — CI Windows AV（2026-09-10）
+
+**现象**：CI `build` job（windows-latest）第 6 步 `cargo test -- --test-threads=1`（**debug** 构建、**default features**）崩溃：
+
+```
+process didn't exit successfully:
+  ...target\debug\deps\verifier-*.exe --test-threads=1
+  (exit code: 0xc0000005, STATUS_ACCESS_VIOLATION)
+test pe_dll_link::tests::yoyo_sidecar_export_compile_success_writes_pe ...
+```
+
+崩溃前最后一个成功测试恒为 `yoyo_sidecar_export_compile_no_input_is_exit_2`；崩溃点是**第一个真正调用 `call_export_compile_mapped`（手动映射 + `bootstrap_compile`）的测试**。
+
+**已排除（都有证据）**：
+
+| 假设 | 排除方式 |
+|------|----------|
+| 我引入的回归 | `git checkout a80e02f`（merge-base）跑同命令 → 同样红（`120 passed; 1 failed`）。**预先存在** |
+| `full-backends` vs default features | 两者在**并行**下都失败；default features 下该测试单独跑是绿的 |
+| 并行 cwd 竞态 | 已修（`cwd_guard::TEST_CWD_LOCK`，commit `7366ab1`），并行 32 线程 5/5 绿。但**修完 CI 仍红** → AV 不是 cwd 竞态 |
+| 重定位缺失（`IMAGE_BASE` 固定 `0x100000` 且无 reloc 表） | 已证伪：该 DLL **全部地址访问都是 RIP/栈相对**（`lea rcx,[rip+..]`、`call [rip+..]`、`[rsp+..]`），无绝对 64 位指针 |
+| 栈对齐 | 已核：CALL 前 RSP ≡ 8 (mod 16)，符合 Windows x64 要求 |
+| IAT slot 编号 | 已核：0=CreateFileA 1=WriteFile 2=CloseHandle 3=GetFileAttributesA，与 hint 表一致 |
+| sidecar 版本漂移（本地下有两个 `yoyo_runtime.dll`） | 已核：`runtime_dll_bytes()` 明确优先 `target/release-runtime/` |
+| 本地可复现 | **复现不了**：CI 精确步骤（`cargo build --profile release-runtime -p yoyo-runtime` → `cargo test -- --test-threads=1`）本地 `exit=0`；循环 12 次全绿 |
+
+**剩余差异（唯一已知）**：只有 runner 环境不同。本地 `rustc 1.96.0`；runner 版本未知，DEP/ASLR/地址布局不同。
+
+**下一步需要人类决定**：
+1. **CI 已装好定位器（2026-09-16 · `3da015e`）**：in-harness VEH probe 已就位（`_probe_inproc` / `_probe_subproc`，AV-only 过滤）。**下一次 runner 跑 CI 会在崩溃前打印 `[probe-av] code/rip/image_base_rel/rax/rcx/rdx/rbx/rsp/r12/r13`**，且 `_probe_inproc` 打印 `[probe-inproc] call N` 标记 → 最后一条标记 + `[probe-av]` 行即精确定位到具体指令；
+2. 或由人类把该测试 `#[ignore]` 掉并开 issue，消除持续红噪音（本地 0/12 + 本次全量测试均绿，功能未受影响）。
+
+**禁止**：用 `gh workflow run` / push→等 CI 当调试器（`.cursor/rules/ci-anti-thrash.mdc` H00）。已连续 2 次红 CI，按规则停推。
+
+**2026-09-16 更正（重要）**：master 的持续红是 **`build` + `linux-m4` 两个 job 独立红**，不是单一 `build` job —— 见末尾 2026-09-16 快照。`linux-m4` 的真因是 `min_probe.rs` 的 `#![cfg(windows)]` 使该 bin 在 Linux 上无 `main`（**E0601**，不是当时假设的 E0432），已在 `3da015e` 修掉并用 runner 同代 rustc（1.98.1）在 Linux 上验绿。
+
+---
 
 
 
@@ -278,6 +320,17 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 **Gate G 切片（未勾）：2026-09-04** · in-DLL recompile · `yoyo_in_dll_recompile=PRESENT` · `yoyo_built=IN_DLL_RECOMPILE` · production_default=RUST · oracle ≠ 完整编译器 · **仍 CUT** · **G 仍 `[ ]`**。
 
+**Gate G 切片硬化（未勾）：2026-09-09 · commit `0da9ef1`** · `pe_dll_link` AV 根因定位并修复 · coverage 1→3 fixture · **仍 CUT** · **G 仍 `[ ]`**。
+
+  - **根因（硬证据）**：`mov r13, rcx` 编码错 —— `0x48 0x89 0xCE` 实为 `mov rdx, rcx`（r/m 010），r13 从未赋值 → 手动映射 fresh 状态下 r13=0 → `mov eax,[r13]` 即 `0xC0000005` AV。正确编码 = `0x49 0x89 0xCD`（全 64 位需 REX.W+REX.B，R13 的 r/m 为 101 → ModRM 0xCD）。三天定位靠 `min_probe.rs`（VEH + 异常安全：handler 内零分配）。
+  - **连带修**：oracle 表用绝对 16 边界填充，而发射代码用条目相对 stride `8 + align4(input) + align16(pe)` → fixture 1/2（input 165/289 字节）错配。现统一 16 边界 + stride `16 + align16(input) + align16(pe)`，r13 条目相对。另 ReadFile 返回值原存 r8d 被 CloseHandle 覆盖 → 改存 callee-saved r12d；rbx 承载条目计数。
+  - **验收（本地）**：`cargo test -p verifier --lib --features full-backends` → **123 passed / 0 failed**；`pe_dll_link` 子集 → **26 passed / 0 failed**；`& .\scripts\stage17-ow-rt-yoyo-runtime.ps1` → `status=GREEN` · `yoyo_in_dll_recompile_smoke=GREEN` · `disposition=CUT`。
+  - **诚实状态**：AV 修复 ≠ OW-RT CLOSED。Rust `yoyo_rt.dll` 仍是 production default（`rust_sidecar=PRESENT`）；oracle 表 ≠ 完整 YOYO 编译器。
+  - **2026-09-16 更正**：删除 `PROBE_EXIT_NO_INPUT_IN_DLL_RECOMPILE`（曾 = `EXIT_OK`）。该常量断言「YOYO-built sidecar 在 no-input 时 exit=0 并写表首 PE，与 seed/link 宿主 exit=2 发散」——但代码自本 commit 起就发 `mov eax,2; jmp epilogue`（`jmp_epi_noinput`），测试 `yoyo_sidecar_in_dll_recompile_no_input_is_exit_2` 断言 `EXIT_NO_INPUT` 且两平台通过。**两条路径 fail-closed 一致，无 exit-code 发散**。`0da9ef1` 同时改了对的代码、留了对的常量文本（stale），故静默失真。
+  - **执行证据**：`& .\scripts\stage17-ow-rt-yoyo-runtime.ps1` → `yoyo_in_dll_recompile_smoke=GREEN exit=2 (H_00 loaded in-dll-recompile pe_dll; no input)`、`yoyo_built=IN_DLL_RECOMPILE disposition=CUT`、`status=GREEN`。即真实 H_00 手动映射路径也返回 2 —— 反证「exit=0 写表首 PE」从未成立。**当前不稳定点是 runner-only AV（已装 in-harness VEH probe），不是 exit code。**
+  - **同步修正**：`pe_dll_link.rs` 模块头「no-input exit (3)」→ `EXIT_NO_INPUT` (2)（3 实为 `EXIT_WRITE_FAIL`）；`yoyo_sidecar_in_dll_recompile` doc 改为与宿主一致的 fail-closed 描述。
+  - **下一步**：YOYO-built runtime 替换生产 sidecar（长杆 · 多月），届时才可能推进 OW-RT / OW-IAT CLOSED。
+
 
 
 ---
@@ -411,5 +464,15 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 
 
 **当前分支诚实快照（2026-09-04 · Gate G 切片）：** path 2 A–F · G 切片 in-DLL recompile · `closed=0 cut=7` · OW-RT **CUT**（`yoyo_in_dll_recompile=PRESENT` · `yoyo_built=IN_DLL_RECOMPILE` · Rust production default PRESENT · oracle ≠ 完整 YOYO 编译器）· **G 仍 `[ ]`** · **无 tag**
+
+**当前分支诚实快照（2026-09-09 · Gate G 切片硬化 · commit `0da9ef1`）：** path 2 A–F · G 切片 in-DLL recompile **AV 已修**（`mov r13,rcx` = `49 89 CD`）· oracle scan 16 字节对齐 · coverage 1→3 fixture · 本地 `123 passed` / `pe_dll_link 26 passed` / `stage17-ow-rt-yoyo-runtime.ps1 status=GREEN` · OW-RT **仍 CUT**（Rust `yoyo_rt.dll` production default PRESENT · oracle ≠ 完整 YOYO 编译器 · H_00 no-input 宿主发散已文档化）· `closed=0 cut=7` · **G 仍 `[ ]`** · **无 tag**
+
+**当前分支诚实快照（2026-09-16 · 定位修正 + linux-m4 修绿 · commit `3da015e`）：** 修正 `2026-09-10` 快照的一处误记 —— master 自 `0514933` 起是 **`build` 与 `linux-m4` 两个 job 独立红**，非单一 `build` job。
+
+- **`linux-m4` 根因（已修，本地验绿）**：`min_probe.rs` 的 `#![cfg(windows)]` 使该 bin 在 Linux 上没有任何 item → 无 `main` → build step **E0601 `main` function not found in crate `min_probe`**。`2753cdc` 正是引入这个 guard 的 commit，所以它的 linux-m4 仍是红的。改为 `#[cfg(windows)] mod win` + 全平台保留真实 `main`；**Linux 实测**（WSL rustc **1.98.1**，与 runner 同代，`build-linux-h00-tramp.sh` → `cargo clean -p verifier -p yoyo-runtime` → `cargo build --release -p verifier`）`min_probe` **debug 与 release 均构建成功**。
+- **`build` job Windows AV（HARD BLOCK · 未解）**：仍为 runner-only AV（本地 0/12，本次全量 `cargo test -p verifier` 亦 0 fail）。新增两个 in-harness probe（`_probe_inproc` / `_probe_subproc`）在完全相同的调用前装 VEH 打印 RIP + 寄存器，**一次 CI 即可拿到定位数据**。handler 的 context 取自 `EXCEPTION_POINTERS`（与 `min_probe` 一致）而非 `GetCurrentThreadContext` —— 后者 **kernel32/advapi32/dbghelp/ntdll 均无导出**（dumpbin 证实），早前草稿因此 LNK2019 链接失败。
+- **本地门禁全绿**：`cargo test -p verifier` **125 + 179 passed / 0 failed**；`stage17-ow-rt-yoyo-runtime.ps1` `status=GREEN`；`stage17-ow-iat-wireup.ps1` `status=GREEN`；`golden`/`backends`/`ddc`/`gen12`/`lock` 全 `exit=0`。
+- **诚实状态**：OW-RT **仍 CUT**（`production_default=RUST` · Rust `yoyo_rt.dll` PRESENT · oracle ≠ 完整 YOYO 编译器）· `closed=0 cut=7` · **G 仍 `[ ]`** · **无 tag**
+
 
 
