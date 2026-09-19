@@ -2189,6 +2189,12 @@ mod tests {
     /// not exported by any system DLL on this platform (verified via dumpbin)
     /// and therefore does not link. `usize::MAX` keeps the normal unwind path
     /// so a runner AV still fails the test; this only adds the diagnostic line.
+    ///
+    /// No `SEEN`-style once-guard: the two probe tests run in the same test
+    /// binary, so a single-report limit meant whichever AV fired first
+    /// consumed the one shot and the other probe lost its context. Every AV
+    /// gets a diagnostic line; non-AV exceptions still fall through via
+    /// the `code` check below.
     #[cfg(windows)]
     extern "system" fn probe_av_handler(
         ep: *mut std::os::raw::c_void,
@@ -2196,7 +2202,8 @@ mod tests {
     ) -> usize {
         use std::sync::atomic::{AtomicUsize, Ordering};
         static SEEN: AtomicUsize = AtomicUsize::new(0);
-        if ep.is_null() || SEEN.fetch_add(1, Ordering::Relaxed) >= 1 {
+        let n = SEEN.fetch_add(1, Ordering::Relaxed);
+        if ep.is_null() {
             return usize::MAX;
         }
         unsafe {
@@ -2206,8 +2213,7 @@ mod tests {
             let code = if rec.is_null() { 0u32 } else { *rec };
             // Only report access violations. This VEH is armed for the whole
             // test process, and non-AV exceptions (e.g. `0xe06d7363` SEH on
-            // Windows) otherwise consume the single report before the AV we
-            // are actually looking for.
+            // Windows) otherwise would add noise to the diagnostic line.
             if code != 0xC000_0005 {
                 return usize::MAX;
             }
@@ -2228,7 +2234,8 @@ mod tests {
             const CTX_RIP: usize = 0xF8;
             let rip = r(CTX_RIP);
             eprintln!(
-                "[probe-av] code=0x{:08x} rip=0x{:x} image_base_rel=0x{:x} rax=0x{:x} rcx=0x{:x} rdx=0x{:x} rbx=0x{:x} rsp=0x{:x} r12=0x{:x} r13=0x{:x}",
+                "[probe-av] #{} code=0x{:08x} rip=0x{:x} image_base_rel=0x{:x} rax=0x{:x} rcx=0x{:x} rdx=0x{:x} rbx=0x{:x} rsp=0x{:x} r12=0x{:x} r13=0x{:x}",
+                n,
                 code,
                 rip,
                 rip.wrapping_sub(IMAGE_BASE),
