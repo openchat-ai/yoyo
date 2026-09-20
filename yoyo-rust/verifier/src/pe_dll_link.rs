@@ -2188,13 +2188,20 @@ mod tests {
     /// `src/bin/min_probe.rs`) — **not** `GetCurrentThreadContext`, which is
     /// not exported by any system DLL on this platform (verified via dumpbin)
     /// and therefore does not link. `usize::MAX` keeps the normal unwind path
-    /// so a runner AV still fails the test; this only adds the diagnostic line.
+    /// so a runner crash still fails the test; this only adds the diagnostic
+    /// line.
     ///
     /// No `SEEN`-style once-guard: the two probe tests run in the same test
     /// binary, so a single-report limit meant whichever AV fired first
-    /// consumed the one shot and the other probe lost its context. Every AV
-    /// gets a diagnostic line; non-AV exceptions still fall through via
-    /// the `code` check below.
+    /// consumed the one shot and the other probe lost its context. Every
+    /// crash gets a diagnostic line; the code filter below only drops
+    /// exceptions we know are unrelated.
+    ///
+    /// Reportable codes: `0xC0000005` (AV, the runner crash observed at
+    /// 09-09), `0xC0000409` (STATUS_STACK_BUFFER_OVERRUN, the runner crash
+    /// observed at 09-20 on `_probe_inproc`). The `/GS` stack canary is a
+    /// debug-build-only guard, which is why this only surfaces under CI's
+    /// `cargo test` (debug) and not under `cargo test --release`.
     #[cfg(windows)]
     extern "system" fn probe_av_handler(
         ep: *mut std::os::raw::c_void,
@@ -2211,10 +2218,11 @@ mod tests {
             let ep = ep as *mut usize;
             let rec = *ep.offset(0) as *mut u32;
             let code = if rec.is_null() { 0u32 } else { *rec };
-            // Only report access violations. This VEH is armed for the whole
-            // test process, and non-AV exceptions (e.g. `0xe06d7363` SEH on
-            // Windows) otherwise would add noise to the diagnostic line.
-            if code != 0xC000_0005 {
+            // Only report the crash classes we're diagnosing. This VEH is
+            // armed for the whole test process, and other exceptions (e.g.
+            // `0xe06d7363` SEH on Windows) would add noise to the
+            // diagnostic line.
+            if code != 0xC000_0005 && code != 0xC000_0409 {
                 return usize::MAX;
             }
             let ctx = *ep.offset(1) as *mut u8;
