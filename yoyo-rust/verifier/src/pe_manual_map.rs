@@ -755,7 +755,10 @@ mod tests {
     use super::*;
 
     /// `SetCurrentDirectoryA` is process-global; serialize cwd-based smokes via
-    /// the one shared lock in [`crate::cwd_guard`].
+    /// the one shared lock in [`crate::cwd_guard`]. `#[cfg(windows)]` because
+    /// the lock lives only there (cwd mutation is a Windows concern); the
+    /// callers are all `#[cfg(windows)]` tests.
+    #[cfg(windows)]
     fn manual_map_smoke_cwd_lock() -> std::sync::MutexGuard<'static, ()> {
         crate::cwd_guard::test_cwd_lock()
     }
