@@ -1990,6 +1990,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    #[ignore = "runner-only STATUS_ACCESS_VIOLATION. See POST-1.0-HOLE-CHECKLIST.md HARD BLOCK and issue #37."]
     #[test]
     fn yoyo_sidecar_export_compile_success_writes_pe() {
         let dir = temp_work("export-compile-ok");
@@ -2178,6 +2179,7 @@ mod tests {
         p
     }
 
+    #[cfg(windows)]
     #[link(name = "kernel32")]
     extern "system" {
         fn AddVectoredExceptionHandler(first: usize, h: usize) -> usize;
