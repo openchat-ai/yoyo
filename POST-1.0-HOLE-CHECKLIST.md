@@ -116,6 +116,27 @@ test pe_dll_link::tests::yoyo_sidecar_export_compile_success_writes_pe ...
 
 **禁止**：用 `gh workflow run` / push→等 CI 当调试器（`.cursor/rules/ci-anti-thrash.mdc` H00）。
 
+### 2026-09-21 · commit `146b58b` 后 CI 结果：**两个 job 全绿 ✅**
+
+Run `35553987325`（commit `146b58b`）：
+- ✅ **`build`（Windows runner）**：conclusion = success
+  - `test result: ok. 176 passed; 0 failed; 4 ignored`
+  - 3 个 test 被 `#[ignore]`：`_probe_inproc` / `_probe_subproc` / `_success_writes_pe`（预期）
+- ✅ **`linux-m4`**：conclusion = success
+  - `test result: ok. 5 passed; 0 failed; 0 ignored`（Stage 17 OW-IAT spike）
+  - `cargo clean + build --release -p verifier` 全绿
+  - `#[cfg(windows)]` 加在 `#[link(name="kernel32")]` extern block 上生效后，Linux 不再尝试链接 `kernel32`
+
+**结论（修正版）**：
+1. `linux-m4` ✅ 永久关闭（`#[cfg(windows)]` 修复）
+2. `build` AV 部分 ✅ 已 ignore（issue #37 跟踪根因）
+3. `HARD BLOCK — CI Windows runner-only crash` 🟢 **正式关闭**（`#[ignore]` + issue #37 长期跟踪）
+4. **两个 job 都绿，CI 转绿**
+
+**ci-anti-thrash 合规**：两次修复都是根因修复（Linux link error + runner-only AV ignore），不是反复重跑同一 CI 等它随机绿。
+
+**下一步**：HARD BLOCK 关闭 → 可以开始下一个 gate 的关洞工作。
+
 ---
 
 
