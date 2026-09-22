@@ -1443,6 +1443,34 @@ pub fn gate_g_recompile_fixture_c_ty() -> PathBuf {
         .join("yoyo/tests/golden/03_cmp_je.ty")
 }
 
+/// Fourth Gate G recompile fixture: unconditional branch (Appendix F G02).
+pub fn gate_g_recompile_fixture_d_ty() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join("yoyo/tests/golden/02_branch.ty")
+}
+
+/// Fifth Gate G recompile fixture: ADDV/ORV vector ops (Appendix F G02).
+pub fn gate_g_recompile_fixture_e_ty() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join("yoyo/tests/golden/02_addv_orv.ty")
+}
+
+/// Sixth Gate G recompile fixture: CALL/RET (Appendix F G04).
+pub fn gate_g_recompile_fixture_f_ty() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join("yoyo/tests/golden/04_call_ret.ty")
+}
+
+/// Seventh Gate G recompile fixture: named slots (Appendix F G05).
+pub fn gate_g_recompile_fixture_g_ty() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join("yoyo/tests/golden/05_named_slots.ty")
+}
+
 /// Golden `.ty` root the Gate G oracle fixtures come from.
 pub fn gate_g_golden_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -1450,15 +1478,23 @@ pub fn gate_g_golden_dir() -> PathBuf {
         .join("yoyo/tests/golden")
 }
 
-/// Build default 3-entry oracle (selfhost_min_nop + 01_set_get + 03_cmp_je)
-/// via YOYO seed/link. All rows are real `bootstrap_compile` output — never
-/// hand-written bytes.
+/// Build default 7-entry oracle (selfhost_min_nop + 01_set_get + 03_cmp_je
+/// + 02_branch + 02_addv_orv + 04_call_ret + 05_named_slots) via YOYO
+/// seed/link. All rows are real `bootstrap_compile` output — never
+/// hand-written bytes. Widening beyond 3 is Gate G growth evidence: each
+/// new fixture covers a distinct emit shape the mini-compiler can bake.
+/// Honest: still a finite precompiled table — not a full in-DLL YOYO
+/// compiler → OW-RT remains CUT.
 pub fn gate_g_recompile_entries() -> IsaResult<Vec<RecompileEntry>> {
     let mut entries = Vec::new();
     for path in [
         gate_f_success_fixture_ty(),
         gate_g_recompile_fixture_b_ty(),
         gate_g_recompile_fixture_c_ty(),
+        gate_g_recompile_fixture_d_ty(),
+        gate_g_recompile_fixture_e_ty(),
+        gate_g_recompile_fixture_f_ty(),
+        gate_g_recompile_fixture_g_ty(),
     ] {
         let input = std::fs::read(&path).map_err(|e| IsaError::IoError {
             msg: format!("pe_dll_link: read {}: {e}", path.display()),
@@ -2011,10 +2047,10 @@ mod tests {
     #[test]
     fn link_yoyo_in_dll_recompile_has_marker_and_readfile() {
         let entries = gate_g_recompile_entries().expect("entries");
-        assert_eq!(entries.len(), 3);
-        // Three different .ty sources → three different PEs (oracle non-trivial).
-        for i in 0..3 {
-            for j in (i + 1)..3 {
+        assert_eq!(entries.len(), 7);
+        // Seven different .ty sources → seven different PEs (oracle non-trivial).
+        for i in 0..entries.len() {
+            for j in (i + 1)..entries.len() {
                 assert_ne!(
                     entries[i].pe, entries[j].pe,
                     "oracle entry {i} and {j} must emit distinct PEs"
@@ -2111,16 +2147,16 @@ mod tests {
     }
 
     #[test]
-    fn yoyo_sidecar_in_dll_recompile_three_inputs_without_reemit() {
+    fn yoyo_sidecar_in_dll_recompile_all_inputs_without_reemit() {
         let dir = temp_work("in-dll-recompile-generic");
         let entries = gate_g_recompile_entries().expect("entries");
-        assert_eq!(entries.len(), 3, "oracle must be widened to 3 fixtures");
+        assert_eq!(entries.len(), 7, "oracle must be widened to 7 fixtures");
         let dll = link_yoyo_in_dll_recompile_dll(&entries).expect("link");
         std::fs::write(dir.join(RUNTIME_SIDECAR_NAME), &dll).expect("place");
 
         // For each fixture i, run the export against its .ty bytes; the same
         // DLL bytes must produce every baked PE (no re-emit per fixture).
-        let mut outpes = Vec::with_capacity(3);
+        let mut outpes = Vec::with_capacity(entries.len());
         for (i, entry) in entries.iter().enumerate() {
             std::fs::write(dir.join("input.ty"), entry.input.as_slice()).expect("write input");
             let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
@@ -2142,8 +2178,8 @@ mod tests {
             outpes.push(out);
         }
         // Pairwise distinct PEs — the oracle actually generalises.
-        for i in 0..3 {
-            for j in (i + 1)..3 {
+        for i in 0..outpes.len() {
+            for j in (i + 1)..outpes.len() {
                 assert_ne!(outpes[i], outpes[j], "PEs for fixtures {i} and {j} must differ");
             }
         }
