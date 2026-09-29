@@ -66,6 +66,41 @@ Stage 9-C: may check [x]
 3. `yoyo.ty` (3326 lines) is IR/handler orchestration — **not** a full YOYO-written compiler source.
 4. Closing OW-SEED requires a **non-Rust emit path** (YOYO compiler self-bootstrap) — multi-month long pole; not this observe tick.
 
+## Fixed-point extension (2026-09-30)
+
+YOYO-built PE as emitter (not Rust `yoyo.exe`):
+
+```text
+gen4 (H_00 YOYO PE) → gen5
+gen5 ≡ gen4  (.text DDC EQUAL + full-file sha256 EQUAL)
+disposition = CUT  (gen1 seed still from Rust yoyo.exe)
+```
+
+| Field | Value |
+|-------|-------|
+| **emitter this step** | `scripts/_stage9-pure-m4/gen4.exe` (YOYO PE · not Rust) |
+| **output** | `scripts/_stage9-pure-m4/gen5.exe` |
+| **gen5 bytes** | `251392` |
+| **gen4 sha256_prefix** | `b0a8dbb0d3133e2a` |
+| **gen5 sha256_prefix** | `b0a8dbb0d3133e2a` |
+| **full-file EQUAL** | YES |
+| **`.text` DDC** | EQUAL · compared_bytes=`20992` · hash=`1ec3766f…` |
+
+**Proves:** once past the Rust seed, the YOYO H_00 PE is a **stable fixed-point emitter** (genN→genN+1 ≡ genN).
+
+**Does not prove:** OW-SEED CLOSED — the *first* seed (`gen1`) is still `yoyo link` from Rust `yoyo.exe`. Fixed-point after seed ≠ replacing the seed emitter.
+
+### Repro (fixed-point)
+
+```powershell
+cd F:\yoyo\scripts\_stage9-pure-m4
+# after stage9-pure-m4.ps1 left gen4.exe + input.tyb/input.ky
+& .\gen4.exe
+Copy-Item -Force output.exe gen5.exe
+& F:\yoyo\yoyo-rust\target\release\yoyo.exe diff gen5.exe gen4.exe
+# expect DDC: EQUAL; file hashes equal
+```
+
 ## Repro
 
 ```powershell

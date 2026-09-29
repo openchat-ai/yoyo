@@ -527,5 +527,7 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 - **gen4 .text** sha256_prefix=`1ec3766f` · file sha256_prefix=`b0a8dbb0`
 - **诚实状态**：OW-SEED **仍 CUT**（Rust `yoyo.exe` 仍发射 seed）· OW-RT **仍 CUT** · `closed=0 cut=7` · **G 仍 `[ ]`** · **无 tag** · **本 tick 仅 observe，不宣称 CLOSED / 不 invent 自举源码**
 
+**当前分支诚实快照（2026-09-30 · OW-SEED fixed-point · 纯文档）：** gen4（YOYO PE）→ gen5 · **gen5 ≡ gen4**（`.text` DDC EQUAL + full-file sha256 EQUAL · prefix `b0a8dbb0d3133e2a`）。证明：越过 Rust seed 之后，H_00 YOYO PE 是**稳定定点发射器**。**仍 CUT**——`gen1` 仍由 Rust `yoyo.exe link` 发射；定点 ≠ 替换 seed emitter。详见 `SCOPE-CUT-v1.0-ow-seed-observe.md` Fixed-point extension。`closed=0 cut=7` · **G 仍 `[ ]`** · **无 tag**
+
 
 
