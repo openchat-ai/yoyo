@@ -520,5 +520,12 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 - **预期效果**：`build` job 那个崩溃消失，CI 应绿；`linux-m4` job 由 `3da015e` 的 `min_probe` E0601 修复 + 09-16 的 `build-linux-h00-tramp.sh` CRLF 修复后应也绿。**若忽略后 CI 仍红，说明还有别的问题**，不是这个 AV/STACK_BUFFER。
 - **诚实状态**：OW-RT **仍 CUT**（`production_default=RUST` · Rust `yoyo_rt.dll` PRESENT · oracle ≠ 完整 YOYO 编译器）· `closed=0 cut=7` · **G 仍 `[ ]`** · **无 tag** · **本次 commit 目的仅是消除 runner-only 红噪音 + 验证 CI 转绿，不动实质 gate 状态**
 
+**当前分支诚实快照（2026-09-29 · OW-SEED observe · 纯文档）：** stage9-pure-m4 **GREEN** · gen1→gen4 H_00 纯链 · gen4≡gen3_direct `.text` DDC EQUAL · `bootstrap --selfhost` NOT USED。OW-SEED pin 已机器记录于 `SCOPE-CUT-v1.0-ow-seed-observe.md`：
+
+- **emitter** `yoyo.exe` bytes=`22292992` sha256_prefix=`52f0a813b354a0f5`
+- **seed** `gen1.exe` bytes=`251392` sha256_prefix=`b0a8dbb0d3133e2a` · `SEED_HOST path=h00` · ≡ on-disk
+- **gen4 .text** sha256_prefix=`1ec3766f` · file sha256_prefix=`b0a8dbb0`
+- **诚实状态**：OW-SEED **仍 CUT**（Rust `yoyo.exe` 仍发射 seed）· OW-RT **仍 CUT** · `closed=0 cut=7` · **G 仍 `[ ]`** · **无 tag** · **本 tick 仅 observe，不宣称 CLOSED / 不 invent 自举源码**
+
 
 
