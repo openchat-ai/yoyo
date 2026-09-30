@@ -362,9 +362,11 @@ Run `35553987325`（commit `146b58b`）：
 
   - **实验（2026-09-30 · RED）**：`stage17-ow-seed-no-rust-sidecar.ps1` · gen4 + in-DLL-recompile YOYO sidecar → **exit=1 · output 缺失**（对照组 gen4 + Rust sidecar → exit=0）· 证明当前 YOYO sidecar **不能**替换 Rust runtime  
 
-  - **目标**：YOYO PE 发射 seed 时 cwd **无** Rust `yoyo_rt.dll`（YOYO-built runtime / 等价）  
+  - **I-1 分析（2026-09-30）**：`gen4.exe` 有 **0 个 PE import**（自带 loader + syscall）· 只从 `yoyo_rt.dll` 要 **1 个导出** `yoyo_runtime_h00_compile` · 现有 YOYO sidecar 只导出 `yoyo_runtime_selfhost_main`（+ marker）· **导出差集 = `{yoyo_runtime_h00_compile}`** · **这是 exit=1 的根因**  
 
-  - **依赖**：OW-RT 长杆（D–F 基础设施）；与 OW-RT CLOSED 同量级 · **月级**  
+  - **范围澄清**：I 不是"换语言重写 H_00"，是**扩充 YOYO pe_dll 的 codegen 导出面**到覆盖完整 H_00 ISA（当前只覆盖 7 个 oracle fixture）；比"月级"精确，但也不是小时级  
+
+  - **目标**：YOYO PE 发射 seed 时 cwd **无** Rust `yoyo_rt.dll`（YOYO-built runtime / 等价）  
 
   - **诚实**：实验 RED 是证据，不是失败；做完前 OW-SEED **必 CUT**
 
@@ -579,7 +581,7 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 
 **当前分支诚实快照（2026-09-30 · 快速收敛 G+H）：** **H 已 `[x]`** · `ow-seed-trust-root.pin` + `stage17-ow-seed-trust-root.ps1` GREEN · emit 依赖 pin。**上半截收敛完毕**（操作发射 + 钉死信任根 · 仍 CUT）。下一项 **I**（去 Rust sidecar）起才是月级长杆。`closed=0 cut=7` · **J 未勾** · **无假 CLOSED**
 
-**当前分支诚实快照（2026-09-30 · Gate I 实验 RED）**：`stage17-ow-seed-no-rust-sidecar.ps1` · gen4 + YOYO in-DLL-recompile sidecar（无 Rust `yoyo_rt.dll`）→ **exit=1 · 无 output**；对照 gen4 + Rust sidecar → exit=0（seed `b0a8dbb0…`）。**证明**现有 YOYO sidecar 不能顶 Rust runtime。I 仍 `[ ]` · 月级 · **J 未勾**
+**当前分支诚实快照（2026-09-30 · I-1 分析）**：`gen4.exe` 自带 PE loader / syscall（0 个 PE import）· 只从 `yoyo_rt.dll` 要 1 个导出 `yoyo_runtime_h00_compile` · YOYO in-DLL-recompile pe_dll 目前只导出 `yoyo_runtime_selfhost_main` + `yoyo_in_dll_recompile` marker · **差集 = `{yoyo_runtime_h00_compile}`** · 这是 Gate I 实验 exit=1 的根因 · I 因此从"月级"精化为"扩 codegen 到完整 H_00 ISA"。**I 仍 `[ ]` · J 未勾** · `closed=0 cut=7` · **无假 CLOSED**
 
 
 

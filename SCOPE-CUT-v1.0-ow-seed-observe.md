@@ -187,6 +187,72 @@ cd F:\yoyo
 # expect status=RED reason=yoyo_sidecar_cannot_replace_rust_runtime
 ```
 
+## I-1 analysis — gen4.exe runtime contract (2026-09-30)
+
+Reverse-engineered what `gen4.exe` actually needs from `yoyo_rt.dll`. This
+**explains** the Gate I experiment RED and gives a concrete target for I.
+
+### gen4.exe PE structure
+
+```text
+sections:         2 (no `.rdata` with typical import dir)
+import dir:       empty (rva=0x0 size=0x0)
+data dirs set:    1 only (reloc, size=25)
+```
+
+**Interpretation:** `gen4.exe` has **no standard Windows import table**. The
+strings `kernel32.dll`, `ReadFile`, `ExitProcess`, `yoyo_rt.dll` are string
+literals **inside code** — gen4 implements its own PE loader, does its own
+syscall / syscall-like dispatch for `ReadFile` / `ExitProcess`, and does
+its own DLL resolution against `yoyo_rt.dll` by parsing that DLL's export
+table itself.
+
+### What gen4 actually calls into `yoyo_rt.dll`
+
+- Symbol: **`yoyo_runtime_h00_compile`** (H_00 compile entry point, invoked
+  via gen4's own GetProcAddress-equivalent path).
+
+### What YOYO in-DLL-recompile sidecar actually exports
+
+- `yoyo_runtime_selfhost_main`
+- `yoyo_in_dll_recompile` (marker string only)
+
+### Export gap
+
+| Symbol needed by gen4 | Present in in-DLL-recompile pe_dll? |
+|---|---|
+| `yoyo_runtime_h00_compile` | **NO** ✗ |
+
+**This is the exact reason Gate I experiment returned exit=1 with no output:**
+gen4 couldn't resolve its one required export.
+
+### Implication for Gate I scope
+
+- **Not** "migrate H_00 runtime to a new language." The runtime already exists
+  (Rust).
+- **Not** "write N thousand lines of H_00 interpreter from scratch." The
+  compiler already emits H_00 bytecode; only the **link-time packaging** is
+  the issue.
+- **Actually** = make YOYO's in-DLL-recompile pe_dll emit an **equivalent
+  export surface** for `yoyo_runtime_h00_compile`, using the same
+  oracle-table + codegen machinery that already produces 7 fixtures ×
+  2-ABI parity. This is a **bounded engineering task** — not month-scale
+  from today's evidence, but still not hours-scale (oracle needs to cover
+  full H_00 instruction set, not just 7 fixtures).
+
+### I-1 result
+
+```text
+gen4_import_dir_entries:      0
+gen4_dll_dependencies:        0
+gen4_expected_exports:        [yoyo_runtime_h00_compile]
+yoyo_sidecar_actual_exports:  [yoyo_runtime_selfhost_main, yoyo_in_dll_recompile]
+gap:                          yoyo_runtime_h00_compile missing
+disposition:                  CUT (still)
+next_step:                    expand YOYO pe_dll codegen to emit
+                              yoyo_runtime_h00_compile with full H_00 ISA
+```
+
 ## Repro
 
 ```powershell
