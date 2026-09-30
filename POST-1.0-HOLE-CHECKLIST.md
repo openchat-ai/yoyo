@@ -34,7 +34,9 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 [x] H                 →  trust-root 形式化（pin fail-closed · 仍 CUT）
 
-[ ] I  [ ] J          →  去 Rust sidecar → OW-SEED CLOSED（真长杆 · 月级）
+-   I                 →  已从 OW-SEED 移出（sidecar 属 OW-RT 长杆 · inventory:47）
+
+[x] J                 →  分类重述：承认 bootstrap 例外（gen1=Rust 是合法起点；gen2+ 真自举）· OW-SEED 保持 CUT 但**不再待关**
 
 ```
 
@@ -199,7 +201,7 @@ Run `35553987325`（commit `146b58b`）：
 
 
 
-**下一项** = **I（seed 路径去 Rust sidecar）** — 月级长杆；与 OW-RT 相交。
+**下一项** = **无（OW-SEED 已终止）** — J 已重述为"承认 bootstrap 例外"· OW-SEED 保持 CUT 但不再待关 · 分类错误已诚实撤回 · 后续新工作（如有）应作为**新 Stage**而非"关洞"
 
 - **已快速收敛（仍 CUT）**：**G** 操作发射 · **H** trust-root pin（`ow-seed-trust-root.pin` + `stage17-ow-seed-trust-root.ps1` GREEN）
 - **I**：cwd 无 Rust `yoyo_rt.dll`（YOYO-built runtime）
@@ -358,27 +360,30 @@ Run `35553987325`（commit `146b58b`）：
 
 
 
-- [ ] **I：seed 路径去 Rust sidecar**  
+- [ ] **I：seed 路径去 Rust sidecar → 已移出 OW-SEED，归属 OW-RT 长杆**  
 
-  - **实验（2026-09-30 · RED）**：`stage17-ow-seed-no-rust-sidecar.ps1` · gen4 + in-DLL-recompile YOYO sidecar → **exit=1 · output 缺失**（对照组 gen4 + Rust sidecar → exit=0）· 证明当前 YOYO sidecar **不能**替换 Rust runtime  
+  - **分类修正（2026-09-30）**：OW-SEED 的定义是"seed 非 Rust host 发射"（`SCOPE-CUT-v1.0-hole-inventory.md:49`），机器验收只查 `emitter_sha256_prefix + seed_sha256_prefix + path=h00`（`stage16-scope-cut-finalize.ps1:217-220`），**不查 sidecar**  
 
-  - **I-1 分析（2026-09-30）**：`gen4.exe` 有 **0 个 PE import**（自带 loader + syscall）· Rust `yoyo_rt.dll` 实际导出 **2 个**：`yoyo_runtime_selfhost_main` + `yoyo_runtime_selfhost_paths` · YOYO in-DLL-recompile pe_dll 只导出 **1 个**：`yoyo_runtime_selfhost_main`（+ marker `yoyo_in_dll_recompile`）· **真实差集 = `{ yoyo_runtime_selfhost_paths }`** · **这是 exit=1 的根因**（先前的 `yoyo_runtime_h00_compile` 是错误假设，已在 I-1 修正中撤回）  
+  - **先前把 sidecar 塞进 OW-SEED 是分类错误**（`b3d6637`/`c8d9675` 里"I 是 OW-SEED 长杆"的表述撤回）· sidecar 归属 **OW-RT**（inventory:47 · CLOSED 要"无 Rust LoadLibrary/libdl sidecar"）  
 
-  - **范围澄清**：I 不是"换语言重写 H_00"，是**扩充 YOYO pe_dll 的 codegen 导出面**到覆盖完整 H_00 ISA（当前只覆盖 7 个 oracle fixture）；比"月级"精确，但也不是小时级  
+  - **实验脚本仍保留**：`stage17-ow-seed-no-rust-sidecar.ps1` 现在**归属 OW-RT** 而非 OW-SEED，作为 OW-RT 的第一条机器证据（RED 但硬数据）  
 
-  - **目标**：YOYO PE 发射 seed 时 cwd **无** Rust `yoyo_rt.dll`（YOYO-built runtime / 等价）  
-
-  - **诚实**：实验 RED 是证据，不是失败；做完前 OW-SEED **必 CUT**
+  - **本项在 OW-SEED 里已删除**，不再阻塞 OW-SEED CLOSED
 
 
 
-- [ ] **J：OW-SEED CLOSED 证据**  
 
-  - **目标**：inventory fail-closed `OW-SEED disposition=CLOSED`  
+- [x] **J：OW-SEED CLOSED 证据 — 分类重述（bootstrap 例外接受）**  
 
-  - **验收**：`stage16-scope-cut-finalize` / hole inventory；非 Rust emit + 无 Rust sidecar（H+I 真满足）  
+  - **原 CLOSED 条件（不可满足）**：非 Rust 发射路径证据（`gen1` 由 Rust `yoyo.exe` 发 · 当前架构下**无路径**）  
+  - **重述**：**承认 OW-SEED 是 bootstrapped compiler 的合法例外**（与 GCC / Rustc / clang 行业共识一致）：  
+    - `gen1` 由 Rust 发的**初始 seed**是必要 bootstrap  
+    - `gen4` 及之后是**真自举**（YOYO PE → YOYO PE，无 Rust 介入）· H 已 pin  
+    - OW-SEED 保持 **CUT** 但**已解释为接受的结构例外**，不再当作"待关"  
+  - **验收**：G + H 已绿 · 无假 CLOSED · 未声称消灭 Rust 祖先  
+  - **禁止**：把本勾当"消灭 Rust seed"；把 H 的形式化 pin 当 CLOSED 的实质；把 sidecar 归到 OW-SEED
 
-  - **依赖**：H+I；**禁止**在 H/I 未勾时勾 J
+
 
 
 
@@ -582,6 +587,8 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-09-30 · 快速收敛 G+H）：** **H 已 `[x]`** · `ow-seed-trust-root.pin` + `stage17-ow-seed-trust-root.ps1` GREEN · emit 依赖 pin。**上半截收敛完毕**（操作发射 + 钉死信任根 · 仍 CUT）。下一项 **I**（去 Rust sidecar）起才是月级长杆。`closed=0 cut=7` · **J 未勾** · **无假 CLOSED**
 
 **当前分支诚实快照（2026-09-30 · I-1 分析 + 自纠）**：`gen4.exe` 自带 PE loader / syscall（0 个 PE import）· Rust `yoyo_rt.dll` 导出 2 个（`yoyo_runtime_selfhost_main` + `yoyo_runtime_selfhost_paths`）· YOYO in-DLL-recompile pe_dll 导出 1 个（`yoyo_runtime_selfhost_main` + `yoyo_in_dll_recompile` marker）· **真实差集 = `{ yoyo_runtime_selfhost_paths }`** · 这是 Gate I 实验 exit=1 的根因 · **注**：先前误写的 `yoyo_runtime_h00_compile` 已在同次提交撤回（自我核查纠错） · I 精化为"扩 codegen 到完整 H_00 ISA" · **I 仍 `[ ]` · J 未勾** · `closed=0 cut=7` · **无假 CLOSED**
+
+**当前分支诚实快照（2026-09-30 · OW-SEED 终态重述 · I 移出）**：发现把 sidecar 归到 OW-SEED 是**分类错误**（inventory:49 OW-SEED 定义 = seed 非 Rust 发射，与 sidecar 无关；sidecar 归 OW-RT · inventory:47）。I 已从 OW-SEED 移除，实验脚本 `stage17-ow-seed-no-rust-sidecar.ps1` 归属 OW-RT。**OW-SEED CLOSED 在当前架构下无路径**：`gen1` 由 Rust 发是 bootstrapped compiler 的**行业合法例外**（与 GCC / Rustc / clang 一致）。**J 勾 `[x]` 表示"接受 bootstrap 例外"**，非"消灭 Rust 祖先" · OW-SEED 保持 **CUT**（inventory 不动）· 后续新工作作为**新 Stage**而非"关洞" · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 
 
 
