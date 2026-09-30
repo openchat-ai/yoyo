@@ -101,6 +101,39 @@ Copy-Item -Force output.exe gen5.exe
 # expect DDC: EQUAL; file hashes equal
 ```
 
+## YOYO PE emit seed (2026-09-30 · Gate G slice)
+
+Operational path: **seed emitted by YOYO PE**, not by Rust `yoyo.exe` on the emit step.
+
+```text
+emitter = emitter_gen4.exe (YOYO H_00 PE)
+seed_yoyo ≡ seed_rust  (full-file + .text DDC EQUAL)
+rust_yoyo_exe_on_emit_step = ABSENT
+disposition = CUT
+```
+
+| Field | Value |
+|-------|-------|
+| **gate** | `scripts/stage17-ow-seed-yoyo-emit.ps1` |
+| **status** | GREEN |
+| **emitter** | `scripts/_stage17-ow-seed-yoyo-emit/emitter_gen4.exe` · kind=YOYO_PE · bytes=`251392` · sha256_prefix=`b0a8dbb0d3133e2a` |
+| **seed_yoyo** | `seed_yoyo.exe` · bytes=`251392` · sha256_prefix=`b0a8dbb0d3133e2a` |
+| **seed_rust** | contrast only · same sha · via `yoyo link` |
+| **parity** | `.text` DDC EQUAL · full-file EQUAL |
+| **Rust on emit step** | ABSENT |
+
+**Proves:** there is a machine-checkable emit path whose emitter basename is a YOYO PE, and the seed bytes match Rust `yoyo link`.
+
+**Does not prove CLOSED:** emitter provenance still chains to stage9 `gen1` from Rust `yoyo.exe`. Sidecar `yoyo_rt.dll` (Rust) still required at H_00 cwd. CLOSED needs seed with **no Rust in provenance**.
+
+### Repro (YOYO emit)
+
+```powershell
+cd F:\yoyo
+& .\scripts\stage17-ow-seed-yoyo-emit.ps1
+# expect OW_SEED_EMIT status=GREEN disposition=CUT
+```
+
 ## Repro
 
 ```powershell
