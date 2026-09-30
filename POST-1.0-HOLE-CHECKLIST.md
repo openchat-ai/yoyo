@@ -16,7 +16,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 > **基线**：Stage 16 已毕业（2026-08-29）；tag `v1.0.0`；Lock pin `0275802d…`（Decision #25）；Gate C 重测 `HOLE_INVENTORY_V10 status=FINAL` · **closed=0 cut=7**（OW-H00 因 full `.text` DIFF 回 CUT · 禁止假 CLOSED）。  
 
-> **整仓竣工**：语言轨 v1.0 已毕业 ≠ 七洞全 CLOSED。默认长杆 = **OW-SEED 自举**（Gate G · 多月）；OW-RT 去 sidecar 为后续；REL-FULLTEXT **永不**作毕业 CLOSED；REL-STUBOS 待生产 I/O。
+> **整仓竣工**：语言轨 v1.0 已毕业 ≠ 七洞全 CLOSED。OW-SEED 长杆分相 **G（操作）→H→I→J（CLOSED）**；OW-RT 去 sidecar 与 **I** 相交；REL-FULLTEXT **永不**作毕业 CLOSED；REL-STUBOS 待生产 I/O。
 
 
 
@@ -30,9 +30,13 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 [x] D  [x] E  [x] F   →  OW-RT DLL emit + origin stub + YOYO-built effect（仍 CUT）
 
-[ ] G                 →  自举 / OW-SEED CLOSED（非 Rust `yoyo.exe` 发射 seed）
+[x] G                 →  OW-SEED 操作发射链（YOYO multi-hop emit GREEN · 仍 CUT · ≠ CLOSED）
+
+[ ] H  [ ] I  [ ] J   →  OW-SEED 长杆分相（trust-root → 去 sidecar → CLOSED）
 
 ```
+
+> **为何拆 H/I/J（2026-09-30）**：自举真 CLOSED 是月级长杆。把它塞进单个未勾的 **G**，会把「多月工程」伪装成「再继续两下就完」。**G = 已做完的操作发射证据**；**H/I/J = 长杆分相**；**禁止**把 J 之前的切片 Greened 说成 OW-SEED CLOSED。
 
 
 
@@ -58,9 +62,9 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 | **HARD BLOCK — CI Windows runner-only crash（已 ignore · issue [#37](https://github.com/openchat-ai/yoyo/issues/37) 跟踪）** | 🟢 **已关闭（CI 转绿）** | runner-only AV/`0xC0000409`：probe + `success_writes_pe` 已 `#[ignore]`；`-lkernel32` 已 `#[cfg(windows)]`；run `35553987325`/`35703768045` success。根因仍 issue #37 跟踪 |
 
-| **整仓竣工长杆** | **OW-SEED 自举**（默认 `继续`） | Gate G = 非 Rust seed 发射；OW-RT 去 sidecar 仍是后续依赖，**不是**当前默认步；**禁止**假 CLOSED |
+| **整仓竣工长杆** | **OW-SEED 自举 · H→J**（默认 `继续`=**H**） | G=操作发射链已勾（仍 CUT）；H trust-root → I 去 Rust sidecar → J 才可能 OW-SEED CLOSED；**禁止**假 CLOSED |
 
-| **勿做** | — | 勿 fake OW-IAT/OW-RT/OW-SEED CLOSED；勿启 `AUTO_TO_1.0 ACTIVE=1`；勿 invent Stage 17；勿把定点/oracle 当 CLOSED |
+| **勿做** | — | 勿 fake OW-IAT/OW-RT/OW-SEED CLOSED；勿启 `AUTO_TO_1.0 ACTIVE=1`；勿 invent Stage 17；勿把定点/oracle/multi-hop 当 CLOSED；勿再空测 hop3+ |
 
 ---
 
@@ -185,7 +189,7 @@ Run `35553987325`（commit `146b58b`）：
 
 | **触发词** | `继续` / `关洞` / `post-1.0` / `path 2` / `整仓竣工`（**非** `ACTIVE=1` AUTO） |
 
-| **单轨** | A→B→C→D→E→F→**G(自举)**；一项 per tick；本地验绿再勾 |
+| **单轨** | A→B→C→D→E→F→**G**→**H→I→J**；一项 per tick；本地验绿再勾 |
 
 | **AUTO** | `ACTIVE=0` → **停**；读本看板，**不** invent Stage 17 |
 
@@ -193,11 +197,13 @@ Run `35553987325`（commit `146b58b`）：
 
 
 
-**下一项** = **G（自举 / OW-SEED）** — 非 Rust `yoyo.exe` 发射 seed → OW-SEED 才可能 CLOSED。
+**下一项** = **H（trust-root 形式化）** — 钉死 YOYO PE trust-root（SHA + 门禁），承认血统仍含一次 Rust；**仍 CUT**。
 
-- **已钉（仍 CUT）**：stage9 H_00 gen1→gen4 GREEN；gen4→gen5 定点 ≡ gen4；`stage17-ow-seed-yoyo-emit.ps1` GREEN（YOYO PE 发射 seed ≡ Rust link · emit 步无 `yoyo.exe`）；见 `SCOPE-CUT-v1.0-ow-seed-observe.md`
-- **本 tick 默认方向**：继续缩「血统仍含 Rust / cwd Rust sidecar」面（最小可执行切片），**禁止**假 CLOSED
-- **明确不是默认步**：生产去 Rust sidecar（旧 G / OW-RT）— 那是 OW-RT 后续长杆，依赖自举推进后再议；D–F 与 in-DLL recompile 切片保留为已完成的 OW-RT 基础设施（仍 CUT）
+- **G 已勾（2026-09-30）**：操作发射链 — `stage17-ow-seed-yoyo-emit.ps1` hops=2 GREEN · emit 步无 `yoyo.exe` · **≠** OW-SEED CLOSED
+- **H**：形式化 trust-root pin（拒绝未 pin 的 emitter / 机器可钉）
+- **I**：seed 路径去 Rust `yoyo_rt.dll`（叠 OW-RT 长杆）
+- **J**：inventory OW-SEED CLOSED 证据（仅 H+I 真满足后才可勾）
+- **禁止**：假 CLOSED；空测 hop3+
 
 
 
@@ -239,11 +245,11 @@ Run `35553987325`（commit `146b58b`）：
 
 | **OW-STUB** | CUT | A/C | `stub_tail_nonzero==0`（需去 stub / 并入可比窗） |
 
-| **OW-RT** | CUT | **D→F**（G 已改道自举） | **YOYO-built** runtime；无 Rust `yoyo_rt.dll` / `.so` 宿主信任（长杆 · **非**当前默认 `继续`） |
+| **OW-RT** | CUT | **D→F** · 与 **I** 相交 | **YOYO-built** runtime；无 Rust `yoyo_rt.dll` / `.so` 宿主信任（长杆） |
 
-| **OW-IAT** | CUT | A/C→G+ | 无 `yoyo_rt.dll` sidecar 标记（依赖 OW-RT 去 sidecar 或内嵌 YOYO runtime） |
+| **OW-IAT** | CUT | A/C→I+ | 无 `yoyo_rt.dll` sidecar 标记（依赖 OW-RT 去 sidecar） |
 
-| **OW-SEED** | CUT | **G（默认）** | 非 Rust `yoyo.exe` 发射路径证据（自举） |
+| **OW-SEED** | CUT | **G→J** | G=操作发射；H=trust-root；I=去 sidecar；**J=CLOSED** |
 
 | **REL-FULLTEXT** | CUT | C | **设计上不毕业 CLOSED**（DIFF→CUT；EQUAL 仅 PARTIAL） |
 
@@ -255,7 +261,7 @@ Run `35553987325`（commit `146b58b`）：
 
 
 
-## 关洞三门（A / B / C）+ 整仓竣工（D→G）
+## 关洞三门（A / B / C）+ 整仓竣工（D→J）
 
 
 
@@ -327,25 +333,45 @@ Run `35553987325`（commit `146b58b`）：
 
 
 
-- [ ] **G：自举 / OW-SEED CLOSED 证据**（**2026-09-30 纠正**：原「生产去 Rust sidecar → OW-RT CLOSED」不再是默认 `继续` 步）
+- [x] **G：OW-SEED 操作发射链** — **2026-09-30**  
 
-  - **目标**：seed 发射路径不再依赖 Rust `yoyo.exe`（非 Rust host 发射证据）→ inventory 才可能 `OW-SEED disposition=CLOSED`
+  - **验收**：`& .\scripts\stage17-ow-seed-yoyo-emit.ps1` → `OW_SEED_EMIT status=GREEN` · `hops=2` · `rust_yoyo_exe_on_emit_hops=ABSENT` · seed ≡ Rust link ✅  
 
-  - **验收**：`stage16-scope-cut-finalize` / hole inventory 含 OW-SEED CLOSED；emitter 非 Rust `yoyo.exe`；seed 仍 `path=h00` 且机器可钉
+  - **产物**：`SCOPE-CUT-v1.0-ow-seed-observe.md` · stage9 定点 gen4→gen5  
 
-  - **依赖**：D–F（OW-RT 发射基础设施已在）；OW-RT 去 sidecar / OW-IAT CLOSED **不是**本门默认前置，属后续长杆
+  - **诚实状态**：**OW-SEED 仍 CUT** · trust-root 血统仍含 Rust gen1 · cwd 仍需 Rust `yoyo_rt.dll` · **≠ CLOSED**  
 
-  - **已完成切片（仍 CUT · 勿勾 CLOSED）**：
-    - stage9-pure-m4：H_00 gen1→gen4 GREEN · gen4≡gen3_direct `.text` DDC
-    - OW-SEED observe pin：emitter/seed size+sha256_prefix（`SCOPE-CUT-v1.0-ow-seed-observe.md`）
-    - fixed-point：gen4（YOYO PE）→ gen5 ≡ gen4（稳定发射器；**gen1 仍 Rust seed**）
-    - **YOYO PE emit seed（2026-09-30）**：`stage17-ow-seed-yoyo-emit.ps1` GREEN · **hops=2**（gen4→seed_yoyo→seed2）· `rust_yoyo_exe_on_emit_hops=ABSENT` · 全 ≡ · **仍 CUT**（trust-root 血统仍含 Rust gen1；cwd 仍需 Rust `yoyo_rt.dll`）
+  - **信任链**：emit 步可用 YOYO PE 多跳发射；**不**消除 Rust 血统 / sidecar · **G 勾 = 操作证据，不是洞 CLOSED**
 
-  - **历史 OW-RT 切片（保留 · 非本门默认）**：in-DLL recompile oracle 3→7 · `yoyo_built=IN_DLL_RECOMPILE` · `production_default=RUST` · **仍 CUT** — 见 `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`
 
-  - **Win 本地**：`& .\scripts\stage9-pure-m4.ps1`；`& .\scripts\stage17-ow-seed-yoyo-emit.ps1`；定点 gen4→gen5；读 `SCOPE-CUT-v1.0-ow-seed-observe.md`
 
-  - **诚实**：定点 / hash pin / GREEN ≠ CLOSED；`yoyo.ty` 非完整编译器源码
+- [ ] **H：trust-root 形式化**  
+
+  - **目标**：机器钉死 YOYO PE trust-root（SHA/size）；未 pin 则门禁 RED；明确「一次 Rust 血统」边界  
+
+  - **验收**：门禁/文档可复现 pin；`disposition=CUT`  
+
+  - **诚实**：pin ≠ 无 Rust 血统；**≠** OW-SEED CLOSED
+
+
+
+- [ ] **I：seed 路径去 Rust sidecar**  
+
+  - **目标**：YOYO PE 发射 seed 时 cwd **无** Rust `yoyo_rt.dll`（YOYO-built runtime / 等价）  
+
+  - **依赖**：OW-RT 长杆（D–F 基础设施）；与 OW-RT CLOSED 同量级  
+
+  - **诚实**：做完前 OW-SEED **必 CUT**
+
+
+
+- [ ] **J：OW-SEED CLOSED 证据**  
+
+  - **目标**：inventory fail-closed `OW-SEED disposition=CLOSED`  
+
+  - **验收**：`stage16-scope-cut-finalize` / hole inventory；非 Rust emit + 无 Rust sidecar（H+I 真满足）  
+
+  - **依赖**：H+I；**禁止**在 H/I 未勾时勾 J
 
 
 
@@ -357,7 +383,7 @@ Run `35553987325`（commit `146b58b`）：
 
 
 
-### 整仓竣工进度（D→G · 无假 CLOSED）
+### 整仓竣工进度（D→J · 无假 CLOSED）
 
 
 
@@ -367,20 +393,14 @@ Run `35553987325`（commit `146b58b`）：
 
 **Gate F 完成：2026-09-04** · YOYO-built R→C→W effect · `yoyo_built=EFFECT` · **仍 CUT**。  
 
-**Gate G 切片（未勾 · 旧 OW-RT 定义 · 历史）：2026-09-04** · in-DLL recompile · `yoyo_in_dll_recompile=PRESENT` · `yoyo_built=IN_DLL_RECOMPILE` · production_default=RUST · oracle ≠ 完整编译器 · **仍 CUT**。
+**Gate G 完成：2026-09-30** · OW-SEED **操作发射链** · `stage17-ow-seed-yoyo-emit.ps1` hops=2 GREEN · **OW-SEED 仍 CUT** · **≠ CLOSED** · **G 已 `[x]`**。
 
-**Gate G 切片硬化（未勾 · 旧 OW-RT · 历史）：2026-09-09 · commit `0da9ef1`** · `pe_dll_link` AV 根因定位并修复 · coverage 1→3 fixture · **仍 CUT**。
+**历史（旧「G=去 Rust sidecar / in-DLL」定义，保留证据）：** in-DLL recompile · oracle 3→7 · `0da9ef1` AV 修 · 现归 D–F/OW-RT 基础设施，**不是**现行 G。
 
-**Gate G 纠正（未勾 · 现行定义 · 2026-09-30）：** 默认 `继续` = **自举 / OW-SEED**，不再是「生产去 Rust sidecar → OW-RT CLOSED」。OW-RT in-DLL / oracle 切片保留为已完成基础设施（仍 CUT）。OW-SEED observe + gen4→gen5 定点已钉（仍 CUT · gen1 仍 Rust seed）。**G 仍 `[ ]`** · **禁止假 CLOSED**。
+**Gate H/I/J（未勾 · 2026-09-30 开相）：** 长杆分相 — H trust-root → I 去 sidecar → J OW-SEED CLOSED。**禁止**未完成 H+I 勾 J。
 
-  - **根因（硬证据）**：`mov r13, rcx` 编码错 —— `0x48 0x89 0xCE` 实为 `mov rdx, rcx`（r/m 010），r13 从未赋值 → 手动映射 fresh 状态下 r13=0 → `mov eax,[r13]` 即 `0xC0000005` AV。正确编码 = `0x49 0x89 0xCD`（全 64 位需 REX.W+REX.B，R13 的 r/m 为 101 → ModRM 0xCD）。三天定位靠 `min_probe.rs`（VEH + 异常安全：handler 内零分配）。
-  - **连带修**：oracle 表用绝对 16 边界填充，而发射代码用条目相对 stride `8 + align4(input) + align16(pe)` → fixture 1/2（input 165/289 字节）错配。现统一 16 边界 + stride `16 + align16(input) + align16(pe)`，r13 条目相对。另 ReadFile 返回值原存 r8d 被 CloseHandle 覆盖 → 改存 callee-saved r12d；rbx 承载条目计数。
-  - **验收（本地）**：`cargo test -p verifier --lib --features full-backends` → **123 passed / 0 failed**；`pe_dll_link` 子集 → **26 passed / 0 failed**；`& .\scripts\stage17-ow-rt-yoyo-runtime.ps1` → `status=GREEN` · `yoyo_in_dll_recompile_smoke=GREEN` · `disposition=CUT`。
-  - **诚实状态**：AV 修复 ≠ OW-RT CLOSED。Rust `yoyo_rt.dll` 仍是 production default（`rust_sidecar=PRESENT`）；oracle 表 ≠ 完整 YOYO 编译器。
-  - **2026-09-16 更正**：删除 `PROBE_EXIT_NO_INPUT_IN_DLL_RECOMPILE`（曾 = `EXIT_OK`）。该常量断言「YOYO-built sidecar 在 no-input 时 exit=0 并写表首 PE，与 seed/link 宿主 exit=2 发散」——但代码自本 commit 起就发 `mov eax,2; jmp epilogue`（`jmp_epi_noinput`），测试 `yoyo_sidecar_in_dll_recompile_no_input_is_exit_2` 断言 `EXIT_NO_INPUT` 且两平台通过。**两条路径 fail-closed 一致，无 exit-code 发散**。`0da9ef1` 同时改了对的代码、留了对的常量文本（stale），故静默失真。
-  - **执行证据**：`& .\scripts\stage17-ow-rt-yoyo-runtime.ps1` → `yoyo_in_dll_recompile_smoke=GREEN exit=2 (H_00 loaded in-dll-recompile pe_dll; no input)`、`yoyo_built=IN_DLL_RECOMPILE disposition=CUT`、`status=GREEN`。即真实 H_00 手动映射路径也返回 2 —— 反证「exit=0 写表首 PE」从未成立。**当前不稳定点是 runner-only AV（已装 in-harness VEH probe），不是 exit code。**
-  - **同步修正**：`pe_dll_link.rs` 模块头「no-input exit (3)」→ `EXIT_NO_INPUT` (2)（3 实为 `EXIT_WRITE_FAIL`）；`yoyo_sidecar_in_dll_recompile` doc 改为与宿主一致的 fail-closed 描述。
-  - **下一步（现行）**：默认 `继续` = OW-SEED 自举（替换 Rust seed emitter）；OW-RT 生产去 sidecar 降为后续长杆，不再作为 G 默认步。
+  - **根因（硬证据 · 旧 in-DLL AV · 历史）**：`mov r13, rcx` 编码错 —— `0x48 0x89 0xCE` 实为 `mov rdx, rcx`（r/m 010），r13 从未赋值 → 手动映射 fresh 状态下 r13=0 → `mov eax,[r13]` 即 `0xC0000005` AV。正确编码 = `0x49 0x89 0xCD`。详见既有 commits / `pe_dll_link.rs`。
+  - **下一步（现行）**：默认 `继续` = **H**（trust-root 形式化）；勿空测 hop3+；勿假 CLOSED。
 
 
 
@@ -498,7 +518,7 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 
 2. **OW-IAT / OW-RT GREEN ≠ CLOSED** — sidecar / Rust runtime 仍在则必 CUT。
 
-3. **整仓竣工长杆诚实** — 默认长杆 = **OW-SEED 自举**（多月）；OW-RT 去 sidecar 为后续；Gate D 只是发射基础设施；定点/oracle ≠ CLOSED。
+3. **整仓竣工长杆诚实** — OW-SEED 分相 **G→H→I→J**（月级）；G 勾 ≠ CLOSED；勿把长杆塞回单个未勾门。
 
 4. **CI anti-thrash** — 本地 smoke 先绿；连续 2 次红 CI → 停推。
 
@@ -548,6 +568,8 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-09-30 · OW-SEED YOYO PE emit · Gate G 切片）：** `stage17-ow-seed-yoyo-emit.ps1` **GREEN** · emitter=`emitter_gen4.exe` (YOYO PE) · `rust_yoyo_exe_on_emit_step=ABSENT` · seed_yoyo ≡ seed_rust（full-file + `.text` DDC · prefix `b0a8dbb0d3133e2a`）。**仍 CUT**：emitter 血统仍经 stage9 Rust gen1；H_00 cwd 仍需 Rust `yoyo_rt.dll`。CLOSED 要「血统里无 Rust」。`closed=0 cut=7` · **G 仍 `[ ]`** · **无 tag**
 
 **当前分支诚实快照（2026-09-30 · OW-SEED multi-hop emit）：** hops=2 · gen4→seed_yoyo→seed2 · 两跳 emit 均无 Rust `yoyo.exe` · seed2 ≡ seed_yoyo ≡ seed_rust · `rust_sidecar_cwd=PRESENT` · **仍 CUT**（trust-root / sidecar）。`closed=0 cut=7` · **G 仍 `[ ]`**
+
+**当前分支诚实快照（2026-09-30 · 长杆拆相 G/H/I/J）：** 承认「自举真 CLOSED 藏在单个 G」是错误看板结构。**G 已 `[x]`** = 操作发射链证据（multi-hop GREEN · 仍 CUT · ≠ CLOSED）。新开 **H** trust-root · **I** 去 Rust sidecar · **J** OW-SEED CLOSED。默认 `继续`=**H**。`closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 
 
 
