@@ -32,11 +32,13 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 [x] G                 →  OW-SEED 操作发射链（YOYO multi-hop emit GREEN · 仍 CUT · ≠ CLOSED）
 
-[ ] H  [ ] I  [ ] J   →  OW-SEED 长杆分相（trust-root → 去 sidecar → CLOSED）
+[x] H                 →  trust-root 形式化（pin fail-closed · 仍 CUT）
+
+[ ] I  [ ] J          →  去 Rust sidecar → OW-SEED CLOSED（真长杆 · 月级）
 
 ```
 
-> **为何拆 H/I/J（2026-09-30）**：自举真 CLOSED 是月级长杆。把它塞进单个未勾的 **G**，会把「多月工程」伪装成「再继续两下就完」。**G = 已做完的操作发射证据**；**H/I/J = 长杆分相**；**禁止**把 J 之前的切片 Greened 说成 OW-SEED CLOSED。
+> **为何拆 H/I/J（2026-09-30）**：自举真 CLOSED 是月级长杆。**G+H 可快速收敛**（操作发射 + trust-root pin）；**I→J** 才是换 runtime 的月级活。**禁止**把 G/H Greened 说成 OW-SEED CLOSED。
 
 
 
@@ -62,7 +64,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。**ROADMAP 止于 Stage 16
 
 | **HARD BLOCK — CI Windows runner-only crash（已 ignore · issue [#37](https://github.com/openchat-ai/yoyo/issues/37) 跟踪）** | 🟢 **已关闭（CI 转绿）** | runner-only AV/`0xC0000409`：probe + `success_writes_pe` 已 `#[ignore]`；`-lkernel32` 已 `#[cfg(windows)]`；run `35553987325`/`35703768045` success。根因仍 issue #37 跟踪 |
 
-| **整仓竣工长杆** | **OW-SEED 自举 · H→J**（默认 `继续`=**H**） | G=操作发射链已勾（仍 CUT）；H trust-root → I 去 Rust sidecar → J 才可能 OW-SEED CLOSED；**禁止**假 CLOSED |
+| **整仓竣工长杆** | **I→J**（去 Rust sidecar → OW-SEED CLOSED） | **G+H 已快速收敛**（操作发射 + trust-root pin · 仍 CUT）；I 起才是月级；**禁止**假 CLOSED |
 
 | **勿做** | — | 勿 fake OW-IAT/OW-RT/OW-SEED CLOSED；勿启 `AUTO_TO_1.0 ACTIVE=1`；勿 invent Stage 17；勿把定点/oracle/multi-hop 当 CLOSED；勿再空测 hop3+ |
 
@@ -197,13 +199,12 @@ Run `35553987325`（commit `146b58b`）：
 
 
 
-**下一项** = **H（trust-root 形式化）** — 钉死 YOYO PE trust-root（SHA + 门禁），承认血统仍含一次 Rust；**仍 CUT**。
+**下一项** = **I（seed 路径去 Rust sidecar）** — 月级长杆；与 OW-RT 相交。
 
-- **G 已勾（2026-09-30）**：操作发射链 — `stage17-ow-seed-yoyo-emit.ps1` hops=2 GREEN · emit 步无 `yoyo.exe` · **≠** OW-SEED CLOSED
-- **H**：形式化 trust-root pin（拒绝未 pin 的 emitter / 机器可钉）
-- **I**：seed 路径去 Rust `yoyo_rt.dll`（叠 OW-RT 长杆）
-- **J**：inventory OW-SEED CLOSED 证据（仅 H+I 真满足后才可勾）
-- **禁止**：假 CLOSED；空测 hop3+
+- **已快速收敛（仍 CUT）**：**G** 操作发射 · **H** trust-root pin（`ow-seed-trust-root.pin` + `stage17-ow-seed-trust-root.ps1` GREEN）
+- **I**：cwd 无 Rust `yoyo_rt.dll`（YOYO-built runtime）
+- **J**：仅 I 真满足后 OW-SEED CLOSED
+- **禁止**：假 CLOSED；空测 hop3+；把 G/H 说成洞 CLOSED
 
 
 
@@ -345,13 +346,15 @@ Run `35553987325`（commit `146b58b`）：
 
 
 
-- [ ] **H：trust-root 形式化**  
+- [x] **H：trust-root 形式化** — **2026-09-30**  
 
-  - **目标**：机器钉死 YOYO PE trust-root（SHA/size）；未 pin 则门禁 RED；明确「一次 Rust 血统」边界  
+  - **验收**：`& .\scripts\stage17-ow-seed-trust-root.ps1` → `OW_SEED_TRUST_ROOT status=GREEN`；pin=`scripts/ow-seed-trust-root.pin`（bytes+sha256 fail-closed）；emit 门禁依赖 H ✅  
 
-  - **验收**：门禁/文档可复现 pin；`disposition=CUT`  
+  - **产物**：`ow-seed-trust-root.pin` · gen4 sha256=`b0a8dbb0d3133e2a7f763fe79af19975bb2f2f505b0fed1d625d0e8b8f793a74`  
 
-  - **诚实**：pin ≠ 无 Rust 血统；**≠** OW-SEED CLOSED
+  - **诚实状态**：**OW-SEED 仍 CUT** · pin 明确 `provenance=rust_stage9_gen1_then_H00_chain` · **≠ CLOSED**  
+
+  - **信任链**：接受一颗钉死的 YOYO PE 作操作信任根；**不**消除 Rust 血统
 
 
 
@@ -397,10 +400,9 @@ Run `35553987325`（commit `146b58b`）：
 
 **历史（旧「G=去 Rust sidecar / in-DLL」定义，保留证据）：** in-DLL recompile · oracle 3→7 · `0da9ef1` AV 修 · 现归 D–F/OW-RT 基础设施，**不是**现行 G。
 
-**Gate H/I/J（未勾 · 2026-09-30 开相）：** 长杆分相 — H trust-root → I 去 sidecar → J OW-SEED CLOSED。**禁止**未完成 H+I 勾 J。
+**Gate H 完成：2026-09-30** · trust-root pin fail-closed · `stage17-ow-seed-trust-root.ps1` GREEN · **仍 CUT** · **H 已 `[x]`**。
 
-  - **根因（硬证据 · 旧 in-DLL AV · 历史）**：`mov r13, rcx` 编码错 —— `0x48 0x89 0xCE` 实为 `mov rdx, rcx`（r/m 010），r13 从未赋值 → 手动映射 fresh 状态下 r13=0 → `mov eax,[r13]` 即 `0xC0000005` AV。正确编码 = `0x49 0x89 0xCD`。详见既有 commits / `pe_dll_link.rs`。
-  - **下一步（现行）**：默认 `继续` = **H**（trust-root 形式化）；勿空测 hop3+；勿假 CLOSED。
+**Gate I/J（未勾）：** 真长杆 — I 去 Rust sidecar → J OW-SEED CLOSED。**G+H = 可快速收敛的上半截；I 起才是月级。**
 
 
 
@@ -570,6 +572,8 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-09-30 · OW-SEED multi-hop emit）：** hops=2 · gen4→seed_yoyo→seed2 · 两跳 emit 均无 Rust `yoyo.exe` · seed2 ≡ seed_yoyo ≡ seed_rust · `rust_sidecar_cwd=PRESENT` · **仍 CUT**（trust-root / sidecar）。`closed=0 cut=7` · **G 仍 `[ ]`**
 
 **当前分支诚实快照（2026-09-30 · 长杆拆相 G/H/I/J）：** 承认「自举真 CLOSED 藏在单个 G」是错误看板结构。**G 已 `[x]`** = 操作发射链证据（multi-hop GREEN · 仍 CUT · ≠ CLOSED）。新开 **H** trust-root · **I** 去 Rust sidecar · **J** OW-SEED CLOSED。默认 `继续`=**H**。`closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+
+**当前分支诚实快照（2026-09-30 · 快速收敛 G+H）：** **H 已 `[x]`** · `ow-seed-trust-root.pin` + `stage17-ow-seed-trust-root.ps1` GREEN · emit 依赖 pin。**上半截收敛完毕**（操作发射 + 钉死信任根 · 仍 CUT）。下一项 **I**（去 Rust sidecar）起才是月级长杆。`closed=0 cut=7` · **J 未勾** · **无假 CLOSED**
 
 
 

@@ -133,9 +133,27 @@ disposition = CUT
 
 ```powershell
 cd F:\yoyo
-& .\scripts\stage17-ow-seed-yoyo-emit.ps1
-# expect OW_SEED_EMIT status=GREEN hops=2 disposition=CUT
+& .\scripts\stage17-ow-seed-trust-root.ps1   # Gate H
+& .\scripts\stage17-ow-seed-yoyo-emit.ps1    # Gate G (depends on H)
+# expect both status=GREEN disposition=CUT
 ```
+
+## Gate H — trust-root pin (2026-09-30)
+
+| Field | Value |
+|-------|-------|
+| **pin file** | `scripts/ow-seed-trust-root.pin` |
+| **gate** | `scripts/stage17-ow-seed-trust-root.ps1` |
+| **status** | GREEN |
+| **root** | `scripts/_stage9-pure-m4/gen4.exe` |
+| **bytes** | `251392` |
+| **sha256** | `b0a8dbb0d3133e2a7f763fe79af19975bb2f2f505b0fed1d625d0e8b8f793a74` |
+| **provenance** | `rust_stage9_gen1_then_H00_chain` |
+| **disposition** | CUT |
+
+**Proves:** trust-root is machine-pinned; drift → RED.
+
+**Does not prove CLOSED:** pin explicitly records Rust ancestry; cwd Rust sidecar still required (Gate I).
 
 ## Repro
 

@@ -20,6 +20,13 @@ Set-Location $Root
 
 Write-Host "=== Post-v1.0: OW-SEED Gate G slice (YOYO PE emit seed · multi-hop) ==="
 
+# Gate H: fail-closed trust-root pin before emit hops
+& (Join-Path $Root "scripts\stage17-ow-seed-trust-root.ps1") @PSBoundParameters
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "OW_SEED_EMIT status=RED reason=trust_root_pin_failed"
+    exit 1
+}
+
 $Yoyo = Join-Path $Root "yoyo-rust\target\release\yoyo.exe"
 $Ty = Join-Path $Root "yoyo\projects\yoyo.ty"
 $Tyb = Join-Path $Root "yoyo\projects\yoyo.tyb"
