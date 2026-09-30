@@ -209,19 +209,21 @@ table itself.
 
 ### What gen4 actually calls into `yoyo_rt.dll`
 
-- Symbol: **`yoyo_runtime_h00_compile`** (H_00 compile entry point, invoked
-  via gen4's own GetProcAddress-equivalent path).
+**Honest note:** `gen4.exe` contains the string `yoyo_rt.dll` but **no
+`yoyo_runtime*` symbol string** anywhere in its bytes. It invokes the DLL's
+entry point by name through its own PE loader, resolving the symbol name
+against the DLL's export table at runtime — so the required symbol name
+lives in gen4's code instructions, not in a visible string literal.
 
-### What YOYO in-DLL-recompile sidecar actually exports
+The Rust reference runtime `yoyo_rt.dll` exports exactly two symbols:
 
-- `yoyo_runtime_selfhost_main`
-- `yoyo_in_dll_recompile` (marker string only)
-
-### Export gap
-
-| Symbol needed by gen4 | Present in in-DLL-recompile pe_dll? |
+| Rust `yoyo_rt.dll` exports | Present in YOYO in-DLL-recompile pe_dll? |
 |---|---|
-| `yoyo_runtime_h00_compile` | **NO** ✗ |
+| `yoyo_runtime_selfhost_main` | **YES** ✓ |
+| `yoyo_runtime_selfhost_paths` | **NO** ✗ |
+
+**Real export gap = `{ yoyo_runtime_selfhost_paths }`** — the path-taking
+compile entry point that gen4's own loader resolves to run H_00.
 
 **This is the exact reason Gate I experiment returned exit=1 with no output:**
 gen4 couldn't resolve its one required export.
@@ -234,7 +236,7 @@ gen4 couldn't resolve its one required export.
   compiler already emits H_00 bytecode; only the **link-time packaging** is
   the issue.
 - **Actually** = make YOYO's in-DLL-recompile pe_dll emit an **equivalent
-  export surface** for `yoyo_runtime_h00_compile`, using the same
+  export surface** for `yoyo_runtime_selfhost_paths`, using the same
   oracle-table + codegen machinery that already produces 7 fixtures ×
   2-ABI parity. This is a **bounded engineering task** — not month-scale
   from today's evidence, but still not hours-scale (oracle needs to cover
@@ -245,12 +247,12 @@ gen4 couldn't resolve its one required export.
 ```text
 gen4_import_dir_entries:      0
 gen4_dll_dependencies:        0
-gen4_expected_exports:        [yoyo_runtime_h00_compile]
-yoyo_sidecar_actual_exports:  [yoyo_runtime_selfhost_main, yoyo_in_dll_recompile]
-gap:                          yoyo_runtime_h00_compile missing
+rust_yoyo_rt_exports:         [yoyo_runtime_selfhost_main, yoyo_runtime_selfhost_paths]
+yoyo_sidecar_actual_exports:  [yoyo_runtime_selfhost_main, yoyo_in_dll_recompile(marker)]
+gap:                          yoyo_runtime_selfhost_paths missing
 disposition:                  CUT (still)
-next_step:                    expand YOYO pe_dll codegen to emit
-                              yoyo_runtime_h00_compile with full H_00 ISA
+next_step:                    expand YOYO pe_dll codegen to also emit
+                              yoyo_runtime_selfhost_paths with full H_00 ISA
 ```
 
 ## Repro

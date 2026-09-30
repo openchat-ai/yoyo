@@ -362,7 +362,7 @@ Run `35553987325`（commit `146b58b`）：
 
   - **实验（2026-09-30 · RED）**：`stage17-ow-seed-no-rust-sidecar.ps1` · gen4 + in-DLL-recompile YOYO sidecar → **exit=1 · output 缺失**（对照组 gen4 + Rust sidecar → exit=0）· 证明当前 YOYO sidecar **不能**替换 Rust runtime  
 
-  - **I-1 分析（2026-09-30）**：`gen4.exe` 有 **0 个 PE import**（自带 loader + syscall）· 只从 `yoyo_rt.dll` 要 **1 个导出** `yoyo_runtime_h00_compile` · 现有 YOYO sidecar 只导出 `yoyo_runtime_selfhost_main`（+ marker）· **导出差集 = `{yoyo_runtime_h00_compile}`** · **这是 exit=1 的根因**  
+  - **I-1 分析（2026-09-30）**：`gen4.exe` 有 **0 个 PE import**（自带 loader + syscall）· Rust `yoyo_rt.dll` 实际导出 **2 个**：`yoyo_runtime_selfhost_main` + `yoyo_runtime_selfhost_paths` · YOYO in-DLL-recompile pe_dll 只导出 **1 个**：`yoyo_runtime_selfhost_main`（+ marker `yoyo_in_dll_recompile`）· **真实差集 = `{ yoyo_runtime_selfhost_paths }`** · **这是 exit=1 的根因**（先前的 `yoyo_runtime_h00_compile` 是错误假设，已在 I-1 修正中撤回）  
 
   - **范围澄清**：I 不是"换语言重写 H_00"，是**扩充 YOYO pe_dll 的 codegen 导出面**到覆盖完整 H_00 ISA（当前只覆盖 7 个 oracle fixture）；比"月级"精确，但也不是小时级  
 
@@ -581,7 +581,7 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 
 **当前分支诚实快照（2026-09-30 · 快速收敛 G+H）：** **H 已 `[x]`** · `ow-seed-trust-root.pin` + `stage17-ow-seed-trust-root.ps1` GREEN · emit 依赖 pin。**上半截收敛完毕**（操作发射 + 钉死信任根 · 仍 CUT）。下一项 **I**（去 Rust sidecar）起才是月级长杆。`closed=0 cut=7` · **J 未勾** · **无假 CLOSED**
 
-**当前分支诚实快照（2026-09-30 · I-1 分析）**：`gen4.exe` 自带 PE loader / syscall（0 个 PE import）· 只从 `yoyo_rt.dll` 要 1 个导出 `yoyo_runtime_h00_compile` · YOYO in-DLL-recompile pe_dll 目前只导出 `yoyo_runtime_selfhost_main` + `yoyo_in_dll_recompile` marker · **差集 = `{yoyo_runtime_h00_compile}`** · 这是 Gate I 实验 exit=1 的根因 · I 因此从"月级"精化为"扩 codegen 到完整 H_00 ISA"。**I 仍 `[ ]` · J 未勾** · `closed=0 cut=7` · **无假 CLOSED**
+**当前分支诚实快照（2026-09-30 · I-1 分析 + 自纠）**：`gen4.exe` 自带 PE loader / syscall（0 个 PE import）· Rust `yoyo_rt.dll` 导出 2 个（`yoyo_runtime_selfhost_main` + `yoyo_runtime_selfhost_paths`）· YOYO in-DLL-recompile pe_dll 导出 1 个（`yoyo_runtime_selfhost_main` + `yoyo_in_dll_recompile` marker）· **真实差集 = `{ yoyo_runtime_selfhost_paths }`** · 这是 Gate I 实验 exit=1 的根因 · **注**：先前误写的 `yoyo_runtime_h00_compile` 已在同次提交撤回（自我核查纠错） · I 精化为"扩 codegen 到完整 H_00 ISA" · **I 仍 `[ ]` · J 未勾** · `closed=0 cut=7` · **无假 CLOSED**
 
 
 
