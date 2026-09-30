@@ -155,6 +155,38 @@ cd F:\yoyo
 
 **Does not prove CLOSED:** pin explicitly records Rust ancestry; cwd Rust sidecar still required (Gate I).
 
+## Gate I experiment — no Rust sidecar (2026-09-30 · RED)
+
+Try: run pinned YOYO emitter **without** Rust `yoyo_rt.dll`, using the YOYO
+in-DLL-recompile pe_dll as cwd sidecar.
+
+```text
+gate:    scripts/stage17-ow-seed-no-rust-sidecar.ps1
+status:  RED (expected)
+```
+
+| Field | Value |
+|-------|-------|
+| **contrast** gen4 + Rust sidecar | exit=`0` · seed bytes=`251392` · sha256_prefix=`b0a8dbb0d3133e2a` |
+| **YOYO sidecar** | in-DLL-recompile pe_dll · bytes=`1620992` |
+| **experiment** gen4 + YOYO sidecar | exit=`1` · output.exe **absent** |
+| **rust_yoyo_rt_dll_in_cwd** | ABSENT |
+| **disposition** | CUT |
+
+**Proves:** the in-DLL-recompile sidecar **cannot** replace Rust `yoyo_rt.dll` on the
+H_00 seed path. It is an oracle-table sidecar, not a full H_00 runtime contract.
+
+**Does not prove CLOSED:** Gate I remains `[ ]`. Replacing the runtime sidecar is the
+real long pole (multi-month).
+
+### Repro (Gate I experiment)
+
+```powershell
+cd F:\yoyo
+& .\scripts\stage17-ow-seed-no-rust-sidecar.ps1
+# expect status=RED reason=yoyo_sidecar_cannot_replace_rust_runtime
+```
+
 ## Repro
 
 ```powershell

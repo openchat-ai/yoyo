@@ -360,11 +360,13 @@ Run `35553987325`（commit `146b58b`）：
 
 - [ ] **I：seed 路径去 Rust sidecar**  
 
+  - **实验（2026-09-30 · RED）**：`stage17-ow-seed-no-rust-sidecar.ps1` · gen4 + in-DLL-recompile YOYO sidecar → **exit=1 · output 缺失**（对照组 gen4 + Rust sidecar → exit=0）· 证明当前 YOYO sidecar **不能**替换 Rust runtime  
+
   - **目标**：YOYO PE 发射 seed 时 cwd **无** Rust `yoyo_rt.dll`（YOYO-built runtime / 等价）  
 
-  - **依赖**：OW-RT 长杆（D–F 基础设施）；与 OW-RT CLOSED 同量级  
+  - **依赖**：OW-RT 长杆（D–F 基础设施）；与 OW-RT CLOSED 同量级 · **月级**  
 
-  - **诚实**：做完前 OW-SEED **必 CUT**
+  - **诚实**：实验 RED 是证据，不是失败；做完前 OW-SEED **必 CUT**
 
 
 
@@ -403,6 +405,8 @@ Run `35553987325`（commit `146b58b`）：
 **Gate H 完成：2026-09-30** · trust-root pin fail-closed · `stage17-ow-seed-trust-root.ps1` GREEN · **仍 CUT** · **H 已 `[x]`**。
 
 **Gate I/J（未勾）：** 真长杆 — I 去 Rust sidecar → J OW-SEED CLOSED。**G+H = 可快速收敛的上半截；I 起才是月级。**
+
+**Gate I 实验：2026-09-30 · RED（预期内）** · `stage17-ow-seed-no-rust-sidecar.ps1`：gen4 + in-DLL-recompile YOYO sidecar → exit=1 / 无 output；对照 gen4 + Rust sidecar → exit=0。**结论**：现有 YOYO sidecar 是 oracle 表，不是完整 H_00 runtime，**替换不了** Rust `yoyo_rt.dll`。这是月级长杆的第一条机器证据。
 
 
 
@@ -574,6 +578,8 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-09-30 · 长杆拆相 G/H/I/J）：** 承认「自举真 CLOSED 藏在单个 G」是错误看板结构。**G 已 `[x]`** = 操作发射链证据（multi-hop GREEN · 仍 CUT · ≠ CLOSED）。新开 **H** trust-root · **I** 去 Rust sidecar · **J** OW-SEED CLOSED。默认 `继续`=**H**。`closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 
 **当前分支诚实快照（2026-09-30 · 快速收敛 G+H）：** **H 已 `[x]`** · `ow-seed-trust-root.pin` + `stage17-ow-seed-trust-root.ps1` GREEN · emit 依赖 pin。**上半截收敛完毕**（操作发射 + 钉死信任根 · 仍 CUT）。下一项 **I**（去 Rust sidecar）起才是月级长杆。`closed=0 cut=7` · **J 未勾** · **无假 CLOSED**
+
+**当前分支诚实快照（2026-09-30 · Gate I 实验 RED）**：`stage17-ow-seed-no-rust-sidecar.ps1` · gen4 + YOYO in-DLL-recompile sidecar（无 Rust `yoyo_rt.dll`）→ **exit=1 · 无 output**；对照 gen4 + Rust sidecar → exit=0（seed `b0a8dbb0…`）。**证明**现有 YOYO sidecar 不能顶 Rust runtime。I 仍 `[ ]` · 月级 · **J 未勾**
 
 
 
