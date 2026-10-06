@@ -426,7 +426,8 @@ Run `35553987325`（commit `146b58b`）：
 | **S1.1.a** | ✅ 已提交+推送 | TYB parser 骨架（`s1_tyb_parser.rs`） | commit `5804fb3` |
 | **S1.1.b** | ✅ 已本地提交 | IR → x86 emit 骨架（`emit_x86` 函数，NOP+RET 占位） | commit `10a4fdd` |
 | **S1.1.c** | ✅ 已本地提交 | 真 opcode dispatch（`0x30` SET + `0xFF` RET + `0x40` LABEL no-op + unknown→NOP） | commit `9dec4da` |
-| **S1.1.d** | `[ ]` | 扩展 opcode（GET/ADD/SUB/CMP/branches，含两遍 label 解析） | 未开始 |
+| **S1.1.d** | ✅ 已本地提交（有已知 bug，见 commit message） | 扩展 opcode dispatch 到 14 条：+GET/MOVRR/ADD imm/SUB imm/INC/DEC/IMUL/ADDV/ORV/SUBV/CMP | commit `9ef98ea` · **IMUL/ADDV/ORV/SUBV/CMP 有 clobber bug**（两次 load_state_r15 都写 rax，第二次覆盖第一次，需 `load_state_rcx`） |
+| S1.1.e | `[ ]` | 加 `load_state_rcx` helper 修 IMUL/ADDV/ORV/SUBV/CMP clobber bug；GET 参数语义澄清（imm→slot）；两遍 label 解析（`0x40` LABEL + `0x70-0x7A` 分支 + `0x41` CALL） | 未开始 |
 | S1.2 | `[ ]` | 寄存器分配（3-4 个物理寄存器） | 未开始 |
 | S1.3 | `[ ]` | 指令 codegen 覆盖 20 条 op | 未开始 |
 | S1.4 | `[ ]` | PE 封装（把机器码包进输出 PE） | 未开始 |
