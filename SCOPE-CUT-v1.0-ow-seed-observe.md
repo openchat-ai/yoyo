@@ -255,6 +255,45 @@ next_step:                    expand YOYO pe_dll codegen to also emit
                               yoyo_runtime_selfhost_paths with full H_00 ISA
 ```
 
+## Oracle coverage analysis — 关键节点判断 (2026-10-06)
+
+Analysis script: `scripts/_oracle_coverage.py`. Answers the question
+"how far is OW-RT from CLOSED".
+
+### Data
+
+| Layer | Count | Note |
+|---|---|---|
+| in-DLL recompile oracle | **8 fixtures** (`pe_dll_link.rs:1517–1525`) | Baked `.rdata` table |
+| Golden YOYO compiler test suite | **1504 fixtures** across **20 op-families** | Full compiler already handles them |
+| `yoyo-runtime` source | **4566 bytes** (`lib.rs` 2358 + `win_mm_probe.rs` 2207) | Very small target |
+
+### Oracle coverage by op-family
+
+Covered (8): `add, branch, call, cmp, named/slot, nop, ret, set`
+
+Not covered (12, 5.7% of golden volume): `dec, get, handler, inc, jmp,
+ldb, memcpy, mov, mul, or, sub, other`
+
+### Two paths to OW-RT CLOSED — and why one is a trap
+
+| Path | Effort | Effect |
+|---|---|---|
+| **Widen oracle** from 8 → 20+ op-families | **Hours** | Only matches pre-registered inputs; any runtime source edit invalidates the table. **Trap.** |
+| **Real codegen in-DLL** (not a lookup table) | **Months–years** | Handles arbitrary H_00 IR. Real OW-RT CLOSED. |
+| Formal verification (CertiK path) | 5–10 years | Mathematically proven. |
+
+### Verdict
+
+- The **easy fix** (add oracle entries) is a **dead end** — the
+  in-DLL lookup table can only recognize registered inputs, not
+  compile arbitrary H_00 code.
+- The **real fix** is to replace the in-DLL lookup table with a
+  mini-compiler that consumes H_00 IR and emits machine code. This
+  is the true long pole of OW-RT, **month-to-year scale**.
+- OW-SEED has no path (bootstrap exception is industry-standard); OW-IAT
+  is a weeks-scale refactor; **OW-RT is the only real question**.
+
 ## Repro
 
 ```powershell
