@@ -115,6 +115,39 @@ pub fn is_tyb(data: &[u8]) -> bool {
     data.len() >= 4 && &data[0..4] == &TYB_MAGIC
 }
 
+/// S1.1.b — Minimal IR → x86 codegen.
+///
+/// Emits one x86 NOP (0x90) per TYB record, then a final `ret` (0xC3).
+/// NOT real codegen (does not map opcode semantics); proves the pipeline
+/// structure: TybProgram → Vec<u8>.
+///
+/// What this DOES:
+/// - Output length = rec_cnt + 1 (deterministic, testable)
+/// - Every input record produces exactly 1 byte of output
+/// - Terminates with `ret`
+///
+/// What this DOES NOT:
+/// - Map H_00 opcode semantics to correct x86 instructions
+/// - Emit `mov eax, imm` / load / store / branch / call
+/// - Handle labels, branches, or multi-instruction sequences
+///
+/// Those come in S1.1.c (op dispatch), S1.2 (register allocation), S1.3
+/// (state + immediate codegen), S1.4 (PE wrapping), S1.5 (DLL entry rewrite).
+pub struct CodegenOutput {
+    pub text: Vec<u8>,
+}
+
+pub fn emit_x86(prog: &TybProgram) -> CodegenOutput {
+    let mut text = Vec::with_capacity(prog.rec_cnt + 1);
+    for _ in &prog.records {
+        // S1.1.b stub: every record → 1 byte x86 NOP.
+        // Real op dispatch: S1.1.c.
+        text.push(0x90);
+    }
+    text.push(0xC3); // ret
+    CodegenOutput { text }
+}
+
 /// Parse a .tyb file from disk (used by S1 gates / tests).
 pub fn parse_tyb_file(path: &Path) -> Result<TybProgram, ParseError> {
     let data = match std::fs::read(path) {
@@ -205,5 +238,60 @@ mod tests {
         let p = parse_tyb_file(&path).unwrap();
         assert!(p.rec_cnt > 0, "yoyo.tyb should have records");
         assert!(p.records.iter().all(|r| r.argc <= 3), "argc ∈ [0,3]");
+    }
+
+    // --- S1.1.b: emit_x86 codegen ---
+
+    #[test]
+    fn emit_x86_empty_program_emits_ret() {
+        let prog = TybProgram { rec_cnt: 0, records: Vec::new() };
+        let out = emit_x86(&prog);
+        assert_eq!(out.text, vec![0xC3]);
+    }
+
+    #[test]
+    fn emit_x86_one_record_one_nop_plus_ret() {
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord { op: 0x30, argc: 0, args_raw: [0; 6] }],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(out.text, vec![0x90, 0xC3]);
+    }
+
+    #[test]
+    fn emit_x86_length_equals_records_plus_one() {
+        let prog = TybProgram {
+            rec_cnt: 50,
+            records: (0..50).map(|i| TybRecord {
+                op: 0x50,
+                argc: 0,
+                args_raw: [i as u8, 0, 0, 0, 0, 0],
+            }).collect(),
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(out.text.len(), 51);
+        assert_eq!(&out.text[..49], &vec![0x90u8; 49][..]);
+        // Actually all 50 NOPS then RET
+        for i in 0..50 {
+            assert_eq!(out.text[i], 0x90, "byte {i} should be NOP");
+        }
+        assert_eq!(out.text[50], 0xC3);
+    }
+
+    #[test]
+    fn emit_x86_real_yoyo_tyb() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../yoyo/projects/yoyo.tyb");
+        if !path.exists() {
+            eprintln!("skip: {} not present", path.display());
+            return;
+        }
+        let p = parse_tyb_file(&path).unwrap();
+        let out = emit_x86(&p);
+        assert_eq!(out.text.len(), p.rec_cnt + 1, "length = rec_cnt + 1");
+        assert_eq!(*out.text.last().unwrap(), 0xC3, "last byte is ret");
+        for b in &out.text[..p.rec_cnt] {
+            assert_eq!(*b, 0x90, "each record emits 1 byte NOP");
+        }
     }
 }
