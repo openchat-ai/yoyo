@@ -17,6 +17,7 @@ pub mod render;
 pub mod selfhost;
 pub mod self_test;
 pub mod startup;
+pub mod s1_tyb_parser;
 pub mod linux_selfhost;
 pub mod tir;
 pub mod ty_parser;
