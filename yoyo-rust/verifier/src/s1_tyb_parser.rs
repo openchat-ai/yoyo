@@ -211,9 +211,24 @@ fn emit_store_state_r15(out: &mut Vec<u8>, slot: u16) {
 fn emit_load_state_r15(out: &mut Vec<u8>, slot: u16) {
     let disp = (slot as u32) * 8;
     if disp <= 127 {
-        out.extend_from_slice(&[0x4C, 0x8B, 0x47, disp as u8]); // 4 bytes
+        out.extend_from_slice(&[0x4C, 0x8B, 0x47, disp as u8]); // 4 bytes (reg=rax)
     } else {
         out.extend_from_slice(&[0x4C, 0x8B, 0x87]); // 3 bytes + disp32
+        out.extend_from_slice(&((disp as i32)).to_le_bytes());
+    }
+}
+
+/// mov rcx, [r15 + slot*8] (r15-relative load into rcx).
+///
+/// Same pattern as `emit_load_state_r15` but writes to rcx instead of rax.
+/// Required so that operations like `add rax, rcx` don't lose the rax operand.
+/// MODRM differs only in the `reg` field: rax=000 (`47`/`87`), rcx=001 (`48`/`88`).
+fn emit_load_state_rcx(out: &mut Vec<u8>, slot: u16) {
+    let disp = (slot as u32) * 8;
+    if disp <= 127 {
+        out.extend_from_slice(&[0x4C, 0x8B, 0x48, disp as u8]); // 4 bytes (reg=rcx)
+    } else {
+        out.extend_from_slice(&[0x4C, 0x8B, 0x88]); // 3 bytes + disp32
         out.extend_from_slice(&((disp as i32)).to_le_bytes());
     }
 }
@@ -337,33 +352,24 @@ pub fn emit_x86(prog: &TybProgram) -> CodegenOutput {
                 emit_store_state_r15(&mut text, slot);
             }
             // --- IMUL dst, src ---
+            // imul rax, rcx → rax = rax * rcx.
+            // Load dst (rax) FIRST, then src (rcx) — preserves rax.
             0x63 if args.len() == 2 => {
                 let dst = args[0] as u16;
                 let src = args[1] as u16;
                 emit_load_state_r15(&mut text, dst);
-                emit_load_state_r15(&mut text, src);
-                // NOTE: assembler.rs's `mul_reg(dst, src)` computes `dst = dst * src`.
-                // We load dst first (rax), then src (rcx). That's wrong for mul
-                // since we clobbered rax. Fix: load src into rcx FIRST, then dst into rax.
-                // Redo:
-                // (This branch's order was wrong; see emit_imul_rax_rcx above.)
-                // For simplicity we emit the wrong order and mark TODO. S1.1.e will
-                // fix this by using proper register allocation.
+                emit_load_state_rcx(&mut text, src);
                 emit_imul_rax_rcx(&mut text);
                 emit_store_state_r15(&mut text, dst);
             }
             // --- ADDV / ORV / SUBV dst, src ---
+            // add rax, rcx / or rax, rcx / sub rax, rcx
+            // Load dst (rax) FIRST, then src (rcx).
             0x68 | 0x69 | 0x6A if args.len() == 2 => {
                 let dst = args[0] as u16;
                 let src = args[1] as u16;
                 emit_load_state_r15(&mut text, dst);
-                emit_load_state_r15(&mut text, src);
-                // Same issue as IMUL: loading src into rcx AFTER dst into rax means
-                // rax still holds dst. Good — rax is preserved. But assembler.rs's
-                // add_reg(dst, src) wants rax=dst, rcx=src which is what we have.
-                // Wait — we do `emit_load_state_r15(rax, dst)` then `emit_load_state_r15(rcx, src)`.
-                // That's wrong: both load into rax. Fix requires separate load helpers.
-                // TODO S1.1.e: add load_state_rcx. For now this opcode emits garbage.
+                emit_load_state_rcx(&mut text, src);
                 if rec.op == 0x68 {
                     emit_add_rax_rcx(&mut text);
                 } else if rec.op == 0x69 {
@@ -374,12 +380,12 @@ pub fn emit_x86(prog: &TybProgram) -> CodegenOutput {
                 emit_store_state_r15(&mut text, dst);
             }
             // --- CMP a, b ---
+            // cmp rax, rcx → a = a - b (flags), no write-back.
             0x65 if args.len() == 2 => {
                 let a = args[0] as u16;
                 let b = args[1] as u16;
                 emit_load_state_r15(&mut text, a);
-                // TODO: load_state_rcx — see ADDV comment above
-                emit_load_state_r15(&mut text, b);
+                emit_load_state_rcx(&mut text, b);
                 emit_cmp_rax_rcx(&mut text);
             }
             // --- RET ---
@@ -669,5 +675,126 @@ mod tests {
         // Verify store uses disp8=8 (offset 0x08)
         assert_eq!(&out.text[4..8], &[0x4C, 0x89, 0x47, 0x08]);
         assert_eq!(out.text[8], 0xC3);
+    }
+
+    // S1.1.e tests: real byte verification for ADDV/ORV/SUBV/IMUL/CMP
+    // using load_state_rcx (reg=001 → MODRM 0x48/0x88) instead of a second
+    // load_state_r15 (reg=000 → MODRM 0x47/0x87).
+    //
+    // args_raw layout for argc=2: [slot_lo, slot_hi, u32_lo32...]
+    // We set args[1] as an imm32 in args_of(), but for reg-reg ops only the
+    // low 16 bits are used (cast to u16), so values 0..=0xFFFF work as slots.
+
+    #[test]
+    fn emit_x86_addv_slot1_from_slot2() {
+        // ADDV dst=1, src=2:
+        //   4C 8B 47 08   mov rax, [r15+8]   (dst)
+        //   4C 8B 48 10   mov rcx, [r15+16]  (src — uses MODRM 0x48 reg=rcx)
+        //   48 01 C8      add rax, rcx       (MODRM 0xC8: reg=rcx, r/m=rax)
+        //   4C 89 47 08   mov [r15+8], rax
+        //   C3            ret
+        // Total = 4+4+3+4+1 = 16
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord { op: 0x68, argc: 2, args_raw: [0x01, 0x00, 0x02, 0x00, 0x00, 0x00] }],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(out.text.len(), 16);
+        assert_eq!(
+            &out.text,
+            &[
+                0x4C, 0x8B, 0x47, 0x08,   // load_state_r15 slot=1 → rax
+                0x4C, 0x8B, 0x48, 0x10,   // load_state_rcx slot=2 → rcx (MODRM 0x48)
+                0x48, 0x01, 0xC8,          // add rax, rcx
+                0x4C, 0x89, 0x47, 0x08,   // store_state_r15 slot=1 ← rax
+                0xC3,                      // ret
+            ]
+        );
+    }
+
+    #[test]
+    fn emit_x86_orv_slot0_from_slot1() {
+        // ORV dst=0, src=1 → OR 0x09, no store write-back semantics issue
+        // bytes: load r15+0 (rax), load r15+8 (rcx), or rax rcx, store r15+0, ret
+        //       = 4 + 4 + 3 + 4 + 1 = 16
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord { op: 0x69, argc: 2, args_raw: [0x00, 0x00, 0x01, 0x00, 0x00, 0x00] }],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(out.text.len(), 16);
+        assert_eq!(
+            &out.text,
+            &[
+                0x4C, 0x8B, 0x47, 0x00,
+                0x4C, 0x8B, 0x48, 0x08,   // MODRM 0x48 (rcx), disp=8
+                0x48, 0x09, 0xC8,          // or rax, rcx
+                0x4C, 0x89, 0x47, 0x00,
+                0xC3,
+            ]
+        );
+    }
+
+    #[test]
+    fn emit_x86_subv_slot2_from_slot3() {
+        // SUBV dst=2, src=3
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord { op: 0x6A, argc: 2, args_raw: [0x02, 0x00, 0x03, 0x00, 0x00, 0x00] }],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(out.text.len(), 16);
+        assert_eq!(
+            &out.text,
+            &[
+                0x4C, 0x8B, 0x47, 0x10,
+                0x4C, 0x8B, 0x48, 0x18,
+                0x48, 0x29, 0xC8,          // sub rax, rcx
+                0x4C, 0x89, 0x47, 0x10,
+                0xC3,
+            ]
+        );
+    }
+
+    #[test]
+    fn emit_x86_imul_slot1_from_slot2() {
+        // IMUL dst=1, src=2 → 4+4+4+4+1 = 17B (imul is 4B not 3B)
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord { op: 0x63, argc: 2, args_raw: [0x01, 0x00, 0x02, 0x00, 0x00, 0x00] }],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(out.text.len(), 17);
+        assert_eq!(
+            &out.text,
+            &[
+                0x4C, 0x8B, 0x47, 0x08,
+                0x4C, 0x8B, 0x48, 0x10,
+                0x48, 0x0F, 0xAF, 0xC8,    // imul rax, rcx
+                0x4C, 0x89, 0x47, 0x08,
+                0xC3,
+            ]
+        );
+    }
+
+    #[test]
+    fn emit_x86_cmp_slot1_vs_slot2() {
+        // CMP a=1, b=2 → 4+4+3+1 = 12B (no store, no ret inside emit — but
+        // emit_x86 appends ret at end)
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord { op: 0x65, argc: 2, args_raw: [0x01, 0x00, 0x02, 0x00, 0x00, 0x00] }],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(out.text.len(), 12);
+        assert_eq!(
+            &out.text,
+            &[
+                0x4C, 0x8B, 0x47, 0x08,
+                0x4C, 0x8B, 0x48, 0x10,
+                0x48, 0x39, 0xC0,          // cmp rax, rcx (MODRM 0xC0: reg=rcx, r/m=rax)
+                0xC3,
+            ]
+        );
     }
 }
