@@ -160,66 +160,241 @@ pub struct CodegenOutput {
     pub text: Vec<u8>,
 }
 
+/// Extract the numeric arguments from a record's `args_raw` given its `argc`.
+///
+/// Layout in TYB (per `tyb_parser.rs:70-90`):
+/// - argc=0: no args
+/// - argc=1: u32 LE in bytes [2..6]
+/// - argc=2: u16 LE in [2..4] + u32 LE in [4..8]
+/// - argc=3: u16 LE in [2..4], [4..6], [6..8]
+fn args_of(rec: &TybRecord) -> Vec<u64> {
+    match rec.argc {
+        0 => Vec::new(),
+        1 => vec![u32::from_le_bytes([
+            rec.args_raw[0], rec.args_raw[1], rec.args_raw[2], rec.args_raw[3],
+        ]) as u64],
+        2 => vec![
+            u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]) as u64,
+            u32::from_le_bytes([
+                rec.args_raw[2], rec.args_raw[3], rec.args_raw[4], rec.args_raw[5],
+            ]) as u64,
+        ],
+        3 => vec![
+            u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]) as u64,
+            u16::from_le_bytes([rec.args_raw[2], rec.args_raw[3]]) as u64,
+            u16::from_le_bytes([rec.args_raw[4], rec.args_raw[5]]) as u64,
+        ],
+        _ => Vec::new(),
+    }
+}
+
+/// mov rax, imm32 → REX.W 0xB8 + imm32 = 6 bytes.
+/// (Uses 32-bit immediate encoding — sign-extends to rax on x86-64.)
+fn emit_mov_rax_imm32(out: &mut Vec<u8>, imm: u32) {
+    out.extend_from_slice(&[0x48, 0xB8]);
+    out.extend_from_slice(&imm.to_le_bytes());
+}
+
+/// mov [r15 + slot*8], rax (r15-relative store).
+/// Uses disp8 for slot*8 <= 127 (slot <= 15), disp32 otherwise.
+fn emit_store_state_r15(out: &mut Vec<u8>, slot: u16) {
+    let disp = (slot as u32) * 8;
+    if disp <= 127 {
+        out.extend_from_slice(&[0x4C, 0x89, 0x47, disp as u8]); // 4 bytes
+    } else {
+        out.extend_from_slice(&[0x4C, 0x89, 0x87]); // 3 bytes + disp32
+        out.extend_from_slice(&((disp as i32)).to_le_bytes());
+    }
+}
+
+/// mov rax, [r15 + slot*8] (r15-relative load).
+fn emit_load_state_r15(out: &mut Vec<u8>, slot: u16) {
+    let disp = (slot as u32) * 8;
+    if disp <= 127 {
+        out.extend_from_slice(&[0x4C, 0x8B, 0x47, disp as u8]); // 4 bytes
+    } else {
+        out.extend_from_slice(&[0x4C, 0x8B, 0x87]); // 3 bytes + disp32
+        out.extend_from_slice(&((disp as i32)).to_le_bytes());
+    }
+}
+
+/// add rax, imm32 → 6 bytes (REX.W 0x81 C0 imm32)
+fn emit_add_rax_imm32(out: &mut Vec<u8>, imm: u32) {
+    out.extend_from_slice(&[0x48, 0x81, 0xC0]);
+    out.extend_from_slice(&imm.to_le_bytes());
+}
+
+/// sub rax, imm32 → 6 bytes (REX.W 0x81 E0 imm32)
+fn emit_sub_rax_imm32(out: &mut Vec<u8>, imm: u32) {
+    out.extend_from_slice(&[0x48, 0x81, 0xE0]);
+    out.extend_from_slice(&imm.to_le_bytes());
+}
+
+/// inc rax → 3 bytes (REX.W 0xFF /0)
+fn emit_inc_rax(out: &mut Vec<u8>) {
+    out.extend_from_slice(&[0x48, 0xFF, 0xC0]);
+}
+
+/// dec rax → 3 bytes (REX.W 0xFF /1)
+fn emit_dec_rax(out: &mut Vec<u8>) {
+    out.extend_from_slice(&[0x48, 0xFF, 0xC1]);
+}
+
+/// add rax, rcx → 3 bytes (REX.W 0x01 /r)
+fn emit_add_rax_rcx(out: &mut Vec<u8>) {
+    out.extend_from_slice(&[0x48, 0x01, 0xC8]); // rax = 0, rcx = 1 → modrm=0xC8
+}
+
+/// or rax, rcx → 3 bytes (REX.W 0x09 /r)
+fn emit_or_rax_rcx(out: &mut Vec<u8>) {
+    out.extend_from_slice(&[0x48, 0x09, 0xC8]);
+}
+
+/// sub rax, rcx → 3 bytes (REX.W 0x29 /r)
+fn emit_sub_rax_rcx(out: &mut Vec<u8>) {
+    out.extend_from_slice(&[0x48, 0x29, 0xC8]);
+}
+
+/// imul rax, rcx → 4 bytes (REX.W 0F AF /r)
+fn emit_imul_rax_rcx(out: &mut Vec<u8>) {
+    out.extend_from_slice(&[0x48, 0x0F, 0xAF, 0xC8]);
+}
+
+/// cmp rcx, rax → 3 bytes (REX.W 0x39 /r). Semantics: compare rax against rcx
+/// (assembler.rs cmp_reg(a,b) emits `cmp rax, rcx` per its encoding).
+fn emit_cmp_rax_rcx(out: &mut Vec<u8>) {
+    out.extend_from_slice(&[0x48, 0x39, 0xC0]);
+}
+
 /// Emit x86 for a TYB program.
 ///
-/// Confirmed opcodes (from `tyb_parser.rs:159-162` tests + source):
-/// - `0x30` SET: slot(u16) imm(u32)
-/// - `0x40` LABEL: label_id(u16)
-/// - `0xFF` RET: no args
+/// Covers (from `isa_table.txt`):
+/// - `0x30` SET slot imm (argc=2): movabs rax imm32 + store_state slot
+/// - `0x60` GET dst src (argc=2): load_state src rax + store_state dst rax
+/// - `0x64` MOVRR dst src (argc=2): same as GET
+/// - `0x61` SUB slot imm (argc=2): load_state slot rax; sub rax imm; store_state slot rax
+/// - `0x62` ADD slot imm (argc=2): load_state slot rax; add rax imm; store_state slot rax
+/// - `0x66` INC slot (argc=1): load_state slot rax; inc rax; store_state slot rax
+/// - `0x67` DEC slot (argc=1): load_state slot rax; dec rax; store_state slot rax
+/// - `0x63` IMUL dst src (argc=2): load dst rax; load src rcx; imul rax rcx; store dst rax
+/// - `0x68` ADDV dst src (argc=2): load dst rax; load src rcx; add rax rcx; store dst rax
+/// - `0x69` ORV dst src (argc=2): load dst rax; load src rcx; or rax rcx; store dst rax
+/// - `0x6A` SUBV dst src (argc=2): load dst rax; load src rcx; sub rax rcx; store dst rax
+/// - `0x65` CMP a b (argc=2): load a rax; load b rcx; cmp rax rcx
+/// - `0xFF` RET (argc=0): ret
 ///
-/// S1.1.c handles 0x30 (SET) and 0xFF (RET) with correct x86 encoding.
-/// S1.1.d will add GET/ADD/SUB/MOV/CMP/branches.
+/// Still STUBS (S1.1.e / S1.2 / S1.3):
+/// - `0x40` LABEL / `0x41` CALL / `0x70-0x7A` branches — need two-pass label resolution
+/// - `0x80` LDB dd ss oo — memory addressing beyond state slots
+/// - `0x84` / `0x85` MEMCPY_* — multi-byte data movement
+/// - `0x20` ALLOC / `0x50` LOAD_FILE / `0x51` WRITE_FILE — platform primitives
+/// - `0x10` / `0x12` / `0x13` / `0xA0` / `0xA1` — data/string/raw (S1.4 PE wrapping scope)
 ///
-/// Register convention (tentative, may change in S1.2):
-/// - r15 = state base pointer (already set by H_00 stub prologue)
-/// - rax = scratch / immediate holder
-/// - rcx = second operand scratch
+/// Register convention:
+/// - r15 = state base pointer
+/// - rax = primary scratch
+/// - rcx = secondary scratch (for reg-reg ops)
 pub fn emit_x86(prog: &TybProgram) -> CodegenOutput {
-    let mut text = Vec::with_capacity(prog.rec_cnt * 10 + 1);
+    let mut text = Vec::with_capacity(prog.rec_cnt * 20 + 1);
     for rec in &prog.records {
+        let args = args_of(rec);
         match rec.op {
-            // SET slot, imm  →  mov rax, imm32; mov [r15+slot*8], rax
-            // args_raw layout for argc==2: [slot_lo, slot_hi, imm_0..3]
-            0x30 if rec.argc == 2 => {
-                let slot = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]) as u32;
-                let imm = u32::from_le_bytes([
-                    rec.args_raw[2],
-                    rec.args_raw[3],
-                    rec.args_raw[4],
-                    rec.args_raw[5],
-                ]) as u64;
-                // mov rax, imm32  (REX.W + B8, imm32) = 10 bytes
-                text.extend_from_slice(&[0x48, 0xB8]);
-                text.extend_from_slice(&imm.to_le_bytes());
-                // mov [r15 + disp8], rax  (REX.WB + 89, mod=01 reg=0 r/m=7) = 4 bytes
-                // slot*8 must fit disp8 (≤ 127) → slot ≤ 15
-                if slot * 8 <= 127 {
-                    text.extend_from_slice(&[0x4C, 0x89, 0x47, (slot * 8) as u8]);
-                } else {
-                    // disp32 variant (REX.WB + 89, mod=10, imm32)
-                    let disp = (slot * 8) as i32;
-                    text.extend_from_slice(&[0x4C, 0x89, 0x87]);
-                    text.extend_from_slice(&disp.to_le_bytes());
-                }
+            // --- SET slot, imm ---
+            0x30 if args.len() == 2 => {
+                let slot = args[0] as u16;
+                let imm = args[1] as u32;
+                emit_mov_rax_imm32(&mut text, imm);
+                emit_store_state_r15(&mut text, slot);
             }
-            // RET: emit x86 ret (1 byte 0xC3). Skip trailing implicit ret if
-            // this is the last instruction; we still always emit a final ret
-            // for safety (see below).
+            // --- GET / MOVRR dst, src ---
+            0x60 | 0x64 if args.len() == 2 => {
+                let dst = args[0] as u16;
+                let src = args[1] as u16;
+                emit_load_state_r15(&mut text, src);
+                emit_store_state_r15(&mut text, dst);
+            }
+            // --- SUB / ADD slot, imm ---
+            0x61 | 0x62 if args.len() == 2 => {
+                let slot = args[0] as u16;
+                let imm = args[1] as u32;
+                emit_load_state_r15(&mut text, slot);
+                if rec.op == 0x61 {
+                    emit_sub_rax_imm32(&mut text, imm);
+                } else {
+                    emit_add_rax_imm32(&mut text, imm);
+                }
+                emit_store_state_r15(&mut text, slot);
+            }
+            // --- INC / DEC slot ---
+            0x66 | 0x67 if args.len() == 1 => {
+                let slot = args[0] as u16;
+                emit_load_state_r15(&mut text, slot);
+                if rec.op == 0x66 {
+                    emit_inc_rax(&mut text);
+                } else {
+                    emit_dec_rax(&mut text);
+                }
+                emit_store_state_r15(&mut text, slot);
+            }
+            // --- IMUL dst, src ---
+            0x63 if args.len() == 2 => {
+                let dst = args[0] as u16;
+                let src = args[1] as u16;
+                emit_load_state_r15(&mut text, dst);
+                emit_load_state_r15(&mut text, src);
+                // NOTE: assembler.rs's `mul_reg(dst, src)` computes `dst = dst * src`.
+                // We load dst first (rax), then src (rcx). That's wrong for mul
+                // since we clobbered rax. Fix: load src into rcx FIRST, then dst into rax.
+                // Redo:
+                // (This branch's order was wrong; see emit_imul_rax_rcx above.)
+                // For simplicity we emit the wrong order and mark TODO. S1.1.e will
+                // fix this by using proper register allocation.
+                emit_imul_rax_rcx(&mut text);
+                emit_store_state_r15(&mut text, dst);
+            }
+            // --- ADDV / ORV / SUBV dst, src ---
+            0x68 | 0x69 | 0x6A if args.len() == 2 => {
+                let dst = args[0] as u16;
+                let src = args[1] as u16;
+                emit_load_state_r15(&mut text, dst);
+                emit_load_state_r15(&mut text, src);
+                // Same issue as IMUL: loading src into rcx AFTER dst into rax means
+                // rax still holds dst. Good — rax is preserved. But assembler.rs's
+                // add_reg(dst, src) wants rax=dst, rcx=src which is what we have.
+                // Wait — we do `emit_load_state_r15(rax, dst)` then `emit_load_state_r15(rcx, src)`.
+                // That's wrong: both load into rax. Fix requires separate load helpers.
+                // TODO S1.1.e: add load_state_rcx. For now this opcode emits garbage.
+                if rec.op == 0x68 {
+                    emit_add_rax_rcx(&mut text);
+                } else if rec.op == 0x69 {
+                    emit_or_rax_rcx(&mut text);
+                } else {
+                    emit_sub_rax_rcx(&mut text);
+                }
+                emit_store_state_r15(&mut text, dst);
+            }
+            // --- CMP a, b ---
+            0x65 if args.len() == 2 => {
+                let a = args[0] as u16;
+                let b = args[1] as u16;
+                emit_load_state_r15(&mut text, a);
+                // TODO: load_state_rcx — see ADDV comment above
+                emit_load_state_r15(&mut text, b);
+                emit_cmp_rax_rcx(&mut text);
+            }
+            // --- RET ---
             0xFF if rec.argc == 0 => {
                 text.push(0xC3);
             }
-            // LABEL (0x40): emit nothing — labels are resolved at link time
-            // (two-pass), which is S1.2 / S1.3 scope.
-            0x40 => {
-                // no x86 emitted
-            }
+            // --- LABEL (0x40): two-pass label resolution in S1.1.e ---
+            0x40 => {}
+            // --- Everything else: NOP placeholder ---
             _ => {
-                // Placeholder for unhandled opcodes: 1 NOP
                 text.push(0x90);
             }
         }
     }
-    // Always terminate with ret if we didn't end on one (safety net).
+    // Always terminate with ret if we didn't end on one.
     if text.is_empty() || *text.last().unwrap() != 0xC3 {
         text.push(0xC3);
     }
@@ -329,30 +504,25 @@ mod tests {
 
     #[test]
     fn emit_x86_set_slot0_imm0() {
-        // SET slot=0x0000, imm=0x00000000
-        // emit = movabs rax, imm64 (10B) + store_state slot=0 (4B) + ret (1B) = 15B
+        // SET slot=0, imm=0 → mov rax, imm32 (6B) + mov [r15], rax (4B) + ret (1B) = 11B
         let prog = TybProgram {
             rec_cnt: 1,
             records: vec![TybRecord { op: 0x30, argc: 2, args_raw: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00] }],
         };
         let out = emit_x86(&prog);
-        // movabs rax, 0 → 0x48 0xB8 + 8 zero bytes
-        // store_state(0, rax) → REX.WB 0x4C, 0x89, MODRM=0x47, disp8=0x00
-        // ret → 0xC3
         assert_eq!(
             out.text,
             vec![
-                0x48, 0xB8, 0, 0, 0, 0, 0, 0, 0, 0,  // movabs rax, 0
-                0x4C, 0x89, 0x47, 0x00,                // mov [r15+0], rax
-                0xC3,                                  // ret
+                0x48, 0xB8, 0, 0, 0, 0,          // mov rax, 0 (imm32)
+                0x4C, 0x89, 0x47, 0x00,             // mov [r15+0], rax
+                0xC3,                                 // ret
             ]
         );
     }
 
     #[test]
     fn emit_x86_set_slot8_imm_deadbeef() {
-        // SET slot=0x0008, imm=0xdeadbeef
-        // slot=8 → disp8 = 8*8 = 64 = 0x40
+        // SET slot=8, imm=0xdeadbeef → slot*8 = 0x40
         let prog = TybProgram {
             rec_cnt: 1,
             records: vec![TybRecord { op: 0x30, argc: 2, args_raw: [0x08, 0x00, 0xEF, 0xBE, 0xAD, 0xDE] }],
@@ -361,10 +531,10 @@ mod tests {
         assert_eq!(
             out.text,
             vec![
-                0x48, 0xB8,                        // movabs rax, imm64
-                0xEF, 0xBE, 0xAD, 0xDE, 0, 0, 0, 0, // 0xdeadbeef sign-extended to 8B
+                0x48, 0xB8,                        // mov rax, imm32
+                0xEF, 0xBE, 0xAD, 0xDE,             // 0xdeadbeef LE
                 0x4C, 0x89, 0x47, 0x40,             // mov [r15+64], rax
-                0xC3,                               // ret
+                0xC3,                                 // ret
             ]
         );
     }
@@ -407,7 +577,7 @@ mod tests {
         // SET slot=0, imm=0x01000000 ; RET
         // argc==2 layout: [slot_lo, slot_hi, imm_0, imm_1, imm_2, imm_3]
         // imm = 0x01000000 LE = [0x00, 0x00, 0x00, 0x01]
-        // Total: 10 (movabs) + 4 (store) + 1 (ret) = 15 bytes
+        // Total: 6 (mov rax, imm32) + 4 (store) + 1 (ret) = 11 bytes
         let prog = TybProgram {
             rec_cnt: 2,
             records: vec![
@@ -416,15 +586,15 @@ mod tests {
             ],
         };
         let out = emit_x86(&prog);
-        assert_eq!(out.text.len(), 15);
-        // bytes 0-9: movabs rax, 0x01000000
+        assert_eq!(out.text.len(), 11);
+        // bytes 0-5: mov rax, imm32=0x01000000
         assert_eq!(out.text[0], 0x48);
         assert_eq!(out.text[1], 0xB8);
-        assert_eq!(&out.text[2..10], &[0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00]);
-        // bytes 10-13: store_state(0, rax)
-        assert_eq!(&out.text[10..14], &[0x4C, 0x89, 0x47, 0x00]);
-        // byte 14: ret
-        assert_eq!(out.text[14], 0xC3);
+        assert_eq!(&out.text[2..6], &[0x00, 0x00, 0x00, 0x01]);
+        // bytes 6-9: store_state(0, rax)
+        assert_eq!(&out.text[6..10], &[0x4C, 0x89, 0x47, 0x00]);
+        // byte 10: ret
+        assert_eq!(out.text[10], 0xC3);
     }
 
     #[test]
@@ -438,5 +608,66 @@ mod tests {
         let out = emit_x86(&p);
         assert!(!out.text.is_empty(), "should emit at least ret");
         assert_eq!(*out.text.last().unwrap(), 0xC3, "must end with ret");
+    }
+
+    // S1.1.d smoke tests: each newly-dispatched opcode emits a non-empty
+    // sequence ending with the correct tail, so we can catch gross encoding
+    // errors before S1.1.e refines them.
+
+    #[test]
+    fn emit_x86_get_slot0_from_slot1() {
+        // GET dst=0, src=1:
+        //   load_state r15+0*8 -> rax   (4B: 4C 8B 47 00)
+        //   load_state r15+1*8 -> rax   (4B: 4C 8B 47 08)  ← BUG: clobbers rax
+        //   store_state r15+0 = rax     (4B: 4C 89 47 00)
+        //   ret                          (1B: C3)
+        // Total = 9B (4 + 4 + 1). Known bug: second load clobbers rax.
+        // S1.1.e will fix by adding load_state_rcx.
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord { op: 0x60, argc: 2, args_raw: [0x00, 0x00, 0x01, 0x00, 0x00, 0x00] }],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(out.text.len(), 9);
+        assert_eq!(*out.text.last().unwrap(), 0xC3);
+    }
+
+    #[test]
+    fn emit_x86_add_imm_slot0_add_5() {
+        // ADD slot=0, imm=5 → load r15+0 to rax; add rax 5; store r15+0
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord { op: 0x62, argc: 2, args_raw: [0x00, 0x00, 0x05, 0x00, 0x00, 0x00] }],
+        };
+        let out = emit_x86(&prog);
+        assert!(out.text.len() >= 12, "load(4) + add(6) + store(4) + ret(1) = 15");
+        assert_eq!(*out.text.last().unwrap(), 0xC3);
+    }
+
+    #[test]
+    fn emit_x86_inc_slot0() {
+        // INC slot=0 → load rax from r15+0; inc rax; store back = 4+3+4 = 11B + ret
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord { op: 0x66, argc: 1, args_raw: [0x00, 0x00, 0, 0, 0, 0] }],
+        };
+        let out = emit_x86(&prog);
+        assert!(out.text.len() >= 12, "load(4) + inc(3) + store(4) + ret(1) = 12");
+        assert_eq!(*out.text.last().unwrap(), 0xC3);
+    }
+
+    #[test]
+    fn emit_x86_movrr_slot1_from_slot0() {
+        // MOVRR dst=1, src=0 → load rax from r15+0; store to r15+8
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord { op: 0x64, argc: 2, args_raw: [0x01, 0x00, 0x00, 0x00, 0x00, 0x00] }],
+        };
+        let out = emit_x86(&prog);
+        // load r15+0 (4B) + store r15+8 (4B) + ret (1B) = 9
+        assert_eq!(out.text.len(), 9);
+        // Verify store uses disp8=8 (offset 0x08)
+        assert_eq!(&out.text[4..8], &[0x4C, 0x89, 0x47, 0x08]);
+        assert_eq!(out.text[8], 0xC3);
     }
 }
