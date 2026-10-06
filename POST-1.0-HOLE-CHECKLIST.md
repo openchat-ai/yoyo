@@ -425,7 +425,7 @@ Run `35553987325`（commit `146b58b`）：
 |---|---|---|---|
 | **S1.1.a** | ✅ 已提交+推送 | TYB parser 骨架（`s1_tyb_parser.rs`） | commit `5804fb3` |
 | **S1.1.b** | ✅ 已本地提交 | IR → x86 emit 骨架（`emit_x86` 函数，NOP+RET 占位） | commit `10a4fdd` |
-| **S1.1.c** | ✅ 已本地提交 | 真 opcode dispatch（`0x30` SET + `0xFF` RET） | commit（见 git log） |
+| **S1.1.c** | ✅ 已本地提交 | 真 opcode dispatch（`0x30` SET + `0xFF` RET + `0x40` LABEL no-op + unknown→NOP） | commit `9dec4da` |
 | **S1.1.d** | `[ ]` | 扩展 opcode（GET/ADD/SUB/CMP/branches，含两遍 label 解析） | 未开始 |
 | S1.2 | `[ ]` | 寄存器分配（3-4 个物理寄存器） | 未开始 |
 | S1.3 | `[ ]` | 指令 codegen 覆盖 20 条 op | 未开始 |
@@ -655,6 +655,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-09-30 · I-1 分析 + 自纠）**：`gen4.exe` 自带 PE loader / syscall（0 个 PE import）· Rust `yoyo_rt.dll` 导出 2 个（`yoyo_runtime_selfhost_main` + `yoyo_runtime_selfhost_paths`）· YOYO in-DLL-recompile pe_dll 导出 1 个（`yoyo_runtime_selfhost_main` + `yoyo_in_dll_recompile` marker）· **真实差集 = `{ yoyo_runtime_selfhost_paths }`** · 这是 Gate I 实验 exit=1 的根因 · **注**：先前误写的 `yoyo_runtime_h00_compile` 已在同次提交撤回（自我核查纠错） · I 精化为"扩 codegen 到完整 H_00 ISA" · **I 仍 `[ ]` · J 未勾** · `closed=0 cut=7` · **无假 CLOSED**
 
 **当前分支诚实快照（2026-09-30 · OW-SEED 终态重述 · I 移出）**：发现把 sidecar 归到 OW-SEED 是**分类错误**（inventory:49 OW-SEED 定义 = seed 非 Rust 发射，与 sidecar 无关；sidecar 归 OW-RT · inventory:47）。I 已从 OW-SEED 移除，实验脚本 `stage17-ow-seed-no-rust-sidecar.ps1` 归属 OW-RT。**OW-SEED CLOSED 在当前架构下无路径**：`gen1` 由 Rust 发是 bootstrapped compiler 的**行业合法例外**（与 GCC / Rustc / clang 一致）。**J 勾 `[x]` 表示"接受 bootstrap 例外"**，非"消灭 Rust 祖先" · OW-SEED 保持 **CUT**（inventory 不动）· 后续新工作作为**新 Stage**而非"关洞" · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
-
-
-
+**当前分支诚实快照（2026-10-06 · S1.1.a/b/c 起步）**：S1.1.a = `s1_tyb_parser.rs` TYB parser 骨架（`5804fb3`，已 push）；S1.1.b = `emit_x86` 函数骨架（NOP+RET 占位，`10a4fdd`，本地）；S1.1.c = 真 opcode dispatch（`0x30` SET + `0xFF` RET + `0x40` LABEL no-op + unknown→NOP，本地 commit `9dec4da`）· 累计 **15/15 单元测试通过** · 明确不是真 codegen（未映射 GET/ADD/SUB/branches；LABEL 无两遍解析）· **下一步 S1.1.d**：查完整 opcode 表 → 扩展 dispatch · S1 总体仍"周-月"级 · `closed=0 cut=7` · OW-RT 仍 CUT · **无 tag**
