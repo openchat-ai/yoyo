@@ -133,18 +133,96 @@ pub fn is_tyb(data: &[u8]) -> bool {
 ///
 /// Those come in S1.1.c (op dispatch), S1.2 (register allocation), S1.3
 /// (state + immediate codegen), S1.4 (PE wrapping), S1.5 (DLL entry rewrite).
+/// S1.1.c — opcode dispatch with real x86 output.
+///
+/// Replaces S1.1.b's stub (all NOPs + RET). Currently handles:
+/// - `0x50` with argc==1 and imm32 <= 0xFFFFFFFF: `mov rax, imm32; mov [r15], rax`
+///   (approximation: writes to slot 0 via r15-relative disp8)
+/// - All other opcodes: x86 NOP (0x90) placeholder
+/// - Always appends `ret` (0xC3) at the end
+///
+/// Still STUBS:
+/// - State slot semantics (currently writes to r15+0 = slot 0 for all movs)
+/// - All arithmetic (add/sub/or/cmp/inc/dec)
+/// - Loads (ldb/get/movrr)
+/// - Branches and labels (require two-pass label resolution)
+/// - Calls and ret with arg passing
+///
+/// S1.1.d / S1.2 tackle these. This step proves:
+/// 1. Opcode dispatch structure works (match on op)
+/// 2. Real x86 bytes are emitted for at least one op
+/// 3. Tests validate byte-for-byte against expected hex
+///
+/// Reference: `verifier/src/assembler.rs` for the real emit functions
+/// (S1.3 will replace this hand-written code with assembler.rs calls
+/// once we have assembler.rs available in-DLL).
 pub struct CodegenOutput {
     pub text: Vec<u8>,
 }
 
+/// Emit x86 for a TYB program.
+///
+/// Confirmed opcodes (from `tyb_parser.rs:159-162` tests + source):
+/// - `0x30` SET: slot(u16) imm(u32)
+/// - `0x40` LABEL: label_id(u16)
+/// - `0xFF` RET: no args
+///
+/// S1.1.c handles 0x30 (SET) and 0xFF (RET) with correct x86 encoding.
+/// S1.1.d will add GET/ADD/SUB/MOV/CMP/branches.
+///
+/// Register convention (tentative, may change in S1.2):
+/// - r15 = state base pointer (already set by H_00 stub prologue)
+/// - rax = scratch / immediate holder
+/// - rcx = second operand scratch
 pub fn emit_x86(prog: &TybProgram) -> CodegenOutput {
-    let mut text = Vec::with_capacity(prog.rec_cnt + 1);
-    for _ in &prog.records {
-        // S1.1.b stub: every record → 1 byte x86 NOP.
-        // Real op dispatch: S1.1.c.
-        text.push(0x90);
+    let mut text = Vec::with_capacity(prog.rec_cnt * 10 + 1);
+    for rec in &prog.records {
+        match rec.op {
+            // SET slot, imm  →  mov rax, imm32; mov [r15+slot*8], rax
+            // args_raw layout for argc==2: [slot_lo, slot_hi, imm_0..3]
+            0x30 if rec.argc == 2 => {
+                let slot = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]) as u32;
+                let imm = u32::from_le_bytes([
+                    rec.args_raw[2],
+                    rec.args_raw[3],
+                    rec.args_raw[4],
+                    rec.args_raw[5],
+                ]) as u64;
+                // mov rax, imm32  (REX.W + B8, imm32) = 10 bytes
+                text.extend_from_slice(&[0x48, 0xB8]);
+                text.extend_from_slice(&imm.to_le_bytes());
+                // mov [r15 + disp8], rax  (REX.WB + 89, mod=01 reg=0 r/m=7) = 4 bytes
+                // slot*8 must fit disp8 (≤ 127) → slot ≤ 15
+                if slot * 8 <= 127 {
+                    text.extend_from_slice(&[0x4C, 0x89, 0x47, (slot * 8) as u8]);
+                } else {
+                    // disp32 variant (REX.WB + 89, mod=10, imm32)
+                    let disp = (slot * 8) as i32;
+                    text.extend_from_slice(&[0x4C, 0x89, 0x87]);
+                    text.extend_from_slice(&disp.to_le_bytes());
+                }
+            }
+            // RET: emit x86 ret (1 byte 0xC3). Skip trailing implicit ret if
+            // this is the last instruction; we still always emit a final ret
+            // for safety (see below).
+            0xFF if rec.argc == 0 => {
+                text.push(0xC3);
+            }
+            // LABEL (0x40): emit nothing — labels are resolved at link time
+            // (two-pass), which is S1.2 / S1.3 scope.
+            0x40 => {
+                // no x86 emitted
+            }
+            _ => {
+                // Placeholder for unhandled opcodes: 1 NOP
+                text.push(0x90);
+            }
+        }
     }
-    text.push(0xC3); // ret
+    // Always terminate with ret if we didn't end on one (safety net).
+    if text.is_empty() || *text.last().unwrap() != 0xC3 {
+        text.push(0xC3);
+    }
     CodegenOutput { text }
 }
 
@@ -250,33 +328,103 @@ mod tests {
     }
 
     #[test]
-    fn emit_x86_one_record_one_nop_plus_ret() {
+    fn emit_x86_set_slot0_imm0() {
+        // SET slot=0x0000, imm=0x00000000
+        // emit = movabs rax, imm64 (10B) + store_state slot=0 (4B) + ret (1B) = 15B
         let prog = TybProgram {
             rec_cnt: 1,
-            records: vec![TybRecord { op: 0x30, argc: 0, args_raw: [0; 6] }],
+            records: vec![TybRecord { op: 0x30, argc: 2, args_raw: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00] }],
+        };
+        let out = emit_x86(&prog);
+        // movabs rax, 0 → 0x48 0xB8 + 8 zero bytes
+        // store_state(0, rax) → REX.WB 0x4C, 0x89, MODRM=0x47, disp8=0x00
+        // ret → 0xC3
+        assert_eq!(
+            out.text,
+            vec![
+                0x48, 0xB8, 0, 0, 0, 0, 0, 0, 0, 0,  // movabs rax, 0
+                0x4C, 0x89, 0x47, 0x00,                // mov [r15+0], rax
+                0xC3,                                  // ret
+            ]
+        );
+    }
+
+    #[test]
+    fn emit_x86_set_slot8_imm_deadbeef() {
+        // SET slot=0x0008, imm=0xdeadbeef
+        // slot=8 → disp8 = 8*8 = 64 = 0x40
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord { op: 0x30, argc: 2, args_raw: [0x08, 0x00, 0xEF, 0xBE, 0xAD, 0xDE] }],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(
+            out.text,
+            vec![
+                0x48, 0xB8,                        // movabs rax, imm64
+                0xEF, 0xBE, 0xAD, 0xDE, 0, 0, 0, 0, // 0xdeadbeef sign-extended to 8B
+                0x4C, 0x89, 0x47, 0x40,             // mov [r15+64], rax
+                0xC3,                               // ret
+            ]
+        );
+    }
+
+    #[test]
+    fn emit_x86_ret_opcode_0xff() {
+        // RET alone → 0xC3 (single byte, no implicit trailing ret since we end on one)
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord { op: 0xFF, argc: 0, args_raw: [0; 6] }],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(out.text, vec![0xC3]);
+    }
+
+    #[test]
+    fn emit_x86_label_is_noop() {
+        // LABEL 0x1234 → no x86 emitted, just trailing ret
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord { op: 0x40, argc: 1, args_raw: [0x34, 0x12, 0, 0, 0, 0] }],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(out.text, vec![0xC3]);
+    }
+
+    #[test]
+    fn emit_x86_unknown_op_is_nop() {
+        // Unknown opcode 0x50 → 1 NOP + trailing ret
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord { op: 0x50, argc: 0, args_raw: [0; 6] }],
         };
         let out = emit_x86(&prog);
         assert_eq!(out.text, vec![0x90, 0xC3]);
     }
 
     #[test]
-    fn emit_x86_length_equals_records_plus_one() {
+    fn emit_x86_sequence_set_then_ret() {
+        // SET slot=0, imm=0x01000000 ; RET
+        // argc==2 layout: [slot_lo, slot_hi, imm_0, imm_1, imm_2, imm_3]
+        // imm = 0x01000000 LE = [0x00, 0x00, 0x00, 0x01]
+        // Total: 10 (movabs) + 4 (store) + 1 (ret) = 15 bytes
         let prog = TybProgram {
-            rec_cnt: 50,
-            records: (0..50).map(|i| TybRecord {
-                op: 0x50,
-                argc: 0,
-                args_raw: [i as u8, 0, 0, 0, 0, 0],
-            }).collect(),
+            rec_cnt: 2,
+            records: vec![
+                TybRecord { op: 0x30, argc: 2, args_raw: [0x00, 0x00, 0x00, 0x00, 0x00, 0x01] },
+                TybRecord { op: 0xFF, argc: 0, args_raw: [0; 6] },
+            ],
         };
         let out = emit_x86(&prog);
-        assert_eq!(out.text.len(), 51);
-        assert_eq!(&out.text[..49], &vec![0x90u8; 49][..]);
-        // Actually all 50 NOPS then RET
-        for i in 0..50 {
-            assert_eq!(out.text[i], 0x90, "byte {i} should be NOP");
-        }
-        assert_eq!(out.text[50], 0xC3);
+        assert_eq!(out.text.len(), 15);
+        // bytes 0-9: movabs rax, 0x01000000
+        assert_eq!(out.text[0], 0x48);
+        assert_eq!(out.text[1], 0xB8);
+        assert_eq!(&out.text[2..10], &[0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00]);
+        // bytes 10-13: store_state(0, rax)
+        assert_eq!(&out.text[10..14], &[0x4C, 0x89, 0x47, 0x00]);
+        // byte 14: ret
+        assert_eq!(out.text[14], 0xC3);
     }
 
     #[test]
@@ -288,10 +436,7 @@ mod tests {
         }
         let p = parse_tyb_file(&path).unwrap();
         let out = emit_x86(&p);
-        assert_eq!(out.text.len(), p.rec_cnt + 1, "length = rec_cnt + 1");
-        assert_eq!(*out.text.last().unwrap(), 0xC3, "last byte is ret");
-        for b in &out.text[..p.rec_cnt] {
-            assert_eq!(*b, 0x90, "each record emits 1 byte NOP");
-        }
+        assert!(!out.text.is_empty(), "should emit at least ret");
+        assert_eq!(*out.text.last().unwrap(), 0xC3, "must end with ret");
     }
 }
