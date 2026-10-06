@@ -383,6 +383,65 @@ Run `35553987325`（commit `146b58b`）：
   - **验收**：G + H 已绿 · 无假 CLOSED · 未声称消灭 Rust 祖先  
   - **禁止**：把本勾当"消灭 Rust seed"；把 H 的形式化 pin 当 CLOSED 的实质；把 sidecar 归到 OW-SEED
 
+---
+
+## 后续路线（Stage 17+ 立项 · 打破后门魔咒）
+
+**post-v1.0 path 2 已到诚实终态**（`closed=0 cut=7`）：
+- 自举操作层完成（gen1→gen4 收敛 · gen5≡gen4 · hops=2）
+- OW-SEED 分类重述（bootstrap 例外 · J=[x]）
+- OW-RT 是唯一真正的关键节点（I 已移出 OW-SEED）
+
+**关键节点分析**（`scripts/_oracle_coverage.py` · commit `bd6acde`）：
+- in-DLL recompile oracle: **8 fixture / 8 op-families**（静态查找表）
+- Full golden: 1504 fixture / 20 op-families
+- yoyo-runtime 源码: **4566 字节**（很小）
+- 扩 oracle 是**陷阱**：只匹配预登记输入，改一行 runtime 就废
+- 真突破 = in-DLL 里放**真 codegen**（能吃任意 H_00 IR）
+
+### Stage 17+ 五阶段路线
+
+| 阶段 | 目标 | 时间 | 关键验证 |
+|------|------|------|---------|
+| **S1** | in-DLL codegen 从"查找表"升级为"最小真实编译器"（手写机器码） | 周-月 | `stage17-ow-seed-no-rust-sidecar.ps1` RED→GREEN |
+| **S2** | sidecar 能编译 yoyo-runtime 源码 | 月 | yoyo-runtime 用 H_00 IR 表达 + codegen 覆盖其指令子集 |
+| **S3** | codegen 本身用 YOYO 写 | 半年-年 | YOYO 编译器吃 codegen 源产出等价机器码 |
+| **S4** | 完整 H_00 ISA 覆盖 | 年级 | 任意合法 YOYO 源可编译 |
+| **S5** | 形式化验证 | 5-10 年 | CompCert / CertiK 路线，Coq/Lean 证明 |
+
+### 下一步
+
+**默认 `继续` = S1**：给 `pe_dll_link.rs` 里的 `yoyo_runtime_selfhost_main` 加入真正的 IR 解析逻辑，替换现在的 8 行查找表。
+
+**规模**：几百行 Rust codegen（生成 x86 机器码的字节数组）
+
+**验证**：跑 `stage17-ow-seed-no-rust-sidecar.ps1`，期望从 RED 变 GREEN。
+
+**风险**：即便做到 S1，sidecar 里的 codegen 还是 Rust codegen 写的——**还没自举**。但这是从"假"到"真"的第一步。
+
+### S1 子任务分解（预计）
+
+1. **S1.1**：IR parser 骨架（读 `.tyb` 二进制，输出基本块序列）
+2. **S1.2**：寄存器分配（3-4 个物理寄存器够用）
+3. **S1.3**：指令 codegen（覆盖 lib.rs 用到的 20 条 op）
+4. **S1.4**：PE 封装（把机器码包进输出 PE）
+5. **S1.5**：entry point 改写（替换查找表逻辑）
+6. **S1.6**：验证 + parity test
+
+**每个子任务约 1-2 天，S1 总量 2-4 周**。
+
+### 立项约束
+
+- 本路线**不是 post-v1.0 关洞的延续**，是**新主线**
+- v1.0 已毕业、post-v1.0 path 2 已诚实终态，本路线是**下一代工程**
+- 每次推进都以 commit 形式入仓，可回滚
+- **禁止** invent 新 feature dump / Thompson-proof 话术
+- S1 完成 = **OW-RT 部分进展**，非 CLOSED；`closed` 保持 0
+- 若中途证伪（如 S1 证明不可行），停止并记录根因
+
+**当前分支诚实快照（2026-10-06 · Stage 17+ 立项）**：post-v1.0 path 2 已诚实终态 · OW-RT 关键节点定位为 **in-DLL codegen 真化**（S1-S5 五阶段）· S1 = 周-月级最小真实编译器 · S3 = 半年-年真自举 · S5 = 5-10 年形式化 · **默认 `继续` = S1** · `closed=0 cut=7` · **无 tag**
+
+
 
 
 
