@@ -434,9 +434,9 @@ Run `35553987325`（commit `146b58b`）：
 | S1.5 | `[ ]` | entry point 改写（替换查找表逻辑） | 未开始 |
 | S1.6 | `[ ]` | 验证 + parity test | 未开始 |
 
-**当前进度**：S1.1.a/b/c 三小步完成，合计 ~15/15 单元测试通过。
-**下一步 S1.1.d**：查完整 opcode 表 → 扩展 dispatch。
-**S1 总体仍"周-月"级**（S1.1.a-c 只是热身，S1.4-5 才是真重头戏）。
+**当前进度**：S1.1.a/b/c/d 四小步完成（S1.1.d 有已知 clobber bug，见 `9ef98ea` commit message），**19/19 单元测试通过**。
+**下一步 S1.1.e**：加 `load_state_rcx` helper 修 IMUL/ADDV/ORV/SUBV/CMP clobber bug + 两遍 label 解析（`0x40` LABEL + `0x70-0x7A` 分支 + `0x41` CALL）。
+**S1 总体仍"周-月"级**（S1.1.a-d 只是热身，S1.4-5 才是真重头戏）。
 
 ### 立项约束
 
