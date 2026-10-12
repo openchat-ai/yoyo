@@ -296,10 +296,25 @@ fn emit_cmp_rax_rcx(out: &mut Vec<u8>) {
 /// - `0x69` ORV dst src (argc=2): load dst rax; load src rcx; or rax rcx; store dst rax
 /// - `0x6A` SUBV dst src (argc=2): load dst rax; load src rcx; sub rax rcx; store dst rax
 /// - `0x65` CMP a b (argc=2): load a rax; load b rcx; cmp rax rcx
+/// - `0x40` LABEL hh (argc=1): no x86 emitted; position recorded for rel32 patching
+/// - `0x41` CALL hh (argc=1): E8 rel32 (5B); rel32 patched post-pass
+/// - `0x70` JMP hh (argc=1): E9 rel32 (5B); rel32 patched post-pass
+/// - `0x71..=0x7A` JCC hh (argc=1): 0F 8x rel32 (6B); rel32 patched post-pass
+///   (second byte per `assembler.rs::JCC_VALID`: 0x71=0x84 je, 0x72=0x85 jne,
+///   0x73=0x8C jl, 0x74=0x8D jge, 0x75=0x8E jle, 0x76=0x8F jg,
+///   0x77=0x82 jb, 0x78=0x83 jae, 0x79=0x86 jbe, 0x7A=0x87 ja)
 /// - `0xFF` RET (argc=0): ret
 ///
-/// Still STUBS (S1.1.e / S1.2 / S1.3):
-/// - `0x40` LABEL / `0x41` CALL / `0x70-0x7A` branches — need two-pass label resolution
+/// Two-pass label resolution (S1.1.f):
+/// - Pass 1: emit instructions in order; record each LABEL's byte offset in
+///   `labels: HashMap<u32, usize>`. For CALL/JMP/JCC, emit the opcode + a
+///   placeholder 4-byte rel32 (zeros), and queue the patch site in
+///   `rel32_patches: Vec<(usize, u32)>` (rel32 offset in `text`, target label_id).
+/// - Pass 2: for each queued patch, if the label is defined, fill the rel32
+///   as `target_ip - next_ip` where `next_ip = patch_pos + 4` (the address of
+///   the byte right after the branch imm32). Undefined labels leave rel32=0.
+///
+/// Still STUBS (S1.2 / S1.3):
 /// - `0x80` LDB dd ss oo — memory addressing beyond state slots
 /// - `0x84` / `0x85` MEMCPY_* — multi-byte data movement
 /// - `0x20` ALLOC / `0x50` LOAD_FILE / `0x51` WRITE_FILE — platform primitives
@@ -310,7 +325,10 @@ fn emit_cmp_rax_rcx(out: &mut Vec<u8>) {
 /// - rax = primary scratch
 /// - rcx = secondary scratch (for reg-reg ops)
 pub fn emit_x86(prog: &TybProgram) -> CodegenOutput {
+    use std::collections::HashMap;
     let mut text = Vec::with_capacity(prog.rec_cnt * 20 + 1);
+    let mut labels: HashMap<u32, usize> = HashMap::new();
+    let mut rel32_patches: Vec<(usize, u32)> = Vec::new();
     for rec in &prog.records {
         let args = args_of(rec);
         match rec.op {
@@ -388,17 +406,62 @@ pub fn emit_x86(prog: &TybProgram) -> CodegenOutput {
                 emit_load_state_rcx(&mut text, b);
                 emit_cmp_rax_rcx(&mut text);
             }
+            // --- LABEL hh (argc=1) ---
+            // No x86 emitted; record position for rel32 patching.
+            0x40 if args.len() == 1 => {
+                labels.insert(args[0] as u32, text.len());
+            }
+            // --- CALL hh (argc=1) → E8 rel32 (5B) ---
+            0x41 if args.len() == 1 => {
+                let patch_pos = text.len() + 1; // rel32 sits at [pos+1..pos+5]
+                text.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+                rel32_patches.push((patch_pos, args[0] as u32));
+            }
+            // --- JMP hh (argc=1) → E9 rel32 (5B) ---
+            0x70 if args.len() == 1 => {
+                let patch_pos = text.len() + 1;
+                text.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+                rel32_patches.push((patch_pos, args[0] as u32));
+            }
+            // --- JCC hh (0x71..=0x7A, argc=1) → 0F 8x rel32 (6B) ---
+            0x71 | 0x72 | 0x73 | 0x74 | 0x75 | 0x76 | 0x77 | 0x78 | 0x79 | 0x7A
+                if args.len() == 1 =>
+            {
+                let cc = match rec.op {
+                    0x71 => 0x84, // je
+                    0x72 => 0x85, // jne
+                    0x73 => 0x8C, // jl
+                    0x74 => 0x8D, // jge
+                    0x75 => 0x8E, // jle
+                    0x76 => 0x8F, // jg
+                    0x77 => 0x82, // jb
+                    0x78 => 0x83, // jae
+                    0x79 => 0x86, // jbe
+                    0x7A => 0x87, // ja
+                    _ => unreachable!(),
+                };
+                let patch_pos = text.len() + 2; // rel32 sits at [pos+2..pos+6]
+                text.extend_from_slice(&[0x0F, cc, 0, 0, 0, 0]);
+                rel32_patches.push((patch_pos, args[0] as u32));
+            }
             // --- RET ---
             0xFF if rec.argc == 0 => {
                 text.push(0xC3);
             }
-            // --- LABEL (0x40): two-pass label resolution in S1.1.e ---
-            0x40 => {}
             // --- Everything else: NOP placeholder ---
             _ => {
                 text.push(0x90);
             }
         }
+    }
+    // Pass 2: fill rel32 = target_ip - next_ip, where next_ip = patch_pos + 4.
+    for (patch_pos, label_id) in &rel32_patches {
+        if let Some(&target) = labels.get(label_id) {
+            let next_ip = *patch_pos + 4;
+            let rel = target as i32 - next_ip as i32;
+            text[*patch_pos..*patch_pos + 4].copy_from_slice(&rel.to_le_bytes());
+        }
+        // Undefined label: leave rel32 as 0 (no error).
     }
     // Always terminate with ret if we didn't end on one.
     if text.is_empty() || *text.last().unwrap() != 0xC3 {
@@ -796,5 +859,184 @@ mod tests {
                 0xC3,
             ]
         );
+    }
+
+    // ============= S1.1.f: two-pass label resolution tests =============
+
+    #[test]
+    fn emit_x86_label_only_noop() {
+        // LABEL 0x1234 alone → no x86 emitted, only trailing ret.
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord { op: 0x40, argc: 1, args_raw: [0x34, 0x12, 0, 0, 0, 0] }],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(out.text, vec![0xC3]);
+    }
+
+    #[test]
+    fn emit_x86_jmp_forward_to_ret() {
+        // Program: NOP | LABEL 1 | JMP 1
+        //   NOP @0..1 (1B)
+        //   LABEL 1 → anchored at offset 1 (no bytes)
+        //   JMP 1   @1..6 (E9 + rel32)
+        //     next_ip = 1+5 = 6; target = 1; rel = 1-6 = -5 = 0xFFFFFFFB
+        //   trailing ret @6..7
+        // Total = 7B
+        let prog = TybProgram {
+            rec_cnt: 3,
+            records: vec![
+                TybRecord { op: 0x00, argc: 0, args_raw: [0; 6] }, // NOP
+                TybRecord { op: 0x40, argc: 1, args_raw: [0x01, 0x00, 0, 0, 0, 0] }, // LABEL 1
+                TybRecord { op: 0x70, argc: 1, args_raw: [0x01, 0x00, 0, 0, 0, 0] }, // JMP 1
+            ],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(out.text.len(), 7);
+        assert_eq!(&out.text, &[
+            0x90,                       // NOP
+            0xE9,                       // JMP
+            0xFB, 0xFF, 0xFF, 0xFF,      // rel32 = -5 LE
+            0xC3,                       // trailing ret
+        ]);
+    }
+
+    #[test]
+    fn emit_x86_jmp_backward_to_loop_head() {
+        // Program: LABEL 1 | INC slot=0 | JMP 1
+        //   LABEL 1 @0 → anchored at 0 (no bytes)
+        //   INC slot=0 @0..11 (load 4B + inc 3B + store 4B)
+        //   JMP 1 @11..16 (E9 + rel32)
+        //     next_ip = 11+5 = 16; target = 0; rel = 0-16 = -16 = 0xFFFFFFF0
+        //   trailing ret @16..17
+        // Total = 17B
+        let prog = TybProgram {
+            rec_cnt: 3,
+            records: vec![
+                TybRecord { op: 0x40, argc: 1, args_raw: [0x01, 0x00, 0, 0, 0, 0] }, // LABEL 1
+                TybRecord { op: 0x66, argc: 1, args_raw: [0x00, 0x00, 0, 0, 0, 0] }, // INC slot=0
+                TybRecord { op: 0x70, argc: 1, args_raw: [0x01, 0x00, 0, 0, 0, 0] }, // JMP 1
+            ],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(out.text.len(), 17);
+        // Verify the JMP instruction starts at byte 11
+        assert_eq!(out.text[11], 0xE9);
+        // Verify rel32 = -16 (LE)
+        assert_eq!(&out.text[12..16], &[0xF0, 0xFF, 0xFF, 0xFF]);
+        // Verify trailing ret at 16
+        assert_eq!(out.text[16], 0xC3);
+    }
+
+    #[test]
+    fn emit_x86_jcc_all_ten_conditions_undefined_label() {
+        // Emit one JCC hh for each of 0x71..=0x7A with argc=1, label_id=0.
+        // No LABEL record → rel32 stays 0 for all (undefined-label default).
+        // Each JCC is 6B (0F 8x + rel32). Total = 60B + trailing ret (1B) = 61B.
+        let prog = TybProgram {
+            rec_cnt: 10,
+            records: vec![
+                TybRecord { op: 0x71, argc: 1, args_raw: [0; 6] },
+                TybRecord { op: 0x72, argc: 1, args_raw: [0; 6] },
+                TybRecord { op: 0x73, argc: 1, args_raw: [0; 6] },
+                TybRecord { op: 0x74, argc: 1, args_raw: [0; 6] },
+                TybRecord { op: 0x75, argc: 1, args_raw: [0; 6] },
+                TybRecord { op: 0x76, argc: 1, args_raw: [0; 6] },
+                TybRecord { op: 0x77, argc: 1, args_raw: [0; 6] },
+                TybRecord { op: 0x78, argc: 1, args_raw: [0; 6] },
+                TybRecord { op: 0x79, argc: 1, args_raw: [0; 6] },
+                TybRecord { op: 0x7A, argc: 1, args_raw: [0; 6] },
+            ],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(out.text.len(), 61);
+        // Verify each JCC's second byte matches JCC_VALID order:
+        //   0x71=je=0x84, 0x72=jne=0x85, 0x73=jl=0x8C, 0x74=jge=0x8D, 0x75=jle=0x8E,
+        //   0x76=jg=0x8F, 0x77=jb=0x82, 0x78=jae=0x83, 0x79=jbe=0x86, 0x7A=ja=0x87
+        let expected_ccs: [u8; 10] = [0x84, 0x85, 0x8C, 0x8D, 0x8E, 0x8F, 0x82, 0x83, 0x86, 0x87];
+        for i in 0..10 {
+            let base = i * 6;
+            assert_eq!(out.text[base], 0x0F, "JCC {} first byte", i);
+            assert_eq!(out.text[base + 1], expected_ccs[i], "JCC {} second byte", i);
+            // rel32 undefined → 0
+            assert_eq!(&out.text[base + 2..base + 6], &[0, 0, 0, 0]);
+        }
+        assert_eq!(out.text[60], 0xC3);
+    }
+
+    #[test]
+    fn emit_x86_call_forward_to_label() {
+        // Program: LABEL 1 | CALL 1 | RET
+        //   LABEL 1 @0 → anchored at 0 (no bytes)
+        //   CALL 1 @0..5 (E8 + rel32)
+        //     next_ip = 0+5 = 5; target = 0; rel = -5 = 0xFFFFFFFB
+        //   RET @5..6
+        // Total = 6B
+        let prog = TybProgram {
+            rec_cnt: 3,
+            records: vec![
+                TybRecord { op: 0x40, argc: 1, args_raw: [0x01, 0x00, 0, 0, 0, 0] }, // LABEL 1
+                TybRecord { op: 0x41, argc: 1, args_raw: [0x01, 0x00, 0, 0, 0, 0] }, // CALL 1
+                TybRecord { op: 0xFF, argc: 0, args_raw: [0; 6] }, // RET
+            ],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(out.text.len(), 6);
+        assert_eq!(&out.text, &[
+            0xE8,                       // CALL
+            0xFB, 0xFF, 0xFF, 0xFF,     // rel32 = -5
+            0xC3,                       // RET (explicit)
+        ]);
+    }
+
+    #[test]
+    fn emit_x86_jcc_backward_conditional_loop() {
+        // Program: LABEL 1 | SUB slot=0 imm=1 | JNE 1 (0x72)
+        //   LABEL 1 @0 → anchored at 0 (no bytes)
+        //   SUB slot=0 imm=1 @0..15 (load 4B + sub imm 7B + store 4B)
+        //     emit_sub_rax_imm32 = REX.W 81 E0 + imm32 = 3+4 = 7B (not 6B)
+        //   JNE 1 @15..21 (0F 85 + rel32)
+        //     next_ip = 15+6 = 21; target = 0; rel = 0-21 = -21 = 0xFFFFFFEB
+        //   trailing ret @21
+        // Total = 22B
+        let prog = TybProgram {
+            rec_cnt: 3,
+            records: vec![
+                TybRecord { op: 0x40, argc: 1, args_raw: [0x01, 0x00, 0, 0, 0, 0] }, // LABEL 1
+                TybRecord { op: 0x61, argc: 2, args_raw: [0x00, 0x00, 0x01, 0x00, 0, 0] }, // SUB slot=0 imm=1
+                TybRecord { op: 0x72, argc: 1, args_raw: [0x01, 0x00, 0, 0, 0, 0] }, // JNE 1
+            ],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(out.text.len(), 22);
+        // Verify JNE at offset 15
+        assert_eq!(out.text[15], 0x0F);
+        assert_eq!(out.text[16], 0x85); // jne
+        // Verify rel32 = -21 (LE)
+        assert_eq!(&out.text[17..21], &[0xEB, 0xFF, 0xFF, 0xFF]);
+        // Verify trailing ret
+        assert_eq!(out.text[21], 0xC3);
+    }
+
+    #[test]
+    fn emit_x86_jmp_to_undefined_label_leaves_rel32_zero() {
+        // JMP to a label that doesn't exist → rel32 stays 0.
+        // Program: JMP 99 (no LABEL 99) | RET
+        //   JMP @0..5: E9 00 00 00 00
+        //   RET @5..6
+        let prog = TybProgram {
+            rec_cnt: 2,
+            records: vec![
+                TybRecord { op: 0x70, argc: 1, args_raw: [0x63, 0x00, 0, 0, 0, 0] }, // JMP 99
+                TybRecord { op: 0xFF, argc: 0, args_raw: [0; 6] }, // RET
+            ],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(out.text.len(), 6);
+        assert_eq!(&out.text, &[
+            0xE9,                       // JMP
+            0x00, 0x00, 0x00, 0x00,     // rel32 = 0 (undefined label)
+            0xC3,                       // RET
+        ]);
     }
 }
