@@ -672,8 +672,166 @@ fn arg_low_bytes(rec: &TybRecord) -> Vec<u8> {
 ///
 /// Entry setup (R15 → .data) is handled inside `link_pe`. This is the host-side
 /// packaging step; in-DLL entry rewrite remains S1.5.
+///
+/// Note: `link_pe` pads `.data` to `OUTPUT_DATA_NEED` (~230 KiB) for H_00
+/// compatibility. Prefer [`wrap_pe_slim`] / [`compile_tyb_to_pe`] when the PE
+/// must fit in an in-DLL stack buffer (S1.5).
 pub fn wrap_pe(out: &CodegenOutput) -> crate::types::IsaResult<crate::pe_link::PeImage> {
     crate::pe_link::link_pe(&out.text, &out.data)
+}
+
+/// Max `.text` payload (startup 13 + user code) for slim PE / in-DLL scratch.
+pub const S1_SLIM_MAX_CODE: usize = 256;
+/// Slim `.data` virtual size (state base for R15); keeps PE ≪ `link_pe` H_00 pad.
+pub const S1_SLIM_DATA_VS: u32 = 0x1000;
+
+/// S1.5 — minimal PE32+ for in-DLL codegen (no IAT, tiny `.data`).
+///
+/// Layout mirrors `pe_link::link_pe_impl` startup (`lea r15,[rip+disp]; jmp code`)
+/// but with `.data` VS = [`S1_SLIM_DATA_VS`] so the image fits in ~6–8 KiB.
+pub fn wrap_pe_slim(out: &CodegenOutput) -> crate::types::IsaResult<crate::pe_link::PeImage> {
+    wrap_pe_slim_bytes(&out.text, &out.data)
+}
+
+/// Build slim PE from raw `.text` / `.data` bytes.
+pub fn wrap_pe_slim_bytes(
+    code: &[u8],
+    data: &[u8],
+) -> crate::types::IsaResult<crate::pe_link::PeImage> {
+    use crate::types::IsaError;
+    if code.len() > S1_SLIM_MAX_CODE {
+        return Err(IsaError::PlatformError {
+            msg: format!(
+                "s1 slim PE: code {} exceeds max {}",
+                code.len(),
+                S1_SLIM_MAX_CODE
+            ),
+        });
+    }
+    if data.len() > S1_SLIM_DATA_VS as usize {
+        return Err(IsaError::PlatformError {
+            msg: format!(
+                "s1 slim PE: data {} exceeds VS {}",
+                data.len(),
+                S1_SLIM_DATA_VS
+            ),
+        });
+    }
+
+    const SECTION_ALIGN: u32 = 0x1000;
+    const FILE_ALIGN: u32 = 0x200;
+    const HEADERS_RAW: u32 = 0x400;
+    const PE_STARTUP_LEN: u32 = 13;
+    const TEXT_RVA: u32 = SECTION_ALIGN; // 0x1000
+
+    let align_up = |v: u32, a: u32| (v + a - 1) & !(a - 1);
+    let write_u16 = |buf: &mut [u8], off: usize, v: u16| {
+        buf[off..off + 2].copy_from_slice(&v.to_le_bytes());
+    };
+    let write_u32 = |buf: &mut [u8], off: usize, v: u32| {
+        buf[off..off + 4].copy_from_slice(&v.to_le_bytes());
+    };
+    let write_u64 = |buf: &mut [u8], off: usize, v: u64| {
+        buf[off..off + 8].copy_from_slice(&v.to_le_bytes());
+    };
+    let write_name = |buf: &mut [u8], off: usize, name: &[u8]| {
+        let n = name.len().min(8);
+        buf[off..off + n].copy_from_slice(&name[..n]);
+    };
+
+    let code_need = code.len() as u32 + PE_STARTUP_LEN;
+    let code_raw = align_up(code_need.max(1), FILE_ALIGN);
+    let text_vs = align_up(code_need + 0x40, SECTION_ALIGN);
+    let data_rva = TEXT_RVA + text_vs;
+    let data_vs = S1_SLIM_DATA_VS;
+    let data_raw = align_up(data_vs, FILE_ALIGN);
+    let size_of_image = align_up(data_rva + data_vs, SECTION_ALIGN);
+
+    let mut img = vec![0u8; (HEADERS_RAW + code_raw + data_raw) as usize];
+
+    img[0] = 0x4D;
+    img[1] = 0x5A;
+    write_u32(&mut img, 0x3C, 0x80);
+    img[0x80] = b'P';
+    img[0x81] = b'E';
+
+    write_u16(&mut img, 0x84, 0x8664);
+    write_u16(&mut img, 0x86, 2);
+    write_u16(&mut img, 0x94, 0xF0);
+    write_u16(&mut img, 0x96, 0x22);
+
+    let opt = 0x98usize;
+    write_u16(&mut img, opt, 0x20B);
+    img[opt + 2] = 1;
+    write_u32(&mut img, opt + 16, TEXT_RVA);
+    write_u64(&mut img, opt + 24, 0x140000000);
+    write_u32(&mut img, opt + 32, SECTION_ALIGN);
+    write_u32(&mut img, opt + 36, FILE_ALIGN);
+    write_u16(&mut img, opt + 40, 6);
+    write_u16(&mut img, opt + 48, 6);
+    write_u32(&mut img, opt + 56, size_of_image);
+    write_u32(&mut img, opt + 60, HEADERS_RAW);
+    write_u16(&mut img, opt + 68, 3);
+    write_u16(&mut img, opt + 70, 0x0100);
+    write_u64(&mut img, opt + 72, 0x100000);
+    write_u64(&mut img, opt + 80, 0x1000);
+    write_u64(&mut img, opt + 88, 0x100000);
+    write_u64(&mut img, opt + 96, 0x1000);
+    write_u32(&mut img, opt + 108, 16);
+    write_u32(&mut img, opt + 4, code_raw);
+    write_u32(&mut img, opt + 8, data_raw);
+    write_u32(&mut img, opt + 20, TEXT_RVA);
+
+    let s1 = 0x98 + 0xF0;
+    write_name(&mut img, s1, b".text");
+    write_u32(&mut img, s1 + 8, text_vs);
+    write_u32(&mut img, s1 + 12, TEXT_RVA);
+    write_u32(&mut img, s1 + 16, code_raw);
+    write_u32(&mut img, s1 + 20, HEADERS_RAW);
+    write_u32(&mut img, s1 + 36, 0x60000020);
+
+    let s2 = s1 + 40;
+    write_name(&mut img, s2, b".data");
+    write_u32(&mut img, s2 + 8, data_vs);
+    write_u32(&mut img, s2 + 12, data_rva);
+    write_u32(&mut img, s2 + 16, data_raw);
+    write_u32(&mut img, s2 + 20, HEADERS_RAW + code_raw);
+    write_u32(&mut img, s2 + 36, 0xC0000040);
+
+    let text_file_off = HEADERS_RAW as usize;
+    let lea_disp = data_rva as i32 - (TEXT_RVA as i32 + 7);
+    img[text_file_off] = 0x4C;
+    img[text_file_off + 1] = 0x8D;
+    img[text_file_off + 2] = 0x3D;
+    img[text_file_off + 3..text_file_off + 7].copy_from_slice(&lea_disp.to_le_bytes());
+    let jmp_rel = (TEXT_RVA + PE_STARTUP_LEN) as i32 - (TEXT_RVA as i32 + 7 + 5);
+    img[text_file_off + 7] = 0xE9;
+    img[text_file_off + 8..text_file_off + 12].copy_from_slice(&jmp_rel.to_le_bytes());
+    img[text_file_off + 12] = 0x90;
+
+    let code_dst = text_file_off + PE_STARTUP_LEN as usize;
+    img[code_dst..code_dst + code.len()].copy_from_slice(code);
+
+    let data_file_off = (HEADERS_RAW + code_raw) as usize;
+    let copy_n = data.len().min(data_raw as usize);
+    img[data_file_off..data_file_off + copy_n].copy_from_slice(&data[..copy_n]);
+
+    Ok(crate::pe_link::PeImage { bytes: img })
+}
+
+/// File offset of user `.text` (after 13-byte startup) in slim PE images.
+pub const S1_SLIM_TEXT_PAYLOAD_OFF: usize = 0x400 + 13;
+
+/// S1.5 — host-side TYB → slim PE (parse + emit_x86 + wrap_pe_slim).
+///
+/// This is the reference path the in-DLL entry (S1.5) mirrors in machine code.
+pub fn compile_tyb_to_pe(tyb: &[u8]) -> crate::types::IsaResult<crate::pe_link::PeImage> {
+    let prog = parse_tyb(tyb).map_err(|e| crate::types::IsaError::ParseError {
+        line: 0,
+        msg: format!("s1 compile_tyb_to_pe: {e}"),
+    })?;
+    let out = emit_x86(&prog);
+    wrap_pe_slim(&out)
 }
 
 /// Parse a .tyb file from disk (used by S1 gates / tests).
@@ -1539,5 +1697,69 @@ mod tests {
         // PE signature at e_lfanew
         let e_lfanew = u32::from_le_bytes(pe.bytes[0x3C..0x40].try_into().unwrap()) as usize;
         assert_eq!(&pe.bytes[e_lfanew..e_lfanew + 4], b"PE\0\0");
+    }
+
+    // ============= S1.5: slim PE + compile_tyb_to_pe =============
+
+    #[test]
+    fn wrap_pe_slim_is_small_and_mz() {
+        let out = emit_x86(&TybProgram {
+            rec_cnt: 0,
+            records: vec![],
+        });
+        let pe = wrap_pe_slim(&out).expect("slim");
+        assert!(
+            pe.bytes.len() < 0x3000,
+            "slim PE should be ≪ H_00 pad, got {}",
+            pe.bytes.len()
+        );
+        assert_eq!(&pe.bytes[0..2], b"MZ");
+        let e_lfanew =
+            u32::from_le_bytes(pe.bytes[0x3C..0x40].try_into().unwrap()) as usize;
+        assert_eq!(&pe.bytes[e_lfanew..e_lfanew + 4], b"PE\0\0");
+        // User code (ret) sits at fixed payload offset.
+        assert_eq!(pe.bytes[S1_SLIM_TEXT_PAYLOAD_OFF], 0xC3);
+    }
+
+    #[test]
+    fn compile_tyb_to_pe_set_ret() {
+        // TYB: SET slot0=0xDEADBEEF ; RET
+        let mut tyb = Vec::new();
+        tyb.extend_from_slice(&TYB_MAGIC);
+        tyb.extend_from_slice(&[0, 0]); // reserved
+        tyb.extend_from_slice(&2u16.to_le_bytes());
+        // SET
+        tyb.push(0x30);
+        tyb.push(2);
+        tyb.extend_from_slice(&[0x00, 0x00, 0xEF, 0xBE, 0xAD, 0xDE]);
+        // RET
+        tyb.push(0xFF);
+        tyb.push(0);
+        tyb.extend_from_slice(&[0u8; 6]);
+
+        let pe = compile_tyb_to_pe(&tyb).expect("compile");
+        assert_eq!(&pe.bytes[0..2], b"MZ");
+        assert!(pe.bytes.len() < 0x3000);
+        // movabs rax, imm64 starts with 48 B8
+        assert_eq!(&pe.bytes[S1_SLIM_TEXT_PAYLOAD_OFF..S1_SLIM_TEXT_PAYLOAD_OFF + 2], &[
+            0x48, 0xB8
+        ]);
+    }
+
+    #[test]
+    fn compile_tyb_to_pe_rejects_bad_magic() {
+        match compile_tyb_to_pe(b"XXXX") {
+            Ok(_) => panic!("bad magic must fail"),
+            Err(err) => {
+                let msg = format!("{err}");
+                assert!(
+                    msg.contains("s1 compile_tyb_to_pe")
+                        || msg.contains("magic")
+                        || msg.contains("TYB")
+                        || msg.contains("short"),
+                    "unexpected err: {msg}"
+                );
+            }
+        }
     }
 }

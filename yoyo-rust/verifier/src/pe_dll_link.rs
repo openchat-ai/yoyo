@@ -16,6 +16,11 @@
 //! parity, and the H_00 embed-vs-cwd sidecar posture made explicit. No-input is
 //! fail-closed on the sidecar path exactly like the seed/link host: exit
 //! `EXIT_NO_INPUT` (`2`), no `output.exe` written.
+//!
+//! Stage 17+ **S1.5.a** (host entry bridge): when cwd input has `TYB\0` magic,
+//! [`resolve_recompile_input`] prefers [`crate::s1_tyb_parser::compile_tyb_to_pe`]
+//! (slim PE) over the oracle table. In-DLL machine-code port of that path is
+//! S1.5.b — oracle export body unchanged until then.
 //! Honest: table ≠ full YOYO compiler in DLL; production default remains Rust —
 //! **not** OW-RT CLOSED (see `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`).
 
@@ -896,6 +901,20 @@ pub fn match_recompile_entry<'a>(
         .map(|e| e.pe.as_slice())
 }
 
+/// S1.5.a host entry bridge: TYB magic → real codegen; else oracle match.
+///
+/// Returns owned PE bytes. TYB path uses slim PE ([`crate::s1_tyb_parser::compile_tyb_to_pe`]);
+/// oracle path clones the baked row. Mirrors the call-time decision S1.5.b will
+/// encode in the DLL export body.
+pub fn resolve_recompile_input(entries: &[RecompileEntry], input: &[u8]) -> Option<Vec<u8>> {
+    if crate::s1_tyb_parser::is_tyb(input) {
+        return crate::s1_tyb_parser::compile_tyb_to_pe(input)
+            .ok()
+            .map(|pe| pe.bytes);
+    }
+    match_recompile_entry(entries, input).map(|pe| pe.to_vec())
+}
+
 /// Link YOYO pe_dll whose export **recompiles** via call-time input match.
 ///
 /// Call-time: `ReadFile` cwd `input.*`, scan baked (input→PE) table, write
@@ -1624,7 +1643,8 @@ pub fn yoyo_sidecar_in_dll_recompile(work_dir: &Path) -> i32 {
             Ok(d) => d,
             Err(e) => return e,
         };
-        match match_recompile_entry(&entries, &input) {
+        // S1.5.a: TYB → compile_tyb_to_pe; else oracle (same order as resolve_recompile_input).
+        match resolve_recompile_input(&entries, &input) {
             Some(pe) => {
                 if std::fs::write(&out_path, pe).is_err() {
                     return EXIT_WRITE_FAIL;
@@ -2085,6 +2105,30 @@ mod tests {
             Some(entries[1].pe.as_slice())
         );
         assert!(match_recompile_entry(&entries, b"not-in-table").is_none());
+    }
+
+    #[test]
+    fn resolve_recompile_input_tyb_uses_s1_codegen() {
+        // Empty TYB (header only, rec_cnt=0) → slim PE via S1, not oracle.
+        let mut tyb = Vec::new();
+        tyb.extend_from_slice(b"TYB\0");
+        tyb.extend_from_slice(&[0, 0]);
+        tyb.extend_from_slice(&0u16.to_le_bytes());
+        let pe = resolve_recompile_input(&[], &tyb).expect("S1 TYB compile");
+        assert_eq!(&pe[0..2], b"MZ");
+        assert!(
+            pe.len() < 0x3000,
+            "S1 slim PE expected, got {} bytes",
+            pe.len()
+        );
+    }
+
+    #[test]
+    fn resolve_recompile_input_falls_back_to_oracle() {
+        let entries = gate_g_recompile_entries().expect("entries");
+        let pe = resolve_recompile_input(&entries, &entries[0].input).expect("oracle");
+        assert_eq!(pe, entries[0].pe);
+        assert!(resolve_recompile_input(&entries, b"not-in-table").is_none());
     }
 
     #[test]
