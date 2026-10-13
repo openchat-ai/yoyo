@@ -166,13 +166,16 @@ pub struct CodegenOutput {
 /// Allocation policy:
 /// - `R15` = pinned state base (never a scratch)
 /// - `Rax` = primary scratch / result
-/// - `Rcx` = secondary operand
-/// - `Rdx` = tertiary (reserved for S1.3 LDB/MEMCPY; encoding covered by unit test)
+/// - `Rcx` = secondary operand / memcpy count
+/// - `Rdx` = tertiary scratch
+/// - `Rsi` / `Rdi` = memcpy src/dst pointers (S1.3 MEMCPY_DATA)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Reg {
     Rax = 0,
     Rcx = 1,
     Rdx = 2,
+    Rsi = 6,
+    Rdi = 7,
     R15 = 15,
 }
 
@@ -216,7 +219,7 @@ fn arg_slot_slot(rec: &TybRecord) -> Option<(u16, u16)> {
     Some((a, b))
 }
 
-/// TYB argc=1 layout: u32 LE in args_raw[0..4] (LABEL/CALL/JMP/JCC/INC/DEC).
+/// TYB argc=1 layout: u32 LE in args_raw[0..4] (LABEL/CALL/JMP/JCC/INC/DEC/RAW_BYTE).
 fn arg_u32(rec: &TybRecord) -> Option<u32> {
     if rec.argc != 1 {
         return None;
@@ -224,6 +227,18 @@ fn arg_u32(rec: &TybRecord) -> Option<u32> {
     Some(u32::from_le_bytes([
         rec.args_raw[0], rec.args_raw[1], rec.args_raw[2], rec.args_raw[3],
     ]))
+}
+
+/// TYB argc=3 layout: three u16 LE fields (LDB / MEMCPY_*).
+fn arg_slot3(rec: &TybRecord) -> Option<(u16, u16, u16)> {
+    if rec.argc != 3 {
+        return None;
+    }
+    Some((
+        u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]),
+        u16::from_le_bytes([rec.args_raw[2], rec.args_raw[3]]),
+        u16::from_le_bytes([rec.args_raw[4], rec.args_raw[5]]),
+    ))
 }
 
 /// movabs rax, imm64 (10B). Imm32 is zero-extended into the 8-byte field.
@@ -315,6 +330,51 @@ fn emit_cmp_reg(out: &mut Vec<u8>, a: Reg, b: Reg) {
     out.extend_from_slice(&[rex, 0x39, 0xC0 | (b.low3() << 3) | a.low3()]);
 }
 
+/// movzx rax, byte [rax] — 4B (`48 0F B6 00`). Used by LDB.
+fn emit_movzx_rax_byte_rax(out: &mut Vec<u8>) {
+    out.extend_from_slice(&[0x48, 0x0F, 0xB6, 0x00]);
+}
+
+/// `rep movsb` — 2B (`F3 A4`).
+///
+/// Note: `assembler.rs::emit_memcpy_data` currently pushes `0xFC` (CLD) and
+/// mislabels it as rep movsb. S1.3 emits the correct encoding.
+fn emit_rep_movsb(out: &mut Vec<u8>) {
+    out.extend_from_slice(&[0xF3, 0xA4]);
+}
+
+/// LDB dd ss oo — load byte from mem[state[ss]+oo] into state[dd] (zero-extend).
+/// Matches `emit.rs::emit_ldb` / platform default.
+fn emit_ldb(out: &mut Vec<u8>, dd: u16, ss: u16, oo: u16) {
+    emit_load_state(out, ss, Reg::Rax);
+    if oo != 0 {
+        emit_add_imm(out, Reg::Rax, oo as u32);
+    }
+    emit_movzx_rax_byte_rax(out);
+    emit_store_state(out, dd, Reg::Rax);
+}
+
+/// MEMCPY_DATA dst src n — pointer-form: RSI=S[src], RDI=S[dst], RCX=S[n], rep movsb.
+/// Arg order on the wire is (dst, src, n) per `isa_table` / `emit.rs`.
+fn emit_memcpy_data(out: &mut Vec<u8>, dst: u16, src: u16, n: u16) {
+    emit_load_state(out, src, Reg::Rsi);
+    emit_load_state(out, dst, Reg::Rdi);
+    emit_load_state(out, n, Reg::Rcx);
+    emit_rep_movsb(out);
+}
+
+/// MEMCPY_STATE dst src n — slot-to-slot copy of `n` slots (Win32/simulator semantics).
+/// Caps at 64 slots (same as `Win32Platform::emit_memcpy_state`); larger n → no-op.
+fn emit_memcpy_state(out: &mut Vec<u8>, dst: u16, src: u16, n: u16) {
+    if n > 64 {
+        return;
+    }
+    for i in 0..n {
+        emit_load_state(out, src.wrapping_add(i), Reg::Rax);
+        emit_store_state(out, dst.wrapping_add(i), Reg::Rax);
+    }
+}
+
 /// Emit x86 for a TYB program.
 ///
 /// Covers (from `isa_table.txt`):
@@ -348,17 +408,22 @@ fn emit_cmp_reg(out: &mut Vec<u8>, a: Reg, b: Reg) {
 ///   as `target_ip - next_ip` where `next_ip = patch_pos + 4` (the address of
 ///   the byte right after the branch imm32). Undefined labels leave rel32=0.
 ///
-/// Still STUBS (S1.3 / S1.4):
-/// - `0x80` LDB dd ss oo — memory addressing beyond state slots
-/// - `0x84` / `0x85` MEMCPY_* — multi-byte data movement (will use Rdx tertiary)
-/// - `0x20` ALLOC / `0x50` LOAD_FILE / `0x51` WRITE_FILE — platform primitives
-/// - `0x10` / `0x12` / `0x13` / `0xA0` / `0xA1` — data/string/raw (S1.4 PE wrapping scope)
+/// S1.3 memory ops (this step):
+/// - `0x80` LDB dd ss oo (argc=3)
+/// - `0x84` MEMCPY_DATA dst src n (argc=3) — pointer-form + `rep movsb` (`F3 A4`)
+/// - `0x85` MEMCPY_STATE dst src n (argc=3) — slot-to-slot (Win32/simulator)
+/// - `0xA0` RAW_BYTE byte (argc=1) — emit literal byte
 ///
-/// Register allocation (S1.2):
+/// Still STUBS (S1.4 / platform):
+/// - `0x20` ALLOC / `0x50` LOAD_FILE / `0x51` WRITE_FILE — need runtime helpers
+/// - `0x10` / `0x12` / `0x13` / `0xA1` — data/string/raw blobs (PE wrapping scope)
+///
+/// Register allocation:
 /// - r15 = pinned state base
 /// - rax = primary scratch / result
-/// - rcx = secondary operand
-/// - rdx = tertiary (encoding ready; unused until S1.3)
+/// - rcx = secondary / memcpy count
+/// - rdx = tertiary
+/// - rsi / rdi = memcpy pointers (MEMCPY_DATA)
 pub fn emit_x86(prog: &TybProgram) -> CodegenOutput {
     use std::collections::HashMap;
     let mut text = Vec::with_capacity(prog.rec_cnt * 20 + 1);
@@ -500,11 +565,51 @@ pub fn emit_x86(prog: &TybProgram) -> CodegenOutput {
                     text.push(0x90);
                 }
             }
+            // --- LDB dd ss oo ---
+            0x80 => {
+                if let Some((dd, ss, oo)) = arg_slot3(rec) {
+                    emit_ldb(&mut text, dd, ss, oo);
+                } else {
+                    text.push(0x90);
+                }
+            }
+            // --- MEMCPY_DATA dst src n ---
+            0x84 => {
+                if let Some((dst, src, n)) = arg_slot3(rec) {
+                    emit_memcpy_data(&mut text, dst, src, n);
+                } else {
+                    text.push(0x90);
+                }
+            }
+            // --- MEMCPY_STATE dst src n ---
+            0x85 => {
+                if let Some((dst, src, n)) = arg_slot3(rec) {
+                    if n == 0 || n > 64 {
+                        // empty / oversized: no bytes (safety); trailing ret still appended
+                    } else {
+                        emit_memcpy_state(&mut text, dst, src, n);
+                    }
+                } else {
+                    text.push(0x90);
+                }
+            }
+            // --- RAW_BYTE byte ---
+            0xA0 => {
+                if let Some(b) = arg_u32(rec) {
+                    text.push(b as u8);
+                } else {
+                    text.push(0x90);
+                }
+            }
+            // --- NOP (explicit) ---
+            0x00 if rec.argc == 0 => {
+                text.push(0x90);
+            }
             // --- RET ---
             0xFF if rec.argc == 0 => {
                 text.push(0xC3);
             }
-            // --- Everything else: NOP placeholder ---
+            // --- Everything else: NOP placeholder (ALLOC/IO/DATA/RAW_BYTES) ---
             _ => {
                 text.push(0x90);
             }
@@ -1154,5 +1259,154 @@ mod tests {
         let mut out = Vec::new();
         emit_sub_imm(&mut out, Reg::Rax, 1);
         assert_eq!(&out, &[0x48, 0x81, 0xE8, 0x01, 0x00, 0x00, 0x00]);
+    }
+
+    // ============= S1.3: LDB / MEMCPY / RAW_BYTE =============
+
+    #[test]
+    fn emit_x86_ldb_oo0() {
+        // LDB dd=1 ss=2 oo=0:
+        //   49 8B 47 10   load [r15+16] → rax
+        //   48 0F B6 00   movzx rax, byte [rax]
+        //   49 89 47 08   store [r15+8] ← rax
+        //   C3
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord {
+                op: 0x80,
+                argc: 3,
+                args_raw: [0x01, 0x00, 0x02, 0x00, 0x00, 0x00],
+            }],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(
+            &out.text,
+            &[
+                0x49, 0x8B, 0x47, 0x10,
+                0x48, 0x0F, 0xB6, 0x00,
+                0x49, 0x89, 0x47, 0x08,
+                0xC3,
+            ]
+        );
+    }
+
+    #[test]
+    fn emit_x86_ldb_with_offset() {
+        // LDB dd=0 ss=1 oo=5 → load + add imm32 5 + movzx + store
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord {
+                op: 0x80,
+                argc: 3,
+                args_raw: [0x00, 0x00, 0x01, 0x00, 0x05, 0x00],
+            }],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(
+            &out.text,
+            &[
+                0x49, 0x8B, 0x47, 0x08,                         // load ss=1
+                0x48, 0x81, 0xC0, 0x05, 0x00, 0x00, 0x00,       // add rax, 5
+                0x48, 0x0F, 0xB6, 0x00,                         // movzx
+                0x49, 0x89, 0x47, 0x00,                         // store dd=0
+                0xC3,
+            ]
+        );
+    }
+
+    #[test]
+    fn emit_x86_memcpy_data_pointer_form() {
+        // MEMCPY_DATA dst=1 src=2 n=3:
+        //   load src→rsi, dst→rdi, n→rcx, then F3 A4
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord {
+                op: 0x84,
+                argc: 3,
+                args_raw: [0x01, 0x00, 0x02, 0x00, 0x03, 0x00],
+            }],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(
+            &out.text,
+            &[
+                0x49, 0x8B, 0x77, 0x10, // mov rsi, [r15+16]  (src=2)
+                0x49, 0x8B, 0x7F, 0x08, // mov rdi, [r15+8]   (dst=1)
+                0x49, 0x8B, 0x4F, 0x18, // mov rcx, [r15+24]  (n=3)
+                0xF3, 0xA4,             // rep movsb (correct; not assembler.rs's 0xFC)
+                0xC3,
+            ]
+        );
+    }
+
+    #[test]
+    fn emit_x86_memcpy_state_two_slots() {
+        // MEMCPY_STATE dst=4 src=1 n=2 → two load/store pairs
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord {
+                op: 0x85,
+                argc: 3,
+                args_raw: [0x04, 0x00, 0x01, 0x00, 0x02, 0x00],
+            }],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(
+            &out.text,
+            &[
+                // i=0: src=1 → dst=4
+                0x49, 0x8B, 0x47, 0x08,
+                0x49, 0x89, 0x47, 0x20,
+                // i=1: src=2 → dst=5
+                0x49, 0x8B, 0x47, 0x10,
+                0x49, 0x89, 0x47, 0x28,
+                0xC3,
+            ]
+        );
+    }
+
+    #[test]
+    fn emit_x86_memcpy_state_n_over_64_is_empty() {
+        // n=65 → no memcpy bytes, only trailing ret
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord {
+                op: 0x85,
+                argc: 3,
+                args_raw: [0x00, 0x00, 0x00, 0x00, 0x41, 0x00], // n=65
+            }],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(out.text, vec![0xC3]);
+    }
+
+    #[test]
+    fn emit_x86_raw_byte() {
+        // RAW_BYTE 0x90 → emit 0x90 + trailing ret (since last != C3)
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord {
+                op: 0xA0,
+                argc: 1,
+                args_raw: [0x90, 0x00, 0x00, 0x00, 0, 0],
+            }],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(out.text, vec![0x90, 0xC3]);
+    }
+
+    #[test]
+    fn emit_x86_alloc_still_nop_stub() {
+        // ALLOC remains platform stub → single NOP + ret
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord {
+                op: 0x20,
+                argc: 2,
+                args_raw: [0x01, 0x00, 0x10, 0x00, 0x00, 0x00],
+            }],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(out.text, vec![0x90, 0xC3]);
     }
 }
