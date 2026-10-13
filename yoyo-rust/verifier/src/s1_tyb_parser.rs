@@ -822,11 +822,12 @@ pub fn wrap_pe_slim_bytes(
 /// File offset of user `.text` (after 13-byte startup) in slim PE images.
 pub const S1_SLIM_TEXT_PAYLOAD_OFF: usize = 0x400 + 13;
 
-/// S1.5.b / S1.7.a–b in-DLL mini-ISA (must stay in sync with `pe_dll_link` export body).
+/// S1.5.b / S1.7.a–c in-DLL mini-ISA (must stay in sync with `pe_dll_link` export body).
 ///
 /// S1.5.b: NOP/SET/LABEL/RAW_BYTE/RET  
 /// S1.7.a: +GET/MOVRR/ADD imm/SUB imm/INC/DEC  
-/// S1.7.b: +CMP/CALL/JMP/JCC (two-pass label patch, ≤16 labels/patches)
+/// S1.7.b: +CMP/CALL/JMP/JCC (two-pass label patch, ≤16 labels/patches)  
+/// S1.7.c: +IMUL/ADDV/ORV/SUBV
 pub fn is_s1_mini_op(op: u8) -> bool {
     matches!(
         op,
@@ -836,10 +837,14 @@ pub fn is_s1_mini_op(op: u8) -> bool {
             | 0x60
             | 0x61
             | 0x62
+            | 0x63
             | 0x64
             | 0x65
             | 0x66
             | 0x67
+            | 0x68
+            | 0x69
+            | 0x6A
             | 0x70
             | 0x71
             | 0x72
@@ -920,14 +925,20 @@ pub fn validate_tyb_mini(prog: &TybProgram) -> crate::types::IsaResult<()> {
                     return bad(i, format!("s1 mini INC/DEC slot {slot} disp32 unsupported"));
                 }
             }
-            0x65 => {
+            0x63 | 0x65 | 0x68 | 0x69 | 0x6A => {
                 if rec.argc != 2 {
-                    return bad(i, format!("s1 mini CMP requires argc=2, got {}", rec.argc));
+                    return bad(
+                        i,
+                        format!(
+                            "s1 mini IMUL/CMP/ADDV/ORV/SUBV requires argc=2, got {}",
+                            rec.argc
+                        ),
+                    );
                 }
                 let a = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]);
                 let b = u16::from_le_bytes([rec.args_raw[2], rec.args_raw[3]]);
                 if !mini_slot_disp8_ok(a) || !mini_slot_disp8_ok(b) {
-                    return bad(i, "s1 mini CMP slot disp32 unsupported".into());
+                    return bad(i, "s1 mini ALU-reg/CMP slot disp32 unsupported".into());
                 }
             }
             0x40 | 0x41 | 0x70 | 0x71 | 0x72 | 0x73 | 0x74 | 0x75 | 0x76 | 0x77 | 0x78
@@ -1939,13 +1950,19 @@ mod tests {
     }
 
     #[test]
-    fn compile_tyb_to_pe_mini_rejects_imul() {
-        // IMUL (0x63) is in full emit_x86 but not yet in mini-ISA (S1.7.c).
-        let tyb = tyb_from_records(&[(0x63, 2, [1, 0, 2, 0, 0, 0])]);
-        assert!(compile_tyb_to_pe(&tyb).is_ok(), "full path still accepts IMUL");
+    fn compile_tyb_to_pe_mini_accepts_imul() {
+        let tyb = tyb_from_records(&[(0x63, 2, [1, 0, 2, 0, 0, 0]), (0xFF, 0, [0; 6])]);
+        assert!(compile_tyb_to_pe_mini(&tyb).is_ok());
+    }
+
+    #[test]
+    fn compile_tyb_to_pe_mini_rejects_ldb() {
+        // LDB (0x80) still outside mini-ISA.
+        let tyb = tyb_from_records(&[(0x80, 3, [0, 0, 1, 0, 0, 0])]);
+        assert!(compile_tyb_to_pe(&tyb).is_ok(), "full path still accepts LDB");
         assert!(
             compile_tyb_to_pe_mini(&tyb).is_err(),
-            "mini path must fail-closed on IMUL"
+            "mini path must fail-closed on LDB"
         );
     }
 
