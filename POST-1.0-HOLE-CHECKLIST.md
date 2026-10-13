@@ -440,7 +440,7 @@ Run `35553987325`（commit `146b58b`）：
 | **S1.7.c** | ✅ 已本地提交 | mini-ISA +IMUL/ADDV/ORV/SUBV（host validate + in-DLL）；parity 扩至 22 行；拒测改 LDB | commit `662e82d` · pe_dll_link **32/32** · s1_ **61/61** |
 | **S1.7.d** | ✅ 已本地提交 | mini-ISA +LDB/MEMCPY_DATA/MEMCPY_STATE（n≤4）；parity 扩至 26 行；拒测改 ALLOC | commit `29d1279` · pe_dll_link **32/32** · s1_ **63/63** |
 | **S1.7.e** | ✅ 已本地提交 | mini-ISA +DATA/STR/RAW→`.data`（≤64B；in-DLL 写回 slim PE）；parity 扩至 28 行（含 .data 比对） | commit `7041954` · pe_dll_link **32/32** · s1_ **65/65** |
-| **S1.7.f** | ✅ 已本地提交 | mini-ISA +RAW_BYTES→`.text`（argc≤3）；parity 扩至 29 行 | commit `TBD` · pe_dll_link **32/32** · s1_ **66/66** |
+| **S1.7.f** | ✅ 已本地提交 | mini-ISA +RAW_BYTES→`.text`（argc≤3）；parity 扩至 29 行 | commit `89f3640` · pe_dll_link **32/32** · s1_ **66/66** |
 
 **S1 进度**：S1.1–S1.7.f 本地完成。mini-ISA 覆盖核心 codegen 切片（仍无 ALLOC/IO）。
 **诚实非 CLOSED**：ALLOC/LOAD_FILE/WRITE_FILE 未 port；非 TYB 仍 oracle；OW-RT **仍 CUT** · `closed=0`。
