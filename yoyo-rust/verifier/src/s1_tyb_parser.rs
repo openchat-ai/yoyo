@@ -160,125 +160,159 @@ pub struct CodegenOutput {
     pub text: Vec<u8>,
 }
 
-/// Extract the numeric arguments from a record's `args_raw` given its `argc`.
+/// S1.2 physical register set (4 regs). Standalone — does not depend on
+/// `crate::types::Reg` so this module stays portable for the in-DLL port.
 ///
-/// Layout in TYB (per `tyb_parser.rs:70-90`):
-/// - argc=0: no args
-/// - argc=1: u32 LE in bytes [2..6]
-/// - argc=2: u16 LE in [2..4] + u32 LE in [4..8]
-/// - argc=3: u16 LE in [2..4], [4..6], [6..8]
-fn args_of(rec: &TybRecord) -> Vec<u64> {
-    match rec.argc {
-        0 => Vec::new(),
-        1 => vec![u32::from_le_bytes([
-            rec.args_raw[0], rec.args_raw[1], rec.args_raw[2], rec.args_raw[3],
-        ]) as u64],
-        2 => vec![
-            u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]) as u64,
-            u32::from_le_bytes([
-                rec.args_raw[2], rec.args_raw[3], rec.args_raw[4], rec.args_raw[5],
-            ]) as u64,
-        ],
-        3 => vec![
-            u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]) as u64,
-            u16::from_le_bytes([rec.args_raw[2], rec.args_raw[3]]) as u64,
-            u16::from_le_bytes([rec.args_raw[4], rec.args_raw[5]]) as u64,
-        ],
-        _ => Vec::new(),
+/// Allocation policy:
+/// - `R15` = pinned state base (never a scratch)
+/// - `Rax` = primary scratch / result
+/// - `Rcx` = secondary operand
+/// - `Rdx` = tertiary (reserved for S1.3 LDB/MEMCPY; encoding covered by unit test)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Reg {
+    Rax = 0,
+    Rcx = 1,
+    Rdx = 2,
+    R15 = 15,
+}
+
+impl Reg {
+    fn low3(self) -> u8 {
+        (self as u8) & 7
+    }
+    fn rex_bit(self) -> bool {
+        (self as u8) >= 8
     }
 }
 
-/// mov rax, imm32 → REX.W 0xB8 + imm32 = 6 bytes.
-/// (Uses 32-bit immediate encoding — sign-extends to rax on x86-64.)
-fn emit_mov_rax_imm32(out: &mut Vec<u8>, imm: u32) {
+fn rex_wrxb(w: bool, r: bool, x: bool, b: bool) -> u8 {
+    0x40 | ((w as u8) << 3) | ((r as u8) << 2) | ((x as u8) << 1) | (b as u8)
+}
+
+/// TYB argc=2 layout: `[u16 slot][u32 imm]` (per `tyb_parser.rs` / `make_record`).
+/// Used by SET / ADD-imm / SUB-imm.
+fn arg_slot_imm(rec: &TybRecord) -> Option<(u16, u32)> {
+    if rec.argc != 2 {
+        return None;
+    }
+    let slot = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]);
+    let imm = u32::from_le_bytes([
+        rec.args_raw[2], rec.args_raw[3], rec.args_raw[4], rec.args_raw[5],
+    ]);
+    Some((slot, imm))
+}
+
+/// TYB argc=2 layout for slot-slot ops (GET/MOVRR/IMUL/ADDV/ORV/SUBV/CMP).
+///
+/// Wire format still packs the second field as u32 (same as SET), but the
+/// second operand is a **slot** — take the low 16 bits intentionally.
+/// This is the S1.2 GET-arg semantics clarification: not an accidental cast.
+fn arg_slot_slot(rec: &TybRecord) -> Option<(u16, u16)> {
+    if rec.argc != 2 {
+        return None;
+    }
+    let a = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]);
+    let b = u16::from_le_bytes([rec.args_raw[2], rec.args_raw[3]]);
+    Some((a, b))
+}
+
+/// TYB argc=1 layout: u32 LE in args_raw[0..4] (LABEL/CALL/JMP/JCC/INC/DEC).
+fn arg_u32(rec: &TybRecord) -> Option<u32> {
+    if rec.argc != 1 {
+        return None;
+    }
+    Some(u32::from_le_bytes([
+        rec.args_raw[0], rec.args_raw[1], rec.args_raw[2], rec.args_raw[3],
+    ]))
+}
+
+/// movabs rax, imm64 (10B). Imm32 is zero-extended into the 8-byte field.
+/// Matches `assembler.rs::movabs(Reg::Rax, imm)`.
+fn emit_movabs_rax(out: &mut Vec<u8>, imm: u32) {
     out.extend_from_slice(&[0x48, 0xB8]);
-    out.extend_from_slice(&imm.to_le_bytes());
+    out.extend_from_slice(&(imm as u64).to_le_bytes());
 }
 
-/// mov [r15 + slot*8], rax (r15-relative store).
-/// Uses disp8 for slot*8 <= 127 (slot <= 15), disp32 otherwise.
-fn emit_store_state_r15(out: &mut Vec<u8>, slot: u16) {
+/// mov [r15 + slot*8], src — matches `assembler.rs::store_state`.
+fn emit_store_state(out: &mut Vec<u8>, slot: u16, src: Reg) {
     let disp = (slot as u32) * 8;
+    let rex = rex_wrxb(true, src.rex_bit(), false, true); // B=1: base=r15
+    let modrm_reg = src.low3() << 3;
     if disp <= 127 {
-        out.extend_from_slice(&[0x4C, 0x89, 0x47, disp as u8]); // 4 bytes
+        out.extend_from_slice(&[rex, 0x89, modrm_reg | 0x40 | 0x07, disp as u8]);
     } else {
-        out.extend_from_slice(&[0x4C, 0x89, 0x87]); // 3 bytes + disp32
-        out.extend_from_slice(&((disp as i32)).to_le_bytes());
+        out.extend_from_slice(&[rex, 0x89, modrm_reg | 0x80 | 0x07]);
+        out.extend_from_slice(&(disp as i32).to_le_bytes());
     }
 }
 
-/// mov rax, [r15 + slot*8] (r15-relative load).
-fn emit_load_state_r15(out: &mut Vec<u8>, slot: u16) {
+/// mov dest, [r15 + slot*8] — matches `assembler.rs::load_state`.
+fn emit_load_state(out: &mut Vec<u8>, slot: u16, dest: Reg) {
     let disp = (slot as u32) * 8;
+    let rex = rex_wrxb(true, dest.rex_bit(), false, true); // B=1: base=r15
+    let modrm_reg = dest.low3() << 3;
     if disp <= 127 {
-        out.extend_from_slice(&[0x4C, 0x8B, 0x47, disp as u8]); // 4 bytes (reg=rax)
+        out.extend_from_slice(&[rex, 0x8B, modrm_reg | 0x40 | 0x07, disp as u8]);
     } else {
-        out.extend_from_slice(&[0x4C, 0x8B, 0x87]); // 3 bytes + disp32
-        out.extend_from_slice(&((disp as i32)).to_le_bytes());
+        out.extend_from_slice(&[rex, 0x8B, modrm_reg | 0x80 | 0x07]);
+        out.extend_from_slice(&(disp as i32).to_le_bytes());
     }
 }
 
-/// mov rcx, [r15 + slot*8] (r15-relative load into rcx).
-///
-/// Same pattern as `emit_load_state_r15` but writes to rcx instead of rax.
-/// Required so that operations like `add rax, rcx` don't lose the rax operand.
-/// MODRM differs only in the `reg` field: rax=000 (`47`/`87`), rcx=001 (`48`/`88`).
-fn emit_load_state_rcx(out: &mut Vec<u8>, slot: u16) {
-    let disp = (slot as u32) * 8;
-    if disp <= 127 {
-        out.extend_from_slice(&[0x4C, 0x8B, 0x48, disp as u8]); // 4 bytes (reg=rcx)
-    } else {
-        out.extend_from_slice(&[0x4C, 0x8B, 0x88]); // 3 bytes + disp32
-        out.extend_from_slice(&((disp as i32)).to_le_bytes());
-    }
-}
-
-/// add rax, imm32 → 6 bytes (REX.W 0x81 C0 imm32)
-fn emit_add_rax_imm32(out: &mut Vec<u8>, imm: u32) {
-    out.extend_from_slice(&[0x48, 0x81, 0xC0]);
+/// add reg, imm32 → REX.W 81 /0.
+fn emit_add_imm(out: &mut Vec<u8>, reg: Reg, imm: u32) {
+    let rex = rex_wrxb(true, false, false, reg.rex_bit());
+    out.extend_from_slice(&[rex, 0x81, 0xC0 | reg.low3()]);
     out.extend_from_slice(&imm.to_le_bytes());
 }
 
-/// sub rax, imm32 → 6 bytes (REX.W 0x81 E0 imm32)
-fn emit_sub_rax_imm32(out: &mut Vec<u8>, imm: u32) {
-    out.extend_from_slice(&[0x48, 0x81, 0xE0]);
+/// sub reg, imm32 → REX.W 81 /5. Was wrongly /4 (E0) before S1.2.
+fn emit_sub_imm(out: &mut Vec<u8>, reg: Reg, imm: u32) {
+    let rex = rex_wrxb(true, false, false, reg.rex_bit());
+    out.extend_from_slice(&[rex, 0x81, 0xE8 | reg.low3()]);
     out.extend_from_slice(&imm.to_le_bytes());
 }
 
-/// inc rax → 3 bytes (REX.W 0xFF /0)
-fn emit_inc_rax(out: &mut Vec<u8>) {
-    out.extend_from_slice(&[0x48, 0xFF, 0xC0]);
+/// inc reg → REX.W FF /0.
+fn emit_inc(out: &mut Vec<u8>, reg: Reg) {
+    let rex = rex_wrxb(true, false, false, reg.rex_bit());
+    out.extend_from_slice(&[rex, 0xFF, 0xC0 | reg.low3()]);
 }
 
-/// dec rax → 3 bytes (REX.W 0xFF /1)
-fn emit_dec_rax(out: &mut Vec<u8>) {
-    out.extend_from_slice(&[0x48, 0xFF, 0xC1]);
+/// dec reg → REX.W FF /1.
+fn emit_dec(out: &mut Vec<u8>, reg: Reg) {
+    let rex = rex_wrxb(true, false, false, reg.rex_bit());
+    out.extend_from_slice(&[rex, 0xFF, 0xC8 | reg.low3()]);
 }
 
-/// add rax, rcx → 3 bytes (REX.W 0x01 /r)
-fn emit_add_rax_rcx(out: &mut Vec<u8>) {
-    out.extend_from_slice(&[0x48, 0x01, 0xC8]); // rax = 0, rcx = 1 → modrm=0xC8
+/// add dst, src — matches `assembler.rs::add_reg`.
+fn emit_add_reg(out: &mut Vec<u8>, dst: Reg, src: Reg) {
+    let rex = rex_wrxb(true, src.rex_bit(), false, dst.rex_bit());
+    out.extend_from_slice(&[rex, 0x01, 0xC0 | (src.low3() << 3) | dst.low3()]);
 }
 
-/// or rax, rcx → 3 bytes (REX.W 0x09 /r)
-fn emit_or_rax_rcx(out: &mut Vec<u8>) {
-    out.extend_from_slice(&[0x48, 0x09, 0xC8]);
+/// or dst, src — matches `assembler.rs::or_reg`.
+fn emit_or_reg(out: &mut Vec<u8>, dst: Reg, src: Reg) {
+    let rex = rex_wrxb(true, src.rex_bit(), false, dst.rex_bit());
+    out.extend_from_slice(&[rex, 0x09, 0xC0 | (src.low3() << 3) | dst.low3()]);
 }
 
-/// sub rax, rcx → 3 bytes (REX.W 0x29 /r)
-fn emit_sub_rax_rcx(out: &mut Vec<u8>) {
-    out.extend_from_slice(&[0x48, 0x29, 0xC8]);
+/// sub dst, src — matches `assembler.rs::sub_reg`.
+fn emit_sub_reg(out: &mut Vec<u8>, dst: Reg, src: Reg) {
+    let rex = rex_wrxb(true, src.rex_bit(), false, dst.rex_bit());
+    out.extend_from_slice(&[rex, 0x29, 0xC0 | (src.low3() << 3) | dst.low3()]);
 }
 
-/// imul rax, rcx → 4 bytes (REX.W 0F AF /r)
-fn emit_imul_rax_rcx(out: &mut Vec<u8>) {
-    out.extend_from_slice(&[0x48, 0x0F, 0xAF, 0xC8]);
+/// imul dst, src — matches `assembler.rs::mul_reg` (ModRM reg=dst, r/m=src).
+fn emit_imul_reg(out: &mut Vec<u8>, dst: Reg, src: Reg) {
+    let rex = rex_wrxb(true, dst.rex_bit(), false, src.rex_bit());
+    out.extend_from_slice(&[rex, 0x0F, 0xAF, 0xC0 | (dst.low3() << 3) | src.low3()]);
 }
 
-/// cmp rcx, rax → 3 bytes (REX.W 0x39 /r). Semantics: compare rax against rcx
-/// (assembler.rs cmp_reg(a,b) emits `cmp rax, rcx` per its encoding).
-fn emit_cmp_rax_rcx(out: &mut Vec<u8>) {
-    out.extend_from_slice(&[0x48, 0x39, 0xC0]);
+/// cmp a, b — matches `assembler.rs::cmp_reg` (ModRM reg=b, r/m=a).
+fn emit_cmp_reg(out: &mut Vec<u8>, a: Reg, b: Reg) {
+    let rex = rex_wrxb(true, b.rex_bit(), false, a.rex_bit());
+    out.extend_from_slice(&[rex, 0x39, 0xC0 | (b.low3() << 3) | a.low3()]);
 }
 
 /// Emit x86 for a TYB program.
@@ -314,135 +348,157 @@ fn emit_cmp_rax_rcx(out: &mut Vec<u8>) {
 ///   as `target_ip - next_ip` where `next_ip = patch_pos + 4` (the address of
 ///   the byte right after the branch imm32). Undefined labels leave rel32=0.
 ///
-/// Still STUBS (S1.2 / S1.3):
+/// Still STUBS (S1.3 / S1.4):
 /// - `0x80` LDB dd ss oo — memory addressing beyond state slots
-/// - `0x84` / `0x85` MEMCPY_* — multi-byte data movement
+/// - `0x84` / `0x85` MEMCPY_* — multi-byte data movement (will use Rdx tertiary)
 /// - `0x20` ALLOC / `0x50` LOAD_FILE / `0x51` WRITE_FILE — platform primitives
 /// - `0x10` / `0x12` / `0x13` / `0xA0` / `0xA1` — data/string/raw (S1.4 PE wrapping scope)
 ///
-/// Register convention:
-/// - r15 = state base pointer
-/// - rax = primary scratch
-/// - rcx = secondary scratch (for reg-reg ops)
+/// Register allocation (S1.2):
+/// - r15 = pinned state base
+/// - rax = primary scratch / result
+/// - rcx = secondary operand
+/// - rdx = tertiary (encoding ready; unused until S1.3)
 pub fn emit_x86(prog: &TybProgram) -> CodegenOutput {
     use std::collections::HashMap;
     let mut text = Vec::with_capacity(prog.rec_cnt * 20 + 1);
     let mut labels: HashMap<u32, usize> = HashMap::new();
     let mut rel32_patches: Vec<(usize, u32)> = Vec::new();
     for rec in &prog.records {
-        let args = args_of(rec);
         match rec.op {
             // --- SET slot, imm ---
-            0x30 if args.len() == 2 => {
-                let slot = args[0] as u16;
-                let imm = args[1] as u32;
-                emit_mov_rax_imm32(&mut text, imm);
-                emit_store_state_r15(&mut text, slot);
+            0x30 => {
+                if let Some((slot, imm)) = arg_slot_imm(rec) {
+                    emit_movabs_rax(&mut text, imm);
+                    emit_store_state(&mut text, slot, Reg::Rax);
+                } else {
+                    text.push(0x90);
+                }
             }
             // --- GET / MOVRR dst, src ---
-            0x60 | 0x64 if args.len() == 2 => {
-                let dst = args[0] as u16;
-                let src = args[1] as u16;
-                emit_load_state_r15(&mut text, src);
-                emit_store_state_r15(&mut text, dst);
+            0x60 | 0x64 => {
+                if let Some((dst, src)) = arg_slot_slot(rec) {
+                    emit_load_state(&mut text, src, Reg::Rax);
+                    emit_store_state(&mut text, dst, Reg::Rax);
+                } else {
+                    text.push(0x90);
+                }
             }
             // --- SUB / ADD slot, imm ---
-            0x61 | 0x62 if args.len() == 2 => {
-                let slot = args[0] as u16;
-                let imm = args[1] as u32;
-                emit_load_state_r15(&mut text, slot);
-                if rec.op == 0x61 {
-                    emit_sub_rax_imm32(&mut text, imm);
+            0x61 | 0x62 => {
+                if let Some((slot, imm)) = arg_slot_imm(rec) {
+                    emit_load_state(&mut text, slot, Reg::Rax);
+                    if rec.op == 0x61 {
+                        emit_sub_imm(&mut text, Reg::Rax, imm);
+                    } else {
+                        emit_add_imm(&mut text, Reg::Rax, imm);
+                    }
+                    emit_store_state(&mut text, slot, Reg::Rax);
                 } else {
-                    emit_add_rax_imm32(&mut text, imm);
+                    text.push(0x90);
                 }
-                emit_store_state_r15(&mut text, slot);
             }
             // --- INC / DEC slot ---
-            0x66 | 0x67 if args.len() == 1 => {
-                let slot = args[0] as u16;
-                emit_load_state_r15(&mut text, slot);
-                if rec.op == 0x66 {
-                    emit_inc_rax(&mut text);
+            0x66 | 0x67 => {
+                if let Some(slot) = arg_u32(rec) {
+                    let slot = slot as u16;
+                    emit_load_state(&mut text, slot, Reg::Rax);
+                    if rec.op == 0x66 {
+                        emit_inc(&mut text, Reg::Rax);
+                    } else {
+                        emit_dec(&mut text, Reg::Rax);
+                    }
+                    emit_store_state(&mut text, slot, Reg::Rax);
                 } else {
-                    emit_dec_rax(&mut text);
+                    text.push(0x90);
                 }
-                emit_store_state_r15(&mut text, slot);
             }
             // --- IMUL dst, src ---
-            // imul rax, rcx → rax = rax * rcx.
-            // Load dst (rax) FIRST, then src (rcx) — preserves rax.
-            0x63 if args.len() == 2 => {
-                let dst = args[0] as u16;
-                let src = args[1] as u16;
-                emit_load_state_r15(&mut text, dst);
-                emit_load_state_rcx(&mut text, src);
-                emit_imul_rax_rcx(&mut text);
-                emit_store_state_r15(&mut text, dst);
+            0x63 => {
+                if let Some((dst, src)) = arg_slot_slot(rec) {
+                    emit_load_state(&mut text, dst, Reg::Rax);
+                    emit_load_state(&mut text, src, Reg::Rcx);
+                    emit_imul_reg(&mut text, Reg::Rax, Reg::Rcx);
+                    emit_store_state(&mut text, dst, Reg::Rax);
+                } else {
+                    text.push(0x90);
+                }
             }
             // --- ADDV / ORV / SUBV dst, src ---
-            // add rax, rcx / or rax, rcx / sub rax, rcx
-            // Load dst (rax) FIRST, then src (rcx).
-            0x68 | 0x69 | 0x6A if args.len() == 2 => {
-                let dst = args[0] as u16;
-                let src = args[1] as u16;
-                emit_load_state_r15(&mut text, dst);
-                emit_load_state_rcx(&mut text, src);
-                if rec.op == 0x68 {
-                    emit_add_rax_rcx(&mut text);
-                } else if rec.op == 0x69 {
-                    emit_or_rax_rcx(&mut text);
+            0x68 | 0x69 | 0x6A => {
+                if let Some((dst, src)) = arg_slot_slot(rec) {
+                    emit_load_state(&mut text, dst, Reg::Rax);
+                    emit_load_state(&mut text, src, Reg::Rcx);
+                    if rec.op == 0x68 {
+                        emit_add_reg(&mut text, Reg::Rax, Reg::Rcx);
+                    } else if rec.op == 0x69 {
+                        emit_or_reg(&mut text, Reg::Rax, Reg::Rcx);
+                    } else {
+                        emit_sub_reg(&mut text, Reg::Rax, Reg::Rcx);
+                    }
+                    emit_store_state(&mut text, dst, Reg::Rax);
                 } else {
-                    emit_sub_rax_rcx(&mut text);
+                    text.push(0x90);
                 }
-                emit_store_state_r15(&mut text, dst);
             }
             // --- CMP a, b ---
-            // cmp rax, rcx → a = a - b (flags), no write-back.
-            0x65 if args.len() == 2 => {
-                let a = args[0] as u16;
-                let b = args[1] as u16;
-                emit_load_state_r15(&mut text, a);
-                emit_load_state_rcx(&mut text, b);
-                emit_cmp_rax_rcx(&mut text);
+            0x65 => {
+                if let Some((a, b)) = arg_slot_slot(rec) {
+                    emit_load_state(&mut text, a, Reg::Rax);
+                    emit_load_state(&mut text, b, Reg::Rcx);
+                    emit_cmp_reg(&mut text, Reg::Rax, Reg::Rcx);
+                } else {
+                    text.push(0x90);
+                }
             }
             // --- LABEL hh (argc=1) ---
-            // No x86 emitted; record position for rel32 patching.
-            0x40 if args.len() == 1 => {
-                labels.insert(args[0] as u32, text.len());
+            0x40 => {
+                if let Some(label_id) = arg_u32(rec) {
+                    labels.insert(label_id, text.len());
+                }
             }
             // --- CALL hh (argc=1) → E8 rel32 (5B) ---
-            0x41 if args.len() == 1 => {
-                let patch_pos = text.len() + 1; // rel32 sits at [pos+1..pos+5]
-                text.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
-                rel32_patches.push((patch_pos, args[0] as u32));
+            0x41 => {
+                if let Some(label_id) = arg_u32(rec) {
+                    let patch_pos = text.len() + 1;
+                    text.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+                    rel32_patches.push((patch_pos, label_id));
+                } else {
+                    text.push(0x90);
+                }
             }
             // --- JMP hh (argc=1) → E9 rel32 (5B) ---
-            0x70 if args.len() == 1 => {
-                let patch_pos = text.len() + 1;
-                text.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-                rel32_patches.push((patch_pos, args[0] as u32));
+            0x70 => {
+                if let Some(label_id) = arg_u32(rec) {
+                    let patch_pos = text.len() + 1;
+                    text.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+                    rel32_patches.push((patch_pos, label_id));
+                } else {
+                    text.push(0x90);
+                }
             }
             // --- JCC hh (0x71..=0x7A, argc=1) → 0F 8x rel32 (6B) ---
-            0x71 | 0x72 | 0x73 | 0x74 | 0x75 | 0x76 | 0x77 | 0x78 | 0x79 | 0x7A
-                if args.len() == 1 =>
-            {
-                let cc = match rec.op {
-                    0x71 => 0x84, // je
-                    0x72 => 0x85, // jne
-                    0x73 => 0x8C, // jl
-                    0x74 => 0x8D, // jge
-                    0x75 => 0x8E, // jle
-                    0x76 => 0x8F, // jg
-                    0x77 => 0x82, // jb
-                    0x78 => 0x83, // jae
-                    0x79 => 0x86, // jbe
-                    0x7A => 0x87, // ja
-                    _ => unreachable!(),
-                };
-                let patch_pos = text.len() + 2; // rel32 sits at [pos+2..pos+6]
-                text.extend_from_slice(&[0x0F, cc, 0, 0, 0, 0]);
-                rel32_patches.push((patch_pos, args[0] as u32));
+            0x71 | 0x72 | 0x73 | 0x74 | 0x75 | 0x76 | 0x77 | 0x78 | 0x79 | 0x7A => {
+                if let Some(label_id) = arg_u32(rec) {
+                    let cc = match rec.op {
+                        0x71 => 0x84, // je
+                        0x72 => 0x85, // jne
+                        0x73 => 0x8C, // jl
+                        0x74 => 0x8D, // jge
+                        0x75 => 0x8E, // jle
+                        0x76 => 0x8F, // jg
+                        0x77 => 0x82, // jb
+                        0x78 => 0x83, // jae
+                        0x79 => 0x86, // jbe
+                        0x7A => 0x87, // ja
+                        _ => unreachable!(),
+                    };
+                    let patch_pos = text.len() + 2;
+                    text.extend_from_slice(&[0x0F, cc, 0, 0, 0, 0]);
+                    rel32_patches.push((patch_pos, label_id));
+                } else {
+                    text.push(0x90);
+                }
             }
             // --- RET ---
             0xFF if rec.argc == 0 => {
@@ -573,7 +629,7 @@ mod tests {
 
     #[test]
     fn emit_x86_set_slot0_imm0() {
-        // SET slot=0, imm=0 → mov rax, imm32 (6B) + mov [r15], rax (4B) + ret (1B) = 11B
+        // SET slot=0, imm=0 → movabs rax,imm64 (10B) + mov [r15], rax (4B) + ret (1B) = 15B
         let prog = TybProgram {
             rec_cnt: 1,
             records: vec![TybRecord { op: 0x30, argc: 2, args_raw: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00] }],
@@ -582,8 +638,8 @@ mod tests {
         assert_eq!(
             out.text,
             vec![
-                0x48, 0xB8, 0, 0, 0, 0,          // mov rax, 0 (imm32)
-                0x4C, 0x89, 0x47, 0x00,             // mov [r15+0], rax
+                0x48, 0xB8, 0, 0, 0, 0, 0, 0, 0, 0, // movabs rax, 0
+                0x49, 0x89, 0x47, 0x00,             // mov [r15+0], rax
                 0xC3,                                 // ret
             ]
         );
@@ -600,10 +656,10 @@ mod tests {
         assert_eq!(
             out.text,
             vec![
-                0x48, 0xB8,                        // mov rax, imm32
-                0xEF, 0xBE, 0xAD, 0xDE,             // 0xdeadbeef LE
-                0x4C, 0x89, 0x47, 0x40,             // mov [r15+64], rax
-                0xC3,                                 // ret
+                0x48, 0xB8,                                    // movabs rax, imm64
+                0xEF, 0xBE, 0xAD, 0xDE, 0, 0, 0, 0,            // 0xdeadbeef zero-extended
+                0x49, 0x89, 0x47, 0x40,                        // mov [r15+64], rax
+                0xC3,                                          // ret
             ]
         );
     }
@@ -644,9 +700,7 @@ mod tests {
     #[test]
     fn emit_x86_sequence_set_then_ret() {
         // SET slot=0, imm=0x01000000 ; RET
-        // argc==2 layout: [slot_lo, slot_hi, imm_0, imm_1, imm_2, imm_3]
-        // imm = 0x01000000 LE = [0x00, 0x00, 0x00, 0x01]
-        // Total: 6 (mov rax, imm32) + 4 (store) + 1 (ret) = 11 bytes
+        // Total: 10 (movabs) + 4 (store) + 1 (ret) = 15 bytes
         let prog = TybProgram {
             rec_cnt: 2,
             records: vec![
@@ -655,15 +709,12 @@ mod tests {
             ],
         };
         let out = emit_x86(&prog);
-        assert_eq!(out.text.len(), 11);
-        // bytes 0-5: mov rax, imm32=0x01000000
+        assert_eq!(out.text.len(), 15);
         assert_eq!(out.text[0], 0x48);
         assert_eq!(out.text[1], 0xB8);
-        assert_eq!(&out.text[2..6], &[0x00, 0x00, 0x00, 0x01]);
-        // bytes 6-9: store_state(0, rax)
-        assert_eq!(&out.text[6..10], &[0x4C, 0x89, 0x47, 0x00]);
-        // byte 10: ret
-        assert_eq!(out.text[10], 0xC3);
+        assert_eq!(&out.text[2..10], &[0x00, 0x00, 0x00, 0x01, 0, 0, 0, 0]);
+        assert_eq!(&out.text[10..14], &[0x49, 0x89, 0x47, 0x00]);
+        assert_eq!(out.text[14], 0xC3);
     }
 
     #[test]
@@ -736,7 +787,7 @@ mod tests {
         // load r15+0 (4B) + store r15+8 (4B) + ret (1B) = 9
         assert_eq!(out.text.len(), 9);
         // Verify store uses disp8=8 (offset 0x08)
-        assert_eq!(&out.text[4..8], &[0x4C, 0x89, 0x47, 0x08]);
+        assert_eq!(&out.text[4..8], &[0x49, 0x89, 0x47, 0x08]);
         assert_eq!(out.text[8], 0xC3);
     }
 
@@ -766,10 +817,10 @@ mod tests {
         assert_eq!(
             &out.text,
             &[
-                0x4C, 0x8B, 0x47, 0x08,   // load_state_r15 slot=1 → rax
-                0x4C, 0x8B, 0x48, 0x10,   // load_state_rcx slot=2 → rcx (MODRM 0x48)
+                0x49, 0x8B, 0x47, 0x08,   // load_state_r15 slot=1 → rax
+                0x49, 0x8B, 0x4F, 0x10,   // load_state_rcx slot=2 → rcx (MODRM 0x48)
                 0x48, 0x01, 0xC8,          // add rax, rcx
-                0x4C, 0x89, 0x47, 0x08,   // store_state_r15 slot=1 ← rax
+                0x49, 0x89, 0x47, 0x08,   // store_state_r15 slot=1 ← rax
                 0xC3,                      // ret
             ]
         );
@@ -789,10 +840,10 @@ mod tests {
         assert_eq!(
             &out.text,
             &[
-                0x4C, 0x8B, 0x47, 0x00,
-                0x4C, 0x8B, 0x48, 0x08,   // MODRM 0x48 (rcx), disp=8
+                0x49, 0x8B, 0x47, 0x00,
+                0x49, 0x8B, 0x4F, 0x08,   // MODRM 0x48 (rcx), disp=8
                 0x48, 0x09, 0xC8,          // or rax, rcx
-                0x4C, 0x89, 0x47, 0x00,
+                0x49, 0x89, 0x47, 0x00,
                 0xC3,
             ]
         );
@@ -810,10 +861,10 @@ mod tests {
         assert_eq!(
             &out.text,
             &[
-                0x4C, 0x8B, 0x47, 0x10,
-                0x4C, 0x8B, 0x48, 0x18,
+                0x49, 0x8B, 0x47, 0x10,
+                0x49, 0x8B, 0x4F, 0x18,
                 0x48, 0x29, 0xC8,          // sub rax, rcx
-                0x4C, 0x89, 0x47, 0x10,
+                0x49, 0x89, 0x47, 0x10,
                 0xC3,
             ]
         );
@@ -831,10 +882,10 @@ mod tests {
         assert_eq!(
             &out.text,
             &[
-                0x4C, 0x8B, 0x47, 0x08,
-                0x4C, 0x8B, 0x48, 0x10,
-                0x48, 0x0F, 0xAF, 0xC8,    // imul rax, rcx
-                0x4C, 0x89, 0x47, 0x08,
+                0x49, 0x8B, 0x47, 0x08,
+                0x49, 0x8B, 0x4F, 0x10,
+                0x48, 0x0F, 0xAF, 0xC1,    // imul rax, rcx
+                0x49, 0x89, 0x47, 0x08,
                 0xC3,
             ]
         );
@@ -853,9 +904,9 @@ mod tests {
         assert_eq!(
             &out.text,
             &[
-                0x4C, 0x8B, 0x47, 0x08,
-                0x4C, 0x8B, 0x48, 0x10,
-                0x48, 0x39, 0xC0,          // cmp rax, rcx (MODRM 0xC0: reg=rcx, r/m=rax)
+                0x49, 0x8B, 0x47, 0x08,
+                0x49, 0x8B, 0x4F, 0x10,
+                0x48, 0x39, 0xC8,          // cmp rax, rcx (MODRM 0xC0: reg=rcx, r/m=rax)
                 0xC3,
             ]
         );
@@ -1038,5 +1089,70 @@ mod tests {
             0x00, 0x00, 0x00, 0x00,     // rel32 = 0 (undefined label)
             0xC3,                       // RET
         ]);
+    }
+
+    // ============= S1.2: register allocation + GET arg semantics =============
+
+    #[test]
+    fn arg_slot_slot_reads_low16_of_second_field() {
+        // Wire: argc=2 packs second field as u32. High 16 bits of that u32
+        // must be ignored for slot-slot ops (GET etc).
+        // dst=0x0007, second u32 = 0xABCD0009 → src slot = 0x0009 (low 16)
+        let rec = TybRecord {
+            op: 0x60,
+            argc: 2,
+            args_raw: [0x07, 0x00, 0x09, 0x00, 0xCD, 0xAB],
+        };
+        assert_eq!(arg_slot_slot(&rec), Some((7, 9)));
+        // Contrast: arg_slot_imm would see imm = 0xABCD0009
+        assert_eq!(arg_slot_imm(&rec), Some((7, 0xABCD0009)));
+    }
+
+    #[test]
+    fn emit_x86_get_uses_slot_slot_not_imm_truncation() {
+        // GET dst=3, src=9 with garbage in high bytes of second field.
+        // If we wrongly used the full u32 as slot, disp would be huge / wrong.
+        // Correct: src=9 → disp8 = 72 = 0x48
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord {
+                op: 0x60,
+                argc: 2,
+                args_raw: [0x03, 0x00, 0x09, 0x00, 0xFF, 0xFF],
+            }],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(
+            &out.text,
+            &[
+                0x49, 0x8B, 0x47, 0x48, // load [r15+72] → rax (src=9)
+                0x49, 0x89, 0x47, 0x18, // store [r15+24] ← rax (dst=3)
+                0xC3,
+            ]
+        );
+    }
+
+    #[test]
+    fn emit_load_state_rdx_encoding() {
+        // Tertiary scratch Rdx: rex=0x49 (B=1 for r15), ModRM reg=rdx(010) → 0x57
+        // 49 8B 57 <disp8>
+        let mut out = Vec::new();
+        emit_load_state(&mut out, 1, Reg::Rdx);
+        assert_eq!(&out, &[0x49, 0x8B, 0x57, 0x08]);
+    }
+
+    #[test]
+    fn emit_store_state_rdx_encoding() {
+        let mut out = Vec::new();
+        emit_store_state(&mut out, 2, Reg::Rdx);
+        assert_eq!(&out, &[0x49, 0x89, 0x57, 0x10]);
+    }
+
+    #[test]
+    fn emit_sub_imm_uses_modrm_slash5() {
+        // Was wrongly E0 (/4=AND) before S1.2; must be E8 (/5=SUB).
+        let mut out = Vec::new();
+        emit_sub_imm(&mut out, Reg::Rax, 1);
+        assert_eq!(&out, &[0x48, 0x81, 0xE8, 0x01, 0x00, 0x00, 0x00]);
     }
 }
