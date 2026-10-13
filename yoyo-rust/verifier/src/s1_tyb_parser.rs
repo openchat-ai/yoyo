@@ -822,9 +822,63 @@ pub fn wrap_pe_slim_bytes(
 /// File offset of user `.text` (after 13-byte startup) in slim PE images.
 pub const S1_SLIM_TEXT_PAYLOAD_OFF: usize = 0x400 + 13;
 
+/// S1.5.b in-DLL mini-ISA (must stay in sync with `pe_dll_link` export body).
+pub fn is_s1_mini_op(op: u8) -> bool {
+    matches!(op, 0x00 | 0x30 | 0x40 | 0xA0 | 0xFF)
+}
+
+/// Validate TYB against the in-DLL mini-ISA (argc + SET slot disp8 limit).
+pub fn validate_tyb_mini(prog: &TybProgram) -> crate::types::IsaResult<()> {
+    use crate::types::IsaError;
+    for (i, rec) in prog.records.iter().enumerate() {
+        match rec.op {
+            0x30 => {
+                if rec.argc != 2 {
+                    return Err(IsaError::ParseError {
+                        line: i + 1,
+                        msg: format!("s1 mini SET requires argc=2, got {}", rec.argc),
+                    });
+                }
+                let slot = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]);
+                if (slot as u32) * 8 >= 0x80 {
+                    return Err(IsaError::ParseError {
+                        line: i + 1,
+                        msg: format!("s1 mini SET slot {slot} needs disp32 (in-DLL unsupported)"),
+                    });
+                }
+            }
+            0xFF | 0x00 => {
+                if rec.argc != 0 {
+                    return Err(IsaError::ParseError {
+                        line: i + 1,
+                        msg: format!("s1 mini op {:02X} requires argc=0, got {}", rec.op, rec.argc),
+                    });
+                }
+            }
+            0x40 => {}
+            0xA0 => {
+                if rec.argc != 1 {
+                    return Err(IsaError::ParseError {
+                        line: i + 1,
+                        msg: format!("s1 mini RAW_BYTE requires argc=1, got {}", rec.argc),
+                    });
+                }
+            }
+            op => {
+                return Err(IsaError::ParseError {
+                    line: i + 1,
+                    msg: format!("s1 mini unsupported op {op:#04x}"),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
 /// S1.5 — host-side TYB → slim PE (parse + emit_x86 + wrap_pe_slim).
 ///
-/// This is the reference path the in-DLL entry (S1.5) mirrors in machine code.
+/// Full `emit_x86` (unknown→NOP). Prefer [`compile_tyb_to_pe_mini`] when
+/// matching the in-DLL S1.5.b path (unsupported ops fail closed).
 pub fn compile_tyb_to_pe(tyb: &[u8]) -> crate::types::IsaResult<crate::pe_link::PeImage> {
     let prog = parse_tyb(tyb).map_err(|e| crate::types::IsaError::ParseError {
         line: 0,
@@ -832,6 +886,26 @@ pub fn compile_tyb_to_pe(tyb: &[u8]) -> crate::types::IsaResult<crate::pe_link::
     })?;
     let out = emit_x86(&prog);
     wrap_pe_slim(&out)
+}
+
+/// S1.6 — host path aligned with in-DLL mini-ISA (fail closed on other ops).
+pub fn compile_tyb_to_pe_mini(tyb: &[u8]) -> crate::types::IsaResult<crate::pe_link::PeImage> {
+    let prog = parse_tyb(tyb).map_err(|e| crate::types::IsaError::ParseError {
+        line: 0,
+        msg: format!("s1 compile_tyb_to_pe_mini: {e}"),
+    })?;
+    validate_tyb_mini(&prog)?;
+    let out = emit_x86(&prog);
+    wrap_pe_slim(&out)
+}
+
+/// Extract user `.text` (post-startup) of length `text_len` from a slim PE.
+pub fn slim_pe_user_text(pe: &[u8], text_len: usize) -> Option<&[u8]> {
+    let end = S1_SLIM_TEXT_PAYLOAD_OFF.checked_add(text_len)?;
+    if pe.len() < end {
+        return None;
+    }
+    Some(&pe[S1_SLIM_TEXT_PAYLOAD_OFF..end])
 }
 
 /// Parse a .tyb file from disk (used by S1 gates / tests).
@@ -1760,6 +1834,70 @@ mod tests {
                     "unexpected err: {msg}"
                 );
             }
+        }
+    }
+
+    // ============= S1.6: mini-ISA + parity helpers =============
+
+    fn tyb_from_records(recs: &[(u8, u8, [u8; 6])]) -> Vec<u8> {
+        let mut v = header(recs.len() as u16);
+        for &(op, argc, a) in recs {
+            v.extend_from_slice(&record(op, argc, a));
+        }
+        v
+    }
+
+    #[test]
+    fn compile_tyb_to_pe_mini_rejects_get() {
+        // GET (0x60) is in full emit_x86 but not in-DLL mini-ISA.
+        let tyb = tyb_from_records(&[(0x60, 2, [0, 0, 1, 0, 0, 0])]);
+        assert!(compile_tyb_to_pe(&tyb).is_ok(), "full path still accepts GET→emit");
+        assert!(
+            compile_tyb_to_pe_mini(&tyb).is_err(),
+            "mini path must fail-closed on GET"
+        );
+    }
+
+    #[test]
+    fn compile_tyb_to_pe_mini_set_ret_text() {
+        let tyb = tyb_from_records(&[
+            (0x30, 2, [0, 0, 0xEF, 0xBE, 0xAD, 0xDE]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let pe = compile_tyb_to_pe_mini(&tyb).expect("mini");
+        let host = emit_x86(&parse_tyb(&tyb).unwrap());
+        let got = slim_pe_user_text(&pe.bytes, host.text.len()).expect("slice");
+        assert_eq!(got, host.text.as_slice());
+    }
+
+    #[test]
+    fn compile_tyb_to_pe_mini_matrix_text() {
+        let cases: Vec<(&str, Vec<(u8, u8, [u8; 6])>)> = vec![
+            ("empty", vec![]),
+            ("ret", vec![(0xFF, 0, [0; 6])]),
+            ("nop_ret", vec![(0x00, 0, [0; 6]), (0xFF, 0, [0; 6])]),
+            (
+                "label_ret",
+                vec![(0x40, 1, [1, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "raw_ret",
+                vec![(0xA0, 1, [0x90, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "set_ret",
+                vec![
+                    (0x30, 2, [0x08, 0, 0x11, 0x22, 0x33, 0x44]),
+                    (0xFF, 0, [0; 6]),
+                ],
+            ),
+        ];
+        for (name, recs) in cases {
+            let tyb = tyb_from_records(&recs);
+            let pe = compile_tyb_to_pe_mini(&tyb).unwrap_or_else(|e| panic!("{name}: {e}"));
+            let host = emit_x86(&parse_tyb(&tyb).unwrap());
+            let got = slim_pe_user_text(&pe.bytes, host.text.len()).unwrap();
+            assert_eq!(got, host.text.as_slice(), "{name} user .text");
         }
     }
 }

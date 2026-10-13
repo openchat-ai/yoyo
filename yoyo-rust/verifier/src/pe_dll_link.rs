@@ -903,14 +903,14 @@ pub fn match_recompile_entry<'a>(
         .map(|e| e.pe.as_slice())
 }
 
-/// S1.5.a host entry bridge: TYB magic → real codegen; else oracle match.
+/// S1.5/S1.6 host entry bridge: TYB magic → mini codegen; else oracle match.
 ///
-/// Returns owned PE bytes. TYB path uses slim PE ([`crate::s1_tyb_parser::compile_tyb_to_pe`]);
-/// oracle path clones the baked row. Mirrors the call-time decision S1.5.b will
-/// encode in the DLL export body.
+/// Returns owned PE bytes. TYB path uses [`crate::s1_tyb_parser::compile_tyb_to_pe_mini`]
+/// (same mini-ISA + fail-closed rules as the in-DLL export body). Oracle path
+/// clones the baked row.
 pub fn resolve_recompile_input(entries: &[RecompileEntry], input: &[u8]) -> Option<Vec<u8>> {
     if crate::s1_tyb_parser::is_tyb(input) {
-        return crate::s1_tyb_parser::compile_tyb_to_pe(input)
+        return crate::s1_tyb_parser::compile_tyb_to_pe_mini(input)
             .ok()
             .map(|pe| pe.bytes);
     }
@@ -2428,6 +2428,92 @@ mod tests {
         assert_eq!(&out[0..2], b"MZ");
         let off = crate::s1_tyb_parser::S1_SLIM_TEXT_PAYLOAD_OFF;
         assert_eq!(&out[off..off + 2], &[0x48, 0xB8], "movabs prefix");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S1.6: host `compile_tyb_to_pe_mini` user `.text` ≡ in-DLL mapped export output.
+    #[test]
+    #[cfg(windows)]
+    fn s1_host_in_dll_user_text_parity_matrix() {
+        use crate::s1_tyb_parser::{
+            compile_tyb_to_pe_mini, emit_x86, parse_tyb, slim_pe_user_text, TYB_MAGIC,
+        };
+
+        fn pack(recs: &[(u8, u8, [u8; 6])]) -> Vec<u8> {
+            let mut v = Vec::new();
+            v.extend_from_slice(&TYB_MAGIC);
+            v.extend_from_slice(&[0, 0]);
+            v.extend_from_slice(&(recs.len() as u16).to_le_bytes());
+            for &(op, argc, a) in recs {
+                v.push(op);
+                v.push(argc);
+                v.extend_from_slice(&a);
+            }
+            v
+        }
+
+        let cases: &[(&str, Vec<(u8, u8, [u8; 6])>)] = &[
+            ("empty", vec![]),
+            ("ret", vec![(0xFF, 0, [0; 6])]),
+            ("nop_ret", vec![(0x00, 0, [0; 6]), (0xFF, 0, [0; 6])]),
+            (
+                "label_ret",
+                vec![(0x40, 1, [1, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "raw_ret",
+                vec![(0xA0, 1, [0xCC, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "set_ret",
+                vec![
+                    (0x30, 2, [0, 0, 0xEF, 0xBE, 0xAD, 0xDE]),
+                    (0xFF, 0, [0; 6]),
+                ],
+            ),
+        ];
+
+        for (name, recs) in cases {
+            let tyb = pack(recs);
+            let host_pe = compile_tyb_to_pe_mini(&tyb).unwrap_or_else(|e| panic!("{name} host: {e}"));
+            let host_text = emit_x86(&parse_tyb(&tyb).unwrap()).text;
+
+            let dir = temp_work(&format!("s1-parity-{name}"));
+            std::fs::write(dir.join("input.tyb"), &tyb).expect("write");
+            assert_eq!(
+                yoyo_sidecar_in_dll_recompile(&dir),
+                EXIT_OK,
+                "{name} in-DLL exit"
+            );
+            let dll_pe = std::fs::read(dir.join(OUTPUT_NAME)).expect("output");
+            let dll_text = slim_pe_user_text(&dll_pe, host_text.len())
+                .unwrap_or_else(|| panic!("{name}: dll PE too short for user text"));
+            assert_eq!(
+                dll_text,
+                host_text.as_slice(),
+                "{name}: in-DLL user .text != host mini"
+            );
+            // Full PE may differ past user text (template NOP padding vs host zeros).
+            assert_eq!(dll_pe.len(), host_pe.bytes.len(), "{name} slim PE size");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn s1_in_dll_rejects_unsupported_op() {
+        // GET is full-ISA only — in-DLL mini must exit compile-fail.
+        let dir = temp_work("in-dll-s1-tyb-get-reject");
+        let mut tyb = Vec::new();
+        tyb.extend_from_slice(b"TYB\0");
+        tyb.extend_from_slice(&[0, 0]);
+        tyb.extend_from_slice(&1u16.to_le_bytes());
+        tyb.push(0x60); // GET
+        tyb.push(2);
+        tyb.extend_from_slice(&[0, 0, 1, 0, 0, 0]);
+        std::fs::write(dir.join("input.tyb"), &tyb).expect("write");
+        assert_eq!(yoyo_sidecar_in_dll_recompile(&dir), EXIT_COMPILE_FAIL);
+        assert!(!dir.join(OUTPUT_NAME).exists());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
