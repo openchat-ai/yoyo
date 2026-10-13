@@ -822,53 +822,100 @@ pub fn wrap_pe_slim_bytes(
 /// File offset of user `.text` (after 13-byte startup) in slim PE images.
 pub const S1_SLIM_TEXT_PAYLOAD_OFF: usize = 0x400 + 13;
 
-/// S1.5.b in-DLL mini-ISA (must stay in sync with `pe_dll_link` export body).
+/// S1.5.b / S1.7.a in-DLL mini-ISA (must stay in sync with `pe_dll_link` export body).
+///
+/// S1.5.b: NOP/SET/LABEL/RAW_BYTE/RET  
+/// S1.7.a: +GET/MOVRR/ADD imm/SUB imm/INC/DEC
 pub fn is_s1_mini_op(op: u8) -> bool {
-    matches!(op, 0x00 | 0x30 | 0x40 | 0xA0 | 0xFF)
+    matches!(
+        op,
+        0x00 | 0x30 | 0x40 | 0x60 | 0x61 | 0x62 | 0x64 | 0x66 | 0x67 | 0xA0 | 0xFF
+    )
 }
 
-/// Validate TYB against the in-DLL mini-ISA (argc + SET slot disp8 limit).
+fn mini_slot_disp8_ok(slot: u16) -> bool {
+    (slot as u32) * 8 < 0x80
+}
+
+/// Validate TYB against the in-DLL mini-ISA (argc + slot disp8 limit).
 pub fn validate_tyb_mini(prog: &TybProgram) -> crate::types::IsaResult<()> {
     use crate::types::IsaError;
+    let bad = |i: usize, msg: String| {
+        Err(IsaError::ParseError {
+            line: i + 1,
+            msg,
+        })
+    };
     for (i, rec) in prog.records.iter().enumerate() {
         match rec.op {
             0x30 => {
                 if rec.argc != 2 {
-                    return Err(IsaError::ParseError {
-                        line: i + 1,
-                        msg: format!("s1 mini SET requires argc=2, got {}", rec.argc),
-                    });
+                    return bad(i, format!("s1 mini SET requires argc=2, got {}", rec.argc));
                 }
                 let slot = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]);
-                if (slot as u32) * 8 >= 0x80 {
-                    return Err(IsaError::ParseError {
-                        line: i + 1,
-                        msg: format!("s1 mini SET slot {slot} needs disp32 (in-DLL unsupported)"),
-                    });
+                if !mini_slot_disp8_ok(slot) {
+                    return bad(
+                        i,
+                        format!("s1 mini SET slot {slot} needs disp32 (in-DLL unsupported)"),
+                    );
+                }
+            }
+            0x60 | 0x64 => {
+                if rec.argc != 2 {
+                    return bad(
+                        i,
+                        format!("s1 mini GET/MOVRR requires argc=2, got {}", rec.argc),
+                    );
+                }
+                let dst = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]);
+                let src = u16::from_le_bytes([rec.args_raw[2], rec.args_raw[3]]);
+                if !mini_slot_disp8_ok(dst) || !mini_slot_disp8_ok(src) {
+                    return bad(i, format!("s1 mini GET/MOVRR slot disp32 unsupported"));
+                }
+            }
+            0x61 | 0x62 => {
+                if rec.argc != 2 {
+                    return bad(
+                        i,
+                        format!("s1 mini ADD/SUB imm requires argc=2, got {}", rec.argc),
+                    );
+                }
+                let slot = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]);
+                if !mini_slot_disp8_ok(slot) {
+                    return bad(i, format!("s1 mini ADD/SUB slot {slot} disp32 unsupported"));
+                }
+            }
+            0x66 | 0x67 => {
+                if rec.argc != 1 {
+                    return bad(
+                        i,
+                        format!("s1 mini INC/DEC requires argc=1, got {}", rec.argc),
+                    );
+                }
+                let slot = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]);
+                if !mini_slot_disp8_ok(slot) {
+                    return bad(i, format!("s1 mini INC/DEC slot {slot} disp32 unsupported"));
                 }
             }
             0xFF | 0x00 => {
                 if rec.argc != 0 {
-                    return Err(IsaError::ParseError {
-                        line: i + 1,
-                        msg: format!("s1 mini op {:02X} requires argc=0, got {}", rec.op, rec.argc),
-                    });
+                    return bad(
+                        i,
+                        format!("s1 mini op {:02X} requires argc=0, got {}", rec.op, rec.argc),
+                    );
                 }
             }
             0x40 => {}
             0xA0 => {
                 if rec.argc != 1 {
-                    return Err(IsaError::ParseError {
-                        line: i + 1,
-                        msg: format!("s1 mini RAW_BYTE requires argc=1, got {}", rec.argc),
-                    });
+                    return bad(
+                        i,
+                        format!("s1 mini RAW_BYTE requires argc=1, got {}", rec.argc),
+                    );
                 }
             }
             op => {
-                return Err(IsaError::ParseError {
-                    line: i + 1,
-                    msg: format!("s1 mini unsupported op {op:#04x}"),
-                });
+                return bad(i, format!("s1 mini unsupported op {op:#04x}"));
             }
         }
     }
@@ -1848,14 +1895,20 @@ mod tests {
     }
 
     #[test]
-    fn compile_tyb_to_pe_mini_rejects_get() {
-        // GET (0x60) is in full emit_x86 but not in-DLL mini-ISA.
-        let tyb = tyb_from_records(&[(0x60, 2, [0, 0, 1, 0, 0, 0])]);
-        assert!(compile_tyb_to_pe(&tyb).is_ok(), "full path still accepts GET→emit");
+    fn compile_tyb_to_pe_mini_rejects_imul() {
+        // IMUL (0x63) is in full emit_x86 but not yet in mini-ISA (S1.7.c).
+        let tyb = tyb_from_records(&[(0x63, 2, [1, 0, 2, 0, 0, 0])]);
+        assert!(compile_tyb_to_pe(&tyb).is_ok(), "full path still accepts IMUL");
         assert!(
             compile_tyb_to_pe_mini(&tyb).is_err(),
-            "mini path must fail-closed on GET"
+            "mini path must fail-closed on IMUL"
         );
+    }
+
+    #[test]
+    fn compile_tyb_to_pe_mini_accepts_get() {
+        let tyb = tyb_from_records(&[(0x60, 2, [0, 0, 1, 0, 0, 0]), (0xFF, 0, [0; 6])]);
+        assert!(compile_tyb_to_pe_mini(&tyb).is_ok());
     }
 
     #[test]
@@ -1890,6 +1943,18 @@ mod tests {
                     (0x30, 2, [0x08, 0, 0x11, 0x22, 0x33, 0x44]),
                     (0xFF, 0, [0; 6]),
                 ],
+            ),
+            (
+                "get_ret",
+                vec![(0x60, 2, [0, 0, 1, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "add_ret",
+                vec![(0x62, 2, [0, 0, 5, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "inc_ret",
+                vec![(0x66, 1, [0, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])],
             ),
         ];
         for (name, recs) in cases {

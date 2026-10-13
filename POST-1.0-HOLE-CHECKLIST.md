@@ -435,10 +435,11 @@ Run `35553987325`（commit `146b58b`）：
 | **S1.5.a** | ✅ 已本地提交（部分：host entry bridge；in-DLL x86 仍 S1.5.b） | `wrap_pe_slim`（tiny `.data`，PE≪H_00 pad）+ `compile_tyb_to_pe` + `resolve_recompile_input`（TYB→S1，否则 oracle）；non-Win sidecar 已接线 | commit `54bd766` · s1_ **51/51** + resolve **2/2** · **未做**：DLL export 体内手写 x86 替换 oracle（S1.5.b） |
 | **S1.5.b** | ✅ 已本地提交（部分：TYB mini-ISA in-DLL；全量 emit 仍未 port） | export ReadFile 后检测 `TYB\0` → SET/RET/LABEL/NOP/RAW_BYTE mini codegen → 烘焙 slim-PE 模板写出；非 TYB 仍走 oracle；marker `yoyo_in_dll_s1_codegen` | commit `870356c` · pe_dll_link **30/30**（含 Win empty/SET+RET TYB）· **仍缺**：全量 opcode / DATA / ALLOC/IO · **下一步** S1.6 |
 | **S1.6** | ✅ 已本地提交 | `compile_tyb_to_pe_mini` + `validate_tyb_mini`（与 in-DLL fail-closed 对齐）；Win host↔in-DLL user `.text` parity 矩阵（empty/ret/nop/label/raw/set）；GET 拒测 | commit `4b797b1` · pe_dll_link **32/32** · s1_ **59/59** |
+| **S1.7.a** | ✅ 已本地提交 | mini-ISA +GET/MOVRR/ADD·SUB imm/INC/DEC（host validate + in-DLL）；parity 矩阵扩至 13 行；IMUL 仍拒 | （本提交）· pe_dll_link **32/32** · s1_ **60/60** |
 
-**S1 子任务收口（mini 真实编译器切片）**：S1.1–S1.6 本地完成。TYB mini-ISA 已在 DLL export 内真 codegen，host/in-DLL `.text` parity 绿。
-**诚实非 CLOSED**：全量 ISA / DATA / ALLOC/IO 未 port；非 TYB 仍 oracle；`stage17-ow-seed-no-rust-sidecar.ps1` 预期仍 RED（≠ 完整 H_00 runtime）；OW-RT **仍 CUT** · `closed=0`。
-**下一步（S1 之后）**：扩 mini-ISA（GET/算术/分支）或进 S2 规划；默认 `继续` 先扩 ISA 或停在 S1 收口——按指令。
+**S1 进度**：S1.1–S1.7.a 本地完成。mini-ISA = NOP/SET/LABEL/RAW_BYTE/RET + GET/MOVRR/ADD/SUB/INC/DEC。
+**诚实非 CLOSED**：分支/CALL/CMP、ALU-reg、DATA、ALLOC/IO 未 port；非 TYB 仍 oracle；OW-RT **仍 CUT** · `closed=0`。
+**下一步 S1.7.b**：CMP + JMP/JCC + CALL（两遍 label）。
 
 ### 立项约束
 

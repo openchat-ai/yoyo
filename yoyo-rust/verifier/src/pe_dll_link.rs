@@ -20,9 +20,10 @@
 //! Stage 17+ **S1.5.a** (host entry bridge): when cwd input has `TYB\0` magic,
 //! [`resolve_recompile_input`] prefers [`crate::s1_tyb_parser::compile_tyb_to_pe`]
 //! (slim PE) over the oracle table.
-//! Stage 17+ **S1.5.b** (in-DLL): export body detects `TYB\0` after ReadFile and
-//! runs mini codegen (SET/RET/LABEL/NOP/RAW_BYTE) into a baked slim-PE template;
-//! non-TYB inputs still use the oracle table. Marker `yoyo_in_dll_s1_codegen`.
+//! Stage 17+ **S1.5.b / S1.7.a** (in-DLL): export body detects `TYB\0` after
+//! ReadFile and runs mini codegen into a baked slim-PE template:
+//! SET/RET/LABEL/NOP/RAW_BYTE + GET/MOVRR/ADD·SUB imm/INC/DEC.
+//! Non-TYB inputs still use the oracle table. Marker `yoyo_in_dll_s1_codegen`.
 //! Honest: mini-ISA ≠ full YOYO compiler; production default remains Rust —
 //! **not** OW-RT CLOSED (see `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`).
 
@@ -1356,9 +1357,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x48, 0x81, 0xC4, 0x00, 0x28, 0x00, 0x00]);
     export_code.extend_from_slice(&[0x41, 0x5D, 0x41, 0x5C, 0x5F, 0x5E, 0x5B, 0xC3]);
 
-    // ----- S1.5.b mini TYB codegen (after epilogue; entered only via jmp_s1) -----
+    // ----- S1 mini TYB codegen (after epilogue; entered only via jmp_s1) -----
     // Stack: code@[rsp+0x1080], pe@[rsp+0x1180]. rsi=input, edi=size.
-    // Mini-ISA: SET(0x30)/RET(0xFF)/LABEL(0x40)/NOP(0x00)/RAW_BYTE(0xA0).
+    // Mini-ISA S1.5.b: SET/RET/LABEL/NOP/RAW_BYTE
+    // Mini-ISA S1.7.a: +GET/MOVRR/ADD imm/SUB imm/INC/DEC
     let s1_at = export_code.len();
     patch_rel32(&mut export_code, jmp_s1, s1_at);
 
@@ -1399,6 +1401,24 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     export_code.extend_from_slice(&[0x3C, 0xA0]); // RAW_BYTE
     let s1_je_raw = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x3C, 0x60]); // GET
+    let s1_je_get = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x3C, 0x64]); // MOVRR
+    let s1_je_movrr = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x3C, 0x62]); // ADD imm
+    let s1_je_add = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x3C, 0x61]); // SUB imm
+    let s1_je_sub = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x3C, 0x66]); // INC
+    let s1_je_inc = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x3C, 0x67]); // DEC
+    let s1_je_dec = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     let s1_jmp_fail_op = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // unsupported → compile_fail
@@ -1489,6 +1509,133 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s1_jmp_next5 = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
+    // --- GET / MOVRR argc=2: load src→rax; store dst←rax (8B)
+    let s1_get = export_code.len();
+    patch_jcc32(&mut export_code, s1_je_get, s1_get);
+    patch_jcc32(&mut export_code, s1_je_movrr, s1_get);
+    export_code.extend_from_slice(&[0x80, 0xFA, 0x02]);
+    let s1_jne_get_argc = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x48, 0x83, 0xC0, 0x08]); // need 8 bytes
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
+    let s1_ja_get_ovf = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    // Record: [op][argc][args6]; dst=u16@[rcx+2], src=u16@[rcx+4]
+    // src disp → r9b; dst disp → r10b
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x04]); // movzx eax, word [rcx+4] src
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x3D, 0x80, 0x00, 0x00, 0x00]);
+    let s1_jae_get_src = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0xC1]); // mov r9b, al
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // movzx eax, word [rcx+2] dst
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x3D, 0x80, 0x00, 0x00, 0x00]);
+    let s1_jae_get_dst = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0xC2]); // mov r10b, al
+    // 49 8B 47 src_disp
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x8B]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x02, 0x47]);
+    export_code.extend_from_slice(&[0x45, 0x88, 0x4C, 0x24, 0x03]); // mov [r12+3], r9b
+    // 49 89 47 dst_disp
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x04, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x05, 0x89]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x06, 0x47]);
+    export_code.extend_from_slice(&[0x45, 0x88, 0x54, 0x24, 0x07]); // mov [r12+7], r10b
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x08]); // add r12, 8
+    let s1_jmp_next6 = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+    // --- ADD (0x62) / SUB (0x61) imm: load + 81 /0|/5 imm32 + store (15B)
+    // Entry: r8b = 0xC0 (ADD) or 0xE8 (SUB) — set before shared body.
+    let s1_add = export_code.len();
+    patch_jcc32(&mut export_code, s1_je_add, s1_add);
+    export_code.extend_from_slice(&[0x41, 0xB0, 0xC0]); // mov r8b, 0xC0
+    let s1_jmp_addsub = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let s1_sub = export_code.len();
+    patch_jcc32(&mut export_code, s1_je_sub, s1_sub);
+    export_code.extend_from_slice(&[0x41, 0xB0, 0xE8]); // mov r8b, 0xE8
+    let s1_addsub = export_code.len();
+    patch_rel32(&mut export_code, s1_jmp_addsub, s1_addsub);
+    export_code.extend_from_slice(&[0x80, 0xFA, 0x02]);
+    let s1_jne_addsub_argc = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x48, 0x83, 0xC0, 0x0F]); // 15 bytes
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
+    let s1_ja_addsub_ovf = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // slot = word [rcx+2]
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x3D, 0x80, 0x00, 0x00, 0x00]);
+    let s1_jae_addsub_slot = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    // save slot disp in r9b
+    export_code.extend_from_slice(&[0x41, 0x88, 0xC1]); // mov r9b, al
+    // load: 49 8B 47 disp
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x8B]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x02, 0x47]);
+    export_code.extend_from_slice(&[0x45, 0x88, 0x4C, 0x24, 0x03]); // mov [r12+3], r9b
+    // alu: 48 81 C0/E8 imm32
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x04, 0x48]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x05, 0x81]);
+    export_code.extend_from_slice(&[0x45, 0x88, 0x44, 0x24, 0x06]); // mov [r12+6], r8b
+    export_code.extend_from_slice(&[0x8B, 0x41, 0x04]); // imm32 at [rcx+4]
+    export_code.extend_from_slice(&[0x41, 0x89, 0x44, 0x24, 0x07]); // mov [r12+7], eax
+    // store: 49 89 47 disp
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0B, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0C, 0x89]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0D, 0x47]);
+    export_code.extend_from_slice(&[0x45, 0x88, 0x4C, 0x24, 0x0E]); // mov [r12+14], r9b
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x0F]);
+    let s1_jmp_next7 = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+    // --- INC (0x66) / DEC (0x67): load + FF /0|/1 + store (11B)
+    let s1_inc = export_code.len();
+    patch_jcc32(&mut export_code, s1_je_inc, s1_inc);
+    export_code.extend_from_slice(&[0x41, 0xB0, 0xC0]); // mov r8b, 0xC0 (FF /0)
+    let s1_jmp_incdec = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let s1_dec = export_code.len();
+    patch_jcc32(&mut export_code, s1_je_dec, s1_dec);
+    export_code.extend_from_slice(&[0x41, 0xB0, 0xC8]); // mov r8b, 0xC8 (FF /1)
+    let s1_incdec = export_code.len();
+    patch_rel32(&mut export_code, s1_jmp_incdec, s1_incdec);
+    export_code.extend_from_slice(&[0x80, 0xFA, 0x01]);
+    let s1_jne_incdec_argc = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x48, 0x83, 0xC0, 0x0B]); // 11 bytes
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
+    let s1_ja_incdec_ovf = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // slot = word [rcx+2]
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x3D, 0x80, 0x00, 0x00, 0x00]);
+    let s1_jae_incdec_slot = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0xC1]); // r9b = disp
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x8B]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x02, 0x47]);
+    export_code.extend_from_slice(&[0x45, 0x88, 0x4C, 0x24, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x04, 0x48]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x05, 0xFF]);
+    export_code.extend_from_slice(&[0x45, 0x88, 0x44, 0x24, 0x06]); // [r12+6] = r8b
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x07, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x08, 0x89]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x09, 0x47]);
+    export_code.extend_from_slice(&[0x45, 0x88, 0x4C, 0x24, 0x0A]);
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x0B]);
+    let s1_jmp_next8 = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
     // next record
     let s1_next = export_code.len();
     for at in [
@@ -1497,6 +1644,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         s1_jmp_next3,
         s1_jmp_next4,
         s1_jmp_next5,
+        s1_jmp_next6,
+        s1_jmp_next7,
+        s1_jmp_next8,
     ] {
         patch_rel32(&mut export_code, at, s1_next);
     }
@@ -1569,6 +1719,16 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         s1_ja_nop_ovf,
         s1_jne_raw_argc,
         s1_ja_raw_ovf,
+        s1_jne_get_argc,
+        s1_ja_get_ovf,
+        s1_jae_get_src,
+        s1_jae_get_dst,
+        s1_jne_addsub_argc,
+        s1_ja_addsub_ovf,
+        s1_jae_addsub_slot,
+        s1_jne_incdec_argc,
+        s1_ja_incdec_ovf,
+        s1_jae_incdec_slot,
         s1_ja_trail,
         s1_jmp_fail_op,
     ];
@@ -2471,6 +2631,30 @@ mod tests {
                     (0xFF, 0, [0; 6]),
                 ],
             ),
+            (
+                "get_ret",
+                vec![(0x60, 2, [0, 0, 1, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "movrr_ret",
+                vec![(0x64, 2, [1, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "add_ret",
+                vec![(0x62, 2, [0, 0, 5, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "sub_ret",
+                vec![(0x61, 2, [0, 0, 1, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "inc_ret",
+                vec![(0x66, 1, [0, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "dec_ret",
+                vec![(0x67, 1, [0, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
         ];
 
         for (name, recs) in cases {
@@ -2502,15 +2686,15 @@ mod tests {
     #[test]
     #[cfg(windows)]
     fn s1_in_dll_rejects_unsupported_op() {
-        // GET is full-ISA only — in-DLL mini must exit compile-fail.
-        let dir = temp_work("in-dll-s1-tyb-get-reject");
+        // IMUL not yet in mini-ISA — in-DLL must exit compile-fail.
+        let dir = temp_work("in-dll-s1-tyb-imul-reject");
         let mut tyb = Vec::new();
         tyb.extend_from_slice(b"TYB\0");
         tyb.extend_from_slice(&[0, 0]);
         tyb.extend_from_slice(&1u16.to_le_bytes());
-        tyb.push(0x60); // GET
+        tyb.push(0x63); // IMUL
         tyb.push(2);
-        tyb.extend_from_slice(&[0, 0, 1, 0, 0, 0]);
+        tyb.extend_from_slice(&[1, 0, 2, 0, 0, 0]);
         std::fs::write(dir.join("input.tyb"), &tyb).expect("write");
         assert_eq!(yoyo_sidecar_in_dll_recompile(&dir), EXIT_COMPILE_FAIL);
         assert!(!dir.join(OUTPUT_NAME).exists());
