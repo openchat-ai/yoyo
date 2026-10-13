@@ -826,14 +826,15 @@ pub const S1_SLIM_TEXT_PAYLOAD_OFF: usize = 0x400 + 13;
 /// Valid while user code ≤ [`S1_SLIM_MAX_CODE`] (code_raw always one file page).
 pub const S1_SLIM_DATA_PAYLOAD_OFF: usize = 0x400 + 0x200;
 
-/// S1.5.b / S1.7.a–e in-DLL mini-ISA (must stay in sync with `pe_dll_link` export body).
+/// S1.5.b / S1.7.a–f in-DLL mini-ISA (must stay in sync with `pe_dll_link` export body).
 ///
 /// S1.5.b: NOP/SET/LABEL/RAW_BYTE/RET  
 /// S1.7.a: +GET/MOVRR/ADD imm/SUB imm/INC/DEC  
 /// S1.7.b: +CMP/CALL/JMP/JCC (two-pass label patch, ≤16 labels/patches)  
 /// S1.7.c: +IMUL/ADDV/ORV/SUBV  
 /// S1.7.d: +LDB/MEMCPY_DATA/MEMCPY_STATE (state n≤4)  
-/// S1.7.e: +DATA/STR/RAW → `.data` (≤64B total)
+/// S1.7.e: +DATA/STR/RAW → `.data` (≤64B total)  
+/// S1.7.f: +RAW_BYTES → `.text` (argc≤3 low-bytes)
 pub fn is_s1_mini_op(op: u8) -> bool {
     matches!(
         op,
@@ -869,6 +870,7 @@ pub fn is_s1_mini_op(op: u8) -> bool {
             | 0x84
             | 0x85
             | 0xA0
+            | 0xA1
             | 0xFF
     )
 }
@@ -1057,6 +1059,14 @@ pub fn validate_tyb_mini(prog: &TybProgram) -> crate::types::IsaResult<()> {
                     return bad(
                         i,
                         format!("s1 mini RAW_BYTE requires argc=1, got {}", rec.argc),
+                    );
+                }
+            }
+            0xA1 => {
+                if rec.argc > 3 {
+                    return bad(
+                        i,
+                        format!("s1 mini RAW_BYTES argc={} > 3", rec.argc),
                     );
                 }
             }
@@ -2095,6 +2105,14 @@ mod tests {
         recs.push((0xFF, 0, [0; 6]));
         let tyb = tyb_from_records(&recs);
         assert!(compile_tyb_to_pe_mini(&tyb).is_err());
+    }
+
+    #[test]
+    fn compile_tyb_to_pe_mini_accepts_raw_bytes() {
+        let tyb = tyb_from_records(&[(0xA1, 2, [0xCC, 0, 0xDD, 0, 0, 0])]);
+        let pe = compile_tyb_to_pe_mini(&tyb).expect("mini raw_bytes");
+        let text = slim_pe_user_text(&pe.bytes, 3).expect("text");
+        assert_eq!(text, &[0xCC, 0xDD, 0xC3]);
     }
 
     #[test]

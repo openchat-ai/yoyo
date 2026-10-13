@@ -24,7 +24,8 @@
 //! ReadFile and runs mini codegen into a baked slim-PE template:
 //! SET/RET/LABEL/NOP/RAW_BYTE + GET/MOVRR/ADD·SUB imm/INC/DEC +
 //! CMP/CALL/JMP/JCC (two-pass labels, ≤16) + IMUL/ADDV/ORV/SUBV +
-//! LDB/MEMCPY_DATA/MEMCPY_STATE (n≤4) + DATA/STR/RAW (≤64B → `.data`).
+//! LDB/MEMCPY_DATA/MEMCPY_STATE (n≤4) + DATA/STR/RAW (≤64B → `.data`) +
+//! RAW_BYTES (argc≤3 → `.text`).
 //! Non-TYB inputs still use the oracle table. Marker `yoyo_in_dll_s1_codegen`.
 //! Honest: mini-ISA ≠ full YOYO compiler; production default remains Rust —
 //! **not** OW-RT CLOSED (see `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`).
@@ -1364,7 +1365,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x41, 0x5D, 0x41, 0x5C, 0x5F, 0x5E, 0x5B, 0xC3]);
 
     // ----- S1 mini TYB codegen (after epilogue; entered only via jmp_s1) -----
-    // Mini-ISA: … + S1.7.d LDB/MEMCPY_* + S1.7.e DATA/STR/RAW
+    // Mini-ISA: … + S1.7.e DATA/STR/RAW + S1.7.f RAW_BYTES
     let s1_at = export_code.len();
     patch_rel32(&mut export_code, jmp_s1, s1_at);
 
@@ -1409,6 +1410,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     export_code.extend_from_slice(&[0x3C, 0xA0]); // RAW_BYTE
     let s1_je_raw = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x3C, 0xA1]); // RAW_BYTES
+    let s1_je_raws = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     export_code.extend_from_slice(&[0x3C, 0x60]); // GET
     let s1_je_get = export_code.len();
@@ -1583,6 +1587,43 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x41, 0x88, 0x04, 0x24]);
     export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]);
     let s1_jmp_next5 = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+    // --- RAW_BYTES argc≤3: append low-bytes to .text (same layout as DATA args)
+    let s1_raws = export_code.len();
+    patch_jcc32(&mut export_code, s1_je_raws, s1_raws);
+    export_code.extend_from_slice(&[0x80, 0xFA, 0x03]);
+    let s1_ja_raws_argc = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x0F, 0xB6, 0xD2]); // edx = argc
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x48, 0x01, 0xD0]); // rax = r12 + argc
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
+    let s1_ja_raws_ovf = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x84, 0xD2]);
+    let s1_jz_raws0 = export_code.len();
+    export_code.extend_from_slice(&[0x74, 0x00]);
+    export_code.extend_from_slice(&[0x8A, 0x41, 0x02]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x04, 0x24]);
+    export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]);
+    export_code.extend_from_slice(&[0x80, 0xFA, 0x01]);
+    let s1_jbe_raws1 = export_code.len();
+    export_code.extend_from_slice(&[0x76, 0x00]);
+    export_code.extend_from_slice(&[0x8A, 0x41, 0x04]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x04, 0x24]);
+    export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]);
+    export_code.extend_from_slice(&[0x80, 0xFA, 0x02]);
+    let s1_jbe_raws2 = export_code.len();
+    export_code.extend_from_slice(&[0x76, 0x00]);
+    export_code.extend_from_slice(&[0x8A, 0x41, 0x06]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x04, 0x24]);
+    export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]);
+    let s1_raws_done = export_code.len();
+    patch_rel8(&mut export_code, s1_jz_raws0, s1_raws_done);
+    patch_rel8(&mut export_code, s1_jbe_raws1, s1_raws_done);
+    patch_rel8(&mut export_code, s1_jbe_raws2, s1_raws_done);
+    let s1_jmp_next19 = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // --- GET / MOVRR argc=2: load src→rax; store dst←rax (8B)
@@ -2307,6 +2348,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         s1_jmp_next16,
         s1_jmp_next17,
         s1_jmp_next18,
+        s1_jmp_next19,
     ] {
         patch_rel32(&mut export_code, at, s1_next);
     }
@@ -2439,6 +2481,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         s1_ja_nop_ovf,
         s1_jne_raw_argc,
         s1_ja_raw_ovf,
+        s1_ja_raws_argc,
+        s1_ja_raws_ovf,
         s1_jne_get_argc,
         s1_ja_get_ovf,
         s1_jae_get_src,
@@ -3495,6 +3539,10 @@ mod tests {
                     (0x13, 1, [0xFF, 0, 0, 0, 0, 0]),
                     (0xFF, 0, [0; 6]),
                 ],
+            ),
+            (
+                "raw_bytes_ret",
+                vec![(0xA1, 2, [0xCC, 0, 0xDD, 0, 0, 0])],
             ),
         ];
 
