@@ -670,3 +670,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-13 · + S1.7.a）**：前序见上 · mini-ISA +GET/MOVRR/ADD/SUB/INC/DEC（host+in-DLL parity 13 行）· s1_ **60/60** · **下一步 S1.7.b**：分支/CALL · OW-RT **仍 CUT** · `closed=0 cut=7` · **无 tag**
 **当前分支诚实快照（2026-10-13 · + S1.7.b）**：前序见上 · mini-ISA +CMP/CALL/JMP/JCC（in-DLL 两遍 label ≤16；host↔in-DLL parity 18 行）· s1_ **60/60** · pe_dll_link **32/32** · **下一步 S1.7.c / S2** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无 tag**
 **当前分支诚实快照（2026-10-13 · + S1.7.c）**：前序见上 · mini-ISA +IMUL/ADDV/ORV/SUBV（parity 22 行）· s1_ **61/61** · pe_dll_link **32/32** · **下一步 S1.7.d / S2** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无 tag**
+**当前分支诚实快照（2026-10-13 · + S1.7.d）**：前序见上 · mini-ISA +LDB/MEMCPY_DATA/MEMCPY_STATE(n≤4)（parity 26 行）· s1_ **63/63** · pe_dll_link **32/32** · **下一步 S1.7.e / S2** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无 tag**
