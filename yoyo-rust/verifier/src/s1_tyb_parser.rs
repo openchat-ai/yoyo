@@ -822,12 +822,13 @@ pub fn wrap_pe_slim_bytes(
 /// File offset of user `.text` (after 13-byte startup) in slim PE images.
 pub const S1_SLIM_TEXT_PAYLOAD_OFF: usize = 0x400 + 13;
 
-/// S1.5.b / S1.7.a–c in-DLL mini-ISA (must stay in sync with `pe_dll_link` export body).
+/// S1.5.b / S1.7.a–d in-DLL mini-ISA (must stay in sync with `pe_dll_link` export body).
 ///
 /// S1.5.b: NOP/SET/LABEL/RAW_BYTE/RET  
 /// S1.7.a: +GET/MOVRR/ADD imm/SUB imm/INC/DEC  
 /// S1.7.b: +CMP/CALL/JMP/JCC (two-pass label patch, ≤16 labels/patches)  
-/// S1.7.c: +IMUL/ADDV/ORV/SUBV
+/// S1.7.c: +IMUL/ADDV/ORV/SUBV  
+/// S1.7.d: +LDB/MEMCPY_DATA/MEMCPY_STATE (state n≤4)
 pub fn is_s1_mini_op(op: u8) -> bool {
     matches!(
         op,
@@ -856,10 +857,16 @@ pub fn is_s1_mini_op(op: u8) -> bool {
             | 0x78
             | 0x79
             | 0x7A
+            | 0x80
+            | 0x84
+            | 0x85
             | 0xA0
             | 0xFF
     )
 }
+
+/// In-DLL MEMCPY_STATE unroll cap (8B×n must fit slim 256B code buf with headroom).
+pub const S1_MINI_MEMCPY_STATE_MAX_N: u16 = 4;
 
 fn mini_slot_disp8_ok(slot: u16) -> bool {
     (slot as u32) * 8 < 0x80
@@ -939,6 +946,61 @@ pub fn validate_tyb_mini(prog: &TybProgram) -> crate::types::IsaResult<()> {
                 let b = u16::from_le_bytes([rec.args_raw[2], rec.args_raw[3]]);
                 if !mini_slot_disp8_ok(a) || !mini_slot_disp8_ok(b) {
                     return bad(i, "s1 mini ALU-reg/CMP slot disp32 unsupported".into());
+                }
+            }
+            0x80 => {
+                if rec.argc != 3 {
+                    return bad(i, format!("s1 mini LDB requires argc=3, got {}", rec.argc));
+                }
+                let dd = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]);
+                let ss = u16::from_le_bytes([rec.args_raw[2], rec.args_raw[3]]);
+                if !mini_slot_disp8_ok(dd) || !mini_slot_disp8_ok(ss) {
+                    return bad(i, "s1 mini LDB slot disp32 unsupported".into());
+                }
+            }
+            0x84 => {
+                if rec.argc != 3 {
+                    return bad(
+                        i,
+                        format!("s1 mini MEMCPY_DATA requires argc=3, got {}", rec.argc),
+                    );
+                }
+                let dst = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]);
+                let src = u16::from_le_bytes([rec.args_raw[2], rec.args_raw[3]]);
+                let n = u16::from_le_bytes([rec.args_raw[4], rec.args_raw[5]]);
+                if !mini_slot_disp8_ok(dst) || !mini_slot_disp8_ok(src) || !mini_slot_disp8_ok(n) {
+                    return bad(i, "s1 mini MEMCPY_DATA slot disp32 unsupported".into());
+                }
+            }
+            0x85 => {
+                if rec.argc != 3 {
+                    return bad(
+                        i,
+                        format!("s1 mini MEMCPY_STATE requires argc=3, got {}", rec.argc),
+                    );
+                }
+                let dst = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]);
+                let src = u16::from_le_bytes([rec.args_raw[2], rec.args_raw[3]]);
+                let n = u16::from_le_bytes([rec.args_raw[4], rec.args_raw[5]]);
+                if n > S1_MINI_MEMCPY_STATE_MAX_N {
+                    return bad(
+                        i,
+                        format!(
+                            "s1 mini MEMCPY_STATE n={n} > max {}",
+                            S1_MINI_MEMCPY_STATE_MAX_N
+                        ),
+                    );
+                }
+                if n > 0 {
+                    let last_dst = dst.wrapping_add(n - 1);
+                    let last_src = src.wrapping_add(n - 1);
+                    if !mini_slot_disp8_ok(dst)
+                        || !mini_slot_disp8_ok(src)
+                        || !mini_slot_disp8_ok(last_dst)
+                        || !mini_slot_disp8_ok(last_src)
+                    {
+                        return bad(i, "s1 mini MEMCPY_STATE slot disp32 unsupported".into());
+                    }
                 }
             }
             0x40 | 0x41 | 0x70 | 0x71 | 0x72 | 0x73 | 0x74 | 0x75 | 0x76 | 0x77 | 0x78
@@ -1956,14 +2018,25 @@ mod tests {
     }
 
     #[test]
-    fn compile_tyb_to_pe_mini_rejects_ldb() {
-        // LDB (0x80) still outside mini-ISA.
-        let tyb = tyb_from_records(&[(0x80, 3, [0, 0, 1, 0, 0, 0])]);
-        assert!(compile_tyb_to_pe(&tyb).is_ok(), "full path still accepts LDB");
+    fn compile_tyb_to_pe_mini_accepts_ldb() {
+        let tyb = tyb_from_records(&[(0x80, 3, [1, 0, 2, 0, 0, 0]), (0xFF, 0, [0; 6])]);
+        assert!(compile_tyb_to_pe_mini(&tyb).is_ok());
+    }
+
+    #[test]
+    fn compile_tyb_to_pe_mini_rejects_alloc() {
+        // ALLOC (0x20) still outside mini-ISA.
+        let tyb = tyb_from_records(&[(0x20, 1, [0, 0, 0, 0, 0, 0])]);
         assert!(
             compile_tyb_to_pe_mini(&tyb).is_err(),
-            "mini path must fail-closed on LDB"
+            "mini path must fail-closed on ALLOC"
         );
+    }
+
+    #[test]
+    fn compile_tyb_to_pe_mini_rejects_memcpy_state_over_cap() {
+        let tyb = tyb_from_records(&[(0x85, 3, [0, 0, 0, 0, 5, 0])]); // n=5 > 4
+        assert!(compile_tyb_to_pe_mini(&tyb).is_err());
     }
 
     #[test]

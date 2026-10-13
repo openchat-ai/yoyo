@@ -20,10 +20,11 @@
 //! Stage 17+ **S1.5.a** (host entry bridge): when cwd input has `TYB\0` magic,
 //! [`resolve_recompile_input`] prefers [`crate::s1_tyb_parser::compile_tyb_to_pe`]
 //! (slim PE) over the oracle table.
-//! Stage 17+ **S1.5.b / S1.7.a–c** (in-DLL): export body detects `TYB\0` after
+//! Stage 17+ **S1.5.b / S1.7.a–d** (in-DLL): export body detects `TYB\0` after
 //! ReadFile and runs mini codegen into a baked slim-PE template:
 //! SET/RET/LABEL/NOP/RAW_BYTE + GET/MOVRR/ADD·SUB imm/INC/DEC +
-//! CMP/CALL/JMP/JCC (two-pass labels, ≤16) + IMUL/ADDV/ORV/SUBV.
+//! CMP/CALL/JMP/JCC (two-pass labels, ≤16) + IMUL/ADDV/ORV/SUBV +
+//! LDB/MEMCPY_DATA/MEMCPY_STATE (n≤4).
 //! Non-TYB inputs still use the oracle table. Marker `yoyo_in_dll_s1_codegen`.
 //! Honest: mini-ISA ≠ full YOYO compiler; production default remains Rust —
 //! **not** OW-RT CLOSED (see `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`).
@@ -1362,7 +1363,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x41, 0x5D, 0x41, 0x5C, 0x5F, 0x5E, 0x5B, 0xC3]);
 
     // ----- S1 mini TYB codegen (after epilogue; entered only via jmp_s1) -----
-    // Mini-ISA: … + S1.7.b CMP/CALL/JMP/JCC + S1.7.c IMUL/ADDV/ORV/SUBV
+    // Mini-ISA: … + S1.7.c ALU-reg + S1.7.d LDB/MEMCPY_*
     let s1_at = export_code.len();
     patch_rel32(&mut export_code, jmp_s1, s1_at);
 
@@ -1439,6 +1440,15 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     export_code.extend_from_slice(&[0x3C, 0x65]); // CMP
     let s1_je_cmp = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x3C, 0x80]); // LDB
+    let s1_je_ldb = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x3C, 0x84]); // MEMCPY_DATA
+    let s1_je_mcp_data = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x3C, 0x85]); // MEMCPY_STATE
+    let s1_je_mcp_state = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     export_code.extend_from_slice(&[0x3C, 0x41]); // CALL
     let s1_je_call = export_code.len();
@@ -1833,6 +1843,208 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s1_jmp_next9 = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
+    // --- LDB argc=3: load ss→rax; [oo!=0 → add imm32]; movzx; store dd
+    // size 12 (oo=0) or 19 (oo!=0)
+    let s1_ldb = export_code.len();
+    patch_jcc32(&mut export_code, s1_je_ldb, s1_ldb);
+    export_code.extend_from_slice(&[0x80, 0xFA, 0x03]);
+    let s1_jne_ldb_argc = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x06]); // oo
+    export_code.extend_from_slice(&[0x85, 0xC0]);
+    let s1_jz_ldb_oo0 = export_code.len();
+    export_code.extend_from_slice(&[0x74, 0x00]); // je size12 path setup
+    // oo!=0 → need 19
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x48, 0x83, 0xC0, 0x13]);
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
+    let s1_ja_ldb_ovf19 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    let s1_jmp_ldb_body = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let s1_ldb_sz12 = export_code.len();
+    patch_rel8(&mut export_code, s1_jz_ldb_oo0, s1_ldb_sz12);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x48, 0x83, 0xC0, 0x0C]);
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
+    let s1_ja_ldb_ovf12 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    let s1_ldb_body = export_code.len();
+    patch_rel32(&mut export_code, s1_jmp_ldb_body, s1_ldb_body);
+    // dd → r9b, ss → r10b
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]);
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x3D, 0x80, 0x00, 0x00, 0x00]);
+    let s1_jae_ldb_dd = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0xC1]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x04]);
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x3D, 0x80, 0x00, 0x00, 0x00]);
+    let s1_jae_ldb_ss = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0xC2]);
+    // 49 8B 47 ss
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x8B]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x02, 0x47]);
+    export_code.extend_from_slice(&[0x45, 0x88, 0x54, 0x24, 0x03]);
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x04]);
+    // if oo!=0: 48 81 C0 imm32
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x06]);
+    export_code.extend_from_slice(&[0x85, 0xC0]);
+    let s1_jz_ldb_noadd = export_code.len();
+    export_code.extend_from_slice(&[0x74, 0x00]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x48]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x81]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x02, 0xC0]);
+    export_code.extend_from_slice(&[0x41, 0x89, 0x44, 0x24, 0x03]); // imm32 (eax=oo zero-ext)
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x07]);
+    let s1_ldb_after_add = export_code.len();
+    patch_rel8(&mut export_code, s1_jz_ldb_noadd, s1_ldb_after_add);
+    // 48 0F B6 00
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x48]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x0F]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x02, 0xB6]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x03, 0x00]);
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x04]);
+    // 49 89 47 dd
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x89]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x02, 0x47]);
+    export_code.extend_from_slice(&[0x45, 0x88, 0x4C, 0x24, 0x03]);
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x04]);
+    let s1_jmp_next15 = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+    // --- MEMCPY_DATA argc=3: load src→rsi, dst→rdi, n→rcx; F3 A4 (14B)
+    let s1_mcp_data = export_code.len();
+    patch_jcc32(&mut export_code, s1_je_mcp_data, s1_mcp_data);
+    export_code.extend_from_slice(&[0x80, 0xFA, 0x03]);
+    let s1_jne_mcpd_argc = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x48, 0x83, 0xC0, 0x0E]);
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
+    let s1_ja_mcpd_ovf = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    // dst→r8b, src→r9b, n→r10b (slot disps)
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]);
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x3D, 0x80, 0x00, 0x00, 0x00]);
+    let s1_jae_mcpd_dst = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0xC0]); // r8b
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x04]);
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x3D, 0x80, 0x00, 0x00, 0x00]);
+    let s1_jae_mcpd_src = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0xC1]); // r9b
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x06]);
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x3D, 0x80, 0x00, 0x00, 0x00]);
+    let s1_jae_mcpd_n = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0xC2]); // r10b
+    // 49 8B 77 src; 49 8B 7F dst; 49 8B 4F n; F3 A4
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x8B]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x02, 0x77]);
+    export_code.extend_from_slice(&[0x45, 0x88, 0x4C, 0x24, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x04, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x05, 0x8B]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x06, 0x7F]);
+    export_code.extend_from_slice(&[0x45, 0x88, 0x44, 0x24, 0x07]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x08, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x09, 0x8B]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0A, 0x4F]);
+    export_code.extend_from_slice(&[0x45, 0x88, 0x54, 0x24, 0x0B]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0C, 0xF3]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0D, 0xA4]);
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x0E]);
+    let s1_jmp_next16 = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+    // --- MEMCPY_STATE argc=3: unroll n≤4 load/store pairs (8×n bytes)
+    let s1_mcp_state = export_code.len();
+    patch_jcc32(&mut export_code, s1_je_mcp_state, s1_mcp_state);
+    export_code.extend_from_slice(&[0x80, 0xFA, 0x03]);
+    let s1_jne_mcps_argc = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x71, 0x06]); // esi = n
+    export_code.extend_from_slice(&[0x83, 0xFE, 0x04]);
+    let s1_ja_mcps_n = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]); // n > 4
+    // space = 8*n
+    export_code.extend_from_slice(&[0x89, 0xF0]);
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x4C, 0x01, 0xE0]); // rax = r12 + 8*n
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
+    let s1_ja_mcps_ovf = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // dst slot
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x51, 0x04]); // src slot
+    // if n==0 → next
+    export_code.extend_from_slice(&[0x85, 0xF6]);
+    let s1_jz_mcps_empty = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    // last = slot+n-1; check disp8
+    export_code.extend_from_slice(&[0x8D, 0x7C, 0x30, 0xFF]); // edi = dst+n-1
+    export_code.extend_from_slice(&[0xC1, 0xE7, 0x03]);
+    export_code.extend_from_slice(&[0x81, 0xFF, 0x80, 0x00, 0x00, 0x00]);
+    let s1_jae_mcps_dst = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x8D, 0x7C, 0x32, 0xFF]); // edi = src+n-1
+    export_code.extend_from_slice(&[0xC1, 0xE7, 0x03]);
+    export_code.extend_from_slice(&[0x81, 0xFF, 0x80, 0x00, 0x00, 0x00]);
+    let s1_jae_mcps_src = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    // also check base slots
+    export_code.extend_from_slice(&[0x89, 0xC7]);
+    export_code.extend_from_slice(&[0xC1, 0xE7, 0x03]);
+    export_code.extend_from_slice(&[0x81, 0xFF, 0x80, 0x00, 0x00, 0x00]);
+    let s1_jae_mcps_dst0 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x89, 0xD7]);
+    export_code.extend_from_slice(&[0xC1, 0xE7, 0x03]);
+    export_code.extend_from_slice(&[0x81, 0xFF, 0x80, 0x00, 0x00, 0x00]);
+    let s1_jae_mcps_src0 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    // save dst/src slots in r8d/r9d; i=0 in edi
+    export_code.extend_from_slice(&[0x41, 0x89, 0xC0]); // r8d = dst
+    export_code.extend_from_slice(&[0x41, 0x89, 0xD1]); // r9d = src
+    export_code.extend_from_slice(&[0x31, 0xFF]); // edi = 0
+    let s1_mcps_loop = export_code.len();
+    export_code.extend_from_slice(&[0x39, 0xF7]); // cmp edi, esi
+    let s1_mcps_done = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x8D, 0, 0, 0, 0]); // jge done
+    // disp_src = (r9+edi)*8 — lea r10d,[r9+rdi]
+    export_code.extend_from_slice(&[0x45, 0x8D, 0x14, 0x39]);
+    export_code.extend_from_slice(&[0x41, 0xC1, 0xE2, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x8B]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x02, 0x47]);
+    export_code.extend_from_slice(&[0x45, 0x88, 0x54, 0x24, 0x03]);
+    // disp_dst = (r8+edi)*8 — lea r10d,[r8+rdi]
+    export_code.extend_from_slice(&[0x45, 0x8D, 0x14, 0x38]);
+    export_code.extend_from_slice(&[0x41, 0xC1, 0xE2, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x04, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x05, 0x89]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x06, 0x47]);
+    export_code.extend_from_slice(&[0x45, 0x88, 0x54, 0x24, 0x07]);
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x08]);
+    export_code.extend_from_slice(&[0xFF, 0xC7]); // inc edi
+    let s1_mcps_loop_jmp = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    patch_rel32(&mut export_code, s1_mcps_loop_jmp, s1_mcps_loop);
+    let s1_mcps_end = export_code.len();
+    patch_jcc32(&mut export_code, s1_mcps_done, s1_mcps_end);
+    let s1_jmp_next17 = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    // empty n → jump to the next-record jmp
+    patch_jcc32(&mut export_code, s1_jz_mcps_empty, s1_jmp_next17);
+
     // --- shared: push patch (pos=eax, id=edx) → patches[n++]; return via jmp r11
     // Must not use call/ret: RSP-relative label/patch tables assume fixed frame.
     // clobbers: esi, rdi
@@ -2035,6 +2247,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         s1_jmp_next12,
         s1_jmp_next13,
         s1_jmp_next14,
+        s1_jmp_next15,
+        s1_jmp_next16,
+        s1_jmp_next17,
     ] {
         patch_rel32(&mut export_code, at, s1_next);
     }
@@ -2174,6 +2389,23 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         s1_ja_cmp_ovf,
         s1_jae_cmp_a,
         s1_jae_cmp_b,
+        s1_jne_ldb_argc,
+        s1_ja_ldb_ovf19,
+        s1_ja_ldb_ovf12,
+        s1_jae_ldb_dd,
+        s1_jae_ldb_ss,
+        s1_jne_mcpd_argc,
+        s1_ja_mcpd_ovf,
+        s1_jae_mcpd_dst,
+        s1_jae_mcpd_src,
+        s1_jae_mcpd_n,
+        s1_jne_mcps_argc,
+        s1_ja_mcps_n,
+        s1_ja_mcps_ovf,
+        s1_jae_mcps_dst,
+        s1_jae_mcps_src,
+        s1_jae_mcps_dst0,
+        s1_jae_mcps_src0,
         s1_jae_npatch,
         s1_jne_call_argc,
         s1_ja_call_ovf,
@@ -3159,6 +3391,22 @@ mod tests {
                 "subv_ret",
                 vec![(0x6A, 2, [2, 0, 3, 0, 0, 0]), (0xFF, 0, [0; 6])],
             ),
+            (
+                "ldb_ret",
+                vec![(0x80, 3, [1, 0, 2, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "ldb_oo5_ret",
+                vec![(0x80, 3, [0, 0, 1, 0, 5, 0]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "mcp_data_ret",
+                vec![(0x84, 3, [1, 0, 2, 0, 3, 0]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "mcp_state_ret",
+                vec![(0x85, 3, [4, 0, 1, 0, 2, 0]), (0xFF, 0, [0; 6])],
+            ),
         ];
 
         for (name, recs) in cases {
@@ -3190,15 +3438,15 @@ mod tests {
     #[test]
     #[cfg(windows)]
     fn s1_in_dll_rejects_unsupported_op() {
-        // LDB not yet in mini-ISA — in-DLL must exit compile-fail.
-        let dir = temp_work("in-dll-s1-tyb-ldb-reject");
+        // ALLOC not yet in mini-ISA — in-DLL must exit compile-fail.
+        let dir = temp_work("in-dll-s1-tyb-alloc-reject");
         let mut tyb = Vec::new();
         tyb.extend_from_slice(b"TYB\0");
         tyb.extend_from_slice(&[0, 0]);
         tyb.extend_from_slice(&1u16.to_le_bytes());
-        tyb.push(0x80); // LDB
-        tyb.push(3);
-        tyb.extend_from_slice(&[0, 0, 1, 0, 0, 0]);
+        tyb.push(0x20); // ALLOC
+        tyb.push(1);
+        tyb.extend_from_slice(&[0, 0, 0, 0, 0, 0]);
         std::fs::write(dir.join("input.tyb"), &tyb).expect("write");
         assert_eq!(yoyo_sidecar_in_dll_recompile(&dir), EXIT_COMPILE_FAIL);
         assert!(!dir.join(OUTPUT_NAME).exists());

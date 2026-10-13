@@ -438,10 +438,11 @@ Run `35553987325`（commit `146b58b`）：
 | **S1.7.a** | ✅ 已本地提交 | mini-ISA +GET/MOVRR/ADD·SUB imm/INC/DEC（host validate + in-DLL）；parity 矩阵扩至 13 行；IMUL 仍拒 | commit `a0d97a4` · pe_dll_link **32/32** · s1_ **60/60** |
 | **S1.7.b** | ✅ 已本地提交 | mini-ISA +CMP/CALL/JMP/JCC；in-DLL 两遍 label（≤16 labels/patches）；parity 扩至 18 行（含 fwd jmp/call/je、undef jmp） | commit `94ec051` · pe_dll_link **32/32** · s1_ **60/60** |
 | **S1.7.c** | ✅ 已本地提交 | mini-ISA +IMUL/ADDV/ORV/SUBV（host validate + in-DLL）；parity 扩至 22 行；拒测改 LDB | commit `662e82d` · pe_dll_link **32/32** · s1_ **61/61** |
+| **S1.7.d** | ✅ 已本地提交 | mini-ISA +LDB/MEMCPY_DATA/MEMCPY_STATE（n≤4）；parity 扩至 26 行；拒测改 ALLOC | commit `TBD` · pe_dll_link **32/32** · s1_ **63/63** |
 
-**S1 进度**：S1.1–S1.7.c 本地完成。mini-ISA 覆盖核心 ALU + 分支/CALL（仍无 DATA/LDB/MEMCPY/ALLOC/IO）。
-**诚实非 CLOSED**：DATA/LDB/MEMCPY、ALLOC/IO 未 port；非 TYB 仍 oracle；OW-RT **仍 CUT** · `closed=0`。
-**下一步 S1.7.d / S2**：DATA 段或内存类（LDB/MEMCPY），或进入 S2 规划。
+**S1 进度**：S1.1–S1.7.d 本地完成。mini-ISA 覆盖 ALU + 分支/CALL + LDB/MEMCPY（仍无 DATA 段写回 / ALLOC/IO）。
+**诚实非 CLOSED**：DATA/STR/RAW→`.data` 未在 in-DLL 写回；ALLOC/IO 未 port；非 TYB 仍 oracle；OW-RT **仍 CUT** · `closed=0`。
+**下一步 S1.7.e / S2**：DATA 段 in-DLL，或进入 S2 规划。
 
 ### 立项约束
 
