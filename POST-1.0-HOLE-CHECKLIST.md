@@ -438,11 +438,12 @@ Run `35553987325`（commit `146b58b`）：
 | **S1.7.a** | ✅ 已本地提交 | mini-ISA +GET/MOVRR/ADD·SUB imm/INC/DEC（host validate + in-DLL）；parity 矩阵扩至 13 行；IMUL 仍拒 | commit `a0d97a4` · pe_dll_link **32/32** · s1_ **60/60** |
 | **S1.7.b** | ✅ 已本地提交 | mini-ISA +CMP/CALL/JMP/JCC；in-DLL 两遍 label（≤16 labels/patches）；parity 扩至 18 行（含 fwd jmp/call/je、undef jmp） | commit `94ec051` · pe_dll_link **32/32** · s1_ **60/60** |
 | **S1.7.c** | ✅ 已本地提交 | mini-ISA +IMUL/ADDV/ORV/SUBV（host validate + in-DLL）；parity 扩至 22 行；拒测改 LDB | commit `662e82d` · pe_dll_link **32/32** · s1_ **61/61** |
-| **S1.7.d** | ✅ 已本地提交 | mini-ISA +LDB/MEMCPY_DATA/MEMCPY_STATE（n≤4）；parity 扩至 26 行；拒测改 ALLOC | commit `TBD` · pe_dll_link **32/32** · s1_ **63/63** |
+| **S1.7.d** | ✅ 已本地提交 | mini-ISA +LDB/MEMCPY_DATA/MEMCPY_STATE（n≤4）；parity 扩至 26 行；拒测改 ALLOC | commit `29d1279` · pe_dll_link **32/32** · s1_ **63/63** |
+| **S1.7.e** | ✅ 已本地提交 | mini-ISA +DATA/STR/RAW→`.data`（≤64B；in-DLL 写回 slim PE）；parity 扩至 28 行（含 .data 比对） | commit `TBD` · pe_dll_link **32/32** · s1_ **65/65** |
 
-**S1 进度**：S1.1–S1.7.d 本地完成。mini-ISA 覆盖 ALU + 分支/CALL + LDB/MEMCPY（仍无 DATA 段写回 / ALLOC/IO）。
-**诚实非 CLOSED**：DATA/STR/RAW→`.data` 未在 in-DLL 写回；ALLOC/IO 未 port；非 TYB 仍 oracle；OW-RT **仍 CUT** · `closed=0`。
-**下一步 S1.7.e / S2**：DATA 段 in-DLL，或进入 S2 规划。
+**S1 进度**：S1.1–S1.7.e 本地完成。mini-ISA 覆盖 ALU + 分支/CALL + LDB/MEMCPY + DATA（仍无 RAW_BYTES→.text / ALLOC/IO）。
+**诚实非 CLOSED**：RAW_BYTES(0xA1)、ALLOC/IO 未 port；非 TYB 仍 oracle；OW-RT **仍 CUT** · `closed=0`。
+**下一步 S1.7.f / S2**：RAW_BYTES，或进入 S2 规划。
 
 ### 立项约束
 
@@ -671,3 +672,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-13 · + S1.7.b）**：前序见上 · mini-ISA +CMP/CALL/JMP/JCC（in-DLL 两遍 label ≤16；host↔in-DLL parity 18 行）· s1_ **60/60** · pe_dll_link **32/32** · **下一步 S1.7.c / S2** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无 tag**
 **当前分支诚实快照（2026-10-13 · + S1.7.c）**：前序见上 · mini-ISA +IMUL/ADDV/ORV/SUBV（parity 22 行）· s1_ **61/61** · pe_dll_link **32/32** · **下一步 S1.7.d / S2** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无 tag**
 **当前分支诚实快照（2026-10-13 · + S1.7.d）**：前序见上 · mini-ISA +LDB/MEMCPY_DATA/MEMCPY_STATE(n≤4)（parity 26 行）· s1_ **63/63** · pe_dll_link **32/32** · **下一步 S1.7.e / S2** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S1.7.e）**：前序见上 · mini-ISA +DATA/STR/RAW→`.data`（≤64B；parity 28 行含 .data）· s1_ **65/65** · pe_dll_link **32/32** · **下一步 S1.7.f / S2** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无 tag**

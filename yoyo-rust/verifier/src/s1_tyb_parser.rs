@@ -822,17 +822,25 @@ pub fn wrap_pe_slim_bytes(
 /// File offset of user `.text` (after 13-byte startup) in slim PE images.
 pub const S1_SLIM_TEXT_PAYLOAD_OFF: usize = 0x400 + 13;
 
-/// S1.5.b / S1.7.a–d in-DLL mini-ISA (must stay in sync with `pe_dll_link` export body).
+/// File offset of `.data` payload in slim PE (headers 0x400 + `.text` raw 0x200).
+/// Valid while user code ≤ [`S1_SLIM_MAX_CODE`] (code_raw always one file page).
+pub const S1_SLIM_DATA_PAYLOAD_OFF: usize = 0x400 + 0x200;
+
+/// S1.5.b / S1.7.a–e in-DLL mini-ISA (must stay in sync with `pe_dll_link` export body).
 ///
 /// S1.5.b: NOP/SET/LABEL/RAW_BYTE/RET  
 /// S1.7.a: +GET/MOVRR/ADD imm/SUB imm/INC/DEC  
 /// S1.7.b: +CMP/CALL/JMP/JCC (two-pass label patch, ≤16 labels/patches)  
 /// S1.7.c: +IMUL/ADDV/ORV/SUBV  
-/// S1.7.d: +LDB/MEMCPY_DATA/MEMCPY_STATE (state n≤4)
+/// S1.7.d: +LDB/MEMCPY_DATA/MEMCPY_STATE (state n≤4)  
+/// S1.7.e: +DATA/STR/RAW → `.data` (≤64B total)
 pub fn is_s1_mini_op(op: u8) -> bool {
     matches!(
         op,
-        0x00 | 0x30
+        0x00 | 0x10
+            | 0x12
+            | 0x13
+            | 0x30
             | 0x40
             | 0x41
             | 0x60
@@ -868,6 +876,9 @@ pub fn is_s1_mini_op(op: u8) -> bool {
 /// In-DLL MEMCPY_STATE unroll cap (8B×n must fit slim 256B code buf with headroom).
 pub const S1_MINI_MEMCPY_STATE_MAX_N: u16 = 4;
 
+/// In-DLL / mini host cap on aggregated DATA/STR/RAW bytes.
+pub const S1_MINI_DATA_MAX: usize = 64;
+
 fn mini_slot_disp8_ok(slot: u16) -> bool {
     (slot as u32) * 8 < 0x80
 }
@@ -881,8 +892,26 @@ pub fn validate_tyb_mini(prog: &TybProgram) -> crate::types::IsaResult<()> {
             msg,
         })
     };
+    let mut data_len = 0usize;
     for (i, rec) in prog.records.iter().enumerate() {
         match rec.op {
+            0x10 | 0x12 | 0x13 => {
+                if rec.argc > 3 {
+                    return bad(
+                        i,
+                        format!("s1 mini DATA/STR/RAW argc={} > 3", rec.argc),
+                    );
+                }
+                data_len += rec.argc as usize;
+                if data_len > S1_MINI_DATA_MAX {
+                    return bad(
+                        i,
+                        format!(
+                            "s1 mini DATA/STR/RAW total {data_len} > max {S1_MINI_DATA_MAX}"
+                        ),
+                    );
+                }
+            }
             0x30 => {
                 if rec.argc != 2 {
                     return bad(i, format!("s1 mini SET requires argc=2, got {}", rec.argc));
@@ -1070,6 +1099,15 @@ pub fn slim_pe_user_text(pe: &[u8], text_len: usize) -> Option<&[u8]> {
         return None;
     }
     Some(&pe[S1_SLIM_TEXT_PAYLOAD_OFF..end])
+}
+
+/// Extract `.data` payload of length `data_len` from a slim PE.
+pub fn slim_pe_user_data(pe: &[u8], data_len: usize) -> Option<&[u8]> {
+    let end = S1_SLIM_DATA_PAYLOAD_OFF.checked_add(data_len)?;
+    if pe.len() < end {
+        return None;
+    }
+    Some(&pe[S1_SLIM_DATA_PAYLOAD_OFF..end])
 }
 
 /// Parse a .tyb file from disk (used by S1 gates / tests).
@@ -2036,6 +2074,26 @@ mod tests {
     #[test]
     fn compile_tyb_to_pe_mini_rejects_memcpy_state_over_cap() {
         let tyb = tyb_from_records(&[(0x85, 3, [0, 0, 0, 0, 5, 0])]); // n=5 > 4
+        assert!(compile_tyb_to_pe_mini(&tyb).is_err());
+    }
+
+    #[test]
+    fn compile_tyb_to_pe_mini_accepts_data_str() {
+        let tyb = tyb_from_records(&[
+            (0x10, 3, [0x48, 0, 0x69, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let pe = compile_tyb_to_pe_mini(&tyb).expect("mini data");
+        let data = slim_pe_user_data(&pe.bytes, 3).expect("data slice");
+        assert_eq!(data, &[0x48, 0x69, 0x00]);
+    }
+
+    #[test]
+    fn compile_tyb_to_pe_mini_rejects_data_over_cap() {
+        // 22 × argc=3 = 66 > 64
+        let mut recs = vec![(0x10u8, 3u8, [1u8, 0, 2, 0, 3, 0]); 22];
+        recs.push((0xFF, 0, [0; 6]));
+        let tyb = tyb_from_records(&recs);
         assert!(compile_tyb_to_pe_mini(&tyb).is_err());
     }
 
