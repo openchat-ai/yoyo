@@ -431,13 +431,13 @@ Run `35553987325`（commit `146b58b`）：
 | S1.1.f | ✅ 已本地提交（部分：两遍 label 解析已实现；GET 参数语义澄清推给 S1.2） | 两遍 label 解析：`0x40` LABEL / `0x41` CALL / `0x70` JMP / `0x71-0x7A` JCC 全部真实 emit + rel32 patch；7 个 byte-exact 测试全绿 | commit `84215cb` · **LABEL/CALL/JMP/JCC 现在真语义正确**（forward/backward/undefined 全覆盖）· **未修**：GET 参数语义澄清（args_of 用 argc=2 给 GET，src 走 u32→u16 隐式截断，工作但命名误导）推到 S1.2 |
 | **S1.2** | ✅ 已本地提交 | 4-reg 物理分配（R15 固定 state base / Rax 主 scratch / Rcx 次操作数 / Rdx 三级预留）+ GET `arg_slot_slot` 语义澄清；对齐 `assembler.rs` REX/ModRM（修 0x4C→0x49、SUB /5、IMUL C1、CMP C8、movabs 10B） | commit `0492dd2` · 36/36 测试通过 · **未做**：LDB/MEMCPY 仍 NOP（S1.3） |
 | **S1.3** | ✅ 已本地提交（部分：内存类已覆盖；platform/DATA 仍 stub） | LDB(0x80) + MEMCPY_DATA(0x84, `F3 A4`) + MEMCPY_STATE(0x85, slot-to-slot≤64) + RAW_BYTE(0xA0) + 显式 NOP(0x00)；Reg 扩 Rsi/Rdi；`arg_slot3` | commit `003fa66` · 43/43 测试通过 · **仍 stub**：ALLOC/LOAD_FILE/WRITE_FILE/DATA/STR/RAW/RAW_BYTES（S1.4 / platform） |
-| S1.4 | `[ ]` | PE 封装（把机器码包进输出 PE） | 未开始 |
+| **S1.4** | ✅ 已本地提交（部分：host-side PE wrap；entry 改写仍 S1.5） | `CodegenOutput.data` + DATA/STR/RAW(0x10/0x12/0x13)→`.data` + RAW_BYTES(0xA1)→`.text` + `wrap_pe`→`pe_link::link_pe`（MZ/PE） | commit `69fa62c` · 47/47 测试通过 · **仍 stub**：ALLOC/LOAD_FILE/WRITE_FILE（platform）· **未做**：in-DLL entry 改写（S1.5） |
 | S1.5 | `[ ]` | entry point 改写（替换查找表逻辑） | 未开始 |
 | S1.6 | `[ ]` | 验证 + parity test | 未开始 |
 
-**当前进度**：S1.1.a–f + S1.2 + S1.3（内存类）完成，**43/43 单元测试通过**。ALLOC/IO/DATA 仍 stub。
-**下一步 S1.4**：PE 封装（把机器码包进输出 PE）+ DATA/STR/RAW 段。
-**S1 总体仍"周-月"级**（S1.4–5 PE 封装 / entry 改写才是真重头戏）。
+**当前进度**：S1.1.a–f + S1.2 + S1.3 + S1.4（host-side PE wrap）完成，**47/47 单元测试通过**。ALLOC/IO 仍 stub；未改写 in-DLL entry。
+**下一步 S1.5**：entry point 改写（替换 oracle 查找表逻辑）。
+**S1 总体仍"周-月"级**（S1.5 entry 改写才是真重头戏）。
 
 ### 立项约束
 
@@ -658,3 +658,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 
 **当前分支诚实快照（2026-09-30 · OW-SEED 终态重述 · I 移出）**：发现把 sidecar 归到 OW-SEED 是**分类错误**（inventory:49 OW-SEED 定义 = seed 非 Rust 发射，与 sidecar 无关；sidecar 归 OW-RT · inventory:47）。I 已从 OW-SEED 移除，实验脚本 `stage17-ow-seed-no-rust-sidecar.ps1` 归属 OW-RT。**OW-SEED CLOSED 在当前架构下无路径**：`gen1` 由 Rust 发是 bootstrapped compiler 的**行业合法例外**（与 GCC / Rustc / clang 一致）。**J 勾 `[x]` 表示"接受 bootstrap 例外"**，非"消灭 Rust 祖先" · OW-SEED 保持 **CUT**（inventory 不动）· 后续新工作作为**新 Stage**而非"关洞" · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-13 · S1.1.a–f + S1.2 + S1.3）**：前序见上 · S1.3 = LDB/MEMCPY_DATA/MEMCPY_STATE/RAW_BYTE（本地 commit `003fa66`；MEMCPY_DATA 用正确 `F3 A4`，非 assembler.rs 误写的 `0xFC`）· 累计 **43/43 单元测试通过** · 明确不是真 codegen（ALLOC/IO/DATA 仍 stub；无 PE wrapping；未改写 in-DLL entry）· **下一步 S1.4**：PE 封装 · S1 总体仍"周-月"级 · `closed=0 cut=7` · OW-RT 仍 CUT · **无 tag**
+**当前分支诚实快照（2026-10-13 · S1.1.a–f + S1.2 + S1.3 + S1.4）**：前序见上 · S1.4 = DATA/STR/RAW→`.data` + RAW_BYTES→`.text` + `wrap_pe(link_pe)`（本地 commit `69fa62c`）· 累计 **47/47 单元测试通过** · host-side PE 封装已通；**仍不是 in-DLL 真编译器**（ALLOC/IO 仍 stub；未改写 in-DLL entry）· **下一步 S1.5**：entry 改写 · S1 总体仍"周-月"级 · `closed=0 cut=7` · OW-RT 仍 CUT · **无 tag**
