@@ -429,15 +429,15 @@ Run `35553987325`（commit `146b58b`）：
 | **S1.1.d** | ✅ 已本地提交（有已知 bug） | 扩展 opcode dispatch 到 14 条：+GET/MOVRR/ADD imm/SUB imm/INC/DEC/IMUL/ADDV/ORV/SUBV/CMP | commit `9ef98ea` · **IMUL/ADDV/ORV/SUBV/CMP 有 clobber bug**（两次 load_state_r15 都写 rax，第二次覆盖第一次，需 `load_state_rcx`） |
 | **S1.1.e** | ✅ 已本地提交（部分：clobber bug 已修；两遍 label 解析推给 S1.1.f） | 加 `emit_load_state_rcx` helper（MODRM 0x48/0x88），重写 IMUL/ADDV/ORV/SUBV/CMP dispatch 用 `rax, rcx` 双操作数；5 个 byte-exact 测试全绿 | commit `f57d080` · **clobber bug 已修**（IMUL/ADDV/ORV/SUBV/CMP 现在真语义正确）· **未修**：两遍 label 解析仍推到 S1.1.f |
 | S1.1.f | ✅ 已本地提交（部分：两遍 label 解析已实现；GET 参数语义澄清推给 S1.2） | 两遍 label 解析：`0x40` LABEL / `0x41` CALL / `0x70` JMP / `0x71-0x7A` JCC 全部真实 emit + rel32 patch；7 个 byte-exact 测试全绿 | commit `84215cb` · **LABEL/CALL/JMP/JCC 现在真语义正确**（forward/backward/undefined 全覆盖）· **未修**：GET 参数语义澄清（args_of 用 argc=2 给 GET，src 走 u32→u16 隐式截断，工作但命名误导）推到 S1.2 |
-| S1.2 | `[ ]` | 寄存器分配（3-4 个物理寄存器） | 未开始 |
+| **S1.2** | ✅ 已本地提交 | 4-reg 物理分配（R15 固定 state base / Rax 主 scratch / Rcx 次操作数 / Rdx 三级预留）+ GET `arg_slot_slot` 语义澄清；对齐 `assembler.rs` REX/ModRM（修 0x4C→0x49、SUB /5、IMUL C1、CMP C8、movabs 10B） | commit `0492dd2` · 36/36 测试通过 · **未做**：LDB/MEMCPY 仍 NOP（S1.3） |
 | S1.3 | `[ ]` | 指令 codegen 覆盖 20 条 op | 未开始 |
 | S1.4 | `[ ]` | PE 封装（把机器码包进输出 PE） | 未开始 |
 | S1.5 | `[ ]` | entry point 改写（替换查找表逻辑） | 未开始 |
 | S1.6 | `[ ]` | 验证 + parity test | 未开始 |
 
-**当前进度**：S1.1.a/b/c/d/e/f 六小步完成（S1.1.d 遗留 clobber bug 已在 S1.1.e 修掉；S1.1.f 实现两遍 label 解析），**31/31 单元测试通过**（含 5+7=12 个 byte-exact 测试）。
-**下一步 S1.2**：寄存器分配（3-4 个物理寄存器）+ GET 参数语义澄清。
-**S1 总体仍"周-月"级**（S1.1.a-e 只是热身，S1.4-5 才是真重头戏）。
+**当前进度**：S1.1.a–f + S1.2 完成（寄存器分配 + GET 语义澄清 + 编码对齐 assembler.rs），**36/36 单元测试通过**。
+**下一步 S1.3**：指令 codegen 覆盖剩余 op（LDB/MEMCPY/ALLOC/IO 等，现仍 NOP 占位）。
+**S1 总体仍"周-月"级**（S1.4–5 PE 封装 / entry 改写才是真重头戏）。
 
 ### 立项约束
 
@@ -657,4 +657,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-09-30 · I-1 分析 + 自纠）**：`gen4.exe` 自带 PE loader / syscall（0 个 PE import）· Rust `yoyo_rt.dll` 导出 2 个（`yoyo_runtime_selfhost_main` + `yoyo_runtime_selfhost_paths`）· YOYO in-DLL-recompile pe_dll 导出 1 个（`yoyo_runtime_selfhost_main` + `yoyo_in_dll_recompile` marker）· **真实差集 = `{ yoyo_runtime_selfhost_paths }`** · 这是 Gate I 实验 exit=1 的根因 · **注**：先前误写的 `yoyo_runtime_h00_compile` 已在同次提交撤回（自我核查纠错） · I 精化为"扩 codegen 到完整 H_00 ISA" · **I 仍 `[ ]` · J 未勾** · `closed=0 cut=7` · **无假 CLOSED**
 
 **当前分支诚实快照（2026-09-30 · OW-SEED 终态重述 · I 移出）**：发现把 sidecar 归到 OW-SEED 是**分类错误**（inventory:49 OW-SEED 定义 = seed 非 Rust 发射，与 sidecar 无关；sidecar 归 OW-RT · inventory:47）。I 已从 OW-SEED 移除，实验脚本 `stage17-ow-seed-no-rust-sidecar.ps1` 归属 OW-RT。**OW-SEED CLOSED 在当前架构下无路径**：`gen1` 由 Rust 发是 bootstrapped compiler 的**行业合法例外**（与 GCC / Rustc / clang 一致）。**J 勾 `[x]` 表示"接受 bootstrap 例外"**，非"消灭 Rust 祖先" · OW-SEED 保持 **CUT**（inventory 不动）· 后续新工作作为**新 Stage**而非"关洞" · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
-**当前分支诚实快照（2026-10-12 · S1.1.a/b/c/d/e/f 起步）**：S1.1.a = `s1_tyb_parser.rs` TYB parser 骨架（`5804fb3`，已 push）；S1.1.b = `emit_x86` 函数骨架（NOP+RET 占位，`10a4fdd`，本地）；S1.1.c = 真 opcode dispatch（`0x30` SET + `0xFF` RET + `0x40` LABEL no-op + unknown→NOP，本地 commit `9dec4da`）；S1.1.d = dispatch 扩到 14 opcodes（+GET/MOVRR/ADD imm/SUB imm/INC/DEC/IMUL/ADDV/ORV/SUBV/CMP，本地 commit `9ef98ea`）；S1.1.e = 加 `emit_load_state_rcx` helper + 修 IMUL/ADDV/ORV/SUBV/CMP clobber bug（本地 commit `f57d080`）；S1.1.f = 两遍 label 解析（`0x40` LABEL / `0x41` CALL / `0x70` JMP / `0x71-0x7A` JCC 全部真实 emit + rel32 patch，本地 commit `84215cb`，7 个新 byte-exact 测试全绿）· 累计 **31/31 单元测试通过** · 明确不是真 codegen（LDB/MEMCPY/ALLOC/IO 仍是 NOP 占位；无 register allocation；无 PE wrapping）· **下一步 S1.2**：寄存器分配（3-4 个物理寄存器）+ GET 参数语义澄清 · S1 总体仍"周-月"级 · `closed=0 cut=7` · OW-RT 仍 CUT · **无 tag**
+**当前分支诚实快照（2026-10-13 · S1.1.a–f + S1.2）**：S1.1.a–f 见前 · S1.2 = 4-reg 分配（R15/Rax/Rcx/Rdx）+ `arg_slot_imm`/`arg_slot_slot`/`arg_u32` 参数解析澄清 + 编码对齐 `assembler.rs`（本地 commit `0492dd2`）· 累计 **36/36 单元测试通过** · 明确不是真 codegen（LDB/MEMCPY/ALLOC/IO 仍是 NOP 占位；无 PE wrapping；未改写 in-DLL entry）· **下一步 S1.3**：覆盖剩余 op · S1 总体仍"周-月"级 · `closed=0 cut=7` · OW-RT 仍 CUT · **无 tag**
