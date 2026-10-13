@@ -56,6 +56,7 @@ mod startup;
 mod h00_manual_map_wireup;
 mod cwd_guard;
 mod pe_dll_link;
+mod s1_tyb_parser;
 mod pe_manual_map;
 mod win32_selfhost;
 mod linux_selfhost;

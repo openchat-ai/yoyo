@@ -20,9 +20,10 @@
 //! Stage 17+ **S1.5.a** (host entry bridge): when cwd input has `TYB\0` magic,
 //! [`resolve_recompile_input`] prefers [`crate::s1_tyb_parser::compile_tyb_to_pe`]
 //! (slim PE) over the oracle table.
-//! Stage 17+ **S1.5.b / S1.7.a** (in-DLL): export body detects `TYB\0` after
+//! Stage 17+ **S1.5.b / S1.7.a–b** (in-DLL): export body detects `TYB\0` after
 //! ReadFile and runs mini codegen into a baked slim-PE template:
-//! SET/RET/LABEL/NOP/RAW_BYTE + GET/MOVRR/ADD·SUB imm/INC/DEC.
+//! SET/RET/LABEL/NOP/RAW_BYTE + GET/MOVRR/ADD·SUB imm/INC/DEC +
+//! CMP/CALL/JMP/JCC (two-pass labels, ≤16).
 //! Non-TYB inputs still use the oracle table. Marker `yoyo_in_dll_s1_codegen`.
 //! Honest: mini-ISA ≠ full YOYO compiler; production default remains Rust —
 //! **not** OW-RT CLOSED (see `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`).
@@ -1132,9 +1133,12 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         code[disp_at..disp_at + 4].copy_from_slice(&rel.to_le_bytes());
     };
 
-    // prologue — S1.5.b stack 0x2800 (input + code scratch + slim PE)
+    // prologue — S1.7.b stack 0x2900 (input + code + PE + label/patch tables)
+    //   [rsp+0x60)=input  [rsp+0x1080)=code  [rsp+0x1180)=PE
+    //   [rsp+0x2780)=labels[16]×8  [rsp+0x2800)=patches[16]×8
+    //   [rsp+0x2880)=n_labels  [rsp+0x2884)=n_patches
     export_code.extend_from_slice(&[0x53, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55]);
-    export_code.extend_from_slice(&[0x48, 0x81, 0xEC, 0x00, 0x28, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x48, 0x81, 0xEC, 0x00, 0x29, 0x00, 0x00]);
 
     // Try each input name: attrs → open (near jcc — open stubs are far)
     let mut open_jne_sites: Vec<(usize, u32)> = Vec::new(); // (jcc32_at, name_off)
@@ -1353,14 +1357,12 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0xB8, 0x01, 0x00, 0x00, 0x00]);
 
     let epilogue_at = export_code.len();
-    // add rsp, 0x2800; pop r13; pop r12; pop rdi; pop rsi; pop rbx; ret
-    export_code.extend_from_slice(&[0x48, 0x81, 0xC4, 0x00, 0x28, 0x00, 0x00]);
+    // add rsp, 0x2900; pop r13; pop r12; pop rdi; pop rsi; pop rbx; ret
+    export_code.extend_from_slice(&[0x48, 0x81, 0xC4, 0x00, 0x29, 0x00, 0x00]);
     export_code.extend_from_slice(&[0x41, 0x5D, 0x41, 0x5C, 0x5F, 0x5E, 0x5B, 0xC3]);
 
     // ----- S1 mini TYB codegen (after epilogue; entered only via jmp_s1) -----
-    // Stack: code@[rsp+0x1080], pe@[rsp+0x1180]. rsi=input, edi=size.
-    // Mini-ISA S1.5.b: SET/RET/LABEL/NOP/RAW_BYTE
-    // Mini-ISA S1.7.a: +GET/MOVRR/ADD imm/SUB imm/INC/DEC
+    // Mini-ISA: … + S1.7.b CMP/CALL/JMP/JCC (two-pass labels)
     let s1_at = export_code.len();
     patch_rel32(&mut export_code, jmp_s1, s1_at);
 
@@ -1372,6 +1374,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x39, 0xF8]); // cmp eax, edi
     let s1_jne_sz = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jne compile_fail
+    // zero n_labels / n_patches
+    export_code.extend_from_slice(&[0x48, 0xC7, 0x84, 0x24, 0x80, 0x28, 0x00, 0x00, 0, 0, 0, 0]); // [rsp+0x2880]=0
+    export_code.extend_from_slice(&[0x48, 0xC7, 0x84, 0x24, 0x84, 0x28, 0x00, 0x00, 0, 0, 0, 0]); // [rsp+0x2884]=0
     // r12 = code cursor = lea [rsp+0x1080]; r13 = code end = r12+256
     export_code.extend_from_slice(&[0x4C, 0x8D, 0xA4, 0x24, 0x80, 0x10, 0x00, 0x00]); // lea r12,[rsp+0x1080]
     export_code.extend_from_slice(&[0x4D, 0x89, 0xE5]); // mov r13, r12
@@ -1420,8 +1425,29 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x3C, 0x67]); // DEC
     let s1_je_dec = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x3C, 0x65]); // CMP
+    let s1_je_cmp = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x3C, 0x41]); // CALL
+    let s1_je_call = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x3C, 0x70]); // JMP
+    let s1_je_jmp = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    // JCC 0x71..=0x7A
+    export_code.extend_from_slice(&[0x3C, 0x71]);
+    let s1_jb_jcc = export_code.len();
+    export_code.extend_from_slice(&[0x72, 0x00]); // jb fail (op < 0x71)
+    export_code.extend_from_slice(&[0x3C, 0x7A]);
+    let s1_ja_jcc = export_code.len();
+    export_code.extend_from_slice(&[0x77, 0x00]); // ja fail (op > 0x7A)
+    let s1_jmp_jcc = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp s1_jcc
     let s1_jmp_fail_op = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // unsupported → compile_fail
+    // patch jcc range fails to jmp_fail_op (rel8 — nearby)
+    patch_rel8(&mut export_code, s1_jb_jcc, s1_jmp_fail_op);
+    patch_rel8(&mut export_code, s1_ja_jcc, s1_jmp_fail_op);
 
     // --- SET argc must be 2: emit movabs rax,imm64 + store [r15+slot*8]
     let s1_set = export_code.len();
@@ -1470,9 +1496,26 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s1_jmp_next2 = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
-    // --- LABEL: no emit
+    // --- LABEL argc=1: record (id, code_off) in labels[n++]
     let s1_label = export_code.len();
     patch_jcc32(&mut export_code, s1_je_label, s1_label);
+    export_code.extend_from_slice(&[0x80, 0xFA, 0x01]);
+    let s1_jne_label_argc = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x8B, 0x84, 0x24, 0x80, 0x28, 0x00, 0x00]); // eax = n_labels
+    export_code.extend_from_slice(&[0x83, 0xF8, 0x10]); // cmp eax, 16
+    let s1_jae_nlab = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    // entry @ rsp+0x2780 + eax*8: id=dword[rcx+2], off=r12-code_base
+    export_code.extend_from_slice(&[0x8B, 0x51, 0x02]); // edx = label_id ([rcx+2])
+    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24, 0x80, 0x10, 0x00, 0x00]); // lea r8,[rsp+0x1080]
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]); // mov rax, r12
+    export_code.extend_from_slice(&[0x4C, 0x29, 0xC0]); // sub rax, r8 → code_off
+    export_code.extend_from_slice(&[0x8B, 0xB4, 0x24, 0x80, 0x28, 0x00, 0x00]); // esi = n_labels
+    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24, 0x80, 0x27, 0x00, 0x00]); // lea rdi,[rsp+0x2780]
+    export_code.extend_from_slice(&[0x89, 0x14, 0xF7]); // mov [rdi+rsi*8], edx (id)
+    export_code.extend_from_slice(&[0x89, 0x44, 0xF7, 0x04]); // mov [rdi+rsi*8+4], eax (off)
+    export_code.extend_from_slice(&[0xFF, 0x84, 0x24, 0x80, 0x28, 0x00, 0x00]); // inc dword n_labels
     let s1_jmp_next3 = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
@@ -1636,6 +1679,231 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s1_jmp_next8 = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
+    // --- CMP argc=2: load a→rax, load b→rcx, cmp rax,rcx (11B)
+    let s1_cmp = export_code.len();
+    patch_jcc32(&mut export_code, s1_je_cmp, s1_cmp);
+    export_code.extend_from_slice(&[0x80, 0xFA, 0x02]);
+    let s1_jne_cmp_argc = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x48, 0x83, 0xC0, 0x0B]);
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
+    let s1_ja_cmp_ovf = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    // a@[rcx+2] → r9b, b@[rcx+4] → r10b
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]);
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x3D, 0x80, 0x00, 0x00, 0x00]);
+    let s1_jae_cmp_a = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0xC1]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x04]);
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x3D, 0x80, 0x00, 0x00, 0x00]);
+    let s1_jae_cmp_b = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0xC2]);
+    // 49 8B 47 a; 49 8B 4F b; 48 39 C8
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x8B]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x02, 0x47]);
+    export_code.extend_from_slice(&[0x45, 0x88, 0x4C, 0x24, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x04, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x05, 0x8B]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x06, 0x4F]);
+    export_code.extend_from_slice(&[0x45, 0x88, 0x54, 0x24, 0x07]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x08, 0x48]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x09, 0x39]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0A, 0xC8]);
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x0B]);
+    let s1_jmp_next9 = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+    // --- shared: push patch (pos=eax, id=edx) → patches[n++]; return via jmp r11
+    // Must not use call/ret: RSP-relative label/patch tables assume fixed frame.
+    // clobbers: esi, rdi
+    let s1_push_patch = export_code.len();
+    export_code.extend_from_slice(&[0x8B, 0xB4, 0x24, 0x84, 0x28, 0x00, 0x00]); // esi = n_patches
+    export_code.extend_from_slice(&[0x83, 0xFE, 0x10]);
+    let s1_jae_npatch = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24, 0x00, 0x28, 0x00, 0x00]); // lea rdi,[rsp+0x2800]
+    export_code.extend_from_slice(&[0x89, 0x04, 0xF7]); // [rdi+rsi*8] = pos
+    export_code.extend_from_slice(&[0x89, 0x54, 0xF7, 0x04]); // +4 = id
+    export_code.extend_from_slice(&[0xFF, 0x84, 0x24, 0x84, 0x28, 0x00, 0x00]); // inc n_patches
+    export_code.extend_from_slice(&[0x41, 0xFF, 0xE3]); // jmp r11
+
+    // lea r11,[rip+ret]; jmp s1_push_patch; ret:  (no call — keep RSP frame fixed)
+    let emit_invoke_push_patch = |code: &mut Vec<u8>| {
+        let lea_at = code.len();
+        code.extend_from_slice(&[0x4C, 0x8D, 0x1D, 0, 0, 0, 0]); // lea r11,[rip+disp]
+        let jmp_pp = code.len();
+        code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+        let ret_at = code.len();
+        let disp_at = lea_at + 3;
+        let lea_rel = ret_at as i32 - (disp_at as i32 + 4);
+        code[disp_at..disp_at + 4].copy_from_slice(&lea_rel.to_le_bytes());
+        let jmp_rel = s1_push_patch as i32 - (jmp_pp as i32 + 5);
+        code[jmp_pp + 1..jmp_pp + 5].copy_from_slice(&jmp_rel.to_le_bytes());
+    };
+
+    // --- CALL argc=1: E8 rel32
+    let s1_call = export_code.len();
+    patch_jcc32(&mut export_code, s1_je_call, s1_call);
+    export_code.extend_from_slice(&[0x80, 0xFA, 0x01]);
+    let s1_jne_call_argc = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x48, 0x83, 0xC0, 0x05]);
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
+    let s1_ja_call_ovf = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0xE8]);
+    export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x01, 0, 0, 0, 0]);
+    // patch_pos = r12 - code_base + 1
+    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24, 0x80, 0x10, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x4C, 0x29, 0xC0]);
+    export_code.extend_from_slice(&[0xFF, 0xC0]); // +1
+    export_code.extend_from_slice(&[0x8B, 0x51, 0x02]); // label_id
+    emit_invoke_push_patch(&mut export_code);
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x05]);
+    let s1_jmp_next10 = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+    // --- JMP argc=1: E9 rel32
+    let s1_jmp = export_code.len();
+    patch_jcc32(&mut export_code, s1_je_jmp, s1_jmp);
+    export_code.extend_from_slice(&[0x80, 0xFA, 0x01]);
+    let s1_jne_jmp_argc = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x48, 0x83, 0xC0, 0x05]);
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
+    let s1_ja_jmp_ovf = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0xE9]);
+    export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x01, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24, 0x80, 0x10, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x4C, 0x29, 0xC0]);
+    export_code.extend_from_slice(&[0xFF, 0xC0]);
+    export_code.extend_from_slice(&[0x8B, 0x51, 0x02]);
+    emit_invoke_push_patch(&mut export_code);
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x05]);
+    let s1_jmp_next11 = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+    // --- JCC argc=1: 0F cc rel32 (6B). al=op 0x71..=0x7A
+    let s1_jcc = export_code.len();
+    patch_rel32(&mut export_code, s1_jmp_jcc, s1_jcc);
+    export_code.extend_from_slice(&[0x80, 0xFA, 0x01]);
+    let s1_jne_jcc_argc = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x48, 0x83, 0xC0, 0x06]);
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
+    let s1_ja_jcc_ovf = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    // ovf check clobbered al — reload op from record; map op→cc into r8b
+    export_code.extend_from_slice(&[0x0F, 0xB6, 0x01]); // movzx eax, byte [rcx]
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x0F]);
+    export_code.extend_from_slice(&[0x3C, 0x71]);
+    let s1_je_cc71 = export_code.len();
+    export_code.extend_from_slice(&[0x74, 0x00]);
+    export_code.extend_from_slice(&[0x3C, 0x72]);
+    let s1_je_cc72 = export_code.len();
+    export_code.extend_from_slice(&[0x74, 0x00]);
+    export_code.extend_from_slice(&[0x3C, 0x73]);
+    let s1_je_cc73 = export_code.len();
+    export_code.extend_from_slice(&[0x74, 0x00]);
+    export_code.extend_from_slice(&[0x3C, 0x74]);
+    let s1_je_cc74 = export_code.len();
+    export_code.extend_from_slice(&[0x74, 0x00]);
+    export_code.extend_from_slice(&[0x3C, 0x75]);
+    let s1_je_cc75 = export_code.len();
+    export_code.extend_from_slice(&[0x74, 0x00]);
+    export_code.extend_from_slice(&[0x3C, 0x76]);
+    let s1_je_cc76 = export_code.len();
+    export_code.extend_from_slice(&[0x74, 0x00]);
+    export_code.extend_from_slice(&[0x3C, 0x77]);
+    let s1_je_cc77 = export_code.len();
+    export_code.extend_from_slice(&[0x74, 0x00]);
+    export_code.extend_from_slice(&[0x3C, 0x78]);
+    let s1_je_cc78 = export_code.len();
+    export_code.extend_from_slice(&[0x74, 0x00]);
+    export_code.extend_from_slice(&[0x3C, 0x79]);
+    let s1_je_cc79 = export_code.len();
+    export_code.extend_from_slice(&[0x74, 0x00]);
+    export_code.extend_from_slice(&[0x41, 0xB0, 0x87]); // 0x7A → ja
+    let s1_jmp_cc_done = export_code.len();
+    export_code.extend_from_slice(&[0xEB, 0x00]);
+    let s1_cc71 = export_code.len();
+    patch_rel8(&mut export_code, s1_je_cc71, s1_cc71);
+    export_code.extend_from_slice(&[0x41, 0xB0, 0x84]);
+    let s1_jmp_cc_e1 = export_code.len();
+    export_code.extend_from_slice(&[0xEB, 0x00]);
+    let s1_cc72 = export_code.len();
+    patch_rel8(&mut export_code, s1_je_cc72, s1_cc72);
+    export_code.extend_from_slice(&[0x41, 0xB0, 0x85]);
+    let s1_jmp_cc_e2 = export_code.len();
+    export_code.extend_from_slice(&[0xEB, 0x00]);
+    let s1_cc73 = export_code.len();
+    patch_rel8(&mut export_code, s1_je_cc73, s1_cc73);
+    export_code.extend_from_slice(&[0x41, 0xB0, 0x8C]);
+    let s1_jmp_cc_e3 = export_code.len();
+    export_code.extend_from_slice(&[0xEB, 0x00]);
+    let s1_cc74 = export_code.len();
+    patch_rel8(&mut export_code, s1_je_cc74, s1_cc74);
+    export_code.extend_from_slice(&[0x41, 0xB0, 0x8D]);
+    let s1_jmp_cc_e4 = export_code.len();
+    export_code.extend_from_slice(&[0xEB, 0x00]);
+    let s1_cc75 = export_code.len();
+    patch_rel8(&mut export_code, s1_je_cc75, s1_cc75);
+    export_code.extend_from_slice(&[0x41, 0xB0, 0x8E]);
+    let s1_jmp_cc_e5 = export_code.len();
+    export_code.extend_from_slice(&[0xEB, 0x00]);
+    let s1_cc76 = export_code.len();
+    patch_rel8(&mut export_code, s1_je_cc76, s1_cc76);
+    export_code.extend_from_slice(&[0x41, 0xB0, 0x8F]);
+    let s1_jmp_cc_e6 = export_code.len();
+    export_code.extend_from_slice(&[0xEB, 0x00]);
+    let s1_cc77 = export_code.len();
+    patch_rel8(&mut export_code, s1_je_cc77, s1_cc77);
+    export_code.extend_from_slice(&[0x41, 0xB0, 0x82]);
+    let s1_jmp_cc_e7 = export_code.len();
+    export_code.extend_from_slice(&[0xEB, 0x00]);
+    let s1_cc78 = export_code.len();
+    patch_rel8(&mut export_code, s1_je_cc78, s1_cc78);
+    export_code.extend_from_slice(&[0x41, 0xB0, 0x83]);
+    let s1_jmp_cc_e8 = export_code.len();
+    export_code.extend_from_slice(&[0xEB, 0x00]);
+    let s1_cc79 = export_code.len();
+    patch_rel8(&mut export_code, s1_je_cc79, s1_cc79);
+    export_code.extend_from_slice(&[0x41, 0xB0, 0x86]);
+    let s1_jmp_cc_e9 = export_code.len();
+    export_code.extend_from_slice(&[0xEB, 0x00]);
+    let s1_cc_emit = export_code.len();
+    patch_rel8(&mut export_code, s1_jmp_cc_done, s1_cc_emit);
+    for at in [
+        s1_jmp_cc_e1, s1_jmp_cc_e2, s1_jmp_cc_e3, s1_jmp_cc_e4, s1_jmp_cc_e5,
+        s1_jmp_cc_e6, s1_jmp_cc_e7, s1_jmp_cc_e8, s1_jmp_cc_e9,
+    ] {
+        patch_rel8(&mut export_code, at, s1_cc_emit);
+    }
+    export_code.extend_from_slice(&[0x45, 0x88, 0x44, 0x24, 0x01]); // mov [r12+1], r8b
+    export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x02, 0, 0, 0, 0]);
+    // patch_pos = off+2
+    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24, 0x80, 0x10, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x4C, 0x29, 0xC0]);
+    export_code.extend_from_slice(&[0x83, 0xC0, 0x02]);
+    export_code.extend_from_slice(&[0x8B, 0x51, 0x02]);
+    emit_invoke_push_patch(&mut export_code);
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x06]);
+    let s1_jmp_next12 = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
     // next record
     let s1_next = export_code.len();
     for at in [
@@ -1647,6 +1915,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         s1_jmp_next6,
         s1_jmp_next7,
         s1_jmp_next8,
+        s1_jmp_next9,
+        s1_jmp_next10,
+        s1_jmp_next11,
+        s1_jmp_next12,
     ] {
         patch_rel32(&mut export_code, at, s1_next);
     }
@@ -1656,9 +1928,52 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     patch_rel32(&mut export_code, s1_jmp_loop, s1_loop);
 
-    // finish: ensure trailing ret; copy template; patch .text; goto write_out
+    // finish: pass-2 rel32 patch; ensure trailing ret; copy template; write_out
     let s1_finish = export_code.len();
     patch_jcc32(&mut export_code, s1_jz_done, s1_finish);
+    // Pass 2: for i in 0..n_patches: lookup label, write rel32
+    export_code.extend_from_slice(&[0x31, 0xF6]); // esi = 0 (patch index)
+    let s1_p2_loop = export_code.len();
+    export_code.extend_from_slice(&[0x3B, 0xB4, 0x24, 0x84, 0x28, 0x00, 0x00]); // cmp esi, n_patches
+    let s1_p2_done_jge = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x8D, 0, 0, 0, 0]); // jge pass2_done
+    // load patch: pos=[rsp+0x2800+esi*8], id=+4
+    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24, 0x00, 0x28, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x8B, 0x04, 0xF7]); // eax = pos
+    export_code.extend_from_slice(&[0x8B, 0x54, 0xF7, 0x04]); // edx = label_id
+    // find label: edi=0
+    export_code.extend_from_slice(&[0x31, 0xFF]);
+    let s1_p2_find = export_code.len();
+    export_code.extend_from_slice(&[0x3B, 0xBC, 0x24, 0x80, 0x28, 0x00, 0x00]); // cmp edi, n_labels
+    let s1_p2_nofind = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x8D, 0, 0, 0, 0]); // jge next_patch (undef → leave 0)
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x8C, 0x24, 0x80, 0x27, 0x00, 0x00]); // lea rcx,[labels]
+    export_code.extend_from_slice(&[0x39, 0x14, 0xF9]); // cmp [rcx+rdi*8], edx
+    let s1_p2_found = export_code.len();
+    export_code.extend_from_slice(&[0x74, 0x00]); // je found
+    export_code.extend_from_slice(&[0xFF, 0xC7]); // inc edi
+    let s1_p2_find_jmp = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    patch_rel32(&mut export_code, s1_p2_find_jmp, s1_p2_find);
+    let s1_p2_hit = export_code.len();
+    patch_rel8(&mut export_code, s1_p2_found, s1_p2_hit);
+    // target = [rcx+rdi*8+4]; rel = target - (pos+4); write at code_base+pos
+    // eax still holds pos (find loop only touches ecx/edi/edx-cmp)
+    export_code.extend_from_slice(&[0x8B, 0x4C, 0xF9, 0x04]); // ecx = target off
+    export_code.extend_from_slice(&[0x8D, 0x50, 0x04]); // edx = pos+4
+    export_code.extend_from_slice(&[0x29, 0xD1]); // ecx = target - (pos+4)
+    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24, 0x80, 0x10, 0x00, 0x00]); // lea r8, code_base
+    export_code.extend_from_slice(&[0x49, 0x01, 0xC0]); // r8 += pos (rax)
+    export_code.extend_from_slice(&[0x41, 0x89, 0x08]); // mov [r8], ecx
+    let s1_p2_next = export_code.len();
+    patch_jcc32(&mut export_code, s1_p2_nofind, s1_p2_next);
+    export_code.extend_from_slice(&[0xFF, 0xC6]); // inc esi
+    let s1_p2_loop_jmp = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    patch_rel32(&mut export_code, s1_p2_loop_jmp, s1_p2_loop);
+    let s1_p2_done = export_code.len();
+    patch_jcc32(&mut export_code, s1_p2_done_jge, s1_p2_done);
+
     // if code empty or last != C3, append C3
     export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24, 0x80, 0x10, 0x00, 0x00]); // lea r8,[rsp+0x1080]
     export_code.extend_from_slice(&[0x4D, 0x39, 0xC4]); // cmp r12, r8
@@ -1715,6 +2030,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         s1_jae_slot,
         s1_jne_ret_argc,
         s1_ja_ret_ovf,
+        s1_jne_label_argc,
+        s1_jae_nlab,
         s1_jne_nop_argc,
         s1_ja_nop_ovf,
         s1_jne_raw_argc,
@@ -1729,6 +2046,17 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         s1_jne_incdec_argc,
         s1_ja_incdec_ovf,
         s1_jae_incdec_slot,
+        s1_jne_cmp_argc,
+        s1_ja_cmp_ovf,
+        s1_jae_cmp_a,
+        s1_jae_cmp_b,
+        s1_jae_npatch,
+        s1_jne_call_argc,
+        s1_ja_call_ovf,
+        s1_jne_jmp_argc,
+        s1_ja_jmp_ovf,
+        s1_jne_jcc_argc,
+        s1_ja_jcc_ovf,
         s1_ja_trail,
         s1_jmp_fail_op,
     ];
@@ -2654,6 +2982,42 @@ mod tests {
             (
                 "dec_ret",
                 vec![(0x67, 1, [0, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "cmp_ret",
+                vec![(0x65, 2, [0, 0, 1, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "jmp_fwd_ret",
+                vec![
+                    (0x70, 1, [1, 0, 0, 0, 0, 0]),
+                    (0x00, 0, [0; 6]),
+                    (0x40, 1, [1, 0, 0, 0, 0, 0]),
+                    (0xFF, 0, [0; 6]),
+                ],
+            ),
+            (
+                "call_fwd_ret",
+                vec![
+                    (0x41, 1, [1, 0, 0, 0, 0, 0]),
+                    (0xFF, 0, [0; 6]),
+                    (0x40, 1, [1, 0, 0, 0, 0, 0]),
+                    (0xFF, 0, [0; 6]),
+                ],
+            ),
+            (
+                "je_fwd_ret",
+                vec![
+                    (0x65, 2, [0, 0, 0, 0, 0, 0]),
+                    (0x71, 1, [1, 0, 0, 0, 0, 0]),
+                    (0x00, 0, [0; 6]),
+                    (0x40, 1, [1, 0, 0, 0, 0, 0]),
+                    (0xFF, 0, [0; 6]),
+                ],
+            ),
+            (
+                "jmp_undef",
+                vec![(0x70, 1, [99, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])],
             ),
         ];
 

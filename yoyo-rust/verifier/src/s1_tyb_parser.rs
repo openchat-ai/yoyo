@@ -822,14 +822,37 @@ pub fn wrap_pe_slim_bytes(
 /// File offset of user `.text` (after 13-byte startup) in slim PE images.
 pub const S1_SLIM_TEXT_PAYLOAD_OFF: usize = 0x400 + 13;
 
-/// S1.5.b / S1.7.a in-DLL mini-ISA (must stay in sync with `pe_dll_link` export body).
+/// S1.5.b / S1.7.a–b in-DLL mini-ISA (must stay in sync with `pe_dll_link` export body).
 ///
 /// S1.5.b: NOP/SET/LABEL/RAW_BYTE/RET  
-/// S1.7.a: +GET/MOVRR/ADD imm/SUB imm/INC/DEC
+/// S1.7.a: +GET/MOVRR/ADD imm/SUB imm/INC/DEC  
+/// S1.7.b: +CMP/CALL/JMP/JCC (two-pass label patch, ≤16 labels/patches)
 pub fn is_s1_mini_op(op: u8) -> bool {
     matches!(
         op,
-        0x00 | 0x30 | 0x40 | 0x60 | 0x61 | 0x62 | 0x64 | 0x66 | 0x67 | 0xA0 | 0xFF
+        0x00 | 0x30
+            | 0x40
+            | 0x41
+            | 0x60
+            | 0x61
+            | 0x62
+            | 0x64
+            | 0x65
+            | 0x66
+            | 0x67
+            | 0x70
+            | 0x71
+            | 0x72
+            | 0x73
+            | 0x74
+            | 0x75
+            | 0x76
+            | 0x77
+            | 0x78
+            | 0x79
+            | 0x7A
+            | 0xA0
+            | 0xFF
     )
 }
 
@@ -897,6 +920,28 @@ pub fn validate_tyb_mini(prog: &TybProgram) -> crate::types::IsaResult<()> {
                     return bad(i, format!("s1 mini INC/DEC slot {slot} disp32 unsupported"));
                 }
             }
+            0x65 => {
+                if rec.argc != 2 {
+                    return bad(i, format!("s1 mini CMP requires argc=2, got {}", rec.argc));
+                }
+                let a = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]);
+                let b = u16::from_le_bytes([rec.args_raw[2], rec.args_raw[3]]);
+                if !mini_slot_disp8_ok(a) || !mini_slot_disp8_ok(b) {
+                    return bad(i, "s1 mini CMP slot disp32 unsupported".into());
+                }
+            }
+            0x40 | 0x41 | 0x70 | 0x71 | 0x72 | 0x73 | 0x74 | 0x75 | 0x76 | 0x77 | 0x78
+            | 0x79 | 0x7A => {
+                if rec.argc != 1 {
+                    return bad(
+                        i,
+                        format!(
+                            "s1 mini LABEL/CALL/JMP/JCC requires argc=1, got {}",
+                            rec.argc
+                        ),
+                    );
+                }
+            }
             0xFF | 0x00 => {
                 if rec.argc != 0 {
                     return bad(
@@ -905,7 +950,6 @@ pub fn validate_tyb_mini(prog: &TybProgram) -> crate::types::IsaResult<()> {
                     );
                 }
             }
-            0x40 => {}
             0xA0 => {
                 if rec.argc != 1 {
                     return bad(
