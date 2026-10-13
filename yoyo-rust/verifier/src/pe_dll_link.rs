@@ -19,9 +19,11 @@
 //!
 //! Stage 17+ **S1.5.a** (host entry bridge): when cwd input has `TYB\0` magic,
 //! [`resolve_recompile_input`] prefers [`crate::s1_tyb_parser::compile_tyb_to_pe`]
-//! (slim PE) over the oracle table. In-DLL machine-code port of that path is
-//! S1.5.b — oracle export body unchanged until then.
-//! Honest: table ≠ full YOYO compiler in DLL; production default remains Rust —
+//! (slim PE) over the oracle table.
+//! Stage 17+ **S1.5.b** (in-DLL): export body detects `TYB\0` after ReadFile and
+//! runs mini codegen (SET/RET/LABEL/NOP/RAW_BYTE) into a baked slim-PE template;
+//! non-TYB inputs still use the oracle table. Marker `yoyo_in_dll_s1_codegen`.
+//! Honest: mini-ISA ≠ full YOYO compiler; production default remains Rust —
 //! **not** OW-RT CLOSED (see `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`).
 
 use std::path::{Path, PathBuf};
@@ -917,14 +919,19 @@ pub fn resolve_recompile_input(entries: &[RecompileEntry], input: &[u8]) -> Opti
 
 /// Link YOYO pe_dll whose export **recompiles** via call-time input match.
 ///
-/// Call-time: `ReadFile` cwd `input.*`, scan baked (input→PE) table, write
-/// matching PE to `output.exe` (exits 0/1/2/3). Multiple known inputs work
-/// without re-emitting the DLL ("generic" vs single baked export-compile).
+/// Call-time: `ReadFile` cwd `input.*`; if magic `TYB\0`, S1.5.b mini codegen
+/// into a baked slim-PE template; else scan baked (input→PE) oracle table.
+/// Write matching/compiled PE to `output.exe` (exits 0/1/2/3).
 ///
-/// Honest: finite YOYO-precompiled oracle — **not** a full in-DLL YOYO
+/// Honest: TYB mini-ISA + finite oracle — **not** a full in-DLL YOYO
 /// compiler → OW-RT remains CUT.
 pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<Vec<u8>> {
     let table = build_recompile_table(entries)?;
+
+    // S1.5.b: slim PE shell (NOP sled + ret) patched at call time with codegen.
+    let mut shell_text = vec![0x90u8; crate::s1_tyb_parser::S1_SLIM_MAX_CODE - 1];
+    shell_text.push(0xC3);
+    let pe_template = crate::s1_tyb_parser::wrap_pe_slim_bytes(&shell_text, &[])?;
 
     const IMAGE_BASE: u64 = 0x0000_0001_8000_0000;
     const FILE_ALIGN: u32 = 0x200;
@@ -992,15 +999,26 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
     let marker_off = off;
     off += marker.len() as u32;
     off = align_up(off, 16);
+    let s1_marker: &[u8] = b"yoyo_in_dll_s1_codegen\0";
+    let s1_marker_off = off;
+    off += s1_marker.len() as u32;
+    off = align_up(off, 16);
     let table_off = off;
-    let rdata_payload = table_off + table.len() as u32;
+    off = align_up(table_off + table.len() as u32, 16);
+    let template_off = off;
+    let template_len = pe_template.bytes.len() as u32;
+    let rdata_payload = template_off + template_len;
 
     let text_rva = SECTION_ALIGN;
 
-    // Stack layout (export body): push rbx,rsi,rdi,r12,r13; sub rsp, 0x1080
-    //   [rsp+0x60 ..) = ≤4KiB input buffer; [rsp+0x40] = DWORD bytes_read
+    // Stack layout (S1.5.b): push rbx,rsi,rdi,r12,r13; sub rsp, 0x2800
+    //   [rsp+0x40] = DWORD bytes_read
+    //   [rsp+0x60 .. 0x1060) = ≤4KiB input
+    //   [rsp+0x1080 ..) = code scratch (≤256)
+    //   [rsp+0x1180 ..) = slim PE buffer (0x1600)
     link_yoyo_in_dll_recompile_dll_emit(
         &table,
+        &pe_template.bytes,
         &input_offs,
         output_off,
         k32_name_off,
@@ -1008,7 +1026,11 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
         &hint_blobs,
         marker,
         marker_off,
+        s1_marker,
+        s1_marker_off,
         table_off,
+        template_off,
+        template_len,
         rdata_payload,
         ilt_off,
         iat_off,
@@ -1038,6 +1060,7 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
 /// Inner emit for [`link_yoyo_in_dll_recompile_dll`] (keeps patch state local).
 fn link_yoyo_in_dll_recompile_dll_emit(
     table: &[u8],
+    pe_template: &[u8],
     input_offs: &[u32; 3],
     output_off: u32,
     k32_name_off: u32,
@@ -1045,7 +1068,11 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     hint_blobs: &[Vec<u8>],
     marker: &[u8],
     marker_off: u32,
+    s1_marker: &[u8],
+    s1_marker_off: u32,
     table_off: u32,
+    template_off: u32,
+    template_len: u32,
     rdata_payload: u32,
     ilt_off: u32,
     iat_off: u32,
@@ -1071,7 +1098,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     n_imp: usize,
 ) -> IsaResult<Vec<u8>> {
     let _ = n_imp;
-    let mut export_code = Vec::with_capacity(640);
+    let mut export_code = Vec::with_capacity(1280);
     let mut rip_patches: Vec<(usize, u32)> = Vec::new();
     let mut iat_patches: Vec<(usize, u32)> = Vec::new();
 
@@ -1104,9 +1131,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         code[disp_at..disp_at + 4].copy_from_slice(&rel.to_le_bytes());
     };
 
-    // prologue
+    // prologue — S1.5.b stack 0x2800 (input + code scratch + slim PE)
     export_code.extend_from_slice(&[0x53, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55]);
-    export_code.extend_from_slice(&[0x48, 0x81, 0xEC, 0x80, 0x10, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x48, 0x81, 0xEC, 0x00, 0x28, 0x00, 0x00]);
 
     // Try each input name: attrs → open (near jcc — open stubs are far)
     let mut open_jne_sites: Vec<(usize, u32)> = Vec::new(); // (jcc32_at, name_off)
@@ -1187,6 +1214,18 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     je_compile_fail_sites.push(jz_fail_read);
 
+    // S1.5.b: if input starts with TYB\0 and size≥8 → mini codegen path.
+    // rsi still = input buf, edi = size (set before ReadFile; cmpsb later
+    // reloads rsi — here both are intact).
+    export_code.extend_from_slice(&[0x83, 0xFF, 0x08]); // cmp edi, 8
+    let jb_oracle = export_code.len();
+    export_code.extend_from_slice(&[0x72, 0x00]); // jb oracle_scan (rel8)
+    export_code.extend_from_slice(&[0x81, 0x3E, 0x54, 0x59, 0x42, 0x00]); // cmp dword [rsi], 'TYB\0'
+    let jne_oracle = export_code.len();
+    export_code.extend_from_slice(&[0x75, 0x00]); // jne oracle_scan
+    let jmp_s1 = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp s1_codegen
+
     // Scan table: r13 = table ptr, rbx = entry count (loop counter below).
     //
     // A single RIP-relative disp32 loads the table pointer into rcx, then we
@@ -1198,6 +1237,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // rbx is pushed in the prologue; loading the count here, after
     // CloseHandle, makes rbx's earlier use as a Win32 return register a
     // non-issue.
+    let oracle_scan = export_code.len();
+    patch_rel8(&mut export_code, jb_oracle, oracle_scan);
+    patch_rel8(&mut export_code, jne_oracle, oracle_scan);
     emit_lea_rcx_rdata(&mut export_code, &mut rip_patches, table_off);
     // mov ebx, [rcx] — register addressing, no RIP disp, no patch needed.
     export_code.extend_from_slice(&[0x8B, 0x19]);
@@ -1310,15 +1352,241 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0xB8, 0x01, 0x00, 0x00, 0x00]);
 
     let epilogue_at = export_code.len();
-    // add rsp, 0x1080; pop r13; pop r12; pop rdi; pop rsi; pop rbx; ret
-    export_code.extend_from_slice(&[0x48, 0x81, 0xC4, 0x80, 0x10, 0x00, 0x00]);
+    // add rsp, 0x2800; pop r13; pop r12; pop rdi; pop rsi; pop rbx; ret
+    export_code.extend_from_slice(&[0x48, 0x81, 0xC4, 0x00, 0x28, 0x00, 0x00]);
     export_code.extend_from_slice(&[0x41, 0x5D, 0x41, 0x5C, 0x5F, 0x5E, 0x5B, 0xC3]);
+
+    // ----- S1.5.b mini TYB codegen (after epilogue; entered only via jmp_s1) -----
+    // Stack: code@[rsp+0x1080], pe@[rsp+0x1180]. rsi=input, edi=size.
+    // Mini-ISA: SET(0x30)/RET(0xFF)/LABEL(0x40)/NOP(0x00)/RAW_BYTE(0xA0).
+    let s1_at = export_code.len();
+    patch_rel32(&mut export_code, jmp_s1, s1_at);
+
+    // ebx = rec_cnt (u16 at [rsi+6]); expected = 8 + rec_cnt*8
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x5E, 0x06]); // movzx ebx, word [rsi+6]
+    export_code.extend_from_slice(&[0x89, 0xD8]); // mov eax, ebx
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]); // shl eax, 3
+    export_code.extend_from_slice(&[0x83, 0xC0, 0x08]); // add eax, 8
+    export_code.extend_from_slice(&[0x39, 0xF8]); // cmp eax, edi
+    let s1_jne_sz = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jne compile_fail
+    // r12 = code cursor = lea [rsp+0x1080]; r13 = code end = r12+256
+    export_code.extend_from_slice(&[0x4C, 0x8D, 0xA4, 0x24, 0x80, 0x10, 0x00, 0x00]); // lea r12,[rsp+0x1080]
+    export_code.extend_from_slice(&[0x4D, 0x89, 0xE5]); // mov r13, r12
+    export_code.extend_from_slice(&[0x49, 0x81, 0xC5, 0x00, 0x01, 0x00, 0x00]); // add r13, 256
+    // rcx = first record = rsi+8
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x4E, 0x08]); // lea rcx, [rsi+8]
+
+    let s1_loop = export_code.len();
+    export_code.extend_from_slice(&[0x85, 0xDB]); // test ebx, ebx
+    let s1_jz_done = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]); // jz s1_finish
+    export_code.extend_from_slice(&[0x0F, 0xB6, 0x01]); // movzx eax, byte [rcx] ; op
+    export_code.extend_from_slice(&[0x0F, 0xB6, 0x51, 0x01]); // movzx edx, byte [rcx+1] ; argc
+
+    // op dispatch (near jcc — handlers are far)
+    export_code.extend_from_slice(&[0x3C, 0x30]); // cmp al, 0x30 SET
+    let s1_je_set = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x3C, 0xFF]); // cmp al, 0xFF RET
+    let s1_je_ret = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x3C, 0x40]); // LABEL
+    let s1_je_label = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x3C, 0x00]); // NOP
+    let s1_je_nop = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x3C, 0xA0]); // RAW_BYTE
+    let s1_je_raw = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    let s1_jmp_fail_op = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // unsupported → compile_fail
+
+    // --- SET argc must be 2: emit movabs rax,imm64 + store [r15+slot*8]
+    let s1_set = export_code.len();
+    patch_jcc32(&mut export_code, s1_je_set, s1_set);
+    export_code.extend_from_slice(&[0x80, 0xFA, 0x02]); // cmp dl, 2
+    let s1_jne_set_argc = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    // space check: need 14 bytes (10 movabs + 4 store disp8)
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]); // mov rax, r12
+    export_code.extend_from_slice(&[0x48, 0x83, 0xC0, 0x0E]); // add rax, 14
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]); // cmp rax, r13
+    let s1_ja_set_ovf = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    // movabs: 48 B8 + imm64 (imm32 zero-extended from [rcx+4])
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x48]); // mov byte [r12], 0x48
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0xB8]);
+    export_code.extend_from_slice(&[0x8B, 0x41, 0x04]); // mov eax, [rcx+4]
+    export_code.extend_from_slice(&[0x49, 0x89, 0x44, 0x24, 0x02]); // mov [r12+2], rax  (imm64)
+    // store_state slot: 49 89 47 disp8 ; slot=u16[rcx+2], disp=slot*8
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // movzx eax, word [rcx+2]
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]); // shl eax, 3
+    export_code.extend_from_slice(&[0x3D, 0x80, 0x00, 0x00, 0x00]); // cmp eax, 0x80
+    let s1_jae_slot = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae fail (need disp32 path — unsupported)
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0A, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0B, 0x89]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0C, 0x47]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x0D]); // mov [r12+13], al
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x0E]); // add r12, 14
+    let s1_jmp_next = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+    // --- RET
+    let s1_ret = export_code.len();
+    patch_jcc32(&mut export_code, s1_je_ret, s1_ret);
+    export_code.extend_from_slice(&[0x84, 0xD2]); // test dl, dl
+    let s1_jne_ret_argc = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x48, 0xFF, 0xC0]); // inc rax
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
+    let s1_ja_ret_ovf = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0xC3]);
+    export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]); // inc r12
+    let s1_jmp_next2 = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+    // --- LABEL: no emit
+    let s1_label = export_code.len();
+    patch_jcc32(&mut export_code, s1_je_label, s1_label);
+    let s1_jmp_next3 = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+    // --- NOP
+    let s1_nop = export_code.len();
+    patch_jcc32(&mut export_code, s1_je_nop, s1_nop);
+    export_code.extend_from_slice(&[0x84, 0xD2]);
+    let s1_jne_nop_argc = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x48, 0xFF, 0xC0]);
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
+    let s1_ja_nop_ovf = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x90]);
+    export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]);
+    let s1_jmp_next4 = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+    // --- RAW_BYTE argc=1: emit args_raw[0]
+    let s1_raw = export_code.len();
+    patch_jcc32(&mut export_code, s1_je_raw, s1_raw);
+    export_code.extend_from_slice(&[0x80, 0xFA, 0x01]);
+    let s1_jne_raw_argc = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x48, 0xFF, 0xC0]);
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
+    let s1_ja_raw_ovf = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x8A, 0x41, 0x02]); // mov al, [rcx+2]
+    export_code.extend_from_slice(&[0x41, 0x88, 0x04, 0x24]);
+    export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]);
+    let s1_jmp_next5 = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+    // next record
+    let s1_next = export_code.len();
+    for at in [
+        s1_jmp_next,
+        s1_jmp_next2,
+        s1_jmp_next3,
+        s1_jmp_next4,
+        s1_jmp_next5,
+    ] {
+        patch_rel32(&mut export_code, at, s1_next);
+    }
+    export_code.extend_from_slice(&[0x48, 0x83, 0xC1, 0x08]); // add rcx, 8
+    export_code.extend_from_slice(&[0xFF, 0xCB]); // dec ebx
+    let s1_jmp_loop = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    patch_rel32(&mut export_code, s1_jmp_loop, s1_loop);
+
+    // finish: ensure trailing ret; copy template; patch .text; goto write_out
+    let s1_finish = export_code.len();
+    patch_jcc32(&mut export_code, s1_jz_done, s1_finish);
+    // if code empty or last != C3, append C3
+    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24, 0x80, 0x10, 0x00, 0x00]); // lea r8,[rsp+0x1080]
+    export_code.extend_from_slice(&[0x4D, 0x39, 0xC4]); // cmp r12, r8
+    let s1_je_empty = export_code.len();
+    export_code.extend_from_slice(&[0x74, 0x00]); // je need_ret
+    export_code.extend_from_slice(&[0x41, 0x80, 0x7C, 0x24, 0xFF, 0xC3]); // cmp byte [r12-1], 0xC3
+    let s1_je_has_ret = export_code.len();
+    export_code.extend_from_slice(&[0x74, 0x00]);
+    let s1_need_ret = export_code.len();
+    patch_rel8(&mut export_code, s1_je_empty, s1_need_ret);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x48, 0xFF, 0xC0]);
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
+    let s1_ja_trail = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0xC3]);
+    export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]);
+    let s1_after_ret = export_code.len();
+    patch_rel8(&mut export_code, s1_je_has_ret, s1_after_ret);
+
+    // memcpy template → [rsp+0x1180]
+    emit_lea_rcx_rdata(&mut export_code, &mut rip_patches, template_off); // rcx = src
+    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24, 0x80, 0x11, 0x00, 0x00]); // lea rdi,[rsp+0x1180]
+    export_code.extend_from_slice(&[0x48, 0x89, 0xCE]); // mov rsi, rcx
+    export_code.extend_from_slice(&[0xB9]); // mov ecx, template_len
+    export_code.extend_from_slice(&template_len.to_le_bytes());
+    export_code.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
+
+    // memcpy code → pe + S1_SLIM_TEXT_PAYLOAD_OFF (0x40D)
+    export_code.extend_from_slice(&[0x48, 0x8D, 0xB4, 0x24, 0x80, 0x10, 0x00, 0x00]); // lea rsi,[rsp+0x1080]
+    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24, 0x80, 0x11, 0x00, 0x00]); // lea rdi,[rsp+0x1180]
+    export_code.extend_from_slice(&[0x48, 0x81, 0xC7]); // add rdi, 0x40D
+    export_code.extend_from_slice(
+        &(crate::s1_tyb_parser::S1_SLIM_TEXT_PAYLOAD_OFF as u32).to_le_bytes(),
+    );
+    // ecx = code_len = r12 - code_base
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE1]); // mov rcx, r12
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x84, 0x24, 0x80, 0x10, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x48, 0x29, 0xC1]); // sub rcx, rax
+    export_code.extend_from_slice(&[0xF3, 0xA4]);
+
+    // rcx = pe_buf, r12d = template_len → write_out
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x8C, 0x24, 0x80, 0x11, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x41, 0xBC]); // mov r12d, imm32
+    export_code.extend_from_slice(&template_len.to_le_bytes());
+    let s1_jmp_write = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+    // collect s1 fail sites → compile_fail
+    let s1_fail_sites = [
+        s1_jne_sz,
+        s1_jne_set_argc,
+        s1_ja_set_ovf,
+        s1_jae_slot,
+        s1_jne_ret_argc,
+        s1_ja_ret_ovf,
+        s1_jne_nop_argc,
+        s1_ja_nop_ovf,
+        s1_jne_raw_argc,
+        s1_ja_raw_ovf,
+        s1_ja_trail,
+        s1_jmp_fail_op,
+    ];
 
         // Patch jumps
         patch_rel32(&mut export_code, jmp_epi_noinput, epilogue_at);
         for at in &je_compile_fail_sites {
             patch_jcc32(&mut export_code, *at, compile_fail_at);
         }
+        for at in &s1_fail_sites {
+            // E9 near jmp vs 0F 8x jcc
+            if export_code[*at] == 0xE9 {
+                patch_rel32(&mut export_code, *at, compile_fail_at);
+            } else {
+                patch_jcc32(&mut export_code, *at, compile_fail_at);
+            }
+        }
+        patch_rel32(&mut export_code, s1_jmp_write, write_out);
         patch_jcc32(&mut export_code, je_fail_create, write_fail_at);
         patch_rel8(&mut export_code, jz_fail_write, write_fail_at);
         patch_rel8(&mut export_code, jmp_epi_ok, epilogue_at);
@@ -1442,7 +1710,11 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     write_u32(exp, id + 12, rdata_rva + k32_name_off);
     write_u32(exp, id + 16, rdata_rva + iat_off);
     exp[marker_off as usize..marker_off as usize + marker.len()].copy_from_slice(marker);
+    exp[s1_marker_off as usize..s1_marker_off as usize + s1_marker.len()]
+        .copy_from_slice(s1_marker);
     exp[table_off as usize..table_off as usize + table.len()].copy_from_slice(table);
+    exp[template_off as usize..template_off as usize + pe_template.len()]
+        .copy_from_slice(pe_template);
 
     Ok(img)
 }
@@ -2085,12 +2357,78 @@ mod tests {
         assert_eq!(&dll[0..2], b"MZ");
         let ascii = String::from_utf8_lossy(&dll);
         assert!(ascii.contains("yoyo_in_dll_recompile"));
+        assert!(
+            ascii.contains("yoyo_in_dll_s1_codegen"),
+            "S1.5.b marker must be baked into .rdata"
+        );
         assert!(ascii.contains("ReadFile"));
         assert!(ascii.contains("GetFileSize"));
         assert!(ascii.contains("KERNEL32.dll") || ascii.contains("KERNEL32.DLL"));
         let headers = parse_pe64_headers(&dll).expect("headers");
         assert_ne!(headers.export_dir_rva, 0);
         assert_ne!(headers.import_dir_rva, 0);
+    }
+
+    #[test]
+    fn s1_in_dll_tyb_magic_immediate_in_export() {
+        // Export body compares input to 'TYB\0' (54 59 42 00) before oracle scan.
+        let entries = gate_g_recompile_entries().expect("entries");
+        let dll = link_yoyo_in_dll_recompile_dll(&entries).expect("link");
+        let needle = [0x81u8, 0x3E, 0x54, 0x59, 0x42, 0x00]; // cmp dword [rsi], 'TYB\0'
+        assert!(
+            dll.windows(needle.len()).any(|w| w == needle),
+            "export must contain TYB magic compare"
+        );
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_sidecar_in_dll_s1_tyb_empty_compiles() {
+        // Empty TYB (rec_cnt=0) → in-DLL mini codegen → slim output.exe
+        let dir = temp_work("in-dll-s1-tyb-empty");
+        let mut tyb = Vec::new();
+        tyb.extend_from_slice(b"TYB\0");
+        tyb.extend_from_slice(&[0, 0]);
+        tyb.extend_from_slice(&0u16.to_le_bytes());
+        std::fs::write(dir.join("input.tyb"), &tyb).expect("write tyb");
+        let code = yoyo_sidecar_in_dll_recompile(&dir);
+        assert_eq!(code, EXIT_OK, "S1.5.b empty TYB must exit 0");
+        let out = std::fs::read(dir.join(OUTPUT_NAME)).expect("output.exe");
+        assert_eq!(&out[0..2], b"MZ");
+        assert!(
+            out.len() < 0x3000,
+            "slim PE expected from S1 path, got {}",
+            out.len()
+        );
+        // Trailing user code is ret at slim payload offset.
+        assert_eq!(
+            out[crate::s1_tyb_parser::S1_SLIM_TEXT_PAYLOAD_OFF],
+            0xC3
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_sidecar_in_dll_s1_tyb_set_ret_compiles() {
+        let dir = temp_work("in-dll-s1-tyb-set");
+        let mut tyb = Vec::new();
+        tyb.extend_from_slice(b"TYB\0");
+        tyb.extend_from_slice(&[0, 0]);
+        tyb.extend_from_slice(&2u16.to_le_bytes());
+        tyb.push(0x30);
+        tyb.push(2);
+        tyb.extend_from_slice(&[0x00, 0x00, 0xEF, 0xBE, 0xAD, 0xDE]);
+        tyb.push(0xFF);
+        tyb.push(0);
+        tyb.extend_from_slice(&[0u8; 6]);
+        std::fs::write(dir.join("input.tyb"), &tyb).expect("write tyb");
+        assert_eq!(yoyo_sidecar_in_dll_recompile(&dir), EXIT_OK);
+        let out = std::fs::read(dir.join(OUTPUT_NAME)).expect("output.exe");
+        assert_eq!(&out[0..2], b"MZ");
+        let off = crate::s1_tyb_parser::S1_SLIM_TEXT_PAYLOAD_OFF;
+        assert_eq!(&out[off..off + 2], &[0x48, 0xB8], "movabs prefix");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
