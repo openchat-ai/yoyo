@@ -434,11 +434,11 @@ Run `35553987325`（commit `146b58b`）：
 | **S1.4** | ✅ 已本地提交（部分：host-side PE wrap；entry 改写仍 S1.5） | `CodegenOutput.data` + DATA/STR/RAW(0x10/0x12/0x13)→`.data` + RAW_BYTES(0xA1)→`.text` + `wrap_pe`→`pe_link::link_pe`（MZ/PE） | commit `69fa62c` · 47/47 测试通过 · **仍 stub**：ALLOC/LOAD_FILE/WRITE_FILE（platform）· **未做**：in-DLL entry 改写（S1.5） |
 | **S1.5.a** | ✅ 已本地提交（部分：host entry bridge；in-DLL x86 仍 S1.5.b） | `wrap_pe_slim`（tiny `.data`，PE≪H_00 pad）+ `compile_tyb_to_pe` + `resolve_recompile_input`（TYB→S1，否则 oracle）；non-Win sidecar 已接线 | commit `54bd766` · s1_ **51/51** + resolve **2/2** · **未做**：DLL export 体内手写 x86 替换 oracle（S1.5.b） |
 | **S1.5.b** | ✅ 已本地提交（部分：TYB mini-ISA in-DLL；全量 emit 仍未 port） | export ReadFile 后检测 `TYB\0` → SET/RET/LABEL/NOP/RAW_BYTE mini codegen → 烘焙 slim-PE 模板写出；非 TYB 仍走 oracle；marker `yoyo_in_dll_s1_codegen` | commit `870356c` · pe_dll_link **30/30**（含 Win empty/SET+RET TYB）· **仍缺**：全量 opcode / DATA / ALLOC/IO · **下一步** S1.6 |
-| S1.6 | `[ ]` | 验证 + parity test | 未开始 |
+| **S1.6** | ✅ 已本地提交 | `compile_tyb_to_pe_mini` + `validate_tyb_mini`（与 in-DLL fail-closed 对齐）；Win host↔in-DLL user `.text` parity 矩阵（empty/ret/nop/label/raw/set）；GET 拒测 | commit `4b797b1` · pe_dll_link **32/32** · s1_ **59/59** |
 
-**当前进度**：S1.1–S1.5（含 **S1.5.b in-DLL TYB mini codegen**）完成。Gate G oracle 路径保留；TYB 输入走真 codegen。ALLOC/IO / 全量 ISA 仍缺。
-**下一步 S1.6**：验证 + host/in-DLL parity test。
-**S1 总体仍"周-月"级**（S1.6 收口；全量 ISA 属后续增长）。
+**S1 子任务收口（mini 真实编译器切片）**：S1.1–S1.6 本地完成。TYB mini-ISA 已在 DLL export 内真 codegen，host/in-DLL `.text` parity 绿。
+**诚实非 CLOSED**：全量 ISA / DATA / ALLOC/IO 未 port；非 TYB 仍 oracle；`stage17-ow-seed-no-rust-sidecar.ps1` 预期仍 RED（≠ 完整 H_00 runtime）；OW-RT **仍 CUT** · `closed=0`。
+**下一步（S1 之后）**：扩 mini-ISA（GET/算术/分支）或进 S2 规划；默认 `继续` 先扩 ISA 或停在 S1 收口——按指令。
 
 ### 立项约束
 
@@ -662,3 +662,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-13 · S1.1.a–f + S1.2 + S1.3 + S1.4）**：前序见上 · S1.4 = DATA/STR/RAW→`.data` + RAW_BYTES→`.text` + `wrap_pe(link_pe)`（本地 commit `69fa62c`）· 累计 **47/47 单元测试通过** · host-side PE 封装已通；**仍不是 in-DLL 真编译器**（ALLOC/IO 仍 stub；未改写 in-DLL entry）· **下一步 S1.5**：entry 改写 · S1 总体仍"周-月"级 · `closed=0 cut=7` · OW-RT 仍 CUT · **无 tag**
 **当前分支诚实快照（2026-10-13 · + S1.5.a）**：前序见上 · S1.5.a = `wrap_pe_slim` + `compile_tyb_to_pe` + `resolve_recompile_input`（本地 commit `54bd766`）· s1_ **51/51** · **host** 侧 TYB 已可旁路 oracle；**DLL export 体仍是查找表**（S1.5.b）· ALLOC/IO 仍 stub · **下一步 S1.5.b**：in-DLL 机器码 entry · S1 总体仍"周-月"级 · `closed=0 cut=7` · OW-RT 仍 CUT · **无 tag**
 **当前分支诚实快照（2026-10-13 · + S1.5.b）**：前序见上 · S1.5.b = in-DLL `TYB\0` 检测 + SET/RET/LABEL/NOP/RAW_BYTE → slim PE（本地 commit `870356c`；Win 实测 empty/SET+RET）· pe_dll_link **30/30** · **真 in-DLL codegen 切片已落地**（mini-ISA；非 TYB 仍 oracle）· ALLOC/IO/全量 emit 仍缺 · **下一步 S1.6**：parity · S1 总体仍"周-月"级 · `closed=0 cut=7` · OW-RT 仍 CUT · **无 tag**
+**当前分支诚实快照（2026-10-13 · S1.1–S1.6 收口）**：前序见上 · S1.6 = `compile_tyb_to_pe_mini` + Win host↔in-DLL user `.text` parity（本地 commit `4b797b1`）· pe_dll_link **32/32** · s1_ **59/59** · **S1 mini 真实编译器切片完成** · 全量 ISA/ALLOC/IO 仍缺 · oracle 仍服务非 TYB · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
