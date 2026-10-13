@@ -157,7 +157,10 @@ pub fn is_tyb(data: &[u8]) -> bool {
 /// (S1.3 will replace this hand-written code with assembler.rs calls
 /// once we have assembler.rs available in-DLL).
 pub struct CodegenOutput {
+    /// Emitted x86-64 machine code (.text).
     pub text: Vec<u8>,
+    /// Data/string/raw payload bytes (.data). Filled by DATA/STR/RAW (S1.4).
+    pub data: Vec<u8>,
 }
 
 /// S1.2 physical register set (4 regs). Standalone — does not depend on
@@ -414,9 +417,14 @@ fn emit_memcpy_state(out: &mut Vec<u8>, dst: u16, src: u16, n: u16) {
 /// - `0x85` MEMCPY_STATE dst src n (argc=3) — slot-to-slot (Win32/simulator)
 /// - `0xA0` RAW_BYTE byte (argc=1) — emit literal byte
 ///
-/// Still STUBS (S1.4 / platform):
+/// S1.4 data + PE wrap:
+/// - `0x10` / `0x12` / `0x13` DATA/STR/RAW → append low-bytes of args to `.data` (no .text)
+/// - `0xA1` RAW_BYTES → append low-bytes of args to `.text`
+/// - `wrap_pe` packages `.text`+`.data` via `crate::pe_link::link_pe`
+///
+/// Still STUBS (platform / S1.5):
 /// - `0x20` ALLOC / `0x50` LOAD_FILE / `0x51` WRITE_FILE — need runtime helpers
-/// - `0x10` / `0x12` / `0x13` / `0xA1` — data/string/raw blobs (PE wrapping scope)
+/// - in-DLL entry rewrite (replace oracle lookup) — S1.5
 ///
 /// Register allocation:
 /// - r15 = pinned state base
@@ -427,6 +435,7 @@ fn emit_memcpy_state(out: &mut Vec<u8>, dst: u16, src: u16, n: u16) {
 pub fn emit_x86(prog: &TybProgram) -> CodegenOutput {
     use std::collections::HashMap;
     let mut text = Vec::with_capacity(prog.rec_cnt * 20 + 1);
+    let mut data = Vec::new();
     let mut labels: HashMap<u32, usize> = HashMap::new();
     let mut rel32_patches: Vec<(usize, u32)> = Vec::new();
     for rec in &prog.records {
@@ -601,6 +610,14 @@ pub fn emit_x86(prog: &TybProgram) -> CodegenOutput {
                     text.push(0x90);
                 }
             }
+            // --- DATA / STR / RAW → .data (no .text) ---
+            0x10 | 0x12 | 0x13 => {
+                data.extend(arg_low_bytes(rec));
+            }
+            // --- RAW_BYTES → append literal bytes to .text ---
+            0xA1 => {
+                text.extend(arg_low_bytes(rec));
+            }
             // --- NOP (explicit) ---
             0x00 if rec.argc == 0 => {
                 text.push(0x90);
@@ -609,7 +626,7 @@ pub fn emit_x86(prog: &TybProgram) -> CodegenOutput {
             0xFF if rec.argc == 0 => {
                 text.push(0xC3);
             }
-            // --- Everything else: NOP placeholder (ALLOC/IO/DATA/RAW_BYTES) ---
+            // --- Everything else: NOP placeholder (ALLOC/IO) ---
             _ => {
                 text.push(0x90);
             }
@@ -628,7 +645,35 @@ pub fn emit_x86(prog: &TybProgram) -> CodegenOutput {
     if text.is_empty() || *text.last().unwrap() != 0xC3 {
         text.push(0xC3);
     }
-    CodegenOutput { text }
+    CodegenOutput { text, data }
+}
+
+/// Decode TYB args and take each arg's low byte (matches `emit.rs` DATA/STR/RAW/RAW_BYTES).
+fn arg_low_bytes(rec: &TybRecord) -> Vec<u8> {
+    match rec.argc {
+        0 => Vec::new(),
+        1 => {
+            // argc=1: u32 LE in args_raw[0..4] → one arg, low byte = args_raw[0]
+            vec![rec.args_raw[0]]
+        }
+        2 => {
+            // argc=2: a0=u16@[0..2], a1=u32@[2..6] → low bytes at [0] and [2]
+            vec![rec.args_raw[0], rec.args_raw[2]]
+        }
+        3 => {
+            // argc=3: three u16s → low bytes at [0], [2], [4]
+            vec![rec.args_raw[0], rec.args_raw[2], rec.args_raw[4]]
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// S1.4 — wrap codegen `.text`+`.data` into a PE32+ image via `pe_link::link_pe`.
+///
+/// Entry setup (R15 → .data) is handled inside `link_pe`. This is the host-side
+/// packaging step; in-DLL entry rewrite remains S1.5.
+pub fn wrap_pe(out: &CodegenOutput) -> crate::types::IsaResult<crate::pe_link::PeImage> {
+    crate::pe_link::link_pe(&out.text, &out.data)
 }
 
 /// Parse a .tyb file from disk (used by S1 gates / tests).
@@ -1408,5 +1453,91 @@ mod tests {
         };
         let out = emit_x86(&prog);
         assert_eq!(out.text, vec![0x90, 0xC3]);
+        assert!(out.data.is_empty());
+    }
+
+    // ============= S1.4: DATA/STR/RAW / RAW_BYTES / wrap_pe =============
+
+    #[test]
+    fn emit_x86_data_goes_to_data_section() {
+        // DATA argc=3 bytes HI,'i',0 → .data = [0x48, 0x69, 0x00]; .text = ret only
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord {
+                op: 0x10,
+                argc: 3,
+                args_raw: [0x48, 0x00, 0x69, 0x00, 0x00, 0x00],
+            }],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(out.data, vec![0x48, 0x69, 0x00]);
+        assert_eq!(out.text, vec![0xC3]);
+    }
+
+    #[test]
+    fn emit_x86_str_and_raw_append_data() {
+        // STR "AB" (argc=2) + RAW 0xFF (argc=1) → .data = [0x41, 0x42, 0xFF]
+        let prog = TybProgram {
+            rec_cnt: 2,
+            records: vec![
+                TybRecord {
+                    op: 0x12,
+                    argc: 2,
+                    args_raw: [0x41, 0x00, 0x42, 0x00, 0x00, 0x00],
+                },
+                TybRecord {
+                    op: 0x13,
+                    argc: 1,
+                    args_raw: [0xFF, 0x00, 0x00, 0x00, 0, 0],
+                },
+            ],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(out.data, vec![0x41, 0x42, 0xFF]);
+        assert_eq!(out.text, vec![0xC3]);
+    }
+
+    #[test]
+    fn emit_x86_raw_bytes_to_text() {
+        // RAW_BYTES 0xCC 0xDD (argc=2) → .text = cc dd c3 (matches self_test H_33 pin)
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord {
+                op: 0xA1,
+                argc: 2,
+                args_raw: [0xCC, 0x00, 0xDD, 0x00, 0x00, 0x00],
+            }],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(out.text, vec![0xCC, 0xDD, 0xC3]);
+        assert!(out.data.is_empty());
+    }
+
+    #[test]
+    fn wrap_pe_produces_mz_pe() {
+        let prog = TybProgram {
+            rec_cnt: 2,
+            records: vec![
+                TybRecord {
+                    op: 0x10,
+                    argc: 2,
+                    args_raw: [0x59, 0x00, 0x4F, 0x00, 0x00, 0x00], // 'Y','O'
+                },
+                TybRecord {
+                    op: 0xFF,
+                    argc: 0,
+                    args_raw: [0; 6],
+                },
+            ],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(out.data, vec![0x59, 0x4F]);
+        assert_eq!(out.text, vec![0xC3]);
+        let pe = wrap_pe(&out).expect("link_pe");
+        assert!(pe.bytes.len() > 0x200, "PE should be non-trivial");
+        assert_eq!(&pe.bytes[0..2], b"MZ");
+        // PE signature at e_lfanew
+        let e_lfanew = u32::from_le_bytes(pe.bytes[0x3C..0x40].try_into().unwrap()) as usize;
+        assert_eq!(&pe.bytes[e_lfanew..e_lfanew + 4], b"PE\0\0");
     }
 }
