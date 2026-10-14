@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3 首刀（规划）**：S2 stub 层已收口；下一步规划「用 H_00 IR 表达 codegen / runtime」真自举切片（**非**假 CLOSED）。
+**默认 `继续` = S3.3**：S3.2 meta-emit SET+RET 模板已绿；下一刀表驱动/提软上限评估（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -543,8 +543,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 
 | 子任务 | 状态 | 内容 | 备注 |
 |---|---|---|---|
-| **S3.1** | ✅ 已本地提交 | codegen 自举缺口盘点：Rust 表面 / 软上限 / 最小 meta-emit 切片 | commit `TBD` · docs-only · **无**假 CLOSED |
-| **S3.2** | ⏳ 未开始 | 最小 meta-emit：YOYO 程序对 SET+RET 产出与 `emit_x86` byte-identical | 仍由 Rust 宿主跑 |
+| **S3.1** | ✅ 已本地提交 | codegen 自举缺口盘点：Rust 表面 / 软上限 / 最小 meta-emit 切片 | commit `6466ca3` · docs-only · **无**假 CLOSED |
+| **S3.2** | ✅ 已本地提交 | 最小 meta-emit：YOYO RAW_BYTES 对 SET+RET 产出与 `emit_x86` byte-identical | commit `TBD` · 模板 dump · **非**真编译器 |
 | **S3.3+** | ⏳ 未开始 | 扩 opcode 表 / 提软上限 / 替换 in-DLL Rust emit 路径 | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
@@ -579,9 +579,18 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 
 **E. S3.1 结论 → 推荐下一刀**
 
-1. **S3.2**：最小 meta-emit 固件——YOYO/TYB（可用 RAW_BYTES/DATA 表）对 **SET+RET** 产出与 host `emit_x86` **byte-identical** 的 user `.text`；Rust 测试比对；**不**替换生产路径
+1. ~~**S3.2**：最小 meta-emit~~ → RAW_BYTES 模板固件 = `emit_x86(SET+RET)`；Rust 比对；**不**替换生产路径
 2. 随后再评：提软上限 vs 表驱动扩 opcode vs 双路径去重
-3. **禁止**：宣称 OW-RT / OW-SEED CLOSED；把 stub I/O 说成自举完成
+3. **禁止**：宣称 OW-RT / OW-SEED CLOSED；把 stub I/O / 模板 dump 说成自举完成
+
+#### S3.2 — 最小 meta-emit SET+RET（本步）
+
+| 项 | 决定 |
+|---|---|
+| 固件 | `yoyo/tests/golden/s3_meta_emit_set_ret.{ty,tyb}`：5×RAW_BYTES → 14B SET+RET |
+| 对照 | host `emit_x86`(SET slot0=`0xDEADBEEF`+RET) |
+| 诚实边界 | **模板 dump**，不是 YOYO 写的编译器；软上限仍挡表驱动 emit |
+| 验收 | `s3_meta_emit_set_ret_matches_emit_x86` |
 
 ### 立项约束
 
@@ -818,3 +827,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S2.4）**：平台 stub ops 已进 mini/in-DLL（=SET 编码；非真 I/O）· 默认 `继续`=**S2.5** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S2.5）**：runtime-效果 stub 固件 + `stage17-s2-runtime-effect.ps1` GREEN · **S2 收口（stub 层）** · 真 OS I/O / OW-RT CLOSED **未做** · 默认 `继续`=**S3 首刀（规划）** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.1）**：codegen 自举缺口盘点（Rust 双表面 + 软上限挡完整 emit）· 默认 `继续`=**S3.2**（SET+RET meta-emit byte-identical）· OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.2）**：`s3_meta_emit_set_ret` RAW_BYTES ≡ `emit_x86(SET+RET)` · **模板 dump ≠ 真编译器** · 默认 `继续`=**S3.3** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**

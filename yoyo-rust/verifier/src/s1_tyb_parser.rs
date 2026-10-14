@@ -2331,4 +2331,33 @@ mod tests {
         let tyb = std::fs::read(s2_runtime_effect_stub_tyb_path()).expect("read");
         assert!(compile_tyb_to_pe(&tyb).is_ok());
     }
+
+    // ============= S3.2: minimal meta-emit SET+RET (RAW_BYTES template) =============
+
+    fn s3_meta_emit_set_ret_tyb_path() -> std::path::PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../yoyo/tests/golden/s3_meta_emit_set_ret.tyb")
+    }
+
+    #[test]
+    fn s3_meta_emit_set_ret_matches_emit_x86() {
+        // Canonical SET+RET program (slot0 = 0xDEADBEEF).
+        let set_ret = tyb_from_records(&[
+            (0x30, 2, [0, 0, 0xEF, 0xBE, 0xAD, 0xDE]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let expect = emit_x86(&parse_tyb(&set_ret).unwrap()).text;
+
+        let path = s3_meta_emit_set_ret_tyb_path();
+        assert!(path.exists(), "missing {}", path.display());
+        let meta = std::fs::read(&path).expect("read meta-emit tyb");
+        let pe = compile_tyb_to_pe_mini(&meta).expect("mini meta-emit");
+        let got = slim_pe_user_text(&pe.bytes, expect.len()).expect("user text");
+        assert_eq!(
+            got, expect.as_slice(),
+            "S3.2 meta-emit RAW_BYTES must be byte-identical to emit_x86(SET+RET)"
+        );
+        // Also: host emit of the meta TYB itself equals the same bytes.
+        let meta_host = emit_x86(&parse_tyb(&meta).unwrap());
+        assert_eq!(meta_host.text, expect);
+    }
 }
