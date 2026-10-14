@@ -549,7 +549,7 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.4** | ✅ 已本地提交 | `pack_meta_emit_raw_bytes_tyb` 自 `emit_x86` 自动打包；GET+RET + 与手写 golden 一致 | commit `b85d365` · 仍 Rust 辅助 |
 | **S3.5** | ✅ 已本地提交 | in-DLL scratch 扩容触点盘点（256→512 前必改清单） | commit `011a9f2` · docs-only |
 | **S3.6** | ✅ 已本地提交 | in-DLL 栈布局 **常量抽取**（`IN_DLL_S1_*`；数值仍 256/0x2900） | commit `3ac7710` · 行为不变 · const assert |
-| **S3.7** | ✅ 已本地提交 | scratch/code **256→512**：PE buf 0x1800、STACK 0x2C00、DATA off 0x800 | commit `TBD` · parity GREEN |
+| **S3.7** | ✅ 已本地提交 | scratch/code **256→512**：PE buf 0x1800、STACK 0x2C00、DATA off 0x800 | commit `3c54dc4` · parity GREEN |
 | **S3.8+** | ⏳ 未开始 | DATA 表驱动解释 / 替换 Rust emit | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
@@ -905,3 +905,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S3.4）**：`pack_meta_emit_raw_bytes_tyb` autopack ≡ 手写 golden · GET+RET 覆盖 · 打包器仍 Rust · 默认 `继续`=**S3.5** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.5）**：in-DLL scratch 256→512 触点盘点（docs-only · 未改码）· 默认 `继续`=**S3.6**（常量抽取再扩容）· OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.6）**：`IN_DLL_S1_*` 常量抽取 · 数值仍 256 · parity GREEN · 默认 `继续`=**S3.7**（真扩容）· OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.7）**：code scratch **512** · PE 0x1800 / STACK 0x2C00 / DATA@0x800 · parity GREEN · 默认 `继续`=**S3.8** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
