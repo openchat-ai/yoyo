@@ -2360,4 +2360,41 @@ mod tests {
         let meta_host = emit_x86(&parse_tyb(&meta).unwrap());
         assert_eq!(meta_host.text, expect);
     }
+
+    // ============= S3.3: meta-emit matrix + soft-cap raise deferred =============
+
+    #[test]
+    fn s3_meta_emit_matrix_matches_emit_x86() {
+        // Soft-cap raise deferred: in-DLL scratch is hard-wired to 256B
+        // (`pe_dll_link` r13 end = r12+256). Expand template coverage inside caps.
+        let golden = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../yoyo/tests/golden");
+        let cases: Vec<(&str, Vec<(u8, u8, [u8; 6])>)> = vec![
+            ("s3_meta_emit_ret.tyb", vec![(0xFF, 0, [0; 6])]),
+            (
+                "s3_meta_emit_nop_ret.tyb",
+                vec![(0x00, 0, [0; 6]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "s3_meta_emit_set_ret.tyb",
+                vec![
+                    (0x30, 2, [0, 0, 0xEF, 0xBE, 0xAD, 0xDE]),
+                    (0xFF, 0, [0; 6]),
+                ],
+            ),
+        ];
+        for (file, semantic) in cases {
+            let expect = emit_x86(&parse_tyb(&tyb_from_records(&semantic)).unwrap()).text;
+            let meta = std::fs::read(golden.join(file)).unwrap_or_else(|e| panic!("{file}: {e}"));
+            let pe = compile_tyb_to_pe_mini(&meta).unwrap_or_else(|e| panic!("{file} mini: {e}"));
+            let got = slim_pe_user_text(&pe.bytes, expect.len()).expect("slice");
+            assert_eq!(got, expect.as_slice(), "{file} vs emit_x86");
+        }
+    }
+
+    #[test]
+    fn s3_soft_cap_text_still_256() {
+        // Document decision: do not raise until in-DLL scratch resized.
+        assert_eq!(S1_SLIM_MAX_CODE, 256);
+        assert_eq!(S1_MINI_DATA_MAX, 64);
+    }
 }

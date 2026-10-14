@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.3**：S3.2 meta-emit SET+RET 模板已绿；下一刀表驱动/提软上限评估（**非**假 CLOSED）。
+**默认 `继续` = S3.4**：S3.3 矩阵已绿、软上限暂不提；下一刀 in-DLL scratch 扩容或表驱动（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -544,8 +544,9 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | 子任务 | 状态 | 内容 | 备注 |
 |---|---|---|---|
 | **S3.1** | ✅ 已本地提交 | codegen 自举缺口盘点：Rust 表面 / 软上限 / 最小 meta-emit 切片 | commit `6466ca3` · docs-only · **无**假 CLOSED |
-| **S3.2** | ✅ 已本地提交 | 最小 meta-emit：YOYO RAW_BYTES 对 SET+RET 产出与 `emit_x86` byte-identical | commit `TBD` · 模板 dump · **非**真编译器 |
-| **S3.3+** | ⏳ 未开始 | 扩 opcode 表 / 提软上限 / 替换 in-DLL Rust emit 路径 | 真自举长杆 |
+| **S3.2** | ✅ 已本地提交 | 最小 meta-emit：YOYO RAW_BYTES 对 SET+RET 产出与 `emit_x86` byte-identical | commit `2818f6c` · 模板 dump · **非**真编译器 |
+| **S3.3** | ✅ 已本地提交 | meta-emit 矩阵（RET/NOP+RET/SET+RET）+ **软上限暂不提**（in-DLL scratch=256） | commit `TBD` · 模板 dump |
+| **S3.4+** | ⏳ 未开始 | 表驱动扩 opcode / 改 in-DLL scratch 提软上限 / 替换 Rust emit | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -591,6 +592,17 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | 对照 | host `emit_x86`(SET slot0=`0xDEADBEEF`+RET) |
 | 诚实边界 | **模板 dump**，不是 YOYO 写的编译器；软上限仍挡表驱动 emit |
 | 验收 | `s3_meta_emit_set_ret_matches_emit_x86` |
+
+#### S3.3 — meta-emit 矩阵 + 软上限决策（本步）
+
+| 项 | 决定 |
+|---|---|
+| 扩覆盖 | +`s3_meta_emit_ret` / `s3_meta_emit_nop_ret`；矩阵测 vs `emit_x86` |
+| 软上限 | **保持** text=256 / DATA=64（in-DLL `r13=r12+256` 硬编码） |
+| 提上限 | 推 **S3.4+**（需同步改 in-DLL scratch 布局） |
+| 诚实 | 仍是模板 dump，不是表驱动编译器 |
+
+**默认 `继续` = S3.4**：评估 in-DLL scratch 扩容或 DATA 表驱动下一 opcode。
 
 ### 立项约束
 
@@ -828,3 +840,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S2.5）**：runtime-效果 stub 固件 + `stage17-s2-runtime-effect.ps1` GREEN · **S2 收口（stub 层）** · 真 OS I/O / OW-RT CLOSED **未做** · 默认 `继续`=**S3 首刀（规划）** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.1）**：codegen 自举缺口盘点（Rust 双表面 + 软上限挡完整 emit）· 默认 `继续`=**S3.2**（SET+RET meta-emit byte-identical）· OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.2）**：`s3_meta_emit_set_ret` RAW_BYTES ≡ `emit_x86(SET+RET)` · **模板 dump ≠ 真编译器** · 默认 `继续`=**S3.3** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.3）**：meta-emit 矩阵 RET/NOP+RET/SET+RET · 软上限 **保持 256/64**（in-DLL 硬编码）· 默认 `继续`=**S3.4** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
