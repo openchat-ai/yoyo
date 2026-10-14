@@ -857,7 +857,7 @@ const _: () = assert!(IN_DLL_S1_LABELS_OFF == 0x2A80);
 const _: () = assert!(IN_DLL_S1_PATCHES_OFF == 0x2B00);
 const _: () = assert!(IN_DLL_S1_N_LABELS_OFF == 0x2B80);
 const _: () = assert!(IN_DLL_S1_DATA_OFF == 0x2B90);
-const _: () = assert!(IN_DLL_S1_DATA_CAP == 128);
+const _: () = assert!(IN_DLL_S1_DATA_CAP == 256);
 const _: () = assert!(IN_DLL_S1_STACK == 0x2D00);
 const _: () = assert!(crate::s1_tyb_parser::S1_SLIM_DATA_PAYLOAD_OFF == 0x800);
 

@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.13**：S3.12 表含 ADD；下一刀再扩 ALU/控制流模板（**非**假 CLOSED）。
+**默认 `继续` = S3.14**：S3.13 DATA=256 + SUB/DEC；下一刀控制流模板或 YOYO 解释（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -482,7 +482,7 @@ Run `35553987325`（commit `146b58b`）：
 | 代码缓冲 | **512B** user `.text`（S3.7；原 256） | 复杂 runtime `.ty` 仍可能不够 |
 | label/patch | 各 ≤16 | 大控制流 |
 | MEMCPY_STATE n | ≤4 | 大块状态拷贝 |
-| DATA 合计 | **128B**（S3.10；原 64） | 大字符串表仍可能不够 |
+| DATA 合计 | **256B**（S3.13） | 模板表可继续扩 |
 
 **D. 与 Rust `yoyo-runtime` 的诚实对照**
 
@@ -555,7 +555,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.10** | ✅ 已本地提交 | `S1_MINI_DATA_MAX` 64→**128**；in-DLL `cmp imm32` + STACK 0x2D00 | commit `26750dc` |
 | **S3.11** | ✅ 已本地提交 | 模板表 +GET/+INC（5 行/100B）；合成矩阵 ≡ `emit_x86` | commit `7a7e205` · 解释器仍 Rust |
 | **S3.12** | ✅ 已本地提交 | 模板表 +ADD(slot0,+5)（6 行/120B）；合成矩阵 ≡ `emit_x86` | commit `2e0c8ad` · 解释器仍 Rust |
-| **S3.13+** | ⏳ 未开始 | 再扩 ALU/控制流模板 / YOYO 侧解释表 | 真自举长杆 |
+| **S3.13** | ✅ 已本地提交 | DATA 128→**256**；表 +SUB/+DEC（8 行/160B） | commit `TBD` · 解释器仍 Rust |
+| **S3.14+** | ⏳ 未开始 | 控制流模板 / YOYO 侧解释表 | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -578,7 +579,7 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | 限制 | 值 | 对 S3 的影响 |
 |---|---|---|
 | user `.text` | 256B | 放不下真实 emit 函数体 |
-| DATA 合计 | **128B**（S3.10） | 模板表可放更多行；仍非无限 |
+| DATA 合计 | **256B**（S3.13） | 模板表可放更多行；仍非无限 |
 | labels/patches | ≤16 | 大控制流不够 |
 | MEMCPY_STATE n | ≤4 | 大块搬移受限 |
 | platform I/O | stub only | 不能真读源/写产物 |
@@ -708,7 +709,15 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | 行 | +ADD(slot0,+5)；共 6×20B=120B |
 | 验收 | +add_ret 合成 ≡ `emit_x86` |
 
-**默认 `继续` = S3.13**。
+#### S3.13 — DATA→256 + SUB/DEC（本步）
+
+| 项 | 决定 |
+|---|---|
+| `S1_MINI_DATA_MAX` | 256（STACK 0x2D00 仍够） |
+| 行 | +SUB(slot0,-5) +DEC(slot0)；8×20B=160B |
+| 验收 | sub_ret/dec_ret 合成 ≡ `emit_x86`；parity GREEN |
+
+**默认 `继续` = S3.14**。
 
 ### 立项约束
 
@@ -956,3 +965,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S3.10）**：DATA mini **128B** · STACK 0x2D00 · 默认 `继续`=**S3.11** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.11）**：模板表 +GET/+INC（100B）· 合成矩阵 GREEN · 默认 `继续`=**S3.12** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.12）**：模板表 +ADD（120B）· 合成矩阵 GREEN · 默认 `继续`=**S3.13** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.13）**：DATA **256** + 表 SUB/DEC · 默认 `继续`=**S3.14** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
