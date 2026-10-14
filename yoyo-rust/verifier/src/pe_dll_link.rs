@@ -28,10 +28,9 @@
 //! RAW_BYTES (argc≤3 → `.text`) + ALLOC/LOAD_FILE/WRITE_FILE **stub form**
 //! (argc=2, same encoding as SET; not real OS alloc/I/O).
 //! Non-TYB inputs still use the oracle table. Marker `yoyo_in_dll_s1_codegen`.
-//! Stage 17+ **S3.30–S3.35**: RET/NOP single + NOP+RET / SET+RET / GET+RET /
-//! INC0+RET two-record fast-path pilots (skip JE). Markers
-//! `yoyo_in_dll_s3_*_pilot`. Full fixed-template table compose remains
-//! host-only — **not** OW-RT CLOSED.
+//! Stage 17+ **S3.30–S3.37**: RET/NOP/SET/GET/INC fast-path pilots (skip JE)
+//! plus `.rdata` bake of a 5-row fixed-template table (`yoyo_in_dll_s3_table_bake`).
+//! Lookup/memcpy from bake still pending — **not** OW-RT CLOSED.
 //! Honest: mini-ISA ≠ full YOYO compiler; production default remains Rust —
 //! **not** OW-RT CLOSED (see `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`).
 
@@ -855,6 +854,34 @@ const IN_DLL_S1_STACK: u32 = 0x2E00;
 
 /// Fail-closed layout math (S3.7 code/PE + S3.25 data cap).
 const _: () = assert!(IN_DLL_S1_CODE_CAP == 512);
+
+/// S3.37: one host-compatible template row (`op`, `len`, pad, payload@+4) = 20B.
+fn s3_in_dll_bake_tmpl_row(op: u8, payload: &[u8]) -> [u8; 20] {
+    assert!(payload.len() <= 16);
+    let mut r = [0u8; 20];
+    r[0] = op;
+    r[1] = payload.len() as u8;
+    r[4..4 + payload.len()].copy_from_slice(payload);
+    r
+}
+
+/// S3.37: 5-row bake (RET/NOP/SET-DEADBEEF/GET0←1/INC0) ≡ host S3 fixed subset.
+fn s3_in_dll_bake_table() -> Vec<u8> {
+    let set_body: [u8; 14] = [
+        0x48, 0xB8, 0xEF, 0xBE, 0xAD, 0xDE, 0, 0, 0, 0, 0x49, 0x89, 0x47, 0x00,
+    ];
+    let get_body: [u8; 8] = [0x49, 0x8B, 0x47, 0x08, 0x49, 0x89, 0x47, 0x00];
+    let inc_body: [u8; 11] = [
+        0x49, 0x8B, 0x47, 0x00, 0x48, 0xFF, 0xC0, 0x49, 0x89, 0x47, 0x00,
+    ];
+    let mut v = Vec::with_capacity(5 * 20);
+    v.extend_from_slice(&s3_in_dll_bake_tmpl_row(0xFF, &[0xC3]));
+    v.extend_from_slice(&s3_in_dll_bake_tmpl_row(0x00, &[0x90]));
+    v.extend_from_slice(&s3_in_dll_bake_tmpl_row(0x30, &set_body));
+    v.extend_from_slice(&s3_in_dll_bake_tmpl_row(0x60, &get_body));
+    v.extend_from_slice(&s3_in_dll_bake_tmpl_row(0x66, &inc_body));
+    v
+}
 const _: () = assert!(IN_DLL_S1_PE_OFF == 0x1280);
 const _: () = assert!(IN_DLL_S1_PE_SIZE == 0x1800);
 const _: () = assert!(IN_DLL_S1_LABELS_OFF == 0x2A80);
@@ -1072,6 +1099,14 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
     let s3_inc_ret_marker_off = off;
     off += s3_inc_ret_marker.len() as u32;
     off = align_up(off, 16);
+    // S3.37: bake 5-row host-compatible template table (lookup wire-up = S3.38+).
+    let s3_bake_marker: &[u8] = b"yoyo_in_dll_s3_table_bake\0";
+    let s3_bake_marker_off = off;
+    off += s3_bake_marker.len() as u32;
+    off = align_up(off, 16);
+    let s3_bake_table = s3_in_dll_bake_table();
+    let s3_bake_table_off = off;
+    off = align_up(s3_bake_table_off + s3_bake_table.len() as u32, 16);
     let table_off = off;
     off = align_up(table_off + table.len() as u32, 16);
     let template_off = off;
@@ -1109,6 +1144,10 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
         s3_get_ret_marker_off,
         s3_inc_ret_marker,
         s3_inc_ret_marker_off,
+        s3_bake_marker,
+        s3_bake_marker_off,
+        &s3_bake_table,
+        s3_bake_table_off,
         table_off,
         template_off,
         template_len,
@@ -1163,6 +1202,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     s3_get_ret_marker_off: u32,
     s3_inc_ret_marker: &[u8],
     s3_inc_ret_marker_off: u32,
+    s3_bake_marker: &[u8],
+    s3_bake_marker_off: u32,
+    s3_bake_table: &[u8],
+    s3_bake_table_off: u32,
     table_off: u32,
     template_off: u32,
     template_len: u32,
@@ -3046,6 +3089,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     exp[s3_inc_ret_marker_off as usize
         ..s3_inc_ret_marker_off as usize + s3_inc_ret_marker.len()]
         .copy_from_slice(s3_inc_ret_marker);
+    exp[s3_bake_marker_off as usize..s3_bake_marker_off as usize + s3_bake_marker.len()]
+        .copy_from_slice(s3_bake_marker);
+    exp[s3_bake_table_off as usize..s3_bake_table_off as usize + s3_bake_table.len()]
+        .copy_from_slice(s3_bake_table);
     exp[table_off as usize..table_off as usize + table.len()].copy_from_slice(table);
     exp[template_off as usize..template_off as usize + pe_template.len()]
         .copy_from_slice(pe_template);
@@ -3718,6 +3765,22 @@ mod tests {
         assert!(
             ascii.contains("yoyo_in_dll_s3_inc_ret_pilot"),
             "S3.35 INC+RET pilot marker must be baked into .rdata"
+        );
+        assert!(
+            ascii.contains("yoyo_in_dll_s3_table_bake"),
+            "S3.37 template-table bake marker must be in .rdata"
+        );
+        // S3.37: 5×20B rows start with RET/NOP/SET/GET/INC opcodes.
+        let bake = s3_in_dll_bake_table();
+        assert_eq!(bake.len(), 100);
+        assert_eq!(bake[0], 0xFF);
+        assert_eq!(bake[20], 0x00);
+        assert_eq!(bake[40], 0x30);
+        assert_eq!(bake[60], 0x60);
+        assert_eq!(bake[80], 0x66);
+        assert!(
+            dll.windows(bake.len()).any(|w| w == bake.as_slice()),
+            "S3.37 bake table bytes must appear in DLL image"
         );
         // S3.30/31: cmp ebx,1 before JE dispatch (single-record fast-path).
         let s3_cmp_ebx1 = [0x83u8, 0xFB, 0x01];

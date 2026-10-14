@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.37**：S3.36 in-DLL 表 bake 盘点已绿（docs）；下一刀落地 bake（**非**假 CLOSED）。
+**默认 `继续` = S3.38**：S3.37 5 行表已 bake 进 .rdata；下一刀查表 memcpy（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -579,7 +579,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.34** | ✅ 已本地提交 | in-DLL GET0←src1+RET→9B 快路径；marker `yoyo_in_dll_s3_get_ret_pilot` | commit `12e9857` |
 | **S3.35** | ✅ 已本地提交 | in-DLL INC slot0+RET→12B 快路径；marker `yoyo_in_dll_s3_inc_ret_pilot` | commit `bdcde9d` |
 | **S3.36** | ✅ 已本地提交 | in-DLL 固定模板表 bake 盘点（docs）；调度仍硬编码快路径 | commit `d3eb56e` |
-| **S3.37+** | ⏳ 未开始 | 落地 bake：.rdata 表 + 查表 memcpy 替硬编码 | 真自举长杆 |
+| **S3.37** | ✅ 已本地提交 | .rdata bake 5×20B 表（RET/NOP/SET/GET/INC）；marker `yoyo_in_dll_s3_table_bake` | commit `PLACEHOLDER_S337` |
+| **S3.38+** | ⏳ 未开始 | 查表 memcpy 替硬编码快路径 | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -1008,6 +1009,17 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 
 **默认 `继续` = S3.37**。
 
+#### S3.37 — 落地 .rdata 5 行模板表 bake（本步）
+
+| 项 | 决定 |
+|---|---|
+| 表 | 5×20B ≡ host 行格式：RET/NOP/SET-DEADBEEF/GET0←1/INC0 |
+| 标记 | `.rdata` `yoyo_in_dll_s3_table_bake`；DLL 字节含整表 |
+| 验收 | marker + bake blob 测试 GREEN；既有快路径仍绿 |
+| 诚实 | **尚未**查表驱动 emit（仍硬编码）；OW-RT 仍 CUT |
+
+**默认 `继续` = S3.38**。
+
 ### 立项约束
 
 - 本路线**不是 post-v1.0 关洞的延续**，是**新主线**
@@ -1278,3 +1290,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S3.34）**：in-DLL GET+RET 快路径 GREEN · 默认 `继续`=**S3.35** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.35）**：in-DLL INC+RET 快路径 GREEN · 默认 `继续`=**S3.36** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.36）**：in-DLL 表 bake 盘点（docs）· 默认 `继续`=**S3.37** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.37）**：.rdata 5 行表 bake GREEN · 默认 `继续`=**S3.38** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
