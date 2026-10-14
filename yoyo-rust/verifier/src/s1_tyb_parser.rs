@@ -426,7 +426,10 @@ fn emit_memcpy_state(out: &mut Vec<u8>, dst: u16, src: u16, n: u16) {
 /// - `0x20` ALLOC slot size (argc=2): **StubPlatform-aligned** — `movabs rax,size`
 ///   + `store_state slot` (records requested size in state; **not** a real heap
 ///   allocator). Mini-ISA / in-DLL still reject until S2.4.
-/// - `0x50` LOAD_FILE / `0x51` WRITE_FILE — still NOP stub (S2.3)
+/// - `0x50` LOAD_FILE slot str_idx (argc=2): Stub — `movabs rax,str_idx` + store
+///   (**not** real file I/O). Mini/in-DLL still reject until S2.4.
+/// - `0x51` WRITE_FILE slot str_idx [sz] (argc=2|3): Stub — `movabs rax,str_idx`
+///   + store; `sz` ignored (same as StubPlatform). Mini/in-DLL still reject.
 ///
 /// Register allocation:
 /// - r15 = pinned state base
@@ -629,6 +632,29 @@ pub fn emit_x86(prog: &TybProgram) -> CodegenOutput {
                     text.push(0x90);
                 }
             }
+            // --- LOAD_FILE slot, str_idx (S2.3 StubPlatform-aligned stub) ---
+            0x50 => {
+                if let Some((slot, str_idx)) = arg_slot_imm(rec) {
+                    emit_movabs_rax(&mut text, str_idx);
+                    emit_store_state(&mut text, slot, Reg::Rax);
+                } else {
+                    text.push(0x90);
+                }
+            }
+            // --- WRITE_FILE slot, str_idx [, sz] (S2.3; sz ignored on stub) ---
+            0x51 => {
+                let parsed = if rec.argc == 3 {
+                    arg_slot3(rec).map(|(slot, str_idx, _sz)| (slot, str_idx as u32))
+                } else {
+                    arg_slot_imm(rec)
+                };
+                if let Some((slot, str_idx)) = parsed {
+                    emit_movabs_rax(&mut text, str_idx);
+                    emit_store_state(&mut text, slot, Reg::Rax);
+                } else {
+                    text.push(0x90);
+                }
+            }
             // --- NOP (explicit) ---
             0x00 if rec.argc == 0 => {
                 text.push(0x90);
@@ -637,7 +663,7 @@ pub fn emit_x86(prog: &TybProgram) -> CodegenOutput {
             0xFF if rec.argc == 0 => {
                 text.push(0xC3);
             }
-            // --- LOAD_FILE / WRITE_FILE and unknown: NOP placeholder (S2.3+) ---
+            // --- unknown: NOP placeholder ---
             _ => {
                 text.push(0x90);
             }
@@ -1293,10 +1319,10 @@ mod tests {
 
     #[test]
     fn emit_x86_unknown_op_is_nop() {
-        // Unknown opcode 0x50 → 1 NOP + trailing ret
+        // Unknown opcode 0xFE → 1 NOP + trailing ret
         let prog = TybProgram {
             rec_cnt: 1,
-            records: vec![TybRecord { op: 0x50, argc: 0, args_raw: [0; 6] }],
+            records: vec![TybRecord { op: 0xFE, argc: 0, args_raw: [0; 6] }],
         };
         let out = emit_x86(&prog);
         assert_eq!(out.text, vec![0x90, 0xC3]);
@@ -1923,6 +1949,57 @@ mod tests {
     fn compile_tyb_to_pe_full_accepts_alloc_stub() {
         // Full host path uses emit_x86 stub; mini path still fail-closed.
         let tyb = tyb_from_records(&[(0x20, 2, [1, 0, 0x10, 0, 0, 0]), (0xFF, 0, [0; 6])]);
+        assert!(compile_tyb_to_pe(&tyb).is_ok());
+        assert!(compile_tyb_to_pe_mini(&tyb).is_err());
+    }
+
+    #[test]
+    fn emit_x86_load_file_stub_stores_str_idx() {
+        // LOAD_FILE slot=0 str_idx=0 → movabs 0 + store disp0 + ret
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord {
+                op: 0x50,
+                argc: 2,
+                args_raw: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
+            }],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(
+            &out.text,
+            &[
+                0x48, 0xB8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x49, 0x89, 0x47, 0x00,
+                0xC3,
+            ]
+        );
+    }
+
+    #[test]
+    fn emit_x86_write_file_stub_ignores_sz() {
+        // WRITE_FILE argc=3 slot=1 str_idx=2 sz=99 → same as movabs 2 + store
+        let prog = TybProgram {
+            rec_cnt: 1,
+            records: vec![TybRecord {
+                op: 0x51,
+                argc: 3,
+                args_raw: [0x01, 0x00, 0x02, 0x00, 0x63, 0x00],
+            }],
+        };
+        let out = emit_x86(&prog);
+        assert_eq!(
+            &out.text,
+            &[
+                0x48, 0xB8, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x49, 0x89, 0x47, 0x08,
+                0xC3,
+            ]
+        );
+    }
+
+    #[test]
+    fn compile_tyb_to_pe_mini_rejects_load_file() {
+        let tyb = tyb_from_records(&[(0x50, 2, [0, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])]);
         assert!(compile_tyb_to_pe(&tyb).is_ok());
         assert!(compile_tyb_to_pe_mini(&tyb).is_err());
     }
