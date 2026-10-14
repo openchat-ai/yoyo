@@ -582,7 +582,7 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.37** | ✅ 已本地提交 | .rdata bake 5×20B 表（RET/NOP/SET/GET/INC）；marker `yoyo_in_dll_s3_table_bake` | commit `7095136` |
 | **S3.38** | ✅ 已本地提交 | 单记录 RET/NOP 从 bake 行 payload 取字节（lea rip） | commit `b8c6f4e` |
 | **S3.39** | ✅ 已本地提交 | NOP+RET/SET+RET 从 bake 取字节（lea/rep movsb） | commit `4a3f7c6` |
-| **S3.40** | ✅ 已本地提交 | GET/INC+RET 从 bake 取字节（rep movsb） | commit `PLACEHOLDER_S340` |
+| **S3.40** | ✅ 已本地提交 | GET/INC+RET 从 bake 取字节（rep movsb） | commit `2bcf38d` |
 | **S3.41+** | ⏳ 未开始 | in-DLL 扫表 lookup 替固定 op 匹配 | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
