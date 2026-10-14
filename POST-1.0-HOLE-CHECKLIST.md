@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.20**：S3.19 通用多 op 程序环已绿；下一刀接 host/in-DLL emit 路径 / 替换 Rust emit（**非**假 CLOSED）。
+**默认 `继续` = S3.21**：S3.20 host YOYO-table emit API 已绿；下一刀 mini 默认优先表合成 / in-DLL 触点（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -562,7 +562,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.17** | ✅ 已本地提交 | 多字节 MEMCPY compose + Windows VirtualAlloc PE 跑表；SET body ≡ emit | commit `1f97ac5` |
 | **S3.18** | ✅ 已本地提交 | 双扫表拼完整 SET+RET `.text` ≡ emit；sim+PE GREEN | commit `244d11e` |
 | **S3.19** | ✅ 已本地提交 | 表@0x80 + 程序环扫表 compose；SET+RET/NOP+RET/RET ≡ emit | commit `a51179a` |
-| **S3.20+** | ⏳ 未开始 | 接 host/in-DLL emit 路径 / 替换 Rust emit | 真自举长杆 |
+| **S3.20** | ✅ 已本地提交 | host `try_emit/compile_via_yoyo_table` ≡ emit_x86（固定模板子集） | PLACEHOLDER_S320 |
+| **S3.21+** | ⏳ 未开始 | mini 默认优先表合成 / in-DLL 触点 / 替换 Rust emit | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -791,6 +792,16 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | 诚实 | **未**替换 in-DLL Rust emit；OW-RT 仍 CUT |
 
 **默认 `继续` = S3.20**。
+
+#### S3.20 — 接 host emit 路径（本步）
+
+| 项 | 决定 |
+|---|---|
+| API | `fixed_template_ops` / `try_emit_text_via_yoyo_table` / `try_compile_tyb_via_yoyo_table` |
+| 验收 | RET / NOP+RET / SET+RET：YOYO 表合成 `.text` 与 PE user text ≡ `emit_x86` / mini |
+| 诚实 | **未**改 `compile_tyb_to_pe_mini` 默认；**未**接 in-DLL；OW-RT 仍 CUT |
+
+**默认 `继续` = S3.21**。
 
 ### 立项约束
 
@@ -1045,3 +1056,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S3.17）**：多字节 compose + Windows PE 跑表 GREEN · 默认 `继续`=**S3.18** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.18）**：完整 SET+RET `.text` compose GREEN · 默认 `继续`=**S3.19** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.19）**：通用多 op 程序环 compose GREEN · 默认 `继续`=**S3.20** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.20）**：host YOYO-table emit API GREEN · 默认 `继续`=**S3.21** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**

@@ -1199,6 +1199,336 @@ pub fn parse_tyb_file(path: &Path) -> Result<TybProgram, ParseError> {
     parse_tyb(&data)
 }
 
+// =============================================================================
+// S3.20 — host emit path via YOYO table-compose (S3.19 firmware, host sim)
+// =============================================================================
+//
+// Supported template ops only: RET(0xFF), NOP(0x00), SET slot0=0xDEADBEEF(0x30).
+// Does **not** replace in-DLL Rust dispatcher. OW-RT remains CUT.
+
+const S3_HOST_OUTBUF_OFF: u32 = 0xC8;
+const S3_HOST_TABLE_OFF: u32 = 0x80;
+const S3_HOST_PROG_OFF: u32 = S3_HOST_TABLE_OFF + 60; // 0xBC
+const S3_HOST_SET_DEADBEEF: u32 = 0xDEAD_BEEF;
+
+fn s3_host_tyb_from_records(recs: &[(u8, u8, [u8; 6])]) -> Vec<u8> {
+    let mut v = Vec::with_capacity(HEADER_SIZE + recs.len() * RECORD_SIZE);
+    v.extend_from_slice(&TYB_MAGIC);
+    v.extend_from_slice(&[0, 0]);
+    v.extend_from_slice(&(recs.len() as u16).to_le_bytes());
+    for &(op, argc, a) in recs {
+        v.push(op);
+        v.push(argc);
+        v.extend_from_slice(&a);
+    }
+    v
+}
+
+fn s3_host_pack_bytes(op: u8, bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
+    let mut recs = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        let n = (bytes.len() - i).min(3);
+        let mut a = [0u8; 6];
+        for k in 0..n {
+            a[k * 2] = bytes[i + k];
+        }
+        recs.push((op, n as u8, a));
+        i += n;
+    }
+    recs
+}
+
+fn s3_host_tmpl_row(op: u8, payload: &[u8]) -> [u8; 20] {
+    let mut r = [0u8; 20];
+    r[0] = op;
+    r[1] = payload.len() as u8;
+    r[4..4 + payload.len()].copy_from_slice(payload);
+    r
+}
+
+fn s3_host_set_body() -> [u8; 14] {
+    [
+        0x48, 0xB8, 0xEF, 0xBE, 0xAD, 0xDE, 0, 0, 0, 0, 0x49, 0x89, 0x47, 0x00,
+    ]
+}
+
+/// Build S3.19-style program-loop firmware TYB for `ops`.
+fn s3_host_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
+    let mut payload = vec![0u8; S3_HOST_TABLE_OFF as usize];
+    payload.extend_from_slice(&s3_host_tmpl_row(0xFF, &[0xC3]));
+    payload.extend_from_slice(&s3_host_tmpl_row(0x00, &[0x90]));
+    payload.extend_from_slice(&s3_host_tmpl_row(0x30, &s3_host_set_body()));
+    debug_assert_eq!(payload.len(), S3_HOST_PROG_OFF as usize);
+    payload.push(ops.len() as u8);
+    payload.extend_from_slice(ops);
+    while payload.len() < S3_HOST_OUTBUF_OFF as usize {
+        payload.push(0);
+    }
+    let mut recs = s3_host_pack_bytes(0x10, &payload);
+    recs.extend(s3_host_pack_bytes(
+        0xA1,
+        &[
+            0x49, 0x8D, 0x87, 0x80, 0x00, 0x00, 0x00, 0x49, 0x89, 0x47, 0x18, 0x49, 0x89, 0x47,
+            0x78,
+        ],
+    ));
+    recs.extend(s3_host_pack_bytes(
+        0xA1,
+        &[
+            0x49, 0x8D, 0x87, 0xC8, 0x00, 0x00, 0x00, 0x49, 0x89, 0x47, 0x48,
+        ],
+    ));
+    let op0 = S3_HOST_PROG_OFF + 1;
+    recs.extend(s3_host_pack_bytes(
+        0xA1,
+        &[
+            0x49,
+            0x8D,
+            0x87,
+            (op0 & 0xFF) as u8,
+            ((op0 >> 8) & 0xFF) as u8,
+            ((op0 >> 16) & 0xFF) as u8,
+            ((op0 >> 24) & 0xFF) as u8,
+            0x49,
+            0x89,
+            0x47,
+            0x10,
+        ],
+    ));
+    let slot = |s: u16| s.to_le_bytes();
+    let set = |s: u16, imm: u32| {
+        let sb = slot(s);
+        let ib = imm.to_le_bytes();
+        (0x30u8, 2u8, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
+    };
+    let add = |s: u16, imm: u32| {
+        let sb = slot(s);
+        let ib = imm.to_le_bytes();
+        (0x62u8, 2u8, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
+    };
+    let p = slot(15);
+    let o = slot(13);
+    let n = slot(14);
+    let i = slot(11);
+    let nr = slot(10);
+    let len = slot(12);
+    let src = slot(8);
+    let dst = slot(9);
+    let pi = slot(0);
+    let pn = slot(1);
+    let pp = slot(2);
+    let tb = slot(3);
+    recs.push(set(1, ops.len() as u32));
+    recs.push(set(0, 0));
+    recs.push((0x40, 1, [5, 0, 0, 0, 0, 0]));
+    recs.push((0x65, 2, [pi[0], pi[1], pn[0], pn[1], 0, 0]));
+    recs.push((0x74, 1, [6, 0, 0, 0, 0, 0]));
+    recs.push((0x80, 3, [n[0], n[1], pp[0], pp[1], 0, 0]));
+    recs.push((0x64, 2, [p[0], p[1], tb[0], tb[1], 0, 0]));
+    recs.push(set(11, 0));
+    recs.push(set(10, 3));
+    recs.push((0x40, 1, [1, 0, 0, 0, 0, 0]));
+    recs.push((0x80, 3, [o[0], o[1], p[0], p[1], 0, 0]));
+    recs.push((0x65, 2, [o[0], o[1], n[0], n[1], 0, 0]));
+    recs.push((0x71, 1, [2, 0, 0, 0, 0, 0]));
+    recs.push(add(15, 20));
+    recs.push(add(11, 1));
+    recs.push((0x65, 2, [i[0], i[1], nr[0], nr[1], 0, 0]));
+    recs.push((0x73, 1, [1, 0, 0, 0, 0, 0]));
+    recs.push(set(12, 0xFE));
+    recs.push((0xFF, 0, [0; 6]));
+    recs.push((0x40, 1, [2, 0, 0, 0, 0, 0]));
+    recs.push((0x80, 3, [len[0], len[1], p[0], p[1], 1, 0]));
+    recs.push((0x64, 2, [src[0], src[1], p[0], p[1], 0, 0]));
+    recs.push(add(8, 4));
+    recs.push((0x84, 3, [dst[0], dst[1], src[0], src[1], len[0], len[1]]));
+    recs.push((0x68, 2, [dst[0], dst[1], len[0], len[1], 0, 0]));
+    recs.push(add(2, 1));
+    recs.push(add(0, 1));
+    recs.push((0x70, 1, [5, 0, 0, 0, 0, 0]));
+    recs.push((0x40, 1, [6, 0, 0, 0, 0, 0]));
+    recs.push((0xFF, 0, [0; 6]));
+    s3_host_tyb_from_records(&recs)
+}
+
+fn s3_host_sim_prog_loop(tyb: &[u8]) -> Result<Vec<u8>, u8> {
+    let prog = parse_tyb(tyb).map_err(|_| 0xFDu8)?;
+    let mut data = vec![0u8; 512];
+    let mut off = 0usize;
+    for rec in &prog.records {
+        if matches!(rec.op, 0x10 | 0x12 | 0x13) {
+            let b = arg_low_bytes(rec);
+            data[off..off + b.len()].copy_from_slice(&b);
+            off += b.len();
+        }
+    }
+    let mut state = [0u64; 16];
+    state[3] = S3_HOST_TABLE_OFF as u64;
+    state[15] = S3_HOST_TABLE_OFF as u64;
+    state[9] = S3_HOST_OUTBUF_OFF as u64;
+    state[2] = (S3_HOST_PROG_OFF + 1) as u64;
+    let code: Vec<&TybRecord> = prog
+        .records
+        .iter()
+        .filter(|r| !matches!(r.op, 0x10 | 0x12 | 0x13 | 0xA1 | 0xA0))
+        .collect();
+    let mut labels = std::collections::HashMap::new();
+    for (i, rec) in code.iter().enumerate() {
+        if rec.op == 0x40 {
+            if let Some(id) = arg_u32(rec) {
+                labels.insert(id, i);
+            }
+        }
+    }
+    let mut pc = 0usize;
+    let mut zf = false;
+    let mut sf = false;
+    let mut composed = 0usize;
+    let mut steps = 0usize;
+    while pc < code.len() {
+        steps += 1;
+        if steps >= 50_000 {
+            return Err(0xFC);
+        }
+        let rec = code[pc];
+        match rec.op {
+            0x40 => pc += 1,
+            0x30 => {
+                let (s, imm) = arg_slot_imm(rec).ok_or(0xFB)?;
+                state[s as usize] = imm as u64;
+                pc += 1;
+            }
+            0x62 => {
+                let (s, imm) = arg_slot_imm(rec).ok_or(0xFB)?;
+                state[s as usize] = state[s as usize].wrapping_add(imm as u64);
+                pc += 1;
+            }
+            0x64 => {
+                let (d, s) = arg_slot_slot(rec).ok_or(0xFB)?;
+                state[d as usize] = state[s as usize];
+                pc += 1;
+            }
+            0x68 => {
+                let (d, s) = arg_slot_slot(rec).ok_or(0xFB)?;
+                state[d as usize] = state[d as usize].wrapping_add(state[s as usize]);
+                pc += 1;
+            }
+            0x80 => {
+                let (dd, ss, oo) = arg_slot3(rec).ok_or(0xFB)?;
+                let addr = state[ss as usize] as usize + oo as usize;
+                state[dd as usize] = *data.get(addr).ok_or(0xFA)? as u64;
+                pc += 1;
+            }
+            0x84 => {
+                let (dst, src, n) = arg_slot3(rec).ok_or(0xFB)?;
+                let d = state[dst as usize] as usize;
+                let s = state[src as usize] as usize;
+                let n = state[n as usize] as usize;
+                let tmp = data.get(s..s + n).ok_or(0xFA)?.to_vec();
+                data.get_mut(d..d + n).ok_or(0xFA)?.copy_from_slice(&tmp);
+                composed += n;
+                pc += 1;
+            }
+            0x65 => {
+                let (a, b) = arg_slot_slot(rec).ok_or(0xFB)?;
+                let d = (state[a as usize] as i64).wrapping_sub(state[b as usize] as i64);
+                zf = d == 0;
+                sf = d < 0;
+                pc += 1;
+            }
+            0x70 => {
+                pc = *labels.get(&arg_u32(rec).ok_or(0xFB)?).ok_or(0xF9)?;
+            }
+            0x71 => {
+                let id = arg_u32(rec).ok_or(0xFB)?;
+                if zf {
+                    pc = *labels.get(&id).ok_or(0xF9)?;
+                } else {
+                    pc += 1;
+                }
+            }
+            0x73 => {
+                let id = arg_u32(rec).ok_or(0xFB)?;
+                if sf {
+                    pc = *labels.get(&id).ok_or(0xF9)?;
+                } else {
+                    pc += 1;
+                }
+            }
+            0x74 => {
+                let id = arg_u32(rec).ok_or(0xFB)?;
+                if !sf {
+                    pc = *labels.get(&id).ok_or(0xF9)?;
+                } else {
+                    pc += 1;
+                }
+            }
+            0xFF => {
+                if composed == 0 {
+                    return Err(state[12] as u8);
+                }
+                break;
+            }
+            _ => return Err(0xF8),
+        }
+    }
+    if composed == 0 {
+        return Err(0xFE);
+    }
+    let base = S3_HOST_OUTBUF_OFF as usize;
+    Ok(data[base..base + composed].to_vec())
+}
+
+/// If `prog` is only RET / NOP / SET(slot0=DEADBEEF), return that op sequence.
+pub fn fixed_template_ops(prog: &TybProgram) -> Option<Vec<u8>> {
+    let mut ops = Vec::new();
+    for rec in &prog.records {
+        match rec.op {
+            0xFF | 0x00 => ops.push(rec.op),
+            0x30 => {
+                let (slot, imm) = arg_slot_imm(rec)?;
+                if slot != 0 || imm != S3_HOST_SET_DEADBEEF {
+                    return None;
+                }
+                ops.push(0x30);
+            }
+            _ => return None,
+        }
+    }
+    if ops.is_empty() {
+        None
+    } else {
+        Some(ops)
+    }
+}
+
+/// Host-side YOYO table compose → `.text` bytes (S3.19 firmware + sim).
+/// `None` if `ops` outside the fixed template subset.
+pub fn try_emit_text_via_yoyo_table(ops: &[u8]) -> Option<Vec<u8>> {
+    if ops.is_empty() || ops.len() > 8 {
+        return None;
+    }
+    if !ops.iter().all(|o| matches!(o, 0xFF | 0x00 | 0x30)) {
+        return None;
+    }
+    s3_host_sim_prog_loop(&s3_host_prog_loop_tyb(ops)).ok()
+}
+
+/// Host PE path: fixed-template TYB → slim PE via YOYO table compose (not `emit_x86`).
+/// `None` if program is outside the subset (caller should use [`compile_tyb_to_pe_mini`]).
+pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeImage> {
+    let prog = parse_tyb(tyb).ok()?;
+    validate_tyb_mini(&prog).ok()?;
+    let ops = fixed_template_ops(&prog)?;
+    let text = try_emit_text_via_yoyo_table(&ops)?;
+    wrap_pe_slim(&CodegenOutput {
+        text,
+        data: Vec::new(),
+    })
+    .ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3624,5 +3954,39 @@ mod tests {
         .text;
         let got = s3_run_slim_pe_outbuf(&pe.bytes, expect.len());
         assert_eq!(got, expect);
+    }
+
+    // ============= S3.20: host emit path via YOYO table =============
+
+    #[test]
+    fn s3_host_yoyo_table_emit_matches_emit_x86() {
+        let cases: &[(&[u8], &[(u8, u8, [u8; 6])])] = &[
+            (&[0xFF], &[(0xFF, 0, [0; 6])]),
+            (&[0x00, 0xFF], &[(0x00, 0, [0; 6]), (0xFF, 0, [0; 6])]),
+            (
+                &[0x30, 0xFF],
+                &[
+                    (0x30, 2, [0, 0, 0xEF, 0xBE, 0xAD, 0xDE]),
+                    (0xFF, 0, [0; 6]),
+                ],
+            ),
+        ];
+        for (ops, semantic) in cases {
+            let via_yoyo = try_emit_text_via_yoyo_table(ops).expect("yoyo emit");
+            let via_rust = emit_x86(&parse_tyb(&tyb_from_records(semantic)).unwrap()).text;
+            assert_eq!(via_yoyo, via_rust, "ops={ops:?}");
+            let tyb = tyb_from_records(semantic);
+            let pe_y = try_compile_tyb_via_yoyo_table(&tyb).expect("yoyo pe");
+            let pe_r = compile_tyb_to_pe_mini(&tyb).expect("rust pe");
+            let t_y = slim_pe_user_text(&pe_y.bytes, via_yoyo.len()).unwrap();
+            let t_r = slim_pe_user_text(&pe_r.bytes, via_rust.len()).unwrap();
+            assert_eq!(t_y, t_r, "PE user text ops={ops:?}");
+            assert_eq!(fixed_template_ops(&parse_tyb(&tyb).unwrap()).unwrap(), *ops);
+        }
+        // Outside subset → None
+        assert!(try_emit_text_via_yoyo_table(&[0x60, 0xFF]).is_none());
+        let other = tyb_from_records(&[(0x60, 2, [0, 0, 1, 0, 0, 0]), (0xFF, 0, [0; 6])]);
+        assert!(try_compile_tyb_via_yoyo_table(&other).is_none());
+        assert!(fixed_template_ops(&parse_tyb(&other).unwrap()).is_none());
     }
 }
