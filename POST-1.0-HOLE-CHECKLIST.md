@@ -579,7 +579,7 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.34** | ✅ 已本地提交 | in-DLL GET0←src1+RET→9B 快路径；marker `yoyo_in_dll_s3_get_ret_pilot` | commit `12e9857` |
 | **S3.35** | ✅ 已本地提交 | in-DLL INC slot0+RET→12B 快路径；marker `yoyo_in_dll_s3_inc_ret_pilot` | commit `bdcde9d` |
 | **S3.36** | ✅ 已本地提交 | in-DLL 固定模板表 bake 盘点（docs）；调度仍硬编码快路径 | commit `d3eb56e` |
-| **S3.37** | ✅ 已本地提交 | .rdata bake 5×20B 表（RET/NOP/SET/GET/INC）；marker `yoyo_in_dll_s3_table_bake` | commit `PLACEHOLDER_S337` |
+| **S3.37** | ✅ 已本地提交 | .rdata bake 5×20B 表（RET/NOP/SET/GET/INC）；marker `yoyo_in_dll_s3_table_bake` | commit `7095136` |
 | **S3.38+** | ⏳ 未开始 | 查表 memcpy 替硬编码快路径 | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
