@@ -28,9 +28,9 @@
 //! RAW_BYTES (argc≤3 → `.text`) + ALLOC/LOAD_FILE/WRITE_FILE **stub form**
 //! (argc=2, same encoding as SET; not real OS alloc/I/O).
 //! Non-TYB inputs still use the oracle table. Marker `yoyo_in_dll_s1_codegen`.
-//! Stage 17+ **S3.30–S3.47**: fixed-template fast-paths + `.rdata` 10-row bake.
-//! S3.41/42: argc0 scan; S3.44–47: DEC/ADD/SUB/MOVRR+RET from bake.
-//! GET/INC two-record still hard-coded imm loops — **not** OW-RT CLOSED.
+//! Stage 17+ **S3.30–S3.48**: fixed-template fast-paths + `.rdata` 10-row bake.
+//! All 10 bake rows have dual-record +RET pilots; argc0 scan for singles/duals.
+//! Multi-op (>2) still JE; **not** OW-RT CLOSED.
 //! Honest: mini-ISA ≠ full YOYO compiler; production default remains Rust —
 //! **not** OW-RT CLOSED (see `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`).
 
@@ -1134,6 +1134,10 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
     let s3_movrr_ret_marker_off = off;
     off += s3_movrr_ret_marker.len() as u32;
     off = align_up(off, 16);
+    let s3_cmp_ret_marker: &[u8] = b"yoyo_in_dll_s3_cmp_ret_pilot\0";
+    let s3_cmp_ret_marker_off = off;
+    off += s3_cmp_ret_marker.len() as u32;
+    off = align_up(off, 16);
     // S3.43: bake 10-row host-compatible template table.
     let s3_bake_marker: &[u8] = b"yoyo_in_dll_s3_table_bake\0";
     let s3_bake_marker_off = off;
@@ -1187,6 +1191,8 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
         s3_sub_ret_marker_off,
         s3_movrr_ret_marker,
         s3_movrr_ret_marker_off,
+        s3_cmp_ret_marker,
+        s3_cmp_ret_marker_off,
         s3_bake_marker,
         s3_bake_marker_off,
         &s3_bake_table,
@@ -1253,6 +1259,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     s3_sub_ret_marker_off: u32,
     s3_movrr_ret_marker: &[u8],
     s3_movrr_ret_marker_off: u32,
+    s3_cmp_ret_marker: &[u8],
+    s3_cmp_ret_marker_off: u32,
     s3_bake_marker: &[u8],
     s3_bake_marker_off: u32,
     s3_bake_table: &[u8],
@@ -1580,8 +1588,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // rcx = first record = rsi+8
     export_code.extend_from_slice(&[0x48, 0x8D, 0x4E, 0x08]); // lea rcx, [rsi+8]
 
-    // S3.30–S3.47: argc0 scan; SET/GET/INC/DEC/ADD/SUB/MOVRR+RET bake.
-    // Honest: multi-op (>2) still JE; CMP+RET not yet piloted.
+    // S3.30–S3.48: argc0 scan; all 10 bake templates have +RET dual-record pilots.
+    // Honest: multi-op (>2) still JE; OW-RT still CUT.
     export_code.extend_from_slice(&[0x83, 0xFB, 0x01]); // cmp ebx, 1
     let s3_je_single = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]); // je s3_single
@@ -1918,7 +1926,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     patch_jcc32(&mut export_code, s3_jne_ur1, s3_try_movrr);
     export_code.extend_from_slice(&[0x80, 0x39, 0x64]); // cmp byte [rcx], MOVRR
     let s3_jne_mr1 = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jne s1_loop
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jne s3_try_cmp
     export_code.extend_from_slice(&[0x80, 0x79, 0x01, 0x02]); // argc=2
     let s3_jne_mr2 = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
@@ -1953,6 +1961,48 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x49, 0x89, 0xFC]);
     export_code.extend_from_slice(&[0x5E]);
     let s3_jmp_finish_mr = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp s1_finish
+
+    // S3.48: CMP slot0,slot1 + RET → bake row9 (11B) + row0 RET
+    let s3_try_cmp = export_code.len();
+    patch_jcc32(&mut export_code, s3_jne_mr1, s3_try_cmp);
+    export_code.extend_from_slice(&[0x80, 0x39, 0x65]); // cmp byte [rcx], CMP
+    let s3_jne_cr1 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jne s1_loop
+    export_code.extend_from_slice(&[0x80, 0x79, 0x01, 0x02]); // argc=2
+    let s3_jne_cr2 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x66, 0x83, 0x79, 0x02, 0x00]); // a=0
+    let s3_jne_cr3 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x66, 0x83, 0x79, 0x04, 0x01]); // b=1
+    let s3_jne_cr4 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x80, 0x79, 0x08, 0xFF]); // RET
+    let s3_jne_cr5 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x80, 0x79, 0x09, 0x00]); // argc0
+    let s3_jne_cr6 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]); // mov rax, r12
+    export_code.extend_from_slice(&[0x48, 0x83, 0xC0, 0x0C]); // add rax, 12
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]); // cmp rax, r13
+    let s3_jae_fail_cr = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
+    export_code.extend_from_slice(&[0x56]); // push rsi
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 180 + 4));
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
+    export_code.extend_from_slice(&[0xB9, 0x0B, 0x00, 0x00, 0x00]); // mov ecx, 11
+    export_code.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x05, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 4));
+    export_code.extend_from_slice(&[0x8A, 0x00]);
+    export_code.extend_from_slice(&[0x88, 0x07]);
+    export_code.extend_from_slice(&[0x48, 0xFF, 0xC7]);
+    export_code.extend_from_slice(&[0x49, 0x89, 0xFC]);
+    export_code.extend_from_slice(&[0x5E]);
+    let s3_jmp_finish_cr = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp s1_finish
 
     // S3.41: single-record argc0 → scan bake rows by op, memcpy payload
@@ -2026,12 +2076,17 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     patch_jcc32(&mut export_code, s3_jne_ur4, s1_loop);
     patch_jcc32(&mut export_code, s3_jne_ur5, s1_loop);
     patch_jcc32(&mut export_code, s3_jne_ur6, s1_loop);
-    patch_jcc32(&mut export_code, s3_jne_mr1, s1_loop);
     patch_jcc32(&mut export_code, s3_jne_mr2, s1_loop);
     patch_jcc32(&mut export_code, s3_jne_mr3, s1_loop);
     patch_jcc32(&mut export_code, s3_jne_mr4, s1_loop);
     patch_jcc32(&mut export_code, s3_jne_mr5, s1_loop);
     patch_jcc32(&mut export_code, s3_jne_mr6, s1_loop);
+    patch_jcc32(&mut export_code, s3_jne_cr1, s1_loop);
+    patch_jcc32(&mut export_code, s3_jne_cr2, s1_loop);
+    patch_jcc32(&mut export_code, s3_jne_cr3, s1_loop);
+    patch_jcc32(&mut export_code, s3_jne_cr4, s1_loop);
+    patch_jcc32(&mut export_code, s3_jne_cr5, s1_loop);
+    patch_jcc32(&mut export_code, s3_jne_cr6, s1_loop);
     patch_jcc32(&mut export_code, s3_jne_loop_argc, s1_loop);
     patch_rel32(&mut export_code, s3_jmp_miss, s1_loop);
     patch_jcc32(&mut export_code, s3_jnz_scan, s3_scan_loop);
@@ -3051,6 +3106,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     patch_rel32(&mut export_code, s3_jmp_finish_ar, s1_finish);
     patch_rel32(&mut export_code, s3_jmp_finish_ur, s1_finish);
     patch_rel32(&mut export_code, s3_jmp_finish_mr, s1_finish);
+    patch_rel32(&mut export_code, s3_jmp_finish_cr, s1_finish);
     // Pass 2: for i in 0..n_patches: lookup label, write rel32
     export_code.extend_from_slice(&[0x31, 0xF6]); // esi = 0 (patch index)
     let s1_p2_loop = export_code.len();
@@ -3247,6 +3303,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         s3_jae_fail_ar,  // S3.45 ADD+RET pilot overflow
         s3_jae_fail_ur,  // S3.46 SUB+RET pilot overflow
         s3_jae_fail_mr,  // S3.47 MOVRR+RET pilot overflow
+        s3_jae_fail_cr,  // S3.48 CMP+RET pilot overflow
     ];
 
         // Patch jumps
@@ -3416,6 +3473,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     exp[s3_movrr_ret_marker_off as usize
         ..s3_movrr_ret_marker_off as usize + s3_movrr_ret_marker.len()]
         .copy_from_slice(s3_movrr_ret_marker);
+    exp[s3_cmp_ret_marker_off as usize
+        ..s3_cmp_ret_marker_off as usize + s3_cmp_ret_marker.len()]
+        .copy_from_slice(s3_cmp_ret_marker);
     exp[s3_bake_marker_off as usize..s3_bake_marker_off as usize + s3_bake_marker.len()]
         .copy_from_slice(s3_bake_marker);
     exp[s3_bake_table_off as usize..s3_bake_table_off as usize + s3_bake_table.len()]
@@ -4110,6 +4170,10 @@ mod tests {
             "S3.47 MOVRR+RET pilot marker must be baked into .rdata"
         );
         assert!(
+            ascii.contains("yoyo_in_dll_s3_cmp_ret_pilot"),
+            "S3.48 CMP+RET pilot marker must be baked into .rdata"
+        );
+        assert!(
             ascii.contains("yoyo_in_dll_s3_table_bake"),
             "S3.37 template-table bake marker must be in .rdata"
         );
@@ -4448,6 +4512,32 @@ mod tests {
             0x49u8, 0x8B, 0x47, 0x00, 0x49, 0x89, 0x47, 0x08, 0xC3,
         ];
         assert_eq!(&out[off..off + expect.len()], &expect, "MOVRR+RET pilot");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.48: CMP slot0,slot1 + RET hits bake fast-path → 12B template.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_sidecar_in_dll_s3_tyb_cmp_ret_fast_path() {
+        let dir = temp_work("in-dll-s3-tyb-cmp-ret");
+        let mut tyb = Vec::new();
+        tyb.extend_from_slice(b"TYB\0");
+        tyb.extend_from_slice(&[0, 0]);
+        tyb.extend_from_slice(&2u16.to_le_bytes());
+        tyb.push(0x65);
+        tyb.push(2);
+        tyb.extend_from_slice(&[0x00, 0x00, 0x01, 0x00, 0x00, 0x00]);
+        tyb.push(0xFF);
+        tyb.push(0);
+        tyb.extend_from_slice(&[0u8; 6]);
+        std::fs::write(dir.join("input.tyb"), &tyb).expect("write tyb");
+        assert_eq!(yoyo_sidecar_in_dll_recompile(&dir), EXIT_OK);
+        let out = std::fs::read(dir.join(OUTPUT_NAME)).expect("output.exe");
+        let off = crate::s1_tyb_parser::S1_SLIM_TEXT_PAYLOAD_OFF;
+        let expect = [
+            0x49u8, 0x8B, 0x47, 0x00, 0x49, 0x8B, 0x4F, 0x08, 0x48, 0x39, 0xC8, 0xC3,
+        ];
+        assert_eq!(&out[off..off + expect.len()], &expect, "CMP+RET pilot");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
