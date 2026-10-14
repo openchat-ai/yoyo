@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.15**：S3.14 表含 MOVRR/CMP；下一刀 IMUL/控制流或 YOYO 解释（**非**假 CLOSED）。
+**默认 `继续` = S3.16**：S3.15 解释器盘点已齐；下一刀最小 YOYO 查表 emit（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -557,7 +557,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.12** | ✅ 已本地提交 | 模板表 +ADD(slot0,+5)（6 行/120B）；合成矩阵 ≡ `emit_x86` | commit `2e0c8ad` · 解释器仍 Rust |
 | **S3.13** | ✅ 已本地提交 | DATA 128→**256**；表 +SUB/+DEC（8 行/160B） | commit `3bfc3c1` · 解释器仍 Rust |
 | **S3.14** | ✅ 已本地提交 | 表 +MOVRR/+CMP（10 行/200B）；合成矩阵 ≡ `emit_x86` | commit `97e4f1a` · 解释器仍 Rust |
-| **S3.15+** | ⏳ 未开始 | 控制流/IMUL 模板 / YOYO 侧解释表 | 真自举长杆 |
+| **S3.15** | ✅ 已本地提交 | YOYO 侧表解释器缺口盘点（仍 docs；解释器未迁出 Rust） | commit `TBD` · docs-only |
+| **S3.16+** | ⏳ 未开始 | 最小 YOYO 查表 emit（读 DATA 表→拼 `.text`）或再扩 IMUL | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -725,7 +726,29 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | 行 | +MOVRR +CMP；10×20B=200B |
 | 验收 | movrr_ret/cmp_ret 合成 ≡ `emit_x86` |
 
-**默认 `继续` = S3.15**。
+
+#### S3.15 — YOYO 侧表解释器缺口盘点（本步 · docs-only）
+
+**今日状态**：opcode→x86 模板已在 DATA（10 行）；**lookup/compose 仍是 Rust 测试辅助**。
+
+**要把解释搬进 YOYO 需要什么**
+
+| 能力 | 现状 | 缺口 |
+|---|---|---|
+| 读表 | DATA 在 slim PE `.data` | YOYO 运行时要以 state/指针扫表 |
+| 按 op 查找 | Rust `lookup_template` | 需循环 + CMP + 条件跳（labels） |
+| 拼输出 | Rust `Vec` | 需缓冲：ALLOC stub 只记 size；真缓冲仍缺 |
+| 写出 `.text` | host/in-DLL emit | WRITE stub 非真 I/O；或只比对内存 |
+
+**推荐 S3.16 最小切片（仍诚实）**
+
+1. YOYO/TYB 程序：用 GET/CMP/JCC/ADD 扫 DATA 表，匹配 op 后把 `bytes[len]` 经 RAW 路径或 state 槽拼出与 `emit_x86` 相同的字节序列（可先只支持 RET/NOP）
+2. 验收：host mini 编译该「解释器」固件后，**由其产出的字节**（或 state 镜像）≡ 目标模板
+3. **不**宣称替换 in-DLL Rust emit；OW-RT 仍 CUT
+
+**非目标**：控制流 rel32 模板、真 OS I/O、OW-RT CLOSED。
+
+**默认 `继续` = S3.16**。
 
 ### 立项约束
 
@@ -975,3 +998,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S3.12）**：模板表 +ADD（120B）· 合成矩阵 GREEN · 默认 `继续`=**S3.13** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.13）**：DATA **256** + 表 SUB/DEC · 默认 `继续`=**S3.14** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.14）**：模板表 +MOVRR/+CMP（200B）· 默认 `继续`=**S3.15** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.15）**：YOYO 表解释器缺口盘点（docs）· 默认 `继续`=**S3.16** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
