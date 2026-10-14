@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.9**：S3.8 DATA 表+Rust lookup 已绿；下一刀扩表或 YOYO 解释（**非**假 CLOSED）。
+**默认 `继续` = S3.10**：S3.9 表含 SET；下一刀再扩 opcode 或提 DATA 上限（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -551,7 +551,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.6** | ✅ 已本地提交 | in-DLL 栈布局 **常量抽取**（`IN_DLL_S1_*`；数值仍 256/0x2900） | commit `3ac7710` · 行为不变 · const assert |
 | **S3.7** | ✅ 已本地提交 | scratch/code **256→512**：PE buf 0x1800、STACK 0x2C00、DATA off 0x800 | commit `3c54dc4` · parity GREEN |
 | **S3.8** | ✅ 已本地提交 | DATA 驻留 opcode→x86 模板表（RET/NOP）+ Rust lookup 合成 ≡ `emit_x86` | commit `03ab581` · 解释器仍 Rust |
-| **S3.9+** | ⏳ 未开始 | 扩表 / YOYO 侧解释表 / 替换 Rust emit | 真自举长杆 |
+| **S3.9** | ✅ 已本地提交 | 表行 20B + SET 模板；合成 SET+RET/NOP+RET ≡ `emit_x86`（60B≤64） | commit `TBD` · 解释器仍 Rust |
+| **S3.10+** | ⏳ 未开始 | 再扩 opcode / 提 DATA 上限 / YOYO 侧解释表 | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -673,7 +674,16 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | 解释 | **Rust** `parse_opcode_template_table` / `lookup`；合成 NOP+RET ≡ `emit_x86` |
 | 诚实 | 表在 YOYO DATA 里，**不是** YOYO 写的查表编译器 |
 
-**默认 `继续` = S3.9**。
+#### S3.9 — 扩表行 + SET（本步）
+
+| 项 | 决定 |
+|---|---|
+| 行宽 | 16→**20**（`bytes[16]`） |
+| 行 | RET / NOP / SET(slot0=`0xDEADBEEF`, 14B body) |
+| `.data` | 60B ≤ `S1_MINI_DATA_MAX` 64 |
+| 验收 | 合成 SET+RET、NOP+RET ≡ `emit_x86` |
+
+**默认 `继续` = S3.10**。
 
 ### 立项约束
 

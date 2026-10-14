@@ -1,7 +1,9 @@
-; S3.8 — DATA-resident opcode→x86 template table (Rust-interpreted)
-; Sibling: s3_opcode_template_table.tyb
-; Honest: table is carried in YOYO DATA; **lookup/emit still Rust**.
-; Not a YOYO-written compiler. OW-RT remains CUT.
+; S3.9 — DATA opcode template table (20B rows; RET/NOP/SET)
+; Sibling: s3_opcode_template_table.tyb (60B .data ≤64 mini cap)
+; Honest: table in YOYO DATA; **lookup still Rust**. OW-RT CUT.
 ;
-; Row = 16 bytes LE: op:u8, len:u8, pad:u16, bytes[12]
-; Rows: RET (0xFF,len=1,C3), NOP (0x00,len=1,90)
+; Row = 20 bytes LE: op:u8, len:u8, pad:u16, bytes[16]
+;   RET  0xFF len=1  C3
+;   NOP  0x00 len=1  90
+;   SET  0x30 len=14 movabs+store (slot0=0xDEADBEEF; no ret)
+; Compose SET+RET / NOP+RET ≡ emit_x86
