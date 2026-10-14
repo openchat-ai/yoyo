@@ -574,7 +574,7 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.29** | ✅ 已本地提交 | 固定模板表 +CMP(0,1)；10 行 ≡ S3.14 子集；outbuf@0x160 | commit `d310710` |
 | **S3.30** | ✅ 已本地提交 | in-DLL 单记录 RET→C3 快路径（跳 JE）；marker `yoyo_in_dll_s3_ret_pilot` | commit `f71f1c1` |
 | **S3.31** | ✅ 已本地提交 | in-DLL 单记录 NOP→90 快路径；marker `yoyo_in_dll_s3_nop_pilot` | commit `16f4e56` |
-| **S3.32** | ✅ 已本地提交 | in-DLL 双记录 NOP+RET→90 C3 快路径；marker `yoyo_in_dll_s3_nop_ret_pilot` | commit `PLACEHOLDER_S332` |
+| **S3.32** | ✅ 已本地提交 | in-DLL 双记录 NOP+RET→90 C3 快路径；marker `yoyo_in_dll_s3_nop_ret_pilot` | commit `1c15a96` |
 | **S3.33+** | ⏳ 未开始 | in-DLL 表合成续扩（SET+/多记录仍 JE） | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
