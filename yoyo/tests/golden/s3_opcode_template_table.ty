@@ -1,6 +1,5 @@
-; S3.13 — DATA opcode template table (20B rows; 160B .data ≤256)
+; S3.14 — DATA opcode template table (20B rows; 200B .data ≤256)
 ; Sibling: s3_opcode_template_table.tyb
 ; Honest: table in YOYO DATA; **lookup still Rust**. OW-RT CUT.
 ;
-; Row = 20B LE: op:u8, len:u8, pad:u16, bytes[16]
-;   RET NOP SET GET INC ADD(slot0,+5) SUB(slot0,-5) DEC(slot0)
+; +MOVRR(dst0←src1) +CMP(a0,b1) on top of S3.13 set.

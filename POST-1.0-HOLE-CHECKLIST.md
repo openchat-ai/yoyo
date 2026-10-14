@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.14**：S3.13 DATA=256 + SUB/DEC；下一刀控制流模板或 YOYO 解释（**非**假 CLOSED）。
+**默认 `继续` = S3.15**：S3.14 表含 MOVRR/CMP；下一刀 IMUL/控制流或 YOYO 解释（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -556,7 +556,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.11** | ✅ 已本地提交 | 模板表 +GET/+INC（5 行/100B）；合成矩阵 ≡ `emit_x86` | commit `7a7e205` · 解释器仍 Rust |
 | **S3.12** | ✅ 已本地提交 | 模板表 +ADD(slot0,+5)（6 行/120B）；合成矩阵 ≡ `emit_x86` | commit `2e0c8ad` · 解释器仍 Rust |
 | **S3.13** | ✅ 已本地提交 | DATA 128→**256**；表 +SUB/+DEC（8 行/160B） | commit `3bfc3c1` · 解释器仍 Rust |
-| **S3.14+** | ⏳ 未开始 | 控制流模板 / YOYO 侧解释表 | 真自举长杆 |
+| **S3.14** | ✅ 已本地提交 | 表 +MOVRR/+CMP（10 行/200B）；合成矩阵 ≡ `emit_x86` | commit `TBD` · 解释器仍 Rust |
+| **S3.15+** | ⏳ 未开始 | 控制流/IMUL 模板 / YOYO 侧解释表 | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -717,7 +718,14 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | 行 | +SUB(slot0,-5) +DEC(slot0)；8×20B=160B |
 | 验收 | sub_ret/dec_ret 合成 ≡ `emit_x86`；parity GREEN |
 
-**默认 `继续` = S3.14**。
+#### S3.14 — 扩表 MOVRR/CMP（本步）
+
+| 项 | 决定 |
+|---|---|
+| 行 | +MOVRR +CMP；10×20B=200B |
+| 验收 | movrr_ret/cmp_ret 合成 ≡ `emit_x86` |
+
+**默认 `继续` = S3.15**。
 
 ### 立项约束
 
@@ -966,3 +974,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S3.11）**：模板表 +GET/+INC（100B）· 合成矩阵 GREEN · 默认 `继续`=**S3.12** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.12）**：模板表 +ADD（120B）· 合成矩阵 GREEN · 默认 `继续`=**S3.13** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.13）**：DATA **256** + 表 SUB/DEC · 默认 `继续`=**S3.14** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.14）**：模板表 +MOVRR/+CMP（200B）· 默认 `继续`=**S3.15** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**

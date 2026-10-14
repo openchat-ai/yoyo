@@ -2508,9 +2508,9 @@ mod tests {
             .join("../../yoyo/tests/golden/s3_opcode_template_table.tyb");
         let tyb = std::fs::read(&path).expect("read table tyb");
         let pe = compile_tyb_to_pe_mini(&tyb).expect("mini table");
-        let data = slim_pe_user_data(&pe.bytes, 160).expect("160B table");
+        let data = slim_pe_user_data(&pe.bytes, 200).expect("200B table");
         let table = parse_opcode_template_table(data);
-        assert_eq!(table.len(), 8);
+        assert_eq!(table.len(), 10);
         assert_eq!(lookup_template(&table, 0xFF), Some(&[0xC3][..]));
         assert_eq!(lookup_template(&table, 0x00), Some(&[0x90][..]));
 
@@ -2559,6 +2559,16 @@ mod tests {
                 "dec_ret",
                 vec![(0x67, 1, [0, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])],
                 compose(&[0x67, 0xFF]),
+            ),
+            (
+                "movrr_ret",
+                vec![(0x64, 2, [0, 0, 1, 0, 0, 0]), (0xFF, 0, [0; 6])],
+                compose(&[0x64, 0xFF]),
+            ),
+            (
+                "cmp_ret",
+                vec![(0x65, 2, [0, 0, 1, 0, 0, 0]), (0xFF, 0, [0; 6])],
+                compose(&[0x65, 0xFF]),
             ),
         ];
         for (name, semantic, from_table) in cases {
