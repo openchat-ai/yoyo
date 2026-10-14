@@ -2397,4 +2397,63 @@ mod tests {
         assert_eq!(S1_SLIM_MAX_CODE, 256);
         assert_eq!(S1_MINI_DATA_MAX, 64);
     }
+
+    // ============= S3.4: auto-pack RAW_BYTES meta-emit from emit_x86 =============
+
+    /// Pack machine bytes as mini-legal RAW_BYTES records (argc≤3).
+    fn pack_meta_emit_raw_bytes_tyb(machine: &[u8]) -> Vec<u8> {
+        let mut recs: Vec<(u8, u8, [u8; 6])> = Vec::new();
+        let mut i = 0;
+        while i < machine.len() {
+            let n = (machine.len() - i).min(3);
+            let mut a = [0u8; 6];
+            for k in 0..n {
+                a[k * 2] = machine[i + k];
+            }
+            recs.push((0xA1, n as u8, a));
+            i += n;
+        }
+        tyb_from_records(&recs)
+    }
+
+    #[test]
+    fn s3_meta_emit_autopack_get_ret() {
+        let semantic = tyb_from_records(&[
+            (0x60, 2, [0, 0, 1, 0, 0, 0]), // GET dst0←src1
+            (0xFF, 0, [0; 6]),
+        ]);
+        let expect = emit_x86(&parse_tyb(&semantic).unwrap()).text;
+        let meta = pack_meta_emit_raw_bytes_tyb(&expect);
+        let pe = compile_tyb_to_pe_mini(&meta).expect("autopack mini");
+        let got = slim_pe_user_text(&pe.bytes, expect.len()).expect("slice");
+        assert_eq!(got, expect.as_slice());
+        // Round-trip: emit of packed meta == original semantic emit.
+        assert_eq!(emit_x86(&parse_tyb(&meta).unwrap()).text, expect);
+    }
+
+    #[test]
+    fn s3_meta_emit_autopack_matches_hand_goldens() {
+        // Autopack must regenerate S3.2/S3.3 hand goldens byte-for-byte.
+        let golden = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../yoyo/tests/golden");
+        let cases: Vec<(&str, Vec<(u8, u8, [u8; 6])>)> = vec![
+            ("s3_meta_emit_ret.tyb", vec![(0xFF, 0, [0; 6])]),
+            (
+                "s3_meta_emit_nop_ret.tyb",
+                vec![(0x00, 0, [0; 6]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "s3_meta_emit_set_ret.tyb",
+                vec![
+                    (0x30, 2, [0, 0, 0xEF, 0xBE, 0xAD, 0xDE]),
+                    (0xFF, 0, [0; 6]),
+                ],
+            ),
+        ];
+        for (file, semantic) in cases {
+            let expect = emit_x86(&parse_tyb(&tyb_from_records(&semantic)).unwrap()).text;
+            let packed = pack_meta_emit_raw_bytes_tyb(&expect);
+            let hand = std::fs::read(golden.join(file)).unwrap();
+            assert_eq!(packed, hand, "{file} autopack == hand golden");
+        }
+    }
 }
