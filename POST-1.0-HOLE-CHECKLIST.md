@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.39**：S3.38 单记录 RET/NOP 已从 bake 取字节；下一刀扩查表（**非**假 CLOSED）。
+**默认 `继续` = S3.40**：S3.39 NOP+RET/SET+RET 已 bake memcpy；下一刀 GET/INC bake（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -581,7 +581,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.36** | ✅ 已本地提交 | in-DLL 固定模板表 bake 盘点（docs）；调度仍硬编码快路径 | commit `d3eb56e` |
 | **S3.37** | ✅ 已本地提交 | .rdata bake 5×20B 表（RET/NOP/SET/GET/INC）；marker `yoyo_in_dll_s3_table_bake` | commit `7095136` |
 | **S3.38** | ✅ 已本地提交 | 单记录 RET/NOP 从 bake 行 payload 取字节（lea rip） | commit `b8c6f4e` |
-| **S3.39+** | ⏳ 未开始 | 双记录/SET+… 改 bake memcpy；扫表 lookup | 真自举长杆 |
+| **S3.39** | ✅ 已本地提交 | NOP+RET/SET+RET 从 bake 取字节（lea/rep movsb） | commit `PLACEHOLDER_S339` |
+| **S3.40+** | ⏳ 未开始 | GET/INC+RET bake memcpy；扫表 lookup | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -1031,6 +1032,16 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 
 **默认 `继续` = S3.39**。
 
+#### S3.39 — 双记录 NOP+RET / SET+RET 从 bake 取字节（本步）
+
+| 项 | 决定 |
+|---|---|
+| 行为 | NOP+RET：lea 取 row1/row0；SET+RET：`rep movsb` row2(14B)+row0 RET |
+| 验收 | sidecar NOP+RET/SET+RET GREEN；export 含 `lea` + `F3 A4` |
+| 诚实 | GET/INC+RET 仍 imm 环；无通用扫表；OW-RT 仍 CUT |
+
+**默认 `继续` = S3.40**。
+
 ### 立项约束
 
 - 本路线**不是 post-v1.0 关洞的延续**，是**新主线**
@@ -1303,3 +1314,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S3.36）**：in-DLL 表 bake 盘点（docs）· 默认 `继续`=**S3.37** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.37）**：.rdata 5 行表 bake GREEN · 默认 `继续`=**S3.38** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.38）**：bake 驱动单记录 RET/NOP GREEN · 默认 `继续`=**S3.39** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.39）**：bake 驱动 NOP+RET/SET+RET GREEN · 默认 `继续`=**S3.40** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
