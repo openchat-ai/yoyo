@@ -832,6 +832,33 @@ const IN_DLL_RECOMPILE_K32: &[&str] = &[
 /// Max cwd input size the export will ReadFile (golden .ty fixtures are tiny).
 const IN_DLL_RECOMPILE_MAX_INPUT: u32 = 0x1000;
 
+// ----- S3.6: in-DLL S1 codegen stack layout (named; values unchanged from S1.7.e) -----
+// S3.7+ may bump CODE_CAP with S1_SLIM_MAX_CODE and recompute dependents.
+const IN_DLL_S1_CODE_OFF: u32 = 0x1080;
+const IN_DLL_S1_CODE_CAP: u32 = crate::s1_tyb_parser::S1_SLIM_MAX_CODE as u32;
+const IN_DLL_S1_PE_OFF: u32 = IN_DLL_S1_CODE_OFF + IN_DLL_S1_CODE_CAP;
+const IN_DLL_S1_PE_SIZE: u32 = 0x1600;
+const IN_DLL_S1_LABELS_OFF: u32 = IN_DLL_S1_PE_OFF + IN_DLL_S1_PE_SIZE;
+const IN_DLL_S1_PATCHES_OFF: u32 = IN_DLL_S1_LABELS_OFF + 16 * 8;
+const IN_DLL_S1_N_LABELS_OFF: u32 = IN_DLL_S1_PATCHES_OFF + 16 * 8;
+const IN_DLL_S1_N_PATCHES_OFF: u32 = IN_DLL_S1_N_LABELS_OFF + 4;
+const IN_DLL_S1_DATA_LEN_OFF: u32 = IN_DLL_S1_N_LABELS_OFF + 8;
+const IN_DLL_S1_DATA_OFF: u32 = IN_DLL_S1_N_LABELS_OFF + 0x10;
+const IN_DLL_S1_STACK: u32 = 0x2900;
+
+/// S3.6 fail-closed: layout math must match the historic S1.7.e numbers.
+const _: () = assert!(IN_DLL_S1_CODE_CAP == 256);
+const _: () = assert!(IN_DLL_S1_PE_OFF == 0x1180);
+const _: () = assert!(IN_DLL_S1_LABELS_OFF == 0x2780);
+const _: () = assert!(IN_DLL_S1_PATCHES_OFF == 0x2800);
+const _: () = assert!(IN_DLL_S1_N_LABELS_OFF == 0x2880);
+const _: () = assert!(IN_DLL_S1_DATA_OFF == 0x2890);
+
+#[inline]
+fn push_u32_le(buf: &mut Vec<u8>, v: u32) {
+    buf.extend_from_slice(&v.to_le_bytes());
+}
+
 /// Build the `.rdata` oracle blob: `n_entries` then per-entry records.
 fn build_recompile_table(entries: &[RecompileEntry]) -> IsaResult<Vec<u8>> {
     if entries.is_empty() {
@@ -1016,11 +1043,11 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
 
     let text_rva = SECTION_ALIGN;
 
-    // Stack layout (S1.5.b): push rbx,rsi,rdi,r12,r13; sub rsp, 0x2800
+    // Stack layout (S1.5.b / S3.6 named): push rbx,rsi,rdi,r12,r13; sub rsp, IN_DLL_S1_STACK
     //   [rsp+0x40] = DWORD bytes_read
     //   [rsp+0x60 .. 0x1060) = ≤4KiB input
-    //   [rsp+0x1080 ..) = code scratch (≤256)
-    //   [rsp+0x1180 ..) = slim PE buffer (0x1600)
+    //   [rsp+CODE_OFF ..) = code scratch (≤CODE_CAP; today 256)
+    //   [rsp+PE_OFF ..) = slim PE buffer (PE_SIZE)
     link_yoyo_in_dll_recompile_dll_emit(
         &table,
         &pe_template.bytes,
@@ -1136,13 +1163,13 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         code[disp_at..disp_at + 4].copy_from_slice(&rel.to_le_bytes());
     };
 
-    // prologue — S1.7.e stack 0x2900 (input + code + PE + label/patch + data)
-    //   [rsp+0x60)=input  [rsp+0x1080)=code  [rsp+0x1180)=PE
-    //   [rsp+0x2780)=labels[16]×8  [rsp+0x2800)=patches[16]×8
-    //   [rsp+0x2880)=n_labels  [rsp+0x2884)=n_patches  [rsp+0x2888)=data_len
-    //   [rsp+0x2890)=data[64]
+    // prologue — S1.7.e / S3.6 named stack (input + code + PE + label/patch + data)
+    //   [rsp+0x60)=input  [rsp+CODE_OFF)=code  [rsp+PE_OFF)=PE
+    //   [rsp+LABELS)=labels[16]×8  [rsp+PATCHES)=patches[16]×8
+    //   [rsp+N_LABELS)=n_labels / n_patches / data_len  [rsp+DATA)=data[64]
     export_code.extend_from_slice(&[0x53, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55]);
-    export_code.extend_from_slice(&[0x48, 0x81, 0xEC, 0x00, 0x29, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x48, 0x81, 0xEC]);
+    push_u32_le(&mut export_code, IN_DLL_S1_STACK);
 
     // Try each input name: attrs → open (near jcc — open stubs are far)
     let mut open_jne_sites: Vec<(usize, u32)> = Vec::new(); // (jcc32_at, name_off)
@@ -1361,8 +1388,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0xB8, 0x01, 0x00, 0x00, 0x00]);
 
     let epilogue_at = export_code.len();
-    // add rsp, 0x2900; pop r13; pop r12; pop rdi; pop rsi; pop rbx; ret
-    export_code.extend_from_slice(&[0x48, 0x81, 0xC4, 0x00, 0x29, 0x00, 0x00]);
+    // add rsp, IN_DLL_S1_STACK; pop r13; pop r12; pop rdi; pop rsi; pop rbx; ret
+    export_code.extend_from_slice(&[0x48, 0x81, 0xC4]);
+    push_u32_le(&mut export_code, IN_DLL_S1_STACK);
     export_code.extend_from_slice(&[0x41, 0x5D, 0x41, 0x5C, 0x5F, 0x5E, 0x5B, 0xC3]);
 
     // ----- S1 mini TYB codegen (after epilogue; entered only via jmp_s1) -----
@@ -1379,13 +1407,21 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s1_jne_sz = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jne compile_fail
     // zero n_labels / n_patches / data_len
-    export_code.extend_from_slice(&[0x48, 0xC7, 0x84, 0x24, 0x80, 0x28, 0x00, 0x00, 0, 0, 0, 0]); // [rsp+0x2880]=0
-    export_code.extend_from_slice(&[0x48, 0xC7, 0x84, 0x24, 0x84, 0x28, 0x00, 0x00, 0, 0, 0, 0]); // [rsp+0x2884]=0
-    export_code.extend_from_slice(&[0xC7, 0x84, 0x24, 0x88, 0x28, 0x00, 0x00, 0, 0, 0, 0]); // data_len=0
-    // r12 = code cursor = lea [rsp+0x1080]; r13 = code end = r12+256
-    export_code.extend_from_slice(&[0x4C, 0x8D, 0xA4, 0x24, 0x80, 0x10, 0x00, 0x00]); // lea r12,[rsp+0x1080]
+    export_code.extend_from_slice(&[0x48, 0xC7, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_N_LABELS_OFF);
+    export_code.extend_from_slice(&[0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x48, 0xC7, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_N_PATCHES_OFF);
+    export_code.extend_from_slice(&[0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0xC7, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_DATA_LEN_OFF);
+    export_code.extend_from_slice(&[0, 0, 0, 0]);
+    // r12 = code cursor = lea [rsp+CODE_OFF]; r13 = code end = r12+CODE_CAP
+    export_code.extend_from_slice(&[0x4C, 0x8D, 0xA4, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF);
     export_code.extend_from_slice(&[0x4D, 0x89, 0xE5]); // mov r13, r12
-    export_code.extend_from_slice(&[0x49, 0x81, 0xC5, 0x00, 0x01, 0x00, 0x00]); // add r13, 256
+    export_code.extend_from_slice(&[0x49, 0x81, 0xC5]);
+    push_u32_le(&mut export_code, IN_DLL_S1_CODE_CAP);
     // rcx = first record = rsi+8
     export_code.extend_from_slice(&[0x48, 0x8D, 0x4E, 0x08]); // lea rcx, [rsi+8]
 
@@ -1554,20 +1590,25 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x80, 0xFA, 0x01]);
     let s1_jne_label_argc = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x8B, 0x84, 0x24, 0x80, 0x28, 0x00, 0x00]); // eax = n_labels
+    export_code.extend_from_slice(&[0x8B, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_N_LABELS_OFF); // eax = n_labels
     export_code.extend_from_slice(&[0x83, 0xF8, 0x10]); // cmp eax, 16
     let s1_jae_nlab = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
     // entry @ rsp+0x2780 + eax*8: id=dword[rcx+2], off=r12-code_base
     export_code.extend_from_slice(&[0x8B, 0x51, 0x02]); // edx = label_id ([rcx+2])
-    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24, 0x80, 0x10, 0x00, 0x00]); // lea r8,[rsp+0x1080]
+    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF); // lea r8,[rsp+0x1080]
     export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]); // mov rax, r12
     export_code.extend_from_slice(&[0x4C, 0x29, 0xC0]); // sub rax, r8 → code_off
-    export_code.extend_from_slice(&[0x8B, 0xB4, 0x24, 0x80, 0x28, 0x00, 0x00]); // esi = n_labels
-    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24, 0x80, 0x27, 0x00, 0x00]); // lea rdi,[rsp+0x2780]
+    export_code.extend_from_slice(&[0x8B, 0xB4, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_N_LABELS_OFF); // esi = n_labels
+    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_LABELS_OFF); // lea rdi,[rsp+0x2780]
     export_code.extend_from_slice(&[0x89, 0x14, 0xF7]); // mov [rdi+rsi*8], edx (id)
     export_code.extend_from_slice(&[0x89, 0x44, 0xF7, 0x04]); // mov [rdi+rsi*8+4], eax (off)
-    export_code.extend_from_slice(&[0xFF, 0x84, 0x24, 0x80, 0x28, 0x00, 0x00]); // inc dword n_labels
+    export_code.extend_from_slice(&[0xFF, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_N_LABELS_OFF); // inc dword n_labels
     let s1_jmp_next3 = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
@@ -2121,14 +2162,17 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s1_ja_data_argc = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]); // argc > 3
     export_code.extend_from_slice(&[0x0F, 0xB6, 0xD2]); // movzx edx, dl (=argc)
-    export_code.extend_from_slice(&[0x8B, 0x84, 0x24, 0x88, 0x28, 0x00, 0x00]); // eax=data_len
+    export_code.extend_from_slice(&[0x8B, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_DATA_LEN_OFF); // eax=data_len
     export_code.extend_from_slice(&[0x01, 0xD0]); // eax += argc
     export_code.extend_from_slice(&[0x83, 0xF8, 0x40]); // cmp eax, 64
     let s1_ja_data_cap = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
     // rdi = data_base + old_len
-    export_code.extend_from_slice(&[0x8B, 0x84, 0x24, 0x88, 0x28, 0x00, 0x00]);
-    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24, 0x90, 0x28, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x8B, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_DATA_LEN_OFF);
+    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_DATA_OFF);
     export_code.extend_from_slice(&[0x48, 0x01, 0xC7]);
     // append: for argc>=1 byte[rcx+2]; >=2 byte[rcx+4]; >=3 byte[rcx+6]
     export_code.extend_from_slice(&[0x84, 0xD2]); // test dl,dl
@@ -2153,7 +2197,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     patch_rel8(&mut export_code, s1_jbe_data1, s1_data_done);
     patch_rel8(&mut export_code, s1_jbe_data2, s1_data_done);
     // data_len += argc (edx)
-    export_code.extend_from_slice(&[0x01, 0x94, 0x24, 0x88, 0x28, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x01, 0x94, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_DATA_LEN_OFF);
     let s1_jmp_next18 = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
@@ -2161,14 +2206,17 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // Must not use call/ret: RSP-relative label/patch tables assume fixed frame.
     // clobbers: esi, rdi
     let s1_push_patch = export_code.len();
-    export_code.extend_from_slice(&[0x8B, 0xB4, 0x24, 0x84, 0x28, 0x00, 0x00]); // esi = n_patches
+    export_code.extend_from_slice(&[0x8B, 0xB4, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_N_PATCHES_OFF); // esi = n_patches
     export_code.extend_from_slice(&[0x83, 0xFE, 0x10]);
     let s1_jae_npatch = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24, 0x00, 0x28, 0x00, 0x00]); // lea rdi,[rsp+0x2800]
+    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_PATCHES_OFF); // lea rdi,[rsp+0x2800]
     export_code.extend_from_slice(&[0x89, 0x04, 0xF7]); // [rdi+rsi*8] = pos
     export_code.extend_from_slice(&[0x89, 0x54, 0xF7, 0x04]); // +4 = id
-    export_code.extend_from_slice(&[0xFF, 0x84, 0x24, 0x84, 0x28, 0x00, 0x00]); // inc n_patches
+    export_code.extend_from_slice(&[0xFF, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_N_PATCHES_OFF); // inc n_patches
     export_code.extend_from_slice(&[0x41, 0xFF, 0xE3]); // jmp r11
 
     // lea r11,[rip+ret]; jmp s1_push_patch; ret:  (no call — keep RSP frame fixed)
@@ -2199,7 +2247,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0xE8]);
     export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x01, 0, 0, 0, 0]);
     // patch_pos = r12 - code_base + 1
-    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24, 0x80, 0x10, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF);
     export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
     export_code.extend_from_slice(&[0x4C, 0x29, 0xC0]);
     export_code.extend_from_slice(&[0xFF, 0xC0]); // +1
@@ -2222,7 +2271,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
     export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0xE9]);
     export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x01, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24, 0x80, 0x10, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF);
     export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
     export_code.extend_from_slice(&[0x4C, 0x29, 0xC0]);
     export_code.extend_from_slice(&[0xFF, 0xC0]);
@@ -2332,7 +2382,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x45, 0x88, 0x44, 0x24, 0x01]); // mov [r12+1], r8b
     export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x02, 0, 0, 0, 0]);
     // patch_pos = off+2
-    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24, 0x80, 0x10, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF);
     export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
     export_code.extend_from_slice(&[0x4C, 0x29, 0xC0]);
     export_code.extend_from_slice(&[0x83, 0xC0, 0x02]);
@@ -2379,20 +2430,24 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // Pass 2: for i in 0..n_patches: lookup label, write rel32
     export_code.extend_from_slice(&[0x31, 0xF6]); // esi = 0 (patch index)
     let s1_p2_loop = export_code.len();
-    export_code.extend_from_slice(&[0x3B, 0xB4, 0x24, 0x84, 0x28, 0x00, 0x00]); // cmp esi, n_patches
+    export_code.extend_from_slice(&[0x3B, 0xB4, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_N_PATCHES_OFF); // cmp esi, n_patches
     let s1_p2_done_jge = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x8D, 0, 0, 0, 0]); // jge pass2_done
     // load patch: pos=[rsp+0x2800+esi*8], id=+4
-    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24, 0x00, 0x28, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_PATCHES_OFF);
     export_code.extend_from_slice(&[0x8B, 0x04, 0xF7]); // eax = pos
     export_code.extend_from_slice(&[0x8B, 0x54, 0xF7, 0x04]); // edx = label_id
     // find label: edi=0
     export_code.extend_from_slice(&[0x31, 0xFF]);
     let s1_p2_find = export_code.len();
-    export_code.extend_from_slice(&[0x3B, 0xBC, 0x24, 0x80, 0x28, 0x00, 0x00]); // cmp edi, n_labels
+    export_code.extend_from_slice(&[0x3B, 0xBC, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_N_LABELS_OFF); // cmp edi, n_labels
     let s1_p2_nofind = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x8D, 0, 0, 0, 0]); // jge next_patch (undef → leave 0)
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x8C, 0x24, 0x80, 0x27, 0x00, 0x00]); // lea rcx,[labels]
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x8C, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_LABELS_OFF); // lea rcx,[labels]
     export_code.extend_from_slice(&[0x39, 0x14, 0xF9]); // cmp [rcx+rdi*8], edx
     let s1_p2_found = export_code.len();
     export_code.extend_from_slice(&[0x74, 0x00]); // je found
@@ -2407,7 +2462,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x8B, 0x4C, 0xF9, 0x04]); // ecx = target off
     export_code.extend_from_slice(&[0x8D, 0x50, 0x04]); // edx = pos+4
     export_code.extend_from_slice(&[0x29, 0xD1]); // ecx = target - (pos+4)
-    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24, 0x80, 0x10, 0x00, 0x00]); // lea r8, code_base
+    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF); // lea r8, code_base
     export_code.extend_from_slice(&[0x49, 0x01, 0xC0]); // r8 += pos (rax)
     export_code.extend_from_slice(&[0x41, 0x89, 0x08]); // mov [r8], ecx
     let s1_p2_next = export_code.len();
@@ -2420,7 +2476,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     patch_jcc32(&mut export_code, s1_p2_done_jge, s1_p2_done);
 
     // if code empty or last != C3, append C3
-    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24, 0x80, 0x10, 0x00, 0x00]); // lea r8,[rsp+0x1080]
+    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF); // lea r8,[rsp+0x1080]
     export_code.extend_from_slice(&[0x4D, 0x39, 0xC4]); // cmp r12, r8
     let s1_je_empty = export_code.len();
     export_code.extend_from_slice(&[0x74, 0x00]); // je need_ret
@@ -2441,32 +2498,39 @@ fn link_yoyo_in_dll_recompile_dll_emit(
 
     // memcpy template → [rsp+0x1180]
     emit_lea_rcx_rdata(&mut export_code, &mut rip_patches, template_off); // rcx = src
-    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24, 0x80, 0x11, 0x00, 0x00]); // lea rdi,[rsp+0x1180]
+    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_PE_OFF); // lea rdi,[rsp+0x1180]
     export_code.extend_from_slice(&[0x48, 0x89, 0xCE]); // mov rsi, rcx
     export_code.extend_from_slice(&[0xB9]); // mov ecx, template_len
     export_code.extend_from_slice(&template_len.to_le_bytes());
     export_code.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
 
     // memcpy code → pe + S1_SLIM_TEXT_PAYLOAD_OFF (0x40D)
-    export_code.extend_from_slice(&[0x48, 0x8D, 0xB4, 0x24, 0x80, 0x10, 0x00, 0x00]); // lea rsi,[rsp+0x1080]
-    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24, 0x80, 0x11, 0x00, 0x00]); // lea rdi,[rsp+0x1180]
+    export_code.extend_from_slice(&[0x48, 0x8D, 0xB4, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF); // lea rsi,[rsp+0x1080]
+    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_PE_OFF); // lea rdi,[rsp+0x1180]
     export_code.extend_from_slice(&[0x48, 0x81, 0xC7]); // add rdi, 0x40D
     export_code.extend_from_slice(
         &(crate::s1_tyb_parser::S1_SLIM_TEXT_PAYLOAD_OFF as u32).to_le_bytes(),
     );
     // ecx = code_len = r12 - code_base
     export_code.extend_from_slice(&[0x4C, 0x89, 0xE1]); // mov rcx, r12
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x84, 0x24, 0x80, 0x10, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF);
     export_code.extend_from_slice(&[0x48, 0x29, 0xC1]); // sub rcx, rax
     export_code.extend_from_slice(&[0xF3, 0xA4]);
 
     // memcpy data → pe + S1_SLIM_DATA_PAYLOAD_OFF (0x600)
-    export_code.extend_from_slice(&[0x8B, 0x8C, 0x24, 0x88, 0x28, 0x00, 0x00]); // ecx=data_len
+    export_code.extend_from_slice(&[0x8B, 0x8C, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_DATA_LEN_OFF); // ecx=data_len
     export_code.extend_from_slice(&[0x85, 0xC9]);
     let s1_jz_nodata = export_code.len();
     export_code.extend_from_slice(&[0x74, 0x00]);
-    export_code.extend_from_slice(&[0x48, 0x8D, 0xB4, 0x24, 0x90, 0x28, 0x00, 0x00]); // rsi=data
-    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24, 0x80, 0x11, 0x00, 0x00]); // rdi=pe
+    export_code.extend_from_slice(&[0x48, 0x8D, 0xB4, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_DATA_OFF); // rsi=data
+    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_PE_OFF); // rdi=pe
     export_code.extend_from_slice(&[0x48, 0x81, 0xC7]); // add rdi, data_off
     export_code.extend_from_slice(
         &(crate::s1_tyb_parser::S1_SLIM_DATA_PAYLOAD_OFF as u32).to_le_bytes(),
@@ -2476,7 +2540,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     patch_rel8(&mut export_code, s1_jz_nodata, s1_after_data);
 
     // rcx = pe_buf, r12d = template_len → write_out
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x8C, 0x24, 0x80, 0x11, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x8C, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_PE_OFF);
     export_code.extend_from_slice(&[0x41, 0xBC]); // mov r12d, imm32
     export_code.extend_from_slice(&template_len.to_le_bytes());
     let s1_jmp_write = export_code.len();
