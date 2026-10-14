@@ -28,6 +28,9 @@
 //! RAW_BYTES (argc≤3 → `.text`) + ALLOC/LOAD_FILE/WRITE_FILE **stub form**
 //! (argc=2, same encoding as SET; not real OS alloc/I/O).
 //! Non-TYB inputs still use the oracle table. Marker `yoyo_in_dll_s1_codegen`.
+//! Stage 17+ **S3.30**: single-record RET fast-path pilot (skip JE dispatch →
+//! emit `C3`); marker `yoyo_in_dll_s3_ret_pilot`. Full fixed-template table
+//! compose remains host-only — **not** OW-RT CLOSED.
 //! Honest: mini-ISA ≠ full YOYO compiler; production default remains Rust —
 //! **not** OW-RT CLOSED (see `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`).
 
@@ -1043,6 +1046,11 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
     let s1_marker_off = off;
     off += s1_marker.len() as u32;
     off = align_up(off, 16);
+    // S3.30: RET fast-path pilot marker (table compose still host-only).
+    let s3_marker: &[u8] = b"yoyo_in_dll_s3_ret_pilot\0";
+    let s3_marker_off = off;
+    off += s3_marker.len() as u32;
+    off = align_up(off, 16);
     let table_off = off;
     off = align_up(table_off + table.len() as u32, 16);
     let template_off = off;
@@ -1068,6 +1076,8 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
         marker_off,
         s1_marker,
         s1_marker_off,
+        s3_marker,
+        s3_marker_off,
         table_off,
         template_off,
         template_len,
@@ -1110,6 +1120,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     marker_off: u32,
     s1_marker: &[u8],
     s1_marker_off: u32,
+    s3_marker: &[u8],
+    s3_marker_off: u32,
     table_off: u32,
     template_off: u32,
     template_len: u32,
@@ -1433,7 +1445,31 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // rcx = first record = rsi+8
     export_code.extend_from_slice(&[0x48, 0x8D, 0x4E, 0x08]); // lea rcx, [rsi+8]
 
+    // S3.30 pilot: single-record RET → emit C3 and finish (skip JE dispatch).
+    // Honest: only RET; other fixed-template ops still use hand JE chain.
+    export_code.extend_from_slice(&[0x83, 0xFB, 0x01]); // cmp ebx, 1
+    let s3_jne_loop = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jne s1_loop
+    export_code.extend_from_slice(&[0x80, 0x39, 0xFF]); // cmp byte [rcx], 0xFF
+    let s3_jne_loop2 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jne s1_loop
+    export_code.extend_from_slice(&[0x80, 0x79, 0x01, 0x00]); // cmp byte [rcx+1], 0
+    let s3_jne_loop3 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jne s1_loop
+    // room for 1 byte in code scratch
+    export_code.extend_from_slice(&[0x4D, 0x39, 0xEC]); // cmp r12, r13
+    let s3_jae_fail = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0xC3]); // mov byte [r12], 0xC3
+    export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]); // inc r12
+    let s3_jmp_finish = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp s1_finish
+
     let s1_loop = export_code.len();
+    // 0F 85 near jcc — use patch_jcc32 (disp at +2), not patch_rel32 (E9).
+    patch_jcc32(&mut export_code, s3_jne_loop, s1_loop);
+    patch_jcc32(&mut export_code, s3_jne_loop2, s1_loop);
+    patch_jcc32(&mut export_code, s3_jne_loop3, s1_loop);
     export_code.extend_from_slice(&[0x85, 0xDB]); // test ebx, ebx
     let s1_jz_done = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]); // jz s1_finish
@@ -2437,6 +2473,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // finish: pass-2 rel32 patch; ensure trailing ret; copy template; write_out
     let s1_finish = export_code.len();
     patch_jcc32(&mut export_code, s1_jz_done, s1_finish);
+    patch_rel32(&mut export_code, s3_jmp_finish, s1_finish);
     // Pass 2: for i in 0..n_patches: lookup label, write rel32
     export_code.extend_from_slice(&[0x31, 0xF6]); // esi = 0 (patch index)
     let s1_p2_loop = export_code.len();
@@ -2623,6 +2660,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         s1_ja_jcc_ovf,
         s1_ja_trail,
         s1_jmp_fail_op,
+        s3_jae_fail, // S3.30 RET pilot overflow
     ];
 
         // Patch jumps
@@ -2764,6 +2802,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     exp[marker_off as usize..marker_off as usize + marker.len()].copy_from_slice(marker);
     exp[s1_marker_off as usize..s1_marker_off as usize + s1_marker.len()]
         .copy_from_slice(s1_marker);
+    exp[s3_marker_off as usize..s3_marker_off as usize + s3_marker.len()]
+        .copy_from_slice(s3_marker);
     exp[table_off as usize..table_off as usize + table.len()].copy_from_slice(table);
     exp[template_off as usize..template_off as usize + pe_template.len()]
         .copy_from_slice(pe_template);
@@ -3412,6 +3452,16 @@ mod tests {
         assert!(
             ascii.contains("yoyo_in_dll_s1_codegen"),
             "S1.5.b marker must be baked into .rdata"
+        );
+        assert!(
+            ascii.contains("yoyo_in_dll_s3_ret_pilot"),
+            "S3.30 RET pilot marker must be baked into .rdata"
+        );
+        // S3.30: cmp ebx,1 before JE dispatch (single-record RET fast-path).
+        let s3_cmp_ebx1 = [0x83u8, 0xFB, 0x01];
+        assert!(
+            dll.windows(s3_cmp_ebx1.len()).any(|w| w == s3_cmp_ebx1),
+            "export must contain S3.30 cmp ebx,1 RET pilot"
         );
         assert!(ascii.contains("ReadFile"));
         assert!(ascii.contains("GetFileSize"));

@@ -1,4 +1,4 @@
-# Post-v1.0 关洞负责人看板（path 2 · 缩宿主信任 · 整仓竣工）
+﻿# Post-v1.0 关洞负责人看板（path 2 · 缩宿主信任 · 整仓竣工）
 
 
 
@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.30**：S3.29 +CMP 已绿（host 10 行表齐 S3.14 子集）；下一刀 in-DLL 试点（**非**假 CLOSED）。
+**默认 `继续` = S3.31**：S3.30 in-DLL 单记录 RET 快路径已绿；下一刀扩 in-DLL 试点（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -572,7 +572,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.27** | ✅ 已本地提交 | 固定模板表 +SUB(slot0,-5)；outbuf@0x140 | commit `769282d` |
 | **S3.28** | ✅ 已本地提交 | 固定模板表 +MOVRR(dst1←src0)；outbuf@0x150 | commit `760e4ef` |
 | **S3.29** | ✅ 已本地提交 | 固定模板表 +CMP(0,1)；10 行 ≡ S3.14 子集；outbuf@0x160 | commit `d310710` |
-| **S3.30+** | ⏳ 未开始 | in-DLL 表合成试点 | 真自举长杆 |
+| **S3.30** | ✅ 已本地提交 | in-DLL 单记录 RET→C3 快路径（跳 JE）；marker `yoyo_in_dll_s3_ret_pilot` | commit `PLACEHOLDER_S330` |
+| **S3.31+** | ⏳ 未开始 | in-DLL 表合成续扩（NOP/多记录仍 JE） | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -914,6 +915,17 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 
 **默认 `继续` = S3.30**。
 
+#### S3.30 — in-DLL 单记录 RET 快路径试点（本步）
+
+| 项 | 决定 |
+|---|---|
+| 行为 | `rec_cnt==1` 且 op=`0xFF`/argc=0 → 写 `C3` 后跳 `s1_finish`（**跳过** JE 链） |
+| 标记 | `.rdata` `yoyo_in_dll_s3_ret_pilot`；既有 `yoyo_in_dll_s1_codegen` 保留 |
+| 验收 | pe_dll_link marker/parity/sidecar TYB GREEN；空 TYB / SET+RET 仍走 JE |
+| 诚实 | **非** DATA 表合成进 in-DLL；多记录/非 RET 仍手写 JE；OW-RT 仍 CUT |
+
+**默认 `继续` = S3.31**。
+
 ### 立项约束
 
 - 本路线**不是 post-v1.0 关洞的延续**，是**新主线**
@@ -1177,3 +1189,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S3.27）**：固定模板 +SUB GREEN · 默认 `继续`=**S3.28** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.28）**：固定模板 +MOVRR GREEN · 默认 `继续`=**S3.29** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.29）**：固定模板 +CMP（10 行）GREEN · 默认 `继续`=**S3.30** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.30）**：in-DLL RET 快路径试点 GREEN · 默认 `继续`=**S3.31** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
