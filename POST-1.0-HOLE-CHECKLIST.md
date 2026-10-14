@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.8**：S3.7 扩容已绿；下一刀 DATA 表驱动或更多 meta-emit（**非**假 CLOSED）。
+**默认 `继续` = S3.9**：S3.8 DATA 表+Rust lookup 已绿；下一刀扩表或 YOYO 解释（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -550,7 +550,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.5** | ✅ 已本地提交 | in-DLL scratch 扩容触点盘点（256→512 前必改清单） | commit `011a9f2` · docs-only |
 | **S3.6** | ✅ 已本地提交 | in-DLL 栈布局 **常量抽取**（`IN_DLL_S1_*`；数值仍 256/0x2900） | commit `3ac7710` · 行为不变 · const assert |
 | **S3.7** | ✅ 已本地提交 | scratch/code **256→512**：PE buf 0x1800、STACK 0x2C00、DATA off 0x800 | commit `3c54dc4` · parity GREEN |
-| **S3.8+** | ⏳ 未开始 | DATA 表驱动解释 / 替换 Rust emit | 真自举长杆 |
+| **S3.8** | ✅ 已本地提交 | DATA 驻留 opcode→x86 模板表（RET/NOP）+ Rust lookup 合成 ≡ `emit_x86` | commit `81d34d8` · 解释器仍 Rust |
+| **S3.9+** | ⏳ 未开始 | 扩表 / YOYO 侧解释表 / 替换 Rust emit | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -663,7 +664,16 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | 验收 | `s1_host_in_dll` + `s1_` 77 + `pe_dll_link` 32 + `s3_` GREEN |
 | 插曲 | 首刀 AV：旧 PE buf 0x1600 装不下双页 `.text` → 已修 |
 
-**默认 `继续` = S3.8**。
+#### S3.8 — DATA 模板表 + Rust lookup（本步）
+
+| 项 | 决定 |
+|---|---|
+| 固件 | `s3_opcode_template_table.{ty,tyb}`：2×16B 行（RET/NOP）在 `.data` |
+| 行格式 | `op:u8, len:u8, pad:u16, bytes[12]` |
+| 解释 | **Rust** `parse_opcode_template_table` / `lookup`；合成 NOP+RET ≡ `emit_x86` |
+| 诚实 | 表在 YOYO DATA 里，**不是** YOYO 写的查表编译器 |
+
+**默认 `继续` = S3.9**。
 
 ### 立项约束
 
@@ -906,3 +916,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S3.5）**：in-DLL scratch 256→512 触点盘点（docs-only · 未改码）· 默认 `继续`=**S3.6**（常量抽取再扩容）· OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.6）**：`IN_DLL_S1_*` 常量抽取 · 数值仍 256 · parity GREEN · 默认 `继续`=**S3.7**（真扩容）· OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.7）**：code scratch **512** · PE 0x1800 / STACK 0x2C00 / DATA@0x800 · parity GREEN · 默认 `继续`=**S3.8** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.8）**：DATA 模板表 RET/NOP + Rust lookup 合成 ≡ emit · **解释器仍 Rust** · 默认 `继续`=**S3.9** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**

@@ -2465,4 +2465,56 @@ mod tests {
             assert_eq!(packed, hand, "{file} autopack == hand golden");
         }
     }
+
+    // ============= S3.8: DATA-resident opcode template table =============
+
+    #[derive(Debug, Clone)]
+    struct OpcodeTemplateRow {
+        op: u8,
+        bytes: Vec<u8>,
+    }
+
+    /// Parse fixed 16-byte rows: op, len, pad_u16, bytes[12].
+    fn parse_opcode_template_table(data: &[u8]) -> Vec<OpcodeTemplateRow> {
+        assert!(data.len() % 16 == 0, "table must be 16-byte rows");
+        data.chunks_exact(16)
+            .map(|row| {
+                let op = row[0];
+                let len = row[1] as usize;
+                assert!(len <= 12, "template len {len} > 12");
+                OpcodeTemplateRow {
+                    op,
+                    bytes: row[4..4 + len].to_vec(),
+                }
+            })
+            .collect()
+    }
+
+    fn lookup_template<'a>(table: &'a [OpcodeTemplateRow], op: u8) -> Option<&'a [u8]> {
+        table.iter().find(|r| r.op == op).map(|r| r.bytes.as_slice())
+    }
+
+    #[test]
+    fn s3_opcode_template_table_data_lookup() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../yoyo/tests/golden/s3_opcode_template_table.tyb");
+        let tyb = std::fs::read(&path).expect("read table tyb");
+        let pe = compile_tyb_to_pe_mini(&tyb).expect("mini table");
+        let data = slim_pe_user_data(&pe.bytes, 32).expect("32B table");
+        let table = parse_opcode_template_table(data);
+        assert_eq!(table.len(), 2);
+        assert_eq!(lookup_template(&table, 0xFF), Some(&[0xC3][..]));
+        assert_eq!(lookup_template(&table, 0x00), Some(&[0x90][..]));
+        // Compose NOP+RET from table ≡ emit_x86(NOP; RET)
+        let mut composed = Vec::new();
+        composed.extend_from_slice(lookup_template(&table, 0x00).unwrap());
+        composed.extend_from_slice(lookup_template(&table, 0xFF).unwrap());
+        let expect = emit_x86(&parse_tyb(&tyb_from_records(&[
+            (0x00, 0, [0; 6]),
+            (0xFF, 0, [0; 6]),
+        ]))
+        .unwrap())
+        .text;
+        assert_eq!(composed, expect);
+    }
 }
