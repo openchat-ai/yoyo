@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.17**：S3.16 YOYO 查表扫已绿（host sim）；下一刀真 PE 执行或拼多字节（**非**假 CLOSED）。
+**默认 `继续` = S3.18**：S3.17 多字节 compose + Windows PE 跑表已绿；下一刀拼完整 `.text` / 替换 Rust emit（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -559,7 +559,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.14** | ✅ 已本地提交 | 表 +MOVRR/+CMP（10 行/200B）；合成矩阵 ≡ `emit_x86` | commit `97e4f1a` · 解释器仍 Rust |
 | **S3.15** | ✅ 已本地提交 | YOYO 侧表解释器缺口盘点（仍 docs；解释器未迁出 Rust） | commit `22b90e0` · docs-only |
 | **S3.16** | ✅ 已本地提交 | YOYO 查表扫 DATA（LDB/CMP/JE）+ host sim；RET/NOP→首字节 ≡ emit | commit `8846054` |
-| **S3.17+** | ⏳ 未开始 | 真 PE 跑扫表 / 拼多字节 `.text` / 替换 Rust emit | 真自举长杆 |
+| **S3.17** | ✅ 已本地提交 | 多字节 MEMCPY compose + Windows VirtualAlloc PE 跑表；SET body ≡ emit | PLACEHOLDER_S317 |
+| **S3.18+** | ⏳ 未开始 | 拼完整 `.text` / 替换 Rust emit | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -758,6 +759,16 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | 诚实 | sim 验收（非 CreateProcess）；**未**替换 in-DLL Rust emit |
 
 **默认 `继续` = S3.17**。
+
+#### S3.17 — 多字节 compose + 真 PE 跑表（本步）
+
+| 项 | 决定 |
+|---|---|
+| 固件 | `s3_yoyo_table_compose.{ty,tyb}`：DATA 3 行（RET/NOP/SET）+ lea 种子 + 扫表 + MEMCPY_DATA→outbuf@0xC8 |
+| 验收 | host sim 多字节 ≡ emit 体；Windows `VirtualAlloc` 映射 slim PE 后 outbuf ≡ SET body / RET |
+| 诚实 | **未**替换 in-DLL Rust emit；OW-RT 仍 CUT |
+
+**默认 `继续` = S3.18**。
 
 ### 立项约束
 
@@ -1009,3 +1020,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S3.14）**：模板表 +MOVRR/+CMP（200B）· 默认 `继续`=**S3.15** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.15）**：YOYO 表解释器缺口盘点（docs）· 默认 `继续`=**S3.16** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.16）**：YOYO DATA 查表扫 + host sim GREEN · 默认 `继续`=**S3.17** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.17）**：多字节 compose + Windows PE 跑表 GREEN · 默认 `继续`=**S3.18** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**

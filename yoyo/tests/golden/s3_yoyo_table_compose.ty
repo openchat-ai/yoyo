@@ -1,0 +1,7 @@
+; S3.17 — YOYO table compose (DATA 3-row + MEMCPY_DATA → outbuf)
+; Sibling: s3_yoyo_table_compose.tyb (needle=RET 0xFF)
+; Honest: host sim + Windows VirtualAlloc PE run; does **not** replace in-DLL Rust emit.
+; OW-RT CUT.
+;
+; .data: 3×20B rows RET(C3), NOP(90), SET body (14B)
+; text: lea seeds ptr/dst; scan; MEMCPY_DATA → .data+0xC8

@@ -2782,4 +2782,296 @@ mod tests {
         assert_eq!(golden, s3_table_scan_tyb(0xFF));
         assert_eq!(s3_sim_table_scan(&golden), 0xC3);
     }
+
+    // ============= S3.17: multi-byte compose + Windows PE run =============
+
+    const S3_COMPOSE_SRC: u16 = 8;
+    const S3_COMPOSE_DST: u16 = 9;
+    /// .data offset for composed template bytes (beyond table + slot area).
+    const S3_OUTBUF_OFF: u32 = 0xC8; // 200
+
+    fn set_body_deadbeef() -> [u8; 14] {
+        [
+            0x48, 0xB8, 0xEF, 0xBE, 0xAD, 0xDE, 0, 0, 0, 0, 0x49, 0x89, 0x47, 0x00,
+        ]
+    }
+
+    fn pack_raw_recs(bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
+        let mut recs = Vec::new();
+        let mut i = 0;
+        while i < bytes.len() {
+            let n = (bytes.len() - i).min(3);
+            let mut a = [0u8; 6];
+            for k in 0..n {
+                a[k * 2] = bytes[i + k];
+            }
+            recs.push((0xA1, n as u8, a));
+            i += n;
+        }
+        recs
+    }
+
+    /// S3.17: 3-row table (RET/NOP/SET) + scan + MEMCPY_DATA → outbuf@.data+0xC8.
+    fn s3_table_compose_tyb(needle: u8) -> Vec<u8> {
+        let mut table = Vec::new();
+        table.extend_from_slice(&tmpl_row(0xFF, &[0xC3]));
+        table.extend_from_slice(&tmpl_row(0x00, &[0x90]));
+        table.extend_from_slice(&tmpl_row(0x30, &set_body_deadbeef()));
+        let mut recs = pack_data_recs(&table);
+        // lea rax,[r15]; mov [r15+15*8],rax  — scan ptr
+        recs.extend(pack_raw_recs(&[
+            0x49, 0x8D, 0x07, 0x49, 0x89, 0x47, 0x78,
+        ]));
+        // lea rax,[r15+0xC8]; mov [r15+9*8],rax  — compose dst
+        recs.extend(pack_raw_recs(&[
+            0x49, 0x8D, 0x87, 0xC8, 0x00, 0x00, 0x00, 0x49, 0x89, 0x47, 0x48,
+        ]));
+
+        let slot = |s: u16| s.to_le_bytes();
+        let set = |s: u16, imm: u32| {
+            let sb = slot(s);
+            let ib = imm.to_le_bytes();
+            (0x30u8, 2u8, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
+        };
+        let add = |s: u16, imm: u32| {
+            let sb = slot(s);
+            let ib = imm.to_le_bytes();
+            (0x62u8, 2u8, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
+        };
+        let p = slot(S3_SCAN_PTR);
+        let o = slot(S3_SCAN_OP);
+        let n = slot(S3_SCAN_NEEDLE);
+        let i = slot(S3_SCAN_I);
+        let nr = slot(S3_SCAN_NROWS);
+        let len = slot(S3_SCAN_OUT); // reuse OUT as len after found
+        let src = slot(S3_COMPOSE_SRC);
+        let dst = slot(S3_COMPOSE_DST);
+
+        recs.push(set(S3_SCAN_NEEDLE, needle as u32));
+        recs.push(set(S3_SCAN_I, 0));
+        recs.push(set(S3_SCAN_NROWS, 3));
+        recs.push((0x40, 1, [1, 0, 0, 0, 0, 0])); // loop
+        recs.push((0x80, 3, [o[0], o[1], p[0], p[1], 0, 0]));
+        recs.push((0x65, 2, [o[0], o[1], n[0], n[1], 0, 0]));
+        recs.push((0x71, 1, [2, 0, 0, 0, 0, 0])); // JE found
+        recs.push(add(S3_SCAN_PTR, 20));
+        recs.push(add(S3_SCAN_I, 1));
+        recs.push((0x65, 2, [i[0], i[1], nr[0], nr[1], 0, 0]));
+        recs.push((0x73, 1, [1, 0, 0, 0, 0, 0])); // JL loop
+        recs.push(set(S3_SCAN_OUT, 0xFE)); // miss status
+        recs.push((0xFF, 0, [0; 6]));
+        recs.push((0x40, 1, [2, 0, 0, 0, 0, 0])); // found
+        recs.push((0x80, 3, [len[0], len[1], p[0], p[1], 1, 0])); // LDB len
+        recs.push((0x64, 2, [src[0], src[1], p[0], p[1], 0, 0])); // MOVRR src,ptr
+        recs.push(add(S3_COMPOSE_SRC, 4)); // skip op/len/pad → bytes
+        recs.push((0x84, 3, [dst[0], dst[1], src[0], src[1], len[0], len[1]]));
+        recs.push((0xFF, 0, [0; 6]));
+        tyb_from_records(&recs)
+    }
+
+    /// Sim compose: returns Ok(payload) or Err(miss_code).
+    fn s3_sim_table_compose(tyb: &[u8]) -> Result<Vec<u8>, u8> {
+        let prog = parse_tyb(tyb).expect("parse");
+        let mut data = vec![0u8; 512];
+        let mut off = 0usize;
+        for rec in &prog.records {
+            if matches!(rec.op, 0x10 | 0x12 | 0x13) {
+                let b = arg_low_bytes(rec);
+                data[off..off + b.len()].copy_from_slice(&b);
+                off += b.len();
+            }
+        }
+        let mut state = [0u64; 16];
+        state[S3_SCAN_PTR as usize] = 0;
+        state[S3_COMPOSE_DST as usize] = S3_OUTBUF_OFF as u64;
+        let code: Vec<&TybRecord> = prog
+            .records
+            .iter()
+            .filter(|r| !matches!(r.op, 0x10 | 0x12 | 0x13 | 0xA1 | 0xA0))
+            .collect();
+        let mut labels = std::collections::HashMap::new();
+        for (i, rec) in code.iter().enumerate() {
+            if rec.op == 0x40 {
+                if let Some(id) = arg_u32(rec) {
+                    labels.insert(id, i);
+                }
+            }
+        }
+        let mut pc = 0usize;
+        let mut zf = false;
+        let mut sf = false;
+        let mut hit = false;
+        let mut steps = 0usize;
+        while pc < code.len() {
+            steps += 1;
+            assert!(steps < 10_000, "sim runaway");
+            let rec = code[pc];
+            match rec.op {
+                0x40 => pc += 1,
+                0x30 => {
+                    let (s, imm) = arg_slot_imm(rec).unwrap();
+                    state[s as usize] = imm as u64;
+                    pc += 1;
+                }
+                0x62 => {
+                    let (s, imm) = arg_slot_imm(rec).unwrap();
+                    state[s as usize] = state[s as usize].wrapping_add(imm as u64);
+                    pc += 1;
+                }
+                0x64 => {
+                    let (d, s) = arg_slot_slot(rec).unwrap();
+                    state[d as usize] = state[s as usize];
+                    pc += 1;
+                }
+                0x80 => {
+                    let (dd, ss, oo) = arg_slot3(rec).unwrap();
+                    let addr = state[ss as usize] as usize + oo as usize;
+                    state[dd as usize] = data[addr] as u64;
+                    pc += 1;
+                }
+                0x84 => {
+                    let (dst, src, n) = arg_slot3(rec).unwrap();
+                    let d = state[dst as usize] as usize;
+                    let s = state[src as usize] as usize;
+                    let n = state[n as usize] as usize;
+                    let tmp = data[s..s + n].to_vec();
+                    data[d..d + n].copy_from_slice(&tmp);
+                    hit = true;
+                    pc += 1;
+                }
+                0x65 => {
+                    let (a, b) = arg_slot_slot(rec).unwrap();
+                    let d = (state[a as usize] as i64).wrapping_sub(state[b as usize] as i64);
+                    zf = d == 0;
+                    sf = d < 0;
+                    pc += 1;
+                }
+                0x71 => {
+                    let id = arg_u32(rec).unwrap();
+                    if zf {
+                        pc = labels[&id];
+                    } else {
+                        pc += 1;
+                    }
+                }
+                0x73 => {
+                    let id = arg_u32(rec).unwrap();
+                    if sf {
+                        pc = labels[&id];
+                    } else {
+                        pc += 1;
+                    }
+                }
+                0xFF => break,
+                other => panic!("compose sim unsupported {other:#x}"),
+            }
+        }
+        if !hit {
+            return Err(state[S3_SCAN_OUT as usize] as u8);
+        }
+        let n = state[S3_SCAN_OUT as usize] as usize;
+        let base = S3_OUTBUF_OFF as usize;
+        Ok(data[base..base + n].to_vec())
+    }
+
+    #[test]
+    fn s3_yoyo_table_compose_sim_multibyte() {
+        let ret = s3_sim_table_compose(&s3_table_compose_tyb(0xFF)).expect("ret");
+        assert_eq!(ret, vec![0xC3]);
+        let nop = s3_sim_table_compose(&s3_table_compose_tyb(0x00)).expect("nop");
+        assert_eq!(nop, vec![0x90]);
+        let set = s3_sim_table_compose(&s3_table_compose_tyb(0x30)).expect("set");
+        assert_eq!(set.as_slice(), set_body_deadbeef().as_slice());
+        // full SET+RET ≡ emit_x86
+        let mut composed = set;
+        composed.push(0xC3);
+        let expect = emit_x86(&parse_tyb(&tyb_from_records(&[
+            (0x30, 2, [0, 0, 0xEF, 0xBE, 0xAD, 0xDE]),
+            (0xFF, 0, [0; 6]),
+        ]))
+        .unwrap())
+        .text;
+        assert_eq!(composed, expect);
+        assert_eq!(s3_sim_table_compose(&s3_table_compose_tyb(0xAB)), Err(0xFE));
+        assert!(compile_tyb_to_pe_mini(&s3_table_compose_tyb(0x30)).is_ok());
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../yoyo/tests/golden/s3_yoyo_table_compose.tyb");
+        let golden = std::fs::read(&path).expect("golden compose tyb");
+        assert_eq!(golden, s3_table_compose_tyb(0xFF));
+        assert_eq!(s3_sim_table_compose(&golden).unwrap(), vec![0xC3]);
+    }
+
+    /// Map slim PE RWX, call entry, read composed outbuf (Windows).
+    #[cfg(windows)]
+    fn s3_run_slim_pe_outbuf(pe: &[u8], len: usize) -> Vec<u8> {
+        use crate::pe_manual_map::{map_pe_sections, parse_pe64_headers};
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn VirtualAlloc(
+                lpAddress: *mut std::ffi::c_void,
+                dwSize: usize,
+                flAllocationType: u32,
+                flProtect: u32,
+            ) -> *mut std::ffi::c_void;
+            fn VirtualFree(lpAddress: *mut std::ffi::c_void, dwSize: usize, dwFreeType: u32)
+                -> i32;
+        }
+        const MEM_COMMIT: u32 = 0x1000;
+        const MEM_RESERVE: u32 = 0x2000;
+        const MEM_RELEASE: u32 = 0x8000;
+        const PAGE_EXECUTE_READWRITE: u32 = 0x40;
+
+        let headers = parse_pe64_headers(pe).expect("headers");
+        let staging = map_pe_sections(pe, &headers).expect("map");
+        // data RVA = .data VirtualAddress
+        let pe_off = u32::from_le_bytes(pe[0x3C..0x40].try_into().unwrap()) as usize;
+        let num_sec = u16::from_le_bytes(pe[pe_off + 6..pe_off + 8].try_into().unwrap()) as usize;
+        let opt_size = u16::from_le_bytes(pe[pe_off + 20..pe_off + 22].try_into().unwrap()) as usize;
+        let mut data_rva = 0u32;
+        for i in 0..num_sec {
+            let sh = pe_off + 24 + opt_size + i * 40;
+            if &pe[sh..sh + 5] == b".data" {
+                data_rva = u32::from_le_bytes(pe[sh + 12..sh + 16].try_into().unwrap());
+                break;
+            }
+        }
+        assert_ne!(data_rva, 0, ".data section");
+
+        let size = headers.size_of_image as usize;
+        let base = unsafe {
+            VirtualAlloc(
+                std::ptr::null_mut(),
+                size,
+                MEM_COMMIT | MEM_RESERVE,
+                PAGE_EXECUTE_READWRITE,
+            )
+        };
+        assert!(!base.is_null(), "VirtualAlloc");
+        unsafe {
+            std::ptr::copy_nonoverlapping(staging.as_ptr(), base as *mut u8, staging.len().min(size));
+            let entry = (base as usize + headers.entry_rva as usize) as *const ();
+            let f: extern "C" fn() = std::mem::transmute(entry);
+            f();
+            let out = std::slice::from_raw_parts(
+                (base as *const u8).add(data_rva as usize + S3_OUTBUF_OFF as usize),
+                len,
+            )
+            .to_vec();
+            VirtualFree(base, 0, MEM_RELEASE);
+            out
+        }
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn s3_yoyo_table_compose_runs_on_pe() {
+        let tyb = s3_table_compose_tyb(0x30);
+        let pe = compile_tyb_to_pe_mini(&tyb).expect("mini");
+        let got = s3_run_slim_pe_outbuf(&pe.bytes, 14);
+        assert_eq!(got.as_slice(), set_body_deadbeef().as_slice());
+        let tyb_ret = s3_table_compose_tyb(0xFF);
+        let pe_ret = compile_tyb_to_pe_mini(&tyb_ret).expect("mini ret");
+        let got_ret = s3_run_slim_pe_outbuf(&pe_ret.bytes, 1);
+        assert_eq!(got_ret, vec![0xC3]);
+    }
 }
