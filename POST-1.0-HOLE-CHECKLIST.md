@@ -562,7 +562,7 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.17** | ✅ 已本地提交 | 多字节 MEMCPY compose + Windows VirtualAlloc PE 跑表；SET body ≡ emit | commit `1f97ac5` |
 | **S3.18** | ✅ 已本地提交 | 双扫表拼完整 SET+RET `.text` ≡ emit；sim+PE GREEN | commit `244d11e` |
 | **S3.19** | ✅ 已本地提交 | 表@0x80 + 程序环扫表 compose；SET+RET/NOP+RET/RET ≡ emit | commit `a51179a` |
-| **S3.20** | ✅ 已本地提交 | host `try_emit/compile_via_yoyo_table` ≡ emit_x86（固定模板子集） | PLACEHOLDER_S320 |
+| **S3.20** | ✅ 已本地提交 | host `try_emit/compile_via_yoyo_table` ≡ emit_x86（固定模板子集） | commit `93b5954` |
 | **S3.21+** | ⏳ 未开始 | mini 默认优先表合成 / in-DLL 触点 / 替换 Rust emit | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
