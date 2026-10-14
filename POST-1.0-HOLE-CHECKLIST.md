@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.49**：S3.48 10 行 bake 全有 +RET 快路径；下一刀多记录通用环（**非**假 CLOSED）。
+**默认 `继续` = S3.50**：S3.49 ≥3 all-argc0 multi bake 环已绿；下一刀 mixed-argc 前缀 bake（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -591,7 +591,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.46** | ✅ 已本地提交 | in-DLL SUB0-5+RET bake 快路径；marker `yoyo_in_dll_s3_sub_ret_pilot` | commit `c2905f3` |
 | **S3.47** | ✅ 已本地提交 | in-DLL MOVRR dst1←src0+RET bake 快路径；marker `yoyo_in_dll_s3_movrr_ret_pilot` | commit `c03a2f7` |
 | **S3.48** | ✅ 已本地提交 | in-DLL CMP0,1+RET bake 快路径；10 行 bake 全消费；marker `yoyo_in_dll_s3_cmp_ret_pilot` | commit `1e7708a` |
-| **S3.49+** | ⏳ 未开始 | 多记录（>2）通用 bake 扫表环 | 真自举长杆 |
+| **S3.49** | ✅ 已本地提交 | ≥3 all-argc0 multi bake 扫表环；marker `yoyo_in_dll_s3_multi_bake` | commit `PLACEHOLDER_S349` |
+| **S3.50+** | ⏳ 未开始 | mixed-argc 多记录：argc0 前缀 bake 后回落 JE | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -1147,6 +1148,17 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 
 **默认 `继续` = S3.49**。
 
+#### S3.49 — ≥3 all-argc0 multi bake 扫表环（本步）
+
+| 项 | 决定 |
+|---|---|
+| 行为 | rec_cnt≥3 且全 argc0：逐记录扫 bake 表 `rep movsb`；否则回落 s1_loop |
+| 标记 | `.rdata` `yoyo_in_dll_s3_multi_bake` |
+| 验收 | sidecar NOP+NOP+RET → `90 90 C3` GREEN |
+| 诚实 | mixed-argc multi 仍整段 JE；OW-RT 仍 CUT |
+
+**默认 `继续` = S3.50**。
+
 ### 立项约束
 
 - 本路线**不是 post-v1.0 关洞的延续**，是**新主线**
@@ -1429,3 +1441,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S3.46）**：in-DLL SUB+RET bake 快路径 GREEN · 默认 `继续`=**S3.47** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.47）**：in-DLL MOVRR+RET bake 快路径 GREEN · 默认 `继续`=**S3.48** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.48）**：in-DLL CMP+RET bake；10 行全消费 GREEN · 默认 `继续`=**S3.49** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.49）**：≥3 all-argc0 multi bake 环 GREEN · 默认 `继续`=**S3.50** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
