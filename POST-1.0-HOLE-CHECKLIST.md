@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.16**：S3.15 解释器盘点已齐；下一刀最小 YOYO 查表 emit（**非**假 CLOSED）。
+**默认 `继续` = S3.17**：S3.16 YOYO 查表扫已绿（host sim）；下一刀真 PE 执行或拼多字节（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -558,7 +558,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.13** | ✅ 已本地提交 | DATA 128→**256**；表 +SUB/+DEC（8 行/160B） | commit `3bfc3c1` · 解释器仍 Rust |
 | **S3.14** | ✅ 已本地提交 | 表 +MOVRR/+CMP（10 行/200B）；合成矩阵 ≡ `emit_x86` | commit `97e4f1a` · 解释器仍 Rust |
 | **S3.15** | ✅ 已本地提交 | YOYO 侧表解释器缺口盘点（仍 docs；解释器未迁出 Rust） | commit `22b90e0` · docs-only |
-| **S3.16+** | ⏳ 未开始 | 最小 YOYO 查表 emit（读 DATA 表→拼 `.text`）或再扩 IMUL | 真自举长杆 |
+| **S3.16** | ✅ 已本地提交 | YOYO 查表扫 DATA（LDB/CMP/JE）+ host sim；RET/NOP→首字节 ≡ emit | commit `TBD` |
+| **S3.17+** | ⏳ 未开始 | 真 PE 跑扫表 / 拼多字节 `.text` / 替换 Rust emit | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -748,7 +749,15 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 
 **非目标**：控制流 rel32 模板、真 OS I/O、OW-RT CLOSED。
 
-**默认 `继续` = S3.16**。
+#### S3.16 — YOYO 查表扫（本步）
+
+| 项 | 决定 |
+|---|---|
+| 固件 | `s3_yoyo_table_scan.{ty,tyb}`：DATA 2 行 + lea 种子 + LDB/CMP/JE 环 |
+| 验收 | mini 编译；host sim OUT=`C3`/`90`/`FE`；golden ≡ builder |
+| 诚实 | sim 验收（非 CreateProcess）；**未**替换 in-DLL Rust emit |
+
+**默认 `继续` = S3.17**。
 
 ### 立项约束
 
@@ -999,3 +1008,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S3.13）**：DATA **256** + 表 SUB/DEC · 默认 `继续`=**S3.14** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.14）**：模板表 +MOVRR/+CMP（200B）· 默认 `继续`=**S3.15** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.15）**：YOYO 表解释器缺口盘点（docs）· 默认 `继续`=**S3.16** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.16）**：YOYO DATA 查表扫 + host sim GREEN · 默认 `继续`=**S3.17** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**

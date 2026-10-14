@@ -2576,4 +2576,210 @@ mod tests {
             assert_eq!(from_table, expect, "{name}");
         }
     }
+
+    // ============= S3.16: YOYO table-scan emit (LDB/CMP/JE over DATA) =============
+
+    const S3_SCAN_PTR: u16 = 15; // state[15] = offset into .data (sim) / abs ptr (PE)
+    const S3_SCAN_NEEDLE: u16 = 14;
+    const S3_SCAN_OP: u16 = 13;
+    const S3_SCAN_OUT: u16 = 12;
+    const S3_SCAN_I: u16 = 11;
+    const S3_SCAN_NROWS: u16 = 10;
+
+    fn pack_data_recs(bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
+        let mut recs = Vec::new();
+        let mut i = 0;
+        while i < bytes.len() {
+            let n = (bytes.len() - i).min(3);
+            let mut a = [0u8; 6];
+            for k in 0..n {
+                a[k * 2] = bytes[i + k];
+            }
+            recs.push((0x10, n as u8, a));
+            i += n;
+        }
+        recs
+    }
+
+    fn tmpl_row(op: u8, payload: &[u8]) -> [u8; 20] {
+        let mut r = [0u8; 20];
+        r[0] = op;
+        r[1] = payload.len() as u8;
+        r[4..4 + payload.len()].copy_from_slice(payload);
+        r
+    }
+
+    /// TYB: 2-row DATA table (RET, NOP) + scan loop → state[OUT]=first template byte.
+    fn s3_table_scan_tyb(needle: u8) -> Vec<u8> {
+        let mut table = Vec::new();
+        table.extend_from_slice(&tmpl_row(0xFF, &[0xC3]));
+        table.extend_from_slice(&tmpl_row(0x00, &[0x90]));
+        let mut recs = pack_data_recs(&table);
+        // lea rax,[r15]; mov [r15+15*8],rax — PE runtime ptr seed (sim seeds offset 0)
+        recs.push((0xA1, 3, [0x49, 0, 0x8D, 0, 0x07, 0]));
+        recs.push((0xA1, 3, [0x49, 0, 0x89, 0, 0x47, 0]));
+        recs.push((0xA1, 1, [0x78, 0, 0, 0, 0, 0])); // disp8=0x78 = slot15*8
+        let slot = |s: u16| s.to_le_bytes();
+        let set = |s: u16, imm: u32| {
+            let sb = slot(s);
+            let ib = imm.to_le_bytes();
+            (0x30u8, 2u8, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
+        };
+        let add = |s: u16, imm: u32| {
+            let sb = slot(s);
+            let ib = imm.to_le_bytes();
+            (0x62u8, 2u8, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
+        };
+        let p = slot(S3_SCAN_PTR);
+        let o = slot(S3_SCAN_OP);
+        let n = slot(S3_SCAN_NEEDLE);
+        let i = slot(S3_SCAN_I);
+        let nr = slot(S3_SCAN_NROWS);
+        let out = slot(S3_SCAN_OUT);
+        recs.push(set(S3_SCAN_NEEDLE, needle as u32));
+        recs.push(set(S3_SCAN_I, 0));
+        recs.push(set(S3_SCAN_NROWS, 2));
+        recs.push((0x40, 1, [1, 0, 0, 0, 0, 0])); // LABEL loop
+        recs.push((0x80, 3, [o[0], o[1], p[0], p[1], 0, 0])); // LDB op,[ptr]
+        recs.push((0x65, 2, [o[0], o[1], n[0], n[1], 0, 0])); // CMP op,needle
+        recs.push((0x71, 1, [2, 0, 0, 0, 0, 0])); // JE found
+        recs.push(add(S3_SCAN_PTR, 20));
+        recs.push(add(S3_SCAN_I, 1));
+        recs.push((0x65, 2, [i[0], i[1], nr[0], nr[1], 0, 0])); // CMP i,nrows
+        recs.push((0x73, 1, [1, 0, 0, 0, 0, 0])); // JL loop
+        recs.push(set(S3_SCAN_OUT, 0xFE)); // miss
+        recs.push((0xFF, 0, [0; 6]));
+        recs.push((0x40, 1, [2, 0, 0, 0, 0, 0])); // LABEL found
+        recs.push((0x80, 3, [out[0], out[1], p[0], p[1], 4, 0])); // LDB out,[ptr+4]
+        recs.push((0xFF, 0, [0; 6]));
+        tyb_from_records(&recs)
+    }
+
+    /// Host sim: DATA buffer + state[0..16]; ptr slots hold **offsets** into DATA.
+    /// RAW_BYTES/A1 ignored (PE lea); sim seeds ptr=0.
+    fn s3_sim_table_scan(tyb: &[u8]) -> u64 {
+        let prog = parse_tyb(tyb).expect("parse");
+        let mut data = Vec::new();
+        for rec in &prog.records {
+            if matches!(rec.op, 0x10 | 0x12 | 0x13) {
+                data.extend(arg_low_bytes(rec));
+            }
+        }
+        let mut state = [0u64; 16];
+        state[S3_SCAN_PTR as usize] = 0; // .data base offset
+        // Collect code records (skip DATA and RAW_BYTES)
+        let code: Vec<&TybRecord> = prog
+            .records
+            .iter()
+            .filter(|r| !matches!(r.op, 0x10 | 0x12 | 0x13 | 0xA1 | 0xA0))
+            .collect();
+        // Map label_id → index in code
+        let mut labels = std::collections::HashMap::new();
+        for (i, rec) in code.iter().enumerate() {
+            if rec.op == 0x40 {
+                if let Some(id) = arg_u32(rec) {
+                    labels.insert(id, i);
+                }
+            }
+        }
+        let mut pc = 0usize;
+        let mut zf = false;
+        let mut sf = false;
+        let mut steps = 0usize;
+        while pc < code.len() {
+            steps += 1;
+            assert!(steps < 10_000, "sim runaway");
+            let rec = code[pc];
+            match rec.op {
+                0x40 => {
+                    pc += 1;
+                } // LABEL
+                0x30 => {
+                    let (s, imm) = arg_slot_imm(rec).unwrap();
+                    state[s as usize] = imm as u64;
+                    pc += 1;
+                }
+                0x62 => {
+                    let (s, imm) = arg_slot_imm(rec).unwrap();
+                    state[s as usize] = state[s as usize].wrapping_add(imm as u64);
+                    pc += 1;
+                }
+                0x80 => {
+                    let (dd, ss, oo) = arg_slot3(rec).unwrap();
+                    let addr = state[ss as usize] as usize + oo as usize;
+                    state[dd as usize] = data[addr] as u64;
+                    pc += 1;
+                }
+                0x65 => {
+                    let (a, b) = arg_slot_slot(rec).unwrap();
+                    let va = state[a as usize] as i64;
+                    let vb = state[b as usize] as i64;
+                    let d = va.wrapping_sub(vb);
+                    zf = d == 0;
+                    sf = d < 0;
+                    pc += 1;
+                }
+                0x71 => {
+                    // JE
+                    let id = arg_u32(rec).unwrap();
+                    if zf {
+                        pc = labels[&id];
+                    } else {
+                        pc += 1;
+                    }
+                }
+                0x73 => {
+                    // JL (signed): SF != OF; for our non-neg small ints, SF means <
+                    let id = arg_u32(rec).unwrap();
+                    if sf {
+                        pc = labels[&id];
+                    } else {
+                        pc += 1;
+                    }
+                }
+                0xFF => break,
+                other => panic!("s3 sim unsupported op {other:#x}"),
+            }
+        }
+        state[S3_SCAN_OUT as usize]
+    }
+
+    #[test]
+    fn s3_yoyo_table_scan_compiles_mini() {
+        let tyb = s3_table_scan_tyb(0xFF);
+        let pe = compile_tyb_to_pe_mini(&tyb).expect("S3.16 scan firmware mini");
+        let host = emit_x86(&parse_tyb(&tyb).unwrap());
+        // lea rax,[r15] present
+        assert!(
+            host.text.windows(3).any(|w| w == [0x49, 0x8D, 0x07]),
+            "expected lea rax,[r15] seed"
+        );
+        let data = slim_pe_user_data(&pe.bytes, 40).expect("2 rows");
+        assert_eq!(&data[0..2], &[0xFF, 0x01]);
+        assert_eq!(data[4], 0xC3);
+    }
+
+    #[test]
+    fn s3_yoyo_table_scan_sim_ret_and_nop() {
+        // YOYO IR scan produces template first byte ≡ emit_x86 targets.
+        assert_eq!(s3_sim_table_scan(&s3_table_scan_tyb(0xFF)), 0xC3);
+        assert_eq!(s3_sim_table_scan(&s3_table_scan_tyb(0x00)), 0x90);
+        assert_eq!(s3_sim_table_scan(&s3_table_scan_tyb(0xAB)), 0xFE); // miss
+        // Match emit_x86(RET) / emit_x86(NOP;RET) first bytes
+        let ret_b = emit_x86(&parse_tyb(&tyb_from_records(&[(0xFF, 0, [0; 6])])).unwrap()).text;
+        assert_eq!(ret_b, vec![0xC3]);
+        let nop_b = emit_x86(&parse_tyb(&tyb_from_records(&[
+            (0x00, 0, [0; 6]),
+            (0xFF, 0, [0; 6]),
+        ]))
+        .unwrap())
+        .text;
+        assert_eq!(nop_b[0], 0x90);
+        // Golden fixture (needle=RET) matches builder
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../yoyo/tests/golden/s3_yoyo_table_scan.tyb");
+        let golden = std::fs::read(&path).expect("golden scan tyb");
+        assert_eq!(golden, s3_table_scan_tyb(0xFF));
+        assert_eq!(s3_sim_table_scan(&golden), 0xC3);
+    }
 }

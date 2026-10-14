@@ -1,0 +1,7 @@
+; S3.16 — YOYO table-scan emit (DATA table + LDB/CMP/JE)
+; Sibling: s3_yoyo_table_scan.tyb (needle=RET 0xFF)
+; Honest: scan/compose IR is YOYO; host sim accepts (PE lea seed).
+; Does **not** replace in-DLL Rust emit. OW-RT CUT.
+;
+; .data: 2×20B rows RET(C3), NOP(90)
+; text: lea rax,[r15]→slot15; loop LDB/CMP/JE; OUT=template[0] or 0xFE miss
