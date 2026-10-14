@@ -411,13 +411,11 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S1**：给 `pe_dll_link.rs` 里的 `yoyo_runtime_selfhost_main` 加入真正的 IR 解析逻辑，替换现在的 8 行查找表。
+**默认 `继续` = S2**：在 S1 mini 真实编译器切片之上，规划并补齐 **编译 runtime 效果所需的平台指令子集**（ALLOC/IO），再谈「用 H_00 IR 表达 runtime」。
 
-**规模**：几百行 Rust codegen（生成 x86 机器码的字节数组）
+**S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
-**验证**：跑 `stage17-ow-seed-no-rust-sidecar.ps1`，期望从 RED 变 GREEN。
-
-**风险**：即便做到 S1，sidecar 里的 codegen 还是 Rust codegen 写的——**还没自举**。但这是从"假"到"真"的第一步。
+**风险（诚实）**：S2 完成后 sidecar codegen **仍是 Rust 写的机器码**——真自举是 **S3**。OW-RT **仍 CUT** · `closed=0`。
 
 ### S1 子任务分解（进度跟踪）
 
@@ -444,7 +442,60 @@ Run `35553987325`（commit `146b58b`）：
 
 **S1 进度**：S1.1–S1.7.f 本地完成。mini-ISA 覆盖核心 codegen 切片（仍无 ALLOC/IO）。
 **诚实非 CLOSED**：ALLOC/LOAD_FILE/WRITE_FILE 未 port；非 TYB 仍 oracle；OW-RT **仍 CUT** · `closed=0`。
-**下一步 S2**：平台/runtime 路径规划（或诚实停在 S1 mini 切片）。
+**下一步 S2**：见下节。
+
+### S2 子任务分解（进度跟踪）
+
+**S2 立项定义**：sidecar 能编译表达「runtime 效果」所需的 H_00 指令子集（读输入 → 编译/变换 → 写输出），而非一次重写整个 Rust `yoyo-runtime`。
+
+| 子任务 | 状态 | 内容 | 备注 |
+|---|---|---|---|
+| **S2.1** | ✅ 已本地提交 | ISA 缺口盘点：S1 mini vs `isa_table` vs runtime 效果所需平台 ops | 本文档 · **无**加载器/手工映射改动 |
+| **S2.2** | ⏳ 未开始 | host `emit_x86` + mini validate：ALLOC(0x20) 语义（平台路径或诚实 stub 策略） | 依赖平台约定 |
+| **S2.3** | ⏳ 未开始 | LOAD_FILE(0x50) / WRITE_FILE(0x51) host+validate | 同左 |
+| **S2.4** | ⏳ 未开始 | in-DLL mini 对齐 S2.2–S2.3（或明确「平台 ops 仅 host」边界） | 栈/IAT 约束需另评 |
+| **S2.5** | ⏳ 未开始 | 最小 `.ty`/`.tyb`「runtime 效果」固件 + 验收脚本钩子 | 非 CLOSED |
+
+#### S2.1 — ISA 缺口盘点（本步）
+
+**A. S1 mini 已覆盖**（`is_s1_mini_op`，host↔in-DLL parity）
+
+| 类 | opcodes |
+|---|---|
+| 控制/字面 | `0x00` NOP · `0x30` SET · `0x40` LABEL · `0x41` CALL · `0x70` JMP · `0x71–0x7A` JCC · `0xA0` RAW_BYTE · `0xA1` RAW_BYTES · `0xFF` RET |
+| ALU | `0x60/64` GET/MOVRR · `0x61/62` SUB/ADD imm · `0x63` IMUL · `0x65` CMP · `0x66/67` INC/DEC · `0x68/69/6A` ADDV/ORV/SUBV |
+| 内存 | `0x80` LDB · `0x84` MEMCPY_DATA · `0x85` MEMCPY_STATE（**n≤4**） |
+| 数据段 | `0x10/12/13` DATA/STR/RAW（**合计 ≤64B**） |
+
+**B. `isa_table.txt` 有、S1 mini 未收**（S2 主缺口）
+
+| op | 名 | 为何挡 S2 |
+|---|---|---|
+| `0x20` | ALLOC | runtime 效果需要缓冲/堆语义；S1 中仍 NOP stub / mini **拒** |
+| `0x50` | LOAD_FILE | 读 `input.*` 的 IR 表达；S1 mini **拒** |
+| `0x51` | WRITE_FILE | 写 `output.exe` 的 IR 表达；S1 mini **拒** |
+
+**C. S1 软上限（非缺 opcode，但挡「大」程序）**
+
+| 限制 | 值 | 影响 |
+|---|---|---|
+| 代码缓冲 | 256B user `.text` | 复杂 runtime `.ty` 放不下 |
+| label/patch | 各 ≤16 | 大控制流 |
+| MEMCPY_STATE n | ≤4 | 大块状态拷贝 |
+| DATA 合计 | ≤64B | 大字符串表 |
+
+**D. 与 Rust `yoyo-runtime` 的诚实对照**
+
+今日生产 sidecar（Rust）做的是：读 cwd 输入 → `bootstrap_compile` → 写输出（exit 0/1/2/3）。  
+S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果契约**可用 H_00 IR +（扩展后的）codegen 子集表达并被 sidecar 路径编译。  
+完整「用 YOYO 写 codegen」属 **S3**。
+
+**E. S2.1 结论 → 推荐下一刀**
+
+1. **S2.2**：先定 ALLOC 的 host 语义（真平台调用 vs 继续 stub + 文档边界）  
+2. **S2.3**：LOAD_FILE / WRITE_FILE 同上  
+3. **S2.4**：再决定是否 port 进 in-DLL mini（IAT/栈成本高则可「仅 host」）  
+4. 验收保持 fail-closed；**禁止**宣称 OW-RT CLOSED
 
 ### 立项约束
 
@@ -675,3 +726,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-13 · + S1.7.d）**：前序见上 · mini-ISA +LDB/MEMCPY_DATA/MEMCPY_STATE(n≤4)（parity 26 行）· s1_ **63/63** · pe_dll_link **32/32** · **下一步 S1.7.e / S2** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S1.7.e）**：前序见上 · mini-ISA +DATA/STR/RAW→`.data`（≤64B；parity 28 行含 .data）· s1_ **65/65** · pe_dll_link **32/32** · **下一步 S1.7.f / S2** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S1.7.f）**：前序见上 · mini-ISA +RAW_BYTES（parity 29 行）· s1_ **66/66** · pe_dll_link **32/32** · **S1 mini 切片收口；下一步 S2** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S2.1）**：S1 已收口 · **S2.1** = ISA 缺口盘点（主缺口 ALLOC/LOAD_FILE/WRITE_FILE + S1 软上限）· 默认 `继续`=**S2.2** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
