@@ -929,8 +929,8 @@ pub fn is_s1_mini_op(op: u8) -> bool {
 pub const S1_MINI_MEMCPY_STATE_MAX_N: u16 = 4;
 
 /// In-DLL / mini host cap on aggregated DATA/STR/RAW bytes.
-/// S3.10: 64→128; S3.13: 128→256 (still fits in-DLL STACK 0x2D00).
-pub const S1_MINI_DATA_MAX: usize = 256;
+/// S3.10: 64→128; S3.13: 128→256; S3.25: 256→**384** (STACK 0x2E00).
+pub const S1_MINI_DATA_MAX: usize = 384;
 
 fn mini_slot_disp8_ok(slot: u16) -> bool {
     (slot as u32) * 8 < 0x80
@@ -1210,15 +1210,16 @@ pub fn parse_tyb_file(path: &Path) -> Result<TybProgram, ParseError> {
 // S3.20 — host emit path via YOYO table-compose (S3.19 firmware, host sim)
 // =============================================================================
 //
-// Supported template ops: RET/NOP/SET-DEADBEEF/GET(dst0←src1)/INC(slot0).
+// Supported: RET/NOP/SET-DEADBEEF/GET/INC/ADD(+5).
 // Does **not** replace in-DLL Rust dispatcher. OW-RT CUT.
 
-/// S3.24: 5×20B rows → table ends 0xE4; prog@0xE4; outbuf **0x100** (DATA cap).
-const S3_HOST_OUTBUF_OFF: u32 = 0x100;
+/// S3.25: 6×20B rows; prog@0xF8; outbuf **0x110** (DATA max 384).
+const S3_HOST_OUTBUF_OFF: u32 = 0x110;
 const S3_HOST_TABLE_OFF: u32 = 0x80;
-const S3_HOST_NROWS: u32 = 5;
-const S3_HOST_PROG_OFF: u32 = S3_HOST_TABLE_OFF + S3_HOST_NROWS * 20; // 0xE4
+const S3_HOST_NROWS: u32 = 6;
+const S3_HOST_PROG_OFF: u32 = S3_HOST_TABLE_OFF + S3_HOST_NROWS * 20; // 0xF8
 const S3_HOST_SET_DEADBEEF: u32 = 0xDEAD_BEEF;
+const S3_HOST_ADD_IMM: u32 = 5;
 
 fn s3_host_tyb_from_records(recs: &[(u8, u8, [u8; 6])]) -> Vec<u8> {
     let mut v = Vec::with_capacity(HEADER_SIZE + recs.len() * RECORD_SIZE);
@@ -1274,6 +1275,14 @@ fn s3_host_inc_body() -> [u8; 11] {
     ]
 }
 
+/// ADD slot0,+5 body (no RET): load; add rax,imm32; store.
+fn s3_host_add5_body() -> [u8; 15] {
+    [
+        0x49, 0x8B, 0x47, 0x00, 0x48, 0x81, 0xC0, 0x05, 0x00, 0x00, 0x00, 0x49, 0x89, 0x47,
+        0x00,
+    ]
+}
+
 /// Build program-loop firmware TYB for `ops`.
 fn s3_host_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
     let mut payload = vec![0u8; S3_HOST_TABLE_OFF as usize];
@@ -1282,6 +1291,7 @@ fn s3_host_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
     payload.extend_from_slice(&s3_host_tmpl_row(0x30, &s3_host_set_body()));
     payload.extend_from_slice(&s3_host_tmpl_row(0x60, &s3_host_get_body()));
     payload.extend_from_slice(&s3_host_tmpl_row(0x66, &s3_host_inc_body()));
+    payload.extend_from_slice(&s3_host_tmpl_row(0x62, &s3_host_add5_body()));
     debug_assert_eq!(payload.len(), S3_HOST_PROG_OFF as usize);
     payload.push(ops.len() as u8);
     payload.extend_from_slice(ops);
@@ -1302,11 +1312,11 @@ fn s3_host_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
             0x78,
         ],
     ));
-    // lea rax,[r15+0x100]; store dst slot9
+    // lea rax,[r15+0x110]; store dst slot9
     recs.extend(s3_host_pack_bytes(
         0xA1,
         &[
-            0x49, 0x8D, 0x87, 0x00, 0x01, 0x00, 0x00, 0x49, 0x89, 0x47, 0x48,
+            0x49, 0x8D, 0x87, 0x10, 0x01, 0x00, 0x00, 0x49, 0x89, 0x47, 0x48,
         ],
     ));
     let op0 = S3_HOST_PROG_OFF + 1;
@@ -1537,6 +1547,13 @@ pub fn fixed_template_ops(prog: &TybProgram) -> Option<Vec<u8>> {
                 }
                 ops.push(0x66);
             }
+            0x62 => {
+                let (slot, imm) = arg_slot_imm(rec)?;
+                if slot != 0 || imm != S3_HOST_ADD_IMM {
+                    return None;
+                }
+                ops.push(0x62);
+            }
             _ => return None,
         }
     }
@@ -1555,7 +1572,7 @@ pub fn try_emit_text_via_yoyo_table(ops: &[u8]) -> Option<Vec<u8>> {
     }
     if !ops
         .iter()
-        .all(|o| matches!(o, 0xFF | 0x00 | 0x30 | 0x60 | 0x66))
+        .all(|o| matches!(o, 0xFF | 0x00 | 0x30 | 0x60 | 0x66 | 0x62))
     {
         return None;
     }
@@ -2609,13 +2626,13 @@ mod tests {
 
     #[test]
     fn compile_tyb_to_pe_mini_rejects_data_over_cap() {
-        // S3.13: 86 × argc=3 = 258 > 256
-        let mut recs = vec![(0x10u8, 3u8, [1u8, 0, 2, 0, 3, 0]); 86];
+        // S3.25: 129 × argc=3 = 387 > 384
+        let mut recs = vec![(0x10u8, 3u8, [1u8, 0, 2, 0, 3, 0]); 129];
         recs.push((0xFF, 0, [0; 6]));
         let tyb = tyb_from_records(&recs);
         assert!(compile_tyb_to_pe_mini(&tyb).is_err());
-        // 44 × 3 = 132 OK under 256
-        let mut ok = vec![(0x10u8, 3u8, [1u8, 0, 2, 0, 3, 0]); 44];
+        // 128 × 3 = 384 OK under 384
+        let mut ok = vec![(0x10u8, 3u8, [1u8, 0, 2, 0, 3, 0]); 128];
         ok.push((0xFF, 0, [0; 6]));
         assert!(compile_tyb_to_pe_mini(&tyb_from_records(&ok)).is_ok());
     }
@@ -2784,9 +2801,9 @@ mod tests {
 
     #[test]
     fn s3_soft_caps_after_s313() {
-        // S3.7 code=512; S3.13 DATA=256.
+        // S3.7 code=512; S3.25 DATA=384.
         assert_eq!(S1_SLIM_MAX_CODE, 512);
-        assert_eq!(S1_MINI_DATA_MAX, 256);
+        assert_eq!(S1_MINI_DATA_MAX, 384);
     }
 
     // ============= S3.4: auto-pack RAW_BYTES meta-emit from emit_x86 =============
@@ -4025,6 +4042,10 @@ mod tests {
                 &[0x66, 0xFF],
                 &[(0x66, 1, [0, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])],
             ),
+            (
+                &[0x62, 0xFF],
+                &[(0x62, 2, [0, 0, 5, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
         ];
         for (ops, semantic) in cases {
             let via_yoyo = try_emit_text_via_yoyo_table(ops).expect("yoyo emit");
@@ -4038,9 +4059,9 @@ mod tests {
             assert_eq!(t_y, t_r, "PE user text ops={ops:?}");
             assert_eq!(fixed_template_ops(&parse_tyb(&tyb).unwrap()).unwrap(), *ops);
         }
-        // Outside subset → None (ADD imm not in table)
-        assert!(try_emit_text_via_yoyo_table(&[0x62, 0xFF]).is_none());
-        let other = tyb_from_records(&[(0x62, 2, [0, 0, 5, 0, 0, 0]), (0xFF, 0, [0; 6])]);
+        // Outside subset → None (DEC not in table)
+        assert!(try_emit_text_via_yoyo_table(&[0x67, 0xFF]).is_none());
+        let other = tyb_from_records(&[(0x67, 1, [0, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])]);
         assert!(try_compile_tyb_via_yoyo_table(&other).is_none());
         assert!(fixed_template_ops(&parse_tyb(&other).unwrap()).is_none());
     }
@@ -4062,13 +4083,13 @@ mod tests {
             slim_pe_user_text(&pe_mini.bytes, text.len()).unwrap(),
             text.as_slice()
         );
-        // Non-subset (ADD imm) still compiles via emit_x86 fallback
-        let add_ret = tyb_from_records(&[(0x62, 2, [0, 0, 5, 0, 0, 0]), (0xFF, 0, [0; 6])]);
-        assert!(try_compile_tyb_via_yoyo_table(&add_ret).is_none());
-        let pe_add = compile_tyb_to_pe_mini(&add_ret).expect("add fallback");
-        let expect = emit_x86(&parse_tyb(&add_ret).unwrap()).text;
+        // Non-subset (DEC) still compiles via emit_x86 fallback
+        let dec_ret = tyb_from_records(&[(0x67, 1, [0, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])]);
+        assert!(try_compile_tyb_via_yoyo_table(&dec_ret).is_none());
+        let pe_dec = compile_tyb_to_pe_mini(&dec_ret).expect("dec fallback");
+        let expect = emit_x86(&parse_tyb(&dec_ret).unwrap()).text;
         assert_eq!(
-            slim_pe_user_text(&pe_add.bytes, expect.len()).unwrap(),
+            slim_pe_user_text(&pe_dec.bytes, expect.len()).unwrap(),
             expect.as_slice()
         );
     }

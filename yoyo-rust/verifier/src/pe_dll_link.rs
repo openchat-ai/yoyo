@@ -846,10 +846,10 @@ const IN_DLL_S1_N_PATCHES_OFF: u32 = IN_DLL_S1_N_LABELS_OFF + 4;
 const IN_DLL_S1_DATA_LEN_OFF: u32 = IN_DLL_S1_N_LABELS_OFF + 8;
 const IN_DLL_S1_DATA_OFF: u32 = IN_DLL_S1_N_LABELS_OFF + 0x10;
 const IN_DLL_S1_DATA_CAP: u32 = crate::s1_tyb_parser::S1_MINI_DATA_MAX as u32;
-/// S3.10: 0x2C00→0x2D00 so data[128] fits after DATA_OFF.
-const IN_DLL_S1_STACK: u32 = 0x2D00;
+/// S3.10: 0x2C00→0x2D00 (data 128); S3.25: 0x2D00→**0x2E00** (data 384).
+const IN_DLL_S1_STACK: u32 = 0x2E00;
 
-/// Fail-closed layout math (S3.7 code/PE + S3.10 data cap).
+/// Fail-closed layout math (S3.7 code/PE + S3.25 data cap).
 const _: () = assert!(IN_DLL_S1_CODE_CAP == 512);
 const _: () = assert!(IN_DLL_S1_PE_OFF == 0x1280);
 const _: () = assert!(IN_DLL_S1_PE_SIZE == 0x1800);
@@ -857,8 +857,9 @@ const _: () = assert!(IN_DLL_S1_LABELS_OFF == 0x2A80);
 const _: () = assert!(IN_DLL_S1_PATCHES_OFF == 0x2B00);
 const _: () = assert!(IN_DLL_S1_N_LABELS_OFF == 0x2B80);
 const _: () = assert!(IN_DLL_S1_DATA_OFF == 0x2B90);
-const _: () = assert!(IN_DLL_S1_DATA_CAP == 256);
-const _: () = assert!(IN_DLL_S1_STACK == 0x2D00);
+const _: () = assert!(IN_DLL_S1_DATA_CAP == 384);
+const _: () = assert!(IN_DLL_S1_STACK == 0x2E00);
+const _: () = assert!(IN_DLL_S1_DATA_OFF + IN_DLL_S1_DATA_CAP <= IN_DLL_S1_STACK);
 const _: () = assert!(crate::s1_tyb_parser::S1_SLIM_DATA_PAYLOAD_OFF == 0x800);
 
 #[inline]
