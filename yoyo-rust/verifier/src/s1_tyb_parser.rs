@@ -3323,4 +3323,306 @@ mod tests {
         let got = s3_run_slim_pe_outbuf(&pe.bytes, expect.len());
         assert_eq!(got, expect);
     }
+
+    // ============= S3.19: general multi-op program loop =============
+
+    const S3_PROG_I: u16 = 0;
+    const S3_PROG_N: u16 = 1;
+    const S3_PROG_PTR: u16 = 2;
+    const S3_TABLE_BASE: u16 = 3;
+    /// Table relocated past slot area [0..0x80).
+    const S3_TABLE_OFF: u32 = 0x80;
+    /// Program: [n][op…] immediately after 3×20B table.
+    const S3_PROG_OFF: u32 = S3_TABLE_OFF + 60; // 0xBC
+
+    /// S3.19: DATA pad+table+program; outer loop loads needles; scan+MEMCPY each.
+    fn s3_table_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
+        assert!(!ops.is_empty() && ops.len() <= 8);
+        let mut payload = vec![0u8; S3_TABLE_OFF as usize];
+        payload.extend_from_slice(&tmpl_row(0xFF, &[0xC3]));
+        payload.extend_from_slice(&tmpl_row(0x00, &[0x90]));
+        payload.extend_from_slice(&tmpl_row(0x30, &set_body_deadbeef()));
+        assert_eq!(payload.len(), S3_PROG_OFF as usize);
+        payload.push(ops.len() as u8);
+        payload.extend_from_slice(ops);
+        // pad to outbuf so layout is stable (zeros)
+        while payload.len() < S3_OUTBUF_OFF as usize {
+            payload.push(0);
+        }
+        let mut recs = pack_data_recs(&payload);
+        // lea rax,[r15+0x80]; store table_base (slot3) + scan ptr (slot15)
+        recs.extend(pack_raw_recs(&[
+            0x49, 0x8D, 0x87, 0x80, 0x00, 0x00, 0x00, // lea rax,[r15+0x80]
+            0x49, 0x89, 0x47, 0x18, // mov [r15+3*8],rax
+            0x49, 0x89, 0x47, 0x78, // mov [r15+15*8],rax
+        ]));
+        // lea rax,[r15+0xC8]; store dst slot9
+        recs.extend(pack_raw_recs(S3_LEA_DST));
+        // lea rax,[r15+0xBD]; store prog_ptr slot2  (first op = PROG_OFF+1)
+        let op0 = S3_PROG_OFF + 1;
+        recs.extend(pack_raw_recs(&[
+            0x49, 0x8D, 0x87, // lea rax,[r15+disp32]
+            (op0 & 0xFF) as u8,
+            ((op0 >> 8) & 0xFF) as u8,
+            ((op0 >> 16) & 0xFF) as u8,
+            ((op0 >> 24) & 0xFF) as u8,
+            0x49, 0x89, 0x47, 0x10, // mov [r15+2*8],rax
+        ]));
+
+        let slot = |s: u16| s.to_le_bytes();
+        let set = |s: u16, imm: u32| {
+            let sb = slot(s);
+            let ib = imm.to_le_bytes();
+            (0x30u8, 2u8, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
+        };
+        let add = |s: u16, imm: u32| {
+            let sb = slot(s);
+            let ib = imm.to_le_bytes();
+            (0x62u8, 2u8, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
+        };
+        let p = slot(S3_SCAN_PTR);
+        let o = slot(S3_SCAN_OP);
+        let n = slot(S3_SCAN_NEEDLE);
+        let i = slot(S3_SCAN_I);
+        let nr = slot(S3_SCAN_NROWS);
+        let len = slot(S3_SCAN_OUT);
+        let src = slot(S3_COMPOSE_SRC);
+        let dst = slot(S3_COMPOSE_DST);
+        let pi = slot(S3_PROG_I);
+        let pn = slot(S3_PROG_N);
+        let pp = slot(S3_PROG_PTR);
+        let tb = slot(S3_TABLE_BASE);
+
+        // LDB prog_n from absolute/offset PROG_OFF — use ptr trick: SET tmp via
+        // lea already done for ops; load n from [r15+0xBC] via LDB with a ptr slot.
+        // Seed slot1 from DATA: use LDB with table_base-relative: easier SET from known.
+        // Program length is known at build time — SET prog_n = ops.len().
+        recs.push(set(S3_PROG_N, ops.len() as u32));
+        recs.push(set(S3_PROG_I, 0));
+
+        // LABEL outer=5
+        recs.push((0x40, 1, [5, 0, 0, 0, 0, 0]));
+        recs.push((0x65, 2, [pi[0], pi[1], pn[0], pn[1], 0, 0])); // CMP i,n
+        recs.push((0x74, 1, [6, 0, 0, 0, 0, 0])); // JGE done (0x74)
+        // needle = LDB [prog_ptr]
+        recs.push((0x80, 3, [n[0], n[1], pp[0], pp[1], 0, 0]));
+        // ptr = table_base
+        recs.push((0x64, 2, [p[0], p[1], tb[0], tb[1], 0, 0]));
+        recs.push(set(S3_SCAN_I, 0));
+        recs.push(set(S3_SCAN_NROWS, 3));
+        // LABEL scan=1
+        recs.push((0x40, 1, [1, 0, 0, 0, 0, 0]));
+        recs.push((0x80, 3, [o[0], o[1], p[0], p[1], 0, 0]));
+        recs.push((0x65, 2, [o[0], o[1], n[0], n[1], 0, 0]));
+        recs.push((0x71, 1, [2, 0, 0, 0, 0, 0])); // JE found
+        recs.push(add(S3_SCAN_PTR, 20));
+        recs.push(add(S3_SCAN_I, 1));
+        recs.push((0x65, 2, [i[0], i[1], nr[0], nr[1], 0, 0]));
+        recs.push((0x73, 1, [1, 0, 0, 0, 0, 0])); // JL scan
+        recs.push(set(S3_SCAN_OUT, 0xFE));
+        recs.push((0xFF, 0, [0; 6]));
+        // LABEL found=2
+        recs.push((0x40, 1, [2, 0, 0, 0, 0, 0]));
+        recs.push((0x80, 3, [len[0], len[1], p[0], p[1], 1, 0]));
+        recs.push((0x64, 2, [src[0], src[1], p[0], p[1], 0, 0]));
+        recs.push(add(S3_COMPOSE_SRC, 4));
+        recs.push((0x84, 3, [dst[0], dst[1], src[0], src[1], len[0], len[1]]));
+        recs.push((0x68, 2, [dst[0], dst[1], len[0], len[1], 0, 0])); // ADDV dst,len
+        recs.push(add(S3_PROG_PTR, 1));
+        recs.push(add(S3_PROG_I, 1));
+        recs.push((0x70, 1, [5, 0, 0, 0, 0, 0])); // JMP outer
+        // LABEL done=6
+        recs.push((0x40, 1, [6, 0, 0, 0, 0, 0]));
+        recs.push((0xFF, 0, [0; 6]));
+        tyb_from_records(&recs)
+    }
+
+    fn s3_sim_table_prog_loop(tyb: &[u8]) -> Result<Vec<u8>, u8> {
+        let prog = parse_tyb(tyb).expect("parse");
+        let mut data = vec![0u8; 512];
+        let mut off = 0usize;
+        for rec in &prog.records {
+            if matches!(rec.op, 0x10 | 0x12 | 0x13) {
+                let b = arg_low_bytes(rec);
+                data[off..off + b.len()].copy_from_slice(&b);
+                off += b.len();
+            }
+        }
+        let mut state = [0u64; 16];
+        // Seed mirrors RAW lea (sim uses offsets into data[])
+        state[S3_TABLE_BASE as usize] = S3_TABLE_OFF as u64;
+        state[S3_SCAN_PTR as usize] = S3_TABLE_OFF as u64;
+        state[S3_COMPOSE_DST as usize] = S3_OUTBUF_OFF as u64;
+        state[S3_PROG_PTR as usize] = (S3_PROG_OFF + 1) as u64;
+        let code: Vec<&TybRecord> = prog
+            .records
+            .iter()
+            .filter(|r| !matches!(r.op, 0x10 | 0x12 | 0x13 | 0xA1 | 0xA0))
+            .collect();
+        let mut labels = std::collections::HashMap::new();
+        for (i, rec) in code.iter().enumerate() {
+            if rec.op == 0x40 {
+                if let Some(id) = arg_u32(rec) {
+                    labels.insert(id, i);
+                }
+            }
+        }
+        let mut pc = 0usize;
+        let mut zf = false;
+        let mut sf = false;
+        let mut composed = 0usize;
+        let mut steps = 0usize;
+        while pc < code.len() {
+            steps += 1;
+            assert!(steps < 50_000, "sim runaway");
+            let rec = code[pc];
+            match rec.op {
+                0x40 => pc += 1,
+                0x30 => {
+                    let (s, imm) = arg_slot_imm(rec).unwrap();
+                    state[s as usize] = imm as u64;
+                    pc += 1;
+                }
+                0x62 => {
+                    let (s, imm) = arg_slot_imm(rec).unwrap();
+                    state[s as usize] = state[s as usize].wrapping_add(imm as u64);
+                    pc += 1;
+                }
+                0x64 => {
+                    let (d, s) = arg_slot_slot(rec).unwrap();
+                    state[d as usize] = state[s as usize];
+                    pc += 1;
+                }
+                0x68 => {
+                    let (d, s) = arg_slot_slot(rec).unwrap();
+                    state[d as usize] = state[d as usize].wrapping_add(state[s as usize]);
+                    pc += 1;
+                }
+                0x80 => {
+                    let (dd, ss, oo) = arg_slot3(rec).unwrap();
+                    let addr = state[ss as usize] as usize + oo as usize;
+                    state[dd as usize] = data[addr] as u64;
+                    pc += 1;
+                }
+                0x84 => {
+                    let (dst, src, n) = arg_slot3(rec).unwrap();
+                    let d = state[dst as usize] as usize;
+                    let s = state[src as usize] as usize;
+                    let n = state[n as usize] as usize;
+                    let tmp = data[s..s + n].to_vec();
+                    data[d..d + n].copy_from_slice(&tmp);
+                    composed += n;
+                    pc += 1;
+                }
+                0x65 => {
+                    let (a, b) = arg_slot_slot(rec).unwrap();
+                    let d = (state[a as usize] as i64).wrapping_sub(state[b as usize] as i64);
+                    zf = d == 0;
+                    sf = d < 0;
+                    pc += 1;
+                }
+                0x70 => {
+                    let id = arg_u32(rec).unwrap();
+                    pc = labels[&id];
+                }
+                0x71 => {
+                    let id = arg_u32(rec).unwrap();
+                    if zf {
+                        pc = labels[&id];
+                    } else {
+                        pc += 1;
+                    }
+                }
+                0x73 => {
+                    let id = arg_u32(rec).unwrap();
+                    if sf {
+                        pc = labels[&id];
+                    } else {
+                        pc += 1;
+                    }
+                }
+                0x74 => {
+                    // JGE: SF==0 (not less) — matches after CMP a,b when a>=b
+                    let id = arg_u32(rec).unwrap();
+                    if !sf {
+                        pc = labels[&id];
+                    } else {
+                        pc += 1;
+                    }
+                }
+                0xFF => {
+                    if composed == 0 {
+                        return Err(state[S3_SCAN_OUT as usize] as u8);
+                    }
+                    break;
+                }
+                other => panic!("prog-loop sim unsupported {other:#x}"),
+            }
+        }
+        if composed == 0 {
+            return Err(0xFE);
+        }
+        let base = S3_OUTBUF_OFF as usize;
+        Ok(data[base..base + composed].to_vec())
+    }
+
+    #[test]
+    fn s3_yoyo_table_prog_loop_sim() {
+        let set_ret = s3_table_prog_loop_tyb(&[0x30, 0xFF]);
+        if let Ok(out) = std::env::var("YOYO_S319_OUT") {
+            std::fs::write(&out, &set_ret).expect("dump");
+        }
+        let got = s3_sim_table_prog_loop(&set_ret).expect("set+ret");
+        let expect = emit_x86(
+            &parse_tyb(&tyb_from_records(&[
+                (0x30, 2, [0, 0, 0xEF, 0xBE, 0xAD, 0xDE]),
+                (0xFF, 0, [0; 6]),
+            ]))
+            .unwrap(),
+        )
+        .text;
+        assert_eq!(got, expect);
+
+        let nop_ret = s3_sim_table_prog_loop(&s3_table_prog_loop_tyb(&[0x00, 0xFF])).unwrap();
+        assert_eq!(
+            nop_ret,
+            emit_x86(
+                &parse_tyb(&tyb_from_records(&[
+                    (0x00, 0, [0; 6]),
+                    (0xFF, 0, [0; 6]),
+                ]))
+                .unwrap(),
+            )
+            .text
+        );
+
+        let ret_only = s3_sim_table_prog_loop(&s3_table_prog_loop_tyb(&[0xFF])).unwrap();
+        assert_eq!(ret_only, vec![0xC3]);
+
+        assert!(compile_tyb_to_pe_mini(&set_ret).is_ok());
+        let user = emit_x86(&parse_tyb(&set_ret).unwrap()).text;
+        assert!(user.len() <= S1_SLIM_MAX_CODE, "code {}", user.len());
+
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../yoyo/tests/golden/s3_yoyo_table_prog_loop.tyb");
+        let golden = std::fs::read(&path).expect("golden prog loop");
+        assert_eq!(golden, set_ret);
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn s3_yoyo_table_prog_loop_runs_on_pe() {
+        let tyb = s3_table_prog_loop_tyb(&[0x30, 0xFF]);
+        let pe = compile_tyb_to_pe_mini(&tyb).expect("mini");
+        let expect = emit_x86(
+            &parse_tyb(&tyb_from_records(&[
+                (0x30, 2, [0, 0, 0xEF, 0xBE, 0xAD, 0xDE]),
+                (0xFF, 0, [0; 6]),
+            ]))
+            .unwrap(),
+        )
+        .text;
+        let got = s3_run_slim_pe_outbuf(&pe.bytes, expect.len());
+        assert_eq!(got, expect);
+    }
 }

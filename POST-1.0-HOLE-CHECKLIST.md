@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.19**：S3.18 完整 SET+RET `.text` compose 已绿；下一刀通用多 op 程序环 / 替换 Rust emit（**非**假 CLOSED）。
+**默认 `继续` = S3.20**：S3.19 通用多 op 程序环已绿；下一刀接 host/in-DLL emit 路径 / 替换 Rust emit（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -561,7 +561,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.16** | ✅ 已本地提交 | YOYO 查表扫 DATA（LDB/CMP/JE）+ host sim；RET/NOP→首字节 ≡ emit | commit `8846054` |
 | **S3.17** | ✅ 已本地提交 | 多字节 MEMCPY compose + Windows VirtualAlloc PE 跑表；SET body ≡ emit | commit `1f97ac5` |
 | **S3.18** | ✅ 已本地提交 | 双扫表拼完整 SET+RET `.text` ≡ emit；sim+PE GREEN | commit `244d11e` |
-| **S3.19+** | ⏳ 未开始 | 通用多 op 程序环 / 替换 Rust emit | 真自举长杆 |
+| **S3.19** | ✅ 已本地提交 | 表@0x80 + 程序环扫表 compose；SET+RET/NOP+RET/RET ≡ emit | PLACEHOLDER_S319 |
+| **S3.20+** | ⏳ 未开始 | 接 host/in-DLL emit 路径 / 替换 Rust emit | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -780,6 +781,16 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | 诚实 | **未**替换 in-DLL Rust emit；OW-RT 仍 CUT |
 
 **默认 `继续` = S3.19**。
+
+#### S3.19 — 通用多 op 程序环（本步）
+
+| 项 | 决定 |
+|---|---|
+| 固件 | `s3_yoyo_table_prog_loop.{ty,tyb}`：表迁 `.data+0x80`；prog@0xBC；外环 LDB needle→扫表→MEMCPY |
+| 验收 | SET+RET / NOP+RET / RET ≡ `emit_x86`；sim + Windows PE |
+| 诚实 | **未**替换 in-DLL Rust emit；OW-RT 仍 CUT |
+
+**默认 `继续` = S3.20**。
 
 ### 立项约束
 
@@ -1033,3 +1044,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S3.16）**：YOYO DATA 查表扫 + host sim GREEN · 默认 `继续`=**S3.17** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.17）**：多字节 compose + Windows PE 跑表 GREEN · 默认 `继续`=**S3.18** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.18）**：完整 SET+RET `.text` compose GREEN · 默认 `继续`=**S3.19** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.19）**：通用多 op 程序环 compose GREEN · 默认 `继续`=**S3.20** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
