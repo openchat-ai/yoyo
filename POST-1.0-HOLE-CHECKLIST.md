@@ -560,7 +560,7 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.15** | ✅ 已本地提交 | YOYO 侧表解释器缺口盘点（仍 docs；解释器未迁出 Rust） | commit `22b90e0` · docs-only |
 | **S3.16** | ✅ 已本地提交 | YOYO 查表扫 DATA（LDB/CMP/JE）+ host sim；RET/NOP→首字节 ≡ emit | commit `8846054` |
 | **S3.17** | ✅ 已本地提交 | 多字节 MEMCPY compose + Windows VirtualAlloc PE 跑表；SET body ≡ emit | commit `1f97ac5` |
-| **S3.18** | ✅ 已本地提交 | 双扫表拼完整 SET+RET `.text` ≡ emit；sim+PE GREEN | PLACEHOLDER_S318 |
+| **S3.18** | ✅ 已本地提交 | 双扫表拼完整 SET+RET `.text` ≡ emit；sim+PE GREEN | commit `244d11e` |
 | **S3.19+** | ⏳ 未开始 | 通用多 op 程序环 / 替换 Rust emit | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
