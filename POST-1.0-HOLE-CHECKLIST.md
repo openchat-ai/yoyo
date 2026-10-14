@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.43**：S3.42 双记录 argc0 已扫 bake；下一刀扩 bake 行/带参匹配（**非**假 CLOSED）。
+**默认 `继续` = S3.44**：S3.43 bake 已 10 行≡host；下一刀带参模板快路径（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -585,7 +585,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.40** | ✅ 已本地提交 | GET/INC+RET 从 bake 取字节（rep movsb） | commit `2bcf38d` |
 | **S3.41** | ✅ 已本地提交 | 单记录 argc0：扫 bake 5 行按 op memcpy | commit `16f221c` |
 | **S3.42** | ✅ 已本地提交 | 双记录双 argc0：两次 bake 扫表 memcpy（NOP+RET） | commit `6d38e4c` |
-| **S3.43+** | ⏳ 未开始 | 扩 bake 行数 / 带参模板扫表匹配 | 真自举长杆 |
+| **S3.43** | ✅ 已本地提交 | bake 扩至 10 行≡host（+ADD/DEC/SUB/MOVRR/CMP） | commit `PLACEHOLDER_S343` |
+| **S3.44+** | ⏳ 未开始 | 带参模板快路径（DEC/ADD/…+RET） | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -1075,6 +1076,17 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 
 **默认 `继续` = S3.43**。
 
+#### S3.43 — bake 扩至 host 10 行（本步）
+
+| 项 | 决定 |
+|---|---|
+| 表 | 10×20B：原 5 行 + ADD5/DEC0/SUB5/MOVRR/CMP ≡ host `S3_HOST_NROWS` |
+| 扫表 | 单/双 argc0 扫描 `r9d=10` |
+| 验收 | bake blob 200B 在 DLL；既有快路径仍 GREEN |
+| 诚实 | 新行尚未有 in-DLL 快路径消费；OW-RT 仍 CUT |
+
+**默认 `继续` = S3.44**。
+
 ### 立项约束
 
 - 本路线**不是 post-v1.0 关洞的延续**，是**新主线**
@@ -1351,3 +1363,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S3.40）**：bake 驱动 GET/INC+RET GREEN · 默认 `继续`=**S3.41** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.41）**：单记录 argc0 bake 扫表 GREEN · 默认 `继续`=**S3.42** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.42）**：双记录 argc0 bake 扫表 GREEN · 默认 `继续`=**S3.43** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.43）**：bake 10 行≡host GREEN · 默认 `继续`=**S3.44** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**

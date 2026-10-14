@@ -28,8 +28,8 @@
 //! RAW_BYTES (argc≤3 → `.text`) + ALLOC/LOAD_FILE/WRITE_FILE **stub form**
 //! (argc=2, same encoding as SET; not real OS alloc/I/O).
 //! Non-TYB inputs still use the oracle table. Marker `yoyo_in_dll_s1_codegen`.
-//! Stage 17+ **S3.30–S3.42**: fixed-template fast-paths + `.rdata` 5-row bake.
-//! S3.41/42: argc0 single/dual bake scan; argful SET/GET/INC+RET still fixed-match.
+//! Stage 17+ **S3.30–S3.43**: fixed-template fast-paths + `.rdata` 10-row bake.
+//! S3.41/42: argc0 scan; S3.43: bake ≡ host 10-row subset; argful still fixed-match.
 //! GET/INC two-record still hard-coded imm loops — **not** OW-RT CLOSED.
 //! Honest: mini-ISA ≠ full YOYO compiler; production default remains Rust —
 //! **not** OW-RT CLOSED (see `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`).
@@ -865,7 +865,7 @@ fn s3_in_dll_bake_tmpl_row(op: u8, payload: &[u8]) -> [u8; 20] {
     r
 }
 
-/// S3.37: 5-row bake (RET/NOP/SET-DEADBEEF/GET0←1/INC0) ≡ host S3 fixed subset.
+/// S3.43: 10-row bake ≡ host `S3_HOST_NROWS` fixed-template subset.
 fn s3_in_dll_bake_table() -> Vec<u8> {
     let set_body: [u8; 14] = [
         0x48, 0xB8, 0xEF, 0xBE, 0xAD, 0xDE, 0, 0, 0, 0, 0x49, 0x89, 0x47, 0x00,
@@ -874,12 +874,31 @@ fn s3_in_dll_bake_table() -> Vec<u8> {
     let inc_body: [u8; 11] = [
         0x49, 0x8B, 0x47, 0x00, 0x48, 0xFF, 0xC0, 0x49, 0x89, 0x47, 0x00,
     ];
-    let mut v = Vec::with_capacity(5 * 20);
+    let add5_body: [u8; 15] = [
+        0x49, 0x8B, 0x47, 0x00, 0x48, 0x81, 0xC0, 0x05, 0, 0, 0, 0x49, 0x89, 0x47, 0x00,
+    ];
+    let dec_body: [u8; 11] = [
+        0x49, 0x8B, 0x47, 0x00, 0x48, 0xFF, 0xC8, 0x49, 0x89, 0x47, 0x00,
+    ];
+    let sub5_body: [u8; 15] = [
+        0x49, 0x8B, 0x47, 0x00, 0x48, 0x81, 0xE8, 0x05, 0, 0, 0, 0x49, 0x89, 0x47, 0x00,
+    ];
+    let movrr_body: [u8; 8] = [0x49, 0x8B, 0x47, 0x00, 0x49, 0x89, 0x47, 0x08];
+    let cmp_body: [u8; 11] = [
+        0x49, 0x8B, 0x47, 0x00, 0x49, 0x8B, 0x4F, 0x08, 0x48, 0x39, 0xC8,
+    ];
+    let mut v = Vec::with_capacity(10 * 20);
     v.extend_from_slice(&s3_in_dll_bake_tmpl_row(0xFF, &[0xC3]));
     v.extend_from_slice(&s3_in_dll_bake_tmpl_row(0x00, &[0x90]));
     v.extend_from_slice(&s3_in_dll_bake_tmpl_row(0x30, &set_body));
     v.extend_from_slice(&s3_in_dll_bake_tmpl_row(0x60, &get_body));
     v.extend_from_slice(&s3_in_dll_bake_tmpl_row(0x66, &inc_body));
+    v.extend_from_slice(&s3_in_dll_bake_tmpl_row(0x62, &add5_body));
+    v.extend_from_slice(&s3_in_dll_bake_tmpl_row(0x67, &dec_body));
+    v.extend_from_slice(&s3_in_dll_bake_tmpl_row(0x61, &sub5_body));
+    v.extend_from_slice(&s3_in_dll_bake_tmpl_row(0x64, &movrr_body));
+    v.extend_from_slice(&s3_in_dll_bake_tmpl_row(0x65, &cmp_body));
+    debug_assert_eq!(v.len(), 10 * 20);
     v
 }
 const _: () = assert!(IN_DLL_S1_PE_OFF == 0x1280);
@@ -1099,7 +1118,7 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
     let s3_inc_ret_marker_off = off;
     off += s3_inc_ret_marker.len() as u32;
     off = align_up(off, 16);
-    // S3.37: bake 5-row host-compatible template table (lookup wire-up = S3.38+).
+    // S3.43: bake 10-row host-compatible template table.
     let s3_bake_marker: &[u8] = b"yoyo_in_dll_s3_table_bake\0";
     let s3_bake_marker_off = off;
     off += s3_bake_marker.len() as u32;
@@ -1548,7 +1567,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // scan+emit rec0 op at [rcx]
     export_code.extend_from_slice(&[0x4C, 0x8D, 0x05, 0, 0, 0, 0]);
     rip_patches.push((export_code.len() - 4, s3_bake_table_off));
-    export_code.extend_from_slice(&[0x41, 0xB9, 0x05, 0x00, 0x00, 0x00]); // r9d=5
+    export_code.extend_from_slice(&[0x41, 0xB9, 0x0A, 0x00, 0x00, 0x00]); // r9d=10
     export_code.extend_from_slice(&[0x44, 0x8A, 0x11]); // r10b=[rcx]
     let s3_nr_scan0 = export_code.len();
     export_code.extend_from_slice(&[0x45, 0x38, 0x10]); // cmp [r8], r10b
@@ -1581,7 +1600,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x48, 0x8D, 0x4E, 0x08]); // lea rcx,[rsi+8]
     export_code.extend_from_slice(&[0x4C, 0x8D, 0x05, 0, 0, 0, 0]);
     rip_patches.push((export_code.len() - 4, s3_bake_table_off));
-    export_code.extend_from_slice(&[0x41, 0xB9, 0x05, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x41, 0xB9, 0x0A, 0x00, 0x00, 0x00]); // r9d=10
     export_code.extend_from_slice(&[0x44, 0x8A, 0x51, 0x08]); // r10b=[rcx+8]
     let s3_nr_scan1 = export_code.len();
     export_code.extend_from_slice(&[0x45, 0x38, 0x10]);
@@ -1745,10 +1764,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x80, 0x79, 0x01, 0x00]); // cmp byte [rcx+1], 0
     let s3_jne_loop_argc = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jne s1_loop
-    // lea r8,[rip+bake]; r9d=5; r10b=op
+    // lea r8,[rip+bake]; r9d=10; r10b=op
     export_code.extend_from_slice(&[0x4C, 0x8D, 0x05, 0, 0, 0, 0]);
     rip_patches.push((export_code.len() - 4, s3_bake_table_off));
-    export_code.extend_from_slice(&[0x41, 0xB9, 0x05, 0x00, 0x00, 0x00]); // mov r9d, 5
+    export_code.extend_from_slice(&[0x41, 0xB9, 0x0A, 0x00, 0x00, 0x00]); // mov r9d, 10
     export_code.extend_from_slice(&[0x44, 0x8A, 0x11]); // mov r10b, [rcx]
     let s3_scan_loop = export_code.len();
     export_code.extend_from_slice(&[0x45, 0x38, 0x10]); // cmp [r8], r10b
@@ -3842,17 +3861,22 @@ mod tests {
             ascii.contains("yoyo_in_dll_s3_table_bake"),
             "S3.37 template-table bake marker must be in .rdata"
         );
-        // S3.37: 5×20B rows start with RET/NOP/SET/GET/INC opcodes.
+        // S3.43: 10×20B rows ≡ host (RET/NOP/SET/GET/INC/ADD/DEC/SUB/MOVRR/CMP).
         let bake = s3_in_dll_bake_table();
-        assert_eq!(bake.len(), 100);
+        assert_eq!(bake.len(), 200);
         assert_eq!(bake[0], 0xFF);
         assert_eq!(bake[20], 0x00);
         assert_eq!(bake[40], 0x30);
         assert_eq!(bake[60], 0x60);
         assert_eq!(bake[80], 0x66);
+        assert_eq!(bake[100], 0x62);
+        assert_eq!(bake[120], 0x67);
+        assert_eq!(bake[140], 0x61);
+        assert_eq!(bake[160], 0x64);
+        assert_eq!(bake[180], 0x65);
         assert!(
             dll.windows(bake.len()).any(|w| w == bake.as_slice()),
-            "S3.37 bake table bytes must appear in DLL image"
+            "S3.43 bake table bytes must appear in DLL image"
         );
         // S3.30/31: cmp ebx,1 before JE dispatch (single-record fast-path).
         let s3_cmp_ebx1 = [0x83u8, 0xFB, 0x01];
