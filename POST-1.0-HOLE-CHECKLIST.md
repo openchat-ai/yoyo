@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S2**：在 S1 mini 真实编译器切片之上，规划并补齐 **编译 runtime 效果所需的平台指令子集**（ALLOC/IO），再谈「用 H_00 IR 表达 runtime」。
+**默认 `继续` = S3 首刀（规划）**：S2 stub 层已收口；下一步规划「用 H_00 IR 表达 codegen / runtime」真自举切片（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -453,8 +453,8 @@ Run `35553987325`（commit `146b58b`）：
 | **S2.1** | ✅ 已本地提交 | ISA 缺口盘点：S1 mini vs `isa_table` vs runtime 效果所需平台 ops | commit `9885ab5` · **无**加载器改动 |
 | **S2.2** | ✅ 已本地提交 | host `emit_x86` ALLOC = **StubPlatform 对齐**：`movabs rax,size`+`store_state`（记 size，非真堆）；mini/in-DLL **仍拒** | commit `94e12b7` · 真 OS 分配推后；in-DLL=S2.4 |
 | **S2.3** | ✅ 已本地提交 | host LOAD_FILE/WRITE_FILE = StubPlatform 对齐（`movabs` str_idx+store；sz 忽略）；mini **仍拒** | commit `e136f82` · 非真文件 I/O；in-DLL=S2.4 |
-| **S2.4** | ✅ 已本地提交 | in-DLL mini 对齐 stub：ALLOC/LOAD_FILE/WRITE_FILE argc=2 → 与 SET 同编码；parity +3 | commit `TBD` · **仍非**真 OS I/O |
-| **S2.5** | ⏳ 未开始 | 最小 `.ty`/`.tyb`「runtime 效果」固件 + 验收脚本钩子 | 非 CLOSED |
+| **S2.4** | ✅ 已本地提交 | in-DLL mini 对齐 stub：ALLOC/LOAD_FILE/WRITE_FILE argc=2 → 与 SET 同编码；parity +3 | commit `24b944c` · **仍非**真 OS I/O |
+| **S2.5** | ✅ 已本地提交 | 最小 runtime-效果 stub 固件 `.ty`/`.tyb` + `stage17-s2-runtime-effect.ps1` | commit `TBD` · **仍非**真 OS I/O · 非 CLOSED |
 
 #### S2.1 — ISA 缺口盘点（本步）
 
@@ -495,7 +495,7 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 1. ~~**S2.2**：ALLOC host 语义~~ → **已定**：StubPlatform 对齐（记 size 入 state）；非真堆；mini 仍拒  
 2. ~~**S2.3**：LOAD_FILE / WRITE_FILE~~ → **已定**：Stub 对齐（记 str_idx；非真 I/O）  
 3. ~~**S2.4**：in-DLL 对齐~~ → stub 已 port（=SET 编码；非真 I/O）  
-4. **S2.5**：最小 runtime-效果固件；验收 fail-closed；**禁止**宣称 OW-RT CLOSED
+4. ~~**S2.5**：最小 runtime-效果固件~~ → stub 固件 + 验收脚本 GREEN；**禁止**宣称 OW-RT CLOSED
 
 #### S2.2 — ALLOC host 策略
 
@@ -524,6 +524,18 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | WRITE argc=3 | mini **仍拒**（host emit 仍接受） |
 | 诚实边界 | **不是**真分配/读文件/写文件；只记 imm 入 state |
 | parity | +alloc_stub_ret / load_file_stub_ret / write_file_stub_ret |
+
+#### S2.5 — runtime-效果 stub 固件（本步）
+
+| 项 | 决定 |
+|---|---|
+| 固件 | `yoyo/tests/golden/s2_runtime_effect_stub.{ty,tyb}`：STR×2 + ALLOC + LOAD_FILE + WRITE_FILE + RET |
+| 验收 | `scripts/stage17-s2-runtime-effect.ps1` → `cargo test … s2_runtime_effect` |
+| 语义 | stub only（state 记 size/str_idx）；`.data`=`in\0out` |
+| 非目标 | 真 OS I/O、OW-RT CLOSED、S3 自举 |
+
+**S2 进度**：S2.1–S2.5 本地完成（平台 stub 子集 + 固件钩子）。默认 `继续`=**S3 规划/首刀**（另开）。
+**诚实**：真读输入/写输出仍缺 → OW-RT **仍 CUT** · `closed=0`。
 
 ### 立项约束
 
@@ -758,3 +770,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S2.2）**：ALLOC host = StubPlatform 对齐 stub（记 size）；mini/in-DLL 仍拒 · 默认 `继续`=**S2.3** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S2.3）**：LOAD_FILE/WRITE_FILE host = Stub 对齐（记 str_idx；非真 I/O）；mini 仍拒 · 默认 `继续`=**S2.4** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S2.4）**：平台 stub ops 已进 mini/in-DLL（=SET 编码；非真 I/O）· 默认 `继续`=**S2.5** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S2.5）**：runtime-效果 stub 固件 + `stage17-s2-runtime-effect.ps1` GREEN · **S2 收口（stub 层）** · 真 OS I/O / OW-RT CLOSED **未做** · 默认 `继续`=**S3 首刀（规划）** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**

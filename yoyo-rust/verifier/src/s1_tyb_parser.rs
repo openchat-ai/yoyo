@@ -2297,4 +2297,38 @@ mod tests {
             assert_eq!(got, host.text.as_slice(), "{name} user .text");
         }
     }
+
+    // ============= S2.5: runtime-effect stub firmware + acceptance =============
+
+    fn s2_runtime_effect_stub_tyb_path() -> std::path::PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../yoyo/tests/golden/s2_runtime_effect_stub.tyb")
+    }
+
+    #[test]
+    fn s2_runtime_effect_firmware_mini_compiles() {
+        let path = s2_runtime_effect_stub_tyb_path();
+        assert!(path.exists(), "missing firmware {}", path.display());
+        let tyb = std::fs::read(&path).expect("read s2 firmware tyb");
+        assert!(is_tyb(&tyb), "firmware must be TYB\\0");
+        let prog = parse_tyb(&tyb).expect("parse firmware");
+        assert_eq!(prog.rec_cnt, 6, "STR×2 + ALLOC + LOAD + WRITE + RET");
+        assert_eq!(prog.records[0].op, 0x12);
+        assert_eq!(prog.records[2].op, 0x20);
+        assert_eq!(prog.records[3].op, 0x50);
+        assert_eq!(prog.records[4].op, 0x51);
+        assert_eq!(prog.records[5].op, 0xFF);
+        let pe = compile_tyb_to_pe_mini(&tyb).expect("mini must accept stub firmware");
+        let host = emit_x86(&prog);
+        let got = slim_pe_user_text(&pe.bytes, host.text.len()).expect("user text");
+        assert_eq!(got, host.text.as_slice(), "mini PE user .text == emit_x86");
+        // .data = 'i','n',0,'o','u','t'
+        let data = slim_pe_user_data(&pe.bytes, 6).expect("user data");
+        assert_eq!(data, b"in\0out");
+    }
+
+    #[test]
+    fn s2_runtime_effect_firmware_full_host_compiles() {
+        let tyb = std::fs::read(s2_runtime_effect_stub_tyb_path()).expect("read");
+        assert!(compile_tyb_to_pe(&tyb).is_ok());
+    }
 }
