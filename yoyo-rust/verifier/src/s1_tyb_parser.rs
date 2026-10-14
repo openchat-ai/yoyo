@@ -2508,32 +2508,47 @@ mod tests {
             .join("../../yoyo/tests/golden/s3_opcode_template_table.tyb");
         let tyb = std::fs::read(&path).expect("read table tyb");
         let pe = compile_tyb_to_pe_mini(&tyb).expect("mini table");
-        let data = slim_pe_user_data(&pe.bytes, 60).expect("60B table");
+        let data = slim_pe_user_data(&pe.bytes, 100).expect("100B table");
         let table = parse_opcode_template_table(data);
-        assert_eq!(table.len(), 3);
+        assert_eq!(table.len(), 5);
         assert_eq!(lookup_template(&table, 0xFF), Some(&[0xC3][..]));
         assert_eq!(lookup_template(&table, 0x00), Some(&[0x90][..]));
-        // Compose NOP+RET from table ≡ emit_x86(NOP; RET)
-        let mut nop_ret = Vec::new();
-        nop_ret.extend_from_slice(lookup_template(&table, 0x00).unwrap());
-        nop_ret.extend_from_slice(lookup_template(&table, 0xFF).unwrap());
-        let expect_nr = emit_x86(&parse_tyb(&tyb_from_records(&[
-            (0x00, 0, [0; 6]),
-            (0xFF, 0, [0; 6]),
-        ]))
-        .unwrap())
-        .text;
-        assert_eq!(nop_ret, expect_nr);
-        // S3.9: SET body + RET ≡ emit_x86(SET; RET)
-        let mut set_ret = Vec::new();
-        set_ret.extend_from_slice(lookup_template(&table, 0x30).unwrap());
-        set_ret.extend_from_slice(lookup_template(&table, 0xFF).unwrap());
-        let expect_sr = emit_x86(&parse_tyb(&tyb_from_records(&[
-            (0x30, 2, [0, 0, 0xEF, 0xBE, 0xAD, 0xDE]),
-            (0xFF, 0, [0; 6]),
-        ]))
-        .unwrap())
-        .text;
-        assert_eq!(set_ret, expect_sr);
+
+        let compose = |ops: &[u8]| -> Vec<u8> {
+            let mut out = Vec::new();
+            for &op in ops {
+                out.extend_from_slice(lookup_template(&table, op).unwrap_or_else(|| panic!("missing {op:#x}")));
+            }
+            out
+        };
+        let cases: Vec<(&str, Vec<(u8, u8, [u8; 6])>, Vec<u8>)> = vec![
+            (
+                "nop_ret",
+                vec![(0x00, 0, [0; 6]), (0xFF, 0, [0; 6])],
+                compose(&[0x00, 0xFF]),
+            ),
+            (
+                "set_ret",
+                vec![
+                    (0x30, 2, [0, 0, 0xEF, 0xBE, 0xAD, 0xDE]),
+                    (0xFF, 0, [0; 6]),
+                ],
+                compose(&[0x30, 0xFF]),
+            ),
+            (
+                "get_ret",
+                vec![(0x60, 2, [0, 0, 1, 0, 0, 0]), (0xFF, 0, [0; 6])],
+                compose(&[0x60, 0xFF]),
+            ),
+            (
+                "inc_ret",
+                vec![(0x66, 1, [0, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])],
+                compose(&[0x66, 0xFF]),
+            ),
+        ];
+        for (name, semantic, from_table) in cases {
+            let expect = emit_x86(&parse_tyb(&tyb_from_records(&semantic)).unwrap()).text;
+            assert_eq!(from_table, expect, "{name}");
+        }
     }
 }
