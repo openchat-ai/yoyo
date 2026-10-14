@@ -1210,14 +1210,14 @@ pub fn parse_tyb_file(path: &Path) -> Result<TybProgram, ParseError> {
 // S3.20 — host emit path via YOYO table-compose (S3.19 firmware, host sim)
 // =============================================================================
 //
-// Supported template ops: RET(0xFF), NOP(0x00), SET slot0=DEADBEEF(0x30),
-// GET dst0←src1(0x60). Does **not** replace in-DLL Rust dispatcher. OW-RT CUT.
+// Supported template ops: RET/NOP/SET-DEADBEEF/GET(dst0←src1)/INC(slot0).
+// Does **not** replace in-DLL Rust dispatcher. OW-RT CUT.
 
-/// S3.23: 4×20B rows → table ends 0xD0; prog@0xD0; outbuf moved 0xC8→0xE0.
-const S3_HOST_OUTBUF_OFF: u32 = 0xE0;
+/// S3.24: 5×20B rows → table ends 0xE4; prog@0xE4; outbuf **0x100** (DATA cap).
+const S3_HOST_OUTBUF_OFF: u32 = 0x100;
 const S3_HOST_TABLE_OFF: u32 = 0x80;
-const S3_HOST_NROWS: u32 = 4;
-const S3_HOST_PROG_OFF: u32 = S3_HOST_TABLE_OFF + S3_HOST_NROWS * 20; // 0xD0
+const S3_HOST_NROWS: u32 = 5;
+const S3_HOST_PROG_OFF: u32 = S3_HOST_TABLE_OFF + S3_HOST_NROWS * 20; // 0xE4
 const S3_HOST_SET_DEADBEEF: u32 = 0xDEAD_BEEF;
 
 fn s3_host_tyb_from_records(recs: &[(u8, u8, [u8; 6])]) -> Vec<u8> {
@@ -1267,19 +1267,33 @@ fn s3_host_get_body() -> [u8; 8] {
     [0x49, 0x8B, 0x47, 0x08, 0x49, 0x89, 0x47, 0x00]
 }
 
-/// Build program-loop firmware TYB for `ops` (S3.19 layout; S3.23 +GET row).
+/// INC slot0 body (no RET): load; inc rax; store.
+fn s3_host_inc_body() -> [u8; 11] {
+    [
+        0x49, 0x8B, 0x47, 0x00, 0x48, 0xFF, 0xC0, 0x49, 0x89, 0x47, 0x00,
+    ]
+}
+
+/// Build program-loop firmware TYB for `ops`.
 fn s3_host_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
     let mut payload = vec![0u8; S3_HOST_TABLE_OFF as usize];
     payload.extend_from_slice(&s3_host_tmpl_row(0xFF, &[0xC3]));
     payload.extend_from_slice(&s3_host_tmpl_row(0x00, &[0x90]));
     payload.extend_from_slice(&s3_host_tmpl_row(0x30, &s3_host_set_body()));
     payload.extend_from_slice(&s3_host_tmpl_row(0x60, &s3_host_get_body()));
+    payload.extend_from_slice(&s3_host_tmpl_row(0x66, &s3_host_inc_body()));
     debug_assert_eq!(payload.len(), S3_HOST_PROG_OFF as usize);
     payload.push(ops.len() as u8);
     payload.extend_from_slice(ops);
     while payload.len() < S3_HOST_OUTBUF_OFF as usize {
         payload.push(0);
     }
+    assert!(
+        payload.len() <= S1_MINI_DATA_MAX,
+        "host table DATA {} > {}",
+        payload.len(),
+        S1_MINI_DATA_MAX
+    );
     let mut recs = s3_host_pack_bytes(0x10, &payload);
     recs.extend(s3_host_pack_bytes(
         0xA1,
@@ -1288,11 +1302,11 @@ fn s3_host_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
             0x78,
         ],
     ));
-    // lea rax,[r15+0xE0]; store dst slot9
+    // lea rax,[r15+0x100]; store dst slot9
     recs.extend(s3_host_pack_bytes(
         0xA1,
         &[
-            0x49, 0x8D, 0x87, 0xE0, 0x00, 0x00, 0x00, 0x49, 0x89, 0x47, 0x48,
+            0x49, 0x8D, 0x87, 0x00, 0x01, 0x00, 0x00, 0x49, 0x89, 0x47, 0x48,
         ],
     ));
     let op0 = S3_HOST_PROG_OFF + 1;
@@ -1496,7 +1510,7 @@ fn s3_host_sim_prog_loop(tyb: &[u8]) -> Result<Vec<u8>, u8> {
     Ok(data[base..base + composed].to_vec())
 }
 
-/// If `prog` is only RET / NOP / SET(slot0=DEADBEEF) / GET(dst0←src1), return ops.
+/// If `prog` is only fixed-template ops, return that op sequence.
 pub fn fixed_template_ops(prog: &TybProgram) -> Option<Vec<u8>> {
     let mut ops = Vec::new();
     for rec in &prog.records {
@@ -1516,6 +1530,13 @@ pub fn fixed_template_ops(prog: &TybProgram) -> Option<Vec<u8>> {
                 }
                 ops.push(0x60);
             }
+            0x66 => {
+                let slot = arg_u32(rec)? as u16;
+                if slot != 0 {
+                    return None;
+                }
+                ops.push(0x66);
+            }
             _ => return None,
         }
     }
@@ -1526,13 +1547,16 @@ pub fn fixed_template_ops(prog: &TybProgram) -> Option<Vec<u8>> {
     }
 }
 
-/// Host-side YOYO table compose → `.text` bytes (S3.19 firmware + sim).
+/// Host-side YOYO table compose → `.text` bytes.
 /// `None` if `ops` outside the fixed template subset.
 pub fn try_emit_text_via_yoyo_table(ops: &[u8]) -> Option<Vec<u8>> {
     if ops.is_empty() || ops.len() > 8 {
         return None;
     }
-    if !ops.iter().all(|o| matches!(o, 0xFF | 0x00 | 0x30 | 0x60)) {
+    if !ops
+        .iter()
+        .all(|o| matches!(o, 0xFF | 0x00 | 0x30 | 0x60 | 0x66))
+    {
         return None;
     }
     s3_host_sim_prog_loop(&s3_host_prog_loop_tyb(ops)).ok()
@@ -3996,6 +4020,10 @@ mod tests {
             (
                 &[0x60, 0xFF],
                 &[(0x60, 2, [0, 0, 1, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                &[0x66, 0xFF],
+                &[(0x66, 1, [0, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])],
             ),
         ];
         for (ops, semantic) in cases {
