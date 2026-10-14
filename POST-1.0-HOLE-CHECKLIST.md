@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.5**：S3.4 autopack 已绿；下一刀 in-DLL scratch 扩容或 DATA 表解释（**非**假 CLOSED）。
+**默认 `继续` = S3.6**：S3.5 触点盘点已齐；下一刀执行 scratch 256→512 **或** DATA 表解释（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -546,8 +546,9 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.1** | ✅ 已本地提交 | codegen 自举缺口盘点：Rust 表面 / 软上限 / 最小 meta-emit 切片 | commit `6466ca3` · docs-only · **无**假 CLOSED |
 | **S3.2** | ✅ 已本地提交 | 最小 meta-emit：YOYO RAW_BYTES 对 SET+RET 产出与 `emit_x86` byte-identical | commit `2818f6c` · 模板 dump · **非**真编译器 |
 | **S3.3** | ✅ 已本地提交 | meta-emit 矩阵（RET/NOP+RET/SET+RET）+ **软上限暂不提**（in-DLL scratch=256） | commit `9b4f04e` · 模板 dump |
-| **S3.4** | ✅ 已本地提交 | `pack_meta_emit_raw_bytes_tyb` 自 `emit_x86` 自动打包；GET+RET + 与手写 golden 一致 | commit `TBD` · 仍 Rust 辅助 |
-| **S3.5+** | ⏳ 未开始 | in-DLL scratch 扩容 / DATA 表驱动解释 / 替换 Rust emit | 真自举长杆 |
+| **S3.4** | ✅ 已本地提交 | `pack_meta_emit_raw_bytes_tyb` 自 `emit_x86` 自动打包；GET+RET + 与手写 golden 一致 | commit `b85d365` · 仍 Rust 辅助 |
+| **S3.5** | ✅ 已本地提交 | in-DLL scratch 扩容触点盘点（256→512 前必改清单） | commit `TBD` · docs-only · **暂不改码** |
+| **S3.6+** | ⏳ 未开始 | 执行 scratch 扩容 **或** DATA 表解释 / 替换 Rust emit | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -612,7 +613,34 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | 诚实 | 打包器仍是 **Rust**；YOYO 侧仍是模板载体，不是解释表的编译器 |
 | 下一步 | S3.5：in-DLL scratch 扩容 **或** DATA 表+宿主解释 |
 
-**默认 `继续` = S3.5**。
+#### S3.5 — in-DLL scratch 扩容触点盘点（本步 · docs-only）
+
+**目标候选**：code scratch 256→512，并同步 `S1_SLIM_MAX_CODE`。
+
+**当前栈布局**（`pe_dll_link` S1.5.b 注释）：
+
+| 区 | rsp 偏移 | 大小 | 备注 |
+|---|---|---|---|
+| input | `+0x60` | 4KiB | 不变 |
+| **code scratch** | `+0x1080` | **256** | `r12` cursor / `r13=r12+256` |
+| slim PE buf | `+0x1180` | `0x1600` | 紧接 code 末尾 |
+| labels[16] | `+0x2780` | 128 | ×8 |
+| patches[16] | `+0x2800` | 128 | ×8 |
+| n_labels/patches/data_len | `+0x2880` | — | |
+| `sub rsp` | `0x2800` | 帧 | 需复核扩容后是否够 |
+
+**256→512 必改触点（代码）**
+
+1. `add r13, 256` → `512`（约 L1388）
+2. PE buf 基址 `+0x1180` → `+0x1280`（memcpy template / write-back 多处 `lea …0x1180`）
+3. 注释与任何硬编码 `0x1180`/`256` 常量（含 `S1_SLIM_MAX_CODE`）
+4. 若 PE/label 区与 code 重叠风险：上移 labels/patches 或增大 `sub rsp`
+5. host `wrap_pe_slim` / `S1_SLIM_MAX_CODE` 同步；parity 重跑
+6. `shell_text` 填充长度（`S1_SLIM_MAX_CODE - 1`）随之变
+
+**非本步**：不改机器码（防半改导致 silent AV）；DATA 表解释另线。
+
+**推荐 S3.6**：先做 **常量抽取**（`IN_DLL_CODE_SCRATCH=256` / `IN_DLL_CODE_OFF` / `IN_DLL_PE_OFF`）再改数值并跑 `s1_host_in_dll` + `s3_`。
 
 ### 立项约束
 
@@ -852,3 +880,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S3.2）**：`s3_meta_emit_set_ret` RAW_BYTES ≡ `emit_x86(SET+RET)` · **模板 dump ≠ 真编译器** · 默认 `继续`=**S3.3** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.3）**：meta-emit 矩阵 RET/NOP+RET/SET+RET · 软上限 **保持 256/64**（in-DLL 硬编码）· 默认 `继续`=**S3.4** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.4）**：`pack_meta_emit_raw_bytes_tyb` autopack ≡ 手写 golden · GET+RET 覆盖 · 打包器仍 Rust · 默认 `继续`=**S3.5** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.5）**：in-DLL scratch 256→512 触点盘点（docs-only · 未改码）· 默认 `继续`=**S3.6**（常量抽取再扩容）· OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
