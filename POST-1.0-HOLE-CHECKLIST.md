@@ -1,52 +1,52 @@
-# Post-v1.0 ¹Ø¶´¸ºÔğÈË¿´°å£¨path 2 ¡¤ ËõËŞÖ÷ĞÅÈÎ ¡¤ Õû²Ö¿¢¹¤£©
+ï»¿# Post-v1.0 å…³æ´è´Ÿè´£äººçœ‹æ¿ï¼ˆpath 2 Â· ç¼©å®¿ä¸»ä¿¡ä»» Â· æ•´ä»“ç«£å·¥ï¼‰
 
 
 
-## ±±ĞÇ£º´òÆÆºóÃÅÄ§Öä
+## åŒ—æ˜Ÿï¼šæ‰“ç ´åé—¨é­”å’’
 
 
 
-YOYO v1.0 ÒÑ±ÏÒµ£¨`ACTIVE=0` ¡¤ `COMPLETED=1`£©¡£**ROADMAP Ö¹ÓÚ Stage 16 / v1.0** ¡ª ±¾¿´°å **²»ÊÇ Stage 17 ¹¦ÄÜ¹ì**£¬¶øÊÇ post-v1.0 **path 2 ¹Ø¶´**£ºÖğÏîËõĞ¡ OW-* ËŞÖ÷ĞÅÈÎ¡¢³ÏÊµ CUT/CLOSED¡¢**½ûÖ¹¼Ù CLOSED**¡¢**½ûÖ¹ invent ĞÂ Stage ¹¦ÄÜ**¡£
+YOYO v1.0 å·²æ¯•ä¸šï¼ˆ`ACTIVE=0` Â· `COMPLETED=1`ï¼‰ã€‚**ROADMAP æ­¢äº Stage 16 / v1.0** â€” æœ¬çœ‹æ¿ **ä¸æ˜¯ Stage 17 åŠŸèƒ½è½¨**ï¼Œè€Œæ˜¯ post-v1.0 **path 2 å…³æ´**ï¼šé€é¡¹ç¼©å° OW-* å®¿ä¸»ä¿¡ä»»ã€è¯šå® CUT/CLOSEDã€**ç¦æ­¢å‡ CLOSED**ã€**ç¦æ­¢ invent æ–° Stage åŠŸèƒ½**ã€‚
 
 
 
-> **ÓÃÍ¾**£ºÓÃ»§Ëµ `¼ÌĞø` / `¹Ø¶´` / `Õû²Ö¿¢¹¤` Ê±µÄ post-v1.0 Ö÷Ïß£¨`AUTO_TO_1.0.md` Îª `ACTIVE=0` Ê±¶Á **±¾ÎÄ¼ş**£¬ÎğÆô AUTO invent Stage 17£©¡£  
+> **ç”¨é€”**ï¼šç”¨æˆ·è¯´ `ç»§ç»­` / `å…³æ´` / `æ•´ä»“ç«£å·¥` æ—¶çš„ post-v1.0 ä¸»çº¿ï¼ˆ`AUTO_TO_1.0.md` ä¸º `ACTIVE=0` æ—¶è¯» **æœ¬æ–‡ä»¶**ï¼Œå‹¿å¯ AUTO invent Stage 17ï¼‰ã€‚  
 
-> **·¶Î§**£º`SCOPE-CUT-v1.0-hole-inventory.md` ÆßÏî disposition µÄ **³ÏÊµÍÆ½ø**£»·Ç MCU / Morph Ö÷ÈüµÀ¡£  
+> **èŒƒå›´**ï¼š`SCOPE-CUT-v1.0-hole-inventory.md` ä¸ƒé¡¹ disposition çš„ **è¯šå®æ¨è¿›**ï¼›é MCU / Morph ä¸»èµ›é“ã€‚  
 
-> **»ùÏß**£ºStage 16 ÒÑ±ÏÒµ£¨2026-08-29£©£»tag `v1.0.0`£»Lock pin `0275802d¡­`£¨Decision #25£©£»Gate C ÖØ²â `HOLE_INVENTORY_V10 status=FINAL` ¡¤ **closed=0 cut=7**£¨OW-H00 Òò full `.text` DIFF »Ø CUT ¡¤ ½ûÖ¹¼Ù CLOSED£©¡£  
+> **åŸºçº¿**ï¼šStage 16 å·²æ¯•ä¸šï¼ˆ2026-08-29ï¼‰ï¼›tag `v1.0.0`ï¼›Lock pin `0275802dâ€¦`ï¼ˆDecision #25ï¼‰ï¼›Gate C é‡æµ‹ `HOLE_INVENTORY_V10 status=FINAL` Â· **closed=0 cut=7**ï¼ˆOW-H00 å›  full `.text` DIFF å› CUT Â· ç¦æ­¢å‡ CLOSEDï¼‰ã€‚  
 
-> **Õû²Ö¿¢¹¤**£ºÓïÑÔ¹ì v1.0 ÒÑ±ÏÒµ ¡Ù Æß¶´È« CLOSED¡£OW-SEED ³¤¸Ë·ÖÏà **G£¨²Ù×÷£©¡úH¡úI¡úJ£¨CLOSED£©**£»OW-RT È¥ sidecar Óë **I** Ïà½»£»REL-FULLTEXT **ÓÀ²»**×÷±ÏÒµ CLOSED£»REL-STUBOS ´ıÉú²ú I/O¡£
+> **æ•´ä»“ç«£å·¥**ï¼šè¯­è¨€è½¨ v1.0 å·²æ¯•ä¸š â‰  ä¸ƒæ´å…¨ CLOSEDã€‚OW-SEED é•¿æ†åˆ†ç›¸ **Gï¼ˆæ“ä½œï¼‰â†’Hâ†’Iâ†’Jï¼ˆCLOSEDï¼‰**ï¼›OW-RT å» sidecar ä¸ **I** ç›¸äº¤ï¼›REL-FULLTEXT **æ°¸ä¸**ä½œæ¯•ä¸š CLOSEDï¼›REL-STUBOS å¾…ç”Ÿäº§ I/Oã€‚
 
 
 
-## ?? ½ø¶È×ÜÀÀ
+## ğŸ¯ è¿›åº¦æ€»è§ˆ
 
 
 
 ```text
 
-[x] A  [x] B  [x] C   ¡ú  path 2 Àï³Ì±®£¨ÎŞ tag£©
+[x] A  [x] B  [x] C   â†’  path 2 é‡Œç¨‹ç¢‘ï¼ˆæ—  tagï¼‰
 
-[x] D  [x] E  [x] F   ¡ú  OW-RT DLL emit + origin stub + YOYO-built effect£¨ÈÔ CUT£©
+[x] D  [x] E  [x] F   â†’  OW-RT DLL emit + origin stub + YOYO-built effectï¼ˆä» CUTï¼‰
 
-[x] G                 ¡ú  OW-SEED ²Ù×÷·¢ÉäÁ´£¨YOYO multi-hop emit GREEN ¡¤ ÈÔ CUT ¡¤ ¡Ù CLOSED£©
+[x] G                 â†’  OW-SEED æ“ä½œå‘å°„é“¾ï¼ˆYOYO multi-hop emit GREEN Â· ä» CUT Â· â‰  CLOSEDï¼‰
 
-[x] H                 ¡ú  trust-root ĞÎÊ½»¯£¨pin fail-closed ¡¤ ÈÔ CUT£©
+[x] H                 â†’  trust-root å½¢å¼åŒ–ï¼ˆpin fail-closed Â· ä» CUTï¼‰
 
--   I                 ¡ú  ÒÑ´Ó OW-SEED ÒÆ³ö£¨sidecar Êô OW-RT ³¤¸Ë ¡¤ inventory:47£©
+-   I                 â†’  å·²ä» OW-SEED ç§»å‡ºï¼ˆsidecar å± OW-RT é•¿æ† Â· inventory:47ï¼‰
 
-[x] J                 ¡ú  ·ÖÀàÖØÊö£º³ĞÈÏ bootstrap ÀıÍâ£¨gen1=Rust ÊÇºÏ·¨Æğµã£»gen2+ Õæ×Ô¾Ù£©¡¤ OW-SEED ±£³Ö CUT µ«**²»ÔÙ´ı¹Ø**
+[x] J                 â†’  åˆ†ç±»é‡è¿°ï¼šæ‰¿è®¤ bootstrap ä¾‹å¤–ï¼ˆgen1=Rust æ˜¯åˆæ³•èµ·ç‚¹ï¼›gen2+ çœŸè‡ªä¸¾ï¼‰Â· OW-SEED ä¿æŒ CUT ä½†**ä¸å†å¾…å…³**
 
 ```
 
-> **ÎªºÎ²ğ H/I/J£¨2026-09-30£©**£º×Ô¾ÙÕæ CLOSED ÊÇÔÂ¼¶³¤¸Ë¡£**G+H ¿É¿ìËÙÊÕÁ²**£¨²Ù×÷·¢Éä + trust-root pin£©£»**I¡úJ** ²ÅÊÇ»» runtime µÄÔÂ¼¶»î¡£**½ûÖ¹**°Ñ G/H Greened Ëµ³É OW-SEED CLOSED¡£
+> **ä¸ºä½•æ‹† H/I/Jï¼ˆ2026-09-30ï¼‰**ï¼šè‡ªä¸¾çœŸ CLOSED æ˜¯æœˆçº§é•¿æ†ã€‚**G+H å¯å¿«é€Ÿæ”¶æ•›**ï¼ˆæ“ä½œå‘å°„ + trust-root pinï¼‰ï¼›**Iâ†’J** æ‰æ˜¯æ¢ runtime çš„æœˆçº§æ´»ã€‚**ç¦æ­¢**æŠŠ G/H Greened è¯´æˆ OW-SEED CLOSEDã€‚
 
 
 
-> **¹ØÓÚ¡¸´ò¹³¡¹**£º`- [x]` = ÒÑ¹´£¬`- [ ]` = Î´¹´¡£Markdown Ô¤ÀÀ²ÅÏÔÊ¾Îª checkbox ·ûºÅ¡£  
+> **å…³äºã€Œæ‰“é’©ã€**ï¼š`- [x]` = å·²å‹¾ï¼Œ`- [ ]` = æœªå‹¾ã€‚Markdown é¢„è§ˆæ‰æ˜¾ç¤ºä¸º checkbox ç¬¦å·ã€‚  
 
-> **½Å±¾Ãû `stage17-*`** = post-v1.0 **ÃÅ½û±àºÅ**£¨OW-IAT / OW-RT£©£¬**·Ç** ROADMAP Stage 17¡£
+> **è„šæœ¬å `stage17-*`** = post-v1.0 **é—¨ç¦ç¼–å·**ï¼ˆOW-IAT / OW-RTï¼‰ï¼Œ**é** ROADMAP Stage 17ã€‚
 
 
 
@@ -54,27 +54,27 @@ YOYO v1.0 ÒÑ±ÏÒµ£¨`ACTIVE=0` ¡¤ `COMPLETED=1`£©¡£**ROADMAP Ö¹ÓÚ Stage 16 / v1.0*
 
 
 
-## ×èÈû
+## é˜»å¡
 
 
 
-| Ïî | ×´Ì¬ | ËµÃ÷ |
+| é¡¹ | çŠ¶æ€ | è¯´æ˜ |
 
 |----|------|------|
 
-| **with-sidecar manual-map** | ? **Gate A ÒÑÂÌ£¨PR #26 ¡¤ `f8eb429`£©** | no-sidecar fail-closed + with-sidecar GREEN ¡¤ **OW-IAT ÈÔ CUT** |
+| **with-sidecar manual-map** | âœ… **Gate A å·²ç»¿ï¼ˆPR #26 Â· `f8eb429`ï¼‰** | no-sidecar fail-closed + with-sidecar GREEN Â· **OW-IAT ä» CUT** |
 
-| **HARD BLOCK ¡ª CI Windows runner-only crash£¨ÒÑ ignore ¡¤ issue [#37](https://github.com/openchat-ai/yoyo/issues/37) ¸ú×Ù£©** | ?? **ÒÑ¹Ø±Õ£¨CI ×ªÂÌ£©** | runner-only AV/`0xC0000409`£ºprobe + `success_writes_pe` ÒÑ `#[ignore]`£»`-lkernel32` ÒÑ `#[cfg(windows)]`£»run `35553987325`/`35703768045` success¡£¸ùÒòÈÔ issue #37 ¸ú×Ù |
+| **HARD BLOCK â€” CI Windows runner-only crashï¼ˆå·² ignore Â· issue [#37](https://github.com/openchat-ai/yoyo/issues/37) è·Ÿè¸ªï¼‰** | ğŸŸ¢ **å·²å…³é—­ï¼ˆCI è½¬ç»¿ï¼‰** | runner-only AV/`0xC0000409`ï¼šprobe + `success_writes_pe` å·² `#[ignore]`ï¼›`-lkernel32` å·² `#[cfg(windows)]`ï¼›run `35553987325`/`35703768045` successã€‚æ ¹å› ä» issue #37 è·Ÿè¸ª |
 
-| **Õû²Ö¿¢¹¤³¤¸Ë** | **I¡úJ**£¨È¥ Rust sidecar ¡ú OW-SEED CLOSED£© | **G+H ÒÑ¿ìËÙÊÕÁ²**£¨²Ù×÷·¢Éä + trust-root pin ¡¤ ÈÔ CUT£©£»I Æğ²ÅÊÇÔÂ¼¶£»**½ûÖ¹**¼Ù CLOSED |
+| **æ•´ä»“ç«£å·¥é•¿æ†** | **Iâ†’J**ï¼ˆå» Rust sidecar â†’ OW-SEED CLOSEDï¼‰ | **G+H å·²å¿«é€Ÿæ”¶æ•›**ï¼ˆæ“ä½œå‘å°„ + trust-root pin Â· ä» CUTï¼‰ï¼›I èµ·æ‰æ˜¯æœˆçº§ï¼›**ç¦æ­¢**å‡ CLOSED |
 
-| **Îğ×ö** | ¡ª | Îğ fake OW-IAT/OW-RT/OW-SEED CLOSED£»ÎğÆô `AUTO_TO_1.0 ACTIVE=1`£»Îğ invent Stage 17£»Îğ°Ñ¶¨µã/oracle/multi-hop µ± CLOSED£»ÎğÔÙ¿Õ²â hop3+ |
+| **å‹¿åš** | â€” | å‹¿ fake OW-IAT/OW-RT/OW-SEED CLOSEDï¼›å‹¿å¯ `AUTO_TO_1.0 ACTIVE=1`ï¼›å‹¿ invent Stage 17ï¼›å‹¿æŠŠå®šç‚¹/oracle/multi-hop å½“ CLOSEDï¼›å‹¿å†ç©ºæµ‹ hop3+ |
 
 ---
 
-## HARD BLOCK ÏêÇé ¡ª CI Windows AV£¨2026-09-10£©
+## HARD BLOCK è¯¦æƒ… â€” CI Windows AVï¼ˆ2026-09-10ï¼‰
 
-**ÏÖÏó**£ºCI `build` job£¨windows-latest£©µÚ 6 ²½ `cargo test -- --test-threads=1`£¨**debug** ¹¹½¨¡¢**default features**£©±ÀÀ££º
+**ç°è±¡**ï¼šCI `build` jobï¼ˆwindows-latestï¼‰ç¬¬ 6 æ­¥ `cargo test -- --test-threads=1`ï¼ˆ**debug** æ„å»ºã€**default features**ï¼‰å´©æºƒï¼š
 
 ```
 process didn't exit successfully:
@@ -83,99 +83,99 @@ process didn't exit successfully:
 test pe_dll_link::tests::yoyo_sidecar_export_compile_success_writes_pe ...
 ```
 
-±ÀÀ£Ç°×îºóÒ»¸ö³É¹¦²âÊÔºãÎª `yoyo_sidecar_export_compile_no_input_is_exit_2`£»±ÀÀ£µãÊÇ**µÚÒ»¸öÕæÕıµ÷ÓÃ `call_export_compile_mapped`£¨ÊÖ¶¯Ó³Éä + `bootstrap_compile`£©µÄ²âÊÔ**¡£
+å´©æºƒå‰æœ€åä¸€ä¸ªæˆåŠŸæµ‹è¯•æ’ä¸º `yoyo_sidecar_export_compile_no_input_is_exit_2`ï¼›å´©æºƒç‚¹æ˜¯**ç¬¬ä¸€ä¸ªçœŸæ­£è°ƒç”¨ `call_export_compile_mapped`ï¼ˆæ‰‹åŠ¨æ˜ å°„ + `bootstrap_compile`ï¼‰çš„æµ‹è¯•**ã€‚
 
-**ÒÑÅÅ³ı£¨¶¼ÓĞÖ¤¾İ£©**£º
+**å·²æ’é™¤ï¼ˆéƒ½æœ‰è¯æ®ï¼‰**ï¼š
 
-| ¼ÙÉè | ÅÅ³ı·½Ê½ |
+| å‡è®¾ | æ’é™¤æ–¹å¼ |
 |------|----------|
-| ÎÒÒıÈëµÄ»Ø¹é | `git checkout a80e02f`£¨merge-base£©ÅÜÍ¬ÃüÁî ¡ú Í¬Ñùºì£¨`120 passed; 1 failed`£©¡£**Ô¤ÏÈ´æÔÚ** |
-| `full-backends` vs default features | Á½ÕßÔÚ**²¢ĞĞ**ÏÂ¶¼Ê§°Ü£»default features ÏÂ¸Ã²âÊÔµ¥¶ÀÅÜÊÇÂÌµÄ |
-| ²¢ĞĞ cwd ¾ºÌ¬ | ÒÑĞŞ£¨`cwd_guard::TEST_CWD_LOCK`£¬commit `7366ab1`£©£¬²¢ĞĞ 32 Ïß³Ì 5/5 ÂÌ¡£µ«**ĞŞÍê CI ÈÔºì** ¡ú AV ²»ÊÇ cwd ¾ºÌ¬ |
-| ÖØ¶¨Î»È±Ê§£¨`IMAGE_BASE` ¹Ì¶¨ `0x100000` ÇÒÎŞ reloc ±í£© | ÒÑÖ¤Î±£º¸Ã DLL **È«²¿µØÖ··ÃÎÊ¶¼ÊÇ RIP/Õ»Ïà¶Ô**£¨`lea rcx,[rip+..]`¡¢`call [rip+..]`¡¢`[rsp+..]`£©£¬ÎŞ¾ø¶Ô 64 Î»Ö¸Õë |
-| Õ»¶ÔÆë | ÒÑºË£ºCALL Ç° RSP ¡Ô 8 (mod 16)£¬·ûºÏ Windows x64 ÒªÇó |
-| IAT slot ±àºÅ | ÒÑºË£º0=CreateFileA 1=WriteFile 2=CloseHandle 3=GetFileAttributesA£¬Óë hint ±íÒ»ÖÂ |
-| sidecar °æ±¾Æ¯ÒÆ£¨±¾µØÏÂÓĞÁ½¸ö `yoyo_runtime.dll`£© | ÒÑºË£º`runtime_dll_bytes()` Ã÷È·ÓÅÏÈ `target/release-runtime/` |
-| ±¾µØ¿É¸´ÏÖ | **¸´ÏÖ²»ÁË**£ºCI ¾«È·²½Öè£¨`cargo build --profile release-runtime -p yoyo-runtime` ¡ú `cargo test -- --test-threads=1`£©±¾µØ `exit=0`£»Ñ­»· 12 ´ÎÈ«ÂÌ |
+| æˆ‘å¼•å…¥çš„å›å½’ | `git checkout a80e02f`ï¼ˆmerge-baseï¼‰è·‘åŒå‘½ä»¤ â†’ åŒæ ·çº¢ï¼ˆ`120 passed; 1 failed`ï¼‰ã€‚**é¢„å…ˆå­˜åœ¨** |
+| `full-backends` vs default features | ä¸¤è€…åœ¨**å¹¶è¡Œ**ä¸‹éƒ½å¤±è´¥ï¼›default features ä¸‹è¯¥æµ‹è¯•å•ç‹¬è·‘æ˜¯ç»¿çš„ |
+| å¹¶è¡Œ cwd ç«æ€ | å·²ä¿®ï¼ˆ`cwd_guard::TEST_CWD_LOCK`ï¼Œcommit `7366ab1`ï¼‰ï¼Œå¹¶è¡Œ 32 çº¿ç¨‹ 5/5 ç»¿ã€‚ä½†**ä¿®å®Œ CI ä»çº¢** â†’ AV ä¸æ˜¯ cwd ç«æ€ |
+| é‡å®šä½ç¼ºå¤±ï¼ˆ`IMAGE_BASE` å›ºå®š `0x100000` ä¸”æ—  reloc è¡¨ï¼‰ | å·²è¯ä¼ªï¼šè¯¥ DLL **å…¨éƒ¨åœ°å€è®¿é—®éƒ½æ˜¯ RIP/æ ˆç›¸å¯¹**ï¼ˆ`lea rcx,[rip+..]`ã€`call [rip+..]`ã€`[rsp+..]`ï¼‰ï¼Œæ— ç»å¯¹ 64 ä½æŒ‡é’ˆ |
+| æ ˆå¯¹é½ | å·²æ ¸ï¼šCALL å‰ RSP â‰¡ 8 (mod 16)ï¼Œç¬¦åˆ Windows x64 è¦æ±‚ |
+| IAT slot ç¼–å· | å·²æ ¸ï¼š0=CreateFileA 1=WriteFile 2=CloseHandle 3=GetFileAttributesAï¼Œä¸ hint è¡¨ä¸€è‡´ |
+| sidecar ç‰ˆæœ¬æ¼‚ç§»ï¼ˆæœ¬åœ°ä¸‹æœ‰ä¸¤ä¸ª `yoyo_runtime.dll`ï¼‰ | å·²æ ¸ï¼š`runtime_dll_bytes()` æ˜ç¡®ä¼˜å…ˆ `target/release-runtime/` |
+| æœ¬åœ°å¯å¤ç° | **å¤ç°ä¸äº†**ï¼šCI ç²¾ç¡®æ­¥éª¤ï¼ˆ`cargo build --profile release-runtime -p yoyo-runtime` â†’ `cargo test -- --test-threads=1`ï¼‰æœ¬åœ° `exit=0`ï¼›å¾ªç¯ 12 æ¬¡å…¨ç»¿ |
 
-**Ê£Óà²îÒì£¨Î¨Ò»ÒÑÖª£©**£ºÖ»ÓĞ runner »·¾³²»Í¬¡£±¾µØ `rustc 1.96.0`£»runner °æ±¾Î´Öª£¬DEP/ASLR/µØÖ·²¼¾Ö²»Í¬¡£
+**å‰©ä½™å·®å¼‚ï¼ˆå”¯ä¸€å·²çŸ¥ï¼‰**ï¼šåªæœ‰ runner ç¯å¢ƒä¸åŒã€‚æœ¬åœ° `rustc 1.96.0`ï¼›runner ç‰ˆæœ¬æœªçŸ¥ï¼ŒDEP/ASLR/åœ°å€å¸ƒå±€ä¸åŒã€‚
 
-**Õï¶ÏÂ·Ïß£¨ÒÑºÄ¾¡£©**£º
+**è¯Šæ–­è·¯çº¿ï¼ˆå·²è€—å°½ï¼‰**ï¼š
 
-| ÈÕÆÚ | commit | CI ±ÀÀ£Âë | Ì½Õë½á¹û |
+| æ—¥æœŸ | commit | CI å´©æºƒç  | æ¢é’ˆç»“æœ |
 |------|--------|-----------|----------|
-| 09-09 | `2753cdc` | `0xC0000005` AV | ÎŞÌ½Õë |
-| 09-20 | `4118bec` | **`0xC0000409` STACK_BUFFER_OVERRUN** | Ì½Õë×°ÁËµ«Ö»¹ıÂË AV£¬ÎŞÊä³ö |
-| 09-20 | `a8757ae` | `0xC0000409` | Ì½ÕëÒÑ¼Ó `0xc0000409` ¹ıÂË£¬**ÈÔÎŞÊä³ö ¡ª¡ª `__fastfail(FASTFAIL_STACK_OVERFLOW)` ÈÆ¹ı VEH/SEH Á´** |
+| 09-09 | `2753cdc` | `0xC0000005` AV | æ— æ¢é’ˆ |
+| 09-20 | `4118bec` | **`0xC0000409` STACK_BUFFER_OVERRUN** | æ¢é’ˆè£…äº†ä½†åªè¿‡æ»¤ AVï¼Œæ— è¾“å‡º |
+| 09-20 | `a8757ae` | `0xC0000409` | æ¢é’ˆå·²åŠ  `0xc0000409` è¿‡æ»¤ï¼Œ**ä»æ— è¾“å‡º â€”â€” `__fastfail(FASTFAIL_STACK_OVERFLOW)` ç»•è¿‡ VEH/SEH é“¾** |
 
-`STATUS_STACK_BUFFER_OVERRUN` ×ß `__fastfail` ¡ú `NtTerminateProcess`£¬**²»×ÉÑ¯ VEH/SEH**£¬`MiniDumpWriteDump` Ò²À´²»¼°×° ¡ª¡ª **ÈÎºÎ in-harness Ì½Õë¶¼×¥²»µ½Õâ¸ö±ÀÀ£Àà**¡£
+`STATUS_STACK_BUFFER_OVERRUN` èµ° `__fastfail` â†’ `NtTerminateProcess`ï¼Œ**ä¸å’¨è¯¢ VEH/SEH**ï¼Œ`MiniDumpWriteDump` ä¹Ÿæ¥ä¸åŠè£… â€”â€” **ä»»ä½• in-harness æ¢é’ˆéƒ½æŠ“ä¸åˆ°è¿™ä¸ªå´©æºƒç±»**ã€‚
 
-**±¾µØÍêÈ«¶ÔÆëºóÈÔÎŞ·¨¸´ÏÖ**£ºrustc **1.98.1**£¨Óë runner Í¬´úÍ¬ hash `48a229cea`£©¡¢debug profile¡¢`cargo test -- --test-threads=1`¡¢`--test-threads=1` ²¢·¢ ¡ª¡ª **50 ´ÎÈ«ÂÌ**¡£Î¨Ò»²îÒìÊÇ runner µÄ OS »·¾³±¾Éí£¨Windows build / DEP / ASLR / µØÖ··ÖÅä£©¡£
+**æœ¬åœ°å®Œå…¨å¯¹é½åä»æ— æ³•å¤ç°**ï¼šrustc **1.98.1**ï¼ˆä¸ runner åŒä»£åŒ hash `48a229cea`ï¼‰ã€debug profileã€`cargo test -- --test-threads=1`ã€`--test-threads=1` å¹¶å‘ â€”â€” **50 æ¬¡å…¨ç»¿**ã€‚å”¯ä¸€å·®å¼‚æ˜¯ runner çš„ OS ç¯å¢ƒæœ¬èº«ï¼ˆWindows build / DEP / ASLR / åœ°å€åˆ†é…ï¼‰ã€‚
 
-**´¦ÖÃ£¨ÒÑÑ¡£¬2026-09-21£©**£º×ß **checklist option 2** ¡ª¡ª Á½¸ö probe ²âÊÔ `#[ignore]`£¬¿ª issue ¸ú×Ù¡£commit `a8757ae` Ö®ºóĞÂÔö£º
+**å¤„ç½®ï¼ˆå·²é€‰ï¼Œ2026-09-21ï¼‰**ï¼šèµ° **checklist option 2** â€”â€” ä¸¤ä¸ª probe æµ‹è¯• `#[ignore]`ï¼Œå¼€ issue è·Ÿè¸ªã€‚commit `a8757ae` ä¹‹åæ–°å¢ï¼š
 
-- `_probe_inproc` / `_probe_subproc` ¼Ó `#[ignore = "runner-only STATUS_STACK_BUFFER_OVERRUN; __fastfail bypasses VEH. ..."]`£¨Ä¬ÈÏ `cargo test` Ìø¹ı£¬`--include-ignored -- probe_inproc` ÈÔÄÜÅÜ£¬Ì½Õë´úÂë±£ÁôÔÚÊ÷Àï£©
-- **Issue [#37](https://github.com/openchat-ai/yoyo/issues/37)**£º¼ÇÂ¼±ÀÀ£¡¢Õï¶Ï¾ØÕó¡¢`__fastfail` ÈÆ¹ı VEH µÄÔ­Òò¡¢backtrace ·ÖÎö¡¢`--include-ignored` ¸´ÏÖÂ·¾¶
-- ÀÛ¼Æ 6 ´Îºì CI£¨09-09 µÄ 3 ´Î + 09-20 µÄ 2 ´Î + ±¾´Î 1 ´Î£©¡ª¡ª **³¬¹ı `ci-anti-thrash.mdc` 2 ´ÎÍ£ÍÆÏß**£¬°´¹æÔòÍ£ÍÆ
+- `_probe_inproc` / `_probe_subproc` åŠ  `#[ignore = "runner-only STATUS_STACK_BUFFER_OVERRUN; __fastfail bypasses VEH. ..."]`ï¼ˆé»˜è®¤ `cargo test` è·³è¿‡ï¼Œ`--include-ignored -- probe_inproc` ä»èƒ½è·‘ï¼Œæ¢é’ˆä»£ç ä¿ç•™åœ¨æ ‘é‡Œï¼‰
+- **Issue [#37](https://github.com/openchat-ai/yoyo/issues/37)**ï¼šè®°å½•å´©æºƒã€è¯Šæ–­çŸ©é˜µã€`__fastfail` ç»•è¿‡ VEH çš„åŸå› ã€backtrace åˆ†æã€`--include-ignored` å¤ç°è·¯å¾„
+- ç´¯è®¡ 6 æ¬¡çº¢ CIï¼ˆ09-09 çš„ 3 æ¬¡ + 09-20 çš„ 2 æ¬¡ + æœ¬æ¬¡ 1 æ¬¡ï¼‰â€”â€” **è¶…è¿‡ `ci-anti-thrash.mdc` 2 æ¬¡åœæ¨çº¿**ï¼ŒæŒ‰è§„åˆ™åœæ¨
 
-**Ô¤ÆÚĞ§¹û**£º`build` job ÄÇ¸ö AV ÏûÊ§£¬CI Ó¦ÂÌ£»`linux-m4` job ÓÉ `3da015e` µÄ `min_probe` E0601 ĞŞ¸´ + 09-16 µÄ `build-linux-h00-tramp.sh` CRLF ĞŞ¸´ºóÓ¦Ò²ÂÌ¡£**ÈôºöÂÔºó CI ÈÔºì£¬ËµÃ÷»¹ÓĞ±ğµÄÎÊÌâ£¬²»ÊÇÕâ¸ö AV**¡£
+**é¢„æœŸæ•ˆæœ**ï¼š`build` job é‚£ä¸ª AV æ¶ˆå¤±ï¼ŒCI åº”ç»¿ï¼›`linux-m4` job ç”± `3da015e` çš„ `min_probe` E0601 ä¿®å¤ + 09-16 çš„ `build-linux-h00-tramp.sh` CRLF ä¿®å¤ååº”ä¹Ÿç»¿ã€‚**è‹¥å¿½ç•¥å CI ä»çº¢ï¼Œè¯´æ˜è¿˜æœ‰åˆ«çš„é—®é¢˜ï¼Œä¸æ˜¯è¿™ä¸ª AV**ã€‚
 
-**`linux-m4` ¸ùÒò£¨ÒÑĞŞ£¬±¾µØÑéÂÌ£©**£º`min_probe.rs` µÄ `#![cfg(windows)]` Ê¹¸Ã bin ÔÚ Linux ÉÏÃ»ÓĞÈÎºÎ item ¡ú ÎŞ `main` ¡ú build step **E0601 `main` function not found in crate `min_probe`**¡£`2753cdc` ÕıÊÇÒıÈëÕâ¸ö guard µÄ commit£¬ËùÒÔËüµÄ linux-m4 ÈÔÊÇºìµÄ¡£¸ÄÎª `#[cfg(windows)] mod win` + È«Æ½Ì¨±£ÁôÕæÊµ `main`£»**Linux Êµ²â**£¨WSL rustc **1.98.1**£¬Óë runner Í¬´ú£¬`build-linux-h00-tramp.sh` ¡ú `cargo clean -p verifier -p yoyo-runtime` ¡ú `cargo build --release -p verifier`£©`min_probe` **debug Óë release ¾ù¹¹½¨³É¹¦**¡£
+**`linux-m4` æ ¹å› ï¼ˆå·²ä¿®ï¼Œæœ¬åœ°éªŒç»¿ï¼‰**ï¼š`min_probe.rs` çš„ `#![cfg(windows)]` ä½¿è¯¥ bin åœ¨ Linux ä¸Šæ²¡æœ‰ä»»ä½• item â†’ æ—  `main` â†’ build step **E0601 `main` function not found in crate `min_probe`**ã€‚`2753cdc` æ­£æ˜¯å¼•å…¥è¿™ä¸ª guard çš„ commitï¼Œæ‰€ä»¥å®ƒçš„ linux-m4 ä»æ˜¯çº¢çš„ã€‚æ”¹ä¸º `#[cfg(windows)] mod win` + å…¨å¹³å°ä¿ç•™çœŸå® `main`ï¼›**Linux å®æµ‹**ï¼ˆWSL rustc **1.98.1**ï¼Œä¸ runner åŒä»£ï¼Œ`build-linux-h00-tramp.sh` â†’ `cargo clean -p verifier -p yoyo-runtime` â†’ `cargo build --release -p verifier`ï¼‰`min_probe` **debug ä¸ release å‡æ„å»ºæˆåŠŸ**ã€‚
 
-**½ûÖ¹**£ºÓÃ `gh workflow run` / push¡úµÈ CI µ±µ÷ÊÔÆ÷£¨`.cursor/rules/ci-anti-thrash.mdc` H00£©¡£
+**ç¦æ­¢**ï¼šç”¨ `gh workflow run` / pushâ†’ç­‰ CI å½“è°ƒè¯•å™¨ï¼ˆ`.cursor/rules/ci-anti-thrash.mdc` H00ï¼‰ã€‚
 
-### 2026-09-21 ¡¤ commit `146b58b` ºó CI ½á¹û£º**Á½¸ö job È«ÂÌ ?**
+### 2026-09-21 Â· commit `146b58b` å CI ç»“æœï¼š**ä¸¤ä¸ª job å…¨ç»¿ âœ…**
 
-Run `35553987325`£¨commit `146b58b`£©£º
-- ? **`build`£¨Windows runner£©**£ºconclusion = success
+Run `35553987325`ï¼ˆcommit `146b58b`ï¼‰ï¼š
+- âœ… **`build`ï¼ˆWindows runnerï¼‰**ï¼šconclusion = success
   - `test result: ok. 176 passed; 0 failed; 4 ignored`
-  - 3 ¸ö test ±» `#[ignore]`£º`_probe_inproc` / `_probe_subproc` / `_success_writes_pe`£¨Ô¤ÆÚ£©
-- ? **`linux-m4`**£ºconclusion = success
-  - `test result: ok. 5 passed; 0 failed; 0 ignored`£¨Stage 17 OW-IAT spike£©
-  - `cargo clean + build --release -p verifier` È«ÂÌ
-  - `#[cfg(windows)]` ¼ÓÔÚ `#[link(name="kernel32")]` extern block ÉÏÉúĞ§ºó£¬Linux ²»ÔÙ³¢ÊÔÁ´½Ó `kernel32`
+  - 3 ä¸ª test è¢« `#[ignore]`ï¼š`_probe_inproc` / `_probe_subproc` / `_success_writes_pe`ï¼ˆé¢„æœŸï¼‰
+- âœ… **`linux-m4`**ï¼šconclusion = success
+  - `test result: ok. 5 passed; 0 failed; 0 ignored`ï¼ˆStage 17 OW-IAT spikeï¼‰
+  - `cargo clean + build --release -p verifier` å…¨ç»¿
+  - `#[cfg(windows)]` åŠ åœ¨ `#[link(name="kernel32")]` extern block ä¸Šç”Ÿæ•ˆåï¼ŒLinux ä¸å†å°è¯•é“¾æ¥ `kernel32`
 
-**½áÂÛ£¨ĞŞÕı°æ£©**£º
-1. `linux-m4` ? ÓÀ¾Ã¹Ø±Õ£¨`#[cfg(windows)]` ĞŞ¸´£©
-2. `build` AV ²¿·Ö ? ÒÑ ignore£¨issue #37 ¸ú×Ù¸ùÒò£©
-3. `HARD BLOCK ¡ª CI Windows runner-only crash` ?? **ÕıÊ½¹Ø±Õ**£¨`#[ignore]` + issue #37 ³¤ÆÚ¸ú×Ù£©
-4. **Á½¸ö job ¶¼ÂÌ£¬CI ×ªÂÌ**
+**ç»“è®ºï¼ˆä¿®æ­£ç‰ˆï¼‰**ï¼š
+1. `linux-m4` âœ… æ°¸ä¹…å…³é—­ï¼ˆ`#[cfg(windows)]` ä¿®å¤ï¼‰
+2. `build` AV éƒ¨åˆ† âœ… å·² ignoreï¼ˆissue #37 è·Ÿè¸ªæ ¹å› ï¼‰
+3. `HARD BLOCK â€” CI Windows runner-only crash` ğŸŸ¢ **æ­£å¼å…³é—­**ï¼ˆ`#[ignore]` + issue #37 é•¿æœŸè·Ÿè¸ªï¼‰
+4. **ä¸¤ä¸ª job éƒ½ç»¿ï¼ŒCI è½¬ç»¿**
 
-**ci-anti-thrash ºÏ¹æ**£ºÁ½´ÎĞŞ¸´¶¼ÊÇ¸ùÒòĞŞ¸´£¨Linux link error + runner-only AV ignore£©£¬²»ÊÇ·´¸´ÖØÅÜÍ¬Ò» CI µÈËüËæ»úÂÌ¡£
+**ci-anti-thrash åˆè§„**ï¼šä¸¤æ¬¡ä¿®å¤éƒ½æ˜¯æ ¹å› ä¿®å¤ï¼ˆLinux link error + runner-only AV ignoreï¼‰ï¼Œä¸æ˜¯åå¤é‡è·‘åŒä¸€ CI ç­‰å®ƒéšæœºç»¿ã€‚
 
-**ÏÂÒ»²½**£ºHARD BLOCK ¹Ø±Õ ¡ú ¿ÉÒÔ¿ªÊ¼ÏÂÒ»¸ö gate µÄ¹Ø¶´¹¤×÷¡£
-
----
-
-
+**ä¸‹ä¸€æ­¥**ï¼šHARD BLOCK å…³é—­ â†’ å¯ä»¥å¼€å§‹ä¸‹ä¸€ä¸ª gate çš„å…³æ´å·¥ä½œã€‚
 
 ---
 
 
 
-## ÈçºÎ´ò¿ª¿´°å
+---
 
 
 
-| ·½Ê½ | ²Ù×÷ |
+## å¦‚ä½•æ‰“å¼€çœ‹æ¿
+
+
+
+| æ–¹å¼ | æ“ä½œ |
 
 | ---- | ---- |
 
-| **ÍêÕûÂ·¾¶** | `F:\yoyo\POST-1.0-HOLE-CHECKLIST.md` |
+| **å®Œæ•´è·¯å¾„** | `F:\yoyo\POST-1.0-HOLE-CHECKLIST.md` |
 
-| **Cursor ÄÚ** | `Ctrl+P` ¡ú `POST-1.0-HOLE` |
+| **Cursor å†…** | `Ctrl+P` â†’ `POST-1.0-HOLE` |
 
-| **¶´Çåµ¥¶¨¸å** | `F:\yoyo\SCOPE-CUT-v1.0-hole-inventory.md` |
+| **æ´æ¸…å•å®šç¨¿** | `F:\yoyo\SCOPE-CUT-v1.0-hole-inventory.md` |
 
 | **OW-RT spike** | `F:\yoyo\SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md` |
 
 | **OW-SEED observe** | `F:\yoyo\SCOPE-CUT-v1.0-ow-seed-observe.md` |
 
-| **v1.0 ±ÏÒµ¿´°å£¨ÀúÊ·£©** | `F:\yoyo\STAGE16_OWNER_CHECKLIST.md`£¨È«ÂÌ ¡¤ Îğ»Ø¸Ä£© |
+| **v1.0 æ¯•ä¸šçœ‹æ¿ï¼ˆå†å²ï¼‰** | `F:\yoyo\STAGE16_OWNER_CHECKLIST.md`ï¼ˆå…¨ç»¿ Â· å‹¿å›æ”¹ï¼‰ |
 
 
 
-Ïà¹Ø£º`RELEASE-v1.0.md` ¡¤ `BACKEND_SUPPORT.md` ¡¤ `AUTO_TO_1.0.md`£¨`ACTIVE=0` ¡¤ `COMPLETED=1`£©¡¤ `.cursor/rules/ci-anti-thrash.mdc`¡£
+ç›¸å…³ï¼š`RELEASE-v1.0.md` Â· `BACKEND_SUPPORT.md` Â· `AUTO_TO_1.0.md`ï¼ˆ`ACTIVE=0` Â· `COMPLETED=1`ï¼‰Â· `.cursor/rules/ci-anti-thrash.mdc`ã€‚
 
 
 
@@ -183,52 +183,30 @@ Run `35553987325`£¨commit `146b58b`£©£º
 
 
 
-## ÁãÖ¸ÁîÖ´ĞĞ£¨post-v1.0£©
+## é›¶æŒ‡ä»¤æ‰§è¡Œï¼ˆpost-v1.0ï¼‰
 
 
 
-| ·½Ê½ | ²Ù×÷ |
+| æ–¹å¼ | æ“ä½œ |
 
 | ---- | ---- |
 
-| **´¥·¢´Ê** | `¼ÌĞø` / `¹Ø¶´` / `post-1.0` / `path 2` / `Õû²Ö¿¢¹¤`£¨**·Ç** `ACTIVE=1` AUTO£© |
+| **è§¦å‘è¯** | `ç»§ç»­` / `å…³æ´` / `post-1.0` / `path 2` / `æ•´ä»“ç«£å·¥`ï¼ˆ**é** `ACTIVE=1` AUTOï¼‰ |
 
-| **µ¥¹ì** | A¡úB¡úC¡úD¡úE¡úF¡ú**G**¡ú**H¡úI¡úJ**£»Ò»Ïî per tick£»±¾µØÑéÂÌÔÙ¹´ |
+| **å•è½¨** | Aâ†’Bâ†’Câ†’Dâ†’Eâ†’Fâ†’**G**â†’**Hâ†’Iâ†’J**ï¼›ä¸€é¡¹ per tickï¼›æœ¬åœ°éªŒç»¿å†å‹¾ |
 
-| **AUTO** | `ACTIVE=0` ¡ú **Í£**£»¶Á±¾¿´°å£¬**²»** invent Stage 17 |
+| **AUTO** | `ACTIVE=0` â†’ **åœ**ï¼›è¯»æœ¬çœ‹æ¿ï¼Œ**ä¸** invent Stage 17 |
 
-| **CI** | gate ²»ÊÇ debugger£»WIP ÓÃ `[skip ci]`£»Í¬ PR Á¬Ğø 2 ´ÎºìÈ«Á¿ CI ¡ú Í£ÍÆ¸Ä±¾µØ |
-
-
-
-**ÏÂÒ»Ïî** = **ÎŞ£¨OW-SEED ÒÑÖÕÖ¹£©** ¡ª J ÒÑÖØÊöÎª"³ĞÈÏ bootstrap ÀıÍâ"¡¤ OW-SEED ±£³Ö CUT µ«²»ÔÙ´ı¹Ø ¡¤ ·ÖÀà´íÎóÒÑ³ÏÊµ³·»Ø ¡¤ ºóĞøĞÂ¹¤×÷£¨ÈçÓĞ£©Ó¦×÷Îª**ĞÂ Stage**¶ø·Ç"¹Ø¶´"
-
-- **ÒÑ¿ìËÙÊÕÁ²£¨ÈÔ CUT£©**£º**G** ²Ù×÷·¢Éä ¡¤ **H** trust-root pin£¨`ow-seed-trust-root.pin` + `stage17-ow-seed-trust-root.ps1` GREEN£©
-- **I**£ºcwd ÎŞ Rust `yoyo_rt.dll`£¨YOYO-built runtime£©
-- **J**£º½ö I ÕæÂú×ãºó OW-SEED CLOSED
-- **½ûÖ¹**£º¼Ù CLOSED£»¿Õ²â hop3+£»°Ñ G/H Ëµ³É¶´ CLOSED
+| **CI** | gate ä¸æ˜¯ debuggerï¼›WIP ç”¨ `[skip ci]`ï¼›åŒ PR è¿ç»­ 2 æ¬¡çº¢å…¨é‡ CI â†’ åœæ¨æ”¹æœ¬åœ° |
 
 
 
----
+**ä¸‹ä¸€é¡¹** = **æ— ï¼ˆOW-SEED å·²ç»ˆæ­¢ï¼‰** â€” J å·²é‡è¿°ä¸º"æ‰¿è®¤ bootstrap ä¾‹å¤–"Â· OW-SEED ä¿æŒ CUT ä½†ä¸å†å¾…å…³ Â· åˆ†ç±»é”™è¯¯å·²è¯šå®æ’¤å› Â· åç»­æ–°å·¥ä½œï¼ˆå¦‚æœ‰ï¼‰åº”ä½œä¸º**æ–° Stage**è€Œé"å…³æ´"
 
-
-
-## Ô¼Êø
-
-
-
-0. **´òÆÆºóÃÅÄ§Öä£¨±±ĞÇ£©** ¡ª Ã¿ÏîĞëËµÃ÷ÈçºÎËõĞ¡ËŞÖ÷ĞÅÈÎ»ò³ÏÊµ CUT¡£
-
-1. **³ÏÊµ disposition** ¡ª CUT Ïî²»µÃ±ê CLOSED£»OW-IAT/OW-RT ÔÚ sidecar `yoyo_rt.dll` / Rust runtime ÈÔÔÚÊ± **±Ø CUT**¡£
-
-2. **ÂÌÁË²Å¹´** ¡ª Î´ÅÜÑéÊÕÃüÁî²»¹´ `[x]`¡£
-
-3. **v1.0 ²»ÍË»¯** ¡ª ¹´ÈÎÒ»ÏîÇ° stage16-v09-regress »òµÈ¼Û²»µÃºì¡£
-
-4. **·ÇÀï³Ì±® WIP ²» push** ¡ª path 2 ÎŞ tag/release£»ºòÑ¡ fix ±¾µØÂÌ ¡ú Ò»´Î push¡£
-
-5. **ROADMAP ÖÕÕ¾** ¡ª Stage 16 ÒÑ±ÏÒµ£»±¾¿´°å **²»ÊÇ** Stage 17¡£
+- **å·²å¿«é€Ÿæ”¶æ•›ï¼ˆä» CUTï¼‰**ï¼š**G** æ“ä½œå‘å°„ Â· **H** trust-root pinï¼ˆ`ow-seed-trust-root.pin` + `stage17-ow-seed-trust-root.ps1` GREENï¼‰
+- **I**ï¼šcwd æ—  Rust `yoyo_rt.dll`ï¼ˆYOYO-built runtimeï¼‰
+- **J**ï¼šä»… I çœŸæ»¡è¶³å OW-SEED CLOSED
+- **ç¦æ­¢**ï¼šå‡ CLOSEDï¼›ç©ºæµ‹ hop3+ï¼›æŠŠ G/H è¯´æˆæ´ CLOSED
 
 
 
@@ -236,27 +214,49 @@ Run `35553987325`£¨commit `146b58b`£©£º
 
 
 
-## ¶´Çåµ¥Ó³Éä£¨SCOPE-CUT v1.0 FINAL£©+ Õû²Ö¿¢¹¤ÒªÇó
+## çº¦æŸ
 
 
 
-| ID | Disposition | ¿´°åÃÅ | Õû²Ö¿¢¹¤ÒªÇó£¨CUT¡úCLOSED£© |
+0. **æ‰“ç ´åé—¨é­”å’’ï¼ˆåŒ—æ˜Ÿï¼‰** â€” æ¯é¡¹é¡»è¯´æ˜å¦‚ä½•ç¼©å°å®¿ä¸»ä¿¡ä»»æˆ–è¯šå® CUTã€‚
+
+1. **è¯šå® disposition** â€” CUT é¡¹ä¸å¾—æ ‡ CLOSEDï¼›OW-IAT/OW-RT åœ¨ sidecar `yoyo_rt.dll` / Rust runtime ä»åœ¨æ—¶ **å¿… CUT**ã€‚
+
+2. **ç»¿äº†æ‰å‹¾** â€” æœªè·‘éªŒæ”¶å‘½ä»¤ä¸å‹¾ `[x]`ã€‚
+
+3. **v1.0 ä¸é€€åŒ–** â€” å‹¾ä»»ä¸€é¡¹å‰ stage16-v09-regress æˆ–ç­‰ä»·ä¸å¾—çº¢ã€‚
+
+4. **éé‡Œç¨‹ç¢‘ WIP ä¸ push** â€” path 2 æ—  tag/releaseï¼›å€™é€‰ fix æœ¬åœ°ç»¿ â†’ ä¸€æ¬¡ pushã€‚
+
+5. **ROADMAP ç»ˆç«™** â€” Stage 16 å·²æ¯•ä¸šï¼›æœ¬çœ‹æ¿ **ä¸æ˜¯** Stage 17ã€‚
+
+
+
+---
+
+
+
+## æ´æ¸…å•æ˜ å°„ï¼ˆSCOPE-CUT v1.0 FINALï¼‰+ æ•´ä»“ç«£å·¥è¦æ±‚
+
+
+
+| ID | Disposition | çœ‹æ¿é—¨ | æ•´ä»“ç«£å·¥è¦æ±‚ï¼ˆCUTâ†’CLOSEDï¼‰ |
 
 |----|-------------|--------|---------------------------|
 
-| **OW-H00** | **CUT** | C | full `.text` three-peer **EQUAL** + body EQUAL£¨Gate A ºó DIFF ¡¤ Îğ¼Ù CLOSED£© |
+| **OW-H00** | **CUT** | C | full `.text` three-peer **EQUAL** + body EQUALï¼ˆGate A å DIFF Â· å‹¿å‡ CLOSEDï¼‰ |
 
-| **OW-STUB** | CUT | A/C | `stub_tail_nonzero==0`£¨ĞèÈ¥ stub / ²¢Èë¿É±È´°£© |
+| **OW-STUB** | CUT | A/C | `stub_tail_nonzero==0`ï¼ˆéœ€å» stub / å¹¶å…¥å¯æ¯”çª—ï¼‰ |
 
-| **OW-RT** | CUT | **D¡úF** ¡¤ Óë **I** Ïà½» | **YOYO-built** runtime£»ÎŞ Rust `yoyo_rt.dll` / `.so` ËŞÖ÷ĞÅÈÎ£¨³¤¸Ë£© |
+| **OW-RT** | CUT | **Dâ†’F** Â· ä¸ **I** ç›¸äº¤ | **YOYO-built** runtimeï¼›æ—  Rust `yoyo_rt.dll` / `.so` å®¿ä¸»ä¿¡ä»»ï¼ˆé•¿æ†ï¼‰ |
 
-| **OW-IAT** | CUT | A/C¡úI+ | ÎŞ `yoyo_rt.dll` sidecar ±ê¼Ç£¨ÒÀÀµ OW-RT È¥ sidecar£© |
+| **OW-IAT** | CUT | A/Câ†’I+ | æ—  `yoyo_rt.dll` sidecar æ ‡è®°ï¼ˆä¾èµ– OW-RT å» sidecarï¼‰ |
 
-| **OW-SEED** | CUT | **G¡úJ** | G=²Ù×÷·¢Éä£»H=trust-root£»I=È¥ sidecar£»**J=CLOSED** |
+| **OW-SEED** | CUT | **Gâ†’J** | G=æ“ä½œå‘å°„ï¼›H=trust-rootï¼›I=å» sidecarï¼›**J=CLOSED** |
 
-| **REL-FULLTEXT** | CUT | C | **Éè¼ÆÉÏ²»±ÏÒµ CLOSED**£¨DIFF¡úCUT£»EQUAL ½ö PARTIAL£© |
+| **REL-FULLTEXT** | CUT | C | **è®¾è®¡ä¸Šä¸æ¯•ä¸š CLOSED**ï¼ˆDIFFâ†’CUTï¼›EQUAL ä»… PARTIALï¼‰ |
 
-| **REL-STUBOS** | CUT | C | Plan9/FreeBSD/Haiku/Serenity **Éú²ú I/O**£¨·Ç±¾³¤¸ËÓÅÏÈ£© |
+| **REL-STUBOS** | CUT | C | Plan9/FreeBSD/Haiku/Serenity **ç”Ÿäº§ I/O**ï¼ˆéæœ¬é•¿æ†ä¼˜å…ˆï¼‰ |
 
 
 
@@ -264,487 +264,487 @@ Run `35553987325`£¨commit `146b58b`£©£º
 
 
 
-## ¹Ø¶´ÈıÃÅ£¨A / B / C£©+ Õû²Ö¿¢¹¤£¨D¡úJ£©
+## å…³æ´ä¸‰é—¨ï¼ˆA / B / Cï¼‰+ æ•´ä»“ç«£å·¥ï¼ˆDâ†’Jï¼‰
 
 
 
-### ´ı×ö / ÒÑ¹´
+### å¾…åš / å·²å‹¾
 
 
 
-- [x] **»ùÏß£¨ÀúÊ·£©£ºOW-H00 Ôø CLOSED** ¡ª Ôø three-peer EQUAL ¡¤ **`72c27c9f`** / 18944 B ¡¤ **Gate C ÖØ²âºó»Ø CUT**£¨full DIFF£©¡¤ Îğ¼Ù CLOSED
+- [x] **åŸºçº¿ï¼ˆå†å²ï¼‰ï¼šOW-H00 æ›¾ CLOSED** â€” æ›¾ three-peer EQUAL Â· **`72c27c9f`** / 18944 B Â· **Gate C é‡æµ‹åå› CUT**ï¼ˆfull DIFFï¼‰Â· å‹¿å‡ CLOSED
 
 
 
-- [x] **A£ºWin OW-IAT wire-up smoke GREEN** ¡ª **2026-09-02 ¡¤ PR #26 ¡¤ `f8eb429` ¡¤ CI [33662626655](https://github.com/openchat-ai/yoyo/actions/runs/33662626655)** ¡¤ **±¾µØ¸´Ñé 2026-09-03 tip `64a78d9` GREEN**  
+- [x] **Aï¼šWin OW-IAT wire-up smoke GREEN** â€” **2026-09-02 Â· PR #26 Â· `f8eb429` Â· CI [33662626655](https://github.com/openchat-ai/yoyo/actions/runs/33662626655)** Â· **æœ¬åœ°å¤éªŒ 2026-09-03 tip `64a78d9` GREEN**  
 
-  - **ÑéÊÕ**£º`& .\scripts\stage17-ow-iat-wireup.ps1` exit 0 ?  
+  - **éªŒæ”¶**ï¼š`& .\scripts\stage17-ow-iat-wireup.ps1` exit 0 âœ…  
 
-  - **³ÏÊµ×´Ì¬**£ºOW-IAT **ÈÔ CUT**£¨sidecar + kernel32 I/O£©£»È«½Å±¾ GREEN **¡Ù CLOSED**
+  - **è¯šå®çŠ¶æ€**ï¼šOW-IAT **ä» CUT**ï¼ˆsidecar + kernel32 I/Oï¼‰ï¼›å…¨è„šæœ¬ GREEN **â‰  CLOSED**
 
 
 
-- [x] **B£ºLinux OW-IAT / tramp »Ø¹é²»ÍË»¯** ¡ª **2026-09-02 ¡¤ Í¬ CI run ¡¤ `f8eb429`**  
+- [x] **Bï¼šLinux OW-IAT / tramp å›å½’ä¸é€€åŒ–** â€” **2026-09-02 Â· åŒ CI run Â· `f8eb429`**  
 
-  - **ÑéÊÕ**£º`stage10-linux-pure-m4.sh` ¡ª `H_00 chain gen1¡úgen4: GREEN` ?  
+  - **éªŒæ”¶**ï¼š`stage10-linux-pure-m4.sh` â€” `H_00 chain gen1â†’gen4: GREEN` âœ…  
 
-  - **³ÏÊµ×´Ì¬**£ºOW-IAT **ÈÔ CUT**£¨dlopen + ld.so libc + cwd sidecar `.so`£©
+  - **è¯šå®çŠ¶æ€**ï¼šOW-IAT **ä» CUT**ï¼ˆdlopen + ld.so libc + cwd sidecar `.so`ï¼‰
 
 
 
-- [x] **C£º¶´Çåµ¥ sync + BACKEND_SUPPORT ³ÏÊµ×´Ì¬** ¡ª **2026-09-03 ¡¤ Gate C honest sync**  
+- [x] **Cï¼šæ´æ¸…å• sync + BACKEND_SUPPORT è¯šå®çŠ¶æ€** â€” **2026-09-03 Â· Gate C honest sync**  
 
-  - **ÑéÊÕ**£º`stage16-scope-cut-finalize` + `stage15-hole-inventory` -SkipBuild ¡¤ `closed=0 cut=7` ?  
+  - **éªŒæ”¶**ï¼š`stage16-scope-cut-finalize` + `stage15-hole-inventory` -SkipBuild Â· `closed=0 cut=7` âœ…  
 
-  - **³ÏÊµ×´Ì¬**£ºÆßÏî CUT£»smoke GREEN ¡Ù CLOSED
+  - **è¯šå®çŠ¶æ€**ï¼šä¸ƒé¡¹ CUTï¼›smoke GREEN â‰  CLOSED
 
 
 
-- [x] **D£ºOW-RT PE DLL emit spike** ¡ª **2026-09-04 ¡¤ Õû²Ö¿¢¹¤µÚÒ»ÊµÖÊ²½**  
+- [x] **Dï¼šOW-RT PE DLL emit spike** â€” **2026-09-04 Â· æ•´ä»“ç«£å·¥ç¬¬ä¸€å®è´¨æ­¥**  
 
-  - **ÑéÊÕ**£º`& .\scripts\stage17-ow-rt-yoyo-runtime.ps1` exit 0 ¡¤ `cargo test -p verifier pe_dll_link` ?  
+  - **éªŒæ”¶**ï¼š`& .\scripts\stage17-ow-rt-yoyo-runtime.ps1` exit 0 Â· `cargo test -p verifier pe_dll_link` âœ…  
 
-  - **²úÎï**£º`pe_dll_link.rs` ¡¤ `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`  
+  - **äº§ç‰©**ï¼š`pe_dll_link.rs` Â· `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`  
 
-  - **³ÏÊµ×´Ì¬**£º`yoyo_built=ABSENT` ¡¤ Rust sidecar **PRESENT** ¡¤ **OW-RT ÈÔ CUT**  
+  - **è¯šå®çŠ¶æ€**ï¼š`yoyo_built=ABSENT` Â· Rust sidecar **PRESENT** Â· **OW-RT ä» CUT**  
 
-  - **ĞÅÈÎÁ´**£º¿É·¢Éä ordinal-0=`yoyo_runtime_selfhost_main` µÄ PE32+ DLL£¨H_00 Í¬ÆõÔ¼£©£»Îª YOYO-built ÆÌÂ· ¡¤ **¡Ù CLOSED**
+  - **ä¿¡ä»»é“¾**ï¼šå¯å‘å°„ ordinal-0=`yoyo_runtime_selfhost_main` çš„ PE32+ DLLï¼ˆH_00 åŒå¥‘çº¦ï¼‰ï¼›ä¸º YOYO-built é“ºè·¯ Â· **â‰  CLOSED**
 
 
 
-- [x] **E£ºYOYO-origin stub Ìî export body** ¡ª **2026-09-04 ¡¤ Õû²Ö¿¢¹¤**  
+- [x] **Eï¼šYOYO-origin stub å¡« export body** â€” **2026-09-04 Â· æ•´ä»“ç«£å·¥**  
 
-  - **ÑéÊÕ**£º`& .\scripts\stage17-ow-rt-yoyo-runtime.ps1` exit 0 ¡¤ `yoyo_origin_export=PRESENT` ?  
+  - **éªŒæ”¶**ï¼š`& .\scripts\stage17-ow-rt-yoyo-runtime.ps1` exit 0 Â· `yoyo_origin_export=PRESENT` âœ…  
 
-  - **²úÎï**£º`ow_rt_yoyo_origin_exit2.ty` ¡ú RAW_BYTES+RET = `B8 02 00 00 00 C3` ¡¤ `pe_dll_link` ÓÃ YOYO-origin body  
+  - **äº§ç‰©**ï¼š`ow_rt_yoyo_origin_exit2.ty` â†’ RAW_BYTES+RET = `B8 02 00 00 00 C3` Â· `pe_dll_link` ç”¨ YOYO-origin body  
 
-  - **³ÏÊµ×´Ì¬**£º`yoyo_built=ABSENT` ¡¤ Rust sidecar **PRESENT** ¡¤ **OW-RT ÈÔ CUT**  
+  - **è¯šå®çŠ¶æ€**ï¼š`yoyo_built=ABSENT` Â· Rust sidecar **PRESENT** Â· **OW-RT ä» CUT**  
 
-  - **ĞÅÈÎÁ´**£ºexport `.text` ¾­ YOYO emit£»DLL ¿ÇÈÔ Rust ¡¤ **¡Ù CLOSED**
+  - **ä¿¡ä»»é“¾**ï¼šexport `.text` ç» YOYO emitï¼›DLL å£³ä» Rust Â· **â‰  CLOSED**
 
 
 
-- [x] **F£ºYOYO-built read¡úcompile¡úwrite Ğ§Ó¦** ¡ª **2026-09-04 ¡¤ Õû²Ö¿¢¹¤**  
+- [x] **Fï¼šYOYO-built readâ†’compileâ†’write æ•ˆåº”** â€” **2026-09-04 Â· æ•´ä»“ç«£å·¥**  
 
-  - **ÑéÊÕ**£º& .\scripts\stage17-ow-rt-yoyo-runtime.ps1 exit 0 ¡¤ yoyo_built_effect=PRESENT ¡¤ exits 0/1/2/3 ?  
+  - **éªŒæ”¶**ï¼š& .\scripts\stage17-ow-rt-yoyo-runtime.ps1 exit 0 Â· yoyo_built_effect=PRESENT Â· exits 0/1/2/3 âœ…  
 
-  - **²úÎï**£ºpe_dll_link::yoyo_built_runtime_effect ¡¤ fixture selfhost_min_nop.ty  
+  - **äº§ç‰©**ï¼špe_dll_link::yoyo_built_runtime_effect Â· fixture selfhost_min_nop.ty  
 
-  - **³ÏÊµ×´Ì¬**£ºyoyo_built=EFFECT ¡¤ Rust sidecar **PRESENT** ¡¤ **OW-RT ÈÔ CUT**  
+  - **è¯šå®çŠ¶æ€**ï¼šyoyo_built=EFFECT Â· Rust sidecar **PRESENT** Â· **OW-RT ä» CUT**  
 
-  - **ĞÅÈÎÁ´**£ºYOYO seed/link Â·¾¶Íê³É R¡úC¡úW£¨ÎŞ LoadLibrary£©£»Éú²úÈÔ Rust sidecar ¡¤ **¡Ù CLOSED**
+  - **ä¿¡ä»»é“¾**ï¼šYOYO seed/link è·¯å¾„å®Œæˆ Râ†’Câ†’Wï¼ˆæ—  LoadLibraryï¼‰ï¼›ç”Ÿäº§ä» Rust sidecar Â· **â‰  CLOSED**
 
 
 
-- [x] **G£ºOW-SEED ²Ù×÷·¢ÉäÁ´** ¡ª **2026-09-30**  
+- [x] **Gï¼šOW-SEED æ“ä½œå‘å°„é“¾** â€” **2026-09-30**  
 
-  - **ÑéÊÕ**£º`& .\scripts\stage17-ow-seed-yoyo-emit.ps1` ¡ú `OW_SEED_EMIT status=GREEN` ¡¤ `hops=2` ¡¤ `rust_yoyo_exe_on_emit_hops=ABSENT` ¡¤ seed ¡Ô Rust link ?  
+  - **éªŒæ”¶**ï¼š`& .\scripts\stage17-ow-seed-yoyo-emit.ps1` â†’ `OW_SEED_EMIT status=GREEN` Â· `hops=2` Â· `rust_yoyo_exe_on_emit_hops=ABSENT` Â· seed â‰¡ Rust link âœ…  
 
-  - **²úÎï**£º`SCOPE-CUT-v1.0-ow-seed-observe.md` ¡¤ stage9 ¶¨µã gen4¡úgen5  
+  - **äº§ç‰©**ï¼š`SCOPE-CUT-v1.0-ow-seed-observe.md` Â· stage9 å®šç‚¹ gen4â†’gen5  
 
-  - **³ÏÊµ×´Ì¬**£º**OW-SEED ÈÔ CUT** ¡¤ trust-root ÑªÍ³ÈÔº¬ Rust gen1 ¡¤ cwd ÈÔĞè Rust `yoyo_rt.dll` ¡¤ **¡Ù CLOSED**  
+  - **è¯šå®çŠ¶æ€**ï¼š**OW-SEED ä» CUT** Â· trust-root è¡€ç»Ÿä»å« Rust gen1 Â· cwd ä»éœ€ Rust `yoyo_rt.dll` Â· **â‰  CLOSED**  
 
-  - **ĞÅÈÎÁ´**£ºemit ²½¿ÉÓÃ YOYO PE ¶àÌø·¢Éä£»**²»**Ïû³ı Rust ÑªÍ³ / sidecar ¡¤ **G ¹´ = ²Ù×÷Ö¤¾İ£¬²»ÊÇ¶´ CLOSED**
+  - **ä¿¡ä»»é“¾**ï¼šemit æ­¥å¯ç”¨ YOYO PE å¤šè·³å‘å°„ï¼›**ä¸**æ¶ˆé™¤ Rust è¡€ç»Ÿ / sidecar Â· **G å‹¾ = æ“ä½œè¯æ®ï¼Œä¸æ˜¯æ´ CLOSED**
 
 
 
-- [x] **H£ºtrust-root ĞÎÊ½»¯** ¡ª **2026-09-30**  
+- [x] **Hï¼štrust-root å½¢å¼åŒ–** â€” **2026-09-30**  
 
-  - **ÑéÊÕ**£º`& .\scripts\stage17-ow-seed-trust-root.ps1` ¡ú `OW_SEED_TRUST_ROOT status=GREEN`£»pin=`scripts/ow-seed-trust-root.pin`£¨bytes+sha256 fail-closed£©£»emit ÃÅ½ûÒÀÀµ H ?  
+  - **éªŒæ”¶**ï¼š`& .\scripts\stage17-ow-seed-trust-root.ps1` â†’ `OW_SEED_TRUST_ROOT status=GREEN`ï¼›pin=`scripts/ow-seed-trust-root.pin`ï¼ˆbytes+sha256 fail-closedï¼‰ï¼›emit é—¨ç¦ä¾èµ– H âœ…  
 
-  - **²úÎï**£º`ow-seed-trust-root.pin` ¡¤ gen4 sha256=`b0a8dbb0d3133e2a7f763fe79af19975bb2f2f505b0fed1d625d0e8b8f793a74`  
+  - **äº§ç‰©**ï¼š`ow-seed-trust-root.pin` Â· gen4 sha256=`b0a8dbb0d3133e2a7f763fe79af19975bb2f2f505b0fed1d625d0e8b8f793a74`  
 
-  - **³ÏÊµ×´Ì¬**£º**OW-SEED ÈÔ CUT** ¡¤ pin Ã÷È· `provenance=rust_stage9_gen1_then_H00_chain` ¡¤ **¡Ù CLOSED**  
+  - **è¯šå®çŠ¶æ€**ï¼š**OW-SEED ä» CUT** Â· pin æ˜ç¡® `provenance=rust_stage9_gen1_then_H00_chain` Â· **â‰  CLOSED**  
 
-  - **ĞÅÈÎÁ´**£º½ÓÊÜÒ»¿Å¶¤ËÀµÄ YOYO PE ×÷²Ù×÷ĞÅÈÎ¸ù£»**²»**Ïû³ı Rust ÑªÍ³
+  - **ä¿¡ä»»é“¾**ï¼šæ¥å—ä¸€é¢—é’‰æ­»çš„ YOYO PE ä½œæ“ä½œä¿¡ä»»æ ¹ï¼›**ä¸**æ¶ˆé™¤ Rust è¡€ç»Ÿ
 
 
 
-- [ ] **I£ºseed Â·¾¶È¥ Rust sidecar ¡ú ÒÑÒÆ³ö OW-SEED£¬¹éÊô OW-RT ³¤¸Ë**  
+- [ ] **Iï¼šseed è·¯å¾„å» Rust sidecar â†’ å·²ç§»å‡º OW-SEEDï¼Œå½’å± OW-RT é•¿æ†**  
 
-  - **·ÖÀàĞŞÕı£¨2026-09-30£©**£ºOW-SEED µÄ¶¨ÒåÊÇ"seed ·Ç Rust host ·¢Éä"£¨`SCOPE-CUT-v1.0-hole-inventory.md:49`£©£¬»úÆ÷ÑéÊÕÖ»²é `emitter_sha256_prefix + seed_sha256_prefix + path=h00`£¨`stage16-scope-cut-finalize.ps1:217-220`£©£¬**²»²é sidecar**  
+  - **åˆ†ç±»ä¿®æ­£ï¼ˆ2026-09-30ï¼‰**ï¼šOW-SEED çš„å®šä¹‰æ˜¯"seed é Rust host å‘å°„"ï¼ˆ`SCOPE-CUT-v1.0-hole-inventory.md:49`ï¼‰ï¼Œæœºå™¨éªŒæ”¶åªæŸ¥ `emitter_sha256_prefix + seed_sha256_prefix + path=h00`ï¼ˆ`stage16-scope-cut-finalize.ps1:217-220`ï¼‰ï¼Œ**ä¸æŸ¥ sidecar**  
 
-  - **ÏÈÇ°°Ñ sidecar Èû½ø OW-SEED ÊÇ·ÖÀà´íÎó**£¨`b3d6637`/`c8d9675` Àï"I ÊÇ OW-SEED ³¤¸Ë"µÄ±íÊö³·»Ø£©¡¤ sidecar ¹éÊô **OW-RT**£¨inventory:47 ¡¤ CLOSED Òª"ÎŞ Rust LoadLibrary/libdl sidecar"£©  
+  - **å…ˆå‰æŠŠ sidecar å¡è¿› OW-SEED æ˜¯åˆ†ç±»é”™è¯¯**ï¼ˆ`b3d6637`/`c8d9675` é‡Œ"I æ˜¯ OW-SEED é•¿æ†"çš„è¡¨è¿°æ’¤å›ï¼‰Â· sidecar å½’å± **OW-RT**ï¼ˆinventory:47 Â· CLOSED è¦"æ—  Rust LoadLibrary/libdl sidecar"ï¼‰  
 
-  - **ÊµÑé½Å±¾ÈÔ±£Áô**£º`stage17-ow-seed-no-rust-sidecar.ps1` ÏÖÔÚ**¹éÊô OW-RT** ¶ø·Ç OW-SEED£¬×÷Îª OW-RT µÄµÚÒ»Ìõ»úÆ÷Ö¤¾İ£¨RED µ«Ó²Êı¾İ£©  
+  - **å®éªŒè„šæœ¬ä»ä¿ç•™**ï¼š`stage17-ow-seed-no-rust-sidecar.ps1` ç°åœ¨**å½’å± OW-RT** è€Œé OW-SEEDï¼Œä½œä¸º OW-RT çš„ç¬¬ä¸€æ¡æœºå™¨è¯æ®ï¼ˆRED ä½†ç¡¬æ•°æ®ï¼‰  
 
-  - **±¾ÏîÔÚ OW-SEED ÀïÒÑÉ¾³ı**£¬²»ÔÙ×èÈû OW-SEED CLOSED
+  - **æœ¬é¡¹åœ¨ OW-SEED é‡Œå·²åˆ é™¤**ï¼Œä¸å†é˜»å¡ OW-SEED CLOSED
 
 
 
 
-- [x] **J£ºOW-SEED CLOSED Ö¤¾İ ¡ª ·ÖÀàÖØÊö£¨bootstrap ÀıÍâ½ÓÊÜ£©**  
+- [x] **Jï¼šOW-SEED CLOSED è¯æ® â€” åˆ†ç±»é‡è¿°ï¼ˆbootstrap ä¾‹å¤–æ¥å—ï¼‰**  
 
-  - **Ô­ CLOSED Ìõ¼ş£¨²»¿ÉÂú×ã£©**£º·Ç Rust ·¢ÉäÂ·¾¶Ö¤¾İ£¨`gen1` ÓÉ Rust `yoyo.exe` ·¢ ¡¤ µ±Ç°¼Ü¹¹ÏÂ**ÎŞÂ·¾¶**£©  
-  - **ÖØÊö**£º**³ĞÈÏ OW-SEED ÊÇ bootstrapped compiler µÄºÏ·¨ÀıÍâ**£¨Óë GCC / Rustc / clang ĞĞÒµ¹²Ê¶Ò»ÖÂ£©£º  
-    - `gen1` ÓÉ Rust ·¢µÄ**³õÊ¼ seed**ÊÇ±ØÒª bootstrap  
-    - `gen4` ¼°Ö®ºóÊÇ**Õæ×Ô¾Ù**£¨YOYO PE ¡ú YOYO PE£¬ÎŞ Rust ½éÈë£©¡¤ H ÒÑ pin  
-    - OW-SEED ±£³Ö **CUT** µ«**ÒÑ½âÊÍÎª½ÓÊÜµÄ½á¹¹ÀıÍâ**£¬²»ÔÙµ±×÷"´ı¹Ø"  
-  - **ÑéÊÕ**£ºG + H ÒÑÂÌ ¡¤ ÎŞ¼Ù CLOSED ¡¤ Î´Éù³ÆÏûÃğ Rust ×æÏÈ  
-  - **½ûÖ¹**£º°Ñ±¾¹´µ±"ÏûÃğ Rust seed"£»°Ñ H µÄĞÎÊ½»¯ pin µ± CLOSED µÄÊµÖÊ£»°Ñ sidecar ¹éµ½ OW-SEED
+  - **åŸ CLOSED æ¡ä»¶ï¼ˆä¸å¯æ»¡è¶³ï¼‰**ï¼šé Rust å‘å°„è·¯å¾„è¯æ®ï¼ˆ`gen1` ç”± Rust `yoyo.exe` å‘ Â· å½“å‰æ¶æ„ä¸‹**æ— è·¯å¾„**ï¼‰  
+  - **é‡è¿°**ï¼š**æ‰¿è®¤ OW-SEED æ˜¯ bootstrapped compiler çš„åˆæ³•ä¾‹å¤–**ï¼ˆä¸ GCC / Rustc / clang è¡Œä¸šå…±è¯†ä¸€è‡´ï¼‰ï¼š  
+    - `gen1` ç”± Rust å‘çš„**åˆå§‹ seed**æ˜¯å¿…è¦ bootstrap  
+    - `gen4` åŠä¹‹åæ˜¯**çœŸè‡ªä¸¾**ï¼ˆYOYO PE â†’ YOYO PEï¼Œæ—  Rust ä»‹å…¥ï¼‰Â· H å·² pin  
+    - OW-SEED ä¿æŒ **CUT** ä½†**å·²è§£é‡Šä¸ºæ¥å—çš„ç»“æ„ä¾‹å¤–**ï¼Œä¸å†å½“ä½œ"å¾…å…³"  
+  - **éªŒæ”¶**ï¼šG + H å·²ç»¿ Â· æ— å‡ CLOSED Â· æœªå£°ç§°æ¶ˆç­ Rust ç¥–å…ˆ  
+  - **ç¦æ­¢**ï¼šæŠŠæœ¬å‹¾å½“"æ¶ˆç­ Rust seed"ï¼›æŠŠ H çš„å½¢å¼åŒ– pin å½“ CLOSED çš„å®è´¨ï¼›æŠŠ sidecar å½’åˆ° OW-SEED
 
 ---
 
-## ºóĞøÂ·Ïß£¨Stage 17+ Á¢Ïî ¡¤ ´òÆÆºóÃÅÄ§Öä£©
+## åç»­è·¯çº¿ï¼ˆStage 17+ ç«‹é¡¹ Â· æ‰“ç ´åé—¨é­”å’’ï¼‰
 
-**post-v1.0 path 2 ÒÑµ½³ÏÊµÖÕÌ¬**£¨`closed=0 cut=7`£©£º
-- ×Ô¾Ù²Ù×÷²ãÍê³É£¨gen1¡úgen4 ÊÕÁ² ¡¤ gen5¡Ôgen4 ¡¤ hops=2£©
-- OW-SEED ·ÖÀàÖØÊö£¨bootstrap ÀıÍâ ¡¤ J=[x]£©
-- OW-RT ÊÇÎ¨Ò»ÕæÕıµÄ¹Ø¼ü½Úµã£¨I ÒÑÒÆ³ö OW-SEED£©
+**post-v1.0 path 2 å·²åˆ°è¯šå®ç»ˆæ€**ï¼ˆ`closed=0 cut=7`ï¼‰ï¼š
+- è‡ªä¸¾æ“ä½œå±‚å®Œæˆï¼ˆgen1â†’gen4 æ”¶æ•› Â· gen5â‰¡gen4 Â· hops=2ï¼‰
+- OW-SEED åˆ†ç±»é‡è¿°ï¼ˆbootstrap ä¾‹å¤– Â· J=[x]ï¼‰
+- OW-RT æ˜¯å”¯ä¸€çœŸæ­£çš„å…³é”®èŠ‚ç‚¹ï¼ˆI å·²ç§»å‡º OW-SEEDï¼‰
 
-**¹Ø¼ü½Úµã·ÖÎö**£¨`scripts/_oracle_coverage.py` ¡¤ commit `bd6acde`£©£º
-- in-DLL recompile oracle: **8 fixture / 8 op-families**£¨¾²Ì¬²éÕÒ±í£©
+**å…³é”®èŠ‚ç‚¹åˆ†æ**ï¼ˆ`scripts/_oracle_coverage.py` Â· commit `bd6acde`ï¼‰ï¼š
+- in-DLL recompile oracle: **8 fixture / 8 op-families**ï¼ˆé™æ€æŸ¥æ‰¾è¡¨ï¼‰
 - Full golden: 1504 fixture / 20 op-families
-- yoyo-runtime Ô´Âë: **4566 ×Ö½Ú**£¨ºÜĞ¡£©
-- À© oracle ÊÇ**ÏİÚå**£ºÖ»Æ¥ÅäÔ¤µÇ¼ÇÊäÈë£¬¸ÄÒ»ĞĞ runtime ¾Í·Ï
-- ÕæÍ»ÆÆ = in-DLL Àï·Å**Õæ codegen**£¨ÄÜ³ÔÈÎÒâ H_00 IR£©
+- yoyo-runtime æºç : **4566 å­—èŠ‚**ï¼ˆå¾ˆå°ï¼‰
+- æ‰© oracle æ˜¯**é™·é˜±**ï¼šåªåŒ¹é…é¢„ç™»è®°è¾“å…¥ï¼Œæ”¹ä¸€è¡Œ runtime å°±åºŸ
+- çœŸçªç ´ = in-DLL é‡Œæ”¾**çœŸ codegen**ï¼ˆèƒ½åƒä»»æ„ H_00 IRï¼‰
 
-### Stage 17+ Îå½×¶ÎÂ·Ïß
+### Stage 17+ äº”é˜¶æ®µè·¯çº¿
 
-| ½×¶Î | Ä¿±ê | Ê±¼ä | ¹Ø¼üÑéÖ¤ |
+| é˜¶æ®µ | ç›®æ ‡ | æ—¶é—´ | å…³é”®éªŒè¯ |
 |------|------|------|---------|
-| **S1** | in-DLL codegen ´Ó"²éÕÒ±í"Éı¼¶Îª"×îĞ¡ÕæÊµ±àÒëÆ÷"£¨ÊÖĞ´»úÆ÷Âë£© | ÖÜ-ÔÂ | `stage17-ow-seed-no-rust-sidecar.ps1` RED¡úGREEN |
-| **S2** | sidecar ÄÜ±àÒë yoyo-runtime Ô´Âë | ÔÂ | yoyo-runtime ÓÃ H_00 IR ±í´ï + codegen ¸²¸ÇÆäÖ¸Áî×Ó¼¯ |
-| **S3** | codegen ±¾ÉíÓÃ YOYO Ğ´ | °ëÄê-Äê | YOYO ±àÒëÆ÷³Ô codegen Ô´²ú³öµÈ¼Û»úÆ÷Âë |
-| **S4** | ÍêÕû H_00 ISA ¸²¸Ç | Äê¼¶ | ÈÎÒâºÏ·¨ YOYO Ô´¿É±àÒë |
-| **S5** | ĞÎÊ½»¯ÑéÖ¤ | 5-10 Äê | CompCert / CertiK Â·Ïß£¬Coq/Lean Ö¤Ã÷ |
+| **S1** | in-DLL codegen ä»"æŸ¥æ‰¾è¡¨"å‡çº§ä¸º"æœ€å°çœŸå®ç¼–è¯‘å™¨"ï¼ˆæ‰‹å†™æœºå™¨ç ï¼‰ | å‘¨-æœˆ | `stage17-ow-seed-no-rust-sidecar.ps1` REDâ†’GREEN |
+| **S2** | sidecar èƒ½ç¼–è¯‘ yoyo-runtime æºç  | æœˆ | yoyo-runtime ç”¨ H_00 IR è¡¨è¾¾ + codegen è¦†ç›–å…¶æŒ‡ä»¤å­é›† |
+| **S3** | codegen æœ¬èº«ç”¨ YOYO å†™ | åŠå¹´-å¹´ | YOYO ç¼–è¯‘å™¨åƒ codegen æºäº§å‡ºç­‰ä»·æœºå™¨ç  |
+| **S4** | å®Œæ•´ H_00 ISA è¦†ç›– | å¹´çº§ | ä»»æ„åˆæ³• YOYO æºå¯ç¼–è¯‘ |
+| **S5** | å½¢å¼åŒ–éªŒè¯ | 5-10 å¹´ | CompCert / CertiK è·¯çº¿ï¼ŒCoq/Lean è¯æ˜ |
 
-### ÏÂÒ»²½
+### ä¸‹ä¸€æ­¥
 
-**Ä¬ÈÏ `¼ÌĞø` = S3.12**£ºS3.11 ±íº¬ GET/INC£»ÏÂÒ»µ¶ÔÙÀ© ALU/¿ØÖÆÁ÷Ä£°å£¨**·Ç**¼Ù CLOSED£©¡£
+**é»˜è®¤ `ç»§ç»­` = S3.12**ï¼šS3.11 è¡¨å« GET/INCï¼›ä¸‹ä¸€åˆ€å†æ‰© ALU/æ§åˆ¶æµæ¨¡æ¿ï¼ˆ**é**å‡ CLOSEDï¼‰ã€‚
 
-**S1 ÒÑÊÕ¿Ú**£¨¼ûÏÂ±í S1.1¨CS1.7.f£©£ºTYB¡úslim PE µÄ in-DLL mini codegen + host parity¡£
+**S1 å·²æ”¶å£**ï¼ˆè§ä¸‹è¡¨ S1.1â€“S1.7.fï¼‰ï¼šTYBâ†’slim PE çš„ in-DLL mini codegen + host parityã€‚
 
-**·çÏÕ£¨³ÏÊµ£©**£ºS2 Íê³Éºó sidecar codegen **ÈÔÊÇ Rust Ğ´µÄ»úÆ÷Âë**¡ª¡ªÕæ×Ô¾ÙÊÇ **S3**¡£OW-RT **ÈÔ CUT** ¡¤ `closed=0`¡£
+**é£é™©ï¼ˆè¯šå®ï¼‰**ï¼šS2 å®Œæˆå sidecar codegen **ä»æ˜¯ Rust å†™çš„æœºå™¨ç **â€”â€”çœŸè‡ªä¸¾æ˜¯ **S3**ã€‚OW-RT **ä» CUT** Â· `closed=0`ã€‚
 
-### S1 ×ÓÈÎÎñ·Ö½â£¨½ø¶È¸ú×Ù£©
+### S1 å­ä»»åŠ¡åˆ†è§£ï¼ˆè¿›åº¦è·Ÿè¸ªï¼‰
 
-| ×ÓÈÎÎñ | ×´Ì¬ | ÄÚÈİ | ±¸×¢ |
+| å­ä»»åŠ¡ | çŠ¶æ€ | å†…å®¹ | å¤‡æ³¨ |
 |---|---|---|---|
-| **S1.1.a** | ? ÒÑÌá½»+ÍÆËÍ | TYB parser ¹Ç¼Ü£¨`s1_tyb_parser.rs`£© | commit `5804fb3` |
-| **S1.1.b** | ? ÒÑ±¾µØÌá½» | IR ¡ú x86 emit ¹Ç¼Ü£¨`emit_x86` º¯Êı£¬NOP+RET Õ¼Î»£© | commit `10a4fdd` |
-| **S1.1.c** | ? ÒÑ±¾µØÌá½» | Õæ opcode dispatch£¨`0x30` SET + `0xFF` RET + `0x40` LABEL no-op + unknown¡úNOP£© | commit `9dec4da` |
-| **S1.1.d** | ? ÒÑ±¾µØÌá½»£¨ÓĞÒÑÖª bug£© | À©Õ¹ opcode dispatch µ½ 14 Ìõ£º+GET/MOVRR/ADD imm/SUB imm/INC/DEC/IMUL/ADDV/ORV/SUBV/CMP | commit `9ef98ea` ¡¤ **IMUL/ADDV/ORV/SUBV/CMP ÓĞ clobber bug**£¨Á½´Î load_state_r15 ¶¼Ğ´ rax£¬µÚ¶ş´Î¸²¸ÇµÚÒ»´Î£¬Ğè `load_state_rcx`£© |
-| **S1.1.e** | ? ÒÑ±¾µØÌá½»£¨²¿·Ö£ºclobber bug ÒÑĞŞ£»Á½±é label ½âÎöÍÆ¸ø S1.1.f£© | ¼Ó `emit_load_state_rcx` helper£¨MODRM 0x48/0x88£©£¬ÖØĞ´ IMUL/ADDV/ORV/SUBV/CMP dispatch ÓÃ `rax, rcx` Ë«²Ù×÷Êı£»5 ¸ö byte-exact ²âÊÔÈ«ÂÌ | commit `f57d080` ¡¤ **clobber bug ÒÑĞŞ**£¨IMUL/ADDV/ORV/SUBV/CMP ÏÖÔÚÕæÓïÒåÕıÈ·£©¡¤ **Î´ĞŞ**£ºÁ½±é label ½âÎöÈÔÍÆµ½ S1.1.f |
-| S1.1.f | ? ÒÑ±¾µØÌá½»£¨²¿·Ö£ºÁ½±é label ½âÎöÒÑÊµÏÖ£»GET ²ÎÊıÓïÒå³ÎÇåÍÆ¸ø S1.2£© | Á½±é label ½âÎö£º`0x40` LABEL / `0x41` CALL / `0x70` JMP / `0x71-0x7A` JCC È«²¿ÕæÊµ emit + rel32 patch£»7 ¸ö byte-exact ²âÊÔÈ«ÂÌ | commit `84215cb` ¡¤ **LABEL/CALL/JMP/JCC ÏÖÔÚÕæÓïÒåÕıÈ·**£¨forward/backward/undefined È«¸²¸Ç£©¡¤ **Î´ĞŞ**£ºGET ²ÎÊıÓïÒå³ÎÇå£¨args_of ÓÃ argc=2 ¸ø GET£¬src ×ß u32¡úu16 ÒşÊ½½Ø¶Ï£¬¹¤×÷µ«ÃüÃûÎóµ¼£©ÍÆµ½ S1.2 |
-| **S1.2** | ? ÒÑ±¾µØÌá½» | 4-reg ÎïÀí·ÖÅä£¨R15 ¹Ì¶¨ state base / Rax Ö÷ scratch / Rcx ´Î²Ù×÷Êı / Rdx Èı¼¶Ô¤Áô£©+ GET `arg_slot_slot` ÓïÒå³ÎÇå£»¶ÔÆë `assembler.rs` REX/ModRM£¨ĞŞ 0x4C¡ú0x49¡¢SUB /5¡¢IMUL C1¡¢CMP C8¡¢movabs 10B£© | commit `0492dd2` ¡¤ 36/36 ²âÊÔÍ¨¹ı ¡¤ **Î´×ö**£ºLDB/MEMCPY ÈÔ NOP£¨S1.3£© |
-| **S1.3** | ? ÒÑ±¾µØÌá½»£¨²¿·Ö£ºÄÚ´æÀàÒÑ¸²¸Ç£»platform/DATA ÈÔ stub£© | LDB(0x80) + MEMCPY_DATA(0x84, `F3 A4`) + MEMCPY_STATE(0x85, slot-to-slot¡Ü64) + RAW_BYTE(0xA0) + ÏÔÊ½ NOP(0x00)£»Reg À© Rsi/Rdi£»`arg_slot3` | commit `003fa66` ¡¤ 43/43 ²âÊÔÍ¨¹ı ¡¤ **ÈÔ stub**£ºALLOC/LOAD_FILE/WRITE_FILE/DATA/STR/RAW/RAW_BYTES£¨S1.4 / platform£© |
-| **S1.4** | ? ÒÑ±¾µØÌá½»£¨²¿·Ö£ºhost-side PE wrap£»entry ¸ÄĞ´ÈÔ S1.5£© | `CodegenOutput.data` + DATA/STR/RAW(0x10/0x12/0x13)¡ú`.data` + RAW_BYTES(0xA1)¡ú`.text` + `wrap_pe`¡ú`pe_link::link_pe`£¨MZ/PE£© | commit `69fa62c` ¡¤ 47/47 ²âÊÔÍ¨¹ı ¡¤ **ÈÔ stub**£ºALLOC/LOAD_FILE/WRITE_FILE£¨platform£©¡¤ **Î´×ö**£ºin-DLL entry ¸ÄĞ´£¨S1.5£© |
-| **S1.5.a** | ? ÒÑ±¾µØÌá½»£¨²¿·Ö£ºhost entry bridge£»in-DLL x86 ÈÔ S1.5.b£© | `wrap_pe_slim`£¨tiny `.data`£¬PE?H_00 pad£©+ `compile_tyb_to_pe` + `resolve_recompile_input`£¨TYB¡úS1£¬·ñÔò oracle£©£»non-Win sidecar ÒÑ½ÓÏß | commit `54bd766` ¡¤ s1_ **51/51** + resolve **2/2** ¡¤ **Î´×ö**£ºDLL export ÌåÄÚÊÖĞ´ x86 Ìæ»» oracle£¨S1.5.b£© |
-| **S1.5.b** | ? ÒÑ±¾µØÌá½»£¨²¿·Ö£ºTYB mini-ISA in-DLL£»È«Á¿ emit ÈÔÎ´ port£© | export ReadFile ºó¼ì²â `TYB\0` ¡ú SET/RET/LABEL/NOP/RAW_BYTE mini codegen ¡ú ºæ±º slim-PE Ä£°åĞ´³ö£»·Ç TYB ÈÔ×ß oracle£»marker `yoyo_in_dll_s1_codegen` | commit `870356c` ¡¤ pe_dll_link **30/30**£¨º¬ Win empty/SET+RET TYB£©¡¤ **ÈÔÈ±**£ºÈ«Á¿ opcode / DATA / ALLOC/IO ¡¤ **ÏÂÒ»²½** S1.6 |
-| **S1.6** | ? ÒÑ±¾µØÌá½» | `compile_tyb_to_pe_mini` + `validate_tyb_mini`£¨Óë in-DLL fail-closed ¶ÔÆë£©£»Win host?in-DLL user `.text` parity ¾ØÕó£¨empty/ret/nop/label/raw/set£©£»GET ¾Ü²â | commit `4b797b1` ¡¤ pe_dll_link **32/32** ¡¤ s1_ **59/59** |
-| **S1.7.a** | ? ÒÑ±¾µØÌá½» | mini-ISA +GET/MOVRR/ADD¡¤SUB imm/INC/DEC£¨host validate + in-DLL£©£»parity ¾ØÕóÀ©ÖÁ 13 ĞĞ£»IMUL ÈÔ¾Ü | commit `a0d97a4` ¡¤ pe_dll_link **32/32** ¡¤ s1_ **60/60** |
-| **S1.7.b** | ? ÒÑ±¾µØÌá½» | mini-ISA +CMP/CALL/JMP/JCC£»in-DLL Á½±é label£¨¡Ü16 labels/patches£©£»parity À©ÖÁ 18 ĞĞ£¨º¬ fwd jmp/call/je¡¢undef jmp£© | commit `94ec051` ¡¤ pe_dll_link **32/32** ¡¤ s1_ **60/60** |
-| **S1.7.c** | ? ÒÑ±¾µØÌá½» | mini-ISA +IMUL/ADDV/ORV/SUBV£¨host validate + in-DLL£©£»parity À©ÖÁ 22 ĞĞ£»¾Ü²â¸Ä LDB | commit `662e82d` ¡¤ pe_dll_link **32/32** ¡¤ s1_ **61/61** |
-| **S1.7.d** | ? ÒÑ±¾µØÌá½» | mini-ISA +LDB/MEMCPY_DATA/MEMCPY_STATE£¨n¡Ü4£©£»parity À©ÖÁ 26 ĞĞ£»¾Ü²â¸Ä ALLOC | commit `29d1279` ¡¤ pe_dll_link **32/32** ¡¤ s1_ **63/63** |
-| **S1.7.e** | ? ÒÑ±¾µØÌá½» | mini-ISA +DATA/STR/RAW¡ú`.data`£¨¡Ü64B£»in-DLL Ğ´»Ø slim PE£©£»parity À©ÖÁ 28 ĞĞ£¨º¬ .data ±È¶Ô£© | commit `7041954` ¡¤ pe_dll_link **32/32** ¡¤ s1_ **65/65** |
-| **S1.7.f** | ? ÒÑ±¾µØÌá½» | mini-ISA +RAW_BYTES¡ú`.text`£¨argc¡Ü3£©£»parity À©ÖÁ 29 ĞĞ | commit `89f3640` ¡¤ pe_dll_link **32/32** ¡¤ s1_ **66/66** |
+| **S1.1.a** | âœ… å·²æäº¤+æ¨é€ | TYB parser éª¨æ¶ï¼ˆ`s1_tyb_parser.rs`ï¼‰ | commit `5804fb3` |
+| **S1.1.b** | âœ… å·²æœ¬åœ°æäº¤ | IR â†’ x86 emit éª¨æ¶ï¼ˆ`emit_x86` å‡½æ•°ï¼ŒNOP+RET å ä½ï¼‰ | commit `10a4fdd` |
+| **S1.1.c** | âœ… å·²æœ¬åœ°æäº¤ | çœŸ opcode dispatchï¼ˆ`0x30` SET + `0xFF` RET + `0x40` LABEL no-op + unknownâ†’NOPï¼‰ | commit `9dec4da` |
+| **S1.1.d** | âœ… å·²æœ¬åœ°æäº¤ï¼ˆæœ‰å·²çŸ¥ bugï¼‰ | æ‰©å±• opcode dispatch åˆ° 14 æ¡ï¼š+GET/MOVRR/ADD imm/SUB imm/INC/DEC/IMUL/ADDV/ORV/SUBV/CMP | commit `9ef98ea` Â· **IMUL/ADDV/ORV/SUBV/CMP æœ‰ clobber bug**ï¼ˆä¸¤æ¬¡ load_state_r15 éƒ½å†™ raxï¼Œç¬¬äºŒæ¬¡è¦†ç›–ç¬¬ä¸€æ¬¡ï¼Œéœ€ `load_state_rcx`ï¼‰ |
+| **S1.1.e** | âœ… å·²æœ¬åœ°æäº¤ï¼ˆéƒ¨åˆ†ï¼šclobber bug å·²ä¿®ï¼›ä¸¤é label è§£ææ¨ç»™ S1.1.fï¼‰ | åŠ  `emit_load_state_rcx` helperï¼ˆMODRM 0x48/0x88ï¼‰ï¼Œé‡å†™ IMUL/ADDV/ORV/SUBV/CMP dispatch ç”¨ `rax, rcx` åŒæ“ä½œæ•°ï¼›5 ä¸ª byte-exact æµ‹è¯•å…¨ç»¿ | commit `f57d080` Â· **clobber bug å·²ä¿®**ï¼ˆIMUL/ADDV/ORV/SUBV/CMP ç°åœ¨çœŸè¯­ä¹‰æ­£ç¡®ï¼‰Â· **æœªä¿®**ï¼šä¸¤é label è§£æä»æ¨åˆ° S1.1.f |
+| S1.1.f | âœ… å·²æœ¬åœ°æäº¤ï¼ˆéƒ¨åˆ†ï¼šä¸¤é label è§£æå·²å®ç°ï¼›GET å‚æ•°è¯­ä¹‰æ¾„æ¸…æ¨ç»™ S1.2ï¼‰ | ä¸¤é label è§£æï¼š`0x40` LABEL / `0x41` CALL / `0x70` JMP / `0x71-0x7A` JCC å…¨éƒ¨çœŸå® emit + rel32 patchï¼›7 ä¸ª byte-exact æµ‹è¯•å…¨ç»¿ | commit `84215cb` Â· **LABEL/CALL/JMP/JCC ç°åœ¨çœŸè¯­ä¹‰æ­£ç¡®**ï¼ˆforward/backward/undefined å…¨è¦†ç›–ï¼‰Â· **æœªä¿®**ï¼šGET å‚æ•°è¯­ä¹‰æ¾„æ¸…ï¼ˆargs_of ç”¨ argc=2 ç»™ GETï¼Œsrc èµ° u32â†’u16 éšå¼æˆªæ–­ï¼Œå·¥ä½œä½†å‘½åè¯¯å¯¼ï¼‰æ¨åˆ° S1.2 |
+| **S1.2** | âœ… å·²æœ¬åœ°æäº¤ | 4-reg ç‰©ç†åˆ†é…ï¼ˆR15 å›ºå®š state base / Rax ä¸» scratch / Rcx æ¬¡æ“ä½œæ•° / Rdx ä¸‰çº§é¢„ç•™ï¼‰+ GET `arg_slot_slot` è¯­ä¹‰æ¾„æ¸…ï¼›å¯¹é½ `assembler.rs` REX/ModRMï¼ˆä¿® 0x4Câ†’0x49ã€SUB /5ã€IMUL C1ã€CMP C8ã€movabs 10Bï¼‰ | commit `0492dd2` Â· 36/36 æµ‹è¯•é€šè¿‡ Â· **æœªåš**ï¼šLDB/MEMCPY ä» NOPï¼ˆS1.3ï¼‰ |
+| **S1.3** | âœ… å·²æœ¬åœ°æäº¤ï¼ˆéƒ¨åˆ†ï¼šå†…å­˜ç±»å·²è¦†ç›–ï¼›platform/DATA ä» stubï¼‰ | LDB(0x80) + MEMCPY_DATA(0x84, `F3 A4`) + MEMCPY_STATE(0x85, slot-to-slotâ‰¤64) + RAW_BYTE(0xA0) + æ˜¾å¼ NOP(0x00)ï¼›Reg æ‰© Rsi/Rdiï¼›`arg_slot3` | commit `003fa66` Â· 43/43 æµ‹è¯•é€šè¿‡ Â· **ä» stub**ï¼šALLOC/LOAD_FILE/WRITE_FILE/DATA/STR/RAW/RAW_BYTESï¼ˆS1.4 / platformï¼‰ |
+| **S1.4** | âœ… å·²æœ¬åœ°æäº¤ï¼ˆéƒ¨åˆ†ï¼šhost-side PE wrapï¼›entry æ”¹å†™ä» S1.5ï¼‰ | `CodegenOutput.data` + DATA/STR/RAW(0x10/0x12/0x13)â†’`.data` + RAW_BYTES(0xA1)â†’`.text` + `wrap_pe`â†’`pe_link::link_pe`ï¼ˆMZ/PEï¼‰ | commit `69fa62c` Â· 47/47 æµ‹è¯•é€šè¿‡ Â· **ä» stub**ï¼šALLOC/LOAD_FILE/WRITE_FILEï¼ˆplatformï¼‰Â· **æœªåš**ï¼šin-DLL entry æ”¹å†™ï¼ˆS1.5ï¼‰ |
+| **S1.5.a** | âœ… å·²æœ¬åœ°æäº¤ï¼ˆéƒ¨åˆ†ï¼šhost entry bridgeï¼›in-DLL x86 ä» S1.5.bï¼‰ | `wrap_pe_slim`ï¼ˆtiny `.data`ï¼ŒPEâ‰ªH_00 padï¼‰+ `compile_tyb_to_pe` + `resolve_recompile_input`ï¼ˆTYBâ†’S1ï¼Œå¦åˆ™ oracleï¼‰ï¼›non-Win sidecar å·²æ¥çº¿ | commit `54bd766` Â· s1_ **51/51** + resolve **2/2** Â· **æœªåš**ï¼šDLL export ä½“å†…æ‰‹å†™ x86 æ›¿æ¢ oracleï¼ˆS1.5.bï¼‰ |
+| **S1.5.b** | âœ… å·²æœ¬åœ°æäº¤ï¼ˆéƒ¨åˆ†ï¼šTYB mini-ISA in-DLLï¼›å…¨é‡ emit ä»æœª portï¼‰ | export ReadFile åæ£€æµ‹ `TYB\0` â†’ SET/RET/LABEL/NOP/RAW_BYTE mini codegen â†’ çƒ˜ç„™ slim-PE æ¨¡æ¿å†™å‡ºï¼›é TYB ä»èµ° oracleï¼›marker `yoyo_in_dll_s1_codegen` | commit `870356c` Â· pe_dll_link **30/30**ï¼ˆå« Win empty/SET+RET TYBï¼‰Â· **ä»ç¼º**ï¼šå…¨é‡ opcode / DATA / ALLOC/IO Â· **ä¸‹ä¸€æ­¥** S1.6 |
+| **S1.6** | âœ… å·²æœ¬åœ°æäº¤ | `compile_tyb_to_pe_mini` + `validate_tyb_mini`ï¼ˆä¸ in-DLL fail-closed å¯¹é½ï¼‰ï¼›Win hostâ†”in-DLL user `.text` parity çŸ©é˜µï¼ˆempty/ret/nop/label/raw/setï¼‰ï¼›GET æ‹’æµ‹ | commit `4b797b1` Â· pe_dll_link **32/32** Â· s1_ **59/59** |
+| **S1.7.a** | âœ… å·²æœ¬åœ°æäº¤ | mini-ISA +GET/MOVRR/ADDÂ·SUB imm/INC/DECï¼ˆhost validate + in-DLLï¼‰ï¼›parity çŸ©é˜µæ‰©è‡³ 13 è¡Œï¼›IMUL ä»æ‹’ | commit `a0d97a4` Â· pe_dll_link **32/32** Â· s1_ **60/60** |
+| **S1.7.b** | âœ… å·²æœ¬åœ°æäº¤ | mini-ISA +CMP/CALL/JMP/JCCï¼›in-DLL ä¸¤é labelï¼ˆâ‰¤16 labels/patchesï¼‰ï¼›parity æ‰©è‡³ 18 è¡Œï¼ˆå« fwd jmp/call/jeã€undef jmpï¼‰ | commit `94ec051` Â· pe_dll_link **32/32** Â· s1_ **60/60** |
+| **S1.7.c** | âœ… å·²æœ¬åœ°æäº¤ | mini-ISA +IMUL/ADDV/ORV/SUBVï¼ˆhost validate + in-DLLï¼‰ï¼›parity æ‰©è‡³ 22 è¡Œï¼›æ‹’æµ‹æ”¹ LDB | commit `662e82d` Â· pe_dll_link **32/32** Â· s1_ **61/61** |
+| **S1.7.d** | âœ… å·²æœ¬åœ°æäº¤ | mini-ISA +LDB/MEMCPY_DATA/MEMCPY_STATEï¼ˆnâ‰¤4ï¼‰ï¼›parity æ‰©è‡³ 26 è¡Œï¼›æ‹’æµ‹æ”¹ ALLOC | commit `29d1279` Â· pe_dll_link **32/32** Â· s1_ **63/63** |
+| **S1.7.e** | âœ… å·²æœ¬åœ°æäº¤ | mini-ISA +DATA/STR/RAWâ†’`.data`ï¼ˆâ‰¤64Bï¼›in-DLL å†™å› slim PEï¼‰ï¼›parity æ‰©è‡³ 28 è¡Œï¼ˆå« .data æ¯”å¯¹ï¼‰ | commit `7041954` Â· pe_dll_link **32/32** Â· s1_ **65/65** |
+| **S1.7.f** | âœ… å·²æœ¬åœ°æäº¤ | mini-ISA +RAW_BYTESâ†’`.text`ï¼ˆargcâ‰¤3ï¼‰ï¼›parity æ‰©è‡³ 29 è¡Œ | commit `89f3640` Â· pe_dll_link **32/32** Â· s1_ **66/66** |
 
-**S1 ½ø¶È**£ºS1.1¨CS1.7.f ±¾µØÍê³É¡£mini-ISA ¸²¸ÇºËĞÄ codegen ÇĞÆ¬¡£
-**³ÏÊµ·Ç CLOSED**£ºALLOC/LOAD_FILE/WRITE_FILE ½ö **StubPlatform ¶ÔÆë stub**£¨·ÇÕæ OS I/O£©£»·Ç TYB ÈÔ oracle£»OW-RT **ÈÔ CUT** ¡¤ `closed=0`¡£
-**ÏÂÒ»²½ S2**£º¼ûÏÂ½Ú¡£
+**S1 è¿›åº¦**ï¼šS1.1â€“S1.7.f æœ¬åœ°å®Œæˆã€‚mini-ISA è¦†ç›–æ ¸å¿ƒ codegen åˆ‡ç‰‡ã€‚
+**è¯šå®é CLOSED**ï¼šALLOC/LOAD_FILE/WRITE_FILE ä»… **StubPlatform å¯¹é½ stub**ï¼ˆéçœŸ OS I/Oï¼‰ï¼›é TYB ä» oracleï¼›OW-RT **ä» CUT** Â· `closed=0`ã€‚
+**ä¸‹ä¸€æ­¥ S2**ï¼šè§ä¸‹èŠ‚ã€‚
 
-### S2 ×ÓÈÎÎñ·Ö½â£¨½ø¶È¸ú×Ù£©
+### S2 å­ä»»åŠ¡åˆ†è§£ï¼ˆè¿›åº¦è·Ÿè¸ªï¼‰
 
-**S2 Á¢Ïî¶¨Òå**£ºsidecar ÄÜ±àÒë±í´ï¡¸runtime Ğ§¹û¡¹ËùĞèµÄ H_00 Ö¸Áî×Ó¼¯£¨¶ÁÊäÈë ¡ú ±àÒë/±ä»» ¡ú Ğ´Êä³ö£©£¬¶ø·ÇÒ»´ÎÖØĞ´Õû¸ö Rust `yoyo-runtime`¡£
+**S2 ç«‹é¡¹å®šä¹‰**ï¼šsidecar èƒ½ç¼–è¯‘è¡¨è¾¾ã€Œruntime æ•ˆæœã€æ‰€éœ€çš„ H_00 æŒ‡ä»¤å­é›†ï¼ˆè¯»è¾“å…¥ â†’ ç¼–è¯‘/å˜æ¢ â†’ å†™è¾“å‡ºï¼‰ï¼Œè€Œéä¸€æ¬¡é‡å†™æ•´ä¸ª Rust `yoyo-runtime`ã€‚
 
-| ×ÓÈÎÎñ | ×´Ì¬ | ÄÚÈİ | ±¸×¢ |
+| å­ä»»åŠ¡ | çŠ¶æ€ | å†…å®¹ | å¤‡æ³¨ |
 |---|---|---|---|
-| **S2.1** | ? ÒÑ±¾µØÌá½» | ISA È±¿ÚÅÌµã£ºS1 mini vs `isa_table` vs runtime Ğ§¹ûËùĞèÆ½Ì¨ ops | commit `9885ab5` ¡¤ **ÎŞ**¼ÓÔØÆ÷¸Ä¶¯ |
-| **S2.2** | ? ÒÑ±¾µØÌá½» | host `emit_x86` ALLOC = **StubPlatform ¶ÔÆë**£º`movabs rax,size`+`store_state`£¨¼Ç size£¬·ÇÕæ¶Ñ£©£»mini/in-DLL **ÈÔ¾Ü** | commit `94e12b7` ¡¤ Õæ OS ·ÖÅäÍÆºó£»in-DLL=S2.4 |
-| **S2.3** | ? ÒÑ±¾µØÌá½» | host LOAD_FILE/WRITE_FILE = StubPlatform ¶ÔÆë£¨`movabs` str_idx+store£»sz ºöÂÔ£©£»mini **ÈÔ¾Ü** | commit `e136f82` ¡¤ ·ÇÕæÎÄ¼ş I/O£»in-DLL=S2.4 |
-| **S2.4** | ? ÒÑ±¾µØÌá½» | in-DLL mini ¶ÔÆë stub£ºALLOC/LOAD_FILE/WRITE_FILE argc=2 ¡ú Óë SET Í¬±àÂë£»parity +3 | commit `24b944c` ¡¤ **ÈÔ·Ç**Õæ OS I/O |
-| **S2.5** | ? ÒÑ±¾µØÌá½» | ×îĞ¡ runtime-Ğ§¹û stub ¹Ì¼ş `.ty`/`.tyb` + `stage17-s2-runtime-effect.ps1` | commit `5f8e959` ¡¤ **ÈÔ·Ç**Õæ OS I/O ¡¤ ·Ç CLOSED |
+| **S2.1** | âœ… å·²æœ¬åœ°æäº¤ | ISA ç¼ºå£ç›˜ç‚¹ï¼šS1 mini vs `isa_table` vs runtime æ•ˆæœæ‰€éœ€å¹³å° ops | commit `9885ab5` Â· **æ— **åŠ è½½å™¨æ”¹åŠ¨ |
+| **S2.2** | âœ… å·²æœ¬åœ°æäº¤ | host `emit_x86` ALLOC = **StubPlatform å¯¹é½**ï¼š`movabs rax,size`+`store_state`ï¼ˆè®° sizeï¼ŒéçœŸå †ï¼‰ï¼›mini/in-DLL **ä»æ‹’** | commit `94e12b7` Â· çœŸ OS åˆ†é…æ¨åï¼›in-DLL=S2.4 |
+| **S2.3** | âœ… å·²æœ¬åœ°æäº¤ | host LOAD_FILE/WRITE_FILE = StubPlatform å¯¹é½ï¼ˆ`movabs` str_idx+storeï¼›sz å¿½ç•¥ï¼‰ï¼›mini **ä»æ‹’** | commit `e136f82` Â· éçœŸæ–‡ä»¶ I/Oï¼›in-DLL=S2.4 |
+| **S2.4** | âœ… å·²æœ¬åœ°æäº¤ | in-DLL mini å¯¹é½ stubï¼šALLOC/LOAD_FILE/WRITE_FILE argc=2 â†’ ä¸ SET åŒç¼–ç ï¼›parity +3 | commit `24b944c` Â· **ä»é**çœŸ OS I/O |
+| **S2.5** | âœ… å·²æœ¬åœ°æäº¤ | æœ€å° runtime-æ•ˆæœ stub å›ºä»¶ `.ty`/`.tyb` + `stage17-s2-runtime-effect.ps1` | commit `5f8e959` Â· **ä»é**çœŸ OS I/O Â· é CLOSED |
 
-#### S2.1 ¡ª ISA È±¿ÚÅÌµã£¨±¾²½£©
+#### S2.1 â€” ISA ç¼ºå£ç›˜ç‚¹ï¼ˆæœ¬æ­¥ï¼‰
 
-**A. S1 mini ÒÑ¸²¸Ç**£¨`is_s1_mini_op`£¬host?in-DLL parity£©
+**A. S1 mini å·²è¦†ç›–**ï¼ˆ`is_s1_mini_op`ï¼Œhostâ†”in-DLL parityï¼‰
 
-| Àà | opcodes |
+| ç±» | opcodes |
 |---|---|
-| ¿ØÖÆ/×ÖÃæ | `0x00` NOP ¡¤ `0x30` SET ¡¤ `0x40` LABEL ¡¤ `0x41` CALL ¡¤ `0x70` JMP ¡¤ `0x71¨C0x7A` JCC ¡¤ `0xA0` RAW_BYTE ¡¤ `0xA1` RAW_BYTES ¡¤ `0xFF` RET |
-| ALU | `0x60/64` GET/MOVRR ¡¤ `0x61/62` SUB/ADD imm ¡¤ `0x63` IMUL ¡¤ `0x65` CMP ¡¤ `0x66/67` INC/DEC ¡¤ `0x68/69/6A` ADDV/ORV/SUBV |
-| ÄÚ´æ | `0x80` LDB ¡¤ `0x84` MEMCPY_DATA ¡¤ `0x85` MEMCPY_STATE£¨**n¡Ü4**£© |
-| Êı¾İ¶Î | `0x10/12/13` DATA/STR/RAW£¨**ºÏ¼Æ ¡Ü64B**£© |
+| æ§åˆ¶/å­—é¢ | `0x00` NOP Â· `0x30` SET Â· `0x40` LABEL Â· `0x41` CALL Â· `0x70` JMP Â· `0x71â€“0x7A` JCC Â· `0xA0` RAW_BYTE Â· `0xA1` RAW_BYTES Â· `0xFF` RET |
+| ALU | `0x60/64` GET/MOVRR Â· `0x61/62` SUB/ADD imm Â· `0x63` IMUL Â· `0x65` CMP Â· `0x66/67` INC/DEC Â· `0x68/69/6A` ADDV/ORV/SUBV |
+| å†…å­˜ | `0x80` LDB Â· `0x84` MEMCPY_DATA Â· `0x85` MEMCPY_STATEï¼ˆ**nâ‰¤4**ï¼‰ |
+| æ•°æ®æ®µ | `0x10/12/13` DATA/STR/RAWï¼ˆ**åˆè®¡ â‰¤64B**ï¼‰ |
 
-**B. `isa_table.txt` ÓĞ¡¢S1 mini Î´ÊÕ**£¨S2 Ö÷È±¿Ú£©
+**B. `isa_table.txt` æœ‰ã€S1 mini æœªæ”¶**ï¼ˆS2 ä¸»ç¼ºå£ï¼‰
 
-| op | Ãû | ÎªºÎµ² S2 |
+| op | å | ä¸ºä½•æŒ¡ S2 |
 |---|---|---|
-| `0x20` | ALLOC | runtime Ğ§¹ûĞèÒª»º³å/¶ÑÓïÒå£»**S2.2¨CS2.4 stub ÒÑÆë**£¨¼Ç size£»·ÇÕæ¶Ñ£© |
-| `0x50` | LOAD_FILE | ¶Á `input.*` µÄ IR ±í´ï£»**S2.3¨CS2.4 stub ÒÑÆë**£¨¼Ç str_idx£»·ÇÕæ I/O£© |
-| `0x51` | WRITE_FILE | Ğ´ `output.exe` µÄ IR ±í´ï£»**S2.3¨CS2.4 stub ÒÑÆë**£¨¼Ç str_idx£»·ÇÕæ I/O£© |
+| `0x20` | ALLOC | runtime æ•ˆæœéœ€è¦ç¼“å†²/å †è¯­ä¹‰ï¼›**S2.2â€“S2.4 stub å·²é½**ï¼ˆè®° sizeï¼›éçœŸå †ï¼‰ |
+| `0x50` | LOAD_FILE | è¯» `input.*` çš„ IR è¡¨è¾¾ï¼›**S2.3â€“S2.4 stub å·²é½**ï¼ˆè®° str_idxï¼›éçœŸ I/Oï¼‰ |
+| `0x51` | WRITE_FILE | å†™ `output.exe` çš„ IR è¡¨è¾¾ï¼›**S2.3â€“S2.4 stub å·²é½**ï¼ˆè®° str_idxï¼›éçœŸ I/Oï¼‰ |
 
-**C. S1 ÈíÉÏÏŞ£¨·ÇÈ± opcode£¬µ«µ²¡¸´ó¡¹³ÌĞò£©**
+**C. S1 è½¯ä¸Šé™ï¼ˆéç¼º opcodeï¼Œä½†æŒ¡ã€Œå¤§ã€ç¨‹åºï¼‰**
 
-| ÏŞÖÆ | Öµ | Ó°Ïì |
+| é™åˆ¶ | å€¼ | å½±å“ |
 |---|---|---|
-| ´úÂë»º³å | **512B** user `.text`£¨S3.7£»Ô­ 256£© | ¸´ÔÓ runtime `.ty` ÈÔ¿ÉÄÜ²»¹» |
-| label/patch | ¸÷ ¡Ü16 | ´ó¿ØÖÆÁ÷ |
-| MEMCPY_STATE n | ¡Ü4 | ´ó¿é×´Ì¬¿½±´ |
-| DATA ºÏ¼Æ | **128B**£¨S3.10£»Ô­ 64£© | ´ó×Ö·û´®±íÈÔ¿ÉÄÜ²»¹» |
+| ä»£ç ç¼“å†² | **512B** user `.text`ï¼ˆS3.7ï¼›åŸ 256ï¼‰ | å¤æ‚ runtime `.ty` ä»å¯èƒ½ä¸å¤Ÿ |
+| label/patch | å„ â‰¤16 | å¤§æ§åˆ¶æµ |
+| MEMCPY_STATE n | â‰¤4 | å¤§å—çŠ¶æ€æ‹·è´ |
+| DATA åˆè®¡ | **128B**ï¼ˆS3.10ï¼›åŸ 64ï¼‰ | å¤§å­—ç¬¦ä¸²è¡¨ä»å¯èƒ½ä¸å¤Ÿ |
 
-**D. Óë Rust `yoyo-runtime` µÄ³ÏÊµ¶ÔÕÕ**
+**D. ä¸ Rust `yoyo-runtime` çš„è¯šå®å¯¹ç…§**
 
-½ñÈÕÉú²ú sidecar£¨Rust£©×öµÄÊÇ£º¶Á cwd ÊäÈë ¡ú `bootstrap_compile` ¡ú Ğ´Êä³ö£¨exit 0/1/2/3£©¡£  
-S2 **²»ÊÇ**Ò»²½°Ñ¸Ã Rust ¿â·­Òë³É YOYO£»S2 ÏÈÒªÇó£º**Í¬Ò»Ğ§¹ûÆõÔ¼**¿ÉÓÃ H_00 IR +£¨À©Õ¹ºóµÄ£©codegen ×Ó¼¯±í´ï²¢±» sidecar Â·¾¶±àÒë¡£  
-ÍêÕû¡¸ÓÃ YOYO Ğ´ codegen¡¹Êô **S3**¡£
+ä»Šæ—¥ç”Ÿäº§ sidecarï¼ˆRustï¼‰åšçš„æ˜¯ï¼šè¯» cwd è¾“å…¥ â†’ `bootstrap_compile` â†’ å†™è¾“å‡ºï¼ˆexit 0/1/2/3ï¼‰ã€‚  
+S2 **ä¸æ˜¯**ä¸€æ­¥æŠŠè¯¥ Rust åº“ç¿»è¯‘æˆ YOYOï¼›S2 å…ˆè¦æ±‚ï¼š**åŒä¸€æ•ˆæœå¥‘çº¦**å¯ç”¨ H_00 IR +ï¼ˆæ‰©å±•åçš„ï¼‰codegen å­é›†è¡¨è¾¾å¹¶è¢« sidecar è·¯å¾„ç¼–è¯‘ã€‚  
+å®Œæ•´ã€Œç”¨ YOYO å†™ codegenã€å± **S3**ã€‚
 
-**E. S2.1 ½áÂÛ ¡ú ÍÆ¼öÏÂÒ»µ¶**
+**E. S2.1 ç»“è®º â†’ æ¨èä¸‹ä¸€åˆ€**
 
-1. ~~**S2.2**£ºALLOC host ÓïÒå~~ ¡ú **ÒÑ¶¨**£ºStubPlatform ¶ÔÆë£¨¼Ç size Èë state£©£»·ÇÕæ¶Ñ£»mini ÈÔ¾Ü  
-2. ~~**S2.3**£ºLOAD_FILE / WRITE_FILE~~ ¡ú **ÒÑ¶¨**£ºStub ¶ÔÆë£¨¼Ç str_idx£»·ÇÕæ I/O£©  
-3. ~~**S2.4**£ºin-DLL ¶ÔÆë~~ ¡ú stub ÒÑ port£¨=SET ±àÂë£»·ÇÕæ I/O£©  
-4. ~~**S2.5**£º×îĞ¡ runtime-Ğ§¹û¹Ì¼ş~~ ¡ú stub ¹Ì¼ş + ÑéÊÕ½Å±¾ GREEN£»**½ûÖ¹**Ğû³Æ OW-RT CLOSED
+1. ~~**S2.2**ï¼šALLOC host è¯­ä¹‰~~ â†’ **å·²å®š**ï¼šStubPlatform å¯¹é½ï¼ˆè®° size å…¥ stateï¼‰ï¼›éçœŸå †ï¼›mini ä»æ‹’  
+2. ~~**S2.3**ï¼šLOAD_FILE / WRITE_FILE~~ â†’ **å·²å®š**ï¼šStub å¯¹é½ï¼ˆè®° str_idxï¼›éçœŸ I/Oï¼‰  
+3. ~~**S2.4**ï¼šin-DLL å¯¹é½~~ â†’ stub å·² portï¼ˆ=SET ç¼–ç ï¼›éçœŸ I/Oï¼‰  
+4. ~~**S2.5**ï¼šæœ€å° runtime-æ•ˆæœå›ºä»¶~~ â†’ stub å›ºä»¶ + éªŒæ”¶è„šæœ¬ GREENï¼›**ç¦æ­¢**å®£ç§° OW-RT CLOSED
 
-#### S2.2 ¡ª ALLOC host ²ßÂÔ
+#### S2.2 â€” ALLOC host ç­–ç•¥
 
-| Ïî | ¾ö¶¨ |
+| é¡¹ | å†³å®š |
 |---|---|
-| ±àÂë | Óë `StubPlatform::emit_alloc` Ò»ÖÂ£º`movabs rax, size` + `store_state slot` |
-| ÓïÒå³ÏÊµ±ß½ç | **²»**µ÷ÓÃÏµÍ³·ÖÅäÆ÷£»state[slot]=size£¨ÓëÀúÊ· stub/golden Ò»ÖÂ£© |
-| `compile_tyb_to_pe` | ½ÓÊÜ£¨×ß `emit_x86`£© |
-| `compile_tyb_to_pe_mini` / in-DLL | S2.4£ºargc=2 stub **ÒÑ½ÓÊÜ**£¨·ÇÕæ¶Ñ£© |
-| ·ÇÄ¿±ê | Õæ¶ÑÖ¸Õë¡¢IAT¡¢in-DLL port |
+| ç¼–ç  | ä¸ `StubPlatform::emit_alloc` ä¸€è‡´ï¼š`movabs rax, size` + `store_state slot` |
+| è¯­ä¹‰è¯šå®è¾¹ç•Œ | **ä¸**è°ƒç”¨ç³»ç»Ÿåˆ†é…å™¨ï¼›state[slot]=sizeï¼ˆä¸å†å² stub/golden ä¸€è‡´ï¼‰ |
+| `compile_tyb_to_pe` | æ¥å—ï¼ˆèµ° `emit_x86`ï¼‰ |
+| `compile_tyb_to_pe_mini` / in-DLL | S2.4ï¼šargc=2 stub **å·²æ¥å—**ï¼ˆéçœŸå †ï¼‰ |
+| éç›®æ ‡ | çœŸå †æŒ‡é’ˆã€IATã€in-DLL port |
 
-#### S2.3 ¡ª LOAD_FILE / WRITE_FILE host ²ßÂÔ£¨±¾²½£©
+#### S2.3 â€” LOAD_FILE / WRITE_FILE host ç­–ç•¥ï¼ˆæœ¬æ­¥ï¼‰
 
-| Ïî | ¾ö¶¨ |
+| é¡¹ | å†³å®š |
 |---|---|
-| LOAD_FILE | `movabs rax, str_idx` + `store_state slot`£¨argc=2£© |
-| WRITE_FILE | Í¬ÉÏ£»argc=2 »ò 3£¨`sz` ºöÂÔ£¬¶ÔÆë StubPlatform£© |
-| ÓïÒå³ÏÊµ±ß½ç | **²»**×öÕæÊµ¶Á/Ğ´ÎÄ¼ş£»Ö»°Ñ str_idx ¼ÇÈë state |
-| mini / in-DLL | S2.4£ºargc=2 stub **ÒÑ½ÓÊÜ**£¨·ÇÕæ I/O£© |
+| LOAD_FILE | `movabs rax, str_idx` + `store_state slot`ï¼ˆargc=2ï¼‰ |
+| WRITE_FILE | åŒä¸Šï¼›argc=2 æˆ– 3ï¼ˆ`sz` å¿½ç•¥ï¼Œå¯¹é½ StubPlatformï¼‰ |
+| è¯­ä¹‰è¯šå®è¾¹ç•Œ | **ä¸**åšçœŸå®è¯»/å†™æ–‡ä»¶ï¼›åªæŠŠ str_idx è®°å…¥ state |
+| mini / in-DLL | S2.4ï¼šargc=2 stub **å·²æ¥å—**ï¼ˆéçœŸ I/Oï¼‰ |
 
-#### S2.4 ¡ª in-DLL stub ¶ÔÆë£¨±¾²½£©
+#### S2.4 â€” in-DLL stub å¯¹é½ï¼ˆæœ¬æ­¥ï¼‰
 
-| Ïî | ¾ö¶¨ |
+| é¡¹ | å†³å®š |
 |---|---|
-| ±àÂë | `0x20`/`0x50`/`0x51` argc=2 ¡ú Óë SET ÏàÍ¬£º`movabs`+`store_state` |
-| WRITE argc=3 | mini **ÈÔ¾Ü**£¨host emit ÈÔ½ÓÊÜ£© |
-| ³ÏÊµ±ß½ç | **²»ÊÇ**Õæ·ÖÅä/¶ÁÎÄ¼ş/Ğ´ÎÄ¼ş£»Ö»¼Ç imm Èë state |
+| ç¼–ç  | `0x20`/`0x50`/`0x51` argc=2 â†’ ä¸ SET ç›¸åŒï¼š`movabs`+`store_state` |
+| WRITE argc=3 | mini **ä»æ‹’**ï¼ˆhost emit ä»æ¥å—ï¼‰ |
+| è¯šå®è¾¹ç•Œ | **ä¸æ˜¯**çœŸåˆ†é…/è¯»æ–‡ä»¶/å†™æ–‡ä»¶ï¼›åªè®° imm å…¥ state |
 | parity | +alloc_stub_ret / load_file_stub_ret / write_file_stub_ret |
 
-#### S2.5 ¡ª runtime-Ğ§¹û stub ¹Ì¼ş£¨±¾²½£©
+#### S2.5 â€” runtime-æ•ˆæœ stub å›ºä»¶ï¼ˆæœ¬æ­¥ï¼‰
 
-| Ïî | ¾ö¶¨ |
+| é¡¹ | å†³å®š |
 |---|---|
-| ¹Ì¼ş | `yoyo/tests/golden/s2_runtime_effect_stub.{ty,tyb}`£ºSTR¡Á2 + ALLOC + LOAD_FILE + WRITE_FILE + RET |
-| ÑéÊÕ | `scripts/stage17-s2-runtime-effect.ps1` ¡ú `cargo test ¡­ s2_runtime_effect` |
-| ÓïÒå | stub only£¨state ¼Ç size/str_idx£©£»`.data`=`in\0out` |
-| ·ÇÄ¿±ê | Õæ OS I/O¡¢OW-RT CLOSED¡¢S3 ×Ô¾Ù |
+| å›ºä»¶ | `yoyo/tests/golden/s2_runtime_effect_stub.{ty,tyb}`ï¼šSTRÃ—2 + ALLOC + LOAD_FILE + WRITE_FILE + RET |
+| éªŒæ”¶ | `scripts/stage17-s2-runtime-effect.ps1` â†’ `cargo test â€¦ s2_runtime_effect` |
+| è¯­ä¹‰ | stub onlyï¼ˆstate è®° size/str_idxï¼‰ï¼›`.data`=`in\0out` |
+| éç›®æ ‡ | çœŸ OS I/Oã€OW-RT CLOSEDã€S3 è‡ªä¸¾ |
 
-**S2 ½ø¶È**£ºS2.1¨CS2.5 ±¾µØÍê³É£¨Æ½Ì¨ stub ×Ó¼¯ + ¹Ì¼ş¹³×Ó£©¡£
-**³ÏÊµ**£ºÕæ¶ÁÊäÈë/Ğ´Êä³öÈÔÈ± ¡ú OW-RT **ÈÔ CUT** ¡¤ `closed=0`¡£
+**S2 è¿›åº¦**ï¼šS2.1â€“S2.5 æœ¬åœ°å®Œæˆï¼ˆå¹³å° stub å­é›† + å›ºä»¶é’©å­ï¼‰ã€‚
+**è¯šå®**ï¼šçœŸè¯»è¾“å…¥/å†™è¾“å‡ºä»ç¼º â†’ OW-RT **ä» CUT** Â· `closed=0`ã€‚
 
-### S3 ×ÓÈÎÎñ·Ö½â£¨½ø¶È¸ú×Ù£©
+### S3 å­ä»»åŠ¡åˆ†è§£ï¼ˆè¿›åº¦è·Ÿè¸ªï¼‰
 
-**S3 Á¢Ïî¶¨Òå**£º°Ñ **codegen ±¾Éí**Öğ²½ÓÃ YOYO/H_00 IR ±í´ï£¨meta-emit£©£¬Ê¹¡¸³Ô TYB ¡ú ²ú x86¡¹²»ÔÙÎ¨Ò»ÒÀÀµ Rust ÊÖĞ´»úÆ÷Âë¡£°ëÄê-Äê¼¶£»±¾²½Ö»×öÈ±¿ÚÅÌµã¡£
+**S3 ç«‹é¡¹å®šä¹‰**ï¼šæŠŠ **codegen æœ¬èº«**é€æ­¥ç”¨ YOYO/H_00 IR è¡¨è¾¾ï¼ˆmeta-emitï¼‰ï¼Œä½¿ã€Œåƒ TYB â†’ äº§ x86ã€ä¸å†å”¯ä¸€ä¾èµ– Rust æ‰‹å†™æœºå™¨ç ã€‚åŠå¹´-å¹´çº§ï¼›æœ¬æ­¥åªåšç¼ºå£ç›˜ç‚¹ã€‚
 
-| ×ÓÈÎÎñ | ×´Ì¬ | ÄÚÈİ | ±¸×¢ |
+| å­ä»»åŠ¡ | çŠ¶æ€ | å†…å®¹ | å¤‡æ³¨ |
 |---|---|---|---|
-| **S3.1** | ? ÒÑ±¾µØÌá½» | codegen ×Ô¾ÙÈ±¿ÚÅÌµã£ºRust ±íÃæ / ÈíÉÏÏŞ / ×îĞ¡ meta-emit ÇĞÆ¬ | commit `6466ca3` ¡¤ docs-only ¡¤ **ÎŞ**¼Ù CLOSED |
-| **S3.2** | ? ÒÑ±¾µØÌá½» | ×îĞ¡ meta-emit£ºYOYO RAW_BYTES ¶Ô SET+RET ²ú³öÓë `emit_x86` byte-identical | commit `2818f6c` ¡¤ Ä£°å dump ¡¤ **·Ç**Õæ±àÒëÆ÷ |
-| **S3.3** | ? ÒÑ±¾µØÌá½» | meta-emit ¾ØÕó£¨RET/NOP+RET/SET+RET£©+ **ÈíÉÏÏŞÔİ²»Ìá**£¨in-DLL scratch=256£© | commit `9b4f04e` ¡¤ Ä£°å dump |
-| **S3.4** | ? ÒÑ±¾µØÌá½» | `pack_meta_emit_raw_bytes_tyb` ×Ô `emit_x86` ×Ô¶¯´ò°ü£»GET+RET + ÓëÊÖĞ´ golden Ò»ÖÂ | commit `b85d365` ¡¤ ÈÔ Rust ¸¨Öú |
-| **S3.5** | ? ÒÑ±¾µØÌá½» | in-DLL scratch À©Èİ´¥µãÅÌµã£¨256¡ú512 Ç°±Ø¸ÄÇåµ¥£© | commit `011a9f2` ¡¤ docs-only |
-| **S3.6** | ? ÒÑ±¾µØÌá½» | in-DLL Õ»²¼¾Ö **³£Á¿³éÈ¡**£¨`IN_DLL_S1_*`£»ÊıÖµÈÔ 256/0x2900£© | commit `3ac7710` ¡¤ ĞĞÎª²»±ä ¡¤ const assert |
-| **S3.7** | ? ÒÑ±¾µØÌá½» | scratch/code **256¡ú512**£ºPE buf 0x1800¡¢STACK 0x2C00¡¢DATA off 0x800 | commit `3c54dc4` ¡¤ parity GREEN |
-| **S3.8** | ? ÒÑ±¾µØÌá½» | DATA ×¤Áô opcode¡úx86 Ä£°å±í£¨RET/NOP£©+ Rust lookup ºÏ³É ¡Ô `emit_x86` | commit `03ab581` ¡¤ ½âÊÍÆ÷ÈÔ Rust |
-| **S3.9** | ? ÒÑ±¾µØÌá½» | ±íĞĞ 20B + SET Ä£°å£»ºÏ³É SET+RET/NOP+RET ¡Ô `emit_x86`£¨60B¡Ü64£© | commit `e83d072` ¡¤ ½âÊÍÆ÷ÈÔ Rust |
-| **S3.10** | ? ÒÑ±¾µØÌá½» | `S1_MINI_DATA_MAX` 64¡ú**128**£»in-DLL `cmp imm32` + STACK 0x2D00 | commit `26750dc` |
-| **S3.11** | ? ÒÑ±¾µØÌá½» | Ä£°å±í +GET/+INC£¨5 ĞĞ/100B£©£»ºÏ³É¾ØÕó ¡Ô `emit_x86` | commit `7a7e205` ¡¤ ½âÊÍÆ÷ÈÔ Rust |
-| **S3.12+** | ? Î´¿ªÊ¼ | ÔÙÀ© ALU/¿ØÖÆÁ÷Ä£°å / YOYO ²à½âÊÍ±í | Õæ×Ô¾Ù³¤¸Ë |
+| **S3.1** | âœ… å·²æœ¬åœ°æäº¤ | codegen è‡ªä¸¾ç¼ºå£ç›˜ç‚¹ï¼šRust è¡¨é¢ / è½¯ä¸Šé™ / æœ€å° meta-emit åˆ‡ç‰‡ | commit `6466ca3` Â· docs-only Â· **æ— **å‡ CLOSED |
+| **S3.2** | âœ… å·²æœ¬åœ°æäº¤ | æœ€å° meta-emitï¼šYOYO RAW_BYTES å¯¹ SET+RET äº§å‡ºä¸ `emit_x86` byte-identical | commit `2818f6c` Â· æ¨¡æ¿ dump Â· **é**çœŸç¼–è¯‘å™¨ |
+| **S3.3** | âœ… å·²æœ¬åœ°æäº¤ | meta-emit çŸ©é˜µï¼ˆRET/NOP+RET/SET+RETï¼‰+ **è½¯ä¸Šé™æš‚ä¸æ**ï¼ˆin-DLL scratch=256ï¼‰ | commit `9b4f04e` Â· æ¨¡æ¿ dump |
+| **S3.4** | âœ… å·²æœ¬åœ°æäº¤ | `pack_meta_emit_raw_bytes_tyb` è‡ª `emit_x86` è‡ªåŠ¨æ‰“åŒ…ï¼›GET+RET + ä¸æ‰‹å†™ golden ä¸€è‡´ | commit `b85d365` Â· ä» Rust è¾…åŠ© |
+| **S3.5** | âœ… å·²æœ¬åœ°æäº¤ | in-DLL scratch æ‰©å®¹è§¦ç‚¹ç›˜ç‚¹ï¼ˆ256â†’512 å‰å¿…æ”¹æ¸…å•ï¼‰ | commit `011a9f2` Â· docs-only |
+| **S3.6** | âœ… å·²æœ¬åœ°æäº¤ | in-DLL æ ˆå¸ƒå±€ **å¸¸é‡æŠ½å–**ï¼ˆ`IN_DLL_S1_*`ï¼›æ•°å€¼ä» 256/0x2900ï¼‰ | commit `3ac7710` Â· è¡Œä¸ºä¸å˜ Â· const assert |
+| **S3.7** | âœ… å·²æœ¬åœ°æäº¤ | scratch/code **256â†’512**ï¼šPE buf 0x1800ã€STACK 0x2C00ã€DATA off 0x800 | commit `3c54dc4` Â· parity GREEN |
+| **S3.8** | âœ… å·²æœ¬åœ°æäº¤ | DATA é©»ç•™ opcodeâ†’x86 æ¨¡æ¿è¡¨ï¼ˆRET/NOPï¼‰+ Rust lookup åˆæˆ â‰¡ `emit_x86` | commit `03ab581` Â· è§£é‡Šå™¨ä» Rust |
+| **S3.9** | âœ… å·²æœ¬åœ°æäº¤ | è¡¨è¡Œ 20B + SET æ¨¡æ¿ï¼›åˆæˆ SET+RET/NOP+RET â‰¡ `emit_x86`ï¼ˆ60Bâ‰¤64ï¼‰ | commit `e83d072` Â· è§£é‡Šå™¨ä» Rust |
+| **S3.10** | âœ… å·²æœ¬åœ°æäº¤ | `S1_MINI_DATA_MAX` 64â†’**128**ï¼›in-DLL `cmp imm32` + STACK 0x2D00 | commit `26750dc` |
+| **S3.11** | âœ… å·²æœ¬åœ°æäº¤ | æ¨¡æ¿è¡¨ +GET/+INCï¼ˆ5 è¡Œ/100Bï¼‰ï¼›åˆæˆçŸ©é˜µ â‰¡ `emit_x86` | commit `7a7e205` Â· è§£é‡Šå™¨ä» Rust |
+| **S3.12+** | â³ æœªå¼€å§‹ | å†æ‰© ALU/æ§åˆ¶æµæ¨¡æ¿ / YOYO ä¾§è§£é‡Šè¡¨ | çœŸè‡ªä¸¾é•¿æ† |
 
-#### S3.1 ¡ª codegen ×Ô¾ÙÈ±¿ÚÅÌµã£¨±¾²½£©
+#### S3.1 â€” codegen è‡ªä¸¾ç¼ºå£ç›˜ç‚¹ï¼ˆæœ¬æ­¥ï¼‰
 
-**A. ½ñÈÕ codegen ±íÃæ£¨ÈÔ Rust£©**
+**A. ä»Šæ—¥ codegen è¡¨é¢ï¼ˆä» Rustï¼‰**
 
-| ±íÃæ | Î»ÖÃ | Ô¼ÂÔ¹æÄ£ | ½ÇÉ« |
+| è¡¨é¢ | ä½ç½® | çº¦ç•¥è§„æ¨¡ | è§’è‰² |
 |---|---|---|---|
-| host `emit_x86` | `s1_tyb_parser.rs` | ~2.2k LOC ÎÄ¼ş£¨º¬²âÊÔ£© | TYB¡úx86+`.data`£»S1/S2 mini ¶ÔÆë |
-| in-DLL mini | `pe_dll_link.rs` `link_yoyo_in_dll_recompile_dll_emit` | ÊÖĞ´ x86 µ÷¶È£¨Í¬ÎÄ¼ş ~3.7k LOC£© | sidecar ÄÚÓë host parity |
-| Éú²ú sidecar | `yoyo-runtime`£¨Rust£© | Áí²á | ¶Á cwd¡ú±àÒë¡úĞ´£»**Î´**ÓÃ YOYO Ğ´ |
+| host `emit_x86` | `s1_tyb_parser.rs` | ~2.2k LOC æ–‡ä»¶ï¼ˆå«æµ‹è¯•ï¼‰ | TYBâ†’x86+`.data`ï¼›S1/S2 mini å¯¹é½ |
+| in-DLL mini | `pe_dll_link.rs` `link_yoyo_in_dll_recompile_dll_emit` | æ‰‹å†™ x86 è°ƒåº¦ï¼ˆåŒæ–‡ä»¶ ~3.7k LOCï¼‰ | sidecar å†…ä¸ host parity |
+| ç”Ÿäº§ sidecar | `yoyo-runtime`ï¼ˆRustï¼‰ | å¦å†Œ | è¯» cwdâ†’ç¼–è¯‘â†’å†™ï¼›**æœª**ç”¨ YOYO å†™ |
 
-**B. S3 ÒªÌæ»»µÄĞÅÈÎµã£¨³ÏÊµ£©**
+**B. S3 è¦æ›¿æ¢çš„ä¿¡ä»»ç‚¹ï¼ˆè¯šå®ï¼‰**
 
-1. opcode¡ú»úÆ÷ÂëÄ£°åÈÔĞ´ÔÚ Rust£¨host match + in-DLL JE Á´£©
-2. ¼´Ê¹ S2 stub ½ÓÊÜ ALLOC/IO£¬**Õæ**»º³å/ÎÄ¼şÈÔÈ± ¡ú meta-emit¡¸Ğ´Êä³ö¡¹ÔİÖ»ÄÜ±È `.text` ×Ö½Ú»ò¼Ç state
-3. in-DLL Óë host **Ë«·İ**Î¬»¤£»S3 ÈôÖ»Ç¨ host£¬in-DLL ÈÔ Rust
+1. opcodeâ†’æœºå™¨ç æ¨¡æ¿ä»å†™åœ¨ Rustï¼ˆhost match + in-DLL JE é“¾ï¼‰
+2. å³ä½¿ S2 stub æ¥å— ALLOC/IOï¼Œ**çœŸ**ç¼“å†²/æ–‡ä»¶ä»ç¼º â†’ meta-emitã€Œå†™è¾“å‡ºã€æš‚åªèƒ½æ¯” `.text` å­—èŠ‚æˆ–è®° state
+3. in-DLL ä¸ host **åŒä»½**ç»´æŠ¤ï¼›S3 è‹¥åªè¿ hostï¼Œin-DLL ä» Rust
 
-**C. ÈíÉÏÏŞ£¨µ²¡¸ÓÃ YOYO Ğ´ÍêÕû emit¡¹£©**
+**C. è½¯ä¸Šé™ï¼ˆæŒ¡ã€Œç”¨ YOYO å†™å®Œæ•´ emitã€ï¼‰**
 
-| ÏŞÖÆ | Öµ | ¶Ô S3 µÄÓ°Ïì |
+| é™åˆ¶ | å€¼ | å¯¹ S3 çš„å½±å“ |
 |---|---|---|
-| user `.text` | 256B | ·Å²»ÏÂÕæÊµ emit º¯ÊıÌå |
-| DATA ºÏ¼Æ | **128B**£¨S3.10£© | Ä£°å±í¿É·Å¸ü¶àĞĞ£»ÈÔ·ÇÎŞÏŞ |
-| labels/patches | ¡Ü16 | ´ó¿ØÖÆÁ÷²»¹» |
-| MEMCPY_STATE n | ¡Ü4 | ´ó¿é°áÒÆÊÜÏŞ |
-| platform I/O | stub only | ²»ÄÜÕæ¶ÁÔ´/Ğ´²úÎï |
+| user `.text` | 256B | æ”¾ä¸ä¸‹çœŸå® emit å‡½æ•°ä½“ |
+| DATA åˆè®¡ | **128B**ï¼ˆS3.10ï¼‰ | æ¨¡æ¿è¡¨å¯æ”¾æ›´å¤šè¡Œï¼›ä»éæ— é™ |
+| labels/patches | â‰¤16 | å¤§æ§åˆ¶æµä¸å¤Ÿ |
+| MEMCPY_STATE n | â‰¤4 | å¤§å—æ¬ç§»å—é™ |
+| platform I/O | stub only | ä¸èƒ½çœŸè¯»æº/å†™äº§ç‰© |
 
-**D. Óë S2 ¹Ì¼şµÄ¹ØÏµ**
+**D. ä¸ S2 å›ºä»¶çš„å…³ç³»**
 
-`s2_runtime_effect_stub` Ö¤Ã÷ sidecar **ÄÜ±àÒë**¡¸runtime Ğ§¹û¡¹IR ĞÎ£»**²»**Ö¤Ã÷ codegen ÒÑÓÃ YOYO Ğ´¡£S3 ÁíÆğ meta-emit Ïß¡£
+`s2_runtime_effect_stub` è¯æ˜ sidecar **èƒ½ç¼–è¯‘**ã€Œruntime æ•ˆæœã€IR å½¢ï¼›**ä¸**è¯æ˜ codegen å·²ç”¨ YOYO å†™ã€‚S3 å¦èµ· meta-emit çº¿ã€‚
 
-**E. S3.1 ½áÂÛ ¡ú ÍÆ¼öÏÂÒ»µ¶**
+**E. S3.1 ç»“è®º â†’ æ¨èä¸‹ä¸€åˆ€**
 
-1. ~~**S3.2**£º×îĞ¡ meta-emit~~ ¡ú RAW_BYTES Ä£°å¹Ì¼ş = `emit_x86(SET+RET)`£»Rust ±È¶Ô£»**²»**Ìæ»»Éú²úÂ·¾¶
-2. ËæºóÔÙÆÀ£ºÌáÈíÉÏÏŞ vs ±íÇı¶¯À© opcode vs Ë«Â·¾¶È¥ÖØ
-3. **½ûÖ¹**£ºĞû³Æ OW-RT / OW-SEED CLOSED£»°Ñ stub I/O / Ä£°å dump Ëµ³É×Ô¾ÙÍê³É
+1. ~~**S3.2**ï¼šæœ€å° meta-emit~~ â†’ RAW_BYTES æ¨¡æ¿å›ºä»¶ = `emit_x86(SET+RET)`ï¼›Rust æ¯”å¯¹ï¼›**ä¸**æ›¿æ¢ç”Ÿäº§è·¯å¾„
+2. éšåå†è¯„ï¼šæè½¯ä¸Šé™ vs è¡¨é©±åŠ¨æ‰© opcode vs åŒè·¯å¾„å»é‡
+3. **ç¦æ­¢**ï¼šå®£ç§° OW-RT / OW-SEED CLOSEDï¼›æŠŠ stub I/O / æ¨¡æ¿ dump è¯´æˆè‡ªä¸¾å®Œæˆ
 
-#### S3.2 ¡ª ×îĞ¡ meta-emit SET+RET£¨±¾²½£©
+#### S3.2 â€” æœ€å° meta-emit SET+RETï¼ˆæœ¬æ­¥ï¼‰
 
-| Ïî | ¾ö¶¨ |
+| é¡¹ | å†³å®š |
 |---|---|
-| ¹Ì¼ş | `yoyo/tests/golden/s3_meta_emit_set_ret.{ty,tyb}`£º5¡ÁRAW_BYTES ¡ú 14B SET+RET |
-| ¶ÔÕÕ | host `emit_x86`(SET slot0=`0xDEADBEEF`+RET) |
-| ³ÏÊµ±ß½ç | **Ä£°å dump**£¬²»ÊÇ YOYO Ğ´µÄ±àÒëÆ÷£»ÈíÉÏÏŞÈÔµ²±íÇı¶¯ emit |
-| ÑéÊÕ | `s3_meta_emit_set_ret_matches_emit_x86` |
+| å›ºä»¶ | `yoyo/tests/golden/s3_meta_emit_set_ret.{ty,tyb}`ï¼š5Ã—RAW_BYTES â†’ 14B SET+RET |
+| å¯¹ç…§ | host `emit_x86`(SET slot0=`0xDEADBEEF`+RET) |
+| è¯šå®è¾¹ç•Œ | **æ¨¡æ¿ dump**ï¼Œä¸æ˜¯ YOYO å†™çš„ç¼–è¯‘å™¨ï¼›è½¯ä¸Šé™ä»æŒ¡è¡¨é©±åŠ¨ emit |
+| éªŒæ”¶ | `s3_meta_emit_set_ret_matches_emit_x86` |
 
-#### S3.3 ¡ª meta-emit ¾ØÕó + ÈíÉÏÏŞ¾ö²ß£¨±¾²½£©
+#### S3.3 â€” meta-emit çŸ©é˜µ + è½¯ä¸Šé™å†³ç­–ï¼ˆæœ¬æ­¥ï¼‰
 
-| Ïî | ¾ö¶¨ |
+| é¡¹ | å†³å®š |
 |---|---|
-| À©¸²¸Ç | +`s3_meta_emit_ret` / `s3_meta_emit_nop_ret`£»¾ØÕó²â vs `emit_x86` |
-| ÈíÉÏÏŞ | **±£³Ö** text=256 / DATA=64£¨in-DLL `r13=r12+256` Ó²±àÂë£© |
-| ÌáÉÏÏŞ | ÍÆ **S3.4+**£¨ĞèÍ¬²½¸Ä in-DLL scratch ²¼¾Ö£© |
-| ³ÏÊµ | ÈÔÊÇÄ£°å dump£¬²»ÊÇ±íÇı¶¯±àÒëÆ÷ |
+| æ‰©è¦†ç›– | +`s3_meta_emit_ret` / `s3_meta_emit_nop_ret`ï¼›çŸ©é˜µæµ‹ vs `emit_x86` |
+| è½¯ä¸Šé™ | **ä¿æŒ** text=256 / DATA=64ï¼ˆin-DLL `r13=r12+256` ç¡¬ç¼–ç ï¼‰ |
+| æä¸Šé™ | æ¨ **S3.4+**ï¼ˆéœ€åŒæ­¥æ”¹ in-DLL scratch å¸ƒå±€ï¼‰ |
+| è¯šå® | ä»æ˜¯æ¨¡æ¿ dumpï¼Œä¸æ˜¯è¡¨é©±åŠ¨ç¼–è¯‘å™¨ |
 
-#### S3.4 ¡ª meta-emit autopack£¨±¾²½£©
+#### S3.4 â€” meta-emit autopackï¼ˆæœ¬æ­¥ï¼‰
 
-| Ïî | ¾ö¶¨ |
+| é¡¹ | å†³å®š |
 |---|---|
-| »úÖÆ | ²âÊÔ¸¨Öú `pack_meta_emit_raw_bytes_tyb`£º`emit_x86` ×Ö½Ú ¡ú argc¡Ü3 RAW_BYTES TYB |
-| ¸²¸Ç | GET+RET autopack£»ÊÖĞ´ golden Óë autopack **Öğ×Ö½ÚÏàµÈ** |
-| ³ÏÊµ | ´ò°üÆ÷ÈÔÊÇ **Rust**£»YOYO ²àÈÔÊÇÄ£°åÔØÌå£¬²»ÊÇ½âÊÍ±íµÄ±àÒëÆ÷ |
-| ÏÂÒ»²½ | S3.5£ºin-DLL scratch À©Èİ **»ò** DATA ±í+ËŞÖ÷½âÊÍ |
+| æœºåˆ¶ | æµ‹è¯•è¾…åŠ© `pack_meta_emit_raw_bytes_tyb`ï¼š`emit_x86` å­—èŠ‚ â†’ argcâ‰¤3 RAW_BYTES TYB |
+| è¦†ç›– | GET+RET autopackï¼›æ‰‹å†™ golden ä¸ autopack **é€å­—èŠ‚ç›¸ç­‰** |
+| è¯šå® | æ‰“åŒ…å™¨ä»æ˜¯ **Rust**ï¼›YOYO ä¾§ä»æ˜¯æ¨¡æ¿è½½ä½“ï¼Œä¸æ˜¯è§£é‡Šè¡¨çš„ç¼–è¯‘å™¨ |
+| ä¸‹ä¸€æ­¥ | S3.5ï¼šin-DLL scratch æ‰©å®¹ **æˆ–** DATA è¡¨+å®¿ä¸»è§£é‡Š |
 
-#### S3.5 ¡ª in-DLL scratch À©Èİ´¥µãÅÌµã£¨±¾²½ ¡¤ docs-only£©
+#### S3.5 â€” in-DLL scratch æ‰©å®¹è§¦ç‚¹ç›˜ç‚¹ï¼ˆæœ¬æ­¥ Â· docs-onlyï¼‰
 
-**Ä¿±êºòÑ¡**£ºcode scratch 256¡ú512£¬²¢Í¬²½ `S1_SLIM_MAX_CODE`¡£
+**ç›®æ ‡å€™é€‰**ï¼šcode scratch 256â†’512ï¼Œå¹¶åŒæ­¥ `S1_SLIM_MAX_CODE`ã€‚
 
-**µ±Ç°Õ»²¼¾Ö**£¨`pe_dll_link` S1.5.b ×¢ÊÍ£©£º
+**å½“å‰æ ˆå¸ƒå±€**ï¼ˆ`pe_dll_link` S1.5.b æ³¨é‡Šï¼‰ï¼š
 
-| Çø | rsp Æ«ÒÆ | ´óĞ¡ | ±¸×¢ |
+| åŒº | rsp åç§» | å¤§å° | å¤‡æ³¨ |
 |---|---|---|---|
-| input | `+0x60` | 4KiB | ²»±ä |
+| input | `+0x60` | 4KiB | ä¸å˜ |
 | **code scratch** | `+0x1080` | **256** | `r12` cursor / `r13=r12+256` |
-| slim PE buf | `+0x1180` | `0x1600` | ½ô½Ó code Ä©Î² |
-| labels[16] | `+0x2780` | 128 | ¡Á8 |
-| patches[16] | `+0x2800` | 128 | ¡Á8 |
-| n_labels/patches/data_len | `+0x2880` | ¡ª | |
-| `sub rsp` | `0x2800` | Ö¡ | Ğè¸´ºËÀ©ÈİºóÊÇ·ñ¹» |
+| slim PE buf | `+0x1180` | `0x1600` | ç´§æ¥ code æœ«å°¾ |
+| labels[16] | `+0x2780` | 128 | Ã—8 |
+| patches[16] | `+0x2800` | 128 | Ã—8 |
+| n_labels/patches/data_len | `+0x2880` | â€” | |
+| `sub rsp` | `0x2800` | å¸§ | éœ€å¤æ ¸æ‰©å®¹åæ˜¯å¦å¤Ÿ |
 
-**256¡ú512 ±Ø¸Ä´¥µã£¨´úÂë£©**
+**256â†’512 å¿…æ”¹è§¦ç‚¹ï¼ˆä»£ç ï¼‰**
 
-1. `add r13, 256` ¡ú `512`£¨Ô¼ L1388£©
-2. PE buf »ùÖ· `+0x1180` ¡ú `+0x1280`£¨memcpy template / write-back ¶à´¦ `lea ¡­0x1180`£©
-3. ×¢ÊÍÓëÈÎºÎÓ²±àÂë `0x1180`/`256` ³£Á¿£¨º¬ `S1_SLIM_MAX_CODE`£©
-4. Èô PE/label ÇøÓë code ÖØµş·çÏÕ£ºÉÏÒÆ labels/patches »òÔö´ó `sub rsp`
-5. host `wrap_pe_slim` / `S1_SLIM_MAX_CODE` Í¬²½£»parity ÖØÅÜ
-6. `shell_text` Ìî³ä³¤¶È£¨`S1_SLIM_MAX_CODE - 1`£©ËæÖ®±ä
+1. `add r13, 256` â†’ `512`ï¼ˆçº¦ L1388ï¼‰
+2. PE buf åŸºå€ `+0x1180` â†’ `+0x1280`ï¼ˆmemcpy template / write-back å¤šå¤„ `lea â€¦0x1180`ï¼‰
+3. æ³¨é‡Šä¸ä»»ä½•ç¡¬ç¼–ç  `0x1180`/`256` å¸¸é‡ï¼ˆå« `S1_SLIM_MAX_CODE`ï¼‰
+4. è‹¥ PE/label åŒºä¸ code é‡å é£é™©ï¼šä¸Šç§» labels/patches æˆ–å¢å¤§ `sub rsp`
+5. host `wrap_pe_slim` / `S1_SLIM_MAX_CODE` åŒæ­¥ï¼›parity é‡è·‘
+6. `shell_text` å¡«å……é•¿åº¦ï¼ˆ`S1_SLIM_MAX_CODE - 1`ï¼‰éšä¹‹å˜
 
-**·Ç±¾²½**£º²»¸Ä»úÆ÷Âë£¨·À°ë¸Äµ¼ÖÂ silent AV£©£»DATA ±í½âÊÍÁíÏß¡£
+**éæœ¬æ­¥**ï¼šä¸æ”¹æœºå™¨ç ï¼ˆé˜²åŠæ”¹å¯¼è‡´ silent AVï¼‰ï¼›DATA è¡¨è§£é‡Šå¦çº¿ã€‚
 
-**ÍÆ¼ö S3.6**£º~~ÏÈ×ö **³£Á¿³éÈ¡**~~ ¡ú ÒÑ×ö£¨`IN_DLL_S1_*` + `const _: () = assert!(¡­)` ¶¤ËÀ¾ÉÖµ£©¡£
+**æ¨è S3.6**ï¼š~~å…ˆåš **å¸¸é‡æŠ½å–**~~ â†’ å·²åšï¼ˆ`IN_DLL_S1_*` + `const _: () = assert!(â€¦)` é’‰æ­»æ—§å€¼ï¼‰ã€‚
 
-#### S3.6 ¡ª ³£Á¿³éÈ¡£¨±¾²½£©
+#### S3.6 â€” å¸¸é‡æŠ½å–ï¼ˆæœ¬æ­¥ï¼‰
 
-| Ïî | ¾ö¶¨ |
+| é¡¹ | å†³å®š |
 |---|---|
-| ³£Á¿ | `IN_DLL_S1_CODE_OFF/CAP/PE_OFF/LABELS/PATCHES/N_*/DATA/STACK` |
-| `CODE_CAP` | `= S1_SLIM_MAX_CODE`£¨ÈÔ 256£© |
-| ĞĞÎª | **²»±ä**£»±àÒëÆÚ assert Ëø¶¨ 0x1180/0x2780/¡­ |
-| ÑéÊÕ | `s1_host_in_dll` + `s1_` + `s3_` GREEN |
+| å¸¸é‡ | `IN_DLL_S1_CODE_OFF/CAP/PE_OFF/LABELS/PATCHES/N_*/DATA/STACK` |
+| `CODE_CAP` | `= S1_SLIM_MAX_CODE`ï¼ˆä» 256ï¼‰ |
+| è¡Œä¸º | **ä¸å˜**ï¼›ç¼–è¯‘æœŸ assert é”å®š 0x1180/0x2780/â€¦ |
+| éªŒæ”¶ | `s1_host_in_dll` + `s1_` + `s3_` GREEN |
 
-#### S3.7 ¡ª scratch 256¡ú512£¨±¾²½£©
+#### S3.7 â€” scratch 256â†’512ï¼ˆæœ¬æ­¥ï¼‰
 
-| Ïî | ¾ö¶¨ |
+| é¡¹ | å†³å®š |
 |---|---|
 | `S1_SLIM_MAX_CODE` | 512 |
-| slim `code_raw` | ºãÎª `align(13+512)=0x400`£¨ÎÈ¶¨ DATA off=`0x800`£© |
-| `IN_DLL_S1_PE_SIZE` | `0x1800`£»`STACK`=`0x2C00` |
-| ÑéÊÕ | `s1_host_in_dll` + `s1_` 77 + `pe_dll_link` 32 + `s3_` GREEN |
-| ²åÇú | Ê×µ¶ AV£º¾É PE buf 0x1600 ×°²»ÏÂË«Ò³ `.text` ¡ú ÒÑĞŞ |
+| slim `code_raw` | æ’ä¸º `align(13+512)=0x400`ï¼ˆç¨³å®š DATA off=`0x800`ï¼‰ |
+| `IN_DLL_S1_PE_SIZE` | `0x1800`ï¼›`STACK`=`0x2C00` |
+| éªŒæ”¶ | `s1_host_in_dll` + `s1_` 77 + `pe_dll_link` 32 + `s3_` GREEN |
+| æ’æ›² | é¦–åˆ€ AVï¼šæ—§ PE buf 0x1600 è£…ä¸ä¸‹åŒé¡µ `.text` â†’ å·²ä¿® |
 
-#### S3.8 ¡ª DATA Ä£°å±í + Rust lookup£¨±¾²½£©
+#### S3.8 â€” DATA æ¨¡æ¿è¡¨ + Rust lookupï¼ˆæœ¬æ­¥ï¼‰
 
-| Ïî | ¾ö¶¨ |
+| é¡¹ | å†³å®š |
 |---|---|
-| ¹Ì¼ş | `s3_opcode_template_table.{ty,tyb}`£º2¡Á16B ĞĞ£¨RET/NOP£©ÔÚ `.data` |
-| ĞĞ¸ñÊ½ | `op:u8, len:u8, pad:u16, bytes[12]` |
-| ½âÊÍ | **Rust** `parse_opcode_template_table` / `lookup`£»ºÏ³É NOP+RET ¡Ô `emit_x86` |
-| ³ÏÊµ | ±íÔÚ YOYO DATA Àï£¬**²»ÊÇ** YOYO Ğ´µÄ²é±í±àÒëÆ÷ |
+| å›ºä»¶ | `s3_opcode_template_table.{ty,tyb}`ï¼š2Ã—16B è¡Œï¼ˆRET/NOPï¼‰åœ¨ `.data` |
+| è¡Œæ ¼å¼ | `op:u8, len:u8, pad:u16, bytes[12]` |
+| è§£é‡Š | **Rust** `parse_opcode_template_table` / `lookup`ï¼›åˆæˆ NOP+RET â‰¡ `emit_x86` |
+| è¯šå® | è¡¨åœ¨ YOYO DATA é‡Œï¼Œ**ä¸æ˜¯** YOYO å†™çš„æŸ¥è¡¨ç¼–è¯‘å™¨ |
 
-#### S3.9 ¡ª À©±íĞĞ + SET£¨±¾²½£©
+#### S3.9 â€” æ‰©è¡¨è¡Œ + SETï¼ˆæœ¬æ­¥ï¼‰
 
-| Ïî | ¾ö¶¨ |
+| é¡¹ | å†³å®š |
 |---|---|
-| ĞĞ¿í | 16¡ú**20**£¨`bytes[16]`£© |
-| ĞĞ | RET / NOP / SET(slot0=`0xDEADBEEF`, 14B body) |
-| `.data` | 60B ¡Ü `S1_MINI_DATA_MAX` 64 |
-| ÑéÊÕ | ºÏ³É SET+RET¡¢NOP+RET ¡Ô `emit_x86` |
+| è¡Œå®½ | 16â†’**20**ï¼ˆ`bytes[16]`ï¼‰ |
+| è¡Œ | RET / NOP / SET(slot0=`0xDEADBEEF`, 14B body) |
+| `.data` | 60B â‰¤ `S1_MINI_DATA_MAX` 64 |
+| éªŒæ”¶ | åˆæˆ SET+RETã€NOP+RET â‰¡ `emit_x86` |
 
-#### S3.10 ¡ª DATA ÉÏÏŞ 64¡ú128£¨±¾²½£©
+#### S3.10 â€” DATA ä¸Šé™ 64â†’128ï¼ˆæœ¬æ­¥ï¼‰
 
-| Ïî | ¾ö¶¨ |
+| é¡¹ | å†³å®š |
 |---|---|
 | `S1_MINI_DATA_MAX` | 128 |
-| in-DLL | `cmp eax, imm32`£¨¼É imm8 ¶Ô 128 ·ûºÅÀ©Õ¹£©+ `STACK=0x2D00` |
-| ÑéÊÕ | parity + 66B DATA ½ÓÊÜ / 132B ¾Ü¾ø |
+| in-DLL | `cmp eax, imm32`ï¼ˆå¿Œ imm8 å¯¹ 128 ç¬¦å·æ‰©å±•ï¼‰+ `STACK=0x2D00` |
+| éªŒæ”¶ | parity + 66B DATA æ¥å— / 132B æ‹’ç» |
 
-#### S3.11 ¡ª À©±í GET/INC£¨±¾²½£©
+#### S3.11 â€” æ‰©è¡¨ GET/INCï¼ˆæœ¬æ­¥ï¼‰
 
-| Ïî | ¾ö¶¨ |
+| é¡¹ | å†³å®š |
 |---|---|
-| ĞĞ | +GET(dst0¡ûsrc1) +INC(slot0)£»¹² 5¡Á20B=100B |
-| ÑéÊÕ | nop/set/get/inc +RET ºÏ³É ¡Ô `emit_x86` |
+| è¡Œ | +GET(dst0â†src1) +INC(slot0)ï¼›å…± 5Ã—20B=100B |
+| éªŒæ”¶ | nop/set/get/inc +RET åˆæˆ â‰¡ `emit_x86` |
 
-**Ä¬ÈÏ `¼ÌĞø` = S3.12**¡£
+**é»˜è®¤ `ç»§ç»­` = S3.12**ã€‚
 
-### Á¢ÏîÔ¼Êø
+### ç«‹é¡¹çº¦æŸ
 
-- ±¾Â·Ïß**²»ÊÇ post-v1.0 ¹Ø¶´µÄÑÓĞø**£¬ÊÇ**ĞÂÖ÷Ïß**
-- v1.0 ÒÑ±ÏÒµ¡¢post-v1.0 path 2 ÒÑ³ÏÊµÖÕÌ¬£¬±¾Â·ÏßÊÇ**ÏÂÒ»´ú¹¤³Ì**
-- Ã¿´ÎÍÆ½ø¶¼ÒÔ commit ĞÎÊ½Èë²Ö£¬¿É»Ø¹ö
-- **½ûÖ¹** invent ĞÂ feature dump / Thompson-proof »°Êõ
-- S1 Íê³É = **OW-RT ²¿·Ö½øÕ¹**£¬·Ç CLOSED£»`closed` ±£³Ö 0
-- ÈôÖĞÍ¾Ö¤Î±£¨Èç S1 Ö¤Ã÷²»¿ÉĞĞ£©£¬Í£Ö¹²¢¼ÇÂ¼¸ùÒò
+- æœ¬è·¯çº¿**ä¸æ˜¯ post-v1.0 å…³æ´çš„å»¶ç»­**ï¼Œæ˜¯**æ–°ä¸»çº¿**
+- v1.0 å·²æ¯•ä¸šã€post-v1.0 path 2 å·²è¯šå®ç»ˆæ€ï¼Œæœ¬è·¯çº¿æ˜¯**ä¸‹ä¸€ä»£å·¥ç¨‹**
+- æ¯æ¬¡æ¨è¿›éƒ½ä»¥ commit å½¢å¼å…¥ä»“ï¼Œå¯å›æ»š
+- **ç¦æ­¢** invent æ–° feature dump / Thompson-proof è¯æœ¯
+- S1 å®Œæˆ = **OW-RT éƒ¨åˆ†è¿›å±•**ï¼Œé CLOSEDï¼›`closed` ä¿æŒ 0
+- è‹¥ä¸­é€”è¯ä¼ªï¼ˆå¦‚ S1 è¯æ˜ä¸å¯è¡Œï¼‰ï¼Œåœæ­¢å¹¶è®°å½•æ ¹å› 
 
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-06 ¡¤ Stage 17+ Á¢Ïî£©**£ºpost-v1.0 path 2 ÒÑ³ÏÊµÖÕÌ¬ ¡¤ OW-RT ¹Ø¼ü½Úµã¶¨Î»Îª **in-DLL codegen Õæ»¯**£¨S1-S5 Îå½×¶Î£©¡¤ S1 = ÖÜ-ÔÂ¼¶×îĞ¡ÕæÊµ±àÒëÆ÷ ¡¤ S3 = °ëÄê-ÄêÕæ×Ô¾Ù ¡¤ S5 = 5-10 ÄêĞÎÊ½»¯ ¡¤ **Ä¬ÈÏ `¼ÌĞø` = S1** ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ tag**
-
-
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-06 Â· Stage 17+ ç«‹é¡¹ï¼‰**ï¼špost-v1.0 path 2 å·²è¯šå®ç»ˆæ€ Â· OW-RT å…³é”®èŠ‚ç‚¹å®šä½ä¸º **in-DLL codegen çœŸåŒ–**ï¼ˆS1-S5 äº”é˜¶æ®µï¼‰Â· S1 = å‘¨-æœˆçº§æœ€å°çœŸå®ç¼–è¯‘å™¨ Â· S3 = åŠå¹´-å¹´çœŸè‡ªä¸¾ Â· S5 = 5-10 å¹´å½¢å¼åŒ– Â· **é»˜è®¤ `ç»§ç»­` = S1** Â· `closed=0 cut=7` Â· **æ—  tag**
 
 
 
 
-### path 2 Àï³Ì±®£¨A+B+C È«ÂÌ ¡¤ ÎŞ tag£©
+
+
+### path 2 é‡Œç¨‹ç¢‘ï¼ˆA+B+C å…¨ç»¿ Â· æ—  tagï¼‰
 
 
 
-**Íê³É£º2026-09-03** ¡¤ master tip **`11a2cea`**£¨PR #27£©¡¤ ¹Û²â£ºÆßÏî **CUT**£¨`closed=0 cut=7`£©¡¤ OW-IAT smoke GREEN ¡Ù CLOSED ¡¤ stub **2673** ¡¤ DLL **158720** ¡¤ **ÎŞ tag / GitHub Release**£¨v1.0 ÒÑ±ÏÒµ£©¡£
+**å®Œæˆï¼š2026-09-03** Â· master tip **`11a2cea`**ï¼ˆPR #27ï¼‰Â· è§‚æµ‹ï¼šä¸ƒé¡¹ **CUT**ï¼ˆ`closed=0 cut=7`ï¼‰Â· OW-IAT smoke GREEN â‰  CLOSED Â· stub **2673** Â· DLL **158720** Â· **æ—  tag / GitHub Release**ï¼ˆv1.0 å·²æ¯•ä¸šï¼‰ã€‚
 
 
 
-### Õû²Ö¿¢¹¤½ø¶È£¨D¡úJ ¡¤ ÎŞ¼Ù CLOSED£©
+### æ•´ä»“ç«£å·¥è¿›åº¦ï¼ˆDâ†’J Â· æ— å‡ CLOSEDï¼‰
 
 
 
-**Gate D Íê³É£º2026-09-04** ¡¤ `pe_dll_link` + gate GREEN ¡¤ **ÈÔ cut=7**¡£  
+**Gate D å®Œæˆï¼š2026-09-04** Â· `pe_dll_link` + gate GREEN Â· **ä» cut=7**ã€‚  
 
-**Gate E Íê³É£º2026-09-04** ¡¤ YOYO-origin export stub ¡¤ `yoyo_origin_export=PRESENT` ¡¤ **ÈÔ CUT**¡£  
+**Gate E å®Œæˆï¼š2026-09-04** Â· YOYO-origin export stub Â· `yoyo_origin_export=PRESENT` Â· **ä» CUT**ã€‚  
 
-**Gate F Íê³É£º2026-09-04** ¡¤ YOYO-built R¡úC¡úW effect ¡¤ `yoyo_built=EFFECT` ¡¤ **ÈÔ CUT**¡£  
+**Gate F å®Œæˆï¼š2026-09-04** Â· YOYO-built Râ†’Câ†’W effect Â· `yoyo_built=EFFECT` Â· **ä» CUT**ã€‚  
 
-**Gate G Íê³É£º2026-09-30** ¡¤ OW-SEED **²Ù×÷·¢ÉäÁ´** ¡¤ `stage17-ow-seed-yoyo-emit.ps1` hops=2 GREEN ¡¤ **OW-SEED ÈÔ CUT** ¡¤ **¡Ù CLOSED** ¡¤ **G ÒÑ `[x]`**¡£
+**Gate G å®Œæˆï¼š2026-09-30** Â· OW-SEED **æ“ä½œå‘å°„é“¾** Â· `stage17-ow-seed-yoyo-emit.ps1` hops=2 GREEN Â· **OW-SEED ä» CUT** Â· **â‰  CLOSED** Â· **G å·² `[x]`**ã€‚
 
-**ÀúÊ·£¨¾É¡¸G=È¥ Rust sidecar / in-DLL¡¹¶¨Òå£¬±£ÁôÖ¤¾İ£©£º** in-DLL recompile ¡¤ oracle 3¡ú7 ¡¤ `0da9ef1` AV ĞŞ ¡¤ ÏÖ¹é D¨CF/OW-RT »ù´¡ÉèÊ©£¬**²»ÊÇ**ÏÖĞĞ G¡£
+**å†å²ï¼ˆæ—§ã€ŒG=å» Rust sidecar / in-DLLã€å®šä¹‰ï¼Œä¿ç•™è¯æ®ï¼‰ï¼š** in-DLL recompile Â· oracle 3â†’7 Â· `0da9ef1` AV ä¿® Â· ç°å½’ Dâ€“F/OW-RT åŸºç¡€è®¾æ–½ï¼Œ**ä¸æ˜¯**ç°è¡Œ Gã€‚
 
-**Gate H Íê³É£º2026-09-30** ¡¤ trust-root pin fail-closed ¡¤ `stage17-ow-seed-trust-root.ps1` GREEN ¡¤ **ÈÔ CUT** ¡¤ **H ÒÑ `[x]`**¡£
+**Gate H å®Œæˆï¼š2026-09-30** Â· trust-root pin fail-closed Â· `stage17-ow-seed-trust-root.ps1` GREEN Â· **ä» CUT** Â· **H å·² `[x]`**ã€‚
 
-**Gate I/J£¨Î´¹´£©£º** Õæ³¤¸Ë ¡ª I È¥ Rust sidecar ¡ú J OW-SEED CLOSED¡£**G+H = ¿É¿ìËÙÊÕÁ²µÄÉÏ°ë½Ø£»I Æğ²ÅÊÇÔÂ¼¶¡£**
+**Gate I/Jï¼ˆæœªå‹¾ï¼‰ï¼š** çœŸé•¿æ† â€” I å» Rust sidecar â†’ J OW-SEED CLOSEDã€‚**G+H = å¯å¿«é€Ÿæ”¶æ•›çš„ä¸ŠåŠæˆªï¼›I èµ·æ‰æ˜¯æœˆçº§ã€‚**
 
-**Gate I ÊµÑé£º2026-09-30 ¡¤ RED£¨Ô¤ÆÚÄÚ£©** ¡¤ `stage17-ow-seed-no-rust-sidecar.ps1`£ºgen4 + in-DLL-recompile YOYO sidecar ¡ú exit=1 / ÎŞ output£»¶ÔÕÕ gen4 + Rust sidecar ¡ú exit=0¡£**½áÂÛ**£ºÏÖÓĞ YOYO sidecar ÊÇ oracle ±í£¬²»ÊÇÍêÕû H_00 runtime£¬**Ìæ»»²»ÁË** Rust `yoyo_rt.dll`¡£ÕâÊÇÔÂ¼¶³¤¸ËµÄµÚÒ»Ìõ»úÆ÷Ö¤¾İ¡£
+**Gate I å®éªŒï¼š2026-09-30 Â· REDï¼ˆé¢„æœŸå†…ï¼‰** Â· `stage17-ow-seed-no-rust-sidecar.ps1`ï¼šgen4 + in-DLL-recompile YOYO sidecar â†’ exit=1 / æ—  outputï¼›å¯¹ç…§ gen4 + Rust sidecar â†’ exit=0ã€‚**ç»“è®º**ï¼šç°æœ‰ YOYO sidecar æ˜¯ oracle è¡¨ï¼Œä¸æ˜¯å®Œæ•´ H_00 runtimeï¼Œ**æ›¿æ¢ä¸äº†** Rust `yoyo_rt.dll`ã€‚è¿™æ˜¯æœˆçº§é•¿æ†çš„ç¬¬ä¸€æ¡æœºå™¨è¯æ®ã€‚
 
 
 
@@ -752,7 +752,7 @@ S2 **²»ÊÇ**Ò»²½°Ñ¸Ã Rust ¿â·­Òë³É YOYO£»S2 ÏÈÒªÇó£º**Í¬Ò»Ğ§¹ûÆõÔ¼**¿ÉÓÃ H_00 IR 
 
 
 
-## ÑéÊÕÃüÁî
+## éªŒæ”¶å‘½ä»¤
 
 
 
@@ -762,19 +762,19 @@ cd F:\yoyo
 
 
 
-# Gate A ¡ª Win OW-IAT wire-up£¨post-v1.0 ÃÅ½û£»½Å±¾Ãû stage17 ¡Ù ROADMAP Stage 17£©
+# Gate A â€” Win OW-IAT wire-upï¼ˆpost-v1.0 é—¨ç¦ï¼›è„šæœ¬å stage17 â‰  ROADMAP Stage 17ï¼‰
 
 & .\scripts\stage17-ow-iat-wireup.ps1
 
 
 
-# Gate B ¡ª Linux tramp / sidecar »Ø¹é
+# Gate B â€” Linux tramp / sidecar å›å½’
 
 & wsl -e bash /mnt/f/yoyo/scripts/stage10-linux-pure-m4.sh
 
 
 
-# Gate C ¡ª ¶´Çåµ¥ FINAL + Stage 15-A ²»ÍË»¯
+# Gate C â€” æ´æ¸…å• FINAL + Stage 15-A ä¸é€€åŒ–
 
 & .\scripts\stage16-scope-cut-finalize.ps1 -SkipBuild
 
@@ -782,19 +782,19 @@ cd F:\yoyo
 
 
 
-# Gate D ¡ª OW-RT PE DLL emit spike£¨Õû²Ö¿¢¹¤£©
+# Gate D â€” OW-RT PE DLL emit spikeï¼ˆæ•´ä»“ç«£å·¥ï¼‰
 
 & .\scripts\stage17-ow-rt-yoyo-runtime.ps1
 
 
 
-# v1.0 È«»Ø¹é£¨post-v1.0 ĞŞ¶´Ç°/ºó sanity£©
+# v1.0 å…¨å›å½’ï¼ˆpost-v1.0 ä¿®æ´å‰/å sanityï¼‰
 
 & .\scripts\stage16-v09-regress.ps1 -SkipBuild
 
 
 
-# ÈÕ³£ DDC
+# æ—¥å¸¸ DDC
 
 cd F:\yoyo\yoyo-rust\verifier
 
@@ -804,7 +804,7 @@ cargo run -- test ddc
 
 
 
-> **×¢**£º`stage17-*.ps1` ÎÄ¼şÃûÑØÓÃ post-v1.0 ÃÅ½û±àºÅ£»**²»**±íÊ¾ ROADMAP ´æÔÚ Stage 17¡£
+> **æ³¨**ï¼š`stage17-*.ps1` æ–‡ä»¶åæ²¿ç”¨ post-v1.0 é—¨ç¦ç¼–å·ï¼›**ä¸**è¡¨ç¤º ROADMAP å­˜åœ¨ Stage 17ã€‚
 
 
 
@@ -812,37 +812,37 @@ cargo run -- test ddc
 
 
 
-## ¶Ô AI ËµÊ²Ã´£¨¸´ÖÆÕ³Ìù»°Êõ£©
+## å¯¹ AI è¯´ä»€ä¹ˆï¼ˆå¤åˆ¶ç²˜è´´è¯æœ¯ï¼‰
 
 
 
-### ÈÎÎñ D ¡ª OW-RT DLL emit£¨ÒÑ¹´£©
+### ä»»åŠ¡ D â€” OW-RT DLL emitï¼ˆå·²å‹¾ï¼‰
 
 
 
 ```text
 
-Post-v1.0 Õû²Ö¿¢¹¤ Gate D£ºpe_dll_link PE32+ DLL emit spike¡£
+Post-v1.0 æ•´ä»“ç«£å·¥ Gate Dï¼špe_dll_link PE32+ DLL emit spikeã€‚
 
-ÑéÊÕ£º& .\scripts\stage17-ow-rt-yoyo-runtime.ps1 exit 0¡£
+éªŒæ”¶ï¼š& .\scripts\stage17-ow-rt-yoyo-runtime.ps1 exit 0ã€‚
 
-Ô¼Êø£ºyoyo_built=ABSENT£»OW-RT ÈÔ CUT£»Îğ¼Ù CLOSED¡£
+çº¦æŸï¼šyoyo_built=ABSENTï¼›OW-RT ä» CUTï¼›å‹¿å‡ CLOSEDã€‚
 
 ```
 
 
 
-### ÈÎÎñ E ¡ª YOYO-origin stub export
+### ä»»åŠ¡ E â€” YOYO-origin stub export
 
 
 
 ```text
 
-Post-v1.0 Õû²Ö¿¢¹¤ Gate E£ºYOYO-origin stub Ìî pe_dll_link export body¡£
+Post-v1.0 æ•´ä»“ç«£å·¥ Gate Eï¼šYOYO-origin stub å¡« pe_dll_link export bodyã€‚
 
-Ä¿±ê£º¹Ì¶¨ exit probe£»ÃÅ½û yoyo_origin_export=PRESENT£»ÈÔ CUT¡£
+ç›®æ ‡ï¼šå›ºå®š exit probeï¼›é—¨ç¦ yoyo_origin_export=PRESENTï¼›ä» CUTã€‚
 
-Ô¼Êø£º±¾µØÏÈÂÌ£»²»Ìæ»»Éú²ú sidecar Ôò½ûÖ¹ OW-RT CLOSED¡£
+çº¦æŸï¼šæœ¬åœ°å…ˆç»¿ï¼›ä¸æ›¿æ¢ç”Ÿäº§ sidecar åˆ™ç¦æ­¢ OW-RT CLOSEDã€‚
 
 ```
 
@@ -852,21 +852,21 @@ Post-v1.0 Õû²Ö¿¢¹¤ Gate E£ºYOYO-origin stub Ìî pe_dll_link export body¡£
 
 
 
-## ¸ºÔğÈËÔ­Ôò
+## è´Ÿè´£äººåŸåˆ™
 
 
 
-0. **path 2 = ¹Ø¶´£¬²»ÊÇĞÂ¹¦ÄÜ¹ì** ¡ª Ö»Ëõ OW-* / ³ÏÊµ CUT£»½ûÖ¹ invent ROADMAP ÍâÄÜÁ¦¡£
+0. **path 2 = å…³æ´ï¼Œä¸æ˜¯æ–°åŠŸèƒ½è½¨** â€” åªç¼© OW-* / è¯šå® CUTï¼›ç¦æ­¢ invent ROADMAP å¤–èƒ½åŠ›ã€‚
 
-1. **OW-H00 Îğ¼Ù CLOSED** ¡ª Gate C ÖØ²â full `.text` DIFF ¡ú **CUT**£»slot ¶ÔÆë ¡Ù CLOSED¡£
+1. **OW-H00 å‹¿å‡ CLOSED** â€” Gate C é‡æµ‹ full `.text` DIFF â†’ **CUT**ï¼›slot å¯¹é½ â‰  CLOSEDã€‚
 
-2. **OW-IAT / OW-RT GREEN ¡Ù CLOSED** ¡ª sidecar / Rust runtime ÈÔÔÚÔò±Ø CUT¡£
+2. **OW-IAT / OW-RT GREEN â‰  CLOSED** â€” sidecar / Rust runtime ä»åœ¨åˆ™å¿… CUTã€‚
 
-3. **Õû²Ö¿¢¹¤³¤¸Ë³ÏÊµ** ¡ª OW-SEED ·ÖÏà **G¡úH¡úI¡úJ**£¨ÔÂ¼¶£©£»G ¹´ ¡Ù CLOSED£»Îğ°Ñ³¤¸ËÈû»Øµ¥¸öÎ´¹´ÃÅ¡£
+3. **æ•´ä»“ç«£å·¥é•¿æ†è¯šå®** â€” OW-SEED åˆ†ç›¸ **Gâ†’Hâ†’Iâ†’J**ï¼ˆæœˆçº§ï¼‰ï¼›G å‹¾ â‰  CLOSEDï¼›å‹¿æŠŠé•¿æ†å¡å›å•ä¸ªæœªå‹¾é—¨ã€‚
 
-4. **CI anti-thrash** ¡ª ±¾µØ smoke ÏÈÂÌ£»Á¬Ğø 2 ´Îºì CI ¡ú Í£ÍÆ¡£
+4. **CI anti-thrash** â€” æœ¬åœ° smoke å…ˆç»¿ï¼›è¿ç»­ 2 æ¬¡çº¢ CI â†’ åœæ¨ã€‚
 
-5. **AUTO Í£ÊÖ** ¡ª `ACTIVE=0` ¡¤ `COMPLETED=1`£»ÓÃ»§ `¼ÌĞø/¹Ø¶´/Õû²Ö¿¢¹¤` ²Å¶Á±¾¿´°å tick¡£
+5. **AUTO åœæ‰‹** â€” `ACTIVE=0` Â· `COMPLETED=1`ï¼›ç”¨æˆ· `ç»§ç»­/å…³æ´/æ•´ä»“ç«£å·¥` æ‰è¯»æœ¬çœ‹æ¿ tickã€‚
 
 
 
@@ -874,76 +874,76 @@ Post-v1.0 Õû²Ö¿¢¹¤ Gate E£ºYOYO-origin stub Ìî pe_dll_link export body¡£
 
 
 
-*´´½¨£º2026-08-31 ¡¤ v1.0 ±ÏÒµºó ¡¤ post-v1.0 path 2 ¹Ø¶´ ¡¤ Ä£°å¶ÔÆë STAGE16_OWNER_CHECKLIST.md*
+*åˆ›å»ºï¼š2026-08-31 Â· v1.0 æ¯•ä¸šå Â· post-v1.0 path 2 å…³æ´ Â· æ¨¡æ¿å¯¹é½ STAGE16_OWNER_CHECKLIST.md*
 
 
 
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-09-04 ¡¤ Gate G ÇĞÆ¬£©£º** path 2 A¨CF ¡¤ G ÇĞÆ¬ in-DLL recompile ¡¤ `closed=0 cut=7` ¡¤ OW-RT **CUT**£¨`yoyo_in_dll_recompile=PRESENT` ¡¤ `yoyo_built=IN_DLL_RECOMPILE` ¡¤ Rust production default PRESENT ¡¤ oracle ¡Ù ÍêÕû YOYO ±àÒëÆ÷£©¡¤ **G ÈÔ `[ ]`** ¡¤ **ÎŞ tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-09-04 Â· Gate G åˆ‡ç‰‡ï¼‰ï¼š** path 2 Aâ€“F Â· G åˆ‡ç‰‡ in-DLL recompile Â· `closed=0 cut=7` Â· OW-RT **CUT**ï¼ˆ`yoyo_in_dll_recompile=PRESENT` Â· `yoyo_built=IN_DLL_RECOMPILE` Â· Rust production default PRESENT Â· oracle â‰  å®Œæ•´ YOYO ç¼–è¯‘å™¨ï¼‰Â· **G ä» `[ ]`** Â· **æ—  tag**
 
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-09-09 ¡¤ Gate G ÇĞÆ¬Ó²»¯ ¡¤ commit `0da9ef1`£©£º** path 2 A¨CF ¡¤ G ÇĞÆ¬ in-DLL recompile **AV ÒÑĞŞ**£¨`mov r13,rcx` = `49 89 CD`£©¡¤ oracle scan 16 ×Ö½Ú¶ÔÆë ¡¤ coverage 1¡ú3 fixture ¡¤ ±¾µØ `123 passed` / `pe_dll_link 26 passed` / `stage17-ow-rt-yoyo-runtime.ps1 status=GREEN` ¡¤ OW-RT **ÈÔ CUT**£¨Rust `yoyo_rt.dll` production default PRESENT ¡¤ oracle ¡Ù ÍêÕû YOYO ±àÒëÆ÷ ¡¤ H_00 no-input ËŞÖ÷·¢É¢ÒÑÎÄµµ»¯£©¡¤ `closed=0 cut=7` ¡¤ **G ÈÔ `[ ]`** ¡¤ **ÎŞ tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-09-09 Â· Gate G åˆ‡ç‰‡ç¡¬åŒ– Â· commit `0da9ef1`ï¼‰ï¼š** path 2 Aâ€“F Â· G åˆ‡ç‰‡ in-DLL recompile **AV å·²ä¿®**ï¼ˆ`mov r13,rcx` = `49 89 CD`ï¼‰Â· oracle scan 16 å­—èŠ‚å¯¹é½ Â· coverage 1â†’3 fixture Â· æœ¬åœ° `123 passed` / `pe_dll_link 26 passed` / `stage17-ow-rt-yoyo-runtime.ps1 status=GREEN` Â· OW-RT **ä» CUT**ï¼ˆRust `yoyo_rt.dll` production default PRESENT Â· oracle â‰  å®Œæ•´ YOYO ç¼–è¯‘å™¨ Â· H_00 no-input å®¿ä¸»å‘æ•£å·²æ–‡æ¡£åŒ–ï¼‰Â· `closed=0 cut=7` Â· **G ä» `[ ]`** Â· **æ—  tag**
 
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-09-16 ¡¤ ¶¨Î»ĞŞÕı + linux-m4 ĞŞÂÌ ¡¤ commit `3da015e`£©£º** ĞŞÕı `2026-09-10` ¿ìÕÕµÄÒ»´¦Îó¼Ç ¡ª¡ª master ×Ô `0514933` ÆğÊÇ **`build` Óë `linux-m4` Á½¸ö job ¶ÀÁ¢ºì**£¬·Çµ¥Ò» `build` job¡£
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-09-16 Â· å®šä½ä¿®æ­£ + linux-m4 ä¿®ç»¿ Â· commit `3da015e`ï¼‰ï¼š** ä¿®æ­£ `2026-09-10` å¿«ç…§çš„ä¸€å¤„è¯¯è®° â€”â€” master è‡ª `0514933` èµ·æ˜¯ **`build` ä¸ `linux-m4` ä¸¤ä¸ª job ç‹¬ç«‹çº¢**ï¼Œéå•ä¸€ `build` jobã€‚
 
-- **`linux-m4` ¸ùÒò£¨ÒÑĞŞ£¬±¾µØÑéÂÌ£©**£º`min_probe.rs` µÄ `#![cfg(windows)]` Ê¹¸Ã bin ÔÚ Linux ÉÏÃ»ÓĞÈÎºÎ item ¡ú ÎŞ `main` ¡ú build step **E0601 `main` function not found in crate `min_probe`**¡£`2753cdc` ÕıÊÇÒıÈëÕâ¸ö guard µÄ commit£¬ËùÒÔËüµÄ linux-m4 ÈÔÊÇºìµÄ¡£¸ÄÎª `#[cfg(windows)] mod win` + È«Æ½Ì¨±£ÁôÕæÊµ `main`£»**Linux Êµ²â**£¨WSL rustc **1.98.1**£¬Óë runner Í¬´ú£¬`build-linux-h00-tramp.sh` ¡ú `cargo clean -p verifier -p yoyo-runtime` ¡ú `cargo build --release -p verifier`£©`min_probe` **debug Óë release ¾ù¹¹½¨³É¹¦**¡£
-- **`build` job Windows AV£¨HARD BLOCK ¡¤ Î´½â£©**£ºÈÔÎª runner-only AV£¨±¾µØ 0/12£¬±¾´ÎÈ«Á¿ `cargo test -p verifier` Òà 0 fail£©¡£ĞÂÔöÁ½¸ö in-harness probe£¨`_probe_inproc` / `_probe_subproc`£©ÔÚÍêÈ«ÏàÍ¬µÄµ÷ÓÃÇ°×° VEH ´òÓ¡ RIP + ¼Ä´æÆ÷£¬**Ò»´Î CI ¼´¿ÉÄÃµ½¶¨Î»Êı¾İ**¡£handler µÄ context È¡×Ô `EXCEPTION_POINTERS`£¨Óë `min_probe` Ò»ÖÂ£©¶ø·Ç `GetCurrentThreadContext` ¡ª¡ª ºóÕß **kernel32/advapi32/dbghelp/ntdll ¾ùÎŞµ¼³ö**£¨dumpbin Ö¤Êµ£©£¬ÔçÇ°²İ¸åÒò´Ë LNK2019 Á´½ÓÊ§°Ü¡£
-- **±¾µØÃÅ½ûÈ«ÂÌ**£º`cargo test -p verifier` **125 + 179 passed / 0 failed**£»`stage17-ow-rt-yoyo-runtime.ps1` `status=GREEN`£»`stage17-ow-iat-wireup.ps1` `status=GREEN`£»`golden`/`backends`/`ddc`/`gen12`/`lock` È« `exit=0`¡£
-- **³ÏÊµ×´Ì¬**£ºOW-RT **ÈÔ CUT**£¨`production_default=RUST` ¡¤ Rust `yoyo_rt.dll` PRESENT ¡¤ oracle ¡Ù ÍêÕû YOYO ±àÒëÆ÷£©¡¤ `closed=0 cut=7` ¡¤ **G ÈÔ `[ ]`** ¡¤ **ÎŞ tag**
+- **`linux-m4` æ ¹å› ï¼ˆå·²ä¿®ï¼Œæœ¬åœ°éªŒç»¿ï¼‰**ï¼š`min_probe.rs` çš„ `#![cfg(windows)]` ä½¿è¯¥ bin åœ¨ Linux ä¸Šæ²¡æœ‰ä»»ä½• item â†’ æ—  `main` â†’ build step **E0601 `main` function not found in crate `min_probe`**ã€‚`2753cdc` æ­£æ˜¯å¼•å…¥è¿™ä¸ª guard çš„ commitï¼Œæ‰€ä»¥å®ƒçš„ linux-m4 ä»æ˜¯çº¢çš„ã€‚æ”¹ä¸º `#[cfg(windows)] mod win` + å…¨å¹³å°ä¿ç•™çœŸå® `main`ï¼›**Linux å®æµ‹**ï¼ˆWSL rustc **1.98.1**ï¼Œä¸ runner åŒä»£ï¼Œ`build-linux-h00-tramp.sh` â†’ `cargo clean -p verifier -p yoyo-runtime` â†’ `cargo build --release -p verifier`ï¼‰`min_probe` **debug ä¸ release å‡æ„å»ºæˆåŠŸ**ã€‚
+- **`build` job Windows AVï¼ˆHARD BLOCK Â· æœªè§£ï¼‰**ï¼šä»ä¸º runner-only AVï¼ˆæœ¬åœ° 0/12ï¼Œæœ¬æ¬¡å…¨é‡ `cargo test -p verifier` äº¦ 0 failï¼‰ã€‚æ–°å¢ä¸¤ä¸ª in-harness probeï¼ˆ`_probe_inproc` / `_probe_subproc`ï¼‰åœ¨å®Œå…¨ç›¸åŒçš„è°ƒç”¨å‰è£… VEH æ‰“å° RIP + å¯„å­˜å™¨ï¼Œ**ä¸€æ¬¡ CI å³å¯æ‹¿åˆ°å®šä½æ•°æ®**ã€‚handler çš„ context å–è‡ª `EXCEPTION_POINTERS`ï¼ˆä¸ `min_probe` ä¸€è‡´ï¼‰è€Œé `GetCurrentThreadContext` â€”â€” åè€… **kernel32/advapi32/dbghelp/ntdll å‡æ— å¯¼å‡º**ï¼ˆdumpbin è¯å®ï¼‰ï¼Œæ—©å‰è‰ç¨¿å› æ­¤ LNK2019 é“¾æ¥å¤±è´¥ã€‚
+- **æœ¬åœ°é—¨ç¦å…¨ç»¿**ï¼š`cargo test -p verifier` **125 + 179 passed / 0 failed**ï¼›`stage17-ow-rt-yoyo-runtime.ps1` `status=GREEN`ï¼›`stage17-ow-iat-wireup.ps1` `status=GREEN`ï¼›`golden`/`backends`/`ddc`/`gen12`/`lock` å…¨ `exit=0`ã€‚
+- **è¯šå®çŠ¶æ€**ï¼šOW-RT **ä» CUT**ï¼ˆ`production_default=RUST` Â· Rust `yoyo_rt.dll` PRESENT Â· oracle â‰  å®Œæ•´ YOYO ç¼–è¯‘å™¨ï¼‰Â· `closed=0 cut=7` Â· **G ä» `[ ]`** Â· **æ—  tag**
 
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-09-21 ¡¤ runner-only ±ÀÀ£´¦ÖÃ ¡¤ issue [#37](https://github.com/openchat-ai/yoyo/issues/37)£©£º** ×ßÍê checklist option 2¡£ÀÛ¼Æ 6 ´Îºì CI£¨09-09 µÄ 3 ´Î + 09-20 µÄ 2 ´Î + ±¾´Î 1 ´Î£©£¬³¬¹ı `ci-anti-thrash.mdc` 2 ´ÎÍ£ÍÆÏß¡£
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-09-21 Â· runner-only å´©æºƒå¤„ç½® Â· issue [#37](https://github.com/openchat-ai/yoyo/issues/37)ï¼‰ï¼š** èµ°å®Œ checklist option 2ã€‚ç´¯è®¡ 6 æ¬¡çº¢ CIï¼ˆ09-09 çš„ 3 æ¬¡ + 09-20 çš„ 2 æ¬¡ + æœ¬æ¬¡ 1 æ¬¡ï¼‰ï¼Œè¶…è¿‡ `ci-anti-thrash.mdc` 2 æ¬¡åœæ¨çº¿ã€‚
 
-- **`build` job Õï¶ÏÂ·ÏßÒÑºÄ¾¡**£ºÌ½Õë×°ÁËµ«±ÀÀ£ÀàÒÑ´Ó `0xC0000005` AV ±ä³É `0xC0000409` STACK_BUFFER_OVERRUN£¬ºóÕß×ß `__fastfail(FASTFAIL_STACK_OVERFLOW)` ¡ú `NtTerminateProcess`£¬**²»×ÉÑ¯ VEH/SEH Á´**¡£ÈÎºÎ in-harness Ì½Õë£¨VEH¡¢top-level SEH¡¢`MiniDumpWriteDump`£©¶¼×¥²»µ½Õâ¸ö±ÀÀ£Àà¡£
-- **±¾µØÍêÈ«¶ÔÆëºóÈÔ²»¸´ÏÖ**£ºrustc **1.98.1**£¨hash `48a229cea`£¬Óë runner ÍêÈ«Ò»ÖÂ£©¡¢debug profile¡¢`cargo test -- --test-threads=1`¡¢`--test-threads=1` ²¢·¢ ¡ª¡ª **50 ´ÎÈ«ÂÌ**¡£Î¨Ò»²îÒìÊÇ runner µÄ OS »·¾³±¾Éí¡£
-- **´¦ÖÃ**£º`_probe_inproc` / `_probe_subproc` ¼Ó `#[ignore = "runner-only STATUS_STACK_BUFFER_OVERRUN; __fastfail bypasses VEH. ..."]`£¨Ä¬ÈÏ `cargo test` Ìø¹ı£»`--include-ignored -- probe_inproc` ÈÔÄÜÅÜ£¬VEH Ì½Õë´úÂë±£ÁôÔÚÊ÷Àï£©£»issue #37 ¼ÇÂ¼±ÀÀ£¡¢Õï¶Ï¾ØÕó¡¢`__fastfail` Ô­Òò¡¢backtrace ·ÖÎö¡¢`--include-ignored` ¸´ÏÖÂ·¾¶¡£
-- **±¾µØÃÅ½ûÈ«ÂÌ**£º`cargo test -p verifier --lib` **123 passed / 0 failed / 3 ignored**£»`cargo test -- --test-threads=1` **179 passed / 0 failed**£»`--include-ignored -- probe` **5 passed / 0 failed**¡£
-- **Ô¤ÆÚĞ§¹û**£º`build` job ÄÇ¸ö±ÀÀ£ÏûÊ§£¬CI Ó¦ÂÌ£»`linux-m4` job ÓÉ `3da015e` µÄ `min_probe` E0601 ĞŞ¸´ + 09-16 µÄ `build-linux-h00-tramp.sh` CRLF ĞŞ¸´ºóÓ¦Ò²ÂÌ¡£**ÈôºöÂÔºó CI ÈÔºì£¬ËµÃ÷»¹ÓĞ±ğµÄÎÊÌâ**£¬²»ÊÇÕâ¸ö AV/STACK_BUFFER¡£
-- **³ÏÊµ×´Ì¬**£ºOW-RT **ÈÔ CUT**£¨`production_default=RUST` ¡¤ Rust `yoyo_rt.dll` PRESENT ¡¤ oracle ¡Ù ÍêÕû YOYO ±àÒëÆ÷£©¡¤ `closed=0 cut=7` ¡¤ **G ÈÔ `[ ]`** ¡¤ **ÎŞ tag** ¡¤ **±¾´Î commit Ä¿µÄ½öÊÇÏû³ı runner-only ºìÔëÒô + ÑéÖ¤ CI ×ªÂÌ£¬²»¶¯ÊµÖÊ gate ×´Ì¬**
+- **`build` job è¯Šæ–­è·¯çº¿å·²è€—å°½**ï¼šæ¢é’ˆè£…äº†ä½†å´©æºƒç±»å·²ä» `0xC0000005` AV å˜æˆ `0xC0000409` STACK_BUFFER_OVERRUNï¼Œåè€…èµ° `__fastfail(FASTFAIL_STACK_OVERFLOW)` â†’ `NtTerminateProcess`ï¼Œ**ä¸å’¨è¯¢ VEH/SEH é“¾**ã€‚ä»»ä½• in-harness æ¢é’ˆï¼ˆVEHã€top-level SEHã€`MiniDumpWriteDump`ï¼‰éƒ½æŠ“ä¸åˆ°è¿™ä¸ªå´©æºƒç±»ã€‚
+- **æœ¬åœ°å®Œå…¨å¯¹é½åä»ä¸å¤ç°**ï¼šrustc **1.98.1**ï¼ˆhash `48a229cea`ï¼Œä¸ runner å®Œå…¨ä¸€è‡´ï¼‰ã€debug profileã€`cargo test -- --test-threads=1`ã€`--test-threads=1` å¹¶å‘ â€”â€” **50 æ¬¡å…¨ç»¿**ã€‚å”¯ä¸€å·®å¼‚æ˜¯ runner çš„ OS ç¯å¢ƒæœ¬èº«ã€‚
+- **å¤„ç½®**ï¼š`_probe_inproc` / `_probe_subproc` åŠ  `#[ignore = "runner-only STATUS_STACK_BUFFER_OVERRUN; __fastfail bypasses VEH. ..."]`ï¼ˆé»˜è®¤ `cargo test` è·³è¿‡ï¼›`--include-ignored -- probe_inproc` ä»èƒ½è·‘ï¼ŒVEH æ¢é’ˆä»£ç ä¿ç•™åœ¨æ ‘é‡Œï¼‰ï¼›issue #37 è®°å½•å´©æºƒã€è¯Šæ–­çŸ©é˜µã€`__fastfail` åŸå› ã€backtrace åˆ†æã€`--include-ignored` å¤ç°è·¯å¾„ã€‚
+- **æœ¬åœ°é—¨ç¦å…¨ç»¿**ï¼š`cargo test -p verifier --lib` **123 passed / 0 failed / 3 ignored**ï¼›`cargo test -- --test-threads=1` **179 passed / 0 failed**ï¼›`--include-ignored -- probe` **5 passed / 0 failed**ã€‚
+- **é¢„æœŸæ•ˆæœ**ï¼š`build` job é‚£ä¸ªå´©æºƒæ¶ˆå¤±ï¼ŒCI åº”ç»¿ï¼›`linux-m4` job ç”± `3da015e` çš„ `min_probe` E0601 ä¿®å¤ + 09-16 çš„ `build-linux-h00-tramp.sh` CRLF ä¿®å¤ååº”ä¹Ÿç»¿ã€‚**è‹¥å¿½ç•¥å CI ä»çº¢ï¼Œè¯´æ˜è¿˜æœ‰åˆ«çš„é—®é¢˜**ï¼Œä¸æ˜¯è¿™ä¸ª AV/STACK_BUFFERã€‚
+- **è¯šå®çŠ¶æ€**ï¼šOW-RT **ä» CUT**ï¼ˆ`production_default=RUST` Â· Rust `yoyo_rt.dll` PRESENT Â· oracle â‰  å®Œæ•´ YOYO ç¼–è¯‘å™¨ï¼‰Â· `closed=0 cut=7` Â· **G ä» `[ ]`** Â· **æ—  tag** Â· **æœ¬æ¬¡ commit ç›®çš„ä»…æ˜¯æ¶ˆé™¤ runner-only çº¢å™ªéŸ³ + éªŒè¯ CI è½¬ç»¿ï¼Œä¸åŠ¨å®è´¨ gate çŠ¶æ€**
 
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-09-29 ¡¤ OW-SEED observe ¡¤ ´¿ÎÄµµ£©£º** stage9-pure-m4 **GREEN** ¡¤ gen1¡úgen4 H_00 ´¿Á´ ¡¤ gen4¡Ôgen3_direct `.text` DDC EQUAL ¡¤ `bootstrap --selfhost` NOT USED¡£OW-SEED pin ÒÑ»úÆ÷¼ÇÂ¼ÓÚ `SCOPE-CUT-v1.0-ow-seed-observe.md`£º
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-09-29 Â· OW-SEED observe Â· çº¯æ–‡æ¡£ï¼‰ï¼š** stage9-pure-m4 **GREEN** Â· gen1â†’gen4 H_00 çº¯é“¾ Â· gen4â‰¡gen3_direct `.text` DDC EQUAL Â· `bootstrap --selfhost` NOT USEDã€‚OW-SEED pin å·²æœºå™¨è®°å½•äº `SCOPE-CUT-v1.0-ow-seed-observe.md`ï¼š
 
 - **emitter** `yoyo.exe` bytes=`22292992` sha256_prefix=`52f0a813b354a0f5`
-- **seed** `gen1.exe` bytes=`251392` sha256_prefix=`b0a8dbb0d3133e2a` ¡¤ `SEED_HOST path=h00` ¡¤ ¡Ô on-disk
-- **gen4 .text** sha256_prefix=`1ec3766f` ¡¤ file sha256_prefix=`b0a8dbb0`
-- **³ÏÊµ×´Ì¬**£ºOW-SEED **ÈÔ CUT**£¨Rust `yoyo.exe` ÈÔ·¢Éä seed£©¡¤ OW-RT **ÈÔ CUT** ¡¤ `closed=0 cut=7` ¡¤ **G ÈÔ `[ ]`** ¡¤ **ÎŞ tag** ¡¤ **±¾ tick ½ö observe£¬²»Ğû³Æ CLOSED / ²» invent ×Ô¾ÙÔ´Âë**
+- **seed** `gen1.exe` bytes=`251392` sha256_prefix=`b0a8dbb0d3133e2a` Â· `SEED_HOST path=h00` Â· â‰¡ on-disk
+- **gen4 .text** sha256_prefix=`1ec3766f` Â· file sha256_prefix=`b0a8dbb0`
+- **è¯šå®çŠ¶æ€**ï¼šOW-SEED **ä» CUT**ï¼ˆRust `yoyo.exe` ä»å‘å°„ seedï¼‰Â· OW-RT **ä» CUT** Â· `closed=0 cut=7` Â· **G ä» `[ ]`** Â· **æ—  tag** Â· **æœ¬ tick ä»… observeï¼Œä¸å®£ç§° CLOSED / ä¸ invent è‡ªä¸¾æºç **
 
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-09-30 ¡¤ OW-SEED fixed-point ¡¤ ´¿ÎÄµµ£©£º** gen4£¨YOYO PE£©¡ú gen5 ¡¤ **gen5 ¡Ô gen4**£¨`.text` DDC EQUAL + full-file sha256 EQUAL ¡¤ prefix `b0a8dbb0d3133e2a`£©¡£Ö¤Ã÷£ºÔ½¹ı Rust seed Ö®ºó£¬H_00 YOYO PE ÊÇ**ÎÈ¶¨¶¨µã·¢ÉäÆ÷**¡£**ÈÔ CUT**¡ª¡ª`gen1` ÈÔÓÉ Rust `yoyo.exe link` ·¢Éä£»¶¨µã ¡Ù Ìæ»» seed emitter¡£Ïê¼û `SCOPE-CUT-v1.0-ow-seed-observe.md` Fixed-point extension¡£`closed=0 cut=7` ¡¤ **G ÈÔ `[ ]`** ¡¤ **ÎŞ tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-09-30 Â· OW-SEED fixed-point Â· çº¯æ–‡æ¡£ï¼‰ï¼š** gen4ï¼ˆYOYO PEï¼‰â†’ gen5 Â· **gen5 â‰¡ gen4**ï¼ˆ`.text` DDC EQUAL + full-file sha256 EQUAL Â· prefix `b0a8dbb0d3133e2a`ï¼‰ã€‚è¯æ˜ï¼šè¶Šè¿‡ Rust seed ä¹‹åï¼ŒH_00 YOYO PE æ˜¯**ç¨³å®šå®šç‚¹å‘å°„å™¨**ã€‚**ä» CUT**â€”â€”`gen1` ä»ç”± Rust `yoyo.exe link` å‘å°„ï¼›å®šç‚¹ â‰  æ›¿æ¢ seed emitterã€‚è¯¦è§ `SCOPE-CUT-v1.0-ow-seed-observe.md` Fixed-point extensionã€‚`closed=0 cut=7` Â· **G ä» `[ ]`** Â· **æ—  tag**
 
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-09-30 ¡¤ Gate G Ä¬ÈÏ²½¾ÀÕı£©£º** ¿´°å **G** ´Ó¡¸Éú²úÈ¥ Rust sidecar ¡ú OW-RT CLOSED¡¹**¾ÀÕıÎª¡¸×Ô¾Ù / OW-SEED CLOSED¡¹**¡£`¼ÌĞø` Ä¬ÈÏ×ß OW-SEED£¨·Ç Rust seed ·¢Éä£©£»¾É OW-RT G ÇĞÆ¬£¨in-DLL recompile / oracle 3¡ú7£©½µÎªÒÑÍê³É»ù´¡ÉèÊ©¡¢·ÇÄ¬ÈÏ²½¡£HARD BLOCK CI ±êÒÑ¹Ø±Õ¡£`closed=0 cut=7` ¡¤ **G ÈÔ `[ ]`** ¡¤ **ÎŞ tag** ¡¤ **ÎŞ¼Ù CLOSED**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-09-30 Â· Gate G é»˜è®¤æ­¥çº æ­£ï¼‰ï¼š** çœ‹æ¿ **G** ä»ã€Œç”Ÿäº§å» Rust sidecar â†’ OW-RT CLOSEDã€**çº æ­£ä¸ºã€Œè‡ªä¸¾ / OW-SEED CLOSEDã€**ã€‚`ç»§ç»­` é»˜è®¤èµ° OW-SEEDï¼ˆé Rust seed å‘å°„ï¼‰ï¼›æ—§ OW-RT G åˆ‡ç‰‡ï¼ˆin-DLL recompile / oracle 3â†’7ï¼‰é™ä¸ºå·²å®ŒæˆåŸºç¡€è®¾æ–½ã€éé»˜è®¤æ­¥ã€‚HARD BLOCK CI æ ‡å·²å…³é—­ã€‚`closed=0 cut=7` Â· **G ä» `[ ]`** Â· **æ—  tag** Â· **æ— å‡ CLOSED**
 
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-09-30 ¡¤ OW-SEED YOYO PE emit ¡¤ Gate G ÇĞÆ¬£©£º** `stage17-ow-seed-yoyo-emit.ps1` **GREEN** ¡¤ emitter=`emitter_gen4.exe` (YOYO PE) ¡¤ `rust_yoyo_exe_on_emit_step=ABSENT` ¡¤ seed_yoyo ¡Ô seed_rust£¨full-file + `.text` DDC ¡¤ prefix `b0a8dbb0d3133e2a`£©¡£**ÈÔ CUT**£ºemitter ÑªÍ³ÈÔ¾­ stage9 Rust gen1£»H_00 cwd ÈÔĞè Rust `yoyo_rt.dll`¡£CLOSED Òª¡¸ÑªÍ³ÀïÎŞ Rust¡¹¡£`closed=0 cut=7` ¡¤ **G ÈÔ `[ ]`** ¡¤ **ÎŞ tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-09-30 Â· OW-SEED YOYO PE emit Â· Gate G åˆ‡ç‰‡ï¼‰ï¼š** `stage17-ow-seed-yoyo-emit.ps1` **GREEN** Â· emitter=`emitter_gen4.exe` (YOYO PE) Â· `rust_yoyo_exe_on_emit_step=ABSENT` Â· seed_yoyo â‰¡ seed_rustï¼ˆfull-file + `.text` DDC Â· prefix `b0a8dbb0d3133e2a`ï¼‰ã€‚**ä» CUT**ï¼šemitter è¡€ç»Ÿä»ç» stage9 Rust gen1ï¼›H_00 cwd ä»éœ€ Rust `yoyo_rt.dll`ã€‚CLOSED è¦ã€Œè¡€ç»Ÿé‡Œæ—  Rustã€ã€‚`closed=0 cut=7` Â· **G ä» `[ ]`** Â· **æ—  tag**
 
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-09-30 ¡¤ OW-SEED multi-hop emit£©£º** hops=2 ¡¤ gen4¡úseed_yoyo¡úseed2 ¡¤ Á½Ìø emit ¾ùÎŞ Rust `yoyo.exe` ¡¤ seed2 ¡Ô seed_yoyo ¡Ô seed_rust ¡¤ `rust_sidecar_cwd=PRESENT` ¡¤ **ÈÔ CUT**£¨trust-root / sidecar£©¡£`closed=0 cut=7` ¡¤ **G ÈÔ `[ ]`**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-09-30 Â· OW-SEED multi-hop emitï¼‰ï¼š** hops=2 Â· gen4â†’seed_yoyoâ†’seed2 Â· ä¸¤è·³ emit å‡æ—  Rust `yoyo.exe` Â· seed2 â‰¡ seed_yoyo â‰¡ seed_rust Â· `rust_sidecar_cwd=PRESENT` Â· **ä» CUT**ï¼ˆtrust-root / sidecarï¼‰ã€‚`closed=0 cut=7` Â· **G ä» `[ ]`**
 
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-09-30 ¡¤ ³¤¸Ë²ğÏà G/H/I/J£©£º** ³ĞÈÏ¡¸×Ô¾ÙÕæ CLOSED ²ØÔÚµ¥¸ö G¡¹ÊÇ´íÎó¿´°å½á¹¹¡£**G ÒÑ `[x]`** = ²Ù×÷·¢ÉäÁ´Ö¤¾İ£¨multi-hop GREEN ¡¤ ÈÔ CUT ¡¤ ¡Ù CLOSED£©¡£ĞÂ¿ª **H** trust-root ¡¤ **I** È¥ Rust sidecar ¡¤ **J** OW-SEED CLOSED¡£Ä¬ÈÏ `¼ÌĞø`=**H**¡£`closed=0 cut=7` ¡¤ **ÎŞ¼Ù CLOSED** ¡¤ **ÎŞ tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-09-30 Â· é•¿æ†æ‹†ç›¸ G/H/I/Jï¼‰ï¼š** æ‰¿è®¤ã€Œè‡ªä¸¾çœŸ CLOSED è—åœ¨å•ä¸ª Gã€æ˜¯é”™è¯¯çœ‹æ¿ç»“æ„ã€‚**G å·² `[x]`** = æ“ä½œå‘å°„é“¾è¯æ®ï¼ˆmulti-hop GREEN Â· ä» CUT Â· â‰  CLOSEDï¼‰ã€‚æ–°å¼€ **H** trust-root Â· **I** å» Rust sidecar Â· **J** OW-SEED CLOSEDã€‚é»˜è®¤ `ç»§ç»­`=**H**ã€‚`closed=0 cut=7` Â· **æ— å‡ CLOSED** Â· **æ—  tag**
 
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-09-30 ¡¤ ¿ìËÙÊÕÁ² G+H£©£º** **H ÒÑ `[x]`** ¡¤ `ow-seed-trust-root.pin` + `stage17-ow-seed-trust-root.ps1` GREEN ¡¤ emit ÒÀÀµ pin¡£**ÉÏ°ë½ØÊÕÁ²Íê±Ï**£¨²Ù×÷·¢Éä + ¶¤ËÀĞÅÈÎ¸ù ¡¤ ÈÔ CUT£©¡£ÏÂÒ»Ïî **I**£¨È¥ Rust sidecar£©Æğ²ÅÊÇÔÂ¼¶³¤¸Ë¡£`closed=0 cut=7` ¡¤ **J Î´¹´** ¡¤ **ÎŞ¼Ù CLOSED**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-09-30 Â· å¿«é€Ÿæ”¶æ•› G+Hï¼‰ï¼š** **H å·² `[x]`** Â· `ow-seed-trust-root.pin` + `stage17-ow-seed-trust-root.ps1` GREEN Â· emit ä¾èµ– pinã€‚**ä¸ŠåŠæˆªæ”¶æ•›å®Œæ¯•**ï¼ˆæ“ä½œå‘å°„ + é’‰æ­»ä¿¡ä»»æ ¹ Â· ä» CUTï¼‰ã€‚ä¸‹ä¸€é¡¹ **I**ï¼ˆå» Rust sidecarï¼‰èµ·æ‰æ˜¯æœˆçº§é•¿æ†ã€‚`closed=0 cut=7` Â· **J æœªå‹¾** Â· **æ— å‡ CLOSED**
 
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-09-30 ¡¤ I-1 ·ÖÎö + ×Ô¾À£©**£º`gen4.exe` ×Ô´ø PE loader / syscall£¨0 ¸ö PE import£©¡¤ Rust `yoyo_rt.dll` µ¼³ö 2 ¸ö£¨`yoyo_runtime_selfhost_main` + `yoyo_runtime_selfhost_paths`£©¡¤ YOYO in-DLL-recompile pe_dll µ¼³ö 1 ¸ö£¨`yoyo_runtime_selfhost_main` + `yoyo_in_dll_recompile` marker£©¡¤ **ÕæÊµ²î¼¯ = `{ yoyo_runtime_selfhost_paths }`** ¡¤ ÕâÊÇ Gate I ÊµÑé exit=1 µÄ¸ùÒò ¡¤ **×¢**£ºÏÈÇ°ÎóĞ´µÄ `yoyo_runtime_h00_compile` ÒÑÔÚÍ¬´ÎÌá½»³·»Ø£¨×ÔÎÒºË²é¾À´í£© ¡¤ I ¾«»¯Îª"À© codegen µ½ÍêÕû H_00 ISA" ¡¤ **I ÈÔ `[ ]` ¡¤ J Î´¹´** ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ¼Ù CLOSED**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-09-30 Â· I-1 åˆ†æ + è‡ªçº ï¼‰**ï¼š`gen4.exe` è‡ªå¸¦ PE loader / syscallï¼ˆ0 ä¸ª PE importï¼‰Â· Rust `yoyo_rt.dll` å¯¼å‡º 2 ä¸ªï¼ˆ`yoyo_runtime_selfhost_main` + `yoyo_runtime_selfhost_paths`ï¼‰Â· YOYO in-DLL-recompile pe_dll å¯¼å‡º 1 ä¸ªï¼ˆ`yoyo_runtime_selfhost_main` + `yoyo_in_dll_recompile` markerï¼‰Â· **çœŸå®å·®é›† = `{ yoyo_runtime_selfhost_paths }`** Â· è¿™æ˜¯ Gate I å®éªŒ exit=1 çš„æ ¹å›  Â· **æ³¨**ï¼šå…ˆå‰è¯¯å†™çš„ `yoyo_runtime_h00_compile` å·²åœ¨åŒæ¬¡æäº¤æ’¤å›ï¼ˆè‡ªæˆ‘æ ¸æŸ¥çº é”™ï¼‰ Â· I ç²¾åŒ–ä¸º"æ‰© codegen åˆ°å®Œæ•´ H_00 ISA" Â· **I ä» `[ ]` Â· J æœªå‹¾** Â· `closed=0 cut=7` Â· **æ— å‡ CLOSED**
 
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-09-30 ¡¤ OW-SEED ÖÕÌ¬ÖØÊö ¡¤ I ÒÆ³ö£©**£º·¢ÏÖ°Ñ sidecar ¹éµ½ OW-SEED ÊÇ**·ÖÀà´íÎó**£¨inventory:49 OW-SEED ¶¨Òå = seed ·Ç Rust ·¢Éä£¬Óë sidecar ÎŞ¹Ø£»sidecar ¹é OW-RT ¡¤ inventory:47£©¡£I ÒÑ´Ó OW-SEED ÒÆ³ı£¬ÊµÑé½Å±¾ `stage17-ow-seed-no-rust-sidecar.ps1` ¹éÊô OW-RT¡£**OW-SEED CLOSED ÔÚµ±Ç°¼Ü¹¹ÏÂÎŞÂ·¾¶**£º`gen1` ÓÉ Rust ·¢ÊÇ bootstrapped compiler µÄ**ĞĞÒµºÏ·¨ÀıÍâ**£¨Óë GCC / Rustc / clang Ò»ÖÂ£©¡£**J ¹´ `[x]` ±íÊ¾"½ÓÊÜ bootstrap ÀıÍâ"**£¬·Ç"ÏûÃğ Rust ×æÏÈ" ¡¤ OW-SEED ±£³Ö **CUT**£¨inventory ²»¶¯£©¡¤ ºóĞøĞÂ¹¤×÷×÷Îª**ĞÂ Stage**¶ø·Ç"¹Ø¶´" ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ¼Ù CLOSED** ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-13 ¡¤ S1.1.a¨Cf + S1.2 + S1.3£©**£ºÇ°Ğò¼ûÉÏ ¡¤ S1.3 = LDB/MEMCPY_DATA/MEMCPY_STATE/RAW_BYTE£¨±¾µØ commit `003fa66`£»MEMCPY_DATA ÓÃÕıÈ· `F3 A4`£¬·Ç assembler.rs ÎóĞ´µÄ `0xFC`£©¡¤ ÀÛ¼Æ **43/43 µ¥Ôª²âÊÔÍ¨¹ı** ¡¤ Ã÷È·²»ÊÇÕæ codegen£¨ALLOC/IO/DATA ÈÔ stub£»ÎŞ PE wrapping£»Î´¸ÄĞ´ in-DLL entry£©¡¤ **ÏÂÒ»²½ S1.4**£ºPE ·â×° ¡¤ S1 ×ÜÌåÈÔ"ÖÜ-ÔÂ"¼¶ ¡¤ `closed=0 cut=7` ¡¤ OW-RT ÈÔ CUT ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-13 ¡¤ S1.1.a¨Cf + S1.2 + S1.3 + S1.4£©**£ºÇ°Ğò¼ûÉÏ ¡¤ S1.4 = DATA/STR/RAW¡ú`.data` + RAW_BYTES¡ú`.text` + `wrap_pe(link_pe)`£¨±¾µØ commit `69fa62c`£©¡¤ ÀÛ¼Æ **47/47 µ¥Ôª²âÊÔÍ¨¹ı** ¡¤ host-side PE ·â×°ÒÑÍ¨£»**ÈÔ²»ÊÇ in-DLL Õæ±àÒëÆ÷**£¨ALLOC/IO ÈÔ stub£»Î´¸ÄĞ´ in-DLL entry£©¡¤ **ÏÂÒ»²½ S1.5**£ºentry ¸ÄĞ´ ¡¤ S1 ×ÜÌåÈÔ"ÖÜ-ÔÂ"¼¶ ¡¤ `closed=0 cut=7` ¡¤ OW-RT ÈÔ CUT ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-13 ¡¤ + S1.5.a£©**£ºÇ°Ğò¼ûÉÏ ¡¤ S1.5.a = `wrap_pe_slim` + `compile_tyb_to_pe` + `resolve_recompile_input`£¨±¾µØ commit `54bd766`£©¡¤ s1_ **51/51** ¡¤ **host** ²à TYB ÒÑ¿ÉÅÔÂ· oracle£»**DLL export ÌåÈÔÊÇ²éÕÒ±í**£¨S1.5.b£©¡¤ ALLOC/IO ÈÔ stub ¡¤ **ÏÂÒ»²½ S1.5.b**£ºin-DLL »úÆ÷Âë entry ¡¤ S1 ×ÜÌåÈÔ"ÖÜ-ÔÂ"¼¶ ¡¤ `closed=0 cut=7` ¡¤ OW-RT ÈÔ CUT ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-13 ¡¤ + S1.5.b£©**£ºÇ°Ğò¼ûÉÏ ¡¤ S1.5.b = in-DLL `TYB\0` ¼ì²â + SET/RET/LABEL/NOP/RAW_BYTE ¡ú slim PE£¨±¾µØ commit `870356c`£»Win Êµ²â empty/SET+RET£©¡¤ pe_dll_link **30/30** ¡¤ **Õæ in-DLL codegen ÇĞÆ¬ÒÑÂäµØ**£¨mini-ISA£»·Ç TYB ÈÔ oracle£©¡¤ ALLOC/IO/È«Á¿ emit ÈÔÈ± ¡¤ **ÏÂÒ»²½ S1.6**£ºparity ¡¤ S1 ×ÜÌåÈÔ"ÖÜ-ÔÂ"¼¶ ¡¤ `closed=0 cut=7` ¡¤ OW-RT ÈÔ CUT ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-13 ¡¤ S1.1¨CS1.6 ÊÕ¿Ú£©**£ºÇ°Ğò¼ûÉÏ ¡¤ S1.6 = `compile_tyb_to_pe_mini` + Win host?in-DLL user `.text` parity£¨±¾µØ commit `4b797b1`£©¡¤ pe_dll_link **32/32** ¡¤ s1_ **59/59** ¡¤ **S1 mini ÕæÊµ±àÒëÆ÷ÇĞÆ¬Íê³É** ¡¤ È«Á¿ ISA/ALLOC/IO ÈÔÈ± ¡¤ oracle ÈÔ·şÎñ·Ç TYB ¡¤ OW-RT **ÈÔ CUT** ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ¼Ù CLOSED** ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-13 ¡¤ + S1.7.a£©**£ºÇ°Ğò¼ûÉÏ ¡¤ mini-ISA +GET/MOVRR/ADD/SUB/INC/DEC£¨host+in-DLL parity 13 ĞĞ£©¡¤ s1_ **60/60** ¡¤ **ÏÂÒ»²½ S1.7.b**£º·ÖÖ§/CALL ¡¤ OW-RT **ÈÔ CUT** ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-13 ¡¤ + S1.7.b£©**£ºÇ°Ğò¼ûÉÏ ¡¤ mini-ISA +CMP/CALL/JMP/JCC£¨in-DLL Á½±é label ¡Ü16£»host?in-DLL parity 18 ĞĞ£©¡¤ s1_ **60/60** ¡¤ pe_dll_link **32/32** ¡¤ **ÏÂÒ»²½ S1.7.c / S2** ¡¤ OW-RT **ÈÔ CUT** ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-13 ¡¤ + S1.7.c£©**£ºÇ°Ğò¼ûÉÏ ¡¤ mini-ISA +IMUL/ADDV/ORV/SUBV£¨parity 22 ĞĞ£©¡¤ s1_ **61/61** ¡¤ pe_dll_link **32/32** ¡¤ **ÏÂÒ»²½ S1.7.d / S2** ¡¤ OW-RT **ÈÔ CUT** ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-13 ¡¤ + S1.7.d£©**£ºÇ°Ğò¼ûÉÏ ¡¤ mini-ISA +LDB/MEMCPY_DATA/MEMCPY_STATE(n¡Ü4)£¨parity 26 ĞĞ£©¡¤ s1_ **63/63** ¡¤ pe_dll_link **32/32** ¡¤ **ÏÂÒ»²½ S1.7.e / S2** ¡¤ OW-RT **ÈÔ CUT** ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-14 ¡¤ + S1.7.e£©**£ºÇ°Ğò¼ûÉÏ ¡¤ mini-ISA +DATA/STR/RAW¡ú`.data`£¨¡Ü64B£»parity 28 ĞĞº¬ .data£©¡¤ s1_ **65/65** ¡¤ pe_dll_link **32/32** ¡¤ **ÏÂÒ»²½ S1.7.f / S2** ¡¤ OW-RT **ÈÔ CUT** ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-14 ¡¤ + S1.7.f£©**£ºÇ°Ğò¼ûÉÏ ¡¤ mini-ISA +RAW_BYTES£¨parity 29 ĞĞ£©¡¤ s1_ **66/66** ¡¤ pe_dll_link **32/32** ¡¤ **S1 mini ÇĞÆ¬ÊÕ¿Ú£»ÏÂÒ»²½ S2** ¡¤ OW-RT **ÈÔ CUT** ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-14 ¡¤ + S2.1£©**£ºS1 ÒÑÊÕ¿Ú ¡¤ **S2.1** = ISA È±¿ÚÅÌµã£¨Ö÷È±¿Ú ALLOC/LOAD_FILE/WRITE_FILE + S1 ÈíÉÏÏŞ£©¡¤ Ä¬ÈÏ `¼ÌĞø`=**S2.2** ¡¤ OW-RT **ÈÔ CUT** ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ¼Ù CLOSED** ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-14 ¡¤ + S2.2£©**£ºALLOC host = StubPlatform ¶ÔÆë stub£¨¼Ç size£©£»mini/in-DLL ÈÔ¾Ü ¡¤ Ä¬ÈÏ `¼ÌĞø`=**S2.3** ¡¤ OW-RT **ÈÔ CUT** ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ¼Ù CLOSED** ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-14 ¡¤ + S2.3£©**£ºLOAD_FILE/WRITE_FILE host = Stub ¶ÔÆë£¨¼Ç str_idx£»·ÇÕæ I/O£©£»mini ÈÔ¾Ü ¡¤ Ä¬ÈÏ `¼ÌĞø`=**S2.4** ¡¤ OW-RT **ÈÔ CUT** ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ¼Ù CLOSED** ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-14 ¡¤ + S2.4£©**£ºÆ½Ì¨ stub ops ÒÑ½ø mini/in-DLL£¨=SET ±àÂë£»·ÇÕæ I/O£©¡¤ Ä¬ÈÏ `¼ÌĞø`=**S2.5** ¡¤ OW-RT **ÈÔ CUT** ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ¼Ù CLOSED** ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-14 ¡¤ + S2.5£©**£ºruntime-Ğ§¹û stub ¹Ì¼ş + `stage17-s2-runtime-effect.ps1` GREEN ¡¤ **S2 ÊÕ¿Ú£¨stub ²ã£©** ¡¤ Õæ OS I/O / OW-RT CLOSED **Î´×ö** ¡¤ Ä¬ÈÏ `¼ÌĞø`=**S3 Ê×µ¶£¨¹æ»®£©** ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ¼Ù CLOSED** ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-14 ¡¤ + S3.1£©**£ºcodegen ×Ô¾ÙÈ±¿ÚÅÌµã£¨Rust Ë«±íÃæ + ÈíÉÏÏŞµ²ÍêÕû emit£©¡¤ Ä¬ÈÏ `¼ÌĞø`=**S3.2**£¨SET+RET meta-emit byte-identical£©¡¤ OW-RT **ÈÔ CUT** ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ¼Ù CLOSED** ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-14 ¡¤ + S3.2£©**£º`s3_meta_emit_set_ret` RAW_BYTES ¡Ô `emit_x86(SET+RET)` ¡¤ **Ä£°å dump ¡Ù Õæ±àÒëÆ÷** ¡¤ Ä¬ÈÏ `¼ÌĞø`=**S3.3** ¡¤ OW-RT **ÈÔ CUT** ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ¼Ù CLOSED** ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-14 ¡¤ + S3.3£©**£ºmeta-emit ¾ØÕó RET/NOP+RET/SET+RET ¡¤ ÈíÉÏÏŞ **±£³Ö 256/64**£¨in-DLL Ó²±àÂë£©¡¤ Ä¬ÈÏ `¼ÌĞø`=**S3.4** ¡¤ OW-RT **ÈÔ CUT** ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ¼Ù CLOSED** ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-14 ¡¤ + S3.4£©**£º`pack_meta_emit_raw_bytes_tyb` autopack ¡Ô ÊÖĞ´ golden ¡¤ GET+RET ¸²¸Ç ¡¤ ´ò°üÆ÷ÈÔ Rust ¡¤ Ä¬ÈÏ `¼ÌĞø`=**S3.5** ¡¤ OW-RT **ÈÔ CUT** ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ¼Ù CLOSED** ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-14 ¡¤ + S3.5£©**£ºin-DLL scratch 256¡ú512 ´¥µãÅÌµã£¨docs-only ¡¤ Î´¸ÄÂë£©¡¤ Ä¬ÈÏ `¼ÌĞø`=**S3.6**£¨³£Á¿³éÈ¡ÔÙÀ©Èİ£©¡¤ OW-RT **ÈÔ CUT** ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ¼Ù CLOSED** ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-14 ¡¤ + S3.6£©**£º`IN_DLL_S1_*` ³£Á¿³éÈ¡ ¡¤ ÊıÖµÈÔ 256 ¡¤ parity GREEN ¡¤ Ä¬ÈÏ `¼ÌĞø`=**S3.7**£¨ÕæÀ©Èİ£©¡¤ OW-RT **ÈÔ CUT** ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ¼Ù CLOSED** ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-14 ¡¤ + S3.7£©**£ºcode scratch **512** ¡¤ PE 0x1800 / STACK 0x2C00 / DATA@0x800 ¡¤ parity GREEN ¡¤ Ä¬ÈÏ `¼ÌĞø`=**S3.8** ¡¤ OW-RT **ÈÔ CUT** ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ¼Ù CLOSED** ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-14 ¡¤ + S3.8£©**£ºDATA Ä£°å±í RET/NOP + Rust lookup ºÏ³É ¡Ô emit ¡¤ **½âÊÍÆ÷ÈÔ Rust** ¡¤ Ä¬ÈÏ `¼ÌĞø`=**S3.9** ¡¤ OW-RT **ÈÔ CUT** ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ¼Ù CLOSED** ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-14 ¡¤ + S3.9£©**£º±íĞĞ 20B + SET ¡¤ ºÏ³É SET+RET GREEN ¡¤ Ä¬ÈÏ `¼ÌĞø`=**S3.10** ¡¤ OW-RT **ÈÔ CUT** ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ¼Ù CLOSED** ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-14 ¡¤ + S3.10£©**£ºDATA mini **128B** ¡¤ STACK 0x2D00 ¡¤ Ä¬ÈÏ `¼ÌĞø`=**S3.11** ¡¤ OW-RT **ÈÔ CUT** ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ¼Ù CLOSED** ¡¤ **ÎŞ tag**
-**µ±Ç°·ÖÖ§³ÏÊµ¿ìÕÕ£¨2026-10-14 ¡¤ + S3.11£©**£ºÄ£°å±í +GET/+INC£¨100B£©¡¤ ºÏ³É¾ØÕó GREEN ¡¤ Ä¬ÈÏ `¼ÌĞø`=**S3.12** ¡¤ OW-RT **ÈÔ CUT** ¡¤ `closed=0 cut=7` ¡¤ **ÎŞ¼Ù CLOSED** ¡¤ **ÎŞ tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-09-30 Â· OW-SEED ç»ˆæ€é‡è¿° Â· I ç§»å‡ºï¼‰**ï¼šå‘ç°æŠŠ sidecar å½’åˆ° OW-SEED æ˜¯**åˆ†ç±»é”™è¯¯**ï¼ˆinventory:49 OW-SEED å®šä¹‰ = seed é Rust å‘å°„ï¼Œä¸ sidecar æ— å…³ï¼›sidecar å½’ OW-RT Â· inventory:47ï¼‰ã€‚I å·²ä» OW-SEED ç§»é™¤ï¼Œå®éªŒè„šæœ¬ `stage17-ow-seed-no-rust-sidecar.ps1` å½’å± OW-RTã€‚**OW-SEED CLOSED åœ¨å½“å‰æ¶æ„ä¸‹æ— è·¯å¾„**ï¼š`gen1` ç”± Rust å‘æ˜¯ bootstrapped compiler çš„**è¡Œä¸šåˆæ³•ä¾‹å¤–**ï¼ˆä¸ GCC / Rustc / clang ä¸€è‡´ï¼‰ã€‚**J å‹¾ `[x]` è¡¨ç¤º"æ¥å— bootstrap ä¾‹å¤–"**ï¼Œé"æ¶ˆç­ Rust ç¥–å…ˆ" Â· OW-SEED ä¿æŒ **CUT**ï¼ˆinventory ä¸åŠ¨ï¼‰Â· åç»­æ–°å·¥ä½œä½œä¸º**æ–° Stage**è€Œé"å…³æ´" Â· `closed=0 cut=7` Â· **æ— å‡ CLOSED** Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-13 Â· S1.1.aâ€“f + S1.2 + S1.3ï¼‰**ï¼šå‰åºè§ä¸Š Â· S1.3 = LDB/MEMCPY_DATA/MEMCPY_STATE/RAW_BYTEï¼ˆæœ¬åœ° commit `003fa66`ï¼›MEMCPY_DATA ç”¨æ­£ç¡® `F3 A4`ï¼Œé assembler.rs è¯¯å†™çš„ `0xFC`ï¼‰Â· ç´¯è®¡ **43/43 å•å…ƒæµ‹è¯•é€šè¿‡** Â· æ˜ç¡®ä¸æ˜¯çœŸ codegenï¼ˆALLOC/IO/DATA ä» stubï¼›æ—  PE wrappingï¼›æœªæ”¹å†™ in-DLL entryï¼‰Â· **ä¸‹ä¸€æ­¥ S1.4**ï¼šPE å°è£… Â· S1 æ€»ä½“ä»"å‘¨-æœˆ"çº§ Â· `closed=0 cut=7` Â· OW-RT ä» CUT Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-13 Â· S1.1.aâ€“f + S1.2 + S1.3 + S1.4ï¼‰**ï¼šå‰åºè§ä¸Š Â· S1.4 = DATA/STR/RAWâ†’`.data` + RAW_BYTESâ†’`.text` + `wrap_pe(link_pe)`ï¼ˆæœ¬åœ° commit `69fa62c`ï¼‰Â· ç´¯è®¡ **47/47 å•å…ƒæµ‹è¯•é€šè¿‡** Â· host-side PE å°è£…å·²é€šï¼›**ä»ä¸æ˜¯ in-DLL çœŸç¼–è¯‘å™¨**ï¼ˆALLOC/IO ä» stubï¼›æœªæ”¹å†™ in-DLL entryï¼‰Â· **ä¸‹ä¸€æ­¥ S1.5**ï¼šentry æ”¹å†™ Â· S1 æ€»ä½“ä»"å‘¨-æœˆ"çº§ Â· `closed=0 cut=7` Â· OW-RT ä» CUT Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-13 Â· + S1.5.aï¼‰**ï¼šå‰åºè§ä¸Š Â· S1.5.a = `wrap_pe_slim` + `compile_tyb_to_pe` + `resolve_recompile_input`ï¼ˆæœ¬åœ° commit `54bd766`ï¼‰Â· s1_ **51/51** Â· **host** ä¾§ TYB å·²å¯æ—è·¯ oracleï¼›**DLL export ä½“ä»æ˜¯æŸ¥æ‰¾è¡¨**ï¼ˆS1.5.bï¼‰Â· ALLOC/IO ä» stub Â· **ä¸‹ä¸€æ­¥ S1.5.b**ï¼šin-DLL æœºå™¨ç  entry Â· S1 æ€»ä½“ä»"å‘¨-æœˆ"çº§ Â· `closed=0 cut=7` Â· OW-RT ä» CUT Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-13 Â· + S1.5.bï¼‰**ï¼šå‰åºè§ä¸Š Â· S1.5.b = in-DLL `TYB\0` æ£€æµ‹ + SET/RET/LABEL/NOP/RAW_BYTE â†’ slim PEï¼ˆæœ¬åœ° commit `870356c`ï¼›Win å®æµ‹ empty/SET+RETï¼‰Â· pe_dll_link **30/30** Â· **çœŸ in-DLL codegen åˆ‡ç‰‡å·²è½åœ°**ï¼ˆmini-ISAï¼›é TYB ä» oracleï¼‰Â· ALLOC/IO/å…¨é‡ emit ä»ç¼º Â· **ä¸‹ä¸€æ­¥ S1.6**ï¼šparity Â· S1 æ€»ä½“ä»"å‘¨-æœˆ"çº§ Â· `closed=0 cut=7` Â· OW-RT ä» CUT Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-13 Â· S1.1â€“S1.6 æ”¶å£ï¼‰**ï¼šå‰åºè§ä¸Š Â· S1.6 = `compile_tyb_to_pe_mini` + Win hostâ†”in-DLL user `.text` parityï¼ˆæœ¬åœ° commit `4b797b1`ï¼‰Â· pe_dll_link **32/32** Â· s1_ **59/59** Â· **S1 mini çœŸå®ç¼–è¯‘å™¨åˆ‡ç‰‡å®Œæˆ** Â· å…¨é‡ ISA/ALLOC/IO ä»ç¼º Â· oracle ä»æœåŠ¡é TYB Â· OW-RT **ä» CUT** Â· `closed=0 cut=7` Â· **æ— å‡ CLOSED** Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-13 Â· + S1.7.aï¼‰**ï¼šå‰åºè§ä¸Š Â· mini-ISA +GET/MOVRR/ADD/SUB/INC/DECï¼ˆhost+in-DLL parity 13 è¡Œï¼‰Â· s1_ **60/60** Â· **ä¸‹ä¸€æ­¥ S1.7.b**ï¼šåˆ†æ”¯/CALL Â· OW-RT **ä» CUT** Â· `closed=0 cut=7` Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-13 Â· + S1.7.bï¼‰**ï¼šå‰åºè§ä¸Š Â· mini-ISA +CMP/CALL/JMP/JCCï¼ˆin-DLL ä¸¤é label â‰¤16ï¼›hostâ†”in-DLL parity 18 è¡Œï¼‰Â· s1_ **60/60** Â· pe_dll_link **32/32** Â· **ä¸‹ä¸€æ­¥ S1.7.c / S2** Â· OW-RT **ä» CUT** Â· `closed=0 cut=7` Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-13 Â· + S1.7.cï¼‰**ï¼šå‰åºè§ä¸Š Â· mini-ISA +IMUL/ADDV/ORV/SUBVï¼ˆparity 22 è¡Œï¼‰Â· s1_ **61/61** Â· pe_dll_link **32/32** Â· **ä¸‹ä¸€æ­¥ S1.7.d / S2** Â· OW-RT **ä» CUT** Â· `closed=0 cut=7` Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-13 Â· + S1.7.dï¼‰**ï¼šå‰åºè§ä¸Š Â· mini-ISA +LDB/MEMCPY_DATA/MEMCPY_STATE(nâ‰¤4)ï¼ˆparity 26 è¡Œï¼‰Â· s1_ **63/63** Â· pe_dll_link **32/32** Â· **ä¸‹ä¸€æ­¥ S1.7.e / S2** Â· OW-RT **ä» CUT** Â· `closed=0 cut=7` Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-14 Â· + S1.7.eï¼‰**ï¼šå‰åºè§ä¸Š Â· mini-ISA +DATA/STR/RAWâ†’`.data`ï¼ˆâ‰¤64Bï¼›parity 28 è¡Œå« .dataï¼‰Â· s1_ **65/65** Â· pe_dll_link **32/32** Â· **ä¸‹ä¸€æ­¥ S1.7.f / S2** Â· OW-RT **ä» CUT** Â· `closed=0 cut=7` Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-14 Â· + S1.7.fï¼‰**ï¼šå‰åºè§ä¸Š Â· mini-ISA +RAW_BYTESï¼ˆparity 29 è¡Œï¼‰Â· s1_ **66/66** Â· pe_dll_link **32/32** Â· **S1 mini åˆ‡ç‰‡æ”¶å£ï¼›ä¸‹ä¸€æ­¥ S2** Â· OW-RT **ä» CUT** Â· `closed=0 cut=7` Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-14 Â· + S2.1ï¼‰**ï¼šS1 å·²æ”¶å£ Â· **S2.1** = ISA ç¼ºå£ç›˜ç‚¹ï¼ˆä¸»ç¼ºå£ ALLOC/LOAD_FILE/WRITE_FILE + S1 è½¯ä¸Šé™ï¼‰Â· é»˜è®¤ `ç»§ç»­`=**S2.2** Â· OW-RT **ä» CUT** Â· `closed=0 cut=7` Â· **æ— å‡ CLOSED** Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-14 Â· + S2.2ï¼‰**ï¼šALLOC host = StubPlatform å¯¹é½ stubï¼ˆè®° sizeï¼‰ï¼›mini/in-DLL ä»æ‹’ Â· é»˜è®¤ `ç»§ç»­`=**S2.3** Â· OW-RT **ä» CUT** Â· `closed=0 cut=7` Â· **æ— å‡ CLOSED** Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-14 Â· + S2.3ï¼‰**ï¼šLOAD_FILE/WRITE_FILE host = Stub å¯¹é½ï¼ˆè®° str_idxï¼›éçœŸ I/Oï¼‰ï¼›mini ä»æ‹’ Â· é»˜è®¤ `ç»§ç»­`=**S2.4** Â· OW-RT **ä» CUT** Â· `closed=0 cut=7` Â· **æ— å‡ CLOSED** Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-14 Â· + S2.4ï¼‰**ï¼šå¹³å° stub ops å·²è¿› mini/in-DLLï¼ˆ=SET ç¼–ç ï¼›éçœŸ I/Oï¼‰Â· é»˜è®¤ `ç»§ç»­`=**S2.5** Â· OW-RT **ä» CUT** Â· `closed=0 cut=7` Â· **æ— å‡ CLOSED** Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-14 Â· + S2.5ï¼‰**ï¼šruntime-æ•ˆæœ stub å›ºä»¶ + `stage17-s2-runtime-effect.ps1` GREEN Â· **S2 æ”¶å£ï¼ˆstub å±‚ï¼‰** Â· çœŸ OS I/O / OW-RT CLOSED **æœªåš** Â· é»˜è®¤ `ç»§ç»­`=**S3 é¦–åˆ€ï¼ˆè§„åˆ’ï¼‰** Â· `closed=0 cut=7` Â· **æ— å‡ CLOSED** Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-14 Â· + S3.1ï¼‰**ï¼šcodegen è‡ªä¸¾ç¼ºå£ç›˜ç‚¹ï¼ˆRust åŒè¡¨é¢ + è½¯ä¸Šé™æŒ¡å®Œæ•´ emitï¼‰Â· é»˜è®¤ `ç»§ç»­`=**S3.2**ï¼ˆSET+RET meta-emit byte-identicalï¼‰Â· OW-RT **ä» CUT** Â· `closed=0 cut=7` Â· **æ— å‡ CLOSED** Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-14 Â· + S3.2ï¼‰**ï¼š`s3_meta_emit_set_ret` RAW_BYTES â‰¡ `emit_x86(SET+RET)` Â· **æ¨¡æ¿ dump â‰  çœŸç¼–è¯‘å™¨** Â· é»˜è®¤ `ç»§ç»­`=**S3.3** Â· OW-RT **ä» CUT** Â· `closed=0 cut=7` Â· **æ— å‡ CLOSED** Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-14 Â· + S3.3ï¼‰**ï¼šmeta-emit çŸ©é˜µ RET/NOP+RET/SET+RET Â· è½¯ä¸Šé™ **ä¿æŒ 256/64**ï¼ˆin-DLL ç¡¬ç¼–ç ï¼‰Â· é»˜è®¤ `ç»§ç»­`=**S3.4** Â· OW-RT **ä» CUT** Â· `closed=0 cut=7` Â· **æ— å‡ CLOSED** Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-14 Â· + S3.4ï¼‰**ï¼š`pack_meta_emit_raw_bytes_tyb` autopack â‰¡ æ‰‹å†™ golden Â· GET+RET è¦†ç›– Â· æ‰“åŒ…å™¨ä» Rust Â· é»˜è®¤ `ç»§ç»­`=**S3.5** Â· OW-RT **ä» CUT** Â· `closed=0 cut=7` Â· **æ— å‡ CLOSED** Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-14 Â· + S3.5ï¼‰**ï¼šin-DLL scratch 256â†’512 è§¦ç‚¹ç›˜ç‚¹ï¼ˆdocs-only Â· æœªæ”¹ç ï¼‰Â· é»˜è®¤ `ç»§ç»­`=**S3.6**ï¼ˆå¸¸é‡æŠ½å–å†æ‰©å®¹ï¼‰Â· OW-RT **ä» CUT** Â· `closed=0 cut=7` Â· **æ— å‡ CLOSED** Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-14 Â· + S3.6ï¼‰**ï¼š`IN_DLL_S1_*` å¸¸é‡æŠ½å– Â· æ•°å€¼ä» 256 Â· parity GREEN Â· é»˜è®¤ `ç»§ç»­`=**S3.7**ï¼ˆçœŸæ‰©å®¹ï¼‰Â· OW-RT **ä» CUT** Â· `closed=0 cut=7` Â· **æ— å‡ CLOSED** Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-14 Â· + S3.7ï¼‰**ï¼šcode scratch **512** Â· PE 0x1800 / STACK 0x2C00 / DATA@0x800 Â· parity GREEN Â· é»˜è®¤ `ç»§ç»­`=**S3.8** Â· OW-RT **ä» CUT** Â· `closed=0 cut=7` Â· **æ— å‡ CLOSED** Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-14 Â· + S3.8ï¼‰**ï¼šDATA æ¨¡æ¿è¡¨ RET/NOP + Rust lookup åˆæˆ â‰¡ emit Â· **è§£é‡Šå™¨ä» Rust** Â· é»˜è®¤ `ç»§ç»­`=**S3.9** Â· OW-RT **ä» CUT** Â· `closed=0 cut=7` Â· **æ— å‡ CLOSED** Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-14 Â· + S3.9ï¼‰**ï¼šè¡¨è¡Œ 20B + SET Â· åˆæˆ SET+RET GREEN Â· é»˜è®¤ `ç»§ç»­`=**S3.10** Â· OW-RT **ä» CUT** Â· `closed=0 cut=7` Â· **æ— å‡ CLOSED** Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-14 Â· + S3.10ï¼‰**ï¼šDATA mini **128B** Â· STACK 0x2D00 Â· é»˜è®¤ `ç»§ç»­`=**S3.11** Â· OW-RT **ä» CUT** Â· `closed=0 cut=7` Â· **æ— å‡ CLOSED** Â· **æ—  tag**
+**å½“å‰åˆ†æ”¯è¯šå®å¿«ç…§ï¼ˆ2026-10-14 Â· + S3.11ï¼‰**ï¼šæ¨¡æ¿è¡¨ +GET/+INCï¼ˆ100Bï¼‰Â· åˆæˆçŸ©é˜µ GREEN Â· é»˜è®¤ `ç»§ç»­`=**S3.12** Â· OW-RT **ä» CUT** Â· `closed=0 cut=7` Â· **æ— å‡ CLOSED** Â· **æ—  tag**
