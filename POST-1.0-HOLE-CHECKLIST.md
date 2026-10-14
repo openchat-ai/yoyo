@@ -583,7 +583,7 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.38** | ✅ 已本地提交 | 单记录 RET/NOP 从 bake 行 payload 取字节（lea rip） | commit `b8c6f4e` |
 | **S3.39** | ✅ 已本地提交 | NOP+RET/SET+RET 从 bake 取字节（lea/rep movsb） | commit `4a3f7c6` |
 | **S3.40** | ✅ 已本地提交 | GET/INC+RET 从 bake 取字节（rep movsb） | commit `2bcf38d` |
-| **S3.41** | ✅ 已本地提交 | 单记录 argc0：扫 bake 5 行按 op memcpy | commit `PLACEHOLDER_S341` |
+| **S3.41** | ✅ 已本地提交 | 单记录 argc0：扫 bake 5 行按 op memcpy | commit `16f221c` |
 | **S3.42+** | ⏳ 未开始 | 双记录 argc0 扫表；带参 SET/GET/INC 仍固定匹配 | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
