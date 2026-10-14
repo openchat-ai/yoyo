@@ -837,22 +837,27 @@ const IN_DLL_RECOMPILE_MAX_INPUT: u32 = 0x1000;
 const IN_DLL_S1_CODE_OFF: u32 = 0x1080;
 const IN_DLL_S1_CODE_CAP: u32 = crate::s1_tyb_parser::S1_SLIM_MAX_CODE as u32;
 const IN_DLL_S1_PE_OFF: u32 = IN_DLL_S1_CODE_OFF + IN_DLL_S1_CODE_CAP;
-const IN_DLL_S1_PE_SIZE: u32 = 0x1600;
+/// S3.7: was 0x1600; slim PE is now headers+0x400 code_raw+0x1000 data = 0x1800.
+const IN_DLL_S1_PE_SIZE: u32 = 0x1800;
 const IN_DLL_S1_LABELS_OFF: u32 = IN_DLL_S1_PE_OFF + IN_DLL_S1_PE_SIZE;
 const IN_DLL_S1_PATCHES_OFF: u32 = IN_DLL_S1_LABELS_OFF + 16 * 8;
 const IN_DLL_S1_N_LABELS_OFF: u32 = IN_DLL_S1_PATCHES_OFF + 16 * 8;
 const IN_DLL_S1_N_PATCHES_OFF: u32 = IN_DLL_S1_N_LABELS_OFF + 4;
 const IN_DLL_S1_DATA_LEN_OFF: u32 = IN_DLL_S1_N_LABELS_OFF + 8;
 const IN_DLL_S1_DATA_OFF: u32 = IN_DLL_S1_N_LABELS_OFF + 0x10;
-const IN_DLL_S1_STACK: u32 = 0x2900;
+/// S3.7: grow frame so PE(0x1800) + tables fit after CODE_CAP=512.
+const IN_DLL_S1_STACK: u32 = 0x2C00;
 
-/// S3.6 fail-closed: layout math must match the historic S1.7.e numbers.
-const _: () = assert!(IN_DLL_S1_CODE_CAP == 256);
-const _: () = assert!(IN_DLL_S1_PE_OFF == 0x1180);
-const _: () = assert!(IN_DLL_S1_LABELS_OFF == 0x2780);
-const _: () = assert!(IN_DLL_S1_PATCHES_OFF == 0x2800);
-const _: () = assert!(IN_DLL_S1_N_LABELS_OFF == 0x2880);
-const _: () = assert!(IN_DLL_S1_DATA_OFF == 0x2890);
+/// S3.7 fail-closed: layout math for CODE_CAP=512 / PE=0x1800.
+const _: () = assert!(IN_DLL_S1_CODE_CAP == 512);
+const _: () = assert!(IN_DLL_S1_PE_OFF == 0x1280);
+const _: () = assert!(IN_DLL_S1_PE_SIZE == 0x1800);
+const _: () = assert!(IN_DLL_S1_LABELS_OFF == 0x2A80);
+const _: () = assert!(IN_DLL_S1_PATCHES_OFF == 0x2B00);
+const _: () = assert!(IN_DLL_S1_N_LABELS_OFF == 0x2B80);
+const _: () = assert!(IN_DLL_S1_DATA_OFF == 0x2B90);
+const _: () = assert!(IN_DLL_S1_STACK == 0x2C00);
+const _: () = assert!(crate::s1_tyb_parser::S1_SLIM_DATA_PAYLOAD_OFF == 0x800);
 
 #[inline]
 fn push_u32_le(buf: &mut Vec<u8>, v: u32) {
@@ -1046,7 +1051,7 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
     // Stack layout (S1.5.b / S3.6 named): push rbx,rsi,rdi,r12,r13; sub rsp, IN_DLL_S1_STACK
     //   [rsp+0x40] = DWORD bytes_read
     //   [rsp+0x60 .. 0x1060) = ≤4KiB input
-    //   [rsp+CODE_OFF ..) = code scratch (≤CODE_CAP; today 256)
+    //   [rsp+CODE_OFF ..) = code scratch (≤CODE_CAP; S3.7=512)
     //   [rsp+PE_OFF ..) = slim PE buffer (PE_SIZE)
     link_yoyo_in_dll_recompile_dll_emit(
         &table,
@@ -2521,7 +2526,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x48, 0x29, 0xC1]); // sub rcx, rax
     export_code.extend_from_slice(&[0xF3, 0xA4]);
 
-    // memcpy data → pe + S1_SLIM_DATA_PAYLOAD_OFF (0x600)
+    // memcpy data → pe + S1_SLIM_DATA_PAYLOAD_OFF (S3.7: 0x800)
     export_code.extend_from_slice(&[0x8B, 0x8C, 0x24]);
     push_u32_le(&mut export_code, IN_DLL_S1_DATA_LEN_OFF); // ecx=data_len
     export_code.extend_from_slice(&[0x85, 0xC9]);

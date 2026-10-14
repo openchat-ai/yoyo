@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.7**：S3.6 常量已抽；下一刀改 `CODE_CAP`/`STACK` 做 256→512（**非**假 CLOSED）。
+**默认 `继续` = S3.8**：S3.7 扩容已绿；下一刀 DATA 表驱动或更多 meta-emit（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -479,7 +479,7 @@ Run `35553987325`（commit `146b58b`）：
 
 | 限制 | 值 | 影响 |
 |---|---|---|
-| 代码缓冲 | 256B user `.text` | 复杂 runtime `.ty` 放不下 |
+| 代码缓冲 | **512B** user `.text`（S3.7；原 256） | 复杂 runtime `.ty` 仍可能不够 |
 | label/patch | 各 ≤16 | 大控制流 |
 | MEMCPY_STATE n | ≤4 | 大块状态拷贝 |
 | DATA 合计 | ≤64B | 大字符串表 |
@@ -548,8 +548,9 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.3** | ✅ 已本地提交 | meta-emit 矩阵（RET/NOP+RET/SET+RET）+ **软上限暂不提**（in-DLL scratch=256） | commit `9b4f04e` · 模板 dump |
 | **S3.4** | ✅ 已本地提交 | `pack_meta_emit_raw_bytes_tyb` 自 `emit_x86` 自动打包；GET+RET + 与手写 golden 一致 | commit `b85d365` · 仍 Rust 辅助 |
 | **S3.5** | ✅ 已本地提交 | in-DLL scratch 扩容触点盘点（256→512 前必改清单） | commit `011a9f2` · docs-only |
-| **S3.6** | ✅ 已本地提交 | in-DLL 栈布局 **常量抽取**（`IN_DLL_S1_*`；数值仍 256/0x2900） | commit `TBD` · 行为不变 · const assert |
-| **S3.7+** | ⏳ 未开始 | 执行 scratch 256→512（改 CODE_CAP + STACK）**或** DATA 表解释 | 真自举长杆 |
+| **S3.6** | ✅ 已本地提交 | in-DLL 栈布局 **常量抽取**（`IN_DLL_S1_*`；数值仍 256/0x2900） | commit `3ac7710` · 行为不变 · const assert |
+| **S3.7** | ✅ 已本地提交 | scratch/code **256→512**：PE buf 0x1800、STACK 0x2C00、DATA off 0x800 | commit `TBD` · parity GREEN |
+| **S3.8+** | ⏳ 未开始 | DATA 表驱动解释 / 替换 Rust emit | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -652,7 +653,17 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | 行为 | **不变**；编译期 assert 锁定 0x1180/0x2780/… |
 | 验收 | `s1_host_in_dll` + `s1_` + `s3_` GREEN |
 
-**默认 `继续` = S3.7**：改 CAP→512、上移 PE/labels、STACK→0x2A00。
+#### S3.7 — scratch 256→512（本步）
+
+| 项 | 决定 |
+|---|---|
+| `S1_SLIM_MAX_CODE` | 512 |
+| slim `code_raw` | 恒为 `align(13+512)=0x400`（稳定 DATA off=`0x800`） |
+| `IN_DLL_S1_PE_SIZE` | `0x1800`；`STACK`=`0x2C00` |
+| 验收 | `s1_host_in_dll` + `s1_` 77 + `pe_dll_link` 32 + `s3_` GREEN |
+| 插曲 | 首刀 AV：旧 PE buf 0x1600 装不下双页 `.text` → 已修 |
+
+**默认 `继续` = S3.8**。
 
 ### 立项约束
 

@@ -718,7 +718,8 @@ pub fn wrap_pe(out: &CodegenOutput) -> crate::types::IsaResult<crate::pe_link::P
 }
 
 /// Max `.text` payload (startup 13 + user code) for slim PE / in-DLL scratch.
-pub const S1_SLIM_MAX_CODE: usize = 256;
+/// S3.7: raised 256→512 (in-DLL scratch + host slim PE keep in sync).
+pub const S1_SLIM_MAX_CODE: usize = 512;
 /// Slim `.data` virtual size (state base for R15); keeps PE ≪ `link_pe` H_00 pad.
 pub const S1_SLIM_DATA_VS: u32 = 0x1000;
 
@@ -777,7 +778,14 @@ pub fn wrap_pe_slim_bytes(
     };
 
     let code_need = code.len() as u32 + PE_STARTUP_LEN;
-    let code_raw = align_up(code_need.max(1), FILE_ALIGN);
+    // S3.7: always reserve room for S1_SLIM_MAX_CODE so file offsets
+    // (TEXT/DATA payload) stay stable for host↔in-DLL parity.
+    let code_raw = align_up(
+        code_need
+            .max(1)
+            .max(PE_STARTUP_LEN + S1_SLIM_MAX_CODE as u32),
+        FILE_ALIGN,
+    );
     let text_vs = align_up(code_need + 0x40, SECTION_ALIGN);
     let data_rva = TEXT_RVA + text_vs;
     let data_vs = S1_SLIM_DATA_VS;
@@ -860,8 +868,9 @@ pub fn wrap_pe_slim_bytes(
 pub const S1_SLIM_TEXT_PAYLOAD_OFF: usize = 0x400 + 13;
 
 /// File offset of `.data` payload in slim PE (headers 0x400 + `.text` raw 0x200).
-/// Valid while user code ≤ [`S1_SLIM_MAX_CODE`] (code_raw always one file page).
-pub const S1_SLIM_DATA_PAYLOAD_OFF: usize = 0x400 + 0x200;
+/// File offset of `.data` payload — headers 0x400 + code_raw for max code.
+/// S3.7: code_raw = align(13+512)=0x400 → data at 0x800 (was 0x600 at 256).
+pub const S1_SLIM_DATA_PAYLOAD_OFF: usize = 0x400 + 0x400;
 
 /// S1.5.b / S1.7.a–f in-DLL mini-ISA (must stay in sync with `pe_dll_link` export body).
 ///
@@ -2392,9 +2401,9 @@ mod tests {
     }
 
     #[test]
-    fn s3_soft_cap_text_still_256() {
-        // Document decision: do not raise until in-DLL scratch resized.
-        assert_eq!(S1_SLIM_MAX_CODE, 256);
+    fn s3_soft_cap_text_is_512_after_s37() {
+        // S3.7: code scratch raised; DATA mini cap unchanged.
+        assert_eq!(S1_SLIM_MAX_CODE, 512);
         assert_eq!(S1_MINI_DATA_MAX, 64);
     }
 
