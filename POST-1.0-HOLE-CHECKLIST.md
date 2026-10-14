@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.42**：S3.41 单记录 argc0 已扫 bake；下一刀双记录 argc0 扫表（**非**假 CLOSED）。
+**默认 `继续` = S3.43**：S3.42 双记录 argc0 已扫 bake；下一刀扩 bake 行/带参匹配（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -584,7 +584,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.39** | ✅ 已本地提交 | NOP+RET/SET+RET 从 bake 取字节（lea/rep movsb） | commit `4a3f7c6` |
 | **S3.40** | ✅ 已本地提交 | GET/INC+RET 从 bake 取字节（rep movsb） | commit `2bcf38d` |
 | **S3.41** | ✅ 已本地提交 | 单记录 argc0：扫 bake 5 行按 op memcpy | commit `16f221c` |
-| **S3.42+** | ⏳ 未开始 | 双记录 argc0 扫表；带参 SET/GET/INC 仍固定匹配 | 真自举长杆 |
+| **S3.42** | ✅ 已本地提交 | 双记录双 argc0：两次 bake 扫表 memcpy（NOP+RET） | commit `PLACEHOLDER_S342` |
+| **S3.43+** | ⏳ 未开始 | 扩 bake 行数 / 带参模板扫表匹配 | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -1064,6 +1065,16 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 
 **默认 `继续` = S3.42**。
 
+#### S3.42 — 双记录双 argc0 bake 扫表（本步）
+
+| 项 | 决定 |
+|---|---|
+| 行为 | rec_cnt==2 ∧ 两记录 argc0：各扫 bake 一次并 `rep movsb`（覆盖 NOP+RET） |
+| 验收 | sidecar NOP+RET GREEN；miss 恢复 r12 后落 JE |
+| 诚实 | SET/GET/INC+RET 仍固定参数匹配；>2 记录仍 JE；OW-RT 仍 CUT |
+
+**默认 `继续` = S3.43**。
+
 ### 立项约束
 
 - 本路线**不是 post-v1.0 关洞的延续**，是**新主线**
@@ -1339,3 +1350,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S3.39）**：bake 驱动 NOP+RET/SET+RET GREEN · 默认 `继续`=**S3.40** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.40）**：bake 驱动 GET/INC+RET GREEN · 默认 `继续`=**S3.41** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.41）**：单记录 argc0 bake 扫表 GREEN · 默认 `继续`=**S3.42** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.42）**：双记录 argc0 bake 扫表 GREEN · 默认 `继续`=**S3.43** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
