@@ -3074,4 +3074,253 @@ mod tests {
         let got_ret = s3_run_slim_pe_outbuf(&pe_ret.bytes, 1);
         assert_eq!(got_ret, vec![0xC3]);
     }
+
+    // ============= S3.18: full .text compose (multi-op SET+RET) =============
+
+    const S3_LEA_PTR: &[u8] = &[0x49, 0x8D, 0x07, 0x49, 0x89, 0x47, 0x78]; // lea rax,[r15]; mov [r15+0x78],rax
+    const S3_LEA_DST: &[u8] = &[
+        0x49, 0x8D, 0x87, 0xC8, 0x00, 0x00, 0x00, 0x49, 0x89, 0x47, 0x48,
+    ];
+
+    /// Append one table-scan + MEMCPY_DATA; optionally ADDV dst+=len afterwards.
+    fn append_scan_memcpy(
+        recs: &mut Vec<(u8, u8, [u8; 6])>,
+        needle: u8,
+        loop_id: u32,
+        found_id: u32,
+        advance_dst: bool,
+    ) {
+        let slot = |s: u16| s.to_le_bytes();
+        let set = |s: u16, imm: u32| {
+            let sb = slot(s);
+            let ib = imm.to_le_bytes();
+            (0x30u8, 2u8, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
+        };
+        let add = |s: u16, imm: u32| {
+            let sb = slot(s);
+            let ib = imm.to_le_bytes();
+            (0x62u8, 2u8, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
+        };
+        let p = slot(S3_SCAN_PTR);
+        let o = slot(S3_SCAN_OP);
+        let n = slot(S3_SCAN_NEEDLE);
+        let i = slot(S3_SCAN_I);
+        let nr = slot(S3_SCAN_NROWS);
+        let len = slot(S3_SCAN_OUT);
+        let src = slot(S3_COMPOSE_SRC);
+        let dst = slot(S3_COMPOSE_DST);
+        let lb = loop_id.to_le_bytes();
+        let fb = found_id.to_le_bytes();
+
+        recs.push(set(S3_SCAN_NEEDLE, needle as u32));
+        recs.push(set(S3_SCAN_I, 0));
+        recs.push(set(S3_SCAN_NROWS, 3));
+        recs.push((0x40, 1, [lb[0], lb[1], lb[2], lb[3], 0, 0]));
+        recs.push((0x80, 3, [o[0], o[1], p[0], p[1], 0, 0]));
+        recs.push((0x65, 2, [o[0], o[1], n[0], n[1], 0, 0]));
+        recs.push((0x71, 1, [fb[0], fb[1], fb[2], fb[3], 0, 0]));
+        recs.push(add(S3_SCAN_PTR, 20));
+        recs.push(add(S3_SCAN_I, 1));
+        recs.push((0x65, 2, [i[0], i[1], nr[0], nr[1], 0, 0]));
+        recs.push((0x73, 1, [lb[0], lb[1], lb[2], lb[3], 0, 0]));
+        recs.push(set(S3_SCAN_OUT, 0xFE));
+        recs.push((0xFF, 0, [0; 6]));
+        recs.push((0x40, 1, [fb[0], fb[1], fb[2], fb[3], 0, 0]));
+        recs.push((0x80, 3, [len[0], len[1], p[0], p[1], 1, 0]));
+        recs.push((0x64, 2, [src[0], src[1], p[0], p[1], 0, 0]));
+        recs.push(add(S3_COMPOSE_SRC, 4));
+        recs.push((0x84, 3, [dst[0], dst[1], src[0], src[1], len[0], len[1]]));
+        if advance_dst {
+            // ADDV dst, len
+            recs.push((0x68, 2, [dst[0], dst[1], len[0], len[1], 0, 0]));
+        }
+    }
+
+    /// S3.18: scan SET then RET → outbuf full `.text` ≡ emit_x86(SET+RET).
+    fn s3_table_fulltext_set_ret_tyb() -> Vec<u8> {
+        let mut table = Vec::new();
+        table.extend_from_slice(&tmpl_row(0xFF, &[0xC3]));
+        table.extend_from_slice(&tmpl_row(0x00, &[0x90]));
+        table.extend_from_slice(&tmpl_row(0x30, &set_body_deadbeef()));
+        let mut recs = pack_data_recs(&table);
+        recs.extend(pack_raw_recs(S3_LEA_PTR));
+        recs.extend(pack_raw_recs(S3_LEA_DST));
+        append_scan_memcpy(&mut recs, 0x30, 1, 2, true);
+        // re-seed table ptr for second scan
+        recs.extend(pack_raw_recs(S3_LEA_PTR));
+        append_scan_memcpy(&mut recs, 0xFF, 3, 4, false);
+        recs.push((0xFF, 0, [0; 6]));
+        tyb_from_records(&recs)
+    }
+
+    /// Sim fulltext: accumulate every MEMCPY into outbuf; support ADDV.
+    fn s3_sim_table_fulltext(tyb: &[u8]) -> Result<Vec<u8>, u8> {
+        let prog = parse_tyb(tyb).expect("parse");
+        let mut data = vec![0u8; 512];
+        let mut off = 0usize;
+        for rec in &prog.records {
+            if matches!(rec.op, 0x10 | 0x12 | 0x13) {
+                let b = arg_low_bytes(rec);
+                data[off..off + b.len()].copy_from_slice(&b);
+                off += b.len();
+            }
+        }
+        let mut state = [0u64; 16];
+        state[S3_SCAN_PTR as usize] = 0;
+        state[S3_COMPOSE_DST as usize] = S3_OUTBUF_OFF as u64;
+        let code: Vec<&TybRecord> = prog
+            .records
+            .iter()
+            .filter(|r| !matches!(r.op, 0x10 | 0x12 | 0x13 | 0xA1 | 0xA0))
+            .collect();
+        let mut labels = std::collections::HashMap::new();
+        for (i, rec) in code.iter().enumerate() {
+            if rec.op == 0x40 {
+                if let Some(id) = arg_u32(rec) {
+                    labels.insert(id, i);
+                }
+            }
+        }
+        let mut pc = 0usize;
+        let mut zf = false;
+        let mut sf = false;
+        let mut composed = 0usize;
+        let mut steps = 0usize;
+        while pc < code.len() {
+            steps += 1;
+            assert!(steps < 10_000, "sim runaway");
+            let rec = code[pc];
+            match rec.op {
+                0x40 => pc += 1,
+                0x30 => {
+                    let (s, imm) = arg_slot_imm(rec).unwrap();
+                    state[s as usize] = imm as u64;
+                    // PE re-seeds ptr via RAW lea (ignored here); each scan starts with SET needle.
+                    if s == S3_SCAN_NEEDLE {
+                        state[S3_SCAN_PTR as usize] = 0;
+                    }
+                    pc += 1;
+                }
+                0x62 => {
+                    let (s, imm) = arg_slot_imm(rec).unwrap();
+                    state[s as usize] = state[s as usize].wrapping_add(imm as u64);
+                    pc += 1;
+                }
+                0x64 => {
+                    let (d, s) = arg_slot_slot(rec).unwrap();
+                    state[d as usize] = state[s as usize];
+                    pc += 1;
+                }
+                0x68 => {
+                    let (d, s) = arg_slot_slot(rec).unwrap();
+                    state[d as usize] = state[d as usize].wrapping_add(state[s as usize]);
+                    pc += 1;
+                }
+                0x80 => {
+                    let (dd, ss, oo) = arg_slot3(rec).unwrap();
+                    let addr = state[ss as usize] as usize + oo as usize;
+                    state[dd as usize] = data[addr] as u64;
+                    pc += 1;
+                }
+                0x84 => {
+                    let (dst, src, n) = arg_slot3(rec).unwrap();
+                    let d = state[dst as usize] as usize;
+                    let s = state[src as usize] as usize;
+                    let n = state[n as usize] as usize;
+                    let tmp = data[s..s + n].to_vec();
+                    data[d..d + n].copy_from_slice(&tmp);
+                    composed += n;
+                    pc += 1;
+                }
+                0x65 => {
+                    let (a, b) = arg_slot_slot(rec).unwrap();
+                    let d = (state[a as usize] as i64).wrapping_sub(state[b as usize] as i64);
+                    zf = d == 0;
+                    sf = d < 0;
+                    pc += 1;
+                }
+                0x71 => {
+                    let id = arg_u32(rec).unwrap();
+                    if zf {
+                        pc = labels[&id];
+                    } else {
+                        pc += 1;
+                    }
+                }
+                0x73 => {
+                    let id = arg_u32(rec).unwrap();
+                    if sf {
+                        pc = labels[&id];
+                    } else {
+                        pc += 1;
+                    }
+                }
+                0xFF => {
+                    // miss path sets OUT=0xFE then RET before any memcpy
+                    if composed == 0 {
+                        return Err(state[S3_SCAN_OUT as usize] as u8);
+                    }
+                    break;
+                }
+                other => panic!("fulltext sim unsupported {other:#x}"),
+            }
+        }
+        if composed == 0 {
+            return Err(0xFE);
+        }
+        let base = S3_OUTBUF_OFF as usize;
+        Ok(data[base..base + composed].to_vec())
+    }
+
+    #[test]
+    fn s3_yoyo_table_fulltext_set_ret_sim() {
+        let tyb = s3_table_fulltext_set_ret_tyb();
+        if let Ok(out) = std::env::var("YOYO_S318_OUT") {
+            std::fs::write(&out, &tyb).expect("dump fulltext tyb");
+        }
+        let got = s3_sim_table_fulltext(&tyb).expect("fulltext");
+        let expect = emit_x86(
+            &parse_tyb(&tyb_from_records(&[
+                (0x30, 2, [0, 0, 0xEF, 0xBE, 0xAD, 0xDE]),
+                (0xFF, 0, [0; 6]),
+            ]))
+            .unwrap(),
+        )
+        .text;
+        assert_eq!(got, expect);
+        // also ≡ SET body ‖ RET
+        let mut hand = set_body_deadbeef().to_vec();
+        hand.push(0xC3);
+        assert_eq!(got, hand);
+        assert!(compile_tyb_to_pe_mini(&tyb).is_ok());
+        let user = emit_x86(&parse_tyb(&tyb).unwrap()).text;
+        assert!(
+            user.len() <= S1_SLIM_MAX_CODE,
+            "fulltext code {} > {}",
+            user.len(),
+            S1_SLIM_MAX_CODE
+        );
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../yoyo/tests/golden/s3_yoyo_table_fulltext.tyb");
+        let golden = std::fs::read(&path).expect("golden fulltext tyb");
+        assert_eq!(golden, tyb);
+        assert_eq!(s3_sim_table_fulltext(&golden).unwrap(), expect);
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn s3_yoyo_table_fulltext_runs_on_pe() {
+        let tyb = s3_table_fulltext_set_ret_tyb();
+        let pe = compile_tyb_to_pe_mini(&tyb).expect("mini");
+        let expect = emit_x86(
+            &parse_tyb(&tyb_from_records(&[
+                (0x30, 2, [0, 0, 0xEF, 0xBE, 0xAD, 0xDE]),
+                (0xFF, 0, [0; 6]),
+            ]))
+            .unwrap(),
+        )
+        .text;
+        let got = s3_run_slim_pe_outbuf(&pe.bytes, expect.len());
+        assert_eq!(got, expect);
+    }
 }

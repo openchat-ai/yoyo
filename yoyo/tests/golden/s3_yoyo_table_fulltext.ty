@@ -1,0 +1,4 @@
+; S3.18 — YOYO full .text compose (SET then RET via dual table-scan + MEMCPY)
+; Sibling: s3_yoyo_table_fulltext.tyb
+; Honest: outbuf ≡ emit_x86(SET+RET); host sim + Windows PE run.
+; Does **not** replace in-DLL Rust emit. OW-RT CUT.
