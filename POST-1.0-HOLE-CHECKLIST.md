@@ -557,7 +557,7 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.12** | ✅ 已本地提交 | 模板表 +ADD(slot0,+5)（6 行/120B）；合成矩阵 ≡ `emit_x86` | commit `2e0c8ad` · 解释器仍 Rust |
 | **S3.13** | ✅ 已本地提交 | DATA 128→**256**；表 +SUB/+DEC（8 行/160B） | commit `3bfc3c1` · 解释器仍 Rust |
 | **S3.14** | ✅ 已本地提交 | 表 +MOVRR/+CMP（10 行/200B）；合成矩阵 ≡ `emit_x86` | commit `97e4f1a` · 解释器仍 Rust |
-| **S3.15** | ✅ 已本地提交 | YOYO 侧表解释器缺口盘点（仍 docs；解释器未迁出 Rust） | commit `TBD` · docs-only |
+| **S3.15** | ✅ 已本地提交 | YOYO 侧表解释器缺口盘点（仍 docs；解释器未迁出 Rust） | commit `22b90e0` · docs-only |
 | **S3.16+** | ⏳ 未开始 | 最小 YOYO 查表 emit（读 DATA 表→拼 `.text`）或再扩 IMUL | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
