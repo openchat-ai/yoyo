@@ -566,7 +566,7 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.21** | ✅ 已本地提交 | `compile_tyb_to_pe_mini` 固定模板优先 YOYO 表；其余仍 emit_x86 | commit `5ea5cbc` |
 | **S3.22** | ✅ 已本地提交 | in-DLL emit 触点盘点（docs）；调度仍手写 x86 JE 链 | commit `cd5c5df` |
 | **S3.23** | ✅ 已本地提交 | 固定模板表 +GET(dst0←src1)；outbuf@0xE0；GET+RET ≡ emit | commit `2dbd3ab` |
-| **S3.24** | ✅ 已本地提交 | 固定模板表 +INC(slot0)；outbuf@0x100；INC+RET ≡ emit | commit `PLACEHOLDER_S324` |
+| **S3.24** | ✅ 已本地提交 | 固定模板表 +INC(slot0)；outbuf@0x100；INC+RET ≡ emit | commit `b344eb0` |
 | **S3.25+** | ⏳ 未开始 | 继续扩表 / in-DLL 试点换表合成 | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
