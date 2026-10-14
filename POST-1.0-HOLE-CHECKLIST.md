@@ -451,7 +451,7 @@ Run `35553987325`（commit `146b58b`）：
 | 子任务 | 状态 | 内容 | 备注 |
 |---|---|---|---|
 | **S2.1** | ✅ 已本地提交 | ISA 缺口盘点：S1 mini vs `isa_table` vs runtime 效果所需平台 ops | commit `9885ab5` · **无**加载器改动 |
-| **S2.2** | ⏳ 未开始 | host `emit_x86` + mini validate：ALLOC(0x20) 语义（平台路径或诚实 stub 策略） | 依赖平台约定 |
+| **S2.2** | ✅ 已本地提交 | host `emit_x86` ALLOC = **StubPlatform 对齐**：`movabs rax,size`+`store_state`（记 size，非真堆）；mini/in-DLL **仍拒** | commit `TBD` · 真 OS 分配推后；in-DLL=S2.4 |
 | **S2.3** | ⏳ 未开始 | LOAD_FILE(0x50) / WRITE_FILE(0x51) host+validate | 同左 |
 | **S2.4** | ⏳ 未开始 | in-DLL mini 对齐 S2.2–S2.3（或明确「平台 ops 仅 host」边界） | 栈/IAT 约束需另评 |
 | **S2.5** | ⏳ 未开始 | 最小 `.ty`/`.tyb`「runtime 效果」固件 + 验收脚本钩子 | 非 CLOSED |
@@ -492,10 +492,20 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 
 **E. S2.1 结论 → 推荐下一刀**
 
-1. **S2.2**：先定 ALLOC 的 host 语义（真平台调用 vs 继续 stub + 文档边界）  
-2. **S2.3**：LOAD_FILE / WRITE_FILE 同上  
-3. **S2.4**：再决定是否 port 进 in-DLL mini（IAT/栈成本高则可「仅 host」）  
+1. ~~**S2.2**：ALLOC host 语义~~ → **已定**：StubPlatform 对齐（记 size 入 state）；非真堆；mini 仍拒  
+2. **S2.3**：LOAD_FILE / WRITE_FILE 同上（Stub：`movabs` str_idx + store）  
+3. **S2.4**：再决定是否 port 进 in-DLL mini（可「仅 host」）  
 4. 验收保持 fail-closed；**禁止**宣称 OW-RT CLOSED
+
+#### S2.2 — ALLOC host 策略（本步）
+
+| 项 | 决定 |
+|---|---|
+| 编码 | 与 `StubPlatform::emit_alloc` 一致：`movabs rax, size` + `store_state slot` |
+| 语义诚实边界 | **不**调用系统分配器；state[slot]=size（与历史 stub/golden 一致） |
+| `compile_tyb_to_pe` | 接受（走 `emit_x86`） |
+| `compile_tyb_to_pe_mini` / in-DLL | **仍拒** `0x20`（S2.4 再评） |
+| 非目标 | 真堆指针、IAT、in-DLL port |
 
 ### 立项约束
 
@@ -727,3 +737,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S1.7.e）**：前序见上 · mini-ISA +DATA/STR/RAW→`.data`（≤64B；parity 28 行含 .data）· s1_ **65/65** · pe_dll_link **32/32** · **下一步 S1.7.f / S2** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S1.7.f）**：前序见上 · mini-ISA +RAW_BYTES（parity 29 行）· s1_ **66/66** · pe_dll_link **32/32** · **S1 mini 切片收口；下一步 S2** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S2.1）**：S1 已收口 · **S2.1** = ISA 缺口盘点（主缺口 ALLOC/LOAD_FILE/WRITE_FILE + S1 软上限）· 默认 `继续`=**S2.2** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S2.2）**：ALLOC host = StubPlatform 对齐 stub（记 size）；mini/in-DLL 仍拒 · 默认 `继续`=**S2.3** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**

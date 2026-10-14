@@ -422,9 +422,11 @@ fn emit_memcpy_state(out: &mut Vec<u8>, dst: u16, src: u16, n: u16) {
 /// - `0xA1` RAW_BYTES → append low-bytes of args to `.text`
 /// - `wrap_pe` packages `.text`+`.data` via `crate::pe_link::link_pe`
 ///
-/// Still STUBS (platform / S1.5):
-/// - `0x20` ALLOC / `0x50` LOAD_FILE / `0x51` WRITE_FILE — need runtime helpers
-/// - in-DLL entry rewrite (replace oracle lookup) — S1.5
+/// Platform ops (S2):
+/// - `0x20` ALLOC slot size (argc=2): **StubPlatform-aligned** — `movabs rax,size`
+///   + `store_state slot` (records requested size in state; **not** a real heap
+///   allocator). Mini-ISA / in-DLL still reject until S2.4.
+/// - `0x50` LOAD_FILE / `0x51` WRITE_FILE — still NOP stub (S2.3)
 ///
 /// Register allocation:
 /// - r15 = pinned state base
@@ -618,6 +620,15 @@ pub fn emit_x86(prog: &TybProgram) -> CodegenOutput {
             0xA1 => {
                 text.extend(arg_low_bytes(rec));
             }
+            // --- ALLOC slot, size (S2.2 StubPlatform-aligned stub) ---
+            0x20 => {
+                if let Some((slot, size)) = arg_slot_imm(rec) {
+                    emit_movabs_rax(&mut text, size);
+                    emit_store_state(&mut text, slot, Reg::Rax);
+                } else {
+                    text.push(0x90);
+                }
+            }
             // --- NOP (explicit) ---
             0x00 if rec.argc == 0 => {
                 text.push(0x90);
@@ -626,7 +637,7 @@ pub fn emit_x86(prog: &TybProgram) -> CodegenOutput {
             0xFF if rec.argc == 0 => {
                 text.push(0xC3);
             }
-            // --- Everything else: NOP placeholder (ALLOC/IO) ---
+            // --- LOAD_FILE / WRITE_FILE and unknown: NOP placeholder (S2.3+) ---
             _ => {
                 text.push(0x90);
             }
@@ -1885,8 +1896,9 @@ mod tests {
     }
 
     #[test]
-    fn emit_x86_alloc_still_nop_stub() {
-        // ALLOC remains platform stub → single NOP + ret
+    fn emit_x86_alloc_stub_stores_size() {
+        // S2.2: StubPlatform-aligned — movabs rax,size + store slot + ret
+        // slot=1 → disp8 8; size=0x10
         let prog = TybProgram {
             rec_cnt: 1,
             records: vec![TybRecord {
@@ -1896,8 +1908,23 @@ mod tests {
             }],
         };
         let out = emit_x86(&prog);
-        assert_eq!(out.text, vec![0x90, 0xC3]);
+        assert_eq!(
+            &out.text,
+            &[
+                0x48, 0xB8, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // movabs
+                0x49, 0x89, 0x47, 0x08, // store [r15+8]
+                0xC3,
+            ]
+        );
         assert!(out.data.is_empty());
+    }
+
+    #[test]
+    fn compile_tyb_to_pe_full_accepts_alloc_stub() {
+        // Full host path uses emit_x86 stub; mini path still fail-closed.
+        let tyb = tyb_from_records(&[(0x20, 2, [1, 0, 0x10, 0, 0, 0]), (0xFF, 0, [0; 6])]);
+        assert!(compile_tyb_to_pe(&tyb).is_ok());
+        assert!(compile_tyb_to_pe_mini(&tyb).is_err());
     }
 
     // ============= S1.4: DATA/STR/RAW / RAW_BYTES / wrap_pe =============
