@@ -28,9 +28,10 @@
 //! RAW_BYTES (argc≤3 → `.text`) + ALLOC/LOAD_FILE/WRITE_FILE **stub form**
 //! (argc=2, same encoding as SET; not real OS alloc/I/O).
 //! Non-TYB inputs still use the oracle table. Marker `yoyo_in_dll_s1_codegen`.
-//! Stage 17+ **S3.30–S3.37**: RET/NOP/SET/GET/INC fast-path pilots (skip JE)
-//! plus `.rdata` bake of a 5-row fixed-template table (`yoyo_in_dll_s3_table_bake`).
-//! Lookup/memcpy from bake still pending — **not** OW-RT CLOSED.
+//! Stage 17+ **S3.30–S3.38**: RET/NOP/SET/GET/INC fast-path pilots (skip JE)
+//! plus `.rdata` 5-row bake (`yoyo_in_dll_s3_table_bake`). S3.38: single-record
+//! RET/NOP emit bytes from bake row payloads (not immediates). Multi-op pilots
+//! still hard-coded — **not** OW-RT CLOSED.
 //! Honest: mini-ISA ≠ full YOYO compiler; production default remains Rust —
 //! **not** OW-RT CLOSED (see `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`).
 
@@ -1692,21 +1693,28 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x80, 0x39, 0x00]); // cmp byte [rcx], 0x00 NOP
     let s3_jne_loop_op = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jne s1_loop
-    // S3.31 NOP path: emit 0x90
+    // S3.38 NOP path: copy payload from bake row1 (+20+4)
     export_code.extend_from_slice(&[0x4D, 0x39, 0xEC]); // cmp r12, r13
     let s3_jae_fail_nop = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x90]); // mov byte [r12], 0x90
+    // lea rax,[rip+bake_row1_payload]; mov al,[rax]; mov [r12],al; inc r12
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x05, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 20 + 4));
+    export_code.extend_from_slice(&[0x8A, 0x00]); // mov al, [rax]
+    export_code.extend_from_slice(&[0x41, 0x88, 0x04, 0x24]); // mov [r12], al
     export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]); // inc r12
     let s3_jmp_finish_nop = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp s1_finish
-    // S3.30 RET path: emit 0xC3
+    // S3.38 RET path: copy payload from bake row0 (+4)
     let s3_emit_ret = export_code.len();
     patch_jcc32(&mut export_code, s3_je_ret, s3_emit_ret);
     export_code.extend_from_slice(&[0x4D, 0x39, 0xEC]); // cmp r12, r13
     let s3_jae_fail = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0xC3]); // mov byte [r12], 0xC3
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x05, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 4));
+    export_code.extend_from_slice(&[0x8A, 0x00]); // mov al, [rax]
+    export_code.extend_from_slice(&[0x41, 0x88, 0x04, 0x24]); // mov [r12], al
     export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]); // inc r12
     let s3_jmp_finish = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp s1_finish
@@ -3788,11 +3796,17 @@ mod tests {
             dll.windows(s3_cmp_ebx1.len()).any(|w| w == s3_cmp_ebx1),
             "export must contain S3.30/31 cmp ebx,1 pilot"
         );
-        // S3.31: emit 0x90 on NOP fast-path.
+        // S3.32 still embeds imm 0x90 on NOP+RET two-record path.
         let s3_mov_90 = [0x41u8, 0xC6, 0x04, 0x24, 0x90];
         assert!(
             dll.windows(s3_mov_90.len()).any(|w| w == s3_mov_90),
-            "export must contain S3.31 mov byte [r12],0x90"
+            "export must contain NOP+RET imm 0x90 store"
+        );
+        // S3.38: single RET/NOP load from bake via lea rax,[rip+…]
+        let s3_lea_rax = [0x48u8, 0x8D, 0x05];
+        assert!(
+            dll.windows(s3_lea_rax.len()).any(|w| w == s3_lea_rax),
+            "export must contain S3.38 lea rax,[rip+bake]"
         );
         assert!(ascii.contains("ReadFile"));
         assert!(ascii.contains("GetFileSize"));
