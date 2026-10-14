@@ -1162,7 +1162,14 @@ pub fn compile_tyb_to_pe(tyb: &[u8]) -> crate::types::IsaResult<crate::pe_link::
 }
 
 /// S1.6 — host path aligned with in-DLL mini-ISA (fail closed on other ops).
+///
+/// S3.21: fixed-template subset (RET / NOP / SET-slot0-DEADBEEF) prefers
+/// YOYO table-compose ([`try_compile_tyb_via_yoyo_table`]); otherwise `emit_x86`.
+/// in-DLL dispatcher remains Rust. OW-RT CUT.
 pub fn compile_tyb_to_pe_mini(tyb: &[u8]) -> crate::types::IsaResult<crate::pe_link::PeImage> {
+    if let Some(pe) = try_compile_tyb_via_yoyo_table(tyb) {
+        return Ok(pe);
+    }
     let prog = parse_tyb(tyb).map_err(|e| crate::types::IsaError::ParseError {
         line: 0,
         msg: format!("s1 compile_tyb_to_pe_mini: {e}"),
@@ -3988,5 +3995,33 @@ mod tests {
         let other = tyb_from_records(&[(0x60, 2, [0, 0, 1, 0, 0, 0]), (0xFF, 0, [0; 6])]);
         assert!(try_compile_tyb_via_yoyo_table(&other).is_none());
         assert!(fixed_template_ops(&parse_tyb(&other).unwrap()).is_none());
+    }
+
+    // ============= S3.21: mini prefers YOYO table for fixed subset =============
+
+    #[test]
+    fn s3_mini_prefers_yoyo_table_for_fixed_subset() {
+        let set_ret = tyb_from_records(&[
+            (0x30, 2, [0, 0, 0xEF, 0xBE, 0xAD, 0xDE]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let pe_mini = compile_tyb_to_pe_mini(&set_ret).expect("mini");
+        let pe_yoyo = try_compile_tyb_via_yoyo_table(&set_ret).expect("yoyo");
+        // Same PE bytes → mini took the YOYO-table path (not a divergent emit_x86 wrap).
+        assert_eq!(pe_mini.bytes, pe_yoyo.bytes);
+        let text = try_emit_text_via_yoyo_table(&[0x30, 0xFF]).unwrap();
+        assert_eq!(
+            slim_pe_user_text(&pe_mini.bytes, text.len()).unwrap(),
+            text.as_slice()
+        );
+        // Non-subset still compiles via emit_x86 fallback
+        let get_ret = tyb_from_records(&[(0x60, 2, [0, 0, 1, 0, 0, 0]), (0xFF, 0, [0; 6])]);
+        assert!(try_compile_tyb_via_yoyo_table(&get_ret).is_none());
+        let pe_get = compile_tyb_to_pe_mini(&get_ret).expect("get fallback");
+        let expect = emit_x86(&parse_tyb(&get_ret).unwrap()).text;
+        assert_eq!(
+            slim_pe_user_text(&pe_get.bytes, expect.len()).unwrap(),
+            expect.as_slice()
+        );
     }
 }
