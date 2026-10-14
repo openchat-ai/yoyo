@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.28**：S3.27 +SUB 已绿；下一刀继续扩表或 in-DLL 试点（**非**假 CLOSED）。
+**默认 `继续` = S3.29**：S3.28 +MOVRR 已绿；下一刀 in-DLL 试点或继续扩表（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -570,7 +570,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.25** | ✅ 已本地提交 | DATA **384** / STACK 0x2E00；表 +ADD(+5)；outbuf@0x110 | commit `b2fe711` |
 | **S3.26** | ✅ 已本地提交 | 固定模板表 +DEC(slot0)；outbuf@0x120 | commit `c190791` |
 | **S3.27** | ✅ 已本地提交 | 固定模板表 +SUB(slot0,-5)；outbuf@0x140 | commit `769282d` |
-| **S3.28+** | ⏳ 未开始 | 继续扩表 / in-DLL 试点换表合成 | 真自举长杆 |
+| **S3.28** | ✅ 已本地提交 | 固定模板表 +MOVRR(dst1←src0)；outbuf@0x150 | commit `PLACEHOLDER_S328` |
+| **S3.29+** | ⏳ 未开始 | in-DLL 试点 / 继续扩表 | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -892,6 +893,16 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 
 **默认 `继续` = S3.28**。
 
+#### S3.28 — 扩固定模板表 +MOVRR（本步）
+
+| 项 | 决定 |
+|---|---|
+| 表 | 9 行 +MOVRR(dst1←src0)；outbuf@0x150 |
+| 验收 | MOVRR+RET ≡ emit；既有子集 GREEN |
+| 诚实 | in-DLL **仍未接**；OW-RT 仍 CUT |
+
+**默认 `继续` = S3.29**。
+
 ### 立项约束
 
 - 本路线**不是 post-v1.0 关洞的延续**，是**新主线**
@@ -1153,3 +1164,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S3.25）**：DATA384 +ADD GREEN · 默认 `继续`=**S3.26** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.26）**：固定模板 +DEC GREEN · 默认 `继续`=**S3.27** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.27）**：固定模板 +SUB GREEN · 默认 `继续`=**S3.28** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.28）**：固定模板 +MOVRR GREEN · 默认 `继续`=**S3.29** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
