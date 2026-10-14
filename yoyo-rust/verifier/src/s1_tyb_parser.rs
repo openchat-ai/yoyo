@@ -425,11 +425,11 @@ fn emit_memcpy_state(out: &mut Vec<u8>, dst: u16, src: u16, n: u16) {
 /// Platform ops (S2):
 /// - `0x20` ALLOC slot size (argc=2): **StubPlatform-aligned** — `movabs rax,size`
 ///   + `store_state slot` (records requested size in state; **not** a real heap
-///   allocator). Mini-ISA / in-DLL still reject until S2.4.
+///   allocator). S2.4: mini/in-DLL accept argc=2 stub form.
 /// - `0x50` LOAD_FILE slot str_idx (argc=2): Stub — `movabs rax,str_idx` + store
-///   (**not** real file I/O). Mini/in-DLL still reject until S2.4.
-/// - `0x51` WRITE_FILE slot str_idx [sz] (argc=2|3): Stub — `movabs rax,str_idx`
-///   + store; `sz` ignored (same as StubPlatform). Mini/in-DLL still reject.
+///   (**not** real file I/O). S2.4: mini/in-DLL accept argc=2 stub form.
+/// - `0x51` WRITE_FILE slot str_idx [sz]: Stub — `movabs rax,str_idx` + store;
+///   host accepts argc=2|3 (`sz` ignored); mini/in-DLL accept **argc=2 only**.
 ///
 /// Register allocation:
 /// - r15 = pinned state base
@@ -871,16 +871,20 @@ pub const S1_SLIM_DATA_PAYLOAD_OFF: usize = 0x400 + 0x200;
 /// S1.7.c: +IMUL/ADDV/ORV/SUBV  
 /// S1.7.d: +LDB/MEMCPY_DATA/MEMCPY_STATE (state n≤4)  
 /// S1.7.e: +DATA/STR/RAW → `.data` (≤64B total)  
-/// S1.7.f: +RAW_BYTES → `.text` (argc≤3 low-bytes)
+/// S1.7.f: +RAW_BYTES → `.text` (argc≤3 low-bytes)  
+/// S2.4: +ALLOC/LOAD_FILE/WRITE_FILE stub form (argc=2; not real OS I/O)
 pub fn is_s1_mini_op(op: u8) -> bool {
     matches!(
         op,
         0x00 | 0x10
             | 0x12
             | 0x13
+            | 0x20
             | 0x30
             | 0x40
             | 0x41
+            | 0x50
+            | 0x51
             | 0x60
             | 0x61
             | 0x62
@@ -948,6 +952,25 @@ pub fn validate_tyb_mini(prog: &TybProgram) -> crate::types::IsaResult<()> {
                         format!(
                             "s1 mini DATA/STR/RAW total {data_len} > max {S1_MINI_DATA_MAX}"
                         ),
+                    );
+                }
+            }
+            0x20 | 0x50 | 0x51 => {
+                // S2.4 stub form: argc=2 only (same wire as SET); not real OS I/O.
+                if rec.argc != 2 {
+                    return bad(
+                        i,
+                        format!(
+                            "s1 mini ALLOC/LOAD_FILE/WRITE_FILE stub requires argc=2, got {}",
+                            rec.argc
+                        ),
+                    );
+                }
+                let slot = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]);
+                if !mini_slot_disp8_ok(slot) {
+                    return bad(
+                        i,
+                        format!("s1 mini platform-stub slot {slot} disp32 unsupported"),
                     );
                 }
             }
@@ -1946,11 +1969,9 @@ mod tests {
     }
 
     #[test]
-    fn compile_tyb_to_pe_full_accepts_alloc_stub() {
-        // Full host path uses emit_x86 stub; mini path still fail-closed.
+    fn compile_tyb_to_pe_mini_accepts_alloc_stub() {
         let tyb = tyb_from_records(&[(0x20, 2, [1, 0, 0x10, 0, 0, 0]), (0xFF, 0, [0; 6])]);
-        assert!(compile_tyb_to_pe(&tyb).is_ok());
-        assert!(compile_tyb_to_pe_mini(&tyb).is_err());
+        assert!(compile_tyb_to_pe_mini(&tyb).is_ok());
     }
 
     #[test]
@@ -1998,10 +2019,9 @@ mod tests {
     }
 
     #[test]
-    fn compile_tyb_to_pe_mini_rejects_load_file() {
+    fn compile_tyb_to_pe_mini_accepts_load_file_stub() {
         let tyb = tyb_from_records(&[(0x50, 2, [0, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])]);
-        assert!(compile_tyb_to_pe(&tyb).is_ok());
-        assert!(compile_tyb_to_pe_mini(&tyb).is_err());
+        assert!(compile_tyb_to_pe_mini(&tyb).is_ok());
     }
 
     // ============= S1.4: DATA/STR/RAW / RAW_BYTES / wrap_pe =============
@@ -2176,13 +2196,11 @@ mod tests {
     }
 
     #[test]
-    fn compile_tyb_to_pe_mini_rejects_alloc() {
-        // ALLOC (0x20) still outside mini-ISA.
-        let tyb = tyb_from_records(&[(0x20, 1, [0, 0, 0, 0, 0, 0])]);
-        assert!(
-            compile_tyb_to_pe_mini(&tyb).is_err(),
-            "mini path must fail-closed on ALLOC"
-        );
+    fn compile_tyb_to_pe_mini_rejects_write_file_argc3() {
+        // Mini stub form is argc=2 only; host emit still accepts argc=3.
+        let tyb = tyb_from_records(&[(0x51, 3, [1, 0, 2, 0, 99, 0]), (0xFF, 0, [0; 6])]);
+        assert!(compile_tyb_to_pe(&tyb).is_ok());
+        assert!(compile_tyb_to_pe_mini(&tyb).is_err());
     }
 
     #[test]

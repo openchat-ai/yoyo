@@ -25,7 +25,8 @@
 //! SET/RET/LABEL/NOP/RAW_BYTE + GET/MOVRR/ADD·SUB imm/INC/DEC +
 //! CMP/CALL/JMP/JCC (two-pass labels, ≤16) + IMUL/ADDV/ORV/SUBV +
 //! LDB/MEMCPY_DATA/MEMCPY_STATE (n≤4) + DATA/STR/RAW (≤64B → `.data`) +
-//! RAW_BYTES (argc≤3 → `.text`).
+//! RAW_BYTES (argc≤3 → `.text`) + ALLOC/LOAD_FILE/WRITE_FILE **stub form**
+//! (argc=2, same encoding as SET; not real OS alloc/I/O).
 //! Non-TYB inputs still use the oracle table. Marker `yoyo_in_dll_s1_codegen`.
 //! Honest: mini-ISA ≠ full YOYO compiler; production default remains Rust —
 //! **not** OW-RT CLOSED (see `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`).
@@ -1365,7 +1366,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x41, 0x5D, 0x41, 0x5C, 0x5F, 0x5E, 0x5B, 0xC3]);
 
     // ----- S1 mini TYB codegen (after epilogue; entered only via jmp_s1) -----
-    // Mini-ISA: … + S1.7.e DATA/STR/RAW + S1.7.f RAW_BYTES
+    // Mini-ISA: … + S2.4 ALLOC/LOAD_FILE/WRITE_FILE stub (= SET encoding)
     let s1_at = export_code.len();
     patch_rel32(&mut export_code, jmp_s1, s1_at);
 
@@ -1398,6 +1399,16 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // op dispatch (near jcc — handlers are far)
     export_code.extend_from_slice(&[0x3C, 0x30]); // cmp al, 0x30 SET
     let s1_je_set = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    // S2.4 stubs: same argc=2 movabs+store wire as SET
+    export_code.extend_from_slice(&[0x3C, 0x20]); // ALLOC stub
+    let s1_je_alloc = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x3C, 0x50]); // LOAD_FILE stub
+    let s1_je_loadf = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x3C, 0x51]); // WRITE_FILE stub (argc=2)
+    let s1_je_writef = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     export_code.extend_from_slice(&[0x3C, 0xFF]); // cmp al, 0xFF RET
     let s1_je_ret = export_code.len();
@@ -1487,8 +1498,12 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     patch_rel8(&mut export_code, s1_ja_jcc, s1_jmp_fail_op);
 
     // --- SET argc must be 2: emit movabs rax,imm64 + store [r15+slot*8]
+    // S2.4: ALLOC/LOAD_FILE/WRITE_FILE stub share this body (identical encoding).
     let s1_set = export_code.len();
     patch_jcc32(&mut export_code, s1_je_set, s1_set);
+    patch_jcc32(&mut export_code, s1_je_alloc, s1_set);
+    patch_jcc32(&mut export_code, s1_je_loadf, s1_set);
+    patch_jcc32(&mut export_code, s1_je_writef, s1_set);
     export_code.extend_from_slice(&[0x80, 0xFA, 0x02]); // cmp dl, 2
     let s1_jne_set_argc = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
@@ -3544,6 +3559,18 @@ mod tests {
                 "raw_bytes_ret",
                 vec![(0xA1, 2, [0xCC, 0, 0xDD, 0, 0, 0])],
             ),
+            (
+                "alloc_stub_ret",
+                vec![(0x20, 2, [1, 0, 0x10, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "load_file_stub_ret",
+                vec![(0x50, 2, [0, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "write_file_stub_ret",
+                vec![(0x51, 2, [1, 0, 2, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
         ];
 
         for (name, recs) in cases {
@@ -3586,14 +3613,14 @@ mod tests {
     #[test]
     #[cfg(windows)]
     fn s1_in_dll_rejects_unsupported_op() {
-        // ALLOC not yet in mini-ISA — in-DLL must exit compile-fail.
-        let dir = temp_work("in-dll-s1-tyb-alloc-reject");
+        // Unknown op — in-DLL must exit compile-fail.
+        let dir = temp_work("in-dll-s1-tyb-unknown-reject");
         let mut tyb = Vec::new();
         tyb.extend_from_slice(b"TYB\0");
         tyb.extend_from_slice(&[0, 0]);
         tyb.extend_from_slice(&1u16.to_le_bytes());
-        tyb.push(0x20); // ALLOC
-        tyb.push(1);
+        tyb.push(0xFE); // unknown
+        tyb.push(0);
         tyb.extend_from_slice(&[0, 0, 0, 0, 0, 0]);
         std::fs::write(dir.join("input.tyb"), &tyb).expect("write");
         assert_eq!(yoyo_sidecar_in_dll_recompile(&dir), EXIT_COMPILE_FAIL);

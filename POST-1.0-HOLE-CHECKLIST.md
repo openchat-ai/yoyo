@@ -440,8 +440,8 @@ Run `35553987325`（commit `146b58b`）：
 | **S1.7.e** | ✅ 已本地提交 | mini-ISA +DATA/STR/RAW→`.data`（≤64B；in-DLL 写回 slim PE）；parity 扩至 28 行（含 .data 比对） | commit `7041954` · pe_dll_link **32/32** · s1_ **65/65** |
 | **S1.7.f** | ✅ 已本地提交 | mini-ISA +RAW_BYTES→`.text`（argc≤3）；parity 扩至 29 行 | commit `89f3640` · pe_dll_link **32/32** · s1_ **66/66** |
 
-**S1 进度**：S1.1–S1.7.f 本地完成。mini-ISA 覆盖核心 codegen 切片（仍无 ALLOC/IO）。
-**诚实非 CLOSED**：ALLOC/LOAD_FILE/WRITE_FILE 未 port；非 TYB 仍 oracle；OW-RT **仍 CUT** · `closed=0`。
+**S1 进度**：S1.1–S1.7.f 本地完成。mini-ISA 覆盖核心 codegen 切片。
+**诚实非 CLOSED**：ALLOC/LOAD_FILE/WRITE_FILE 仅 **StubPlatform 对齐 stub**（非真 OS I/O）；非 TYB 仍 oracle；OW-RT **仍 CUT** · `closed=0`。
 **下一步 S2**：见下节。
 
 ### S2 子任务分解（进度跟踪）
@@ -452,8 +452,8 @@ Run `35553987325`（commit `146b58b`）：
 |---|---|---|---|
 | **S2.1** | ✅ 已本地提交 | ISA 缺口盘点：S1 mini vs `isa_table` vs runtime 效果所需平台 ops | commit `9885ab5` · **无**加载器改动 |
 | **S2.2** | ✅ 已本地提交 | host `emit_x86` ALLOC = **StubPlatform 对齐**：`movabs rax,size`+`store_state`（记 size，非真堆）；mini/in-DLL **仍拒** | commit `94e12b7` · 真 OS 分配推后；in-DLL=S2.4 |
-| **S2.3** | ✅ 已本地提交 | host LOAD_FILE/WRITE_FILE = StubPlatform 对齐（`movabs` str_idx+store；sz 忽略）；mini **仍拒** | commit `TBD` · 非真文件 I/O；in-DLL=S2.4 |
-| **S2.4** | ⏳ 未开始 | in-DLL mini 对齐 S2.2–S2.3（或明确「平台 ops 仅 host」边界） | 栈/IAT 约束需另评 |
+| **S2.3** | ✅ 已本地提交 | host LOAD_FILE/WRITE_FILE = StubPlatform 对齐（`movabs` str_idx+store；sz 忽略）；mini **仍拒** | commit `e136f82` · 非真文件 I/O；in-DLL=S2.4 |
+| **S2.4** | ✅ 已本地提交 | in-DLL mini 对齐 stub：ALLOC/LOAD_FILE/WRITE_FILE argc=2 → 与 SET 同编码；parity +3 | commit `TBD` · **仍非**真 OS I/O |
 | **S2.5** | ⏳ 未开始 | 最小 `.ty`/`.tyb`「runtime 效果」固件 + 验收脚本钩子 | 非 CLOSED |
 
 #### S2.1 — ISA 缺口盘点（本步）
@@ -471,9 +471,9 @@ Run `35553987325`（commit `146b58b`）：
 
 | op | 名 | 为何挡 S2 |
 |---|---|---|
-| `0x20` | ALLOC | runtime 效果需要缓冲/堆语义；S1 中仍 NOP stub / mini **拒** |
-| `0x50` | LOAD_FILE | 读 `input.*` 的 IR 表达；S1 mini **拒** |
-| `0x51` | WRITE_FILE | 写 `output.exe` 的 IR 表达；S1 mini **拒** |
+| `0x20` | ALLOC | runtime 效果需要缓冲/堆语义；**S2.2–S2.4 stub 已齐**（记 size；非真堆） |
+| `0x50` | LOAD_FILE | 读 `input.*` 的 IR 表达；**S2.3–S2.4 stub 已齐**（记 str_idx；非真 I/O） |
+| `0x51` | WRITE_FILE | 写 `output.exe` 的 IR 表达；**S2.3–S2.4 stub 已齐**（记 str_idx；非真 I/O） |
 
 **C. S1 软上限（非缺 opcode，但挡「大」程序）**
 
@@ -494,8 +494,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 
 1. ~~**S2.2**：ALLOC host 语义~~ → **已定**：StubPlatform 对齐（记 size 入 state）；非真堆；mini 仍拒  
 2. ~~**S2.3**：LOAD_FILE / WRITE_FILE~~ → **已定**：Stub 对齐（记 str_idx；非真 I/O）  
-3. **S2.4**：再决定是否 port 进 in-DLL mini（可「仅 host」）  
-4. 验收保持 fail-closed；**禁止**宣称 OW-RT CLOSED
+3. ~~**S2.4**：in-DLL 对齐~~ → stub 已 port（=SET 编码；非真 I/O）  
+4. **S2.5**：最小 runtime-效果固件；验收 fail-closed；**禁止**宣称 OW-RT CLOSED
 
 #### S2.2 — ALLOC host 策略
 
@@ -504,7 +504,7 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | 编码 | 与 `StubPlatform::emit_alloc` 一致：`movabs rax, size` + `store_state slot` |
 | 语义诚实边界 | **不**调用系统分配器；state[slot]=size（与历史 stub/golden 一致） |
 | `compile_tyb_to_pe` | 接受（走 `emit_x86`） |
-| `compile_tyb_to_pe_mini` / in-DLL | **仍拒** `0x20`（S2.4 再评） |
+| `compile_tyb_to_pe_mini` / in-DLL | S2.4：argc=2 stub **已接受**（非真堆） |
 | 非目标 | 真堆指针、IAT、in-DLL port |
 
 #### S2.3 — LOAD_FILE / WRITE_FILE host 策略（本步）
@@ -514,7 +514,16 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | LOAD_FILE | `movabs rax, str_idx` + `store_state slot`（argc=2） |
 | WRITE_FILE | 同上；argc=2 或 3（`sz` 忽略，对齐 StubPlatform） |
 | 语义诚实边界 | **不**做真实读/写文件；只把 str_idx 记入 state |
-| mini / in-DLL | **仍拒** `0x50`/`0x51`（S2.4） |
+| mini / in-DLL | S2.4：argc=2 stub **已接受**（非真 I/O） |
+
+#### S2.4 — in-DLL stub 对齐（本步）
+
+| 项 | 决定 |
+|---|---|
+| 编码 | `0x20`/`0x50`/`0x51` argc=2 → 与 SET 相同：`movabs`+`store_state` |
+| WRITE argc=3 | mini **仍拒**（host emit 仍接受） |
+| 诚实边界 | **不是**真分配/读文件/写文件；只记 imm 入 state |
+| parity | +alloc_stub_ret / load_file_stub_ret / write_file_stub_ret |
 
 ### 立项约束
 
@@ -748,3 +757,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S2.1）**：S1 已收口 · **S2.1** = ISA 缺口盘点（主缺口 ALLOC/LOAD_FILE/WRITE_FILE + S1 软上限）· 默认 `继续`=**S2.2** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S2.2）**：ALLOC host = StubPlatform 对齐 stub（记 size）；mini/in-DLL 仍拒 · 默认 `继续`=**S2.3** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S2.3）**：LOAD_FILE/WRITE_FILE host = Stub 对齐（记 str_idx；非真 I/O）；mini 仍拒 · 默认 `继续`=**S2.4** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S2.4）**：平台 stub ops 已进 mini/in-DLL（=SET 编码；非真 I/O）· 默认 `继续`=**S2.5** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
