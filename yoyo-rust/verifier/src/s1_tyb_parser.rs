@@ -929,7 +929,8 @@ pub fn is_s1_mini_op(op: u8) -> bool {
 pub const S1_MINI_MEMCPY_STATE_MAX_N: u16 = 4;
 
 /// In-DLL / mini host cap on aggregated DATA/STR/RAW bytes.
-pub const S1_MINI_DATA_MAX: usize = 64;
+/// S3.10: raised 64→128 (in-DLL data scratch + host validate keep in sync).
+pub const S1_MINI_DATA_MAX: usize = 128;
 
 fn mini_slot_disp8_ok(slot: u16) -> bool {
     (slot as u32) * 8 < 0x80
@@ -2231,11 +2232,15 @@ mod tests {
 
     #[test]
     fn compile_tyb_to_pe_mini_rejects_data_over_cap() {
-        // 22 × argc=3 = 66 > 64
-        let mut recs = vec![(0x10u8, 3u8, [1u8, 0, 2, 0, 3, 0]); 22];
+        // S3.10: 44 × argc=3 = 132 > 128
+        let mut recs = vec![(0x10u8, 3u8, [1u8, 0, 2, 0, 3, 0]); 44];
         recs.push((0xFF, 0, [0; 6]));
         let tyb = tyb_from_records(&recs);
         assert!(compile_tyb_to_pe_mini(&tyb).is_err());
+        // 22 × 3 = 66 now OK under raised cap
+        let mut ok = vec![(0x10u8, 3u8, [1u8, 0, 2, 0, 3, 0]); 22];
+        ok.push((0xFF, 0, [0; 6]));
+        assert!(compile_tyb_to_pe_mini(&tyb_from_records(&ok)).is_ok());
     }
 
     #[test]
@@ -2401,10 +2406,10 @@ mod tests {
     }
 
     #[test]
-    fn s3_soft_cap_text_is_512_after_s37() {
-        // S3.7: code scratch raised; DATA mini cap unchanged.
+    fn s3_soft_caps_after_s310() {
+        // S3.7 code=512; S3.10 DATA=128.
         assert_eq!(S1_SLIM_MAX_CODE, 512);
-        assert_eq!(S1_MINI_DATA_MAX, 64);
+        assert_eq!(S1_MINI_DATA_MAX, 128);
     }
 
     // ============= S3.4: auto-pack RAW_BYTES meta-emit from emit_x86 =============

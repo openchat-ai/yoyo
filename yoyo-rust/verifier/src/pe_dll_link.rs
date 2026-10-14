@@ -845,10 +845,11 @@ const IN_DLL_S1_N_LABELS_OFF: u32 = IN_DLL_S1_PATCHES_OFF + 16 * 8;
 const IN_DLL_S1_N_PATCHES_OFF: u32 = IN_DLL_S1_N_LABELS_OFF + 4;
 const IN_DLL_S1_DATA_LEN_OFF: u32 = IN_DLL_S1_N_LABELS_OFF + 8;
 const IN_DLL_S1_DATA_OFF: u32 = IN_DLL_S1_N_LABELS_OFF + 0x10;
-/// S3.7: grow frame so PE(0x1800) + tables fit after CODE_CAP=512.
-const IN_DLL_S1_STACK: u32 = 0x2C00;
+const IN_DLL_S1_DATA_CAP: u32 = crate::s1_tyb_parser::S1_MINI_DATA_MAX as u32;
+/// S3.10: 0x2C00→0x2D00 so data[128] fits after DATA_OFF.
+const IN_DLL_S1_STACK: u32 = 0x2D00;
 
-/// S3.7 fail-closed: layout math for CODE_CAP=512 / PE=0x1800.
+/// Fail-closed layout math (S3.7 code/PE + S3.10 data cap).
 const _: () = assert!(IN_DLL_S1_CODE_CAP == 512);
 const _: () = assert!(IN_DLL_S1_PE_OFF == 0x1280);
 const _: () = assert!(IN_DLL_S1_PE_SIZE == 0x1800);
@@ -856,7 +857,8 @@ const _: () = assert!(IN_DLL_S1_LABELS_OFF == 0x2A80);
 const _: () = assert!(IN_DLL_S1_PATCHES_OFF == 0x2B00);
 const _: () = assert!(IN_DLL_S1_N_LABELS_OFF == 0x2B80);
 const _: () = assert!(IN_DLL_S1_DATA_OFF == 0x2B90);
-const _: () = assert!(IN_DLL_S1_STACK == 0x2C00);
+const _: () = assert!(IN_DLL_S1_DATA_CAP == 128);
+const _: () = assert!(IN_DLL_S1_STACK == 0x2D00);
 const _: () = assert!(crate::s1_tyb_parser::S1_SLIM_DATA_PAYLOAD_OFF == 0x800);
 
 #[inline]
@@ -1171,7 +1173,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // prologue — S1.7.e / S3.6 named stack (input + code + PE + label/patch + data)
     //   [rsp+0x60)=input  [rsp+CODE_OFF)=code  [rsp+PE_OFF)=PE
     //   [rsp+LABELS)=labels[16]×8  [rsp+PATCHES)=patches[16]×8
-    //   [rsp+N_LABELS)=n_labels / n_patches / data_len  [rsp+DATA)=data[64]
+    //   [rsp+N_LABELS)=n_labels / n_patches / data_len  [rsp+DATA)=data[DATA_CAP]
     export_code.extend_from_slice(&[0x53, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55]);
     export_code.extend_from_slice(&[0x48, 0x81, 0xEC]);
     push_u32_le(&mut export_code, IN_DLL_S1_STACK);
@@ -2170,7 +2172,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x8B, 0x84, 0x24]);
     push_u32_le(&mut export_code, IN_DLL_S1_DATA_LEN_OFF); // eax=data_len
     export_code.extend_from_slice(&[0x01, 0xD0]); // eax += argc
-    export_code.extend_from_slice(&[0x83, 0xF8, 0x40]); // cmp eax, 64
+    // cmp eax, DATA_CAP — must be imm32 (128 as imm8 would sign-extend wrong)
+    export_code.extend_from_slice(&[0x81, 0xF8]);
+    push_u32_le(&mut export_code, IN_DLL_S1_DATA_CAP);
     let s1_ja_data_cap = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
     // rdi = data_base + old_len

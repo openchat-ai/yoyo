@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.10**：S3.9 表含 SET；下一刀再扩 opcode 或提 DATA 上限（**非**假 CLOSED）。
+**默认 `继续` = S3.11**：S3.10 DATA=128；下一刀再扩 opcode 表（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -482,7 +482,7 @@ Run `35553987325`（commit `146b58b`）：
 | 代码缓冲 | **512B** user `.text`（S3.7；原 256） | 复杂 runtime `.ty` 仍可能不够 |
 | label/patch | 各 ≤16 | 大控制流 |
 | MEMCPY_STATE n | ≤4 | 大块状态拷贝 |
-| DATA 合计 | ≤64B | 大字符串表 |
+| DATA 合计 | **128B**（S3.10；原 64） | 大字符串表仍可能不够 |
 
 **D. 与 Rust `yoyo-runtime` 的诚实对照**
 
@@ -552,7 +552,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.7** | ✅ 已本地提交 | scratch/code **256→512**：PE buf 0x1800、STACK 0x2C00、DATA off 0x800 | commit `3c54dc4` · parity GREEN |
 | **S3.8** | ✅ 已本地提交 | DATA 驻留 opcode→x86 模板表（RET/NOP）+ Rust lookup 合成 ≡ `emit_x86` | commit `03ab581` · 解释器仍 Rust |
 | **S3.9** | ✅ 已本地提交 | 表行 20B + SET 模板；合成 SET+RET/NOP+RET ≡ `emit_x86`（60B≤64） | commit `e83d072` · 解释器仍 Rust |
-| **S3.10+** | ⏳ 未开始 | 再扩 opcode / 提 DATA 上限 / YOYO 侧解释表 | 真自举长杆 |
+| **S3.10** | ✅ 已本地提交 | `S1_MINI_DATA_MAX` 64→**128**；in-DLL `cmp imm32` + STACK 0x2D00 | commit `TBD` |
+| **S3.11+** | ⏳ 未开始 | 再扩 opcode 表 / YOYO 侧解释表 | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -575,7 +576,7 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | 限制 | 值 | 对 S3 的影响 |
 |---|---|---|
 | user `.text` | 256B | 放不下真实 emit 函数体 |
-| DATA 合计 | 64B | opcode 模板表极紧 |
+| DATA 合计 | **128B**（S3.10） | 模板表可放更多行；仍非无限 |
 | labels/patches | ≤16 | 大控制流不够 |
 | MEMCPY_STATE n | ≤4 | 大块搬移受限 |
 | platform I/O | stub only | 不能真读源/写产物 |
@@ -683,7 +684,15 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | `.data` | 60B ≤ `S1_MINI_DATA_MAX` 64 |
 | 验收 | 合成 SET+RET、NOP+RET ≡ `emit_x86` |
 
-**默认 `继续` = S3.10**。
+#### S3.10 — DATA 上限 64→128（本步）
+
+| 项 | 决定 |
+|---|---|
+| `S1_MINI_DATA_MAX` | 128 |
+| in-DLL | `cmp eax, imm32`（忌 imm8 对 128 符号扩展）+ `STACK=0x2D00` |
+| 验收 | parity + 66B DATA 接受 / 132B 拒绝 |
+
+**默认 `继续` = S3.11**。
 
 ### 立项约束
 
@@ -928,3 +937,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S3.7）**：code scratch **512** · PE 0x1800 / STACK 0x2C00 / DATA@0x800 · parity GREEN · 默认 `继续`=**S3.8** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.8）**：DATA 模板表 RET/NOP + Rust lookup 合成 ≡ emit · **解释器仍 Rust** · 默认 `继续`=**S3.9** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.9）**：表行 20B + SET · 合成 SET+RET GREEN · 默认 `继续`=**S3.10** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.10）**：DATA mini **128B** · STACK 0x2D00 · 默认 `继续`=**S3.11** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
