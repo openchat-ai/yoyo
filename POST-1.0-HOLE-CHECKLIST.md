@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.32**：S3.31 in-DLL 单记录 NOP 快路径已绿；下一刀续扩（**非**假 CLOSED）。
+**默认 `继续` = S3.33**：S3.32 in-DLL NOP+RET 双记录快路径已绿；下一刀续扩（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -574,7 +574,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.29** | ✅ 已本地提交 | 固定模板表 +CMP(0,1)；10 行 ≡ S3.14 子集；outbuf@0x160 | commit `d310710` |
 | **S3.30** | ✅ 已本地提交 | in-DLL 单记录 RET→C3 快路径（跳 JE）；marker `yoyo_in_dll_s3_ret_pilot` | commit `f71f1c1` |
 | **S3.31** | ✅ 已本地提交 | in-DLL 单记录 NOP→90 快路径；marker `yoyo_in_dll_s3_nop_pilot` | commit `16f4e56` |
-| **S3.32+** | ⏳ 未开始 | in-DLL 表合成续扩（多记录/SET 仍 JE） | 真自举长杆 |
+| **S3.32** | ✅ 已本地提交 | in-DLL 双记录 NOP+RET→90 C3 快路径；marker `yoyo_in_dll_s3_nop_ret_pilot` | commit `PLACEHOLDER_S332` |
+| **S3.33+** | ⏳ 未开始 | in-DLL 表合成续扩（SET+/多记录仍 JE） | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -938,6 +939,17 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 
 **默认 `继续` = S3.32**。
 
+#### S3.32 — in-DLL 双记录 NOP+RET 快路径（本步）
+
+| 项 | 决定 |
+|---|---|
+| 行为 | `rec_cnt==2` 且 NOP/argc0 + RET/argc0 → 写 `90 C3` 后跳 finish |
+| 标记 | 新增 `.rdata` `yoyo_in_dll_s3_nop_ret_pilot` |
+| 验收 | sidecar NOP+RET→`90 C3`；单记录 RET/NOP 仍绿；SET+RET 仍 JE |
+| 诚实 | **仍非** DATA 表合成；SET+/其它多记录仍手写 JE；OW-RT 仍 CUT |
+
+**默认 `继续` = S3.33**。
+
 ### 立项约束
 
 - 本路线**不是 post-v1.0 关洞的延续**，是**新主线**
@@ -1203,3 +1215,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S3.29）**：固定模板 +CMP（10 行）GREEN · 默认 `继续`=**S3.30** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.30）**：in-DLL RET 快路径试点 GREEN · 默认 `继续`=**S3.31** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.31）**：in-DLL NOP 快路径 GREEN · 默认 `继续`=**S3.32** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.32）**：in-DLL NOP+RET 双记录快路径 GREEN · 默认 `继续`=**S3.33** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
