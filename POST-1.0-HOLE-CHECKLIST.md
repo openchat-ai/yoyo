@@ -454,7 +454,7 @@ Run `35553987325`（commit `146b58b`）：
 | **S2.2** | ✅ 已本地提交 | host `emit_x86` ALLOC = **StubPlatform 对齐**：`movabs rax,size`+`store_state`（记 size，非真堆）；mini/in-DLL **仍拒** | commit `94e12b7` · 真 OS 分配推后；in-DLL=S2.4 |
 | **S2.3** | ✅ 已本地提交 | host LOAD_FILE/WRITE_FILE = StubPlatform 对齐（`movabs` str_idx+store；sz 忽略）；mini **仍拒** | commit `e136f82` · 非真文件 I/O；in-DLL=S2.4 |
 | **S2.4** | ✅ 已本地提交 | in-DLL mini 对齐 stub：ALLOC/LOAD_FILE/WRITE_FILE argc=2 → 与 SET 同编码；parity +3 | commit `24b944c` · **仍非**真 OS I/O |
-| **S2.5** | ✅ 已本地提交 | 最小 runtime-效果 stub 固件 `.ty`/`.tyb` + `stage17-s2-runtime-effect.ps1` | commit `TBD` · **仍非**真 OS I/O · 非 CLOSED |
+| **S2.5** | ✅ 已本地提交 | 最小 runtime-效果 stub 固件 `.ty`/`.tyb` + `stage17-s2-runtime-effect.ps1` | commit `5f8e959` · **仍非**真 OS I/O · 非 CLOSED |
 
 #### S2.1 — ISA 缺口盘点（本步）
 
@@ -534,8 +534,54 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | 语义 | stub only（state 记 size/str_idx）；`.data`=`in\0out` |
 | 非目标 | 真 OS I/O、OW-RT CLOSED、S3 自举 |
 
-**S2 进度**：S2.1–S2.5 本地完成（平台 stub 子集 + 固件钩子）。默认 `继续`=**S3 规划/首刀**（另开）。
+**S2 进度**：S2.1–S2.5 本地完成（平台 stub 子集 + 固件钩子）。
 **诚实**：真读输入/写输出仍缺 → OW-RT **仍 CUT** · `closed=0`。
+
+### S3 子任务分解（进度跟踪）
+
+**S3 立项定义**：把 **codegen 本身**逐步用 YOYO/H_00 IR 表达（meta-emit），使「吃 TYB → 产 x86」不再唯一依赖 Rust 手写机器码。半年-年级；本步只做缺口盘点。
+
+| 子任务 | 状态 | 内容 | 备注 |
+|---|---|---|---|
+| **S3.1** | ✅ 已本地提交 | codegen 自举缺口盘点：Rust 表面 / 软上限 / 最小 meta-emit 切片 | commit `TBD` · docs-only · **无**假 CLOSED |
+| **S3.2** | ⏳ 未开始 | 最小 meta-emit：YOYO 程序对 SET+RET 产出与 `emit_x86` byte-identical | 仍由 Rust 宿主跑 |
+| **S3.3+** | ⏳ 未开始 | 扩 opcode 表 / 提软上限 / 替换 in-DLL Rust emit 路径 | 真自举长杆 |
+
+#### S3.1 — codegen 自举缺口盘点（本步）
+
+**A. 今日 codegen 表面（仍 Rust）**
+
+| 表面 | 位置 | 约略规模 | 角色 |
+|---|---|---|---|
+| host `emit_x86` | `s1_tyb_parser.rs` | ~2.2k LOC 文件（含测试） | TYB→x86+`.data`；S1/S2 mini 对齐 |
+| in-DLL mini | `pe_dll_link.rs` `link_yoyo_in_dll_recompile_dll_emit` | 手写 x86 调度（同文件 ~3.7k LOC） | sidecar 内与 host parity |
+| 生产 sidecar | `yoyo-runtime`（Rust） | 另册 | 读 cwd→编译→写；**未**用 YOYO 写 |
+
+**B. S3 要替换的信任点（诚实）**
+
+1. opcode→机器码模板仍写在 Rust（host match + in-DLL JE 链）
+2. 即使 S2 stub 接受 ALLOC/IO，**真**缓冲/文件仍缺 → meta-emit「写输出」暂只能比 `.text` 字节或记 state
+3. in-DLL 与 host **双份**维护；S3 若只迁 host，in-DLL 仍 Rust
+
+**C. 软上限（挡「用 YOYO 写完整 emit」）**
+
+| 限制 | 值 | 对 S3 的影响 |
+|---|---|---|
+| user `.text` | 256B | 放不下真实 emit 函数体 |
+| DATA 合计 | 64B | opcode 模板表极紧 |
+| labels/patches | ≤16 | 大控制流不够 |
+| MEMCPY_STATE n | ≤4 | 大块搬移受限 |
+| platform I/O | stub only | 不能真读源/写产物 |
+
+**D. 与 S2 固件的关系**
+
+`s2_runtime_effect_stub` 证明 sidecar **能编译**「runtime 效果」IR 形；**不**证明 codegen 已用 YOYO 写。S3 另起 meta-emit 线。
+
+**E. S3.1 结论 → 推荐下一刀**
+
+1. **S3.2**：最小 meta-emit 固件——YOYO/TYB（可用 RAW_BYTES/DATA 表）对 **SET+RET** 产出与 host `emit_x86` **byte-identical** 的 user `.text`；Rust 测试比对；**不**替换生产路径
+2. 随后再评：提软上限 vs 表驱动扩 opcode vs 双路径去重
+3. **禁止**：宣称 OW-RT / OW-SEED CLOSED；把 stub I/O 说成自举完成
 
 ### 立项约束
 
@@ -771,3 +817,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S2.3）**：LOAD_FILE/WRITE_FILE host = Stub 对齐（记 str_idx；非真 I/O）；mini 仍拒 · 默认 `继续`=**S2.4** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S2.4）**：平台 stub ops 已进 mini/in-DLL（=SET 编码；非真 I/O）· 默认 `继续`=**S2.5** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S2.5）**：runtime-效果 stub 固件 + `stage17-s2-runtime-effect.ps1` GREEN · **S2 收口（stub 层）** · 真 OS I/O / OW-RT CLOSED **未做** · 默认 `继续`=**S3 首刀（规划）** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.1）**：codegen 自举缺口盘点（Rust 双表面 + 软上限挡完整 emit）· 默认 `继续`=**S3.2**（SET+RET meta-emit byte-identical）· OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
