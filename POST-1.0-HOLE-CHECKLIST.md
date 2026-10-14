@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.36**：S3.35 in-DLL INC0+RET 快路径已绿；下一刀续扩/表 bake（**非**假 CLOSED）。
+**默认 `继续` = S3.37**：S3.36 in-DLL 表 bake 盘点已绿（docs）；下一刀落地 bake（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -578,7 +578,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.33** | ✅ 已本地提交 | in-DLL SET0-DEADBEEF+RET→15B 快路径；marker `yoyo_in_dll_s3_set_ret_pilot` | commit `eade033` |
 | **S3.34** | ✅ 已本地提交 | in-DLL GET0←src1+RET→9B 快路径；marker `yoyo_in_dll_s3_get_ret_pilot` | commit `12e9857` |
 | **S3.35** | ✅ 已本地提交 | in-DLL INC slot0+RET→12B 快路径；marker `yoyo_in_dll_s3_inc_ret_pilot` | commit `bdcde9d` |
-| **S3.36+** | ⏳ 未开始 | in-DLL 表 bake / 其余固定模板仍 JE | 真自举长杆 |
+| **S3.36** | ✅ 已本地提交 | in-DLL 固定模板表 bake 盘点（docs）；调度仍硬编码快路径 | commit `PLACEHOLDER_S336` |
+| **S3.37+** | ⏳ 未开始 | 落地 bake：.rdata 表 + 查表 memcpy 替硬编码 | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -986,6 +987,27 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 
 **默认 `继续` = S3.36**。
 
+#### S3.36 — in-DLL 固定模板表 bake 盘点（本步 · docs-only）
+
+**今日状态（S3.30–S3.35 硬编码快路径已绿；表合成仍 host-only）**
+
+| 表面 | 位置 | 与 S3.35 关系 |
+|---|---|---|
+| host 表 | `s1_tyb_parser` `S3_HOST_*` 10 行×20B @DATA 0x80；prog/outbuf | **已接** mini 优先表路径 |
+| in-DLL 快路径 | `pe_dll_link` RET/NOP/NOP+RET/SET+RET/GET+RET/INC+RET | **硬编码**字节序列，跳 JE |
+| in-DLL JE 链 | 同文件 op dispatch | SET+/DEC+/多记录等 **仍 JE** |
+
+**要把 host 表 bake 进 in-DLL 需要什么（诚实缺口）**
+
+1. 在 sidecar `.rdata`（或栈 `IN_DLL_S1_DATA_OFF`）放置与 host 同布局的 opcode→bytes 表（至少 RET/NOP/SET-DEADBEEF/GET/INC 五行）
+2. 用已有 LDB/CMP/JE/MEMCPY_DATA 或短汇编：按 TYB op 查表，memcpy 模板进 `IN_DLL_S1_CODE_OFF`，再跑 RET 收尾
+3. 验收：host↔in-DLL parity 对既有快路径子集仍 GREEN；可逐步拆掉硬编码 `mov byte [r12],imm` 环
+4. **禁止**宣称 OW-RT CLOSED；真 OS I/O / 全 ISA / YOYO 写 codegen 仍缺
+
+**非目标本步**：改 `pe_dll_link.rs` 码；扩 DEC/ADD/SUB/MOVRR/CMP 硬编码。
+
+**默认 `继续` = S3.37**。
+
 ### 立项约束
 
 - 本路线**不是 post-v1.0 关洞的延续**，是**新主线**
@@ -1255,3 +1277,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S3.33）**：in-DLL SET+RET 快路径 GREEN · 默认 `继续`=**S3.34** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.34）**：in-DLL GET+RET 快路径 GREEN · 默认 `继续`=**S3.35** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.35）**：in-DLL INC+RET 快路径 GREEN · 默认 `继续`=**S3.36** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.36）**：in-DLL 表 bake 盘点（docs）· 默认 `继续`=**S3.37** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
