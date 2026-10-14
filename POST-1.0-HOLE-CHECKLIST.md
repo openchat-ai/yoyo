@@ -450,7 +450,7 @@ Run `35553987325`（commit `146b58b`）：
 
 | 子任务 | 状态 | 内容 | 备注 |
 |---|---|---|---|
-| **S2.1** | ✅ 已本地提交 | ISA 缺口盘点：S1 mini vs `isa_table` vs runtime 效果所需平台 ops | 本文档 · **无**加载器/手工映射改动 |
+| **S2.1** | ✅ 已本地提交 | ISA 缺口盘点：S1 mini vs `isa_table` vs runtime 效果所需平台 ops | commit `9885ab5` · **无**加载器改动 |
 | **S2.2** | ⏳ 未开始 | host `emit_x86` + mini validate：ALLOC(0x20) 语义（平台路径或诚实 stub 策略） | 依赖平台约定 |
 | **S2.3** | ⏳ 未开始 | LOAD_FILE(0x50) / WRITE_FILE(0x51) host+validate | 同左 |
 | **S2.4** | ⏳ 未开始 | in-DLL mini 对齐 S2.2–S2.3（或明确「平台 ops 仅 host」边界） | 栈/IAT 约束需另评 |
