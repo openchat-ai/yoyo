@@ -554,7 +554,7 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.9** | ✅ 已本地提交 | 表行 20B + SET 模板；合成 SET+RET/NOP+RET ≡ `emit_x86`（60B≤64） | commit `e83d072` · 解释器仍 Rust |
 | **S3.10** | ✅ 已本地提交 | `S1_MINI_DATA_MAX` 64→**128**；in-DLL `cmp imm32` + STACK 0x2D00 | commit `26750dc` |
 | **S3.11** | ✅ 已本地提交 | 模板表 +GET/+INC（5 行/100B）；合成矩阵 ≡ `emit_x86` | commit `7a7e205` · 解释器仍 Rust |
-| **S3.12** | ✅ 已本地提交 | 模板表 +ADD(slot0,+5)（6 行/120B）；合成矩阵 ≡ `emit_x86` | commit `TBD` · 解释器仍 Rust |
+| **S3.12** | ✅ 已本地提交 | 模板表 +ADD(slot0,+5)（6 行/120B）；合成矩阵 ≡ `emit_x86` | commit `2e0c8ad` · 解释器仍 Rust |
 | **S3.13+** | ⏳ 未开始 | 再扩 ALU/控制流模板 / YOYO 侧解释表 | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
