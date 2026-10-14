@@ -575,7 +575,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.30** | ✅ 已本地提交 | in-DLL 单记录 RET→C3 快路径（跳 JE）；marker `yoyo_in_dll_s3_ret_pilot` | commit `f71f1c1` |
 | **S3.31** | ✅ 已本地提交 | in-DLL 单记录 NOP→90 快路径；marker `yoyo_in_dll_s3_nop_pilot` | commit `16f4e56` |
 | **S3.32** | ✅ 已本地提交 | in-DLL 双记录 NOP+RET→90 C3 快路径；marker `yoyo_in_dll_s3_nop_ret_pilot` | commit `1c15a96` |
-| **S3.33+** | ⏳ 未开始 | in-DLL 表合成续扩（SET+/多记录仍 JE） | 真自举长杆 |
+| **S3.33** | ✅ 已本地提交 | in-DLL SET0-DEADBEEF+RET→15B 快路径；marker `yoyo_in_dll_s3_set_ret_pilot` | commit `eade033` |
+| **S3.34+** | ⏳ 未开始 | in-DLL 表合成续扩（GET+/表 bake 仍缺） | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -950,6 +951,17 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 
 **默认 `继续` = S3.33**。
 
+#### S3.33 — in-DLL SET0-DEADBEEF+RET 快路径（本步）
+
+| 项 | 决定 |
+|---|---|
+| 行为 | `rec_cnt==2` 且 SET(slot0,DEADBEEF)+RET → 写 15B（≡ host set body+C3）后 finish |
+| 标记 | 新增 `.rdata` `yoyo_in_dll_s3_set_ret_pilot` |
+| 验收 | sidecar SET+RET byte-exact；NOP+RET/单记录仍绿 |
+| 诚实 | **仍非** DATA 表合成；其它 SET imm/slot 仍 JE；OW-RT 仍 CUT |
+
+**默认 `继续` = S3.34**。
+
 ### 立项约束
 
 - 本路线**不是 post-v1.0 关洞的延续**，是**新主线**
@@ -1216,3 +1228,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S3.30）**：in-DLL RET 快路径试点 GREEN · 默认 `继续`=**S3.31** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.31）**：in-DLL NOP 快路径 GREEN · 默认 `继续`=**S3.32** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.32）**：in-DLL NOP+RET 双记录快路径 GREEN · 默认 `继续`=**S3.33** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.33）**：in-DLL SET+RET 快路径 GREEN · 默认 `继续`=**S3.34** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
