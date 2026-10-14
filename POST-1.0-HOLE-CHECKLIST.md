@@ -551,7 +551,7 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.6** | ✅ 已本地提交 | in-DLL 栈布局 **常量抽取**（`IN_DLL_S1_*`；数值仍 256/0x2900） | commit `3ac7710` · 行为不变 · const assert |
 | **S3.7** | ✅ 已本地提交 | scratch/code **256→512**：PE buf 0x1800、STACK 0x2C00、DATA off 0x800 | commit `3c54dc4` · parity GREEN |
 | **S3.8** | ✅ 已本地提交 | DATA 驻留 opcode→x86 模板表（RET/NOP）+ Rust lookup 合成 ≡ `emit_x86` | commit `03ab581` · 解释器仍 Rust |
-| **S3.9** | ✅ 已本地提交 | 表行 20B + SET 模板；合成 SET+RET/NOP+RET ≡ `emit_x86`（60B≤64） | commit `TBD` · 解释器仍 Rust |
+| **S3.9** | ✅ 已本地提交 | 表行 20B + SET 模板；合成 SET+RET/NOP+RET ≡ `emit_x86`（60B≤64） | commit `e83d072` · 解释器仍 Rust |
 | **S3.10+** | ⏳ 未开始 | 再扩 opcode / 提 DATA 上限 / YOYO 侧解释表 | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
@@ -927,3 +927,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S3.6）**：`IN_DLL_S1_*` 常量抽取 · 数值仍 256 · parity GREEN · 默认 `继续`=**S3.7**（真扩容）· OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.7）**：code scratch **512** · PE 0x1800 / STACK 0x2C00 / DATA@0x800 · parity GREEN · 默认 `继续`=**S3.8** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.8）**：DATA 模板表 RET/NOP + Rust lookup 合成 ≡ emit · **解释器仍 Rust** · 默认 `继续`=**S3.9** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.9）**：表行 20B + SET · 合成 SET+RET GREEN · 默认 `继续`=**S3.10** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
