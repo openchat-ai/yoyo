@@ -577,7 +577,7 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.32** | ✅ 已本地提交 | in-DLL 双记录 NOP+RET→90 C3 快路径；marker `yoyo_in_dll_s3_nop_ret_pilot` | commit `1c15a96` |
 | **S3.33** | ✅ 已本地提交 | in-DLL SET0-DEADBEEF+RET→15B 快路径；marker `yoyo_in_dll_s3_set_ret_pilot` | commit `eade033` |
 | **S3.34** | ✅ 已本地提交 | in-DLL GET0←src1+RET→9B 快路径；marker `yoyo_in_dll_s3_get_ret_pilot` | commit `12e9857` |
-| **S3.35** | ✅ 已本地提交 | in-DLL INC slot0+RET→12B 快路径；marker `yoyo_in_dll_s3_inc_ret_pilot` | commit `PLACEHOLDER_S335` |
+| **S3.35** | ✅ 已本地提交 | in-DLL INC slot0+RET→12B 快路径；marker `yoyo_in_dll_s3_inc_ret_pilot` | commit `bdcde9d` |
 | **S3.36+** | ⏳ 未开始 | in-DLL 表 bake / 其余固定模板仍 JE | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
