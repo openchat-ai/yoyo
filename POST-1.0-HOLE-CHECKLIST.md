@@ -451,7 +451,7 @@ Run `35553987325`（commit `146b58b`）：
 | 子任务 | 状态 | 内容 | 备注 |
 |---|---|---|---|
 | **S2.1** | ✅ 已本地提交 | ISA 缺口盘点：S1 mini vs `isa_table` vs runtime 效果所需平台 ops | commit `9885ab5` · **无**加载器改动 |
-| **S2.2** | ✅ 已本地提交 | host `emit_x86` ALLOC = **StubPlatform 对齐**：`movabs rax,size`+`store_state`（记 size，非真堆）；mini/in-DLL **仍拒** | commit `TBD` · 真 OS 分配推后；in-DLL=S2.4 |
+| **S2.2** | ✅ 已本地提交 | host `emit_x86` ALLOC = **StubPlatform 对齐**：`movabs rax,size`+`store_state`（记 size，非真堆）；mini/in-DLL **仍拒** | commit `94e12b7` · 真 OS 分配推后；in-DLL=S2.4 |
 | **S2.3** | ⏳ 未开始 | LOAD_FILE(0x50) / WRITE_FILE(0x51) host+validate | 同左 |
 | **S2.4** | ⏳ 未开始 | in-DLL mini 对齐 S2.2–S2.3（或明确「平台 ops 仅 host」边界） | 栈/IAT 约束需另评 |
 | **S2.5** | ⏳ 未开始 | 最小 `.ty`/`.tyb`「runtime 效果」固件 + 验收脚本钩子 | 非 CLOSED |
