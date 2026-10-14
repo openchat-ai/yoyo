@@ -28,8 +28,8 @@
 //! RAW_BYTES (argc≤3 → `.text`) + ALLOC/LOAD_FILE/WRITE_FILE **stub form**
 //! (argc=2, same encoding as SET; not real OS alloc/I/O).
 //! Non-TYB inputs still use the oracle table. Marker `yoyo_in_dll_s1_codegen`.
-//! Stage 17+ **S3.30–S3.39**: fixed-template fast-paths + `.rdata` 5-row bake.
-//! S3.38/39: single RET/NOP and SET+RET/NOP+RET take bytes from bake payloads.
+//! Stage 17+ **S3.30–S3.40**: fixed-template fast-paths + `.rdata` 5-row bake.
+//! S3.38–40: RET/NOP/SET/GET/INC (+ dual-record) take bytes from bake payloads.
 //! GET/INC two-record still hard-coded imm loops — **not** OW-RT CLOSED.
 //! Honest: mini-ISA ≠ full YOYO compiler; production default remains Rust —
 //! **not** OW-RT CLOSED (see `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`).
@@ -1529,8 +1529,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // rcx = first record = rsi+8
     export_code.extend_from_slice(&[0x48, 0x8D, 0x4E, 0x08]); // lea rcx, [rsi+8]
 
-    // S3.30–S3.34 pilots (skip JE): single RET/NOP; NOP+RET; SET+RET; GET+RET.
-    // Honest: other multi/ops still hand JE; table compose still host-only.
+    // S3.30–S3.40 pilots (skip JE): RET/NOP; NOP+RET; SET/GET/INC+RET from bake.
+    // Honest: other multi/ops still hand JE; no general in-DLL table scan yet.
     export_code.extend_from_slice(&[0x83, 0xFB, 0x01]); // cmp ebx, 1
     let s3_je_single = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]); // je s3_single
@@ -1617,7 +1617,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s3_jmp_finish_sr = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp s1_finish
 
-    // S3.34: GET dst0←src1 + RET → 8B body + C3
+    // S3.40: GET dst0←src1 + RET → bake row3 (8B) + row0 RET
     let s3_try_get = export_code.len();
     patch_jcc32(&mut export_code, s3_jne_sr1, s3_try_get);
     export_code.extend_from_slice(&[0x80, 0x39, 0x60]); // cmp byte [rcx], GET
@@ -1643,19 +1643,23 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]); // cmp rax, r13
     let s3_jae_fail_gr = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
-    let get_ret_bytes: [u8; 9] = [
-        0x49, 0x8B, 0x47, 0x08, // mov rax, [r15+8]
-        0x49, 0x89, 0x47, 0x00, // mov [r15+0], rax
-        0xC3,
-    ];
-    for &b in &get_ret_bytes {
-        export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, b]);
-        export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]);
-    }
+    export_code.extend_from_slice(&[0x56]); // push rsi
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]); // lea rsi,[rip+…]
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 60 + 4));
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
+    export_code.extend_from_slice(&[0xB9, 0x08, 0x00, 0x00, 0x00]); // mov ecx, 8
+    export_code.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x05, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 4));
+    export_code.extend_from_slice(&[0x8A, 0x00]); // mov al, [rax]
+    export_code.extend_from_slice(&[0x88, 0x07]); // mov [rdi], al
+    export_code.extend_from_slice(&[0x48, 0xFF, 0xC7]); // inc rdi
+    export_code.extend_from_slice(&[0x49, 0x89, 0xFC]); // mov r12, rdi
+    export_code.extend_from_slice(&[0x5E]); // pop rsi
     let s3_jmp_finish_gr = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp s1_finish
 
-    // S3.35: INC slot0 + RET → 11B body + C3
+    // S3.40: INC slot0 + RET → bake row4 (11B) + row0 RET
     let s3_try_inc = export_code.len();
     patch_jcc32(&mut export_code, s3_jne_gr1, s3_try_inc);
     export_code.extend_from_slice(&[0x80, 0x39, 0x66]); // cmp byte [rcx], INC
@@ -1678,16 +1682,19 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]); // cmp rax, r13
     let s3_jae_fail_ir = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
-    let inc_ret_bytes: [u8; 12] = [
-        0x49, 0x8B, 0x47, 0x00, // mov rax, [r15]
-        0x48, 0xFF, 0xC0, // inc rax
-        0x49, 0x89, 0x47, 0x00, // mov [r15], rax
-        0xC3,
-    ];
-    for &b in &inc_ret_bytes {
-        export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, b]);
-        export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]);
-    }
+    export_code.extend_from_slice(&[0x56]); // push rsi
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]); // lea rsi,[rip+…]
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 80 + 4));
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
+    export_code.extend_from_slice(&[0xB9, 0x0B, 0x00, 0x00, 0x00]); // mov ecx, 11
+    export_code.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x05, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 4));
+    export_code.extend_from_slice(&[0x8A, 0x00]); // mov al, [rax]
+    export_code.extend_from_slice(&[0x88, 0x07]); // mov [rdi], al
+    export_code.extend_from_slice(&[0x48, 0xFF, 0xC7]); // inc rdi
+    export_code.extend_from_slice(&[0x49, 0x89, 0xFC]); // mov r12, rdi
+    export_code.extend_from_slice(&[0x5E]); // pop rsi
     let s3_jmp_finish_ir = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp s1_finish
 
