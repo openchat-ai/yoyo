@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.33**：S3.32 in-DLL NOP+RET 双记录快路径已绿；下一刀续扩（**非**假 CLOSED）。
+**默认 `继续` = S3.34**：S3.33 in-DLL SET0-DEADBEEF+RET 快路径已绿；下一刀续扩（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
