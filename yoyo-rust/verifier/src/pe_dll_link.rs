@@ -28,8 +28,8 @@
 //! RAW_BYTES (argc≤3 → `.text`) + ALLOC/LOAD_FILE/WRITE_FILE **stub form**
 //! (argc=2, same encoding as SET; not real OS alloc/I/O).
 //! Non-TYB inputs still use the oracle table. Marker `yoyo_in_dll_s1_codegen`.
-//! Stage 17+ **S3.30–S3.40**: fixed-template fast-paths + `.rdata` 5-row bake.
-//! S3.38–40: RET/NOP/SET/GET/INC (+ dual-record) take bytes from bake payloads.
+//! Stage 17+ **S3.30–S3.41**: fixed-template fast-paths + `.rdata` 5-row bake.
+//! S3.38–40: dual/SET/GET/INC from bake; S3.41: single-record argc0 scans bake by op.
 //! GET/INC two-record still hard-coded imm loops — **not** OW-RT CLOSED.
 //! Honest: mini-ISA ≠ full YOYO compiler; production default remains Rust —
 //! **not** OW-RT CLOSED (see `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`).
@@ -1529,8 +1529,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // rcx = first record = rsi+8
     export_code.extend_from_slice(&[0x48, 0x8D, 0x4E, 0x08]); // lea rcx, [rsi+8]
 
-    // S3.30–S3.40 pilots (skip JE): RET/NOP; NOP+RET; SET/GET/INC+RET from bake.
-    // Honest: other multi/ops still hand JE; no general in-DLL table scan yet.
+    // S3.30–S3.41: dual-record fixed match + bake copy; single argc0 bake scan.
+    // Honest: multi-op programs still JE; dual-record not yet scan-driven.
     export_code.extend_from_slice(&[0x83, 0xFB, 0x01]); // cmp ebx, 1
     let s3_je_single = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]); // je s3_single
@@ -1698,41 +1698,43 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s3_jmp_finish_ir = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp s1_finish
 
-    // S3.30/31 single-record RET/NOP
+    // S3.41: single-record argc0 → scan bake rows by op, memcpy payload
     let s3_single = export_code.len();
     patch_jcc32(&mut export_code, s3_je_single, s3_single);
     export_code.extend_from_slice(&[0x80, 0x79, 0x01, 0x00]); // cmp byte [rcx+1], 0
     let s3_jne_loop_argc = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jne s1_loop
-    export_code.extend_from_slice(&[0x80, 0x39, 0xFF]); // cmp byte [rcx], 0xFF RET
-    let s3_je_ret = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]); // je s3_emit_ret
-    export_code.extend_from_slice(&[0x80, 0x39, 0x00]); // cmp byte [rcx], 0x00 NOP
-    let s3_jne_loop_op = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jne s1_loop
-    // S3.38 NOP path: copy payload from bake row1 (+20+4)
-    export_code.extend_from_slice(&[0x4D, 0x39, 0xEC]); // cmp r12, r13
-    let s3_jae_fail_nop = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
-    // lea rax,[rip+bake_row1_payload]; mov al,[rax]; mov [r12],al; inc r12
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x05, 0, 0, 0, 0]);
-    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 20 + 4));
-    export_code.extend_from_slice(&[0x8A, 0x00]); // mov al, [rax]
-    export_code.extend_from_slice(&[0x41, 0x88, 0x04, 0x24]); // mov [r12], al
-    export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]); // inc r12
-    let s3_jmp_finish_nop = export_code.len();
-    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp s1_finish
-    // S3.38 RET path: copy payload from bake row0 (+4)
-    let s3_emit_ret = export_code.len();
-    patch_jcc32(&mut export_code, s3_je_ret, s3_emit_ret);
-    export_code.extend_from_slice(&[0x4D, 0x39, 0xEC]); // cmp r12, r13
+    // lea r8,[rip+bake]; r9d=5; r10b=op
+    export_code.extend_from_slice(&[0x4C, 0x8D, 0x05, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off));
+    export_code.extend_from_slice(&[0x41, 0xB9, 0x05, 0x00, 0x00, 0x00]); // mov r9d, 5
+    export_code.extend_from_slice(&[0x44, 0x8A, 0x11]); // mov r10b, [rcx]
+    let s3_scan_loop = export_code.len();
+    export_code.extend_from_slice(&[0x45, 0x38, 0x10]); // cmp [r8], r10b
+    let s3_je_found = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]); // je found
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC0, 0x14]); // add r8, 20
+    export_code.extend_from_slice(&[0x41, 0xFF, 0xC9]); // dec r9d
+    let s3_jnz_scan = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jnz scan
+    let s3_jmp_miss = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp s1_loop (miss)
+    // found: edx=len; room check; rep movsb from r8+4
+    let s3_scan_found = export_code.len();
+    patch_jcc32(&mut export_code, s3_je_found, s3_scan_found);
+    export_code.extend_from_slice(&[0x41, 0x0F, 0xB6, 0x50, 0x01]); // movzx edx, [r8+1]
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]); // mov rax, r12
+    export_code.extend_from_slice(&[0x48, 0x01, 0xD0]); // add rax, rdx
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]); // cmp rax, r13
     let s3_jae_fail = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x05, 0, 0, 0, 0]);
-    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 4));
-    export_code.extend_from_slice(&[0x8A, 0x00]); // mov al, [rax]
-    export_code.extend_from_slice(&[0x41, 0x88, 0x04, 0x24]); // mov [r12], al
-    export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]); // inc r12
+    export_code.extend_from_slice(&[0x56]); // push rsi
+    export_code.extend_from_slice(&[0x49, 0x8D, 0x70, 0x04]); // lea rsi, [r8+4]
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
+    export_code.extend_from_slice(&[0x89, 0xD1]); // mov ecx, edx
+    export_code.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
+    export_code.extend_from_slice(&[0x49, 0x89, 0xFC]); // mov r12, rdi
+    export_code.extend_from_slice(&[0x5E]); // pop rsi
     let s3_jmp_finish = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp s1_finish
 
@@ -1755,7 +1757,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     patch_jcc32(&mut export_code, s3_jne_ir4, s1_loop);
     patch_jcc32(&mut export_code, s3_jne_ir5, s1_loop);
     patch_jcc32(&mut export_code, s3_jne_loop_argc, s1_loop);
-    patch_jcc32(&mut export_code, s3_jne_loop_op, s1_loop);
+    patch_rel32(&mut export_code, s3_jmp_miss, s1_loop);
+    patch_jcc32(&mut export_code, s3_jnz_scan, s3_scan_loop);
     export_code.extend_from_slice(&[0x85, 0xDB]); // test ebx, ebx
     let s1_jz_done = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]); // jz s1_finish
@@ -2760,7 +2763,6 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s1_finish = export_code.len();
     patch_jcc32(&mut export_code, s1_jz_done, s1_finish);
     patch_rel32(&mut export_code, s3_jmp_finish, s1_finish);
-    patch_rel32(&mut export_code, s3_jmp_finish_nop, s1_finish);
     patch_rel32(&mut export_code, s3_jmp_finish_nr, s1_finish);
     patch_rel32(&mut export_code, s3_jmp_finish_sr, s1_finish);
     patch_rel32(&mut export_code, s3_jmp_finish_gr, s1_finish);
@@ -2951,8 +2953,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         s1_ja_jcc_ovf,
         s1_ja_trail,
         s1_jmp_fail_op,
-        s3_jae_fail,     // S3.30 RET pilot overflow
-        s3_jae_fail_nop, // S3.31 NOP pilot overflow
+        s3_jae_fail,     // S3.41 single-record bake-scan overflow
         s3_jae_fail_nr,  // S3.32 NOP+RET pilot overflow
         s3_jae_fail_sr,  // S3.33 SET+RET pilot overflow
         s3_jae_fail_gr,  // S3.34 GET+RET pilot overflow
@@ -3813,16 +3814,26 @@ mod tests {
             dll.windows(s3_cmp_ebx1.len()).any(|w| w == s3_cmp_ebx1),
             "export must contain S3.30/31 cmp ebx,1 pilot"
         );
-        // S3.38/39: bake loads via lea rax/rsi,[rip+…]
+        // S3.38–41: bake loads via lea rax/rsi/r8,[rip+…]
         let s3_lea_rax = [0x48u8, 0x8D, 0x05];
         assert!(
             dll.windows(s3_lea_rax.len()).any(|w| w == s3_lea_rax),
-            "export must contain S3.38/39 lea rax,[rip+bake]"
+            "export must contain lea rax,[rip+bake]"
+        );
+        let s3_lea_r8 = [0x4Cu8, 0x8D, 0x05];
+        assert!(
+            dll.windows(s3_lea_r8.len()).any(|w| w == s3_lea_r8),
+            "export must contain S3.41 lea r8,[rip+bake] scan base"
+        );
+        let s3_add_r8_20 = [0x49u8, 0x83, 0xC0, 0x14];
+        assert!(
+            dll.windows(s3_add_r8_20.len()).any(|w| w == s3_add_r8_20),
+            "export must contain S3.41 add r8,20 row stride"
         );
         let s3_rep_movsb = [0xF3u8, 0xA4];
         assert!(
             dll.windows(s3_rep_movsb.len()).any(|w| w == s3_rep_movsb),
-            "export must contain S3.39 rep movsb SET bake copy"
+            "export must contain rep movsb bake copy"
         );
         assert!(ascii.contains("ReadFile"));
         assert!(ascii.contains("GetFileSize"));

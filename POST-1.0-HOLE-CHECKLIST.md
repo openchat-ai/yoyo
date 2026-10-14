@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.41**：S3.40 GET/INC+RET 已 bake memcpy；下一刀 in-DLL 扫表 lookup（**非**假 CLOSED）。
+**默认 `继续` = S3.42**：S3.41 单记录 argc0 已扫 bake；下一刀双记录 argc0 扫表（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -583,7 +583,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.38** | ✅ 已本地提交 | 单记录 RET/NOP 从 bake 行 payload 取字节（lea rip） | commit `b8c6f4e` |
 | **S3.39** | ✅ 已本地提交 | NOP+RET/SET+RET 从 bake 取字节（lea/rep movsb） | commit `4a3f7c6` |
 | **S3.40** | ✅ 已本地提交 | GET/INC+RET 从 bake 取字节（rep movsb） | commit `2bcf38d` |
-| **S3.41+** | ⏳ 未开始 | in-DLL 扫表 lookup 替固定 op 匹配 | 真自举长杆 |
+| **S3.41** | ✅ 已本地提交 | 单记录 argc0：扫 bake 5 行按 op memcpy | commit `PLACEHOLDER_S341` |
+| **S3.42+** | ⏳ 未开始 | 双记录 argc0 扫表；带参 SET/GET/INC 仍固定匹配 | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -1053,6 +1054,16 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 
 **默认 `继续` = S3.41**。
 
+#### S3.41 — 单记录 argc0 扫 bake 表（本步）
+
+| 项 | 决定 |
+|---|---|
+| 行为 | rec_cnt==1 ∧ argc0：`lea r8,bake` 扫 5 行；命中则按 `len` `rep movsb` |
+| 验收 | sidecar RET/NOP GREEN；export 含 `lea r8` + `add r8,20` |
+| 诚实 | 双记录仍固定匹配；带参 op 未扫表；OW-RT 仍 CUT |
+
+**默认 `继续` = S3.42**。
+
 ### 立项约束
 
 - 本路线**不是 post-v1.0 关洞的延续**，是**新主线**
@@ -1327,3 +1338,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S3.38）**：bake 驱动单记录 RET/NOP GREEN · 默认 `继续`=**S3.39** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.39）**：bake 驱动 NOP+RET/SET+RET GREEN · 默认 `继续`=**S3.40** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.40）**：bake 驱动 GET/INC+RET GREEN · 默认 `继续`=**S3.41** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-14 · + S3.41）**：单记录 argc0 bake 扫表 GREEN · 默认 `继续`=**S3.42** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
