@@ -541,7 +541,7 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.66** | ✅ 已本地提交 | multi CMP any a/b slot<16 disp8 直 emit；marker `yoyo_in_dll_s3_multi_cmp` | commit `ca8018f` |
 | **S3.67** | ✅ 已本地提交 | multi LABEL 记位 + JMP/CALL/JCC push_patch→pass-2 真 rel32；marker `yoyo_in_dll_s3_multi_rel32` | commit `87b9d55` |
 | **S3.68** | ✅ 已本地提交 | multi IMUL any dst/src slot<16 disp8 直 emit；marker `yoyo_in_dll_s3_multi_imul` | commit `20e8567` |
-| **S3.69** | ✅ 已本地提交 | multi ADDV/ORV/SUBV any dst/src slot<16 表驱动直 emit；marker `yoyo_in_dll_s3_multi_aluv` | commit TBD |
+| **S3.69** | ✅ 已本地提交 | multi ADDV/ORV/SUBV any dst/src slot<16 表驱动直 emit；marker `yoyo_in_dll_s3_multi_aluv` | commit `5ee30e3` |
 | **S3.70+** | ⏳ 未开始 | RAW*/DATA/STR/LDB/MEMCPY / slot≥16 / 平台 stub | 真自举长杆 |
 
 > **写法**：已完成 S3.1–S3.69 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
@@ -730,4 +730,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 
 *创建：2026-08-31 · v1.0 毕业后 · post-v1.0 path 2 关洞 · 模板对齐 STAGE16_OWNER_CHECKLIST.md*
 
-**当前分支诚实快照（2026-10-15 · + S3.68）**：multi IMUL any disp8 slots GREEN · 默认 `继续`=**S3.69**（ADDV/ORV/SUBV）· OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag** · （历史逐步快照已折叠；见 git）
+**当前分支诚实快照（2026-10-15 · + S3.69）**：multi ADDV/ORV/SUBV disp8 GREEN · 默认 `继续`=**S3.70**（RAW*）· OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag** · （历史逐步快照已折叠；见 git）
