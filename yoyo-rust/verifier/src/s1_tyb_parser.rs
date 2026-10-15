@@ -723,7 +723,13 @@ pub const S1_SLIM_MAX_CODE: usize = 512;
 /// Slim `.data` virtual size (state base for R15); keeps PE ≪ `link_pe` H_00 pad.
 pub const S1_SLIM_DATA_VS: u32 = 0x1000;
 
-/// S1.5 — minimal PE32+ for in-DLL codegen (no IAT, tiny `.data`).
+/// S3.89: VirtualAlloc-only IAT blob size (IAT+desc+names+ILT, 16-aligned).
+pub const S1_SLIM_IAT_PAD: usize = 0x70;
+/// S3.89: IAT lives at high end of slim `.data` so r15+0 state slots stay free.
+/// Future ALLOC emit: `call [r15 + S1_SLIM_IAT_BASE]` (≠ win32 slot0 until slots migrate).
+pub const S1_SLIM_IAT_BASE: u32 = S1_SLIM_DATA_VS - S1_SLIM_IAT_PAD as u32;
+
+/// S1.5 — minimal PE32+ for in-DLL codegen (S3.89: +VirtualAlloc IAT, tiny `.data`).
 ///
 /// Layout mirrors `pe_link::link_pe_impl` startup (`lea r15,[rip+disp]; jmp code`)
 /// but with `.data` VS = [`S1_SLIM_DATA_VS`] so the image fits in ~6–8 KiB.
@@ -746,11 +752,12 @@ pub fn wrap_pe_slim_bytes(
             ),
         });
     }
-    if data.len() > S1_SLIM_DATA_VS as usize {
+    if data.len() > S1_SLIM_IAT_BASE as usize {
         return Err(IsaError::PlatformError {
             msg: format!(
-                "s1 slim PE: data {} exceeds VS {}",
+                "s1 slim PE: data {} overlaps IAT base 0x{:x} (VS {})",
                 data.len(),
+                S1_SLIM_IAT_BASE,
                 S1_SLIM_DATA_VS
             ),
         });
@@ -763,6 +770,7 @@ pub fn wrap_pe_slim_bytes(
     const TEXT_RVA: u32 = SECTION_ALIGN; // 0x1000
 
     let align_up = |v: u32, a: u32| (v + a - 1) & !(a - 1);
+    let align_up_usize = |v: usize, a: usize| (v + a - 1) & !(a - 1);
     let write_u16 = |buf: &mut [u8], off: usize, v: u16| {
         buf[off..off + 2].copy_from_slice(&v.to_le_bytes());
     };
@@ -857,8 +865,38 @@ pub fn wrap_pe_slim_bytes(
     let code_dst = text_file_off + PE_STARTUP_LEN as usize;
     img[code_dst..code_dst + code.len()].copy_from_slice(code);
 
+    // S3.89: VirtualAlloc-only IAT at high end of .data (r15+S1_SLIM_IAT_BASE).
     let data_file_off = (HEADERS_RAW + code_raw) as usize;
-    let copy_n = data.len().min(data_raw as usize);
+    let iat_base = S1_SLIM_IAT_BASE as usize;
+    let iat_off = iat_base;
+    let desc_off = iat_base + 0x10;
+    let dll_name_off = iat_base + 0x38;
+    let hn_off = iat_base + 0x46;
+    let ilt_off = iat_base + 0x58;
+    debug_assert_eq!(align_up_usize(0x58 + 16, 16), S1_SLIM_IAT_PAD);
+    let hn_rva = data_rva + hn_off as u32;
+    write_u64(&mut img, data_file_off + iat_off, hn_rva as u64);
+    write_u64(&mut img, data_file_off + ilt_off, hn_rva as u64);
+    write_u32(&mut img, data_file_off + desc_off, data_rva + ilt_off as u32);
+    write_u32(
+        &mut img,
+        data_file_off + desc_off + 12,
+        data_rva + dll_name_off as u32,
+    );
+    write_u32(
+        &mut img,
+        data_file_off + desc_off + 16,
+        data_rva + iat_off as u32,
+    );
+    img[data_file_off + dll_name_off..data_file_off + dll_name_off + 13]
+        .copy_from_slice(b"kernel32.dll\0");
+    img[data_file_off + hn_off] = 0;
+    img[data_file_off + hn_off + 1] = 0;
+    img[data_file_off + hn_off + 2..data_file_off + hn_off + 15]
+        .copy_from_slice(b"VirtualAlloc\0");
+    write_u32(&mut img, opt + 120, data_rva + desc_off as u32);
+    write_u32(&mut img, opt + 124, 40);
+    let copy_n = data.len().min(iat_base).min(data_raw as usize);
     img[data_file_off..data_file_off + copy_n].copy_from_slice(&data[..copy_n]);
 
     Ok(crate::pe_link::PeImage { bytes: img })
@@ -867,9 +905,9 @@ pub fn wrap_pe_slim_bytes(
 /// File offset of user `.text` (after 13-byte startup) in slim PE images.
 pub const S1_SLIM_TEXT_PAYLOAD_OFF: usize = 0x400 + 13;
 
-/// File offset of `.data` payload in slim PE (headers 0x400 + `.text` raw 0x200).
-/// File offset of `.data` payload — headers 0x400 + code_raw for max code.
+/// File offset of user `.data` payload — headers 0x400 + code_raw for max code.
 /// S3.7: code_raw = align(13+512)=0x400 → data at 0x800 (was 0x600 at 256).
+/// S3.89: IAT at high end — user payload offset unchanged.
 pub const S1_SLIM_DATA_PAYLOAD_OFF: usize = 0x400 + 0x400;
 
 /// S1.5.b / S1.7.a–f in-DLL mini-ISA (must stay in sync with `pe_dll_link` export body).

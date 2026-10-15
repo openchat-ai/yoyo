@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.89**：S3.88 multi ADD/SUB any-slot 已 GREEN；下一刀平台真 I/O（**非**假 CLOSED）。
+**默认 `继续` = S3.90**：S3.89 slim VirtualAlloc IAT scaffold 已 GREEN；下一刀 ALLOC→IAT（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -561,25 +561,26 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.86** | ✅ 已本地提交 | multi LDB any-slot≤255 disp8\|disp32；marker `yoyo_in_dll_s3_multi_ldb32` | commit `9da56b7` |
 | **S3.87** | ✅ 已本地提交 | multi MEMCPY_DATA/STATE any-slot≤255 disp8\|disp32；marker `yoyo_in_dll_s3_multi_mcp32` | commit `1817346` |
 | **S3.88** | ✅ 已本地提交 | multi ADD/SUB any-slot≤255 disp8\|disp32；marker `yoyo_in_dll_s3_multi_addsub32` | commit `fc75f75` |
-| **S3.89+** | ⏳ 未开始 | 平台真 I/O（ALLOC/LOAD/WRITE ≠ SET stub） | 真自举长杆 |
+| **S3.89** | ✅ 已本地提交 | slim PE VirtualAlloc-only IAT @ `S1_SLIM_IAT_BASE`；ALLOC 仍 stub；marker `yoyo_in_dll_s3_slim_iat` | commit `TBD` |
+| **S3.90+** | ⏳ 未开始 | ALLOC 真 call IAT / LOAD·WRITE / 平台真 I/O | 真自举长杆 |
 
-> **写法**：已完成 S3.1–S3.88 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
+> **写法**：已完成 S3.1–S3.89 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
 
-#### 当前诚实缺口（multi→JE · 更新至 S3.88）
+#### 当前诚实缺口（multi→JE · 更新至 S3.89）
 
 | 已进 multi / s1（非 JE） | 仍掉 JE / 未做 |
 |---|---|
-| argc0 bake；LABEL；JMP/CALL/JCC 真 rel32；RAW*；DATA/STR；SET/GET/MOVRR/INC/DEC/CMP/IMUL/ALU-V/LDB/MEMCPY/ADD/SUB **any slot** | 平台 **真** I/O（ALLOC/LOAD/WRITE 仍 =SET stub） |
+| argc0 bake；LABEL；JMP/CALL/JCC 真 rel32；RAW*；DATA/STR；SET/GET/MOVRR/INC/DEC/CMP/IMUL/ALU-V/LDB/MEMCPY/ADD/SUB **any slot**；slim PE **VirtualAlloc IAT scaffold** | ALLOC/LOAD/WRITE **仍 =SET stub**（IAT 未接线）；平台真 I/O |
 
-#### S3.89 — platform true I/O（本步 · 未开始）
+#### S3.90 — ALLOC emit → call slim IAT（本步 · 未开始）
 
 | 项 | 内容 |
 |---|---|
-| 切片 | multi/s1 ALLOC/LOAD/WRITE 真 Win64 I/O（非 SET stub）；**不**假 CLOSED |
-| 验收 | sidecar GREEN；marker TBD |
-| 诚实 | OW-RT 仍 CUT · `closed=0`；真 I/O 是长杆 |
+| 切片 | multi/s1 ALLOC → `call [r15+S1_SLIM_IAT_BASE]` + store；**不**假 CLOSED |
+| 验收 | sidecar byte-exact / runnable GREEN；marker TBD |
+| 诚实 | LOAD/WRITE 仍 stub；OW-RT 仍 CUT · `closed=0` |
 
-**默认 `继续` = S3.89**。
+**默认 `继续` = S3.90**。
 
 ### 立项约束
 
@@ -748,4 +749,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 
 *创建：2026-08-31 · v1.0 毕业后 · post-v1.0 path 2 关洞 · 模板对齐 STAGE16_OWNER_CHECKLIST.md*
 
-**当前分支诚实快照（2026-10-15 · + S3.88）**：multi ADD/SUB any-slot GREEN · 默认 `继续`=**S3.89**（平台真 I/O）· OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag** · （历史逐步快照已折叠；见 git）
+**当前分支诚实快照（2026-10-15 · + S3.89）**：slim VirtualAlloc IAT scaffold GREEN · 默认 `继续`=**S3.90**（ALLOC→IAT）· OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag** · （历史逐步快照已折叠；见 git）
