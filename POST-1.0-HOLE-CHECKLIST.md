@@ -598,7 +598,7 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.53** | ✅ 已本地提交 | multi→JE 剩余面盘点（docs）；控制流/变参/平台 stub 仍 JE | commit `b78a596` |
 | **S3.54** | ✅ 已本地提交 | multi JMP argc1 → E9 00 00 00 00 stub；marker `yoyo_in_dll_s3_multi_jmp` | commit `0c7417d` |
 | **S3.55** | ✅ 已本地提交 | multi CALL argc1 → E8 00 00 00 00 stub；marker `yoyo_in_dll_s3_multi_call` | commit `2500a96` |
-| **S3.56** | ✅ 已本地提交 | multi JE(0x71) argc1 → 0F 84 00 00 00 00 stub；marker `yoyo_in_dll_s3_multi_je` | commit `TBD` |
+| **S3.56** | ✅ 已本地提交 | multi JE(0x71) argc1 → 0F 84 00 00 00 00 stub；marker `yoyo_in_dll_s3_multi_je` | commit `06933cb` |
 | **S3.57+** | ⏳ 未开始 | 其余 JCC-undef / 扩模板 / 替换剩余 JE | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
