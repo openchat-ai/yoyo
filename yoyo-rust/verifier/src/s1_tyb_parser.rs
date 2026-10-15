@@ -936,6 +936,11 @@ fn mini_slot_disp8_ok(slot: u16) -> bool {
     (slot as u32) * 8 < 0x80
 }
 
+/// S3.78: SET/platform-stub accept slot≤255 (disp8 or disp32).
+fn mini_slot_any_ok(slot: u16) -> bool {
+    slot <= 255
+}
+
 /// Validate TYB against the in-DLL mini-ISA (argc + slot disp8 limit).
 pub fn validate_tyb_mini(prog: &TybProgram) -> crate::types::IsaResult<()> {
     use crate::types::IsaError;
@@ -977,10 +982,10 @@ pub fn validate_tyb_mini(prog: &TybProgram) -> crate::types::IsaResult<()> {
                     );
                 }
                 let slot = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]);
-                if !mini_slot_disp8_ok(slot) {
+                if !mini_slot_any_ok(slot) {
                     return bad(
                         i,
-                        format!("s1 mini platform-stub slot {slot} disp32 unsupported"),
+                        format!("s1 mini platform-stub slot {slot} out of range (>255)"),
                     );
                 }
             }
@@ -989,10 +994,10 @@ pub fn validate_tyb_mini(prog: &TybProgram) -> crate::types::IsaResult<()> {
                     return bad(i, format!("s1 mini SET requires argc=2, got {}", rec.argc));
                 }
                 let slot = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]);
-                if !mini_slot_disp8_ok(slot) {
+                if !mini_slot_any_ok(slot) {
                     return bad(
                         i,
-                        format!("s1 mini SET slot {slot} needs disp32 (in-DLL unsupported)"),
+                        format!("s1 mini SET slot {slot} out of range (>255)"),
                     );
                 }
             }
@@ -2723,6 +2728,25 @@ mod tests {
         let host = emit_x86(&parse_tyb(&tyb).unwrap());
         let got = slim_pe_user_text(&pe.bytes, host.text.len()).expect("slice");
         assert_eq!(got, host.text.as_slice());
+    }
+
+    /// S3.78: mini accepts SET slot≥16 (disp32).
+    #[test]
+    fn compile_tyb_to_pe_mini_set_slot32_text() {
+        let tyb = tyb_from_records(&[
+            (0x30, 2, [0x10, 0, 0xEF, 0xBE, 0xAD, 0xDE]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let pe = compile_tyb_to_pe_mini(&tyb).expect("mini slot16");
+        let host = emit_x86(&parse_tyb(&tyb).unwrap());
+        let got = slim_pe_user_text(&pe.bytes, host.text.len()).expect("slice");
+        assert_eq!(got, host.text.as_slice());
+        assert_eq!(
+            &host.text[..17],
+            &[
+                0x48, 0xB8, 0xEF, 0xBE, 0xAD, 0xDE, 0, 0, 0, 0, 0x49, 0x89, 0x87, 0x80, 0, 0, 0
+            ]
+        );
     }
 
     #[test]
