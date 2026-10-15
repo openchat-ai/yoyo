@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.59**：S3.58 multi JCC 0x73..=0x7A 表驱动 undef stub 已 GREEN；下一刀真 label patch 或扩模板（**非**假 CLOSED）。
+**默认 `继续` = S3.60**：S3.59 multi SET slot0 any-imm 直 emit 已 GREEN；下一刀 ADD/GET 变参或真 label patch（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -601,7 +601,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.56** | ✅ 已本地提交 | multi JE(0x71) argc1 → 0F 84 00 00 00 00 stub；marker `yoyo_in_dll_s3_multi_je` | commit `06933cb` |
 | **S3.57** | ✅ 已本地提交 | multi JNE(0x72) argc1 → 0F 85 00 00 00 00 stub；marker `yoyo_in_dll_s3_multi_jne` | commit `c0a23a4` |
 | **S3.58** | ✅ 已本地提交 | multi JCC 0x73..=0x7A 表驱动 → 0F cc 00..00 stub；marker `yoyo_in_dll_s3_multi_jcc` | commit `049f0c9` |
-| **S3.59+** | ⏳ 未开始 | 真 label rel32 patch / 扩模板 / 替换剩余 JE | 真自举长杆 |
+| **S3.59** | ✅ 已本地提交 | multi SET slot0 any imm32 直 emit（非 DEADBEEF-only）；marker `yoyo_in_dll_s3_multi_set_imm` | commit `TBD` |
+| **S3.60+** | ⏳ 未开始 | ADD/GET 变参 / 真 label patch / 替换剩余 JE | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -1276,6 +1277,16 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 
 **默认 `继续` = S3.59**。
 
+#### S3.59 — multi SET slot0 any-imm 直 emit（本步）
+
+| 项 | 内容 |
+|---|---|
+| 切片 | multi 扫到 SET argc=2 slot=0 → 从记录读 imm32 直 emit `48 B8 imm64 + 49 89 47 00`；**不再**要求 DEADBEEF / **不**假 CLOSED |
+| 验收 | sidecar SET(0x12345678)+RET → 15B GREEN；DEADBEEF 旧路径仍 GREEN；marker `yoyo_in_dll_s3_multi_set_imm` |
+| 诚实 | SET 非 slot0 / ADD 非 +5 / GET 非 0←1 / 真 label patch 仍 JE；OW-RT 仍 CUT |
+
+**默认 `继续` = S3.60**。
+
 ### 立项约束
 
 - 本路线**不是 post-v1.0 关洞的延续**，是**新主线**
@@ -1568,3 +1579,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-15 · + S3.56）**：multi JE-undef stub GREEN · 默认 `继续`=**S3.57** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-15 · + S3.57）**：multi JNE-undef stub GREEN · 默认 `继续`=**S3.58** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-15 · + S3.58）**：multi JCC-rest 表驱动 undef GREEN · 默认 `继续`=**S3.59** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-15 · + S3.59）**：multi SET any-imm 直 emit GREEN · 默认 `继续`=**S3.60** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
