@@ -1215,6 +1215,9 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
     let s3_multi_ldb_oo_marker: &[u8] = b"yoyo_in_dll_s3_multi_ldb_oo\0";
     let s3_multi_ldb_oo_marker_off = off;
     off += s3_multi_ldb_oo_marker.len() as u32;
+    let s3_multi_mcpd_marker: &[u8] = b"yoyo_in_dll_s3_multi_mcpd\0";
+    let s3_multi_mcpd_marker_off = off;
+    off += s3_multi_mcpd_marker.len() as u32;
     // S3.58: cc bytes for TYB JCC 0x73..=0x7A (JL..JA); index = op - 0x73
     let s3_jcc_rest_cc: &[u8] = &[0x8C, 0x8D, 0x8E, 0x8F, 0x82, 0x83, 0x86, 0x87];
     let s3_jcc_rest_cc_off = off;
@@ -1327,6 +1330,8 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
         s3_multi_ldb_marker_off,
         s3_multi_ldb_oo_marker,
         s3_multi_ldb_oo_marker_off,
+        s3_multi_mcpd_marker,
+        s3_multi_mcpd_marker_off,
         s3_jcc_rest_cc,
         s3_jcc_rest_cc_off,
         s3_aluv_ops,
@@ -1447,6 +1452,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     s3_multi_ldb_marker_off: u32,
     s3_multi_ldb_oo_marker: &[u8],
     s3_multi_ldb_oo_marker_off: u32,
+    s3_multi_mcpd_marker: &[u8],
+    s3_multi_mcpd_marker_off: u32,
     s3_jcc_rest_cc: &[u8],
     s3_jcc_rest_cc_off: u32,
     s3_aluv_ops: &[u8],
@@ -3146,12 +3153,71 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x48, 0x8D, 0x4E, 0x08]);
     let s3_jmp_finish_mt_ldb = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    // S3.74: MEMCPY_DATA argc=3 slot<16 → load src/dst/n + rep movsb (14B)
+    let s3_mt_mcpd = export_code.len();
+    patch_jcc32(&mut export_code, s3_jne_mt_ldb, s3_mt_mcpd);
+    patch_jcc32(&mut export_code, s3_jne_mt_ldb_a, s3_mt_mcpd);
+    patch_jcc32(&mut export_code, s3_jae_mt_ldb_d, s3_mt_mcpd);
+    patch_jcc32(&mut export_code, s3_jae_mt_ldb_s, s3_mt_mcpd);
+    export_code.extend_from_slice(&[0x80, 0x3A, 0x84]); // MEMCPY_DATA
+    let s3_jne_mt_mcpd = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x80, 0x7A, 0x01, 0x03]); // argc=3
+    let s3_jne_mt_mcpd_a = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x02]); // dst
+    export_code.extend_from_slice(&[0x83, 0xF8, 0x10]);
+    let s3_jae_mt_mcpd_d = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x4A, 0x04]); // src
+    export_code.extend_from_slice(&[0x83, 0xF9, 0x10]);
+    let s3_jae_mt_mcpd_s = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x06]); // n
+    export_code.extend_from_slice(&[0x83, 0xF8, 0x10]);
+    let s3_jae_mt_mcpd_n = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x48, 0x83, 0xC0, 0x0E]); // +14
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
+    let s3_jae_fail_mt_mcpd = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x02]); // dst
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x4A, 0x04]); // src
+    export_code.extend_from_slice(&[0x44, 0x0F, 0xB7, 0x42, 0x06]); // r8d=n
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]); // dst*8
+    export_code.extend_from_slice(&[0xC1, 0xE1, 0x03]); // src*8
+    export_code.extend_from_slice(&[0x41, 0xC1, 0xE0, 0x03]); // n*8
+    // 49 8B 77 src | 49 8B 7F dst | 49 8B 4F n | F3 A4
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x8B]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x02, 0x77]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x4C, 0x24, 0x03]); // src*8
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x04, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x05, 0x8B]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x06, 0x7F]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x07]); // dst*8
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x08, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x09, 0x8B]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0A, 0x4F]);
+    export_code.extend_from_slice(&[0x45, 0x88, 0x44, 0x24, 0x0B]); // n*8
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0C, 0xF3]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0D, 0xA4]);
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x0E]);
+    export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]);
+    export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]);
+    let s3_jnz_mt_mcpd = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x4E, 0x08]);
+    let s3_jmp_finish_mt_mcpd = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     // no template match → fall_s1
     let s3_mt_fail = export_code.len();
-    patch_jcc32(&mut export_code, s3_jne_mt_ldb, s3_mt_fail);
-    patch_jcc32(&mut export_code, s3_jne_mt_ldb_a, s3_mt_fail);
-    patch_jcc32(&mut export_code, s3_jae_mt_ldb_d, s3_mt_fail);
-    patch_jcc32(&mut export_code, s3_jae_mt_ldb_s, s3_mt_fail);
+    patch_jcc32(&mut export_code, s3_jne_mt_mcpd, s3_mt_fail);
+    patch_jcc32(&mut export_code, s3_jne_mt_mcpd_a, s3_mt_fail);
+    patch_jcc32(&mut export_code, s3_jae_mt_mcpd_d, s3_mt_fail);
+    patch_jcc32(&mut export_code, s3_jae_mt_mcpd_s, s3_mt_fail);
+    patch_jcc32(&mut export_code, s3_jae_mt_mcpd_n, s3_mt_fail);
     let s3_jmp_mt_fail = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp fall_s1
 
@@ -4295,6 +4361,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     patch_rel32(&mut export_code, s3_jmp_finish_mt_raws, s1_finish);
     patch_rel32(&mut export_code, s3_jmp_finish_mt_data, s1_finish);
     patch_rel32(&mut export_code, s3_jmp_finish_mt_ldb, s1_finish);
+    patch_rel32(&mut export_code, s3_jmp_finish_mt_mcpd, s1_finish);
     patch_jcc32(&mut export_code, s3_jnz_mt_label, s3_multi_emit);
     patch_jcc32(&mut export_code, s3_jnz_mt_jmp, s3_multi_emit);
     patch_jcc32(&mut export_code, s3_jnz_mt_call, s3_multi_emit);
@@ -4315,6 +4382,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     patch_jcc32(&mut export_code, s3_jnz_mt_raws, s3_multi_emit);
     patch_jcc32(&mut export_code, s3_jnz_mt_data, s3_multi_emit);
     patch_jcc32(&mut export_code, s3_jnz_mt_ldb, s3_multi_emit);
+    patch_jcc32(&mut export_code, s3_jnz_mt_mcpd, s3_multi_emit);
     // Pass 2: for i in 0..n_patches: lookup label, write rel32
     export_code.extend_from_slice(&[0x31, 0xF6]); // esi = 0 (patch index)
     let s1_p2_loop = export_code.len();
@@ -4534,6 +4602,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         s3_ja_fail_mt_data, // S3.71 multi DATA/STR cap overflow
         s3_jae_fail_mt_ldb, // S3.72 multi LDB oo0 overflow
         s3_jae_fail_mt_ldb19, // S3.73 multi LDB oo≠0 overflow
+        s3_jae_fail_mt_mcpd, // S3.74 multi MEMCPY_DATA overflow
     ];
 
         // Patch jumps
@@ -4778,6 +4847,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     exp[s3_multi_ldb_oo_marker_off as usize
         ..s3_multi_ldb_oo_marker_off as usize + s3_multi_ldb_oo_marker.len()]
         .copy_from_slice(s3_multi_ldb_oo_marker);
+    exp[s3_multi_mcpd_marker_off as usize
+        ..s3_multi_mcpd_marker_off as usize + s3_multi_mcpd_marker.len()]
+        .copy_from_slice(s3_multi_mcpd_marker);
     exp[s3_jcc_rest_cc_off as usize
         ..s3_jcc_rest_cc_off as usize + s3_jcc_rest_cc.len()]
         .copy_from_slice(s3_jcc_rest_cc);
@@ -5575,6 +5647,10 @@ mod tests {
         assert!(
             ascii.contains("yoyo_in_dll_s3_multi_ldb_oo"),
             "S3.73 multi LDB oo≠0 marker must be baked into .rdata"
+        );
+        assert!(
+            ascii.contains("yoyo_in_dll_s3_multi_mcpd"),
+            "S3.74 multi MEMCPY_DATA marker must be baked into .rdata"
         );
         assert!(
             ascii.contains("yoyo_in_dll_s3_table_bake"),
@@ -6665,6 +6741,40 @@ mod tests {
             0xC3,
         ];
         assert_eq!(&out[off..off + 21], &expect, "LDB oo5 + NOP + RET");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.74: MEMCPY_DATA dst/src/n slot<16 + NOP + RET — multi 14B emit.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_sidecar_in_dll_s3_tyb_multi_mcpd() {
+        let dir = temp_work("in-dll-s3-tyb-multi-mcpd");
+        let mut tyb = Vec::new();
+        tyb.extend_from_slice(b"TYB\0");
+        tyb.extend_from_slice(&[0, 0]);
+        tyb.extend_from_slice(&3u16.to_le_bytes());
+        tyb.push(0x84);
+        tyb.push(3);
+        tyb.extend_from_slice(&[0x01, 0x00, 0x02, 0x00, 0x03, 0x00]); // dst=1 src=2 n=3
+        tyb.push(0x00);
+        tyb.push(0);
+        tyb.extend_from_slice(&[0u8; 6]);
+        tyb.push(0xFF);
+        tyb.push(0);
+        tyb.extend_from_slice(&[0u8; 6]);
+        std::fs::write(dir.join("input.tyb"), &tyb).expect("write tyb");
+        assert_eq!(yoyo_sidecar_in_dll_recompile(&dir), EXIT_OK);
+        let out = std::fs::read(dir.join(OUTPUT_NAME)).expect("output.exe");
+        let off = crate::s1_tyb_parser::S1_SLIM_TEXT_PAYLOAD_OFF;
+        let expect: [u8; 16] = [
+            0x49, 0x8B, 0x77, 0x10, // mov rsi,[r15+16] src2
+            0x49, 0x8B, 0x7F, 0x08, // mov rdi,[r15+8] dst1
+            0x49, 0x8B, 0x4F, 0x18, // mov rcx,[r15+24] n3
+            0xF3, 0xA4, // rep movsb
+            0x90, // NOP
+            0xC3,
+        ];
+        assert_eq!(&out[off..off + 16], &expect, "MEMCPY_DATA + NOP + RET");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
