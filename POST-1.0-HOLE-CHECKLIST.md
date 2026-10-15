@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.84**：S3.83 multi CMP any-slot 已 GREEN；下一刀 IMUL/ALU-V/… slot≥16（**非**假 CLOSED）。
+**默认 `继续` = S3.85**：S3.84 multi IMUL any-slot 已 GREEN；下一刀 ALU-V/LDB/… slot≥16（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -556,26 +556,27 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.81** | ✅ 已本地提交 | multi INC any-slot≤255 disp8\|disp32；multi 入口 guard `rec_cnt≥3`；marker `yoyo_in_dll_s3_multi_inc32` | commit `f44fe61` |
 | **S3.82** | ✅ 已本地提交 | multi DEC any-slot≤255 disp8\|disp32；marker `yoyo_in_dll_s3_multi_dec32` | commit `1868f1a` |
 | **S3.83** | ✅ 已本地提交 | multi CMP any-slot≤255 disp8\|disp32；marker `yoyo_in_dll_s3_multi_cmp32` | commit `9a54d8c` |
-| **S3.84+** | ⏳ 未开始 | IMUL/ALU-V/LDB/MEMCPY slot≥16 / 平台真 I/O | 真自举长杆 |
+| **S3.84** | ✅ 已本地提交 | multi IMUL any-slot≤255 disp8\|disp32；marker `yoyo_in_dll_s3_multi_imul32` | commit `TBD` |
+| **S3.85+** | ⏳ 未开始 | ALU-V/LDB/MEMCPY slot≥16 / 平台真 I/O | 真自举长杆 |
 
-> **写法**：已完成 S3.1–S3.83 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
+> **写法**：已完成 S3.1–S3.84 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
 
-#### 当前诚实缺口（multi→JE · 更新至 S3.83）
+#### 当前诚实缺口（multi→JE · 更新至 S3.84）
 
 | 已进 multi / s1（非 JE） | 仍掉 JE / 未做 |
 |---|---|
 | argc0 bake；LABEL；JMP/CALL/JCC 真 rel32；RAW*；DATA/STR；LDB；MEMCPY_* | 平台 **真** I/O（ALLOC/LOAD/WRITE 仍 =SET stub） |
-| SET/GET/MOVRR/INC/DEC/CMP **any slot**；ADD/SUB slot0；IMUL/ALU-V **disp8 slot<16** | IMUL/ALU-V/LDB/MEMCPY slot≥16 |
+| SET/GET/MOVRR/INC/DEC/CMP/IMUL **any slot**；ADD/SUB slot0；ALU-V **disp8 slot<16** | ALU-V/LDB/MEMCPY slot≥16 |
 
-#### S3.84 — multi IMUL any-slot disp8|disp32（本步 · 未开始）
+#### S3.85 — multi ALU-V any-slot disp8|disp32（本步 · 未开始）
 
 | 项 | 内容 |
 |---|---|
-| 切片 | multi IMUL dst/src slot≤255：load/imul/store disp8\|disp32；**不**假 CLOSED |
-| 验收 | sidecar byte-exact GREEN；marker `yoyo_in_dll_s3_multi_imul32` |
-| 诚实 | ALU-V/其它仍 JE；平台仍 stub；OW-RT 仍 CUT · `closed=0` |
+| 切片 | multi ADDV/ORV/SUBV dst/src slot≤255：load/alu/store disp8\|disp32；**不**假 CLOSED |
+| 验收 | sidecar byte-exact GREEN；marker `yoyo_in_dll_s3_multi_aluv32` |
+| 诚实 | LDB/MEMCPY slot≥16 仍 JE；平台仍 stub；OW-RT 仍 CUT · `closed=0` |
 
-**默认 `继续` = S3.84**。
+**默认 `继续` = S3.85**。
 
 ### 立项约束
 
