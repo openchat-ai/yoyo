@@ -601,7 +601,7 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.56** | ✅ 已本地提交 | multi JE(0x71) argc1 → 0F 84 00 00 00 00 stub；marker `yoyo_in_dll_s3_multi_je` | commit `06933cb` |
 | **S3.57** | ✅ 已本地提交 | multi JNE(0x72) argc1 → 0F 85 00 00 00 00 stub；marker `yoyo_in_dll_s3_multi_jne` | commit `c0a23a4` |
 | **S3.58** | ✅ 已本地提交 | multi JCC 0x73..=0x7A 表驱动 → 0F cc 00..00 stub；marker `yoyo_in_dll_s3_multi_jcc` | commit `049f0c9` |
-| **S3.59** | ✅ 已本地提交 | multi SET slot0 any imm32 直 emit（非 DEADBEEF-only）；marker `yoyo_in_dll_s3_multi_set_imm` | commit `TBD` |
+| **S3.59** | ✅ 已本地提交 | multi SET slot0 any imm32 直 emit（非 DEADBEEF-only）；marker `yoyo_in_dll_s3_multi_set_imm` | commit `4c938d5` |
 | **S3.60+** | ⏳ 未开始 | ADD/GET 变参 / 真 label patch / 替换剩余 JE | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
