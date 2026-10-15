@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.53**：S3.52 multi LABEL skip 已绿；下一刀非模板 op 仍 JE / 扩模板（**非**假 CLOSED）。
+**默认 `继续` = S3.54**：S3.53 multi→JE 剩余面盘点已记；下一刀试点 JMP/CALL 或扩模板（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -595,7 +595,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.50** | ✅ 已本地提交 | mixed-argc 前缀 bake→JE；marker `yoyo_in_dll_s3_multi_mixed` | commit `299fbbe` |
 | **S3.51** | ✅ 已本地提交 | multi 固定模板带参也 bake 扫表；marker `yoyo_in_dll_s3_multi_tmpl` | commit `bb485a8` |
 | **S3.52** | ✅ 已本地提交 | multi LABEL argc1 skip（无 .text）；marker `yoyo_in_dll_s3_multi_label` | commit `673297e` |
-| **S3.53+** | ⏳ 未开始 | 非模板 op 仍 JE / 扩模板 / 替换剩余 JE | 真自举长杆 |
+| **S3.53** | ✅ 已本地提交 | multi→JE 剩余面盘点（docs）；控制流/变参/平台 stub 仍 JE | PLACEHOLDER_S353 |
+| **S3.54+** | ⏳ 未开始 | 试点 JMP/CALL 或扩模板 / 替换剩余 JE | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -1196,6 +1197,30 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 
 **默认 `继续` = S3.53**。
 
+#### S3.53 — multi→JE 剩余面盘点（本步 · docs-only）
+
+**今日 multi 已 bake / skip 的**
+
+| 类 | 覆盖 |
+|---|---|
+| argc0 | RET/NOP（及表内其它 argc0）扫 bake |
+| 固定模板 argc>0 | SET/GET/INC/ADD/DEC/SUB/MOVRR/CMP |
+| 无输出 | LABEL argc=1 skip |
+
+**仍掉进 `s1_loop` JE 的（诚实缺口）**
+
+| 类 | 例 | 为何难 |
+|---|---|---|
+| 控制流 | JMP/JCC/CALL | 需 label 表 + rel32 patch（非定长模板） |
+| 变参模板 | SET 非 DEADBEEF；ADD 非 +5；GET 非 0←1 | bake 行是固定立即数 |
+| 平台 stub | ALLOC/LOAD_FILE/WRITE_FILE | stub 语义非表驱动 |
+| 内存/数据 | LDB/MEMCPY_*/DATA/STR/RAW* | 依赖运行时指针/长度 |
+| 其它算术 | IMUL/ADDV/ORV/SUBV；非固定槽位 INC/DEC | 未进 10 行 bake |
+
+**推荐 S3.54 最小切片**：挑一个控制流空操作外的 JE 面做试点（如未定义 LABEL 的 JMP→留下 rel32=0 的定长 emit），或扩 bake 行（新固定立即数变体）——**禁止**假 CLOSED。
+
+**默认 `继续` = S3.54**。
+
 ### 立项约束
 
 - 本路线**不是 post-v1.0 关洞的延续**，是**新主线**
@@ -1482,3 +1507,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S3.50）**：mixed-argc 前缀 bake→JE GREEN · 默认 `继续`=**S3.51** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-15 · + S3.51）**：multi 固定模板带参 bake GREEN · 默认 `继续`=**S3.52** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-15 · + S3.52）**：multi LABEL skip GREEN · 默认 `继续`=**S3.53** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-15 · + S3.53）**：multi→JE 剩余面盘点（docs）· 默认 `继续`=**S3.54** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
