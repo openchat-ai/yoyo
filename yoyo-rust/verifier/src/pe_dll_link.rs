@@ -1266,6 +1266,9 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
     let s3_slim_iat_marker: &[u8] = b"yoyo_in_dll_s3_slim_iat\0";
     let s3_slim_iat_marker_off = off;
     off += s3_slim_iat_marker.len() as u32;
+    let s3_multi_alloc_iat_marker: &[u8] = b"yoyo_in_dll_s3_multi_alloc_iat\0";
+    let s3_multi_alloc_iat_marker_off = off;
+    off += s3_multi_alloc_iat_marker.len() as u32;
     // S3.58: cc bytes for TYB JCC 0x73..=0x7A (JL..JA); index = op - 0x73
     let s3_jcc_rest_cc: &[u8] = &[0x8C, 0x8D, 0x8E, 0x8F, 0x82, 0x83, 0x86, 0x87];
     let s3_jcc_rest_cc_off = off;
@@ -1410,6 +1413,8 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
         s3_multi_addsub32_marker_off,
         s3_slim_iat_marker,
         s3_slim_iat_marker_off,
+        s3_multi_alloc_iat_marker,
+        s3_multi_alloc_iat_marker_off,
         s3_jcc_rest_cc,
         s3_jcc_rest_cc_off,
         s3_aluv_ops,
@@ -1562,6 +1567,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     s3_multi_addsub32_marker_off: u32,
     s3_slim_iat_marker: &[u8],
     s3_slim_iat_marker_off: u32,
+    s3_multi_alloc_iat_marker: &[u8],
+    s3_multi_alloc_iat_marker_off: u32,
     s3_jcc_rest_cc: &[u8],
     s3_jcc_rest_cc_off: u32,
     s3_aluv_ops: &[u8],
@@ -2606,14 +2613,14 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     patch_jcc32(&mut export_code, s3_jb_mt_jcc, s3_mt_after_jcc);
     patch_jcc32(&mut export_code, s3_ja_mt_jcc, s3_mt_after_jcc);
     patch_jcc32(&mut export_code, s3_jne_mt_jcc_a, s3_mt_after_jcc);
-    // S3.51/S3.59/S3.76/S3.77: SET + ALLOC/LOAD/WRITE stub — any slot≤255 (disp8|disp32)
+    // S3.51/S3.59/S3.76/S3.77/S3.90: SET + LOAD/WRITE stub; ALLOC → slim IAT
     export_code.extend_from_slice(&[0x0F, 0xB6, 0x02]); // movzx eax, byte [rdx]
     export_code.extend_from_slice(&[0x3C, 0x30]); // SET
     let s3_je_mt_set = export_code.len();
     export_code.extend_from_slice(&[0x74, 0x00]);
-    export_code.extend_from_slice(&[0x3C, 0x20]); // ALLOC stub
+    export_code.extend_from_slice(&[0x3C, 0x20]); // ALLOC (S3.90 → IAT, near jcc)
     let s3_je_mt_alloc = export_code.len();
-    export_code.extend_from_slice(&[0x74, 0x00]);
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     export_code.extend_from_slice(&[0x3C, 0x50]); // LOAD_FILE stub
     let s3_je_mt_loadf = export_code.len();
     export_code.extend_from_slice(&[0x74, 0x00]);
@@ -2622,7 +2629,6 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jne after
     let s3_mt_set_body = export_code.len();
     patch_rel8(&mut export_code, s3_je_mt_set, s3_mt_set_body);
-    patch_rel8(&mut export_code, s3_je_mt_alloc, s3_mt_set_body);
     patch_rel8(&mut export_code, s3_je_mt_loadf, s3_mt_set_body);
     export_code.extend_from_slice(&[0x80, 0x7A, 0x01, 0x02]); // argc=2
     let s3_jne_mt_set_a = export_code.len();
@@ -2684,11 +2690,92 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x48, 0x8D, 0x4E, 0x08]); // lea rcx,[rsi+8]
     let s3_jmp_finish_mt_set = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp s1_finish
+    // S3.90: ALLOC any slot≤255 → VirtualAlloc([r15+S1_SLIM_IAT_BASE]) + store
+    let s3_mt_alloc = export_code.len();
+    patch_jcc32(&mut export_code, s3_je_mt_alloc, s3_mt_alloc);
+    export_code.extend_from_slice(&[0x80, 0x7A, 0x01, 0x02]); // argc=2
+    let s3_jne_mt_alloc_a = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x4A, 0x02]); // slot
+    export_code.extend_from_slice(&[0x81, 0xF9, 0x00, 0x01, 0x00, 0x00]);
+    let s3_jae_mt_alloc_s = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    // size: 34 + (slot<16?4:7) = 38 | 41
+    export_code.extend_from_slice(&[0xB8, 0x26, 0x00, 0x00, 0x00]); // 38
+    export_code.extend_from_slice(&[0x41, 0xBA, 0x29, 0x00, 0x00, 0x00]); // 41
+    export_code.extend_from_slice(&[0x83, 0xF9, 0x10]);
+    export_code.extend_from_slice(&[0x41, 0x0F, 0x43, 0xC2]);
+    export_code.extend_from_slice(&[0x49, 0x89, 0xC0]);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x4C, 0x01, 0xC0]);
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
+    let s3_jae_fail_mt_alloc = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    // emit prologue + VirtualAlloc args + call IAT
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x48]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x83]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x02, 0xEC]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x03, 0x28]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x04, 0x31]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x05, 0xC9]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x06, 0xBA]);
+    export_code.extend_from_slice(&[0x8B, 0x42, 0x04]); // size imm32
+    export_code.extend_from_slice(&[0x41, 0x89, 0x44, 0x24, 0x07]);
+    // 41 B8 00 30 00 00 — mov r8d, MEM_COMMIT|RESERVE
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0B, 0x41]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0C, 0xB8]);
+    export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x0D]);
+    export_code.extend_from_slice(&0x0000_3000u32.to_le_bytes());
+    // 41 B9 04 00 00 00 — mov r9d, PAGE_READWRITE
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x11, 0x41]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x12, 0xB9]);
+    export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x13]);
+    export_code.extend_from_slice(&0x0000_0004u32.to_le_bytes());
+    // 41 FF 97 F90 00 00 00 — call [r15+S1_SLIM_IAT_BASE]
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x17, 0x41]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x18, 0xFF]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x19, 0x97]);
+    export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x1A]);
+    export_code.extend_from_slice(&crate::s1_tyb_parser::S1_SLIM_IAT_BASE.to_le_bytes());
+    // 48 83 C4 28
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x1E, 0x48]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x1F, 0x83]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x20, 0xC4]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x21, 0x28]);
+    // store rax → slot
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x4A, 0x02]);
+    export_code.extend_from_slice(&[0xC1, 0xE1, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x22, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x23, 0x89]);
+    export_code.extend_from_slice(&[0x66, 0x83, 0x7A, 0x02, 0x10]);
+    let s3_jae_mt_alloc_st32 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x24, 0x47]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x4C, 0x24, 0x25]);
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x26]); // +38
+    let s3_jmp_mt_alloc_done = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let s3_mt_alloc_st32 = export_code.len();
+    patch_jcc32(&mut export_code, s3_jae_mt_alloc_st32, s3_mt_alloc_st32);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x24, 0x87]);
+    export_code.extend_from_slice(&[0x41, 0x89, 0x4C, 0x24, 0x25]);
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x29]); // +41
+    let s3_mt_alloc_done = export_code.len();
+    patch_rel32(&mut export_code, s3_jmp_mt_alloc_done, s3_mt_alloc_done);
+    export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]);
+    export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]);
+    let s3_jnz_mt_alloc = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x4E, 0x08]);
+    let s3_jmp_finish_mt_alloc = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     // S3.62/S3.79: GET any dst/src slot≤255 (disp8|disp32) → direct emit
     let s3_mt_get = export_code.len();
     patch_jcc32(&mut export_code, s3_jne_mt_set, s3_mt_get);
     patch_jcc32(&mut export_code, s3_jne_mt_set_a, s3_mt_get);
     patch_jcc32(&mut export_code, s3_jae_mt_set_s, s3_mt_get);
+    patch_jcc32(&mut export_code, s3_jne_mt_alloc_a, s3_mt_get);
+    patch_jcc32(&mut export_code, s3_jae_mt_alloc_s, s3_mt_get);
     export_code.extend_from_slice(&[0x80, 0x3A, 0x60]); // GET
     let s3_jne_mt_get = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
@@ -5126,6 +5213,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     patch_rel32(&mut export_code, s3_jmp_finish_mt_jne, s1_finish);
     patch_rel32(&mut export_code, s3_jmp_finish_mt_jcc, s1_finish);
     patch_rel32(&mut export_code, s3_jmp_finish_mt_set, s1_finish);
+    patch_rel32(&mut export_code, s3_jmp_finish_mt_alloc, s1_finish);
     patch_rel32(&mut export_code, s3_jmp_finish_mt_add, s1_finish);
     patch_rel32(&mut export_code, s3_jmp_finish_mt_sub, s1_finish);
     patch_rel32(&mut export_code, s3_jmp_finish_mt_get, s1_finish);
@@ -5148,6 +5236,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     patch_jcc32(&mut export_code, s3_jnz_mt_jne, s3_multi_emit);
     patch_jcc32(&mut export_code, s3_jnz_mt_jcc, s3_multi_emit);
     patch_jcc32(&mut export_code, s3_jnz_mt_set, s3_multi_emit);
+    patch_jcc32(&mut export_code, s3_jnz_mt_alloc, s3_multi_emit);
     patch_jcc32(&mut export_code, s3_jnz_mt_add, s3_multi_emit);
     patch_jcc32(&mut export_code, s3_jnz_mt_sub, s3_multi_emit);
     patch_jcc32(&mut export_code, s3_jnz_mt_get, s3_multi_emit);
@@ -5370,6 +5459,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         s3_jae_fail_mt_jcc, // S3.58 multi JCC-rest stub overflow
         s3_jae_fail_mt_set, // S3.59 multi SET any-imm overflow (disp8)
         s3_jae_fail_mt_set17, // S3.77 multi SET disp32 overflow
+        s3_jae_fail_mt_alloc, // S3.90 multi ALLOC IAT overflow
         s3_jae_fail_mt_add, // S3.60 multi ADD any-imm overflow
         s3_jae_fail_mt_sub, // S3.61 multi SUB any-imm overflow
         s3_jae_fail_mt_get, // S3.62 multi GET disp8 overflow
@@ -5678,6 +5768,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     exp[s3_slim_iat_marker_off as usize
         ..s3_slim_iat_marker_off as usize + s3_slim_iat_marker.len()]
         .copy_from_slice(s3_slim_iat_marker);
+    exp[s3_multi_alloc_iat_marker_off as usize
+        ..s3_multi_alloc_iat_marker_off as usize + s3_multi_alloc_iat_marker.len()]
+        .copy_from_slice(s3_multi_alloc_iat_marker);
     exp[s3_jcc_rest_cc_off as usize
         ..s3_jcc_rest_cc_off as usize + s3_jcc_rest_cc.len()]
         .copy_from_slice(s3_jcc_rest_cc);
@@ -6539,6 +6632,10 @@ mod tests {
         assert!(
             ascii.contains("yoyo_in_dll_s3_slim_iat"),
             "S3.89 slim PE VirtualAlloc IAT marker must be baked into .rdata"
+        );
+        assert!(
+            ascii.contains("yoyo_in_dll_s3_multi_alloc_iat"),
+            "S3.90 multi ALLOC→IAT marker must be baked into .rdata"
         );
         assert!(
             ascii.contains("yoyo_in_dll_s3_table_bake"),
@@ -7895,11 +7992,11 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.76: ALLOC/LOAD/WRITE stub ≡ SET slot0 — multi keeps them in-path.
+    /// S3.76: LOAD/WRITE stub ≡ SET slot0 — multi keeps them in-path.
     #[test]
     #[cfg(windows)]
     fn yoyo_sidecar_in_dll_s3_tyb_multi_plat_stub() {
-        for (op, name) in [(0x20u8, "ALLOC"), (0x50u8, "LOAD"), (0x51u8, "WRITE")] {
+        for (op, name) in [(0x50u8, "LOAD"), (0x51u8, "WRITE")] {
             let dir = temp_work(&format!("in-dll-s3-tyb-multi-plat-{name}"));
             let mut tyb = Vec::new();
             tyb.extend_from_slice(b"TYB\0");
@@ -7927,6 +8024,45 @@ mod tests {
             assert_eq!(&out[off..off + 16], &expect, "{name} stub ≡ SET + NOP + RET");
             let _ = std::fs::remove_dir_all(&dir);
         }
+    }
+
+    /// S3.90: ALLOC slot1 size=0x1000 → VirtualAlloc via slim IAT + store.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_sidecar_in_dll_s3_tyb_multi_alloc_iat() {
+        let dir = temp_work("in-dll-s3-tyb-multi-alloc-iat");
+        let mut tyb = Vec::new();
+        tyb.extend_from_slice(b"TYB\0");
+        tyb.extend_from_slice(&[0, 0]);
+        tyb.extend_from_slice(&3u16.to_le_bytes());
+        tyb.push(0x20); // ALLOC
+        tyb.push(2);
+        tyb.extend_from_slice(&[0x01, 0x00, 0x00, 0x10, 0x00, 0x00]); // slot1 size=0x1000
+        tyb.push(0x00);
+        tyb.push(0);
+        tyb.extend_from_slice(&[0u8; 6]);
+        tyb.push(0xFF);
+        tyb.push(0);
+        tyb.extend_from_slice(&[0u8; 6]);
+        std::fs::write(dir.join("input.tyb"), &tyb).expect("write tyb");
+        assert_eq!(yoyo_sidecar_in_dll_recompile(&dir), EXIT_OK);
+        let out = std::fs::read(dir.join(OUTPUT_NAME)).expect("output.exe");
+        let off = crate::s1_tyb_parser::S1_SLIM_TEXT_PAYLOAD_OFF;
+        let iat = crate::s1_tyb_parser::S1_SLIM_IAT_BASE.to_le_bytes();
+        let expect = [
+            0x48, 0x83, 0xEC, 0x28, // sub rsp,0x28
+            0x31, 0xC9, // xor ecx,ecx
+            0xBA, 0x00, 0x10, 0x00, 0x00, // mov edx,0x1000
+            0x41, 0xB8, 0x00, 0x30, 0x00, 0x00, // r8d=MEM_COMMIT|RESERVE
+            0x41, 0xB9, 0x04, 0x00, 0x00, 0x00, // r9d=PAGE_READWRITE
+            0x41, 0xFF, 0x97, iat[0], iat[1], iat[2], iat[3], // call [r15+IAT]
+            0x48, 0x83, 0xC4, 0x28, // add rsp,0x28
+            0x49, 0x89, 0x47, 0x08, // store slot1
+            0x90, // NOP
+            0xC3,
+        ];
+        assert_eq!(&out[off..off + expect.len()], &expect, "ALLOC→IAT + NOP + RET");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.83: CMP a16,b1 + NOP + RET — multi mixed disp32/disp8 + cmp.
