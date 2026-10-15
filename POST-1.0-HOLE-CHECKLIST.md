@@ -540,27 +540,27 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.65** | ✅ 已本地提交 | multi DEC any slot<16 disp8 直 emit；marker `yoyo_in_dll_s3_multi_dec` | commit `b0fcfe3` |
 | **S3.66** | ✅ 已本地提交 | multi CMP any a/b slot<16 disp8 直 emit；marker `yoyo_in_dll_s3_multi_cmp` | commit `ca8018f` |
 | **S3.67** | ✅ 已本地提交 | multi LABEL 记位 + JMP/CALL/JCC push_patch→pass-2 真 rel32；marker `yoyo_in_dll_s3_multi_rel32` | commit `87b9d55` |
-| **S3.68+** | ⏳ 未开始 | 替换剩余 JE（平台 stub / slot≥16 / IMUL·ALU-V / 内存·DATA） | 真自举长杆 |
+| **S3.68** | ✅ 已本地提交 | multi IMUL any dst/src slot<16 disp8 直 emit；marker `yoyo_in_dll_s3_multi_imul` | commit `20e8567` |
+| **S3.69+** | ⏳ 未开始 | ADDV/ORV/SUBV / slot≥16 / 平台 stub / 内存·DATA | 真自举长杆 |
 
-> **写法**：已完成 S3.1–S3.67 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
+> **写法**：已完成 S3.1–S3.68 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
 
-#### 当前诚实缺口（multi→JE · 更新至 S3.67）
+#### 当前诚实缺口（multi→JE · 更新至 S3.68）
 
 | 已进 multi（非 JE） | 仍掉 `s1_loop` JE |
 |---|---|
-| argc0 bake；LABEL 记位 | 平台 stub 真语义（ALLOC/LOAD/WRITE 仍 =SET 记数） |
-| JMP/CALL/JCC 真 rel32（defined）+ undef=0 | slot≥16；IMUL/ADDV/ORV/SUBV；LDB/MEMCPY/DATA/STR/RAW* |
-| SET/ADD/SUB slot0 **any imm**；GET/MOVRR/INC/DEC/CMP **disp8 slot<16** | — |
+| argc0 bake；LABEL 记位；JMP/CALL/JCC 真 rel32 | 平台 stub 真语义（ALLOC/LOAD/WRITE 仍 =SET 记数） |
+| SET/ADD/SUB slot0 **any imm**；GET/MOVRR/INC/DEC/CMP/IMUL **disp8 slot<16** | slot≥16；ADDV/ORV/SUBV；LDB/MEMCPY/DATA/STR/RAW* |
 
-#### S3.68 — multi 剩余 JE 面（本步 · 未开始）
+#### S3.69 — multi ADDV/ORV/SUBV disp8（本步 · 未开始）
 
 | 项 | 内容 |
 |---|---|
-| 切片 | 从仍掉 `s1_loop` 的面选一刀（优先 IMUL/ALU-V 或 slot≥16 或平台 stub 最小语义）；**不**假 CLOSED |
-| 验收 | 对应该面 sidecar byte-exact / 行为 GREEN；marker 待定 |
-| 诚实 | 未选中的 JE 面仍在；OW-RT 仍 CUT · `closed=0` |
+| 切片 | multi 内 ADDV/ORV/SUBV any dst/src slot<16 直 emit（表驱动 alu opcode）；**不**假 CLOSED |
+| 验收 | sidecar `ADDV`/`ORV`/`SUBV` + NOP + RET byte-exact GREEN；marker 待定 |
+| 诚实 | 平台·内存·slot≥16 仍 JE；OW-RT 仍 CUT · `closed=0` |
 
-**默认 `继续` = S3.68**。
+**默认 `继续` = S3.69**。
 
 ### 立项约束
 
@@ -729,4 +729,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 
 *创建：2026-08-31 · v1.0 毕业后 · post-v1.0 path 2 关洞 · 模板对齐 STAGE16_OWNER_CHECKLIST.md*
 
-**当前分支诚实快照（2026-10-15 · + S3.67）**：multi LABEL+JMP/CALL/JCC 真 rel32 GREEN · 默认 `继续`=**S3.68**（剩余 JE）· OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag** · （历史逐步快照已折叠；见 git）
+**当前分支诚实快照（2026-10-15 · + S3.68）**：multi IMUL any disp8 slots GREEN · 默认 `继续`=**S3.69**（ADDV/ORV/SUBV）· OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag** · （历史逐步快照已折叠；见 git）
