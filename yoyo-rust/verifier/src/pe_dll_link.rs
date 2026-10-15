@@ -1182,6 +1182,9 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
     let s3_multi_get_slots_marker: &[u8] = b"yoyo_in_dll_s3_multi_get_slots\0";
     let s3_multi_get_slots_marker_off = off;
     off += s3_multi_get_slots_marker.len() as u32;
+    let s3_multi_movrr_slots_marker: &[u8] = b"yoyo_in_dll_s3_multi_movrr\0";
+    let s3_multi_movrr_slots_marker_off = off;
+    off += s3_multi_movrr_slots_marker.len() as u32;
     // S3.58: cc bytes for TYB JCC 0x73..=0x7A (JL..JA); index = op - 0x73
     let s3_jcc_rest_cc: &[u8] = &[0x8C, 0x8D, 0x8E, 0x8F, 0x82, 0x83, 0x86, 0x87];
     let s3_jcc_rest_cc_off = off;
@@ -1268,6 +1271,8 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
         s3_multi_sub_imm_marker_off,
         s3_multi_get_slots_marker,
         s3_multi_get_slots_marker_off,
+        s3_multi_movrr_slots_marker,
+        s3_multi_movrr_slots_marker_off,
         s3_jcc_rest_cc,
         s3_jcc_rest_cc_off,
         s3_bake_marker,
@@ -1364,6 +1369,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     s3_multi_sub_imm_marker_off: u32,
     s3_multi_get_slots_marker: &[u8],
     s3_multi_get_slots_marker_off: u32,
+    s3_multi_movrr_slots_marker: &[u8],
+    s3_multi_movrr_slots_marker_off: u32,
     s3_jcc_rest_cc: &[u8],
     s3_jcc_rest_cc_off: u32,
     s3_bake_marker: &[u8],
@@ -2498,7 +2505,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x48, 0x8D, 0x4E, 0x08]); // lea rcx,[rsi+8]
     let s3_jmp_finish_mt_sub = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp s1_finish
-    // MOVRR dst1←src0
+    // S3.63: MOVRR any dst/src slot<16 (disp8) → direct emit (same shape as GET)
     let s3_mt_movrr = export_code.len();
     patch_jcc32(&mut export_code, s3_jne_mt_sub, s3_mt_movrr);
     patch_jcc32(&mut export_code, s3_jne_mt_sub_a, s3_mt_movrr);
@@ -2506,23 +2513,48 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x80, 0x3A, 0x64]); // MOVRR
     let s3_jne_mt_movrr = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x80, 0x7A, 0x01, 0x02]);
+    export_code.extend_from_slice(&[0x80, 0x7A, 0x01, 0x02]); // argc=2
     let s3_jne_mt_movrr_a = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x66, 0x83, 0x7A, 0x02, 0x01]); // dst=1
-    let s3_jne_mt_movrr_d = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x66, 0x83, 0x7A, 0x04, 0x00]); // src=0
-    let s3_jne_mt_movrr_s = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    let s3_jmp_mt_ok_movrr = export_code.len();
-    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x02]); // movzx eax, word [rdx+2] dst
+    export_code.extend_from_slice(&[0x83, 0xF8, 0x10]); // cmp eax, 16
+    let s3_jae_mt_movrr_d = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae after
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x4A, 0x04]); // movzx ecx, word [rdx+4] src
+    export_code.extend_from_slice(&[0x83, 0xF9, 0x10]); // cmp ecx, 16
+    let s3_jae_mt_movrr_s = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae after
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]); // mov rax, r12
+    export_code.extend_from_slice(&[0x48, 0x83, 0xC0, 0x08]); // add rax, 8
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]); // cmp rax, r13
+    let s3_jae_fail_mt_movrr = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x02]); // movzx eax, dst
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x4A, 0x04]); // movzx ecx, src
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]); // shl eax, 3
+    export_code.extend_from_slice(&[0xC1, 0xE1, 0x03]); // shl ecx, 3
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x8B]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x02, 0x47]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x4C, 0x24, 0x03]); // [r12+3]=src*8
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x04, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x05, 0x89]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x06, 0x47]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x07]); // [r12+7]=dst*8
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x08]); // add r12, 8
+    export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]); // add rdx, 8
+    export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]); // dec r14d
+    let s3_jnz_mt_movrr = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jnz emit
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x4E, 0x08]); // lea rcx,[rsi+8]
+    let s3_jmp_finish_mt_movrr = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp s1_finish
     // CMP a0,b1
     let s3_mt_cmp = export_code.len();
     patch_jcc32(&mut export_code, s3_jne_mt_movrr, s3_mt_cmp);
     patch_jcc32(&mut export_code, s3_jne_mt_movrr_a, s3_mt_cmp);
-    patch_jcc32(&mut export_code, s3_jne_mt_movrr_d, s3_mt_cmp);
-    patch_jcc32(&mut export_code, s3_jne_mt_movrr_s, s3_mt_cmp);
+    patch_jcc32(&mut export_code, s3_jae_mt_movrr_d, s3_mt_cmp);
+    patch_jcc32(&mut export_code, s3_jae_mt_movrr_s, s3_mt_cmp);
     export_code.extend_from_slice(&[0x80, 0x3A, 0x65]); // CMP
     let s3_jne_mt_cmp = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
@@ -2552,8 +2584,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.59/S3.60/S3.62: SET/ADD/GET emit directly (no bake_scan jump)
     patch_rel32(&mut export_code, s3_jmp_mt_ok_inc, s3_multi_bake_scan);
     patch_rel32(&mut export_code, s3_jmp_mt_ok_dec, s3_multi_bake_scan);
-    // S3.61: SUB slot0 any-imm emits directly (no bake_scan jump)
-    patch_rel32(&mut export_code, s3_jmp_mt_ok_movrr, s3_multi_bake_scan);
+    // S3.61/S3.63: SUB/MOVRR emit directly (no bake_scan jump)
     patch_rel32(&mut export_code, s3_jmp_mt_ok_cmp, s3_multi_bake_scan);
     export_code.extend_from_slice(&[0x4C, 0x8D, 0x05, 0, 0, 0, 0]);
     rip_patches.push((export_code.len() - 4, s3_bake_table_off));
@@ -3678,6 +3709,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     patch_rel32(&mut export_code, s3_jmp_finish_mt_add, s1_finish);
     patch_rel32(&mut export_code, s3_jmp_finish_mt_sub, s1_finish);
     patch_rel32(&mut export_code, s3_jmp_finish_mt_get, s1_finish);
+    patch_rel32(&mut export_code, s3_jmp_finish_mt_movrr, s1_finish);
     patch_jcc32(&mut export_code, s3_jnz_mt_label, s3_multi_emit);
     patch_jcc32(&mut export_code, s3_jnz_mt_jmp, s3_multi_emit);
     patch_jcc32(&mut export_code, s3_jnz_mt_call, s3_multi_emit);
@@ -3688,6 +3720,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     patch_jcc32(&mut export_code, s3_jnz_mt_add, s3_multi_emit);
     patch_jcc32(&mut export_code, s3_jnz_mt_sub, s3_multi_emit);
     patch_jcc32(&mut export_code, s3_jnz_mt_get, s3_multi_emit);
+    patch_jcc32(&mut export_code, s3_jnz_mt_movrr, s3_multi_emit);
     // Pass 2: for i in 0..n_patches: lookup label, write rel32
     export_code.extend_from_slice(&[0x31, 0xF6]); // esi = 0 (patch index)
     let s1_p2_loop = export_code.len();
@@ -3895,6 +3928,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         s3_jae_fail_mt_add, // S3.60 multi ADD any-imm overflow
         s3_jae_fail_mt_sub, // S3.61 multi SUB any-imm overflow
         s3_jae_fail_mt_get, // S3.62 multi GET disp8 overflow
+        s3_jae_fail_mt_movrr, // S3.63 multi MOVRR disp8 overflow
     ];
 
         // Patch jumps
@@ -4106,6 +4140,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     exp[s3_multi_get_slots_marker_off as usize
         ..s3_multi_get_slots_marker_off as usize + s3_multi_get_slots_marker.len()]
         .copy_from_slice(s3_multi_get_slots_marker);
+    exp[s3_multi_movrr_slots_marker_off as usize
+        ..s3_multi_movrr_slots_marker_off as usize + s3_multi_movrr_slots_marker.len()]
+        .copy_from_slice(s3_multi_movrr_slots_marker);
     exp[s3_jcc_rest_cc_off as usize
         ..s3_jcc_rest_cc_off as usize + s3_jcc_rest_cc.len()]
         .copy_from_slice(s3_jcc_rest_cc);
@@ -4859,6 +4896,10 @@ mod tests {
             "S3.62 multi GET any-slots marker must be baked into .rdata"
         );
         assert!(
+            ascii.contains("yoyo_in_dll_s3_multi_movrr"),
+            "S3.63 multi MOVRR any-slots marker must be baked into .rdata"
+        );
+        assert!(
             ascii.contains("yoyo_in_dll_s3_table_bake"),
             "S3.37 template-table bake marker must be in .rdata"
         );
@@ -5601,6 +5642,34 @@ mod tests {
             0xC3,
         ];
         assert_eq!(&out[off..off + 9], &expect, "GET dst2←src3 + RET");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.63: MOVRR dst3←src1 + RET — multi direct disp8 slots (not 1←0-only).
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_sidecar_in_dll_s3_tyb_multi_movrr_any_slots() {
+        let dir = temp_work("in-dll-s3-tyb-multi-movrr");
+        let mut tyb = Vec::new();
+        tyb.extend_from_slice(b"TYB\0");
+        tyb.extend_from_slice(&[0, 0]);
+        tyb.extend_from_slice(&2u16.to_le_bytes());
+        tyb.push(0x64);
+        tyb.push(2);
+        tyb.extend_from_slice(&[0x03, 0x00, 0x01, 0x00, 0, 0]); // dst=3 src=1
+        tyb.push(0xFF);
+        tyb.push(0);
+        tyb.extend_from_slice(&[0u8; 6]);
+        std::fs::write(dir.join("input.tyb"), &tyb).expect("write tyb");
+        assert_eq!(yoyo_sidecar_in_dll_recompile(&dir), EXIT_OK);
+        let out = std::fs::read(dir.join(OUTPUT_NAME)).expect("output.exe");
+        let off = crate::s1_tyb_parser::S1_SLIM_TEXT_PAYLOAD_OFF;
+        let expect: [u8; 9] = [
+            0x49, 0x8B, 0x47, 0x08, // mov rax,[r15+8] src1
+            0x49, 0x89, 0x47, 0x18, // mov [r15+24],rax dst3
+            0xC3,
+        ];
+        assert_eq!(&out[off..off + 9], &expect, "MOVRR dst3←src1 + RET");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
