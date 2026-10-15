@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.80**：S3.79 multi GET any-slot 已 GREEN；下一刀 MOVRR/INC/… slot≥16（**非**假 CLOSED）。
+**默认 `继续` = S3.81**：S3.80 multi MOVRR any-slot 已 GREEN；下一刀 INC/DEC/… slot≥16（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -551,26 +551,28 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.76** | ✅ 已本地提交 | multi ALLOC/LOAD/WRITE stub ≡ SET slot0；marker `yoyo_in_dll_s3_multi_plat` | commit `290679b` |
 | **S3.77** | ✅ 已本地提交 | multi SET any-slot≤255 disp8\|disp32；marker `yoyo_in_dll_s3_multi_slot32` | commit `e1c2441` |
 | **S3.78** | ✅ 已本地提交 | s1 SET(+stub) any-slot disp8\|disp32；marker `yoyo_in_dll_s1_set_d32` | commit `f4602f0` |
-| **S3.79+** | ⏳ 未开始 | 其它 op slot≥16 / 平台真 I/O | 真自举长杆 |
+| **S3.79** | ✅ 已本地提交 | multi GET any-slot≤255 disp8\|disp32；marker `yoyo_in_dll_s3_multi_get32` | commit `58aabde` |
+| **S3.80** | ✅ 已本地提交 | multi MOVRR any-slot≤255 disp8\|disp32；marker `yoyo_in_dll_s3_multi_mov32` | commit `TBD` |
+| **S3.81+** | ⏳ 未开始 | INC/DEC/CMP/… slot≥16 / 平台真 I/O | 真自举长杆 |
 
-> **写法**：已完成 S3.1–S3.78 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
+> **写法**：已完成 S3.1–S3.80 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
 
-#### 当前诚实缺口（multi→JE · 更新至 S3.78）
+#### 当前诚实缺口（multi→JE · 更新至 S3.80）
 
 | 已进 multi / s1（非 JE） | 仍掉 JE / 未做 |
 |---|---|
 | argc0 bake；LABEL；JMP/CALL/JCC 真 rel32；RAW*；DATA/STR；LDB；MEMCPY_* | 平台 **真** I/O（ALLOC/LOAD/WRITE 仍 =SET stub） |
-| SET **any slot**（multi + s1）disp8\|disp32；ADD/SUB slot0；其它 slot-ops **disp8 slot<16** | GET/INC/… slot≥16 |
+| SET/GET/MOVRR **any slot**；ADD/SUB slot0；INC/DEC/CMP/IMUL/ALU-V **disp8 slot<16** | INC/DEC/CMP/IMUL/ALU-V/LDB/MEMCPY slot≥16 |
 
-#### S3.79 — multi GET any-slot disp8|disp32（本步 · 未开始）
+#### S3.81 — multi INC any-slot disp8|disp32（本步 · 未开始）
 
 | 项 | 内容 |
 |---|---|
-| 切片 | multi GET dst/src 任意 slot≤255：load/store 各选 disp8\|disp32；**不**假 CLOSED |
-| 验收 | sidecar byte-exact GREEN；marker `yoyo_in_dll_s3_multi_get32` |
-| 诚实 | INC/其它 op slot≥16 仍 JE；平台仍 stub；OW-RT 仍 CUT · `closed=0` |
+| 切片 | multi INC slot≤255：load/inc/store 各选 disp8\|disp32；**不**假 CLOSED |
+| 验收 | sidecar byte-exact GREEN；marker `yoyo_in_dll_s3_multi_inc32` |
+| 诚实 | DEC/其它仍 JE；平台仍 stub；OW-RT 仍 CUT · `closed=0` |
 
-**默认 `继续` = S3.79**。
+**默认 `继续` = S3.81**。
 
 ### 立项约束
 
@@ -739,4 +741,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 
 *创建：2026-08-31 · v1.0 毕业后 · post-v1.0 path 2 关洞 · 模板对齐 STAGE16_OWNER_CHECKLIST.md*
 
-**当前分支诚实快照（2026-10-15 · + S3.78）**：s1 SET any-slot disp32 GREEN · 默认 `继续`=**S3.79**（multi GET slot≥16）· OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag** · （历史逐步快照已折叠；见 git）
+**当前分支诚实快照（2026-10-15 · + S3.80）**：multi MOVRR any-slot GREEN · 默认 `继续`=**S3.81**（multi INC slot≥16）· OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag** · （历史逐步快照已折叠；见 git）
