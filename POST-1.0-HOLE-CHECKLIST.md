@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.68**：S3.67 multi 真 label rel32（LABEL 记位 + JMP/CALL/JCC push_patch）已 GREEN；下一刀替换剩余 JE（**非**假 CLOSED）。
+**默认 `继续` = S3.69**：S3.68 multi IMUL any disp8 slots 直 emit 已 GREEN；下一刀 ADDV/ORV/SUBV（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
