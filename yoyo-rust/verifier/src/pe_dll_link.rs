@@ -1164,6 +1164,9 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
     let s3_multi_je_marker: &[u8] = b"yoyo_in_dll_s3_multi_je\0";
     let s3_multi_je_marker_off = off;
     off += s3_multi_je_marker.len() as u32;
+    let s3_multi_jne_marker: &[u8] = b"yoyo_in_dll_s3_multi_jne\0";
+    let s3_multi_jne_marker_off = off;
+    off += s3_multi_jne_marker.len() as u32;
     off = align_up(off, 16);
     // S3.43: bake 10-row host-compatible template table.
     let s3_bake_marker: &[u8] = b"yoyo_in_dll_s3_table_bake\0";
@@ -1234,6 +1237,8 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
         s3_multi_call_marker_off,
         s3_multi_je_marker,
         s3_multi_je_marker_off,
+        s3_multi_jne_marker,
+        s3_multi_jne_marker_off,
         s3_bake_marker,
         s3_bake_marker_off,
         &s3_bake_table,
@@ -1316,6 +1321,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     s3_multi_call_marker_off: u32,
     s3_multi_je_marker: &[u8],
     s3_multi_je_marker_off: u32,
+    s3_multi_jne_marker: &[u8],
+    s3_multi_jne_marker_off: u32,
     s3_bake_marker: &[u8],
     s3_bake_marker_off: u32,
     s3_bake_table: &[u8],
@@ -2205,6 +2212,32 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s3_mt_after_je = export_code.len();
     patch_jcc32(&mut export_code, s3_jne_mt_je, s3_mt_after_je);
     patch_jcc32(&mut export_code, s3_jne_mt_je_a, s3_mt_after_je);
+    // S3.57: JNE (0x72) argc=1 → 0F 85 00 00 00 00 (≡ emit undefined-label stub); stay in multi
+    export_code.extend_from_slice(&[0x80, 0x3A, 0x72]); // cmp byte [rdx], JNE
+    let s3_jne_mt_jne = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x80, 0x7A, 0x01, 0x01]); // argc=1
+    let s3_jne_mt_jne_a = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]); // mov rax, r12
+    export_code.extend_from_slice(&[0x48, 0x83, 0xC0, 0x06]); // add rax, 6
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]); // cmp rax, r13
+    let s3_jae_fail_mt_jne = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x0F]); // mov byte [r12], 0x0F
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x85]); // [r12+1]=0x85 (JNE)
+    export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x02, 0, 0, 0, 0]); // [r12+2]=rel32 0
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x06]); // add r12, 6
+    export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]); // add rdx, 8
+    export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]); // dec r14d
+    let s3_jnz_mt_jne = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jnz emit
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x4E, 0x08]); // lea rcx,[rsi+8]
+    let s3_jmp_finish_mt_jne = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp s1_finish
+    let s3_mt_after_jne = export_code.len();
+    patch_jcc32(&mut export_code, s3_jne_mt_jne, s3_mt_after_jne);
+    patch_jcc32(&mut export_code, s3_jne_mt_jne_a, s3_mt_after_jne);
     // S3.51: fixed-template match for argc>0 (record at [rdx])
     // SET slot0=DEADBEEF
     export_code.extend_from_slice(&[0x80, 0x3A, 0x30]); // cmp byte [rdx], SET
@@ -3491,10 +3524,12 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     patch_rel32(&mut export_code, s3_jmp_finish_mt_jmp, s1_finish);
     patch_rel32(&mut export_code, s3_jmp_finish_mt_call, s1_finish);
     patch_rel32(&mut export_code, s3_jmp_finish_mt_je, s1_finish);
+    patch_rel32(&mut export_code, s3_jmp_finish_mt_jne, s1_finish);
     patch_jcc32(&mut export_code, s3_jnz_mt_label, s3_multi_emit);
     patch_jcc32(&mut export_code, s3_jnz_mt_jmp, s3_multi_emit);
     patch_jcc32(&mut export_code, s3_jnz_mt_call, s3_multi_emit);
     patch_jcc32(&mut export_code, s3_jnz_mt_je, s3_multi_emit);
+    patch_jcc32(&mut export_code, s3_jnz_mt_jne, s3_multi_emit);
     // Pass 2: for i in 0..n_patches: lookup label, write rel32
     export_code.extend_from_slice(&[0x31, 0xF6]); // esi = 0 (patch index)
     let s1_p2_loop = export_code.len();
@@ -3696,6 +3731,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         s3_jae_fail_mt_jmp, // S3.54 multi JMP stub overflow
         s3_jae_fail_mt_call, // S3.55 multi CALL stub overflow
         s3_jae_fail_mt_je, // S3.56 multi JE stub overflow
+        s3_jae_fail_mt_jne, // S3.57 multi JNE stub overflow
     ];
 
         // Patch jumps
@@ -3889,6 +3925,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     exp[s3_multi_je_marker_off as usize
         ..s3_multi_je_marker_off as usize + s3_multi_je_marker.len()]
         .copy_from_slice(s3_multi_je_marker);
+    exp[s3_multi_jne_marker_off as usize
+        ..s3_multi_jne_marker_off as usize + s3_multi_jne_marker.len()]
+        .copy_from_slice(s3_multi_jne_marker);
     exp[s3_bake_marker_off as usize..s3_bake_marker_off as usize + s3_bake_marker.len()]
         .copy_from_slice(s3_bake_marker);
     exp[s3_bake_table_off as usize..s3_bake_table_off as usize + s3_bake_table.len()]
@@ -4615,6 +4654,10 @@ mod tests {
             "S3.56 multi JE-undef stub marker must be baked into .rdata"
         );
         assert!(
+            ascii.contains("yoyo_in_dll_s3_multi_jne"),
+            "S3.57 multi JNE-undef stub marker must be baked into .rdata"
+        );
+        assert!(
             ascii.contains("yoyo_in_dll_s3_table_bake"),
             "S3.37 template-table bake marker must be in .rdata"
         );
@@ -5186,6 +5229,33 @@ mod tests {
             &out[off..off + 7],
             &[0x0Fu8, 0x84, 0, 0, 0, 0, 0xC3],
             "JE-undef stub + RET"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.57: JNE (undefined label) + RET — multi stub 0F 85 00 00 00 00 + C3.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_sidecar_in_dll_s3_tyb_multi_jne_undef() {
+        let dir = temp_work("in-dll-s3-tyb-multi-jne");
+        let mut tyb = Vec::new();
+        tyb.extend_from_slice(b"TYB\0");
+        tyb.extend_from_slice(&[0, 0]);
+        tyb.extend_from_slice(&2u16.to_le_bytes());
+        tyb.push(0x72);
+        tyb.push(1);
+        tyb.extend_from_slice(&[0x01, 0x00, 0, 0, 0, 0]); // JNE label 1 (undefined)
+        tyb.push(0xFF);
+        tyb.push(0);
+        tyb.extend_from_slice(&[0u8; 6]);
+        std::fs::write(dir.join("input.tyb"), &tyb).expect("write tyb");
+        assert_eq!(yoyo_sidecar_in_dll_recompile(&dir), EXIT_OK);
+        let out = std::fs::read(dir.join(OUTPUT_NAME)).expect("output.exe");
+        let off = crate::s1_tyb_parser::S1_SLIM_TEXT_PAYLOAD_OFF;
+        assert_eq!(
+            &out[off..off + 7],
+            &[0x0Fu8, 0x85, 0, 0, 0, 0, 0xC3],
+            "JNE-undef stub + RET"
         );
         let _ = std::fs::remove_dir_all(&dir);
     }

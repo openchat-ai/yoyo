@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.57**：S3.56 multi JE-undef stub（0F 84 00..00）已 GREEN；下一刀其余 JCC-undef 或扩模板（**非**假 CLOSED）。
+**默认 `继续` = S3.58**：S3.57 multi JNE-undef stub（0F 85 00..00）已 GREEN；下一刀其余 JCC(0x73..=0x7A) 或扩模板（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -599,7 +599,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.54** | ✅ 已本地提交 | multi JMP argc1 → E9 00 00 00 00 stub；marker `yoyo_in_dll_s3_multi_jmp` | commit `0c7417d` |
 | **S3.55** | ✅ 已本地提交 | multi CALL argc1 → E8 00 00 00 00 stub；marker `yoyo_in_dll_s3_multi_call` | commit `2500a96` |
 | **S3.56** | ✅ 已本地提交 | multi JE(0x71) argc1 → 0F 84 00 00 00 00 stub；marker `yoyo_in_dll_s3_multi_je` | commit `06933cb` |
-| **S3.57+** | ⏳ 未开始 | 其余 JCC-undef / 扩模板 / 替换剩余 JE | 真自举长杆 |
+| **S3.57** | ✅ 已本地提交 | multi JNE(0x72) argc1 → 0F 85 00 00 00 00 stub；marker `yoyo_in_dll_s3_multi_jne` | commit `TBD` |
+| **S3.58+** | ⏳ 未开始 | 其余 JCC(0x73..=0x7A) / 扩模板 / 替换剩余 JE | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -1254,6 +1255,16 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 
 **默认 `继续` = S3.57**。
 
+#### S3.57 — multi JNE undefined-label stub（本步）
+
+| 项 | 内容 |
+|---|---|
+| 切片 | multi 扫到 JNE(0x72) argc=1 → 定长 emit `0F 85 00 00 00 00`（≡ host 未定义 LABEL 默认）；**不**进 label 表 / **不**假 CLOSED |
+| 验收 | sidecar JNE+RET → `0F 85 00 00 00 00 C3` GREEN；marker `yoyo_in_dll_s3_multi_jne` |
+| 诚实 | 其余 JCC(0x73..=0x7A) / 有定义 LABEL 真 patch 仍 JE；OW-RT 仍 CUT |
+
+**默认 `继续` = S3.58**。
+
 ### 立项约束
 
 - 本路线**不是 post-v1.0 关洞的延续**，是**新主线**
@@ -1544,3 +1555,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-15 · + S3.54）**：multi JMP-undef stub GREEN · 默认 `继续`=**S3.55** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-15 · + S3.55）**：multi CALL-undef stub GREEN · 默认 `继续`=**S3.56** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-15 · + S3.56）**：multi JE-undef stub GREEN · 默认 `继续`=**S3.57** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-15 · + S3.57）**：multi JNE-undef stub GREEN · 默认 `继续`=**S3.58** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
