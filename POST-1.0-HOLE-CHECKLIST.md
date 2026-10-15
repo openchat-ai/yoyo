@@ -560,7 +560,7 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.85** | ✅ 已本地提交 | multi ALU-V any-slot≤255 disp8\|disp32；marker `yoyo_in_dll_s3_multi_aluv32` | commit `61851f4` |
 | **S3.86** | ✅ 已本地提交 | multi LDB any-slot≤255 disp8\|disp32；marker `yoyo_in_dll_s3_multi_ldb32` | commit `9da56b7` |
 | **S3.87** | ✅ 已本地提交 | multi MEMCPY_DATA/STATE any-slot≤255 disp8\|disp32；marker `yoyo_in_dll_s3_multi_mcp32` | commit `1817346` |
-| **S3.88** | ✅ 已本地提交 | multi ADD/SUB any-slot≤255 disp8\|disp32；marker `yoyo_in_dll_s3_multi_addsub32` | commit `TBD` |
+| **S3.88** | ✅ 已本地提交 | multi ADD/SUB any-slot≤255 disp8\|disp32；marker `yoyo_in_dll_s3_multi_addsub32` | commit `fc75f75` |
 | **S3.89+** | ⏳ 未开始 | 平台真 I/O（ALLOC/LOAD/WRITE ≠ SET stub） | 真自举长杆 |
 
 > **写法**：已完成 S3.1–S3.88 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
