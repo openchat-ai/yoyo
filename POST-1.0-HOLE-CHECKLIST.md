@@ -543,26 +543,27 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.68** | ✅ 已本地提交 | multi IMUL any dst/src slot<16 disp8 直 emit；marker `yoyo_in_dll_s3_multi_imul` | commit `20e8567` |
 | **S3.69** | ✅ 已本地提交 | multi ADDV/ORV/SUBV any dst/src slot<16 表驱动直 emit；marker `yoyo_in_dll_s3_multi_aluv` | commit `5ee30e3` |
 | **S3.70** | ✅ 已本地提交 | multi RAW_BYTE/RAW_BYTES 直 append .text；marker `yoyo_in_dll_s3_multi_raw` | commit `21c537a` |
-| **S3.71+** | ⏳ 未开始 | DATA/STR/LDB/MEMCPY / slot≥16 / 平台 stub | 真自举长杆 |
+| **S3.71** | ✅ 已本地提交 | multi DATA/STR/RAW-data append data[]；marker `yoyo_in_dll_s3_multi_data` | commit `6ae0f57` |
+| **S3.72+** | ⏳ 未开始 | LDB/MEMCPY / slot≥16 / 平台 stub 真语义 | 真自举长杆 |
 
-> **写法**：已完成 S3.1–S3.70 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
+> **写法**：已完成 S3.1–S3.71 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
 
-#### 当前诚实缺口（multi→JE · 更新至 S3.70）
+#### 当前诚实缺口（multi→JE · 更新至 S3.71）
 
 | 已进 multi（非 JE） | 仍掉 `s1_loop` JE |
 |---|---|
-| argc0 bake；LABEL 记位；JMP/CALL/JCC 真 rel32 | 平台 stub 真语义（ALLOC/LOAD/WRITE 仍 =SET 记数） |
-| SET/ADD/SUB slot0 **any imm**；slot-ops + IMUL/ALU-V **disp8 slot<16**；RAW* | slot≥16；LDB/MEMCPY/DATA/STR |
+| argc0 bake；LABEL；JMP/CALL/JCC 真 rel32；RAW*；DATA/STR | 平台 stub 真语义（ALLOC/LOAD/WRITE 仍 =SET 记数） |
+| SET/ADD/SUB slot0 **any imm**；slot-ops + IMUL/ALU-V **disp8 slot<16** | slot≥16；LDB/MEMCPY |
 
-#### S3.71 — multi DATA / STR（本步 · 未开始）
+#### S3.72 — multi LDB（本步 · 未开始）
 
 | 项 | 内容 |
 |---|---|
-| 切片 | multi 内 DATA/STR（及同源 RAW-data）append 到 data 缓冲；**不**假 CLOSED |
-| 验收 | sidecar DATA/STR + RET（≥3 multi）byte-exact / .data GREEN；marker 待定 |
-| 诚实 | LDB/MEMCPY/平台·slot≥16 仍 JE；OW-RT 仍 CUT · `closed=0` |
+| 切片 | multi 内 LDB dd/ss/oo（slot<16 disp8）直 emit；**不**假 CLOSED |
+| 验收 | sidecar LDB + NOP + RET byte-exact GREEN；marker 待定 |
+| 诚实 | MEMCPY/平台·slot≥16 仍 JE；OW-RT 仍 CUT · `closed=0` |
 
-**默认 `继续` = S3.71**。
+**默认 `继续` = S3.72**。
 
 ### 立项约束
 
@@ -731,4 +732,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 
 *创建：2026-08-31 · v1.0 毕业后 · post-v1.0 path 2 关洞 · 模板对齐 STAGE16_OWNER_CHECKLIST.md*
 
-**当前分支诚实快照（2026-10-15 · + S3.70）**：multi RAW_BYTE/RAW_BYTES GREEN · 默认 `继续`=**S3.71**（DATA/STR）· OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag** · （历史逐步快照已折叠；见 git）
+**当前分支诚实快照（2026-10-15 · + S3.71）**：multi DATA/STR/RAW-data GREEN · 默认 `继续`=**S3.72**（LDB）· OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag** · （历史逐步快照已折叠；见 git）
