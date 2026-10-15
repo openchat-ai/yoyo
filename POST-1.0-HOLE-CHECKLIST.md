@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.69**：S3.68 multi IMUL any disp8 slots 直 emit 已 GREEN；下一刀 ADDV/ORV/SUBV（**非**假 CLOSED）。
+**默认 `继续` = S3.70**：S3.69 multi ADDV/ORV/SUBV disp8 直 emit 已 GREEN；下一刀剩余 JE（RAW*/DATA/LDB/平台）（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -541,26 +541,27 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.66** | ✅ 已本地提交 | multi CMP any a/b slot<16 disp8 直 emit；marker `yoyo_in_dll_s3_multi_cmp` | commit `ca8018f` |
 | **S3.67** | ✅ 已本地提交 | multi LABEL 记位 + JMP/CALL/JCC push_patch→pass-2 真 rel32；marker `yoyo_in_dll_s3_multi_rel32` | commit `87b9d55` |
 | **S3.68** | ✅ 已本地提交 | multi IMUL any dst/src slot<16 disp8 直 emit；marker `yoyo_in_dll_s3_multi_imul` | commit `20e8567` |
-| **S3.69+** | ⏳ 未开始 | ADDV/ORV/SUBV / slot≥16 / 平台 stub / 内存·DATA | 真自举长杆 |
+| **S3.69** | ✅ 已本地提交 | multi ADDV/ORV/SUBV any dst/src slot<16 表驱动直 emit；marker `yoyo_in_dll_s3_multi_aluv` | commit TBD |
+| **S3.70+** | ⏳ 未开始 | RAW*/DATA/STR/LDB/MEMCPY / slot≥16 / 平台 stub | 真自举长杆 |
 
-> **写法**：已完成 S3.1–S3.68 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
+> **写法**：已完成 S3.1–S3.69 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
 
-#### 当前诚实缺口（multi→JE · 更新至 S3.68）
+#### 当前诚实缺口（multi→JE · 更新至 S3.69）
 
 | 已进 multi（非 JE） | 仍掉 `s1_loop` JE |
 |---|---|
 | argc0 bake；LABEL 记位；JMP/CALL/JCC 真 rel32 | 平台 stub 真语义（ALLOC/LOAD/WRITE 仍 =SET 记数） |
-| SET/ADD/SUB slot0 **any imm**；GET/MOVRR/INC/DEC/CMP/IMUL **disp8 slot<16** | slot≥16；ADDV/ORV/SUBV；LDB/MEMCPY/DATA/STR/RAW* |
+| SET/ADD/SUB slot0 **any imm**；GET/MOVRR/INC/DEC/CMP/IMUL/ADDV/ORV/SUBV **disp8 slot<16** | slot≥16；LDB/MEMCPY/DATA/STR/RAW* |
 
-#### S3.69 — multi ADDV/ORV/SUBV disp8（本步 · 未开始）
+#### S3.70 — multi RAW_BYTE / RAW_BYTES（本步 · 未开始）
 
 | 项 | 内容 |
 |---|---|
-| 切片 | multi 内 ADDV/ORV/SUBV any dst/src slot<16 直 emit（表驱动 alu opcode）；**不**假 CLOSED |
-| 验收 | sidecar `ADDV`/`ORV`/`SUBV` + NOP + RET byte-exact GREEN；marker 待定 |
-| 诚实 | 平台·内存·slot≥16 仍 JE；OW-RT 仍 CUT · `closed=0` |
+| 切片 | multi 内 RAW_BYTE(argc1) / RAW_BYTES(argc≤3) 直 append 到 .text；**不**假 CLOSED |
+| 验收 | sidecar RAW* + RET（≥3 强制 multi）byte-exact GREEN；marker 待定 |
+| 诚实 | DATA/LDB/平台·slot≥16 仍 JE；OW-RT 仍 CUT · `closed=0` |
 
-**默认 `继续` = S3.69**。
+**默认 `继续` = S3.70**。
 
 ### 立项约束
 
