@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.72**：S3.71 multi DATA/STR/RAW-data 已 GREEN；下一刀 LDB/MEMCPY 或平台 stub（**非**假 CLOSED）。
+**默认 `继续` = S3.73**：S3.72 multi LDB oo=0 disp8 已 GREEN；下一刀 LDB oo≠0 / MEMCPY / 平台 stub（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -544,26 +544,27 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.69** | ✅ 已本地提交 | multi ADDV/ORV/SUBV any dst/src slot<16 表驱动直 emit；marker `yoyo_in_dll_s3_multi_aluv` | commit `5ee30e3` |
 | **S3.70** | ✅ 已本地提交 | multi RAW_BYTE/RAW_BYTES 直 append .text；marker `yoyo_in_dll_s3_multi_raw` | commit `21c537a` |
 | **S3.71** | ✅ 已本地提交 | multi DATA/STR/RAW-data append data[]；marker `yoyo_in_dll_s3_multi_data` | commit `6ae0f57` |
-| **S3.72+** | ⏳ 未开始 | LDB/MEMCPY / slot≥16 / 平台 stub 真语义 | 真自举长杆 |
+| **S3.72** | ✅ 已本地提交 | multi LDB oo=0 slot<16 直 emit（12B）；marker `yoyo_in_dll_s3_multi_ldb` | commit TBD |
+| **S3.73+** | ⏳ 未开始 | LDB oo≠0 / MEMCPY / slot≥16 / 平台 stub 真语义 | 真自举长杆 |
 
-> **写法**：已完成 S3.1–S3.71 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
+> **写法**：已完成 S3.1–S3.72 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
 
-#### 当前诚实缺口（multi→JE · 更新至 S3.71）
+#### 当前诚实缺口（multi→JE · 更新至 S3.72）
 
 | 已进 multi（非 JE） | 仍掉 `s1_loop` JE |
 |---|---|
-| argc0 bake；LABEL；JMP/CALL/JCC 真 rel32；RAW*；DATA/STR | 平台 stub 真语义（ALLOC/LOAD/WRITE 仍 =SET 记数） |
-| SET/ADD/SUB slot0 **any imm**；slot-ops + IMUL/ALU-V **disp8 slot<16** | slot≥16；LDB/MEMCPY |
+| argc0 bake；LABEL；JMP/CALL/JCC 真 rel32；RAW*；DATA/STR；LDB oo=0 | 平台 stub 真语义（ALLOC/LOAD/WRITE 仍 =SET 记数） |
+| SET/ADD/SUB slot0 **any imm**；slot-ops + IMUL/ALU-V **disp8 slot<16** | slot≥16；LDB oo≠0；MEMCPY |
 
-#### S3.72 — multi LDB（本步 · 未开始）
+#### S3.73 — multi LDB oo≠0 或 MEMCPY（本步 · 未开始）
 
 | 项 | 内容 |
 |---|---|
-| 切片 | multi 内 LDB dd/ss/oo（slot<16 disp8）直 emit；**不**假 CLOSED |
-| 验收 | sidecar LDB + NOP + RET byte-exact GREEN；marker 待定 |
-| 诚实 | MEMCPY/平台·slot≥16 仍 JE；OW-RT 仍 CUT · `closed=0` |
+| 切片 | multi 内 LDB oo≠0（+add imm）或 MEMCPY_DATA/STATE 最小刀；**不**假 CLOSED |
+| 验收 | 对应 sidecar byte-exact GREEN；marker 待定 |
+| 诚实 | 未选中面·平台·slot≥16 仍 JE；OW-RT 仍 CUT · `closed=0` |
 
-**默认 `继续` = S3.72**。
+**默认 `继续` = S3.73**。
 
 ### 立项约束
 
