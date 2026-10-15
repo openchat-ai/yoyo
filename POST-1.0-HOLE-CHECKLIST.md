@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.55**：S3.54 multi JMP-undef stub（E9 00..00）已 GREEN；下一刀 CALL-undef 或 JCC/扩模板（**非**假 CLOSED）。
+**默认 `继续` = S3.56**：S3.55 multi CALL-undef stub（E8 00..00）已 GREEN；下一刀 JCC-undef 或扩模板（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -597,7 +597,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.52** | ✅ 已本地提交 | multi LABEL argc1 skip（无 .text）；marker `yoyo_in_dll_s3_multi_label` | commit `673297e` |
 | **S3.53** | ✅ 已本地提交 | multi→JE 剩余面盘点（docs）；控制流/变参/平台 stub 仍 JE | commit `b78a596` |
 | **S3.54** | ✅ 已本地提交 | multi JMP argc1 → E9 00 00 00 00 stub；marker `yoyo_in_dll_s3_multi_jmp` | commit `0c7417d` |
-| **S3.55+** | ⏳ 未开始 | 试点 CALL-undef / JCC / 扩模板 / 替换剩余 JE | 真自举长杆 |
+| **S3.55** | ✅ 已本地提交 | multi CALL argc1 → E8 00 00 00 00 stub；marker `yoyo_in_dll_s3_multi_call` | commit `TBD` |
+| **S3.56+** | ⏳ 未开始 | 试点 JCC-undef / 扩模板 / 替换剩余 JE | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -1232,6 +1233,16 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 
 **默认 `继续` = S3.55**。
 
+#### S3.55 — multi CALL undefined-label stub（本步）
+
+| 项 | 内容 |
+|---|---|
+| 切片 | multi 扫到 CALL argc=1 → 定长 emit `E8 00 00 00 00`（≡ host 未定义 LABEL 默认）；**不**进 label 表 / **不**假 CLOSED |
+| 验收 | sidecar CALL+RET → `E8 00 00 00 00 C3` GREEN；marker `yoyo_in_dll_s3_multi_call` |
+| 诚实 | 有定义 LABEL 的真 rel32 patch / JCC 仍 JE；OW-RT 仍 CUT |
+
+**默认 `继续` = S3.56**。
+
 ### 立项约束
 
 - 本路线**不是 post-v1.0 关洞的延续**，是**新主线**
@@ -1520,3 +1531,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-15 · + S3.52）**：multi LABEL skip GREEN · 默认 `继续`=**S3.53** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-15 · + S3.53）**：multi→JE 剩余面盘点（docs）· 默认 `继续`=**S3.54** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-15 · + S3.54）**：multi JMP-undef stub GREEN · 默认 `继续`=**S3.55** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-15 · + S3.55）**：multi CALL-undef stub GREEN · 默认 `继续`=**S3.56** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
