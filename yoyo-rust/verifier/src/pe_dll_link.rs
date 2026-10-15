@@ -1194,6 +1194,9 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
     let s3_multi_cmp_slots_marker: &[u8] = b"yoyo_in_dll_s3_multi_cmp\0";
     let s3_multi_cmp_slots_marker_off = off;
     off += s3_multi_cmp_slots_marker.len() as u32;
+    let s3_multi_rel32_marker: &[u8] = b"yoyo_in_dll_s3_multi_rel32\0";
+    let s3_multi_rel32_marker_off = off;
+    off += s3_multi_rel32_marker.len() as u32;
     // S3.58: cc bytes for TYB JCC 0x73..=0x7A (JL..JA); index = op - 0x73
     let s3_jcc_rest_cc: &[u8] = &[0x8C, 0x8D, 0x8E, 0x8F, 0x82, 0x83, 0x86, 0x87];
     let s3_jcc_rest_cc_off = off;
@@ -1288,6 +1291,8 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
         s3_multi_dec_slot_marker_off,
         s3_multi_cmp_slots_marker,
         s3_multi_cmp_slots_marker_off,
+        s3_multi_rel32_marker,
+        s3_multi_rel32_marker_off,
         s3_jcc_rest_cc,
         s3_jcc_rest_cc_off,
         s3_bake_marker,
@@ -1392,6 +1397,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     s3_multi_dec_slot_marker_off: u32,
     s3_multi_cmp_slots_marker: &[u8],
     s3_multi_cmp_slots_marker_off: u32,
+    s3_multi_rel32_marker: &[u8],
+    s3_multi_rel32_marker_off: u32,
     s3_jcc_rest_cc: &[u8],
     s3_jcc_rest_cc_off: u32,
     s3_bake_marker: &[u8],
@@ -2182,6 +2189,20 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.50/S3.51: rec_cnt>=3 → per-record bake:
     //   argc0 → scan; argc>0 matching fixed template → scan; else → s1_loop
     // rdx=record cursor; r14d=remaining; keep r12 on fallthrough
+    // S3.67: multi CF → s1_push_patch (jmp sites patched once helper exists)
+    let mut s3_mt_pp_jmps: Vec<usize> = Vec::new();
+    let emit_mt_push_patch = |code: &mut Vec<u8>, jmps: &mut Vec<usize>| {
+        let lea_at = code.len();
+        code.extend_from_slice(&[0x4C, 0x8D, 0x1D, 0, 0, 0, 0]); // lea r11,[rip+ret]
+        let jmp_pp = code.len();
+        code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+        jmps.push(jmp_pp);
+        let ret_at = code.len();
+        let disp_at = lea_at + 3;
+        let lea_rel = ret_at as i32 - (disp_at as i32 + 4);
+        code[disp_at..disp_at + 4].copy_from_slice(&lea_rel.to_le_bytes());
+    };
+
     let s3_try_multi = export_code.len();
     patch_jcc32(&mut export_code, s3_jne_multi, s3_try_multi);
     export_code.extend_from_slice(&[0x41, 0x89, 0xDE]); // mov r14d, ebx
@@ -2190,13 +2211,29 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x80, 0x7A, 0x01, 0x00]); // cmp byte [rdx+1], 0
     let s3_je_multi_argc0 = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]); // je bake_scan
-    // S3.52: LABEL argc=1 → no .text bytes; advance cursor (stay in multi)
+    // S3.52/S3.67: LABEL argc=1 → record (id, code_off); no .text; stay in multi
     export_code.extend_from_slice(&[0x80, 0x3A, 0x40]); // cmp byte [rdx], LABEL
     let s3_jne_mt_label = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
     export_code.extend_from_slice(&[0x80, 0x7A, 0x01, 0x01]); // argc=1
     let s3_jne_mt_label_a = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x8B, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_N_LABELS_OFF); // eax = n_labels
+    export_code.extend_from_slice(&[0x83, 0xF8, 0x10]); // cmp eax, 16
+    let s3_jae_fail_mt_label = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
+    export_code.extend_from_slice(&[0x44, 0x8B, 0x4A, 0x02]); // mov r9d, [rdx+2] id
+    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF); // lea r8,[code]
+    export_code.extend_from_slice(&[0x4D, 0x89, 0xE2]); // mov r10, r12
+    export_code.extend_from_slice(&[0x4D, 0x29, 0xC2]); // sub r10, r8 → code_off
+    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_LABELS_OFF); // lea rdi,[labels]
+    export_code.extend_from_slice(&[0x44, 0x89, 0x0C, 0xC7]); // [rdi+rax*8]=id
+    export_code.extend_from_slice(&[0x44, 0x89, 0x54, 0xC7, 0x04]); // +4=off
+    export_code.extend_from_slice(&[0xFF, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_N_LABELS_OFF); // inc n_labels
     export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]); // add rdx, 8
     export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]); // dec r14d
     let s3_jnz_mt_label = export_code.len();
@@ -2207,7 +2244,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s3_mt_after_label = export_code.len();
     patch_jcc32(&mut export_code, s3_jne_mt_label, s3_mt_after_label);
     patch_jcc32(&mut export_code, s3_jne_mt_label_a, s3_mt_after_label);
-    // S3.54: JMP argc=1 → E9 00 00 00 00 (≡ emit undefined-label stub); stay in multi
+    // S3.54/S3.67: JMP argc=1 → E9 + queue rel32 patch; stay in multi
     export_code.extend_from_slice(&[0x80, 0x3A, 0x70]); // cmp byte [rdx], JMP
     let s3_jne_mt_jmp = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
@@ -2221,6 +2258,17 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
     export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0xE9]); // mov byte [r12], 0xE9
     export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x01, 0, 0, 0, 0]); // [r12+1]=0
+    export_code.extend_from_slice(&[0x44, 0x8B, 0x4A, 0x02]); // mov r9d, [rdx+2]
+    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]); // mov rax, r12
+    export_code.extend_from_slice(&[0x4C, 0x29, 0xC0]); // sub rax, r8
+    export_code.extend_from_slice(&[0xFF, 0xC0]); // inc eax → pos
+    export_code.extend_from_slice(&[0x49, 0x89, 0xD2]); // mov r10, rdx
+    export_code.extend_from_slice(&[0x44, 0x89, 0xCA]); // mov edx, r9d
+    emit_mt_push_patch(&mut export_code, &mut s3_mt_pp_jmps);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xD2]); // mov rdx, r10
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x74, 0x24, 0x60]); // lea rsi,[rsp+0x60]
     export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x05]); // add r12, 5
     export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]); // add rdx, 8
     export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]); // dec r14d
@@ -2232,7 +2280,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s3_mt_after_jmp = export_code.len();
     patch_jcc32(&mut export_code, s3_jne_mt_jmp, s3_mt_after_jmp);
     patch_jcc32(&mut export_code, s3_jne_mt_jmp_a, s3_mt_after_jmp);
-    // S3.55: CALL argc=1 → E8 00 00 00 00 (≡ emit undefined-label stub); stay in multi
+    // S3.55/S3.67: CALL argc=1 → E8 + queue rel32 patch; stay in multi
     export_code.extend_from_slice(&[0x80, 0x3A, 0x41]); // cmp byte [rdx], CALL
     let s3_jne_mt_call = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
@@ -2246,6 +2294,17 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
     export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0xE8]); // mov byte [r12], 0xE8
     export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x01, 0, 0, 0, 0]); // [r12+1]=0
+    export_code.extend_from_slice(&[0x44, 0x8B, 0x4A, 0x02]); // mov r9d, [rdx+2]
+    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x4C, 0x29, 0xC0]);
+    export_code.extend_from_slice(&[0xFF, 0xC0]);
+    export_code.extend_from_slice(&[0x49, 0x89, 0xD2]);
+    export_code.extend_from_slice(&[0x44, 0x89, 0xCA]);
+    emit_mt_push_patch(&mut export_code, &mut s3_mt_pp_jmps);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xD2]);
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x74, 0x24, 0x60]);
     export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x05]); // add r12, 5
     export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]); // add rdx, 8
     export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]); // dec r14d
@@ -2257,7 +2316,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s3_mt_after_call = export_code.len();
     patch_jcc32(&mut export_code, s3_jne_mt_call, s3_mt_after_call);
     patch_jcc32(&mut export_code, s3_jne_mt_call_a, s3_mt_after_call);
-    // S3.56: JE (0x71) argc=1 → 0F 84 00 00 00 00 (≡ emit undefined-label stub); stay in multi
+    // S3.56/S3.67: JE (0x71) argc=1 → 0F 84 + queue rel32 patch; stay in multi
     export_code.extend_from_slice(&[0x80, 0x3A, 0x71]); // cmp byte [rdx], JE
     let s3_jne_mt_je = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
@@ -2272,6 +2331,17 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x0F]); // mov byte [r12], 0x0F
     export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x84]); // [r12+1]=0x84 (JE)
     export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x02, 0, 0, 0, 0]); // [r12+2]=rel32 0
+    export_code.extend_from_slice(&[0x44, 0x8B, 0x4A, 0x02]); // mov r9d, [rdx+2]
+    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x4C, 0x29, 0xC0]);
+    export_code.extend_from_slice(&[0x83, 0xC0, 0x02]); // pos = code_off+2
+    export_code.extend_from_slice(&[0x49, 0x89, 0xD2]);
+    export_code.extend_from_slice(&[0x44, 0x89, 0xCA]);
+    emit_mt_push_patch(&mut export_code, &mut s3_mt_pp_jmps);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xD2]);
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x74, 0x24, 0x60]);
     export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x06]); // add r12, 6
     export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]); // add rdx, 8
     export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]); // dec r14d
@@ -2283,7 +2353,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s3_mt_after_je = export_code.len();
     patch_jcc32(&mut export_code, s3_jne_mt_je, s3_mt_after_je);
     patch_jcc32(&mut export_code, s3_jne_mt_je_a, s3_mt_after_je);
-    // S3.57: JNE (0x72) argc=1 → 0F 85 00 00 00 00 (≡ emit undefined-label stub); stay in multi
+    // S3.57/S3.67: JNE (0x72) argc=1 → 0F 85 + queue rel32 patch; stay in multi
     export_code.extend_from_slice(&[0x80, 0x3A, 0x72]); // cmp byte [rdx], JNE
     let s3_jne_mt_jne = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
@@ -2298,6 +2368,17 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x0F]); // mov byte [r12], 0x0F
     export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x85]); // [r12+1]=0x85 (JNE)
     export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x02, 0, 0, 0, 0]); // [r12+2]=rel32 0
+    export_code.extend_from_slice(&[0x44, 0x8B, 0x4A, 0x02]);
+    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x4C, 0x29, 0xC0]);
+    export_code.extend_from_slice(&[0x83, 0xC0, 0x02]);
+    export_code.extend_from_slice(&[0x49, 0x89, 0xD2]);
+    export_code.extend_from_slice(&[0x44, 0x89, 0xCA]);
+    emit_mt_push_patch(&mut export_code, &mut s3_mt_pp_jmps);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xD2]);
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x74, 0x24, 0x60]);
     export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x06]); // add r12, 6
     export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]); // add rdx, 8
     export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]); // dec r14d
@@ -2309,7 +2390,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s3_mt_after_jne = export_code.len();
     patch_jcc32(&mut export_code, s3_jne_mt_jne, s3_mt_after_jne);
     patch_jcc32(&mut export_code, s3_jne_mt_jne_a, s3_mt_after_jne);
-    // S3.58: JCC 0x73..=0x7A argc=1 → 0F cc[op-0x73] 00 00 00 00 (table); stay in multi
+    // S3.58/S3.67: JCC 0x73..=0x7A argc=1 → 0F cc + queue rel32 patch; stay in multi
     export_code.extend_from_slice(&[0x0F, 0xB6, 0x02]); // movzx eax, byte [rdx]
     export_code.extend_from_slice(&[0x3C, 0x73]); // cmp al, 0x73
     let s3_jb_mt_jcc = export_code.len();
@@ -2333,6 +2414,17 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x0F]); // mov byte [r12], 0x0F
     export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x01]); // mov [r12+1], al
     export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x02, 0, 0, 0, 0]); // [r12+2]=0
+    export_code.extend_from_slice(&[0x44, 0x8B, 0x4A, 0x02]);
+    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x4C, 0x29, 0xC0]);
+    export_code.extend_from_slice(&[0x83, 0xC0, 0x02]);
+    export_code.extend_from_slice(&[0x49, 0x89, 0xD2]);
+    export_code.extend_from_slice(&[0x44, 0x89, 0xCA]);
+    emit_mt_push_patch(&mut export_code, &mut s3_mt_pp_jmps);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xD2]);
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x74, 0x24, 0x60]);
     export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x06]); // add r12, 6
     export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]); // add rdx, 8
     export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]); // dec r14d
@@ -3588,6 +3680,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         let jmp_rel = s1_push_patch as i32 - (jmp_pp as i32 + 5);
         code[jmp_pp + 1..jmp_pp + 5].copy_from_slice(&jmp_rel.to_le_bytes());
     };
+    // S3.67: multi JMP/CALL/JCC queued the same helper before it existed
+    for jmp_pp in &s3_mt_pp_jmps {
+        patch_rel32(&mut export_code, *jmp_pp, s1_push_patch);
+    }
 
     // --- CALL argc=1: E8 rel32
     let s1_call = export_code.len();
@@ -4020,6 +4116,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         s3_jae_fail_mr,  // S3.47 MOVRR+RET pilot overflow
         s3_jae_fail_cr,  // S3.48 CMP+RET pilot overflow
         s3_jae_fail_multi, // S3.49/S3.50 multi bake overflow
+        s3_jae_fail_mt_label, // S3.67 multi LABEL table full
         s3_jae_fail_mt_jmp, // S3.54 multi JMP stub overflow
         s3_jae_fail_mt_call, // S3.55 multi CALL stub overflow
         s3_jae_fail_mt_je, // S3.56 multi JE stub overflow
@@ -4256,6 +4353,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     exp[s3_multi_cmp_slots_marker_off as usize
         ..s3_multi_cmp_slots_marker_off as usize + s3_multi_cmp_slots_marker.len()]
         .copy_from_slice(s3_multi_cmp_slots_marker);
+    exp[s3_multi_rel32_marker_off as usize
+        ..s3_multi_rel32_marker_off as usize + s3_multi_rel32_marker.len()]
+        .copy_from_slice(s3_multi_rel32_marker);
     exp[s3_jcc_rest_cc_off as usize
         ..s3_jcc_rest_cc_off as usize + s3_jcc_rest_cc.len()]
         .copy_from_slice(s3_jcc_rest_cc);
@@ -5025,6 +5125,10 @@ mod tests {
             "S3.66 multi CMP any-slots marker must be baked into .rdata"
         );
         assert!(
+            ascii.contains("yoyo_in_dll_s3_multi_rel32"),
+            "S3.67 multi true label rel32 marker must be baked into .rdata"
+        );
+        assert!(
             ascii.contains("yoyo_in_dll_s3_table_bake"),
             "S3.37 template-table bake marker must be in .rdata"
         );
@@ -5516,6 +5620,36 @@ mod tests {
         let out = std::fs::read(dir.join(OUTPUT_NAME)).expect("output.exe");
         let off = crate::s1_tyb_parser::S1_SLIM_TEXT_PAYLOAD_OFF;
         assert_eq!(&out[off..off + 2], &[0x90u8, 0xC3], "LABEL+NOP+RET");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.67: LABEL 1 + JMP 1 + RET — multi records label; pass-2 writes rel32=-5.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_sidecar_in_dll_s3_tyb_multi_label_jmp_rel32() {
+        let dir = temp_work("in-dll-s3-tyb-multi-rel32");
+        let mut tyb = Vec::new();
+        tyb.extend_from_slice(b"TYB\0");
+        tyb.extend_from_slice(&[0, 0]);
+        tyb.extend_from_slice(&3u16.to_le_bytes());
+        tyb.push(0x40);
+        tyb.push(1);
+        tyb.extend_from_slice(&[0x01, 0x00, 0, 0, 0, 0]); // LABEL 1 @ code_off 0
+        tyb.push(0x70);
+        tyb.push(1);
+        tyb.extend_from_slice(&[0x01, 0x00, 0, 0, 0, 0]); // JMP 1 → rel = 0-(1+4) = -5
+        tyb.push(0xFF);
+        tyb.push(0);
+        tyb.extend_from_slice(&[0u8; 6]);
+        std::fs::write(dir.join("input.tyb"), &tyb).expect("write tyb");
+        assert_eq!(yoyo_sidecar_in_dll_recompile(&dir), EXIT_OK);
+        let out = std::fs::read(dir.join(OUTPUT_NAME)).expect("output.exe");
+        let off = crate::s1_tyb_parser::S1_SLIM_TEXT_PAYLOAD_OFF;
+        assert_eq!(
+            &out[off..off + 6],
+            &[0xE9u8, 0xFB, 0xFF, 0xFF, 0xFF, 0xC3],
+            "LABEL+JMP defined rel32=-5 + RET"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
