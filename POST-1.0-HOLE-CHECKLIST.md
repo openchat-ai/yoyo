@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.73**：S3.72 multi LDB oo=0 disp8 已 GREEN；下一刀 LDB oo≠0 / MEMCPY / 平台 stub（**非**假 CLOSED）。
+**默认 `继续` = S3.74**：S3.73 multi LDB oo≠0 已 GREEN；下一刀 MEMCPY / 平台 stub（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -545,26 +545,27 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.70** | ✅ 已本地提交 | multi RAW_BYTE/RAW_BYTES 直 append .text；marker `yoyo_in_dll_s3_multi_raw` | commit `21c537a` |
 | **S3.71** | ✅ 已本地提交 | multi DATA/STR/RAW-data append data[]；marker `yoyo_in_dll_s3_multi_data` | commit `6ae0f57` |
 | **S3.72** | ✅ 已本地提交 | multi LDB oo=0 slot<16 直 emit（12B）；marker `yoyo_in_dll_s3_multi_ldb` | commit `1ee4ab0` |
-| **S3.73+** | ⏳ 未开始 | LDB oo≠0 / MEMCPY / slot≥16 / 平台 stub 真语义 | 真自举长杆 |
+| **S3.73** | ✅ 已本地提交 | multi LDB oo≠0（+add imm32，19B）slot&lt;16；marker `yoyo_in_dll_s3_multi_ldb_oo` | commit TBD |
+| **S3.74+** | ⏳ 未开始 | MEMCPY / slot≥16 / 平台 stub 真语义 | 真自举长杆 |
 
-> **写法**：已完成 S3.1–S3.72 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
+> **写法**：已完成 S3.1–S3.73 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
 
-#### 当前诚实缺口（multi→JE · 更新至 S3.72）
+#### 当前诚实缺口（multi→JE · 更新至 S3.73）
 
 | 已进 multi（非 JE） | 仍掉 `s1_loop` JE |
 |---|---|
-| argc0 bake；LABEL；JMP/CALL/JCC 真 rel32；RAW*；DATA/STR；LDB oo=0 | 平台 stub 真语义（ALLOC/LOAD/WRITE 仍 =SET 记数） |
-| SET/ADD/SUB slot0 **any imm**；slot-ops + IMUL/ALU-V **disp8 slot<16** | slot≥16；LDB oo≠0；MEMCPY |
+| argc0 bake；LABEL；JMP/CALL/JCC 真 rel32；RAW*；DATA/STR；LDB（含 oo≠0） | 平台 stub 真语义（ALLOC/LOAD/WRITE 仍 =SET 记数） |
+| SET/ADD/SUB slot0 **any imm**；slot-ops + IMUL/ALU-V **disp8 slot<16** | slot≥16；MEMCPY |
 
-#### S3.73 — multi LDB oo≠0 或 MEMCPY（本步 · 未开始）
+#### S3.74 — multi MEMCPY_DATA（本步 · 未开始）
 
 | 项 | 内容 |
 |---|---|
-| 切片 | multi 内 LDB oo≠0（+add imm）或 MEMCPY_DATA/STATE 最小刀；**不**假 CLOSED |
-| 验收 | 对应 sidecar byte-exact GREEN；marker 待定 |
-| 诚实 | 未选中面·平台·slot≥16 仍 JE；OW-RT 仍 CUT · `closed=0` |
+| 切片 | multi 内 MEMCPY_DATA dst/src/n slot&lt;16 直 emit（14B rep movsb）；**不**假 CLOSED |
+| 验收 | sidecar MEMCPY_DATA + NOP + RET byte-exact GREEN；marker 待定 |
+| 诚实 | MEMCPY_STATE/平台·slot≥16 仍 JE；OW-RT 仍 CUT · `closed=0` |
 
-**默认 `继续` = S3.73**。
+**默认 `继续` = S3.74**。
 
 ### 立项约束
 
@@ -733,4 +734,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 
 *创建：2026-08-31 · v1.0 毕业后 · post-v1.0 path 2 关洞 · 模板对齐 STAGE16_OWNER_CHECKLIST.md*
 
-**当前分支诚实快照（2026-10-15 · + S3.72）**：multi LDB oo=0 disp8 GREEN · 默认 `继续`=**S3.73**（LDB oo≠0 / MEMCPY）· OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag** · （历史逐步快照已折叠；见 git）
+**当前分支诚实快照（2026-10-15 · + S3.73）**：multi LDB oo≠0 GREEN · 默认 `继续`=**S3.74**（MEMCPY_DATA）· OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag** · （历史逐步快照已折叠；见 git）
