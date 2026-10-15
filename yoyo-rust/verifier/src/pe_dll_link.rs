@@ -1203,6 +1203,9 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
     let s3_multi_aluv_marker: &[u8] = b"yoyo_in_dll_s3_multi_aluv\0";
     let s3_multi_aluv_marker_off = off;
     off += s3_multi_aluv_marker.len() as u32;
+    let s3_multi_raw_marker: &[u8] = b"yoyo_in_dll_s3_multi_raw\0";
+    let s3_multi_raw_marker_off = off;
+    off += s3_multi_raw_marker.len() as u32;
     // S3.58: cc bytes for TYB JCC 0x73..=0x7A (JL..JA); index = op - 0x73
     let s3_jcc_rest_cc: &[u8] = &[0x8C, 0x8D, 0x8E, 0x8F, 0x82, 0x83, 0x86, 0x87];
     let s3_jcc_rest_cc_off = off;
@@ -1307,6 +1310,8 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
         s3_multi_imul_marker_off,
         s3_multi_aluv_marker,
         s3_multi_aluv_marker_off,
+        s3_multi_raw_marker,
+        s3_multi_raw_marker_off,
         s3_jcc_rest_cc,
         s3_jcc_rest_cc_off,
         s3_aluv_ops,
@@ -1419,6 +1424,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     s3_multi_imul_marker_off: u32,
     s3_multi_aluv_marker: &[u8],
     s3_multi_aluv_marker_off: u32,
+    s3_multi_raw_marker: &[u8],
+    s3_multi_raw_marker_off: u32,
     s3_jcc_rest_cc: &[u8],
     s3_jcc_rest_cc_off: u32,
     s3_aluv_ops: &[u8],
@@ -2900,13 +2907,83 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x48, 0x8D, 0x4E, 0x08]); // lea rcx,[rsi+8]
     let s3_jmp_finish_mt_aluv = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp s1_finish
+    // S3.70: RAW_BYTE argc=1 → append args[0] to .text
+    let s3_mt_raw = export_code.len();
+    patch_jcc32(&mut export_code, s3_jb_mt_aluv, s3_mt_raw);
+    patch_jcc32(&mut export_code, s3_ja_mt_aluv, s3_mt_raw);
+    patch_jcc32(&mut export_code, s3_jne_mt_aluv_a, s3_mt_raw);
+    patch_jcc32(&mut export_code, s3_jae_mt_aluv_d, s3_mt_raw);
+    patch_jcc32(&mut export_code, s3_jae_mt_aluv_s, s3_mt_raw);
+    export_code.extend_from_slice(&[0x80, 0x3A, 0xA0]); // RAW_BYTE
+    let s3_jne_mt_raw = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x80, 0x7A, 0x01, 0x01]); // argc=1
+    let s3_jne_mt_raw_a = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]); // mov rax, r12
+    export_code.extend_from_slice(&[0x48, 0xFF, 0xC0]); // inc rax
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]); // cmp rax, r13
+    let s3_jae_fail_mt_raw = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
+    export_code.extend_from_slice(&[0x8A, 0x42, 0x02]); // mov al, [rdx+2]
+    export_code.extend_from_slice(&[0x41, 0x88, 0x04, 0x24]); // mov [r12], al
+    export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]); // inc r12
+    export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]); // add rdx, 8
+    export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]); // dec r14d
+    let s3_jnz_mt_raw = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jnz emit
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x4E, 0x08]); // lea rcx,[rsi+8]
+    let s3_jmp_finish_mt_raw = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp s1_finish
+    // S3.70: RAW_BYTES argc≤3 → append low-bytes of args to .text
+    let s3_mt_raws = export_code.len();
+    patch_jcc32(&mut export_code, s3_jne_mt_raw, s3_mt_raws);
+    patch_jcc32(&mut export_code, s3_jne_mt_raw_a, s3_mt_raws);
+    export_code.extend_from_slice(&[0x80, 0x3A, 0xA1]); // RAW_BYTES
+    let s3_jne_mt_raws = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x80, 0x7A, 0x01, 0x03]); // argc ≤ 3
+    let s3_ja_mt_raws_a = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]); // ja after
+    export_code.extend_from_slice(&[0x44, 0x0F, 0xB6, 0x4A, 0x01]); // movzx r9d, [rdx+1]
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]); // mov rax, r12
+    export_code.extend_from_slice(&[0x4C, 0x01, 0xC8]); // add rax, r9
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]); // cmp rax, r13
+    let s3_jae_fail_mt_raws = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
+    export_code.extend_from_slice(&[0x45, 0x84, 0xC9]); // test r9b, r9b
+    let s3_jz_mt_raws0 = export_code.len();
+    export_code.extend_from_slice(&[0x74, 0x00]); // jz done
+    export_code.extend_from_slice(&[0x8A, 0x42, 0x02]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x04, 0x24]);
+    export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]);
+    export_code.extend_from_slice(&[0x41, 0x80, 0xF9, 0x01]); // cmp r9b, 1
+    let s3_jbe_mt_raws1 = export_code.len();
+    export_code.extend_from_slice(&[0x76, 0x00]); // jbe done
+    export_code.extend_from_slice(&[0x8A, 0x42, 0x04]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x04, 0x24]);
+    export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]);
+    export_code.extend_from_slice(&[0x41, 0x80, 0xF9, 0x02]); // cmp r9b, 2
+    let s3_jbe_mt_raws2 = export_code.len();
+    export_code.extend_from_slice(&[0x76, 0x00]); // jbe done
+    export_code.extend_from_slice(&[0x8A, 0x42, 0x06]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x04, 0x24]);
+    export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]);
+    let s3_mt_raws_done = export_code.len();
+    patch_rel8(&mut export_code, s3_jz_mt_raws0, s3_mt_raws_done);
+    patch_rel8(&mut export_code, s3_jbe_mt_raws1, s3_mt_raws_done);
+    patch_rel8(&mut export_code, s3_jbe_mt_raws2, s3_mt_raws_done);
+    export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]); // add rdx, 8
+    export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]); // dec r14d
+    let s3_jnz_mt_raws = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jnz emit
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x4E, 0x08]); // lea rcx,[rsi+8]
+    let s3_jmp_finish_mt_raws = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp s1_finish
     // no template match → fall_s1
     let s3_mt_fail = export_code.len();
-    patch_jcc32(&mut export_code, s3_jb_mt_aluv, s3_mt_fail);
-    patch_jcc32(&mut export_code, s3_ja_mt_aluv, s3_mt_fail);
-    patch_jcc32(&mut export_code, s3_jne_mt_aluv_a, s3_mt_fail);
-    patch_jcc32(&mut export_code, s3_jae_mt_aluv_d, s3_mt_fail);
-    patch_jcc32(&mut export_code, s3_jae_mt_aluv_s, s3_mt_fail);
+    patch_jcc32(&mut export_code, s3_jne_mt_raws, s3_mt_fail);
+    patch_jcc32(&mut export_code, s3_ja_mt_raws_a, s3_mt_fail);
     let s3_jmp_mt_fail = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp fall_s1
 
@@ -4046,6 +4123,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     patch_rel32(&mut export_code, s3_jmp_finish_mt_cmp, s1_finish);
     patch_rel32(&mut export_code, s3_jmp_finish_mt_imul, s1_finish);
     patch_rel32(&mut export_code, s3_jmp_finish_mt_aluv, s1_finish);
+    patch_rel32(&mut export_code, s3_jmp_finish_mt_raw, s1_finish);
+    patch_rel32(&mut export_code, s3_jmp_finish_mt_raws, s1_finish);
     patch_jcc32(&mut export_code, s3_jnz_mt_label, s3_multi_emit);
     patch_jcc32(&mut export_code, s3_jnz_mt_jmp, s3_multi_emit);
     patch_jcc32(&mut export_code, s3_jnz_mt_call, s3_multi_emit);
@@ -4062,6 +4141,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     patch_jcc32(&mut export_code, s3_jnz_mt_cmp, s3_multi_emit);
     patch_jcc32(&mut export_code, s3_jnz_mt_imul, s3_multi_emit);
     patch_jcc32(&mut export_code, s3_jnz_mt_aluv, s3_multi_emit);
+    patch_jcc32(&mut export_code, s3_jnz_mt_raw, s3_multi_emit);
+    patch_jcc32(&mut export_code, s3_jnz_mt_raws, s3_multi_emit);
     // Pass 2: for i in 0..n_patches: lookup label, write rel32
     export_code.extend_from_slice(&[0x31, 0xF6]); // esi = 0 (patch index)
     let s1_p2_loop = export_code.len();
@@ -4276,6 +4357,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         s3_jae_fail_mt_cmp, // S3.66 multi CMP disp8 overflow
         s3_jae_fail_mt_imul, // S3.68 multi IMUL disp8 overflow
         s3_jae_fail_mt_aluv, // S3.69 multi ALU-V disp8 overflow
+        s3_jae_fail_mt_raw, // S3.70 multi RAW_BYTE overflow
+        s3_jae_fail_mt_raws, // S3.70 multi RAW_BYTES overflow
     ];
 
         // Patch jumps
@@ -4508,6 +4591,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     exp[s3_multi_aluv_marker_off as usize
         ..s3_multi_aluv_marker_off as usize + s3_multi_aluv_marker.len()]
         .copy_from_slice(s3_multi_aluv_marker);
+    exp[s3_multi_raw_marker_off as usize
+        ..s3_multi_raw_marker_off as usize + s3_multi_raw_marker.len()]
+        .copy_from_slice(s3_multi_raw_marker);
     exp[s3_jcc_rest_cc_off as usize
         ..s3_jcc_rest_cc_off as usize + s3_jcc_rest_cc.len()]
         .copy_from_slice(s3_jcc_rest_cc);
@@ -5289,6 +5375,10 @@ mod tests {
         assert!(
             ascii.contains("yoyo_in_dll_s3_multi_aluv"),
             "S3.69 multi ALU-V marker must be baked into .rdata"
+        );
+        assert!(
+            ascii.contains("yoyo_in_dll_s3_multi_raw"),
+            "S3.70 multi RAW* marker must be baked into .rdata"
         );
         assert!(
             ascii.contains("yoyo_in_dll_s3_table_bake"),
@@ -6253,6 +6343,36 @@ mod tests {
             assert_eq!(&out[off..off + 17], &expect, "{name} + NOP + RET");
             let _ = std::fs::remove_dir_all(&dir);
         }
+    }
+
+    /// S3.70: RAW_BYTE + RAW_BYTES + RET — multi append (≥3 → multi path).
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_sidecar_in_dll_s3_tyb_multi_raw_bytes() {
+        let dir = temp_work("in-dll-s3-tyb-multi-raw");
+        let mut tyb = Vec::new();
+        tyb.extend_from_slice(b"TYB\0");
+        tyb.extend_from_slice(&[0, 0]);
+        tyb.extend_from_slice(&3u16.to_le_bytes());
+        tyb.push(0xA0);
+        tyb.push(1);
+        tyb.extend_from_slice(&[0x90, 0, 0, 0, 0, 0]); // RAW_BYTE 0x90
+        tyb.push(0xA1);
+        tyb.push(2);
+        tyb.extend_from_slice(&[0xCC, 0, 0xDD, 0, 0, 0]); // RAW_BYTES CC DD
+        tyb.push(0xFF);
+        tyb.push(0);
+        tyb.extend_from_slice(&[0u8; 6]);
+        std::fs::write(dir.join("input.tyb"), &tyb).expect("write tyb");
+        assert_eq!(yoyo_sidecar_in_dll_recompile(&dir), EXIT_OK);
+        let out = std::fs::read(dir.join(OUTPUT_NAME)).expect("output.exe");
+        let off = crate::s1_tyb_parser::S1_SLIM_TEXT_PAYLOAD_OFF;
+        assert_eq!(
+            &out[off..off + 4],
+            &[0x90u8, 0xCC, 0xDD, 0xC3],
+            "RAW_BYTE + RAW_BYTES + RET"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

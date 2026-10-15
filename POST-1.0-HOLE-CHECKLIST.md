@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.70**：S3.69 multi ADDV/ORV/SUBV disp8 直 emit 已 GREEN；下一刀剩余 JE（RAW*/DATA/LDB/平台）（**非**假 CLOSED）。
+**默认 `继续` = S3.71**：S3.70 multi RAW_BYTE/RAW_BYTES 直 append 已 GREEN；下一刀 DATA/STR/LDB/平台（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
