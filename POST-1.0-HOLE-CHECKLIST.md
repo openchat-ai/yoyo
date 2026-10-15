@@ -605,7 +605,7 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.60** | ✅ 已本地提交 | multi ADD slot0 any imm32 直 emit（非 +5-only）；marker `yoyo_in_dll_s3_multi_add_imm` | commit `beea65d` |
 | **S3.61** | ✅ 已本地提交 | multi SUB slot0 any imm32 直 emit（非 -5-only）；marker `yoyo_in_dll_s3_multi_sub_imm` | commit `a312674` |
 | **S3.62** | ✅ 已本地提交 | multi GET any dst/src slot<16 disp8 直 emit；marker `yoyo_in_dll_s3_multi_get_slots` | commit `365d26f` |
-| **S3.63** | ✅ 已本地提交 | multi MOVRR any dst/src slot<16 disp8 直 emit；marker `yoyo_in_dll_s3_multi_movrr` | commit `TBD` |
+| **S3.63** | ✅ 已本地提交 | multi MOVRR any dst/src slot<16 disp8 直 emit；marker `yoyo_in_dll_s3_multi_movrr` | commit `92af018` |
 | **S3.64+** | ⏳ 未开始 | INC/DEC/CMP 变参 / 真 label patch / 替换剩余 JE | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
