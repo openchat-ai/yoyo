@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.75**：S3.74 multi MEMCPY_DATA 已 GREEN；下一刀 MEMCPY_STATE / 平台 stub（**非**假 CLOSED）。
+**默认 `继续` = S3.76**：S3.75 multi MEMCPY_STATE 已 GREEN；下一刀平台 stub / slot≥16（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -546,27 +546,28 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.71** | ✅ 已本地提交 | multi DATA/STR/RAW-data append data[]；marker `yoyo_in_dll_s3_multi_data` | commit `6ae0f57` |
 | **S3.72** | ✅ 已本地提交 | multi LDB oo=0 slot<16 直 emit（12B）；marker `yoyo_in_dll_s3_multi_ldb` | commit `1ee4ab0` |
 | **S3.73** | ✅ 已本地提交 | multi LDB oo≠0（+add imm32，19B）slot&lt;16；marker `yoyo_in_dll_s3_multi_ldb_oo` | commit `a1b931e` |
-| **S3.74** | ✅ 已本地提交 | multi MEMCPY_DATA slot&lt;16 直 emit（14B）；marker `yoyo_in_dll_s3_multi_mcpd` | commit TBD |
-| **S3.75+** | ⏳ 未开始 | MEMCPY_STATE / slot≥16 / 平台 stub 真语义 | 真自举长杆 |
+| **S3.74** | ✅ 已本地提交 | multi MEMCPY_DATA slot&lt;16 直 emit（14B）；marker `yoyo_in_dll_s3_multi_mcpd` | commit `7089023` |
+| **S3.75** | ✅ 已本地提交 | multi MEMCPY_STATE n≤4 slot-disp8 展开 load/store；marker `yoyo_in_dll_s3_multi_mcps` | commit TBD |
+| **S3.76+** | ⏳ 未开始 | slot≥16 / 平台 stub 真语义 | 真自举长杆 |
 
-> **写法**：已完成 S3.1–S3.74 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
+> **写法**：已完成 S3.1–S3.75 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
 
-#### 当前诚实缺口（multi→JE · 更新至 S3.74）
+#### 当前诚实缺口（multi→JE · 更新至 S3.75）
 
 | 已进 multi（非 JE） | 仍掉 `s1_loop` JE |
 |---|---|
-| argc0 bake；LABEL；JMP/CALL/JCC 真 rel32；RAW*；DATA/STR；LDB；MEMCPY_DATA | 平台 stub 真语义（ALLOC/LOAD/WRITE 仍 =SET 记数） |
-| SET/ADD/SUB slot0 **any imm**；slot-ops + IMUL/ALU-V **disp8 slot<16** | slot≥16；MEMCPY_STATE |
+| argc0 bake；LABEL；JMP/CALL/JCC 真 rel32；RAW*；DATA/STR；LDB；MEMCPY_* | 平台 stub 真语义（ALLOC/LOAD/WRITE 仍 =SET 记数） |
+| SET/ADD/SUB slot0 **any imm**；slot-ops + IMUL/ALU-V **disp8 slot<16** | slot≥16 |
 
-#### S3.75 — multi MEMCPY_STATE（本步 · 未开始）
+#### S3.76 — multi 平台 stub 或 slot≥16（本步 · 未开始）
 
 | 项 | 内容 |
 |---|---|
-| 切片 | multi 内 MEMCPY_STATE dst/src/n（n≤4、slot disp8）直 emit；**不**假 CLOSED |
-| 验收 | sidecar MEMCPY_STATE + NOP + RET byte-exact GREEN；marker 待定 |
-| 诚实 | 平台·slot≥16 仍 JE；OW-RT 仍 CUT · `closed=0` |
+| 切片 | 平台 stub（ALLOC/LOAD/WRITE）最小真语义，或 slot≥16 disp32 最小刀；**不**假 CLOSED |
+| 验收 | 对应 sidecar byte-exact / 行为 GREEN；marker 待定 |
+| 诚实 | 未选中面仍 JE；OW-RT 仍 CUT · `closed=0` |
 
-**默认 `继续` = S3.75**。
+**默认 `继续` = S3.76**。
 
 ### 立项约束
 
