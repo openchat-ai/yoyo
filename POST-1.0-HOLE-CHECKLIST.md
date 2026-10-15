@@ -539,7 +539,7 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.64** | ✅ 已本地提交 | multi INC any slot<16 disp8 直 emit；marker `yoyo_in_dll_s3_multi_inc` | commit `f61517a` |
 | **S3.65** | ✅ 已本地提交 | multi DEC any slot<16 disp8 直 emit；marker `yoyo_in_dll_s3_multi_dec` | commit `b0fcfe3` |
 | **S3.66** | ✅ 已本地提交 | multi CMP any a/b slot<16 disp8 直 emit；marker `yoyo_in_dll_s3_multi_cmp` | commit `ca8018f` |
-| **S3.67** | ✅ 已本地提交 | multi LABEL 记位 + JMP/CALL/JCC push_patch→pass-2 真 rel32；marker `yoyo_in_dll_s3_multi_rel32` | commit TBD |
+| **S3.67** | ✅ 已本地提交 | multi LABEL 记位 + JMP/CALL/JCC push_patch→pass-2 真 rel32；marker `yoyo_in_dll_s3_multi_rel32` | commit `87b9d55` |
 | **S3.68+** | ⏳ 未开始 | 替换剩余 JE（平台 stub / slot≥16 / IMUL·ALU-V / 内存·DATA） | 真自举长杆 |
 
 > **写法**：已完成 S3.1–S3.67 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
