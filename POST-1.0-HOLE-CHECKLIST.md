@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.66**：S3.65 multi DEC any disp8 slot 直 emit 已 GREEN；下一刀 CMP 变参或真 label patch（**非**假 CLOSED）。
+**默认 `继续` = S3.67**：S3.66 multi CMP any disp8 slots 直 emit 已 GREEN；下一刀真 label rel32 patch（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -608,7 +608,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.63** | ✅ 已本地提交 | multi MOVRR any dst/src slot<16 disp8 直 emit；marker `yoyo_in_dll_s3_multi_movrr` | commit `92af018` |
 | **S3.64** | ✅ 已本地提交 | multi INC any slot<16 disp8 直 emit；marker `yoyo_in_dll_s3_multi_inc` | commit `f61517a` |
 | **S3.65** | ✅ 已本地提交 | multi DEC any slot<16 disp8 直 emit；marker `yoyo_in_dll_s3_multi_dec` | commit `b0fcfe3` |
-| **S3.66+** | ⏳ 未开始 | CMP 变参 / 真 label patch / 替换剩余 JE | 真自举长杆 |
+| **S3.66** | ✅ 已本地提交 | multi CMP any a/b slot<16 disp8 直 emit；marker `yoyo_in_dll_s3_multi_cmp` | commit `TBD` |
+| **S3.67+** | ⏳ 未开始 | 真 label rel32 patch / 替换剩余 JE | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -1353,6 +1354,16 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 
 **默认 `继续` = S3.66**。
 
+#### S3.66 — multi CMP any disp8 slots 直 emit（本步）
+
+| 项 | 内容 |
+|---|---|
+| 切片 | multi 扫到 CMP argc=2 且 a/b<16 → 直 emit `49 8B 47 a*8 / 49 8B 4F b*8 / 48 39 C8`；slot≥16 仍 JE；**不**假 CLOSED |
+| 验收 | sidecar CMP(a2,b3)+RET → 12B GREEN；旧 0,1 仍 GREEN；marker `yoyo_in_dll_s3_multi_cmp` |
+| 诚实 | CMP slot≥16 / 真 label rel32 patch / 平台·内存面仍 JE；OW-RT 仍 CUT |
+
+**默认 `继续` = S3.67**。
+
 ### 立项约束
 
 - 本路线**不是 post-v1.0 关洞的延续**，是**新主线**
@@ -1652,3 +1663,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-15 · + S3.63）**：multi MOVRR any disp8 slots GREEN · 默认 `继续`=**S3.64** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-15 · + S3.64）**：multi INC any disp8 slot GREEN · 默认 `继续`=**S3.65** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-15 · + S3.65）**：multi DEC any disp8 slot GREEN · 默认 `继续`=**S3.66** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-15 · + S3.66）**：multi CMP any disp8 slots GREEN · 默认 `继续`=**S3.67** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
