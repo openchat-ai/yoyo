@@ -1151,6 +1151,10 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
     let s3_multi_tmpl_marker_off = off;
     off += s3_multi_tmpl_marker.len() as u32;
     off = align_up(off, 16);
+    let s3_multi_label_marker: &[u8] = b"yoyo_in_dll_s3_multi_label\0";
+    let s3_multi_label_marker_off = off;
+    off += s3_multi_label_marker.len() as u32;
+    off = align_up(off, 16);
     // S3.43: bake 10-row host-compatible template table.
     let s3_bake_marker: &[u8] = b"yoyo_in_dll_s3_table_bake\0";
     let s3_bake_marker_off = off;
@@ -1212,6 +1216,8 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
         s3_multi_mixed_marker_off,
         s3_multi_tmpl_marker,
         s3_multi_tmpl_marker_off,
+        s3_multi_label_marker,
+        s3_multi_label_marker_off,
         s3_bake_marker,
         s3_bake_marker_off,
         &s3_bake_table,
@@ -1286,6 +1292,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     s3_multi_mixed_marker_off: u32,
     s3_multi_tmpl_marker: &[u8],
     s3_multi_tmpl_marker_off: u32,
+    s3_multi_label_marker: &[u8],
+    s3_multi_label_marker_off: u32,
     s3_bake_marker: &[u8],
     s3_bake_marker_off: u32,
     s3_bake_table: &[u8],
@@ -2082,6 +2090,23 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x80, 0x7A, 0x01, 0x00]); // cmp byte [rdx+1], 0
     let s3_je_multi_argc0 = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]); // je bake_scan
+    // S3.52: LABEL argc=1 → no .text bytes; advance cursor (stay in multi)
+    export_code.extend_from_slice(&[0x80, 0x3A, 0x40]); // cmp byte [rdx], LABEL
+    let s3_jne_mt_label = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x80, 0x7A, 0x01, 0x01]); // argc=1
+    let s3_jne_mt_label_a = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]); // add rdx, 8
+    export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]); // dec r14d
+    let s3_jnz_mt_label = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jnz emit
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x4E, 0x08]); // lea rcx,[rsi+8]
+    let s3_jmp_finish_label = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp s1_finish
+    let s3_mt_after_label = export_code.len();
+    patch_jcc32(&mut export_code, s3_jne_mt_label, s3_mt_after_label);
+    patch_jcc32(&mut export_code, s3_jne_mt_label_a, s3_mt_after_label);
     // S3.51: fixed-template match for argc>0 (record at [rdx])
     // SET slot0=DEADBEEF
     export_code.extend_from_slice(&[0x80, 0x3A, 0x30]); // cmp byte [rdx], SET
@@ -3364,6 +3389,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     patch_rel32(&mut export_code, s3_jmp_finish_mr, s1_finish);
     patch_rel32(&mut export_code, s3_jmp_finish_cr, s1_finish);
     patch_rel32(&mut export_code, s3_jmp_finish_multi, s1_finish);
+    patch_rel32(&mut export_code, s3_jmp_finish_label, s1_finish);
+    patch_jcc32(&mut export_code, s3_jnz_mt_label, s3_multi_emit);
     // Pass 2: for i in 0..n_patches: lookup label, write rel32
     export_code.extend_from_slice(&[0x31, 0xF6]); // esi = 0 (patch index)
     let s1_p2_loop = export_code.len();
@@ -3743,6 +3770,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     exp[s3_multi_tmpl_marker_off as usize
         ..s3_multi_tmpl_marker_off as usize + s3_multi_tmpl_marker.len()]
         .copy_from_slice(s3_multi_tmpl_marker);
+    exp[s3_multi_label_marker_off as usize
+        ..s3_multi_label_marker_off as usize + s3_multi_label_marker.len()]
+        .copy_from_slice(s3_multi_label_marker);
     exp[s3_bake_marker_off as usize..s3_bake_marker_off as usize + s3_bake_marker.len()]
         .copy_from_slice(s3_bake_marker);
     exp[s3_bake_table_off as usize..s3_bake_table_off as usize + s3_bake_table.len()]
@@ -4453,6 +4483,10 @@ mod tests {
             "S3.51 multi templated-argc marker must be baked into .rdata"
         );
         assert!(
+            ascii.contains("yoyo_in_dll_s3_multi_label"),
+            "S3.52 multi LABEL skip marker must be baked into .rdata"
+        );
+        assert!(
             ascii.contains("yoyo_in_dll_s3_table_bake"),
             "S3.37 template-table bake marker must be in .rdata"
         );
@@ -4918,6 +4952,32 @@ mod tests {
             expect.as_slice(),
             "SET+INC+RET multi templated bake"
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.52: LABEL + NOP + RET — LABEL skipped in multi; bake NOP+RET.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_sidecar_in_dll_s3_tyb_multi_label_skip() {
+        let dir = temp_work("in-dll-s3-tyb-multi-label");
+        let mut tyb = Vec::new();
+        tyb.extend_from_slice(b"TYB\0");
+        tyb.extend_from_slice(&[0, 0]);
+        tyb.extend_from_slice(&3u16.to_le_bytes());
+        tyb.push(0x40);
+        tyb.push(1);
+        tyb.extend_from_slice(&[0x01, 0x00, 0, 0, 0, 0]); // LABEL 1
+        tyb.push(0x00);
+        tyb.push(0);
+        tyb.extend_from_slice(&[0u8; 6]);
+        tyb.push(0xFF);
+        tyb.push(0);
+        tyb.extend_from_slice(&[0u8; 6]);
+        std::fs::write(dir.join("input.tyb"), &tyb).expect("write tyb");
+        assert_eq!(yoyo_sidecar_in_dll_recompile(&dir), EXIT_OK);
+        let out = std::fs::read(dir.join(OUTPUT_NAME)).expect("output.exe");
+        let off = crate::s1_tyb_parser::S1_SLIM_TEXT_PAYLOAD_OFF;
+        assert_eq!(&out[off..off + 2], &[0x90u8, 0xC3], "LABEL+NOP+RET");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

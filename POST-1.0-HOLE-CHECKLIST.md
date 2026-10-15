@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.52**：S3.51 multi 固定模板带参 bake 已绿；下一刀非模板 op 仍 JE / 扩模板（**非**假 CLOSED）。
+**默认 `继续` = S3.53**：S3.52 multi LABEL skip 已绿；下一刀非模板 op 仍 JE / 扩模板（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -594,7 +594,8 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 | **S3.49** | ✅ 已本地提交 | ≥3 all-argc0 multi bake 扫表环；marker `yoyo_in_dll_s3_multi_bake` | commit `1d6b6e8` |
 | **S3.50** | ✅ 已本地提交 | mixed-argc 前缀 bake→JE；marker `yoyo_in_dll_s3_multi_mixed` | commit `299fbbe` |
 | **S3.51** | ✅ 已本地提交 | multi 固定模板带参也 bake 扫表；marker `yoyo_in_dll_s3_multi_tmpl` | commit `bb485a8` |
-| **S3.52+** | ⏳ 未开始 | 非模板 op 仍 JE / 扩模板 / 替换剩余 JE | 真自举长杆 |
+| **S3.52** | ✅ 已本地提交 | multi LABEL argc1 skip（无 .text）；marker `yoyo_in_dll_s3_multi_label` | PLACEHOLDER_S352 |
+| **S3.53+** | ⏳ 未开始 | 非模板 op 仍 JE / 扩模板 / 替换剩余 JE | 真自举长杆 |
 
 #### S3.1 — codegen 自举缺口盘点（本步）
 
@@ -1184,6 +1185,17 @@ S2 **不是**一步把该 Rust 库翻译成 YOYO；S2 先要求：**同一效果
 
 **默认 `继续` = S3.52**。
 
+#### S3.52 — multi LABEL skip（本步）
+
+| 项 | 决定 |
+|---|---|
+| 行为 | rec_cnt≥3 且 LABEL argc=1：不写 `.text`，游标前进，留在 multi 环 |
+| 标记 | `.rdata` `yoyo_in_dll_s3_multi_label` |
+| 验收 | sidecar LABEL+NOP+RET → `90 C3` GREEN |
+| 诚实 | JMP/JCC/CALL 等控制流仍 JE；OW-RT 仍 CUT |
+
+**默认 `继续` = S3.53**。
+
 ### 立项约束
 
 - 本路线**不是 post-v1.0 关洞的延续**，是**新主线**
@@ -1469,3 +1481,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 **当前分支诚实快照（2026-10-14 · + S3.49）**：≥3 all-argc0 multi bake 环 GREEN · 默认 `继续`=**S3.50** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-14 · + S3.50）**：mixed-argc 前缀 bake→JE GREEN · 默认 `继续`=**S3.51** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
 **当前分支诚实快照（2026-10-15 · + S3.51）**：multi 固定模板带参 bake GREEN · 默认 `继续`=**S3.52** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
+**当前分支诚实快照（2026-10-15 · + S3.52）**：multi LABEL skip GREEN · 默认 `继续`=**S3.53** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag**
