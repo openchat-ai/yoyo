@@ -542,26 +542,27 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.67** | ✅ 已本地提交 | multi LABEL 记位 + JMP/CALL/JCC push_patch→pass-2 真 rel32；marker `yoyo_in_dll_s3_multi_rel32` | commit `87b9d55` |
 | **S3.68** | ✅ 已本地提交 | multi IMUL any dst/src slot<16 disp8 直 emit；marker `yoyo_in_dll_s3_multi_imul` | commit `20e8567` |
 | **S3.69** | ✅ 已本地提交 | multi ADDV/ORV/SUBV any dst/src slot<16 表驱动直 emit；marker `yoyo_in_dll_s3_multi_aluv` | commit `5ee30e3` |
-| **S3.70+** | ⏳ 未开始 | RAW*/DATA/STR/LDB/MEMCPY / slot≥16 / 平台 stub | 真自举长杆 |
+| **S3.70** | ✅ 已本地提交 | multi RAW_BYTE/RAW_BYTES 直 append .text；marker `yoyo_in_dll_s3_multi_raw` | commit `21c537a` |
+| **S3.71+** | ⏳ 未开始 | DATA/STR/LDB/MEMCPY / slot≥16 / 平台 stub | 真自举长杆 |
 
-> **写法**：已完成 S3.1–S3.69 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
+> **写法**：已完成 S3.1–S3.70 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
 
-#### 当前诚实缺口（multi→JE · 更新至 S3.69）
+#### 当前诚实缺口（multi→JE · 更新至 S3.70）
 
 | 已进 multi（非 JE） | 仍掉 `s1_loop` JE |
 |---|---|
 | argc0 bake；LABEL 记位；JMP/CALL/JCC 真 rel32 | 平台 stub 真语义（ALLOC/LOAD/WRITE 仍 =SET 记数） |
-| SET/ADD/SUB slot0 **any imm**；GET/MOVRR/INC/DEC/CMP/IMUL/ADDV/ORV/SUBV **disp8 slot<16** | slot≥16；LDB/MEMCPY/DATA/STR/RAW* |
+| SET/ADD/SUB slot0 **any imm**；slot-ops + IMUL/ALU-V **disp8 slot<16**；RAW* | slot≥16；LDB/MEMCPY/DATA/STR |
 
-#### S3.70 — multi RAW_BYTE / RAW_BYTES（本步 · 未开始）
+#### S3.71 — multi DATA / STR（本步 · 未开始）
 
 | 项 | 内容 |
 |---|---|
-| 切片 | multi 内 RAW_BYTE(argc1) / RAW_BYTES(argc≤3) 直 append 到 .text；**不**假 CLOSED |
-| 验收 | sidecar RAW* + RET（≥3 强制 multi）byte-exact GREEN；marker 待定 |
-| 诚实 | DATA/LDB/平台·slot≥16 仍 JE；OW-RT 仍 CUT · `closed=0` |
+| 切片 | multi 内 DATA/STR（及同源 RAW-data）append 到 data 缓冲；**不**假 CLOSED |
+| 验收 | sidecar DATA/STR + RET（≥3 multi）byte-exact / .data GREEN；marker 待定 |
+| 诚实 | LDB/MEMCPY/平台·slot≥16 仍 JE；OW-RT 仍 CUT · `closed=0` |
 
-**默认 `继续` = S3.70**。
+**默认 `继续` = S3.71**。
 
 ### 立项约束
 
@@ -730,4 +731,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 
 *创建：2026-08-31 · v1.0 毕业后 · post-v1.0 path 2 关洞 · 模板对齐 STAGE16_OWNER_CHECKLIST.md*
 
-**当前分支诚实快照（2026-10-15 · + S3.69）**：multi ADDV/ORV/SUBV disp8 GREEN · 默认 `继续`=**S3.70**（RAW*）· OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag** · （历史逐步快照已折叠；见 git）
+**当前分支诚实快照（2026-10-15 · + S3.70）**：multi RAW_BYTE/RAW_BYTES GREEN · 默认 `继续`=**S3.71**（DATA/STR）· OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag** · （历史逐步快照已折叠；见 git）
