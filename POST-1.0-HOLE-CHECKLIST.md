@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.79**：S3.78 s1 SET disp32 已 GREEN；下一刀其它 op slot≥16（**非**假 CLOSED）。
+**默认 `继续` = S3.80**：S3.79 multi GET any-slot 已 GREEN；下一刀 MOVRR/INC/… slot≥16（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -550,7 +550,7 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.75** | ✅ 已本地提交 | multi MEMCPY_STATE n≤4 slot-disp8 展开 load/store；marker `yoyo_in_dll_s3_multi_mcps` | commit `84ca238` |
 | **S3.76** | ✅ 已本地提交 | multi ALLOC/LOAD/WRITE stub ≡ SET slot0；marker `yoyo_in_dll_s3_multi_plat` | commit `290679b` |
 | **S3.77** | ✅ 已本地提交 | multi SET any-slot≤255 disp8\|disp32；marker `yoyo_in_dll_s3_multi_slot32` | commit `e1c2441` |
-| **S3.78** | ✅ 已本地提交 | s1 SET(+stub) any-slot disp8\|disp32；marker `yoyo_in_dll_s1_set_d32` | commit `TBD` |
+| **S3.78** | ✅ 已本地提交 | s1 SET(+stub) any-slot disp8\|disp32；marker `yoyo_in_dll_s1_set_d32` | commit `f4602f0` |
 | **S3.79+** | ⏳ 未开始 | 其它 op slot≥16 / 平台真 I/O | 真自举长杆 |
 
 > **写法**：已完成 S3.1–S3.78 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
