@@ -545,7 +545,7 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.70** | ✅ 已本地提交 | multi RAW_BYTE/RAW_BYTES 直 append .text；marker `yoyo_in_dll_s3_multi_raw` | commit `21c537a` |
 | **S3.71** | ✅ 已本地提交 | multi DATA/STR/RAW-data append data[]；marker `yoyo_in_dll_s3_multi_data` | commit `6ae0f57` |
 | **S3.72** | ✅ 已本地提交 | multi LDB oo=0 slot<16 直 emit（12B）；marker `yoyo_in_dll_s3_multi_ldb` | commit `1ee4ab0` |
-| **S3.73** | ✅ 已本地提交 | multi LDB oo≠0（+add imm32，19B）slot&lt;16；marker `yoyo_in_dll_s3_multi_ldb_oo` | commit TBD |
+| **S3.73** | ✅ 已本地提交 | multi LDB oo≠0（+add imm32，19B）slot&lt;16；marker `yoyo_in_dll_s3_multi_ldb_oo` | commit `a1b931e` |
 | **S3.74+** | ⏳ 未开始 | MEMCPY / slot≥16 / 平台 stub 真语义 | 真自举长杆 |
 
 > **写法**：已完成 S3.1–S3.73 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
