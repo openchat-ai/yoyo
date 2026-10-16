@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.108 / meta-emit**：S3.107 in-DLL roundtrip GREEN；StubPlatform 仍 stub；下一刀验收脚本扩 in-DLL e2e 或 meta-emit（**非**假 CLOSED）。
+**默认 `继续` = S3.109 / meta-emit**：S3.108 验收脚本含 in-DLL e2e GREEN；StubPlatform 仍 stub；下一刀 meta-emit 深挖（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -580,26 +580,27 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.104** | ✅ 已本地提交 | in-DLL recompile ALLOC PE → manual_map 真跑；marker `yoyo_in_dll_s3_in_dll_alloc_e2e` | commit `060154a` |
 | **S3.105** | ✅ 已本地提交 | in-DLL recompile LOAD PE → inject path → ReadFile e2e；marker `yoyo_in_dll_s3_in_dll_load_e2e` | commit `060154a` |
 | **S3.106** | ✅ 已本地提交 | in-DLL recompile WRITE PE → WriteFile e2e；marker `yoyo_in_dll_s3_in_dll_write_e2e` | commit `59077dc` |
-| **S3.107** | ✅ 已本地提交 | in-DLL LOAD→WRITE roundtrip e2e；marker `yoyo_in_dll_s3_in_dll_rw_roundtrip` | commit TBD |
-| **S3.108+** | ⏳ 未开始 | 验收脚本扩 in-DLL e2e / meta-emit 深挖 / 真 S3 自举 | 真自举长杆 |
+| **S3.107** | ✅ 已本地提交 | in-DLL LOAD→WRITE roundtrip e2e；marker `yoyo_in_dll_s3_in_dll_rw_roundtrip` | commit `886f431` |
+| **S3.108** | ✅ 已本地提交 | 验收脚本扩 host+in-DLL slim e2e；StubPlatform 仍 stub | commit TBD |
+| **S3.109+** | ⏳ 未开始 | meta-emit 深挖 / 真 S3 自举 | 真自举长杆 |
 
-> **写法**：已完成 S3.1–S3.107 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
+> **写法**：已完成 S3.1–S3.108 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
 
-#### 当前诚实缺口（更新至 S3.107）
+#### 当前诚实缺口（更新至 S3.108）
 
 | 已进 | 仍未做 |
 |---|---|
-| host slim e2e + **in-DLL ALLOC/LOAD/WRITE/roundtrip 真跑** | `StubPlatform` 仍 stub；脚本未覆盖 in-DLL e2e；真 S3 自举 |
+| host+in-DLL slim 真 I/O e2e + 验收脚本 | `StubPlatform` 仍 stub；meta-emit；真 S3 自举 |
 
-#### S3.108 — 验收脚本扩 in-DLL 或 meta-emit（本步 · 未开始）
+#### S3.109 — meta-emit 深挖（本步 · 未开始）
 
 | 项 | 内容 |
 |---|---|
-| 切片 | `stage17-s2-runtime-effect-slim.ps1` 加跑 in-DLL e2e，或 meta-emit；StubPlatform **保持** stub；**不**假 CLOSED |
+| 切片 | meta-emit 扩面（更多 op 模板 / 少依赖 Rust 辅助）；StubPlatform **保持** stub；**不**假 CLOSED |
 | 验收 | sidecar/smoke GREEN；marker TBD |
 | 诚实 | OW-RT 仍 CUT · `closed=0` |
 
-**默认 `继续` = S3.108 / 验收脚本**。
+**默认 `继续` = S3.109 / meta-emit**。
 
 ### 立项约束
 
@@ -768,4 +769,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 
 *创建：2026-08-31 · v1.0 毕业后 · post-v1.0 path 2 关洞 · 模板对齐 STAGE16_OWNER_CHECKLIST.md*
 
-**当前分支诚实快照（2026-10-16 · + S3.106）**：in-DLL WRITE e2e GREEN · StubPlatform 仍 stub · 默认 `继续`=**S3.107/in-DLL roundtrip** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag** · （历史逐步快照已折叠；见 git）
+**当前分支诚实快照（2026-10-16 · + S3.108）**：验收脚本 host+in-DLL e2e GREEN · StubPlatform 仍 stub · 默认 `继续`=**S3.109/meta-emit** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag** · （历史逐步快照已折叠；见 git）
