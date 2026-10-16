@@ -1729,6 +1729,10 @@ fn s3_sim_prog_loop(tyb: &[u8], table_off: u64, outbuf: u32, prog_ptr: u64) -> R
             0x30 => {
                 let (s, imm) = arg_slot_imm(rec).ok_or(0xFB)?;
                 state[s as usize] = imm as u64;
+                // S3.118: fulltext re-scans from table base; PE does this with RAW lea.
+                if s == 14 {
+                    state[15] = table_off;
+                }
                 pc += 1;
             }
             0x62 => {
@@ -1810,15 +1814,6 @@ fn s3_sim_prog_loop(tyb: &[u8], table_off: u64, outbuf: u32, prog_ptr: u64) -> R
     }
     let base = outbuf as usize;
     Ok(data[base..base + composed].to_vec())
-}
-
-fn s3_host_sim_prog_loop(tyb: &[u8]) -> Result<Vec<u8>, u8> {
-    s3_sim_prog_loop(
-        tyb,
-        S3_HOST_TABLE_OFF as u64,
-        S3_HOST_OUTBUF_OFF,
-        (S3_HOST_PROG_OFF + 1) as u64,
-    )
 }
 
 /// If `prog` is only fixed-template ops, return that op sequence.
@@ -1907,7 +1902,13 @@ pub fn try_emit_text_via_yoyo_table(ops: &[u8]) -> Option<Vec<u8>> {
     }) {
         return None;
     }
-    s3_host_sim_prog_loop(&s3_host_prog_loop_tyb(ops)).ok()
+    s3_sim_prog_loop(
+        &s3_host_prog_loop_tyb(ops),
+        S3_HOST_TABLE_OFF as u64,
+        S3_HOST_OUTBUF_OFF,
+        (S3_HOST_PROG_OFF + 1) as u64,
+    )
+    .ok()
 }
 
 /// Host PE path: fixed-template TYB → slim PE via YOYO table compose (not `emit_x86`).
@@ -3493,90 +3494,11 @@ mod tests {
     /// Host sim: DATA buffer + state[0..16]; ptr slots hold **offsets** into DATA.
     /// RAW_BYTES/A1 ignored (PE lea); sim seeds ptr=0.
     fn s3_sim_table_scan(tyb: &[u8]) -> u64 {
-        let prog = parse_tyb(tyb).expect("parse");
-        let mut data = Vec::new();
-        for rec in &prog.records {
-            if matches!(rec.op, 0x10 | 0x12 | 0x13) {
-                data.extend(arg_low_bytes(rec));
-            }
+        // No memcpy: shared sim returns the OUT slot as Err.
+        match s3_sim_prog_loop(tyb, 0, 0, 0) {
+            Err(code) => code as u64,
+            Ok(_) => panic!("scan firmware must not memcpy"),
         }
-        let mut state = [0u64; 16];
-        state[S3_SCAN_PTR as usize] = 0; // .data base offset
-        // Collect code records (skip DATA and RAW_BYTES)
-        let code: Vec<&TybRecord> = prog
-            .records
-            .iter()
-            .filter(|r| !matches!(r.op, 0x10 | 0x12 | 0x13 | 0xA1 | 0xA0))
-            .collect();
-        // Map label_id → index in code
-        let mut labels = std::collections::HashMap::new();
-        for (i, rec) in code.iter().enumerate() {
-            if rec.op == 0x40 {
-                if let Some(id) = arg_u32(rec) {
-                    labels.insert(id, i);
-                }
-            }
-        }
-        let mut pc = 0usize;
-        let mut zf = false;
-        let mut sf = false;
-        let mut steps = 0usize;
-        while pc < code.len() {
-            steps += 1;
-            assert!(steps < 10_000, "sim runaway");
-            let rec = code[pc];
-            match rec.op {
-                0x40 => {
-                    pc += 1;
-                } // LABEL
-                0x30 => {
-                    let (s, imm) = arg_slot_imm(rec).unwrap();
-                    state[s as usize] = imm as u64;
-                    pc += 1;
-                }
-                0x62 => {
-                    let (s, imm) = arg_slot_imm(rec).unwrap();
-                    state[s as usize] = state[s as usize].wrapping_add(imm as u64);
-                    pc += 1;
-                }
-                0x80 => {
-                    let (dd, ss, oo) = arg_slot3(rec).unwrap();
-                    let addr = state[ss as usize] as usize + oo as usize;
-                    state[dd as usize] = data[addr] as u64;
-                    pc += 1;
-                }
-                0x65 => {
-                    let (a, b) = arg_slot_slot(rec).unwrap();
-                    let va = state[a as usize] as i64;
-                    let vb = state[b as usize] as i64;
-                    let d = va.wrapping_sub(vb);
-                    zf = d == 0;
-                    sf = d < 0;
-                    pc += 1;
-                }
-                0x71 => {
-                    // JE
-                    let id = arg_u32(rec).unwrap();
-                    if zf {
-                        pc = labels[&id];
-                    } else {
-                        pc += 1;
-                    }
-                }
-                0x73 => {
-                    // JL (signed): SF != OF; for our non-neg small ints, SF means <
-                    let id = arg_u32(rec).unwrap();
-                    if sf {
-                        pc = labels[&id];
-                    } else {
-                        pc += 1;
-                    }
-                }
-                0xFF => break,
-                other => panic!("s3 sim unsupported op {other:#x}"),
-            }
-        }
-        state[S3_SCAN_OUT as usize]
     }
 
     #[test]
@@ -3683,110 +3605,11 @@ mod tests {
         tyb_from_records(&recs)
     }
 
-    /// Sim compose: returns Ok(payload) or Err(miss_code).
+    /// S3.118: compose uses the shared prog-loop sim (table at 0, outbuf 0xC8).
     fn s3_sim_table_compose(tyb: &[u8]) -> Result<Vec<u8>, u8> {
-        let prog = parse_tyb(tyb).expect("parse");
-        let mut data = vec![0u8; 512];
-        let mut off = 0usize;
-        for rec in &prog.records {
-            if matches!(rec.op, 0x10 | 0x12 | 0x13) {
-                let b = arg_low_bytes(rec);
-                data[off..off + b.len()].copy_from_slice(&b);
-                off += b.len();
-            }
-        }
-        let mut state = [0u64; 16];
-        state[S3_SCAN_PTR as usize] = 0;
-        state[S3_COMPOSE_DST as usize] = S3_OUTBUF_OFF as u64;
-        let code: Vec<&TybRecord> = prog
-            .records
-            .iter()
-            .filter(|r| !matches!(r.op, 0x10 | 0x12 | 0x13 | 0xA1 | 0xA0))
-            .collect();
-        let mut labels = std::collections::HashMap::new();
-        for (i, rec) in code.iter().enumerate() {
-            if rec.op == 0x40 {
-                if let Some(id) = arg_u32(rec) {
-                    labels.insert(id, i);
-                }
-            }
-        }
-        let mut pc = 0usize;
-        let mut zf = false;
-        let mut sf = false;
-        let mut hit = false;
-        let mut steps = 0usize;
-        while pc < code.len() {
-            steps += 1;
-            assert!(steps < 10_000, "sim runaway");
-            let rec = code[pc];
-            match rec.op {
-                0x40 => pc += 1,
-                0x30 => {
-                    let (s, imm) = arg_slot_imm(rec).unwrap();
-                    state[s as usize] = imm as u64;
-                    pc += 1;
-                }
-                0x62 => {
-                    let (s, imm) = arg_slot_imm(rec).unwrap();
-                    state[s as usize] = state[s as usize].wrapping_add(imm as u64);
-                    pc += 1;
-                }
-                0x64 => {
-                    let (d, s) = arg_slot_slot(rec).unwrap();
-                    state[d as usize] = state[s as usize];
-                    pc += 1;
-                }
-                0x80 => {
-                    let (dd, ss, oo) = arg_slot3(rec).unwrap();
-                    let addr = state[ss as usize] as usize + oo as usize;
-                    state[dd as usize] = data[addr] as u64;
-                    pc += 1;
-                }
-                0x84 => {
-                    let (dst, src, n) = arg_slot3(rec).unwrap();
-                    let d = state[dst as usize] as usize;
-                    let s = state[src as usize] as usize;
-                    let n = state[n as usize] as usize;
-                    let tmp = data[s..s + n].to_vec();
-                    data[d..d + n].copy_from_slice(&tmp);
-                    hit = true;
-                    pc += 1;
-                }
-                0x65 => {
-                    let (a, b) = arg_slot_slot(rec).unwrap();
-                    let d = (state[a as usize] as i64).wrapping_sub(state[b as usize] as i64);
-                    zf = d == 0;
-                    sf = d < 0;
-                    pc += 1;
-                }
-                0x71 => {
-                    let id = arg_u32(rec).unwrap();
-                    if zf {
-                        pc = labels[&id];
-                    } else {
-                        pc += 1;
-                    }
-                }
-                0x73 => {
-                    let id = arg_u32(rec).unwrap();
-                    if sf {
-                        pc = labels[&id];
-                    } else {
-                        pc += 1;
-                    }
-                }
-                0xFF => break,
-                other => panic!("compose sim unsupported {other:#x}"),
-            }
-        }
-        if !hit {
-            return Err(state[S3_SCAN_OUT as usize] as u8);
-        }
-        let n = state[S3_SCAN_OUT as usize] as usize;
-        let base = S3_OUTBUF_OFF as usize;
-        Ok(data[base..base + n].to_vec())
+        s3_sim_prog_loop(tyb, 0, S3_OUTBUF_OFF, 0)
     }
+
 
     #[test]
     fn s3_yoyo_table_compose_sim_multibyte() {
@@ -4478,124 +4301,11 @@ mod tests {
         tyb_from_records(&recs)
     }
 
-    /// Sim fulltext: accumulate every MEMCPY into outbuf; support ADDV.
+    /// S3.118: fulltext uses the shared sim; SET needle resets the scan ptr.
     fn s3_sim_table_fulltext(tyb: &[u8]) -> Result<Vec<u8>, u8> {
-        let prog = parse_tyb(tyb).expect("parse");
-        let mut data = vec![0u8; 512];
-        let mut off = 0usize;
-        for rec in &prog.records {
-            if matches!(rec.op, 0x10 | 0x12 | 0x13) {
-                let b = arg_low_bytes(rec);
-                data[off..off + b.len()].copy_from_slice(&b);
-                off += b.len();
-            }
-        }
-        let mut state = [0u64; 16];
-        state[S3_SCAN_PTR as usize] = 0;
-        state[S3_COMPOSE_DST as usize] = S3_OUTBUF_OFF as u64;
-        let code: Vec<&TybRecord> = prog
-            .records
-            .iter()
-            .filter(|r| !matches!(r.op, 0x10 | 0x12 | 0x13 | 0xA1 | 0xA0))
-            .collect();
-        let mut labels = std::collections::HashMap::new();
-        for (i, rec) in code.iter().enumerate() {
-            if rec.op == 0x40 {
-                if let Some(id) = arg_u32(rec) {
-                    labels.insert(id, i);
-                }
-            }
-        }
-        let mut pc = 0usize;
-        let mut zf = false;
-        let mut sf = false;
-        let mut composed = 0usize;
-        let mut steps = 0usize;
-        while pc < code.len() {
-            steps += 1;
-            assert!(steps < 10_000, "sim runaway");
-            let rec = code[pc];
-            match rec.op {
-                0x40 => pc += 1,
-                0x30 => {
-                    let (s, imm) = arg_slot_imm(rec).unwrap();
-                    state[s as usize] = imm as u64;
-                    // PE re-seeds ptr via RAW lea (ignored here); each scan starts with SET needle.
-                    if s == S3_SCAN_NEEDLE {
-                        state[S3_SCAN_PTR as usize] = 0;
-                    }
-                    pc += 1;
-                }
-                0x62 => {
-                    let (s, imm) = arg_slot_imm(rec).unwrap();
-                    state[s as usize] = state[s as usize].wrapping_add(imm as u64);
-                    pc += 1;
-                }
-                0x64 => {
-                    let (d, s) = arg_slot_slot(rec).unwrap();
-                    state[d as usize] = state[s as usize];
-                    pc += 1;
-                }
-                0x68 => {
-                    let (d, s) = arg_slot_slot(rec).unwrap();
-                    state[d as usize] = state[d as usize].wrapping_add(state[s as usize]);
-                    pc += 1;
-                }
-                0x80 => {
-                    let (dd, ss, oo) = arg_slot3(rec).unwrap();
-                    let addr = state[ss as usize] as usize + oo as usize;
-                    state[dd as usize] = data[addr] as u64;
-                    pc += 1;
-                }
-                0x84 => {
-                    let (dst, src, n) = arg_slot3(rec).unwrap();
-                    let d = state[dst as usize] as usize;
-                    let s = state[src as usize] as usize;
-                    let n = state[n as usize] as usize;
-                    let tmp = data[s..s + n].to_vec();
-                    data[d..d + n].copy_from_slice(&tmp);
-                    composed += n;
-                    pc += 1;
-                }
-                0x65 => {
-                    let (a, b) = arg_slot_slot(rec).unwrap();
-                    let d = (state[a as usize] as i64).wrapping_sub(state[b as usize] as i64);
-                    zf = d == 0;
-                    sf = d < 0;
-                    pc += 1;
-                }
-                0x71 => {
-                    let id = arg_u32(rec).unwrap();
-                    if zf {
-                        pc = labels[&id];
-                    } else {
-                        pc += 1;
-                    }
-                }
-                0x73 => {
-                    let id = arg_u32(rec).unwrap();
-                    if sf {
-                        pc = labels[&id];
-                    } else {
-                        pc += 1;
-                    }
-                }
-                0xFF => {
-                    // miss path sets OUT=0xFE then RET before any memcpy
-                    if composed == 0 {
-                        return Err(state[S3_SCAN_OUT as usize] as u8);
-                    }
-                    break;
-                }
-                other => panic!("fulltext sim unsupported {other:#x}"),
-            }
-        }
-        if composed == 0 {
-            return Err(0xFE);
-        }
-        let base = S3_OUTBUF_OFF as usize;
-        Ok(data[base..base + composed].to_vec())
+        s3_sim_prog_loop(tyb, 0, S3_OUTBUF_OFF, 0)
     }
+
 
     #[test]
     fn s3_yoyo_table_fulltext_set_ret_sim() {
