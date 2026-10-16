@@ -18,7 +18,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 日常          Stage 17+ / S3 → 默认 继续 = S3.110
 ```
 
-明细见下文「关洞三门」表。`stage17-*` = 门禁文件名，≠ ROADMAP Stage 17。
+明细见下文「path 2 归档」。`stage17-*` = 门禁文件名，≠ ROADMAP Stage 17。
 
 ## 阻塞 / 勿做
 
@@ -36,36 +36,31 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 ---
 
-## 洞清单映射（SCOPE-CUT v1.0 FINAL）
+## path 2 归档（洞清单 + 关洞门 · 已收拢）
 
-| ID | Disposition | 门 | CUT→CLOSED 要求 |
-|----|-------------|----|-----------------|
-| **OW-H00** | CUT | C | full `.text` three-peer EQUAL（勿假 CLOSED） |
-| **OW-STUB** | CUT | A/C | `stub_tail_nonzero==0` |
-| **OW-RT** | CUT | D–F · **I** | YOYO-built runtime；无 Rust sidecar（**长杆**） |
-| **OW-IAT** | CUT | A/C→I+ | 无 sidecar 标记（依赖 OW-RT） |
-| **OW-SEED** | CUT | G/H/J | I 已移出→OW-RT；J=bootstrap 例外（不再待关） |
-| **REL-FULLTEXT** | CUT | C | **设计上不毕业 CLOSED** |
-| **REL-STUBOS** | CUT | C | 生产 I/O（非本长杆优先） |
+**终态**：`closed=0 cut=7` · A–H/J 已勾 · **无假 CLOSED**。权威 disposition 全文：`SCOPE-CUT-v1.0-hole-inventory.md`。
 
----
+| 洞 | 门 | 诚实一句话 |
+|---|---|---|
+| **OW-H00** | C | CUT · full `.text` EQUAL 才谈 CLOSED（Gate A 后 DIFF） |
+| **OW-STUB** | A/C | CUT · 需 `stub_tail_nonzero==0` |
+| **OW-RT** | D–F · **I** | CUT · **长杆**（YOYO-built · 无 Rust sidecar）→ S3 |
+| **OW-IAT** | A/C | CUT · 依赖 OW-RT 去 sidecar |
+| **OW-SEED** | G/H/J | CUT · J=bootstrap 例外（不再待关）；I 已移出→OW-RT |
+| **REL-FULLTEXT** | C | CUT · **设计上不毕业 CLOSED** |
+| **REL-STUBOS** | C | CUT · 生产 I/O（非本长杆优先） |
 
-## 关洞三门 + 整仓竣工（已收拢 · path 2 终态）
+| 门 | 状态 | 一句话 |
+|---|---|---|
+| **A** ✅ | PR #26 `f8eb429` | Win OW-IAT wire-up · 仍 CUT |
+| **B** ✅ | Linux tramp | H_00 gen1→gen4 不退化 · 仍 CUT |
+| **C** ✅ | tip `11a2cea` | 洞清单 FINAL · smoke ≠ CLOSED |
+| **D–F** ✅ | OW-RT spike | DLL emit / origin / YOYO-built · 仍 CUT |
+| **G–H** ✅ | OW-SEED | 操作发射 + trust-root pin · 仍 CUT |
+| **I** — | → OW-RT | 去 Rust sidecar（实验 RED · 预期） |
+| **J** ✅ | 分类重述 | bootstrap 例外 · 不再待关 |
 
-**终态**：`closed=0 cut=7` · A–H/J 已勾 · **无假 CLOSED** · 明细见 `git log` / 旧 revision。
-
-| 门 | 状态 | 一句话 | 诚实 |
-|---|---|---|---|
-| **A** | ✅ | Win OW-IAT wire-up · PR #26 `f8eb429` | OW-IAT **仍 CUT** |
-| **B** | ✅ | Linux tramp / H_00 gen1→gen4 不退化 | OW-IAT **仍 CUT** |
-| **C** | ✅ | 洞清单 FINAL · tip `11a2cea` | smoke ≠ CLOSED |
-| **D–F** | ✅ | OW-RT DLL emit + origin + YOYO-built effect | OW-RT **仍 CUT** |
-| **G–H** | ✅ | OW-SEED 操作发射 + trust-root pin | OW-SEED **仍 CUT** |
-| **I** | — | 去 Rust sidecar · **→ OW-RT 长杆** | 实验脚本 RED（预期） |
-| **J** | ✅ | bootstrap 例外分类重述 | CUT 且**不再待关** |
-
-> 日常主线 = 下文 **Stage 17+ / S3**；勿把关洞门 invent 重开。
-
+> 日常主线 = 下文 **Stage 17+ / S3**；勿把关洞门 invent 重开。门禁明细 / CI 见 `git log`。
 ---
 
 ## 后续路线（Stage 17+ / S3）
