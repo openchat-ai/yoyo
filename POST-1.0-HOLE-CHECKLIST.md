@@ -577,8 +577,8 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.101** | ✅ 已本地提交 | slim WRITE e2e（CreateFileA/WriteFile via bound IAT）；marker `yoyo_in_dll_s3_slim_write_e2e` | commit `ad0b671` |
 | **S3.102** | ✅ 已本地提交 | slim LOAD→WRITE roundtrip e2e；StubPlatform 仍 stub；marker `yoyo_in_dll_s3_slim_rw_roundtrip` | commit `4b40224` |
 | **S3.103** | ✅ 已本地提交 | S2.6 slim 真 I/O 验收脚本；marker 沿用 S3.99–S3.102 | commit `2de5ff6` |
-| **S3.104** | ✅ 已本地提交 | in-DLL recompile ALLOC PE → manual_map 真跑；marker `yoyo_in_dll_s3_in_dll_alloc_e2e` | commit TBD |
-| **S3.105** | ✅ 已本地提交 | in-DLL recompile LOAD PE → inject path → ReadFile e2e；marker `yoyo_in_dll_s3_in_dll_load_e2e` | commit TBD |
+| **S3.104** | ✅ 已本地提交 | in-DLL recompile ALLOC PE → manual_map 真跑；marker `yoyo_in_dll_s3_in_dll_alloc_e2e` | commit `060154a` |
+| **S3.105** | ✅ 已本地提交 | in-DLL recompile LOAD PE → inject path → ReadFile e2e；marker `yoyo_in_dll_s3_in_dll_load_e2e` | commit `060154a` |
 | **S3.106+** | ⏳ 未开始 | in-DLL WRITE e2e / meta-emit 深挖 / 真 S3 自举 | 真自举长杆 |
 
 > **写法**：已完成 S3.1–S3.105 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
@@ -766,4 +766,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 
 *创建：2026-08-31 · v1.0 毕业后 · post-v1.0 path 2 关洞 · 模板对齐 STAGE16_OWNER_CHECKLIST.md*
 
-**当前分支诚实快照（2026-10-16 · + S3.103/S2.6）**：slim 真 I/O 验收脚本 GREEN · StubPlatform 仍 stub · 默认 `继续`=**S3.104/meta-emit** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag** · （历史逐步快照已折叠；见 git）
+**当前分支诚实快照（2026-10-16 · + S3.105）**：in-DLL ALLOC/LOAD e2e GREEN · StubPlatform 仍 stub · 默认 `继续`=**S3.106/in-DLL WRITE** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag** · （历史逐步快照已折叠；见 git）
