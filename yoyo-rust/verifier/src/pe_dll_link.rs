@@ -1304,6 +1304,12 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
     let s3_slim_rw_roundtrip_marker: &[u8] = b"yoyo_in_dll_s3_slim_rw_roundtrip\0";
     let s3_slim_rw_roundtrip_marker_off = off;
     off += s3_slim_rw_roundtrip_marker.len() as u32;
+    let s3_in_dll_alloc_e2e_marker: &[u8] = b"yoyo_in_dll_s3_in_dll_alloc_e2e\0";
+    let s3_in_dll_alloc_e2e_marker_off = off;
+    off += s3_in_dll_alloc_e2e_marker.len() as u32;
+    let s3_in_dll_load_e2e_marker: &[u8] = b"yoyo_in_dll_s3_in_dll_load_e2e\0";
+    let s3_in_dll_load_e2e_marker_off = off;
+    off += s3_in_dll_load_e2e_marker.len() as u32;
     // S3.94/S3.95: baked slim LOAD/WRITE machine-code templates (path=0,slot=0).
     let slim_load_tmpl = crate::s1_tyb_parser::emit_slim_load_file(0, 0);
     let slim_load_tmpl_off = off;
@@ -1477,6 +1483,10 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
         s3_slim_write_e2e_marker_off,
         s3_slim_rw_roundtrip_marker,
         s3_slim_rw_roundtrip_marker_off,
+        s3_in_dll_alloc_e2e_marker,
+        s3_in_dll_alloc_e2e_marker_off,
+        s3_in_dll_load_e2e_marker,
+        s3_in_dll_load_e2e_marker_off,
         &slim_load_tmpl,
         slim_load_tmpl_off,
         &slim_write_tmpl,
@@ -1655,6 +1665,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     s3_slim_write_e2e_marker_off: u32,
     s3_slim_rw_roundtrip_marker: &[u8],
     s3_slim_rw_roundtrip_marker_off: u32,
+    s3_in_dll_alloc_e2e_marker: &[u8],
+    s3_in_dll_alloc_e2e_marker_off: u32,
+    s3_in_dll_load_e2e_marker: &[u8],
+    s3_in_dll_load_e2e_marker_off: u32,
     slim_load_tmpl: &[u8],
     slim_load_tmpl_off: u32,
     slim_write_tmpl: &[u8],
@@ -6246,6 +6260,12 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     exp[s3_slim_rw_roundtrip_marker_off as usize
         ..s3_slim_rw_roundtrip_marker_off as usize + s3_slim_rw_roundtrip_marker.len()]
         .copy_from_slice(s3_slim_rw_roundtrip_marker);
+    exp[s3_in_dll_alloc_e2e_marker_off as usize
+        ..s3_in_dll_alloc_e2e_marker_off as usize + s3_in_dll_alloc_e2e_marker.len()]
+        .copy_from_slice(s3_in_dll_alloc_e2e_marker);
+    exp[s3_in_dll_load_e2e_marker_off as usize
+        ..s3_in_dll_load_e2e_marker_off as usize + s3_in_dll_load_e2e_marker.len()]
+        .copy_from_slice(s3_in_dll_load_e2e_marker);
     exp[slim_load_tmpl_off as usize
         ..slim_load_tmpl_off as usize + slim_load_tmpl.len()]
         .copy_from_slice(slim_load_tmpl);
@@ -7157,6 +7177,14 @@ mod tests {
         assert!(
             ascii.contains("yoyo_in_dll_s3_slim_rw_roundtrip"),
             "S3.102 slim LOAD/WRITE roundtrip marker must be baked into .rdata"
+        );
+        assert!(
+            ascii.contains("yoyo_in_dll_s3_in_dll_alloc_e2e"),
+            "S3.104 in-DLL ALLOC e2e marker must be baked into .rdata"
+        );
+        assert!(
+            ascii.contains("yoyo_in_dll_s3_in_dll_load_e2e"),
+            "S3.105 in-DLL LOAD e2e marker must be baked into .rdata"
         );
         assert!(
             ascii.contains("yoyo_in_dll_s3_table_bake"),
@@ -8722,6 +8750,194 @@ mod tests {
         assert_eq!(&out[off..off + expect.len()], expect.as_slice());
         assert_eq!(out[off + expect.len()], 0xC3);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.104: in-DLL recompile ALLOC PE → manual_map bind → run → slot1 non-null.
+    /// Proves in-DLL bake is not text-only: produced slim PE is executable with real VirtualAlloc.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_sidecar_in_dll_s3_alloc_e2e_runs() {
+        use crate::pe_manual_map::{manual_map_pe_dll_executable, parse_pe64_headers};
+        use std::ffi::CString;
+
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn LoadLibraryA(name: *const i8) -> *mut std::ffi::c_void;
+            fn GetProcAddress(
+                module: *mut std::ffi::c_void,
+                name: *const i8,
+            ) -> *mut std::ffi::c_void;
+            fn VirtualFree(lpAddress: *mut std::ffi::c_void, dwSize: usize, dwFreeType: u32)
+                -> i32;
+        }
+        const MEM_RELEASE: u32 = 0x8000;
+
+        fn host_resolve(dll: &str, name: &str) -> Option<u64> {
+            let dll_c = CString::new(dll).ok()?;
+            let name_c = CString::new(name).ok()?;
+            unsafe {
+                let module = LoadLibraryA(dll_c.as_ptr());
+                if module.is_null() {
+                    return None;
+                }
+                let proc = GetProcAddress(module, name_c.as_ptr());
+                if proc.is_null() {
+                    None
+                } else {
+                    Some(proc as u64)
+                }
+            }
+        }
+
+        let dir = temp_work("in-dll-s3-alloc-e2e");
+        let mut tyb = Vec::new();
+        tyb.extend_from_slice(b"TYB\0");
+        tyb.extend_from_slice(&[0, 0]);
+        tyb.extend_from_slice(&2u16.to_le_bytes());
+        tyb.push(0x20); // ALLOC slot1 0x1000
+        tyb.push(2);
+        tyb.extend_from_slice(&[0x01, 0x00, 0x00, 0x10, 0x00, 0x00]);
+        tyb.push(0xFF);
+        tyb.push(0);
+        tyb.extend_from_slice(&[0u8; 6]);
+        std::fs::write(dir.join("input.tyb"), &tyb).expect("write tyb");
+        assert_eq!(yoyo_sidecar_in_dll_recompile(&dir), EXIT_OK);
+        let pe = std::fs::read(dir.join(OUTPUT_NAME)).expect("output.exe");
+
+        let exe = manual_map_pe_dll_executable(&pe, host_resolve).expect("exec map");
+        let headers = parse_pe64_headers(&pe).expect("headers");
+        let pe_off = u32::from_le_bytes(pe[0x3C..0x40].try_into().unwrap()) as usize;
+        let num_sec =
+            u16::from_le_bytes(pe[pe_off + 6..pe_off + 8].try_into().unwrap()) as usize;
+        let opt_size =
+            u16::from_le_bytes(pe[pe_off + 20..pe_off + 22].try_into().unwrap()) as usize;
+        let mut data_rva = 0u32;
+        for i in 0..num_sec {
+            let sh = pe_off + 24 + opt_size + i * 40;
+            if &pe[sh..sh + 5] == b".data" {
+                data_rva = u32::from_le_bytes(pe[sh + 12..sh + 16].try_into().unwrap());
+                break;
+            }
+        }
+        assert_ne!(data_rva, 0);
+        unsafe {
+            let entry = (exe.base as usize + headers.entry_rva as usize) as *const ();
+            let f: extern "C" fn() = std::mem::transmute(entry);
+            f();
+            let slot1 = std::ptr::read_unaligned(
+                (exe.base as *const u8).add(data_rva as usize + 8) as *const u64,
+            );
+            assert_ne!(slot1, 0, "in-DLL ALLOC e2e must store non-null");
+            VirtualFree(slot1 as *mut std::ffi::c_void, 0, MEM_RELEASE);
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.105: in-DLL recompile LOAD PE → inject ASCII path into .data → run → ReadFile match.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_sidecar_in_dll_s3_load_e2e_runs() {
+        use crate::pe_manual_map::{manual_map_pe_dll_executable, parse_pe64_headers};
+        use std::ffi::CString;
+
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn LoadLibraryA(name: *const i8) -> *mut std::ffi::c_void;
+            fn GetProcAddress(
+                module: *mut std::ffi::c_void,
+                name: *const i8,
+            ) -> *mut std::ffi::c_void;
+            fn VirtualFree(lpAddress: *mut std::ffi::c_void, dwSize: usize, dwFreeType: u32)
+                -> i32;
+        }
+        const MEM_RELEASE: u32 = 0x8000;
+        const PATH_OFF: u32 = 0x100;
+
+        fn host_resolve(dll: &str, name: &str) -> Option<u64> {
+            let dll_c = CString::new(dll).ok()?;
+            let name_c = CString::new(name).ok()?;
+            unsafe {
+                let module = LoadLibraryA(dll_c.as_ptr());
+                if module.is_null() {
+                    return None;
+                }
+                let proc = GetProcAddress(module, name_c.as_ptr());
+                if proc.is_null() {
+                    None
+                } else {
+                    Some(proc as u64)
+                }
+            }
+        }
+
+        let work = temp_work("in-dll-s3-load-e2e");
+        let payload_dir = std::env::current_dir()
+            .unwrap_or_else(|_| std::env::temp_dir())
+            .join(format!("yoyo-s3105-load-{}", std::process::id()));
+        std::fs::create_dir_all(&payload_dir).expect("mkdir payload");
+        let path = payload_dir.join("payload.bin");
+        let payload = [0x10u8, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80];
+        std::fs::write(&path, &payload).expect("write payload");
+        let path_str = path.to_str().expect("ascii path").to_string();
+        assert!(path_str.is_ascii());
+        let mut path_bytes = path_str.into_bytes();
+        path_bytes.push(0);
+
+        let mut tyb = Vec::new();
+        tyb.extend_from_slice(b"TYB\0");
+        tyb.extend_from_slice(&[0, 0]);
+        tyb.extend_from_slice(&2u16.to_le_bytes());
+        tyb.push(0x50); // LOAD slot1 path@0x100
+        tyb.push(2);
+        tyb.extend_from_slice(&[
+            0x01,
+            0x00,
+            PATH_OFF as u8,
+            (PATH_OFF >> 8) as u8,
+            0,
+            0,
+        ]);
+        tyb.push(0xFF);
+        tyb.push(0);
+        tyb.extend_from_slice(&[0u8; 6]);
+        std::fs::write(work.join("input.tyb"), &tyb).expect("write tyb");
+        assert_eq!(yoyo_sidecar_in_dll_recompile(&work), EXIT_OK);
+        let pe = std::fs::read(work.join(OUTPUT_NAME)).expect("output.exe");
+
+        let exe = manual_map_pe_dll_executable(&pe, host_resolve).expect("exec map");
+        let headers = parse_pe64_headers(&pe).expect("headers");
+        let pe_off = u32::from_le_bytes(pe[0x3C..0x40].try_into().unwrap()) as usize;
+        let num_sec =
+            u16::from_le_bytes(pe[pe_off + 6..pe_off + 8].try_into().unwrap()) as usize;
+        let opt_size =
+            u16::from_le_bytes(pe[pe_off + 20..pe_off + 22].try_into().unwrap()) as usize;
+        let mut data_rva = 0u32;
+        for i in 0..num_sec {
+            let sh = pe_off + 24 + opt_size + i * 40;
+            if &pe[sh..sh + 5] == b".data" {
+                data_rva = u32::from_le_bytes(pe[sh + 12..sh + 16].try_into().unwrap());
+                break;
+            }
+        }
+        assert_ne!(data_rva, 0);
+        unsafe {
+            let data_base = (exe.base as *mut u8).add(data_rva as usize);
+            std::ptr::copy_nonoverlapping(
+                path_bytes.as_ptr(),
+                data_base.add(PATH_OFF as usize),
+                path_bytes.len(),
+            );
+            let entry = (exe.base as usize + headers.entry_rva as usize) as *const ();
+            let f: extern "C" fn() = std::mem::transmute(entry);
+            f();
+            let buf = std::ptr::read_unaligned(data_base.add(8) as *const u64);
+            assert_ne!(buf, 0, "in-DLL LOAD must store buffer ptr");
+            let got = std::slice::from_raw_parts(buf as *const u8, payload.len());
+            assert_eq!(got, &payload, "in-DLL LOAD ReadFile mismatch");
+            VirtualFree(buf as *mut std::ffi::c_void, 0, MEM_RELEASE);
+        }
+        let _ = std::fs::remove_dir_all(&work);
+        let _ = std::fs::remove_dir_all(&payload_dir);
     }
 
     /// S3.83: CMP a16,b1 + NOP + RET — multi mixed disp32/disp8 + cmp.
