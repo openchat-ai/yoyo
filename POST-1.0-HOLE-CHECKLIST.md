@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.102 / S2**：S3.101 slim WRITE e2e GREEN；StubPlatform 仍 stub；下一刀 S2 子集或 StubPlatform 文档对齐（**非**假 CLOSED）。
+**默认 `继续` = S3.103 / S2.6**：S3.102 slim LOAD↔WRITE roundtrip GREEN；StubPlatform 仍 stub；下一刀 S2.6（runtime-效果真 I/O 固件）或 meta-emit 深挖（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -465,7 +465,7 @@ Run `35553987325`（commit `146b58b`）：
 > **写法**：已完成子步细节不重复展开；状态 / commit / marker 以进度表为准。历史逐步正文见 git（本文件旧 revision）。
 
 **S2 进度**：S2.1–S2.5 本地完成（平台 stub 子集 + 固件钩子）。
-**诚实**：真读输入/写输出仍缺 → OW-RT **仍 CUT** · `closed=0`。
+**诚实**：StubPlatform / FlatBinary / H_00 自测仍 stub；**TYB slim PE** 真 I/O 已由 S3.99–S3.102 冒烟（≠ OW-RT CLOSED）→ OW-RT **仍 CUT** · `closed=0`。
 
 ### S3 子任务分解（进度跟踪）
 
@@ -574,25 +574,26 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.99** | ✅ 已本地提交 | slim PE `manual_map`+host resolve 填 IAT；ALLOC 冒烟；marker `yoyo_in_dll_s3_slim_iat_bind` | commit `7b1be25` |
 | **S3.100** | ✅ 已本地提交 | slim LOAD e2e（CreateFileA/ReadFile via bound IAT）；callee-save rbx/rsi；StubPlatform 仍 stub；marker `yoyo_in_dll_s3_slim_load_e2e` | commit `df6bb7b` |
 | **S3.101** | ✅ 已本地提交 | slim WRITE e2e（CreateFileA/WriteFile via bound IAT）；marker `yoyo_in_dll_s3_slim_write_e2e` | commit `ad0b671` |
-| **S3.102+** | ⏳ 未开始 | S2 子集 / StubPlatform 对齐 / 真 S3 自举 | 真自举长杆 |
+| **S3.102** | ✅ 已本地提交 | slim LOAD→WRITE roundtrip e2e；StubPlatform 仍 stub；marker `yoyo_in_dll_s3_slim_rw_roundtrip` | commit TBD |
+| **S3.103+** | ⏳ 未开始 | S2.6 真 I/O 固件 / meta-emit 深挖 / 真 S3 自举 | 真自举长杆 |
 
-> **写法**：已完成 S3.1–S3.101 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
+> **写法**：已完成 S3.1–S3.102 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
 
-#### 当前诚实缺口（更新至 S3.101）
+#### 当前诚实缺口（更新至 S3.102）
 
 | 已进 | 仍未做 |
 |---|---|
-| 全 slot；slim 5-import IAT；ALLOC/LOAD/WRITE emit；**manual-map bind + ALLOC + LOAD/WRITE e2e** | `StubPlatform` 仍 stub；S2；真 S3 自举 |
+| 全 slot；slim 5-import IAT；ALLOC/LOAD/WRITE emit；**manual-map + ALLOC/LOAD/WRITE/roundtrip e2e** | `StubPlatform` 仍 stub；S2.6 固件接真 I/O；真 S3 自举 |
 
-#### S3.102 — 转入 S2 或 StubPlatform 文档对齐（本步 · 未开始）
+#### S3.103 — S2.6 真 I/O 固件或 meta-emit（本步 · 未开始）
 
 | 项 | 内容 |
 |---|---|
-| 切片 | 开始 S2（yoyo-runtime 子集），或明确 StubPlatform 保持 stub 的边界；**不**假 CLOSED |
+| 切片 | S2.6：runtime-效果固件改走 slim 真 I/O，或继续 meta-emit；StubPlatform **保持** stub；**不**假 CLOSED |
 | 验收 | sidecar/smoke GREEN；marker TBD |
 | 诚实 | OW-RT 仍 CUT · `closed=0` |
 
-**默认 `继续` = S3.102 / S2**。
+**默认 `继续` = S3.103 / S2.6**。
 
 ### 立项约束
 
@@ -761,4 +762,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 
 *创建：2026-08-31 · v1.0 毕业后 · post-v1.0 path 2 关洞 · 模板对齐 STAGE16_OWNER_CHECKLIST.md*
 
-**当前分支诚实快照（2026-10-16 · + S3.101）**：slim WRITE e2e GREEN · StubPlatform 仍 stub · 默认 `继续`=**S3.102/S2** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag** · （历史逐步快照已折叠；见 git）
+**当前分支诚实快照（2026-10-16 · + S3.102）**：slim LOAD↔WRITE roundtrip GREEN · StubPlatform 仍 stub · 默认 `继续`=**S3.103/S2.6** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag** · （历史逐步快照已折叠；见 git）

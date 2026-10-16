@@ -4206,6 +4206,137 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// S3.102: slim LOAD→WRITE roundtrip — read src, write dst, bytes match.
+    /// StubPlatform stays stub; this is the TYB slim real-I/O lane only.
+    #[test]
+    #[cfg(windows)]
+    fn s3_slim_pe_manual_map_load_write_roundtrip_e2e() {
+        use crate::pe_manual_map::{manual_map_pe_dll_executable, parse_pe64_headers};
+        use std::ffi::CString;
+
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn LoadLibraryA(name: *const i8) -> *mut std::ffi::c_void;
+            fn GetProcAddress(
+                module: *mut std::ffi::c_void,
+                name: *const i8,
+            ) -> *mut std::ffi::c_void;
+        }
+
+        fn host_resolve(dll: &str, name: &str) -> Option<u64> {
+            let dll_c = CString::new(dll).ok()?;
+            let name_c = CString::new(name).ok()?;
+            unsafe {
+                let module = LoadLibraryA(dll_c.as_ptr());
+                if module.is_null() {
+                    return None;
+                }
+                let proc = GetProcAddress(module, name_c.as_ptr());
+                if proc.is_null() {
+                    None
+                } else {
+                    Some(proc as u64)
+                }
+            }
+        }
+
+        let dir = std::env::current_dir()
+            .unwrap_or_else(|_| std::env::temp_dir())
+            .join(format!("yoyo-s3102-rw-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        let src = dir.join("src.bin");
+        let dst = dir.join("dst.bin");
+        let payload = [0xABu8, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89];
+        std::fs::write(&src, &payload).expect("write src");
+        let _ = std::fs::remove_file(&dst);
+
+        let src_str = src.to_str().expect("src ascii").to_string();
+        let dst_str = dst.to_str().expect("dst ascii").to_string();
+        assert!(src_str.is_ascii() && dst_str.is_ascii());
+        let mut src_bytes = src_str.into_bytes();
+        src_bytes.push(0);
+        let mut dst_bytes = dst_str.into_bytes();
+        dst_bytes.push(0);
+
+        // .data layout: src path @0x100, dst path @0x180; LOAD→slot1; WRITE slot1→dst sz=slot2
+        const SRC_OFF: u32 = 0x100;
+        const DST_OFF: u32 = 0x180;
+        // After LOAD, slot1=buf. Size for WRITE: we store payload.len() in slot2 via host before call,
+        // and also after LOAD the buffer holds exact payload (ReadFile may read more into the chunk —
+        // we only WriteFile `payload.len()` bytes from slot2).
+        let prog = TybProgram {
+            rec_cnt: 3,
+            records: vec![
+                TybRecord {
+                    op: 0x50,
+                    argc: 2,
+                    args_raw: [
+                        0x01,
+                        0x00,
+                        SRC_OFF as u8,
+                        (SRC_OFF >> 8) as u8,
+                        0,
+                        0,
+                    ],
+                },
+                TybRecord {
+                    op: 0x51,
+                    argc: 3,
+                    args_raw: [
+                        0x01,
+                        0x00,
+                        DST_OFF as u8,
+                        (DST_OFF >> 8) as u8,
+                        0x02,
+                        0x00,
+                    ],
+                },
+                TybRecord {
+                    op: 0xFF,
+                    argc: 0,
+                    args_raw: [0; 6],
+                },
+            ],
+        };
+        let mut cg = emit_x86(&prog);
+        cg.data.resize(SRC_OFF as usize, 0);
+        cg.data.extend_from_slice(&src_bytes);
+        assert!(cg.data.len() <= DST_OFF as usize, "src path overlaps dst");
+        cg.data.resize(DST_OFF as usize, 0);
+        cg.data.extend_from_slice(&dst_bytes);
+        assert!(cg.data.len() < S1_SLIM_IAT_BASE as usize);
+        let pe = wrap_pe_slim(&cg).expect("slim RW PE");
+
+        let exe = manual_map_pe_dll_executable(&pe.bytes, host_resolve).expect("exec map");
+        let headers = parse_pe64_headers(&pe.bytes).expect("headers");
+        let pe_off = u32::from_le_bytes(pe.bytes[0x3C..0x40].try_into().unwrap()) as usize;
+        let num_sec =
+            u16::from_le_bytes(pe.bytes[pe_off + 6..pe_off + 8].try_into().unwrap()) as usize;
+        let opt_size =
+            u16::from_le_bytes(pe.bytes[pe_off + 20..pe_off + 22].try_into().unwrap()) as usize;
+        let mut data_rva = 0u32;
+        for i in 0..num_sec {
+            let sh = pe_off + 24 + opt_size + i * 40;
+            if &pe.bytes[sh..sh + 5] == b".data" {
+                data_rva = u32::from_le_bytes(pe.bytes[sh + 12..sh + 16].try_into().unwrap());
+                break;
+            }
+        }
+        assert_ne!(data_rva, 0);
+        unsafe {
+            let data_base = (exe.base as *mut u8).add(data_rva as usize);
+            // slot2 = write size (LOAD does not set it)
+            std::ptr::write_unaligned(data_base.add(16) as *mut u64, payload.len() as u64);
+            let entry = (exe.base as usize + headers.entry_rva as usize) as *const ();
+            let f: extern "C" fn() = std::mem::transmute(entry);
+            f();
+            // WRITE zeros slot1 → LOAD's VirtualAlloc buffer leaks once (64KiB); process exit reclaims.
+        }
+        let got = std::fs::read(&dst).expect("read dst");
+        assert_eq!(got.as_slice(), &payload, "roundtrip mismatch");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     // ============= S3.18: full .text compose (multi-op SET+RET) =============
 
     const S3_LEA_PTR: &[u8] = &[0x49, 0x8D, 0x07, 0x49, 0x89, 0x47, 0x78]; // lea rax,[r15]; mov [r15+0x78],rax
