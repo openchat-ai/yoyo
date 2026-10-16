@@ -409,9 +409,26 @@ Run `35553987325`（commit `146b58b`）：
 | **S4** | 完整 H_00 ISA 覆盖 | 年级 | 任意合法 YOYO 源可编译 |
 | **S5** | 形式化验证 | 5-10 年 | CompCert / CertiK 路线，Coq/Lean 证明 |
 
+> **远景一句**：S4/S5 只作量级地图，**不**排假工期；日常推进只认下方 **近端子集合同**。
+
+#### S3 近端子集合同（S3.109+ · 可缩短预期）
+
+**目的**：把「真 S3 自举」与「能持续切刀的近端毕业」拆开，避免把半年长杆误当成十几刀倒计时。
+
+| 项 | 近端合同（可 GREEN） | **不算**近端毕业 |
+|---|---|---|
+| **op 子集** | 固定模板 10 op：`RET/NOP/SET(slot0,DEADBEEF)/GET(0←1)/INC(0)/ADD(0,+5)/DEC(0)/SUB(0,-5)/MOVRR(1←0)/CMP(0,1)`（≡ `fixed_template_ops`） | 任意 slot/imm、全 mini-ISA、ALLOC/LOAD/WRITE |
+| **对拍** | meta-emit（RAW_BYTES 打包）· `emit_x86` ·（能走时）`try_emit_text_via_yoyo_table` **`.text` byte-identical** | 「行为像」无字节对拍 |
+| **驱动** | 允许 **Rust 辅助打包/调度**（`pack_meta_emit_*` / in-DLL JE 链） | 零 Rust、YOYO 独写完整 codegen |
+| **I/O** | slim 真 I/O 已由 S3.99–S3.108 覆盖；StubPlatform **保持 stub** | StubPlatform 变真 OS I/O |
+| **CLOSED** | **禁止**；OW-RT **仍 CUT** · `closed=0` | 任何 OW-* CLOSED 话术 |
+
+**近端毕业（命名建议）**：`S3-subset-fixed10` = 上表 10 op 的 meta-emit 矩阵全绿 + 清单诚实缺口更新。  
+**其后**：扩 op / 减 Rust 辅助 / 真自举 ← 仍是半年+ 长杆，另开刀号，**不**并进近端合同假装缩短。
+
 ### 下一步
 
-**默认 `继续` = S3.109 / meta-emit**：S3.108 验收脚本含 in-DLL e2e GREEN；StubPlatform 仍 stub；下一刀 meta-emit 深挖（**非**假 CLOSED）。
+**默认 `继续` = S3.110 / subset 收口**：S3.109 近端合同 + fixed-template 剩余 op meta-emit GREEN；下一刀 `S3-subset-fixed10` 收口或减 Rust 辅助（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -582,25 +599,26 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.106** | ✅ 已本地提交 | in-DLL recompile WRITE PE → WriteFile e2e；marker `yoyo_in_dll_s3_in_dll_write_e2e` | commit `59077dc` |
 | **S3.107** | ✅ 已本地提交 | in-DLL LOAD→WRITE roundtrip e2e；marker `yoyo_in_dll_s3_in_dll_rw_roundtrip` | commit `886f431` |
 | **S3.108** | ✅ 已本地提交 | 验收脚本扩 host+in-DLL slim e2e；StubPlatform 仍 stub | commit `a10c20d` |
-| **S3.109+** | ⏳ 未开始 | meta-emit 深挖 / 真 S3 自举 | 真自举长杆 |
+| **S3.109** | ✅ 已本地提交 | 近端子集合同 + fixed-template 剩余 6 op meta-emit autopack 矩阵 | commit TBD |
+| **S3.110+** | ⏳ 未开始 | `S3-subset-fixed10` 收口 / 减 Rust 辅助 / 真自举长杆 | 长杆 |
 
-> **写法**：已完成 S3.1–S3.108 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
+> **写法**：已完成 S3.1–S3.109 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
 
-#### 当前诚实缺口（更新至 S3.108）
+#### 当前诚实缺口（更新至 S3.109）
 
 | 已进 | 仍未做 |
 |---|---|
-| host+in-DLL slim 真 I/O e2e + 验收脚本 | `StubPlatform` 仍 stub；meta-emit；真 S3 自举 |
+| slim I/O e2e；**近端合同**；fixed10 中 6 op meta-emit 补全 | 合同明示的「近端毕业」标记；减 Rust 辅助；真自举 |
 
-#### S3.109 — meta-emit 深挖（本步 · 未开始）
+#### S3.110 — 近端毕业标记或减 Rust 辅助（本步 · 未开始）
 
 | 项 | 内容 |
 |---|---|
-| 切片 | meta-emit 扩面（更多 op 模板 / 少依赖 Rust 辅助）；StubPlatform **保持** stub；**不**假 CLOSED |
-| 验收 | sidecar/smoke GREEN；marker TBD |
+| 切片 | 钉 `S3-subset-fixed10` 验收脚本/一行总测，或开始去掉一层 Rust pack 辅助；**不**假 CLOSED |
+| 验收 | cargo/script GREEN；marker TBD |
 | 诚实 | OW-RT 仍 CUT · `closed=0` |
 
-**默认 `继续` = S3.109 / meta-emit**。
+**默认 `继续` = S3.110 / subset 收口**。
 
 ### 立项约束
 
@@ -769,4 +787,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 
 *创建：2026-08-31 · v1.0 毕业后 · post-v1.0 path 2 关洞 · 模板对齐 STAGE16_OWNER_CHECKLIST.md*
 
-**当前分支诚实快照（2026-10-16 · + S3.108）**：验收脚本 host+in-DLL e2e GREEN · StubPlatform 仍 stub · 默认 `继续`=**S3.109/meta-emit** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag** · （历史逐步快照已折叠；见 git）
+**当前分支诚实快照（2026-10-16 · + S3.109）**：近端子集合同 + fixed-template meta-emit 矩阵 GREEN · StubPlatform 仍 stub · 默认 `继续`=**S3.110/subset 收口** · OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag** · （历史逐步快照已折叠；见 git）
