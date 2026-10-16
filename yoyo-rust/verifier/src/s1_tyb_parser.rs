@@ -1619,6 +1619,12 @@ fn s3_host_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
     // three RAW_BYTES pointer prologues are not on the emit path. Dropped.
     // `s3_host_pack_bytes(0x10)` for the template DATA remains.
     let mut recs = s3_host_pack_bytes(0x10, &payload);
+    recs.extend(s3_prog_loop_code(ops.len() as u32, S3_HOST_NROWS));
+    s3_host_tyb_from_records(&recs)
+}
+
+/// S3.117: shared scan/compose tail. `nrows` is 10 (host) or 3 (in-DLL).
+fn s3_prog_loop_code(ops_len: u32, nrows: u32) -> Vec<(u8, u8, [u8; 6])> {
     let slot = |s: u16| s.to_le_bytes();
     let set = |s: u16, imm: u32| {
         let sb = slot(s);
@@ -1642,40 +1648,43 @@ fn s3_host_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
     let pn = slot(1);
     let pp = slot(2);
     let tb = slot(3);
-    recs.push(set(1, ops.len() as u32));
-    recs.push(set(0, 0));
-    recs.push((0x40, 1, [5, 0, 0, 0, 0, 0]));
-    recs.push((0x65, 2, [pi[0], pi[1], pn[0], pn[1], 0, 0]));
-    recs.push((0x74, 1, [6, 0, 0, 0, 0, 0]));
-    recs.push((0x80, 3, [n[0], n[1], pp[0], pp[1], 0, 0]));
-    recs.push((0x64, 2, [p[0], p[1], tb[0], tb[1], 0, 0]));
-    recs.push(set(11, 0));
-    recs.push(set(10, S3_HOST_NROWS));
-    recs.push((0x40, 1, [1, 0, 0, 0, 0, 0]));
-    recs.push((0x80, 3, [o[0], o[1], p[0], p[1], 0, 0]));
-    recs.push((0x65, 2, [o[0], o[1], n[0], n[1], 0, 0]));
-    recs.push((0x71, 1, [2, 0, 0, 0, 0, 0]));
-    recs.push(add(15, 20));
-    recs.push(add(11, 1));
-    recs.push((0x65, 2, [i[0], i[1], nr[0], nr[1], 0, 0]));
-    recs.push((0x73, 1, [1, 0, 0, 0, 0, 0]));
-    recs.push(set(12, 0xFE));
-    recs.push((0xFF, 0, [0; 6]));
-    recs.push((0x40, 1, [2, 0, 0, 0, 0, 0]));
-    recs.push((0x80, 3, [len[0], len[1], p[0], p[1], 1, 0]));
-    recs.push((0x64, 2, [src[0], src[1], p[0], p[1], 0, 0]));
-    recs.push(add(8, 4));
-    recs.push((0x84, 3, [dst[0], dst[1], src[0], src[1], len[0], len[1]]));
-    recs.push((0x68, 2, [dst[0], dst[1], len[0], len[1], 0, 0]));
-    recs.push(add(2, 1));
-    recs.push(add(0, 1));
-    recs.push((0x70, 1, [5, 0, 0, 0, 0, 0]));
-    recs.push((0x40, 1, [6, 0, 0, 0, 0, 0]));
-    recs.push((0xFF, 0, [0; 6]));
-    s3_host_tyb_from_records(&recs)
+    vec![
+        set(1, ops_len),
+        set(0, 0),
+        (0x40, 1, [5, 0, 0, 0, 0, 0]),
+        (0x65, 2, [pi[0], pi[1], pn[0], pn[1], 0, 0]),
+        (0x74, 1, [6, 0, 0, 0, 0, 0]),
+        (0x80, 3, [n[0], n[1], pp[0], pp[1], 0, 0]),
+        (0x64, 2, [p[0], p[1], tb[0], tb[1], 0, 0]),
+        set(11, 0),
+        set(10, nrows),
+        (0x40, 1, [1, 0, 0, 0, 0, 0]),
+        (0x80, 3, [o[0], o[1], p[0], p[1], 0, 0]),
+        (0x65, 2, [o[0], o[1], n[0], n[1], 0, 0]),
+        (0x71, 1, [2, 0, 0, 0, 0, 0]),
+        add(15, 20),
+        add(11, 1),
+        (0x65, 2, [i[0], i[1], nr[0], nr[1], 0, 0]),
+        (0x73, 1, [1, 0, 0, 0, 0, 0]),
+        set(12, 0xFE),
+        (0xFF, 0, [0; 6]),
+        (0x40, 1, [2, 0, 0, 0, 0, 0]),
+        (0x80, 3, [len[0], len[1], p[0], p[1], 1, 0]),
+        (0x64, 2, [src[0], src[1], p[0], p[1], 0, 0]),
+        add(8, 4),
+        (0x84, 3, [dst[0], dst[1], src[0], src[1], len[0], len[1]]),
+        (0x68, 2, [dst[0], dst[1], len[0], len[1], 0, 0]),
+        add(2, 1),
+        add(0, 1),
+        (0x70, 1, [5, 0, 0, 0, 0, 0]),
+        (0x40, 1, [6, 0, 0, 0, 0, 0]),
+        (0xFF, 0, [0; 6]),
+    ]
 }
 
-fn s3_host_sim_prog_loop(tyb: &[u8]) -> Result<Vec<u8>, u8> {
+/// S3.116: one prog-loop sim. Host (10-row, outbuf 0x160) and in-DLL
+/// (3-row, outbuf 0xC8) only differ by these seeds. RAW `0xA1` is skipped.
+fn s3_sim_prog_loop(tyb: &[u8], table_off: u64, outbuf: u32, prog_ptr: u64) -> Result<Vec<u8>, u8> {
     let prog = parse_tyb(tyb).map_err(|_| 0xFDu8)?;
     let mut data = vec![0u8; 512];
     let mut off = 0usize;
@@ -1687,10 +1696,10 @@ fn s3_host_sim_prog_loop(tyb: &[u8]) -> Result<Vec<u8>, u8> {
         }
     }
     let mut state = [0u64; 16];
-    state[3] = S3_HOST_TABLE_OFF as u64;
-    state[15] = S3_HOST_TABLE_OFF as u64;
-    state[9] = S3_HOST_OUTBUF_OFF as u64;
-    state[2] = (S3_HOST_PROG_OFF + 1) as u64;
+    state[3] = table_off;
+    state[15] = table_off;
+    state[9] = outbuf as u64;
+    state[2] = prog_ptr;
     let code: Vec<&TybRecord> = prog
         .records
         .iter()
@@ -1799,8 +1808,17 @@ fn s3_host_sim_prog_loop(tyb: &[u8]) -> Result<Vec<u8>, u8> {
     if composed == 0 {
         return Err(0xFE);
     }
-    let base = S3_HOST_OUTBUF_OFF as usize;
+    let base = outbuf as usize;
     Ok(data[base..base + composed].to_vec())
+}
+
+fn s3_host_sim_prog_loop(tyb: &[u8]) -> Result<Vec<u8>, u8> {
+    s3_sim_prog_loop(
+        tyb,
+        S3_HOST_TABLE_OFF as u64,
+        S3_HOST_OUTBUF_OFF,
+        (S3_HOST_PROG_OFF + 1) as u64,
+    )
 }
 
 /// If `prog` is only fixed-template ops, return that op sequence.
@@ -4633,10 +4651,6 @@ mod tests {
 
     // ============= S3.19: general multi-op program loop =============
 
-    const S3_PROG_I: u16 = 0;
-    const S3_PROG_N: u16 = 1;
-    const S3_PROG_PTR: u16 = 2;
-    const S3_TABLE_BASE: u16 = 3;
     /// Table relocated past slot area [0..0x80).
     const S3_TABLE_OFF: u32 = 0x80;
     /// Program: [n][op…] immediately after 3×20B table.
@@ -4676,201 +4690,17 @@ mod tests {
             0x49, 0x89, 0x47, 0x10, // mov [r15+2*8],rax
         ]));
 
-        let slot = |s: u16| s.to_le_bytes();
-        let set = |s: u16, imm: u32| {
-            let sb = slot(s);
-            let ib = imm.to_le_bytes();
-            (0x30u8, 2u8, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
-        };
-        let add = |s: u16, imm: u32| {
-            let sb = slot(s);
-            let ib = imm.to_le_bytes();
-            (0x62u8, 2u8, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
-        };
-        let p = slot(S3_SCAN_PTR);
-        let o = slot(S3_SCAN_OP);
-        let n = slot(S3_SCAN_NEEDLE);
-        let i = slot(S3_SCAN_I);
-        let nr = slot(S3_SCAN_NROWS);
-        let len = slot(S3_SCAN_OUT);
-        let src = slot(S3_COMPOSE_SRC);
-        let dst = slot(S3_COMPOSE_DST);
-        let pi = slot(S3_PROG_I);
-        let pn = slot(S3_PROG_N);
-        let pp = slot(S3_PROG_PTR);
-        let tb = slot(S3_TABLE_BASE);
-
-        // LDB prog_n from absolute/offset PROG_OFF — use ptr trick: SET tmp via
-        // lea already done for ops; load n from [r15+0xBC] via LDB with a ptr slot.
-        // Seed slot1 from DATA: use LDB with table_base-relative: easier SET from known.
-        // Program length is known at build time — SET prog_n = ops.len().
-        recs.push(set(S3_PROG_N, ops.len() as u32));
-        recs.push(set(S3_PROG_I, 0));
-
-        // LABEL outer=5
-        recs.push((0x40, 1, [5, 0, 0, 0, 0, 0]));
-        recs.push((0x65, 2, [pi[0], pi[1], pn[0], pn[1], 0, 0])); // CMP i,n
-        recs.push((0x74, 1, [6, 0, 0, 0, 0, 0])); // JGE done (0x74)
-        // needle = LDB [prog_ptr]
-        recs.push((0x80, 3, [n[0], n[1], pp[0], pp[1], 0, 0]));
-        // ptr = table_base
-        recs.push((0x64, 2, [p[0], p[1], tb[0], tb[1], 0, 0]));
-        recs.push(set(S3_SCAN_I, 0));
-        recs.push(set(S3_SCAN_NROWS, 3));
-        // LABEL scan=1
-        recs.push((0x40, 1, [1, 0, 0, 0, 0, 0]));
-        recs.push((0x80, 3, [o[0], o[1], p[0], p[1], 0, 0]));
-        recs.push((0x65, 2, [o[0], o[1], n[0], n[1], 0, 0]));
-        recs.push((0x71, 1, [2, 0, 0, 0, 0, 0])); // JE found
-        recs.push(add(S3_SCAN_PTR, 20));
-        recs.push(add(S3_SCAN_I, 1));
-        recs.push((0x65, 2, [i[0], i[1], nr[0], nr[1], 0, 0]));
-        recs.push((0x73, 1, [1, 0, 0, 0, 0, 0])); // JL scan
-        recs.push(set(S3_SCAN_OUT, 0xFE));
-        recs.push((0xFF, 0, [0; 6]));
-        // LABEL found=2
-        recs.push((0x40, 1, [2, 0, 0, 0, 0, 0]));
-        recs.push((0x80, 3, [len[0], len[1], p[0], p[1], 1, 0]));
-        recs.push((0x64, 2, [src[0], src[1], p[0], p[1], 0, 0]));
-        recs.push(add(S3_COMPOSE_SRC, 4));
-        recs.push((0x84, 3, [dst[0], dst[1], src[0], src[1], len[0], len[1]]));
-        recs.push((0x68, 2, [dst[0], dst[1], len[0], len[1], 0, 0])); // ADDV dst,len
-        recs.push(add(S3_PROG_PTR, 1));
-        recs.push(add(S3_PROG_I, 1));
-        recs.push((0x70, 1, [5, 0, 0, 0, 0, 0])); // JMP outer
-        // LABEL done=6
-        recs.push((0x40, 1, [6, 0, 0, 0, 0, 0]));
-        recs.push((0xFF, 0, [0; 6]));
+        recs.extend(s3_prog_loop_code(ops.len() as u32, 3));
         tyb_from_records(&recs)
     }
 
     fn s3_sim_table_prog_loop(tyb: &[u8]) -> Result<Vec<u8>, u8> {
-        let prog = parse_tyb(tyb).expect("parse");
-        let mut data = vec![0u8; 512];
-        let mut off = 0usize;
-        for rec in &prog.records {
-            if matches!(rec.op, 0x10 | 0x12 | 0x13) {
-                let b = arg_low_bytes(rec);
-                data[off..off + b.len()].copy_from_slice(&b);
-                off += b.len();
-            }
-        }
-        let mut state = [0u64; 16];
-        // Seed mirrors RAW lea (sim uses offsets into data[])
-        state[S3_TABLE_BASE as usize] = S3_TABLE_OFF as u64;
-        state[S3_SCAN_PTR as usize] = S3_TABLE_OFF as u64;
-        state[S3_COMPOSE_DST as usize] = S3_OUTBUF_OFF as u64;
-        state[S3_PROG_PTR as usize] = (S3_PROG_OFF + 1) as u64;
-        let code: Vec<&TybRecord> = prog
-            .records
-            .iter()
-            .filter(|r| !matches!(r.op, 0x10 | 0x12 | 0x13 | 0xA1 | 0xA0))
-            .collect();
-        let mut labels = std::collections::HashMap::new();
-        for (i, rec) in code.iter().enumerate() {
-            if rec.op == 0x40 {
-                if let Some(id) = arg_u32(rec) {
-                    labels.insert(id, i);
-                }
-            }
-        }
-        let mut pc = 0usize;
-        let mut zf = false;
-        let mut sf = false;
-        let mut composed = 0usize;
-        let mut steps = 0usize;
-        while pc < code.len() {
-            steps += 1;
-            assert!(steps < 50_000, "sim runaway");
-            let rec = code[pc];
-            match rec.op {
-                0x40 => pc += 1,
-                0x30 => {
-                    let (s, imm) = arg_slot_imm(rec).unwrap();
-                    state[s as usize] = imm as u64;
-                    pc += 1;
-                }
-                0x62 => {
-                    let (s, imm) = arg_slot_imm(rec).unwrap();
-                    state[s as usize] = state[s as usize].wrapping_add(imm as u64);
-                    pc += 1;
-                }
-                0x64 => {
-                    let (d, s) = arg_slot_slot(rec).unwrap();
-                    state[d as usize] = state[s as usize];
-                    pc += 1;
-                }
-                0x68 => {
-                    let (d, s) = arg_slot_slot(rec).unwrap();
-                    state[d as usize] = state[d as usize].wrapping_add(state[s as usize]);
-                    pc += 1;
-                }
-                0x80 => {
-                    let (dd, ss, oo) = arg_slot3(rec).unwrap();
-                    let addr = state[ss as usize] as usize + oo as usize;
-                    state[dd as usize] = data[addr] as u64;
-                    pc += 1;
-                }
-                0x84 => {
-                    let (dst, src, n) = arg_slot3(rec).unwrap();
-                    let d = state[dst as usize] as usize;
-                    let s = state[src as usize] as usize;
-                    let n = state[n as usize] as usize;
-                    let tmp = data[s..s + n].to_vec();
-                    data[d..d + n].copy_from_slice(&tmp);
-                    composed += n;
-                    pc += 1;
-                }
-                0x65 => {
-                    let (a, b) = arg_slot_slot(rec).unwrap();
-                    let d = (state[a as usize] as i64).wrapping_sub(state[b as usize] as i64);
-                    zf = d == 0;
-                    sf = d < 0;
-                    pc += 1;
-                }
-                0x70 => {
-                    let id = arg_u32(rec).unwrap();
-                    pc = labels[&id];
-                }
-                0x71 => {
-                    let id = arg_u32(rec).unwrap();
-                    if zf {
-                        pc = labels[&id];
-                    } else {
-                        pc += 1;
-                    }
-                }
-                0x73 => {
-                    let id = arg_u32(rec).unwrap();
-                    if sf {
-                        pc = labels[&id];
-                    } else {
-                        pc += 1;
-                    }
-                }
-                0x74 => {
-                    // JGE: SF==0 (not less) — matches after CMP a,b when a>=b
-                    let id = arg_u32(rec).unwrap();
-                    if !sf {
-                        pc = labels[&id];
-                    } else {
-                        pc += 1;
-                    }
-                }
-                0xFF => {
-                    if composed == 0 {
-                        return Err(state[S3_SCAN_OUT as usize] as u8);
-                    }
-                    break;
-                }
-                other => panic!("prog-loop sim unsupported {other:#x}"),
-            }
-        }
-        if composed == 0 {
-            return Err(0xFE);
-        }
-        let base = S3_OUTBUF_OFF as usize;
-        Ok(data[base..base + composed].to_vec())
+        s3_sim_prog_loop(
+            tyb,
+            S3_TABLE_OFF as u64,
+            S3_OUTBUF_OFF,
+            (S3_PROG_OFF + 1) as u64,
+        )
     }
 
     #[test]
