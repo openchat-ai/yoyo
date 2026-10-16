@@ -3812,6 +3812,103 @@ mod tests {
         assert_eq!(got_ret, vec![0xC3]);
     }
 
+    /// S3.99: slim PE IAT binds via manual_map + host GetProcAddress; ALLOC runs.
+    #[test]
+    #[cfg(windows)]
+    fn s3_slim_pe_manual_map_binds_iat_and_runs_alloc() {
+        use crate::pe_manual_map::{
+            collect_resolved_imports, manual_map_pe_dll, manual_map_pe_dll_executable,
+            parse_pe64_headers,
+        };
+        use std::ffi::CString;
+
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn LoadLibraryA(name: *const i8) -> *mut std::ffi::c_void;
+            fn GetProcAddress(
+                module: *mut std::ffi::c_void,
+                name: *const i8,
+            ) -> *mut std::ffi::c_void;
+            fn VirtualFree(lpAddress: *mut std::ffi::c_void, dwSize: usize, dwFreeType: u32)
+                -> i32;
+        }
+        const MEM_RELEASE: u32 = 0x8000;
+
+        fn host_resolve(dll: &str, name: &str) -> Option<u64> {
+            let dll_c = CString::new(dll).ok()?;
+            let name_c = CString::new(name).ok()?;
+            unsafe {
+                let module = LoadLibraryA(dll_c.as_ptr());
+                if module.is_null() {
+                    return None;
+                }
+                let proc = GetProcAddress(module, name_c.as_ptr());
+                if proc.is_null() {
+                    None
+                } else {
+                    Some(proc as u64)
+                }
+            }
+        }
+
+        let tyb = tyb_from_records(&[
+            (0x20, 2, [0x01, 0x00, 0x00, 0x10, 0x00, 0x00]), // ALLOC slot1 0x1000
+            (0xFF, 0, [0; 6]),
+        ]);
+        let pe = compile_tyb_to_pe_mini(&tyb).expect("slim ALLOC+RET");
+
+        // Vec map: prove all five imports resolve to non-null VAs.
+        let mapped = manual_map_pe_dll(&pe.bytes, host_resolve).expect("manual_map bind");
+        let imports = collect_resolved_imports(&mapped.image, &mapped.headers).expect("collect");
+        let want = [
+            "VirtualAlloc",
+            "CreateFileA",
+            "ReadFile",
+            "WriteFile",
+            "CloseHandle",
+        ];
+        for name in want {
+            let hit = imports.iter().find(|(_, n, _, _)| n == name);
+            let Some((_, _, _, va)) = hit else {
+                panic!("missing import {name}");
+            };
+            // Unbound IAT holds hint RVAs (~data RVA); bound holds host VAs.
+            assert!(
+                *va > 0x1_0000_0000,
+                "{name} IAT looks unbound (va={va:#x})"
+            );
+        }
+
+        // Executable map: run entry; ALLOC must leave non-null ptr in slot1.
+        let exe = manual_map_pe_dll_executable(&pe.bytes, host_resolve).expect("exec map");
+        let headers = parse_pe64_headers(&pe.bytes).expect("headers");
+        let pe_off = u32::from_le_bytes(pe.bytes[0x3C..0x40].try_into().unwrap()) as usize;
+        let num_sec =
+            u16::from_le_bytes(pe.bytes[pe_off + 6..pe_off + 8].try_into().unwrap()) as usize;
+        let opt_size =
+            u16::from_le_bytes(pe.bytes[pe_off + 20..pe_off + 22].try_into().unwrap()) as usize;
+        let mut data_rva = 0u32;
+        for i in 0..num_sec {
+            let sh = pe_off + 24 + opt_size + i * 40;
+            if &pe.bytes[sh..sh + 5] == b".data" {
+                data_rva = u32::from_le_bytes(pe.bytes[sh + 12..sh + 16].try_into().unwrap());
+                break;
+            }
+        }
+        assert_ne!(data_rva, 0);
+        unsafe {
+            let entry = (exe.base as usize + headers.entry_rva as usize) as *const ();
+            let f: extern "C" fn() = std::mem::transmute(entry);
+            f();
+            let slot1 = std::ptr::read_unaligned(
+                (exe.base as *const u8).add(data_rva as usize + 8) as *const u64,
+            );
+            assert_ne!(slot1, 0, "ALLOC via bound IAT must store non-null");
+            // Free the VirtualAlloc'd user buffer (best-effort).
+            VirtualFree(slot1 as *mut std::ffi::c_void, 0, MEM_RELEASE);
+        }
+    }
+
     // ============= S3.18: full .text compose (multi-op SET+RET) =============
 
     const S3_LEA_PTR: &[u8] = &[0x49, 0x8D, 0x07, 0x49, 0x89, 0x47, 0x78]; // lea rax,[r15]; mov [r15+0x78],rax

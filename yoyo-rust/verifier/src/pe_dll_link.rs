@@ -1292,6 +1292,9 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
     let s1_write_iat_marker: &[u8] = b"yoyo_in_dll_s1_write_iat\0";
     let s1_write_iat_marker_off = off;
     off += s1_write_iat_marker.len() as u32;
+    let s3_slim_iat_bind_marker: &[u8] = b"yoyo_in_dll_s3_slim_iat_bind\0";
+    let s3_slim_iat_bind_marker_off = off;
+    off += s3_slim_iat_bind_marker.len() as u32;
     // S3.94/S3.95: baked slim LOAD/WRITE machine-code templates (path=0,slot=0).
     let slim_load_tmpl = crate::s1_tyb_parser::emit_slim_load_file(0, 0);
     let slim_load_tmpl_off = off;
@@ -1457,6 +1460,8 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
         s1_load_iat_marker_off,
         s1_write_iat_marker,
         s1_write_iat_marker_off,
+        s3_slim_iat_bind_marker,
+        s3_slim_iat_bind_marker_off,
         &slim_load_tmpl,
         slim_load_tmpl_off,
         &slim_write_tmpl,
@@ -1627,6 +1632,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     s1_load_iat_marker_off: u32,
     s1_write_iat_marker: &[u8],
     s1_write_iat_marker_off: u32,
+    s3_slim_iat_bind_marker: &[u8],
+    s3_slim_iat_bind_marker_off: u32,
     slim_load_tmpl: &[u8],
     slim_load_tmpl_off: u32,
     slim_write_tmpl: &[u8],
@@ -6206,6 +6213,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     exp[s1_write_iat_marker_off as usize
         ..s1_write_iat_marker_off as usize + s1_write_iat_marker.len()]
         .copy_from_slice(s1_write_iat_marker);
+    exp[s3_slim_iat_bind_marker_off as usize
+        ..s3_slim_iat_bind_marker_off as usize + s3_slim_iat_bind_marker.len()]
+        .copy_from_slice(s3_slim_iat_bind_marker);
     exp[slim_load_tmpl_off as usize
         ..slim_load_tmpl_off as usize + slim_load_tmpl.len()]
         .copy_from_slice(slim_load_tmpl);
@@ -7101,6 +7111,10 @@ mod tests {
         assert!(
             ascii.contains("yoyo_in_dll_s1_write_iat"),
             "S3.98 s1 WRITE→IAT marker must be baked into .rdata"
+        );
+        assert!(
+            ascii.contains("yoyo_in_dll_s3_slim_iat_bind"),
+            "S3.99 slim PE manual-map IAT bind marker must be baked into .rdata"
         );
         assert!(
             ascii.contains("yoyo_in_dll_s3_table_bake"),
