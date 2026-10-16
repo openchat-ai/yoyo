@@ -10,12 +10,11 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 ## 阻塞 / 勿做
 
-<table style="width:auto; table-layout:auto; border-collapse:collapse">
-<tr><th align="left" style="white-space:nowrap; padding-right:1em">项</th><th align="left" style="white-space:nowrap; padding-right:1em">状态</th><th align="left">说明</th></tr>
-<tr><td style="white-space:nowrap; vertical-align:top"><b>长杆</b></td><td style="white-space:nowrap; vertical-align:top">OW-RT</td><td>去 Rust sidecar；日常 = S3</td></tr>
-<tr><td style="white-space:nowrap; vertical-align:top"><b>HARD BLOCK CI AV</b></td><td style="white-space:nowrap; vertical-align:top">🟢 已关</td><td><code>#[ignore]</code> + <a href="https://github.com/openchat-ai/yoyo/issues/37">#37</a>；诊断长文已折</td></tr>
-<tr><td style="white-space:nowrap; vertical-align:top"><b>勿做</b></td><td style="white-space:nowrap; vertical-align:top">—</td><td>勿 fake CLOSED；勿 <code>AUTO ACTIVE=1</code>；勿 invent Stage；勿定点/oracle/hop 当 CLOSED；勿用 CI 当调试器</td></tr>
-</table>
+| 项 | 状态 | 说明 |
+|----|------|------|
+| **长杆** | OW-RT | 去 Rust sidecar；日常 = S3 |
+| **HARD BLOCK CI AV** | 🟢 已关 | `#[ignore]` + [#37](https://github.com/openchat-ai/yoyo/issues/37)；诊断长文已折 |
+| **勿做** | — | 勿 fake CLOSED；勿 `AUTO ACTIVE=1`；勿 invent Stage；勿定点/oracle/hop 当 CLOSED；勿用 CI 当调试器 |
 
 **相关**：`SCOPE-CUT-v1.0-hole-inventory.md` · `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md` · `SCOPE-CUT-v1.0-ow-seed-observe.md` · `AUTO_TO_1.0.md` · `ci-anti-thrash.mdc`
 
@@ -25,25 +24,23 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 权威 disposition：`SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 / CI → `git log`。
 
-<table style="width:auto; table-layout:auto; border-collapse:collapse">
-<tr><th align="left" style="white-space:nowrap; padding-right:1em">洞</th><th align="left" style="white-space:nowrap; padding-right:1em">门</th><th align="left">诚实</th></tr>
-<tr><td style="white-space:nowrap"><b>OW-H00</b></td><td style="white-space:nowrap">C</td><td>CUT · full <code>.text</code> EQUAL 才谈 CLOSED</td></tr>
-<tr><td style="white-space:nowrap"><b>OW-STUB</b></td><td style="white-space:nowrap">A/C</td><td>CUT · <code>stub_tail_nonzero==0</code></td></tr>
-<tr><td style="white-space:nowrap"><b>OW-RT</b></td><td style="white-space:nowrap">D–F · <b>I</b></td><td>CUT · <b>长杆</b> → S3</td></tr>
-<tr><td style="white-space:nowrap"><b>OW-IAT</b></td><td style="white-space:nowrap">A/C</td><td>CUT · 依赖 OW-RT 去 sidecar</td></tr>
-<tr><td style="white-space:nowrap"><b>OW-SEED</b></td><td style="white-space:nowrap">G/H/J</td><td>CUT · J=bootstrap 例外（不再待关）；I→OW-RT</td></tr>
-<tr><td style="white-space:nowrap"><b>REL-FULLTEXT</b></td><td style="white-space:nowrap">C</td><td>CUT · <b>设计上不毕业</b></td></tr>
-<tr><td style="white-space:nowrap"><b>REL-STUBOS</b></td><td style="white-space:nowrap">C</td><td>CUT · 非本长杆优先</td></tr>
-</table>
+| 洞 | 门 | 诚实 |
+|---|---|---|
+| **OW-H00** | C | CUT · full `.text` EQUAL 才谈 CLOSED |
+| **OW-STUB** | A/C | CUT · `stub_tail_nonzero==0` |
+| **OW-RT** | D–F · **I** | CUT · **长杆** → S3 |
+| **OW-IAT** | A/C | CUT · 依赖 OW-RT 去 sidecar |
+| **OW-SEED** | G/H/J | CUT · J=bootstrap 例外（不再待关）；I→OW-RT |
+| **REL-FULLTEXT** | C | CUT · **设计上不毕业** |
+| **REL-STUBOS** | C | CUT · 非本长杆优先 |
 
-<table style="width:auto; table-layout:auto; border-collapse:collapse; margin-top:0.75em">
-<tr><th align="left" style="white-space:nowrap; padding-right:1em">门</th><th align="left">pin / 一句话</th></tr>
-<tr><td style="white-space:nowrap"><b>A–C</b> ✅</td><td><code>f8eb429</code> / Linux tramp / <code>11a2cea</code> FINAL · path 2 里程碑</td></tr>
-<tr><td style="white-space:nowrap"><b>D–F</b> ✅</td><td>OW-RT DLL emit / origin / YOYO-built · 仍 CUT</td></tr>
-<tr><td style="white-space:nowrap"><b>G–H</b> ✅</td><td>OW-SEED 操作发射 + trust-root · 仍 CUT</td></tr>
-<tr><td style="white-space:nowrap"><b>I</b> —</td><td>→ OW-RT 长杆（实验 RED · 预期）</td></tr>
-<tr><td style="white-space:nowrap"><b>J</b> ✅</td><td>bootstrap 例外 · 不再待关</td></tr>
-</table>
+| 门 | pin / 一句话 |
+|---|---|
+| **A–C** ✅ | `f8eb429` / Linux tramp / `11a2cea` FINAL · path 2 里程碑 |
+| **D–F** ✅ | OW-RT DLL emit / origin / YOYO-built · 仍 CUT |
+| **G–H** ✅ | OW-SEED 操作发射 + trust-root · 仍 CUT |
+| **I** — | → OW-RT 长杆（实验 RED · 预期） |
+| **J** ✅ | bootstrap 例外 · 不再待关 |
 
 > 勿 invent 重开关洞门。`stage17-*` = 门禁文件名 ≠ ROADMAP Stage 17。
 
@@ -51,36 +48,33 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 ## Stage 17+ / S3（日常主线）
 
-<table style="width:auto; table-layout:auto; border-collapse:collapse">
-<tr><th align="left" style="white-space:nowrap; padding-right:1em">阶段</th><th align="left" style="white-space:nowrap; padding-right:1em">状态</th><th align="left">一句话</th></tr>
-<tr><td style="white-space:nowrap"><b>S1</b></td><td style="white-space:nowrap">✅</td><td>in-DLL mini codegen（TYB→slim PE）</td></tr>
-<tr><td style="white-space:nowrap"><b>S2</b></td><td style="white-space:nowrap">✅</td><td>slim 真 I/O 钩子 · StubPlatform <b>仍 stub</b> · pin <code>2de5ff6</code></td></tr>
-<tr><td style="white-space:nowrap"><b>S3</b></td><td style="white-space:nowrap">⏳</td><td>meta-emit 近端 subset；真自举 = 半年+</td></tr>
-<tr><td style="white-space:nowrap"><b>S4/S5</b></td><td style="white-space:nowrap">地图</td><td>全 ISA / 形式化 · <b>不排假工期</b></td></tr>
-</table>
+| 阶段 | 状态 | 一句话 |
+|------|------|--------|
+| **S1** | ✅ | in-DLL mini codegen（TYB→slim PE） |
+| **S2** | ✅ | slim 真 I/O 钩子 · StubPlatform **仍 stub** · pin `2de5ff6` |
+| **S3** | ⏳ | meta-emit 近端 subset；真自举 = 半年+ |
+| **S4/S5** | 地图 | 全 ISA / 形式化 · **不排假工期** |
 
 ### 近端子集合同（`S3-subset-fixed10`）
 
-<table style="width:auto; table-layout:auto; border-collapse:collapse">
-<tr><th align="left" style="padding-right:1.5em">可 GREEN</th><th align="left"><b>不算</b>毕业</th></tr>
-<tr><td style="vertical-align:top; padding-right:1.5em">固定模板 10 op · meta-emit / <code>emit_x86</code> <b><code>.text</code> 字节对拍</b></td><td style="vertical-align:top">任意 slot/imm、全 mini-ISA</td></tr>
-<tr><td style="vertical-align:top; padding-right:1.5em">允许 Rust 辅助打包/调度</td><td style="vertical-align:top">零 Rust 独写完整 codegen</td></tr>
-<tr><td style="vertical-align:top; padding-right:1.5em">slim 真 I/O（S3.99–108）；StubPlatform <b>stub</b></td><td style="vertical-align:top">StubPlatform 变真 OS</td></tr>
-<tr><td style="vertical-align:top; padding-right:1.5em">—</td><td style="vertical-align:top">任何 OW-* <b>CLOSED</b> 话术（<code>closed=0</code>）</td></tr>
-</table>
+| 可 GREEN | **不算**毕业 |
+|---|---|
+| 固定模板 10 op · meta-emit / `emit_x86` **`.text` 字节对拍** | 任意 slot/imm、全 mini-ISA |
+| 允许 Rust 辅助打包/调度 | 零 Rust 独写完整 codegen |
+| slim 真 I/O（S3.99–108）；StubPlatform **stub** | StubPlatform 变真 OS |
+| — | 任何 OW-* **CLOSED** 话术（`closed=0`） |
 
 ### S3 进度索引
 
-<table style="width:auto; table-layout:auto; border-collapse:collapse">
-<tr><th align="left" style="white-space:nowrap; padding-right:1em">波段</th><th align="left" style="white-space:nowrap; padding-right:1em">pin</th><th align="left">一句话</th></tr>
-<tr><td style="white-space:nowrap"><b>S3.1–29</b> ✅</td><td style="white-space:nowrap"><code>d310710</code></td><td>RAW_BYTES + 固定模板 10 op host 表</td></tr>
-<tr><td style="white-space:nowrap"><b>S3.30–52</b> ✅</td><td style="white-space:nowrap"><code>673297e</code></td><td>bake 表 + multi bake</td></tr>
-<tr><td style="white-space:nowrap"><b>S3.53–76</b> ✅</td><td style="white-space:nowrap"><code>290679b</code></td><td>JMP/CALL/JCC + ALU/MEM/平台 stub</td></tr>
-<tr><td style="white-space:nowrap"><b>S3.77–98</b> ✅</td><td style="white-space:nowrap"><code>6b6756e</code></td><td>any-slot + LOAD/WRITE→slim IAT</td></tr>
-<tr><td style="white-space:nowrap"><b>S3.99–108</b> ✅</td><td style="white-space:nowrap"><code>a10c20d</code></td><td>host+in-DLL 真 I/O e2e</td></tr>
-<tr><td style="white-space:nowrap"><b>S3.109</b> ✅</td><td style="white-space:nowrap"><code>3e3dec9</code></td><td>近端合同 + 剩余 op meta-emit</td></tr>
-<tr><td style="white-space:nowrap"><b>S3.110</b> ⏳</td><td style="white-space:nowrap">—</td><td>钉 subset 验收 / 减 Rust pack · <b>本步</b></td></tr>
-</table>
+| 波段 | pin | 一句话 |
+|---|---|---|
+| **S3.1–29** ✅ | `d310710` | RAW_BYTES + 固定模板 10 op host 表 |
+| **S3.30–52** ✅ | `673297e` | bake 表 + multi bake |
+| **S3.53–76** ✅ | `290679b` | JMP/CALL/JCC + ALU/MEM/平台 stub |
+| **S3.77–98** ✅ | `6b6756e` | any-slot + LOAD/WRITE→slim IAT |
+| **S3.99–108** ✅ | `a10c20d` | host+in-DLL 真 I/O e2e |
+| **S3.109** ✅ | `3e3dec9` | 近端合同 + 剩余 op meta-emit |
+| **S3.110** ⏳ | — | 钉 subset 验收 / 减 Rust pack · **本步** |
 
 **缺口**：合同毕业标记 · 减 Rust 辅助 · 真自举。逐步正文 → `git log`。
 
