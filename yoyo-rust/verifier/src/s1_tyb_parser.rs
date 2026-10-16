@@ -3276,6 +3276,65 @@ mod tests {
         }
     }
 
+    /// S3.110: `S3-subset-fixed10` one-shot gate.
+    /// All 10 fixed-template ops: meta-emit autopack AND YOYO table compose
+    /// are `.text` byte-identical with `emit_x86`. Rust packer still present — not CLOSED.
+    #[test]
+    fn s3_subset_fixed10_meta_emit_parity() {
+        let cases: Vec<(&str, Vec<(u8, u8, [u8; 6])>)> = vec![
+            ("RET", vec![(0xFF, 0, [0; 6])]),
+            ("NOP+RET", vec![(0x00, 0, [0; 6]), (0xFF, 0, [0; 6])]),
+            (
+                "SET+RET",
+                vec![
+                    (0x30, 2, [0, 0, 0xEF, 0xBE, 0xAD, 0xDE]),
+                    (0xFF, 0, [0; 6]),
+                ],
+            ),
+            (
+                "GET+RET",
+                vec![(0x60, 2, [0, 0, 1, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "INC+RET",
+                vec![(0x66, 1, [0, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "ADD+RET",
+                vec![(0x62, 2, [0, 0, 5, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "DEC+RET",
+                vec![(0x67, 1, [0, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "SUB+RET",
+                vec![(0x61, 2, [0, 0, 5, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "MOVRR+RET",
+                vec![(0x64, 2, [1, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
+            (
+                "CMP+RET",
+                vec![(0x65, 2, [0, 0, 1, 0, 0, 0]), (0xFF, 0, [0; 6])],
+            ),
+        ];
+        assert_eq!(cases.len(), 10, "fixed10 contract");
+        for (name, semantic) in cases {
+            let tyb = tyb_from_records(&semantic);
+            let prog = parse_tyb(&tyb).unwrap();
+            let ops = fixed_template_ops(&prog).unwrap_or_else(|| panic!("{name} outside subset"));
+            let expect = emit_x86(&prog).text;
+            let meta = pack_meta_emit_raw_bytes_tyb(&expect);
+            let pe = compile_tyb_to_pe_mini(&meta).expect("autopack mini");
+            let got = slim_pe_user_text(&pe.bytes, expect.len()).expect("slice");
+            assert_eq!(got, expect.as_slice(), "{name} meta-emit == emit_x86");
+            let via = try_emit_text_via_yoyo_table(&ops).unwrap_or_else(|| panic!("{name} yoyo table"));
+            assert_eq!(via, expect, "{name} yoyo_table == emit_x86");
+        }
+    }
+
     // ============= S3.8: DATA-resident opcode template table =============
 
     #[derive(Debug, Clone)]
