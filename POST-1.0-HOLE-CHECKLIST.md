@@ -94,7 +94,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.99–108** ✅ | `a10c20d` | host+in-DLL 真 I/O e2e              |
 | **S3.109** ✅    | `3e3dec9` | 近端合同 + 剩余 op meta-emit             |
 | **S3.110** ✅    | `7dcaa8d` | `s3_subset_fixed10_meta_emit_parity` 10 op 字节对拍 |
-| **S3.111** ✅    | （本步）    | fixed10 证明去掉 `pack_meta_emit`；mini=YOYO 表 |
+| **S3.111** ✅    | `0fa5d9e` | fixed10 证明去掉 `pack_meta_emit`；mini=YOYO 表 |
 | **S3.112** ⏳    | —         | 再减固件 `s3_host_pack_bytes` 一层 · **本步** |
 
 
