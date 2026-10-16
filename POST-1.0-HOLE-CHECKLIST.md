@@ -433,176 +433,44 @@ Run `35553987325`（commit `146b58b`）：
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
 **看板写法（防流水账）**：
-- **进度表** = 已完成步的权威记录（状态 / 一句话 / commit / marker）
-- **逐步正文**只保留**当前未完成步**（切片 / 验收 / 诚实）
-- **快照**只保留**最新一条**；旧快照以 git 为准，不在文件尾追加长链
-- 禁止把 GREEN/marker 写成 OW-* **CLOSED**
+- **已完成波段**收拢成 4–6 行索引；**近端明细**只留当前窗口（约最近 1–3 刀）
+- **逐步正文**只保留**当前未完成步**；历史刀/marker 以 `git log` / 旧 revision 为准
+- **快照**只保留**最新一条**；禁止把 GREEN/marker 写成 OW-* **CLOSED**
 
 **风险（诚实）**：S2 完成后 sidecar codegen **仍是 Rust 写的机器码**——真自举是 **S3**。OW-RT **仍 CUT** · `closed=0`。
 
-### S1 子任务分解（进度跟踪）
+### S1 / S2 进度（已收拢）
 
-| 子任务 | 状态 | 内容 | 备注 |
+| 阶段 | 状态 | 一句话 | 权威索引 |
 |---|---|---|---|
-| **S1.1.a** | ✅ 已提交+推送 | TYB parser 骨架（`s1_tyb_parser.rs`） | commit `5804fb3` |
-| **S1.1.b** | ✅ 已本地提交 | IR → x86 emit 骨架（`emit_x86` 函数，NOP+RET 占位） | commit `10a4fdd` |
-| **S1.1.c** | ✅ 已本地提交 | 真 opcode dispatch（`0x30` SET + `0xFF` RET + `0x40` LABEL no-op + unknown→NOP） | commit `9dec4da` |
-| **S1.1.d** | ✅ 已本地提交（有已知 bug） | 扩展 opcode dispatch 到 14 条：+GET/MOVRR/ADD imm/SUB imm/INC/DEC/IMUL/ADDV/ORV/SUBV/CMP | commit `9ef98ea` · **IMUL/ADDV/ORV/SUBV/CMP 有 clobber bug**（两次 load_state_r15 都写 rax，第二次覆盖第一次，需 `load_state_rcx`） |
-| **S1.1.e** | ✅ 已本地提交（部分：clobber bug 已修；两遍 label 解析推给 S1.1.f） | 加 `emit_load_state_rcx` helper（MODRM 0x48/0x88），重写 IMUL/ADDV/ORV/SUBV/CMP dispatch 用 `rax, rcx` 双操作数；5 个 byte-exact 测试全绿 | commit `f57d080` · **clobber bug 已修**（IMUL/ADDV/ORV/SUBV/CMP 现在真语义正确）· **未修**：两遍 label 解析仍推到 S1.1.f |
-| S1.1.f | ✅ 已本地提交（部分：两遍 label 解析已实现；GET 参数语义澄清推给 S1.2） | 两遍 label 解析：`0x40` LABEL / `0x41` CALL / `0x70` JMP / `0x71-0x7A` JCC 全部真实 emit + rel32 patch；7 个 byte-exact 测试全绿 | commit `84215cb` · **LABEL/CALL/JMP/JCC 现在真语义正确**（forward/backward/undefined 全覆盖）· **未修**：GET 参数语义澄清（args_of 用 argc=2 给 GET，src 走 u32→u16 隐式截断，工作但命名误导）推到 S1.2 |
-| **S1.2** | ✅ 已本地提交 | 4-reg 物理分配（R15 固定 state base / Rax 主 scratch / Rcx 次操作数 / Rdx 三级预留）+ GET `arg_slot_slot` 语义澄清；对齐 `assembler.rs` REX/ModRM（修 0x4C→0x49、SUB /5、IMUL C1、CMP C8、movabs 10B） | commit `0492dd2` · 36/36 测试通过 · **未做**：LDB/MEMCPY 仍 NOP（S1.3） |
-| **S1.3** | ✅ 已本地提交（部分：内存类已覆盖；platform/DATA 仍 stub） | LDB(0x80) + MEMCPY_DATA(0x84, `F3 A4`) + MEMCPY_STATE(0x85, slot-to-slot≤64) + RAW_BYTE(0xA0) + 显式 NOP(0x00)；Reg 扩 Rsi/Rdi；`arg_slot3` | commit `003fa66` · 43/43 测试通过 · **仍 stub**：ALLOC/LOAD_FILE/WRITE_FILE/DATA/STR/RAW/RAW_BYTES（S1.4 / platform） |
-| **S1.4** | ✅ 已本地提交（部分：host-side PE wrap；entry 改写仍 S1.5） | `CodegenOutput.data` + DATA/STR/RAW(0x10/0x12/0x13)→`.data` + RAW_BYTES(0xA1)→`.text` + `wrap_pe`→`pe_link::link_pe`（MZ/PE） | commit `69fa62c` · 47/47 测试通过 · **仍 stub**：ALLOC/LOAD_FILE/WRITE_FILE（platform）· **未做**：in-DLL entry 改写（S1.5） |
-| **S1.5.a** | ✅ 已本地提交（部分：host entry bridge；in-DLL x86 仍 S1.5.b） | `wrap_pe_slim`（tiny `.data`，PE≪H_00 pad）+ `compile_tyb_to_pe` + `resolve_recompile_input`（TYB→S1，否则 oracle）；non-Win sidecar 已接线 | commit `54bd766` · s1_ **51/51** + resolve **2/2** · **未做**：DLL export 体内手写 x86 替换 oracle（S1.5.b） |
-| **S1.5.b** | ✅ 已本地提交（部分：TYB mini-ISA in-DLL；全量 emit 仍未 port） | export ReadFile 后检测 `TYB\0` → SET/RET/LABEL/NOP/RAW_BYTE mini codegen → 烘焙 slim-PE 模板写出；非 TYB 仍走 oracle；marker `yoyo_in_dll_s1_codegen` | commit `870356c` · pe_dll_link **30/30**（含 Win empty/SET+RET TYB）· **仍缺**：全量 opcode / DATA / ALLOC/IO · **下一步** S1.6 |
-| **S1.6** | ✅ 已本地提交 | `compile_tyb_to_pe_mini` + `validate_tyb_mini`（与 in-DLL fail-closed 对齐）；Win host↔in-DLL user `.text` parity 矩阵（empty/ret/nop/label/raw/set）；GET 拒测 | commit `4b797b1` · pe_dll_link **32/32** · s1_ **59/59** |
-| **S1.7.a** | ✅ 已本地提交 | mini-ISA +GET/MOVRR/ADD·SUB imm/INC/DEC（host validate + in-DLL）；parity 矩阵扩至 13 行；IMUL 仍拒 | commit `a0d97a4` · pe_dll_link **32/32** · s1_ **60/60** |
-| **S1.7.b** | ✅ 已本地提交 | mini-ISA +CMP/CALL/JMP/JCC；in-DLL 两遍 label（≤16 labels/patches）；parity 扩至 18 行（含 fwd jmp/call/je、undef jmp） | commit `94ec051` · pe_dll_link **32/32** · s1_ **60/60** |
-| **S1.7.c** | ✅ 已本地提交 | mini-ISA +IMUL/ADDV/ORV/SUBV（host validate + in-DLL）；parity 扩至 22 行；拒测改 LDB | commit `662e82d` · pe_dll_link **32/32** · s1_ **61/61** |
-| **S1.7.d** | ✅ 已本地提交 | mini-ISA +LDB/MEMCPY_DATA/MEMCPY_STATE（n≤4）；parity 扩至 26 行；拒测改 ALLOC | commit `29d1279` · pe_dll_link **32/32** · s1_ **63/63** |
-| **S1.7.e** | ✅ 已本地提交 | mini-ISA +DATA/STR/RAW→`.data`（≤64B；in-DLL 写回 slim PE）；parity 扩至 28 行（含 .data 比对） | commit `7041954` · pe_dll_link **32/32** · s1_ **65/65** |
-| **S1.7.f** | ✅ 已本地提交 | mini-ISA +RAW_BYTES→`.text`（argc≤3）；parity 扩至 29 行 | commit `89f3640` · pe_dll_link **32/32** · s1_ **66/66** |
+| **S1.1–S1.7.f** | ✅ | TYB→slim PE mini-ISA + host↔in-DLL parity | `git log` / 旧 revision（逐步表已折） |
+| **S2.1–S2.6** | ✅ | stub 固件 + slim 真 I/O 验收钩子（`stage17-s2-runtime-effect*.ps1`） | tip pin：S2.6=`2de5ff6` |
 
-**S1 进度**：S1.1–S1.7.f 本地完成。mini-ISA 覆盖核心 codegen 切片。
-**诚实非 CLOSED**：ALLOC/LOAD_FILE/WRITE_FILE 仅 **StubPlatform 对齐 stub**（非真 OS I/O）；非 TYB 仍 oracle；OW-RT **仍 CUT** · `closed=0`。
-**下一步 S2**：见下节。
-
-### S2 子任务分解（进度跟踪）
-
-**S2 立项定义**：sidecar 能编译表达「runtime 效果」所需的 H_00 指令子集（读输入 → 编译/变换 → 写输出），而非一次重写整个 Rust `yoyo-runtime`。
-
-| 子任务 | 状态 | 内容 | 备注 |
-|---|---|---|---|
-| **S2.1** | ✅ 已本地提交 | ISA 缺口盘点：S1 mini vs `isa_table` vs runtime 效果所需平台 ops | commit `9885ab5` · **无**加载器改动 |
-| **S2.2** | ✅ 已本地提交 | host `emit_x86` ALLOC = **StubPlatform 对齐**：`movabs rax,size`+`store_state`（记 size，非真堆）；mini/in-DLL **仍拒** | commit `94e12b7` · 真 OS 分配推后；in-DLL=S2.4 |
-| **S2.3** | ✅ 已本地提交 | host LOAD_FILE/WRITE_FILE = StubPlatform 对齐（`movabs` str_idx+store；sz 忽略）；mini **仍拒** | commit `e136f82` · 非真文件 I/O；in-DLL=S2.4 |
-| **S2.4** | ✅ 已本地提交 | in-DLL mini 对齐 stub：ALLOC/LOAD_FILE/WRITE_FILE argc=2 → 与 SET 同编码；parity +3 | commit `24b944c` · **仍非**真 OS I/O |
-| **S2.5** | ✅ 已本地提交 | 最小 runtime-效果 stub 固件 `.ty`/`.tyb` + `stage17-s2-runtime-effect.ps1` | commit `5f8e959` · **仍非**真 OS I/O · 非 CLOSED |
-| **S2.6** | ✅ 已本地提交 | slim 真 I/O 验收脚本 `stage17-s2-runtime-effect-slim.ps1`（跑 S3.99–S3.102 e2e） | commit `2de5ff6` · StubPlatform **仍** stub · 非 CLOSED |
-
-> **写法**：已完成子步细节不重复展开；状态 / commit / marker 以进度表为准。历史逐步正文见 git（本文件旧 revision）。
-
-**S2 进度**：S2.1–S2.6 本地完成（stub 固件 + slim 真 I/O 验收钩子）。
-**诚实**：StubPlatform / FlatBinary / H_00 自测仍 stub；**TYB slim PE** 真 I/O 已由 S3.99–S3.102 冒烟 + S2.6 脚本（≠ OW-RT CLOSED）→ OW-RT **仍 CUT** · `closed=0`。
+**诚实**：StubPlatform / H_00 **仍 stub**；slim 真 I/O ≠ OW-RT CLOSED · `closed=0`。
 
 ### S3 子任务分解（进度跟踪）
 
-**S3 立项定义**：把 **codegen 本身**逐步用 YOYO/H_00 IR 表达（meta-emit），使「吃 TYB → 产 x86」不再唯一依赖 Rust 手写机器码。半年-年级；本步只做缺口盘点。
+**S3 立项定义**：把 **codegen 本身**逐步用 YOYO/H_00 IR 表达（meta-emit），使「吃 TYB → 产 x86」不再唯一依赖 Rust 手写机器码。半年-年级。
+
+#### 已完成波段（S3.1–S3.108 · 收拢；明细以 git 为准）
+
+| 波段 | 刀号 | 一句话 | 代表 pin |
+|---|---|---|---|
+| meta-emit / 表合成 | **S3.1–S3.29** | RAW_BYTES 打包 + 固定模板 10 op host 表路径 | `d310710`（S3.29） |
+| in-DLL bake / 快路径 | **S3.30–S3.52** | bake 表 + pilot + multi bake 扫表 | `673297e`（S3.52） |
+| multi 控制流 / 变参 | **S3.53–S3.76** | JMP/CALL/JCC/rel32 + ALU/MEM/平台 stub | `290679b`（S3.76） |
+| any-slot + slim IAT 接线 | **S3.77–S3.98** | disp32 全覆盖 + LOAD/WRITE→slim IAT tmpl | `6b6756e` |
+| slim / in-DLL 真 I/O e2e | **S3.99–S3.108** | host+in-DLL ALLOC/LOAD/WRITE/roundtrip + 验收脚本 | `a10c20d`（S3.108） |
+
+> **写法**：上表 = 索引；逐步正文 / marker 全表见 `git log` 与本文件旧 revision。**禁止**把波段 GREEN 写成 OW-* CLOSED。
+
+#### 近端明细（只保留当前窗口）
 
 | 子任务 | 状态 | 内容 | 备注 |
 |---|---|---|---|
-| **S3.1** | ✅ 已本地提交 | codegen 自举缺口盘点：Rust 表面 / 软上限 / 最小 meta-emit 切片 | commit `6466ca3` · docs-only · **无**假 CLOSED |
-| **S3.2** | ✅ 已本地提交 | 最小 meta-emit：YOYO RAW_BYTES 对 SET+RET 产出与 `emit_x86` byte-identical | commit `2818f6c` · 模板 dump · **非**真编译器 |
-| **S3.3** | ✅ 已本地提交 | meta-emit 矩阵（RET/NOP+RET/SET+RET）+ **软上限暂不提**（in-DLL scratch=256） | commit `9b4f04e` · 模板 dump |
-| **S3.4** | ✅ 已本地提交 | `pack_meta_emit_raw_bytes_tyb` 自 `emit_x86` 自动打包；GET+RET + 与手写 golden 一致 | commit `b85d365` · 仍 Rust 辅助 |
-| **S3.5** | ✅ 已本地提交 | in-DLL scratch 扩容触点盘点（256→512 前必改清单） | commit `011a9f2` · docs-only |
-| **S3.6** | ✅ 已本地提交 | in-DLL 栈布局 **常量抽取**（`IN_DLL_S1_*`；数值仍 256/0x2900） | commit `3ac7710` · 行为不变 · const assert |
-| **S3.7** | ✅ 已本地提交 | scratch/code **256→512**：PE buf 0x1800、STACK 0x2C00、DATA off 0x800 | commit `3c54dc4` · parity GREEN |
-| **S3.8** | ✅ 已本地提交 | DATA 驻留 opcode→x86 模板表（RET/NOP）+ Rust lookup 合成 ≡ `emit_x86` | commit `03ab581` · 解释器仍 Rust |
-| **S3.9** | ✅ 已本地提交 | 表行 20B + SET 模板；合成 SET+RET/NOP+RET ≡ `emit_x86`（60B≤64） | commit `e83d072` · 解释器仍 Rust |
-| **S3.10** | ✅ 已本地提交 | `S1_MINI_DATA_MAX` 64→**128**；in-DLL `cmp imm32` + STACK 0x2D00 | commit `26750dc` |
-| **S3.11** | ✅ 已本地提交 | 模板表 +GET/+INC（5 行/100B）；合成矩阵 ≡ `emit_x86` | commit `7a7e205` · 解释器仍 Rust |
-| **S3.12** | ✅ 已本地提交 | 模板表 +ADD(slot0,+5)（6 行/120B）；合成矩阵 ≡ `emit_x86` | commit `2e0c8ad` · 解释器仍 Rust |
-| **S3.13** | ✅ 已本地提交 | DATA 128→**256**；表 +SUB/+DEC（8 行/160B） | commit `3bfc3c1` · 解释器仍 Rust |
-| **S3.14** | ✅ 已本地提交 | 表 +MOVRR/+CMP（10 行/200B）；合成矩阵 ≡ `emit_x86` | commit `97e4f1a` · 解释器仍 Rust |
-| **S3.15** | ✅ 已本地提交 | YOYO 侧表解释器缺口盘点（仍 docs；解释器未迁出 Rust） | commit `22b90e0` · docs-only |
-| **S3.16** | ✅ 已本地提交 | YOYO 查表扫 DATA（LDB/CMP/JE）+ host sim；RET/NOP→首字节 ≡ emit | commit `8846054` |
-| **S3.17** | ✅ 已本地提交 | 多字节 MEMCPY compose + Windows VirtualAlloc PE 跑表；SET body ≡ emit | commit `1f97ac5` |
-| **S3.18** | ✅ 已本地提交 | 双扫表拼完整 SET+RET `.text` ≡ emit；sim+PE GREEN | commit `244d11e` |
-| **S3.19** | ✅ 已本地提交 | 表@0x80 + 程序环扫表 compose；SET+RET/NOP+RET/RET ≡ emit | commit `a51179a` |
-| **S3.20** | ✅ 已本地提交 | host `try_emit/compile_via_yoyo_table` ≡ emit_x86（固定模板子集） | commit `93b5954` |
-| **S3.21** | ✅ 已本地提交 | `compile_tyb_to_pe_mini` 固定模板优先 YOYO 表；其余仍 emit_x86 | commit `5ea5cbc` |
-| **S3.22** | ✅ 已本地提交 | in-DLL emit 触点盘点（docs）；调度仍手写 x86 JE 链 | commit `cd5c5df` |
-| **S3.23** | ✅ 已本地提交 | 固定模板表 +GET(dst0←src1)；outbuf@0xE0；GET+RET ≡ emit | commit `2dbd3ab` |
-| **S3.24** | ✅ 已本地提交 | 固定模板表 +INC(slot0)；outbuf@0x100；INC+RET ≡ emit | commit `b344eb0` |
-| **S3.25** | ✅ 已本地提交 | DATA **384** / STACK 0x2E00；表 +ADD(+5)；outbuf@0x110 | commit `b2fe711` |
-| **S3.26** | ✅ 已本地提交 | 固定模板表 +DEC(slot0)；outbuf@0x120 | commit `c190791` |
-| **S3.27** | ✅ 已本地提交 | 固定模板表 +SUB(slot0,-5)；outbuf@0x140 | commit `769282d` |
-| **S3.28** | ✅ 已本地提交 | 固定模板表 +MOVRR(dst1←src0)；outbuf@0x150 | commit `760e4ef` |
-| **S3.29** | ✅ 已本地提交 | 固定模板表 +CMP(0,1)；10 行 ≡ S3.14 子集；outbuf@0x160 | commit `d310710` |
-| **S3.30** | ✅ 已本地提交 | in-DLL 单记录 RET→C3 快路径（跳 JE）；marker `yoyo_in_dll_s3_ret_pilot` | commit `f71f1c1` |
-| **S3.31** | ✅ 已本地提交 | in-DLL 单记录 NOP→90 快路径；marker `yoyo_in_dll_s3_nop_pilot` | commit `16f4e56` |
-| **S3.32** | ✅ 已本地提交 | in-DLL 双记录 NOP+RET→90 C3 快路径；marker `yoyo_in_dll_s3_nop_ret_pilot` | commit `1c15a96` |
-| **S3.33** | ✅ 已本地提交 | in-DLL SET0-DEADBEEF+RET→15B 快路径；marker `yoyo_in_dll_s3_set_ret_pilot` | commit `eade033` |
-| **S3.34** | ✅ 已本地提交 | in-DLL GET0←src1+RET→9B 快路径；marker `yoyo_in_dll_s3_get_ret_pilot` | commit `12e9857` |
-| **S3.35** | ✅ 已本地提交 | in-DLL INC slot0+RET→12B 快路径；marker `yoyo_in_dll_s3_inc_ret_pilot` | commit `bdcde9d` |
-| **S3.36** | ✅ 已本地提交 | in-DLL 固定模板表 bake 盘点（docs）；调度仍硬编码快路径 | commit `d3eb56e` |
-| **S3.37** | ✅ 已本地提交 | .rdata bake 5×20B 表（RET/NOP/SET/GET/INC）；marker `yoyo_in_dll_s3_table_bake` | commit `7095136` |
-| **S3.38** | ✅ 已本地提交 | 单记录 RET/NOP 从 bake 行 payload 取字节（lea rip） | commit `b8c6f4e` |
-| **S3.39** | ✅ 已本地提交 | NOP+RET/SET+RET 从 bake 取字节（lea/rep movsb） | commit `4a3f7c6` |
-| **S3.40** | ✅ 已本地提交 | GET/INC+RET 从 bake 取字节（rep movsb） | commit `2bcf38d` |
-| **S3.41** | ✅ 已本地提交 | 单记录 argc0：扫 bake 5 行按 op memcpy | commit `16f221c` |
-| **S3.42** | ✅ 已本地提交 | 双记录双 argc0：两次 bake 扫表 memcpy（NOP+RET） | commit `6d38e4c` |
-| **S3.43** | ✅ 已本地提交 | bake 扩至 10 行≡host（+ADD/DEC/SUB/MOVRR/CMP） | commit `c2d4ddc` |
-| **S3.44** | ✅ 已本地提交 | in-DLL DEC0+RET bake 快路径；marker `yoyo_in_dll_s3_dec_ret_pilot` | commit `410c3ca` |
-| **S3.45** | ✅ 已本地提交 | in-DLL ADD0+5+RET bake 快路径；marker `yoyo_in_dll_s3_add_ret_pilot` | commit `e870768` |
-| **S3.46** | ✅ 已本地提交 | in-DLL SUB0-5+RET bake 快路径；marker `yoyo_in_dll_s3_sub_ret_pilot` | commit `c2905f3` |
-| **S3.47** | ✅ 已本地提交 | in-DLL MOVRR dst1←src0+RET bake 快路径；marker `yoyo_in_dll_s3_movrr_ret_pilot` | commit `c03a2f7` |
-| **S3.48** | ✅ 已本地提交 | in-DLL CMP0,1+RET bake 快路径；10 行 bake 全消费；marker `yoyo_in_dll_s3_cmp_ret_pilot` | commit `1e7708a` |
-| **S3.49** | ✅ 已本地提交 | ≥3 all-argc0 multi bake 扫表环；marker `yoyo_in_dll_s3_multi_bake` | commit `1d6b6e8` |
-| **S3.50** | ✅ 已本地提交 | mixed-argc 前缀 bake→JE；marker `yoyo_in_dll_s3_multi_mixed` | commit `299fbbe` |
-| **S3.51** | ✅ 已本地提交 | multi 固定模板带参也 bake 扫表；marker `yoyo_in_dll_s3_multi_tmpl` | commit `bb485a8` |
-| **S3.52** | ✅ 已本地提交 | multi LABEL argc1 skip（无 .text）；marker `yoyo_in_dll_s3_multi_label` | commit `673297e` |
-| **S3.53** | ✅ 已本地提交 | multi→JE 剩余面盘点（docs）；控制流/变参/平台 stub 仍 JE | commit `b78a596` |
-| **S3.54** | ✅ 已本地提交 | multi JMP argc1 → E9 00 00 00 00 stub；marker `yoyo_in_dll_s3_multi_jmp` | commit `0c7417d` |
-| **S3.55** | ✅ 已本地提交 | multi CALL argc1 → E8 00 00 00 00 stub；marker `yoyo_in_dll_s3_multi_call` | commit `2500a96` |
-| **S3.56** | ✅ 已本地提交 | multi JE(0x71) argc1 → 0F 84 00 00 00 00 stub；marker `yoyo_in_dll_s3_multi_je` | commit `06933cb` |
-| **S3.57** | ✅ 已本地提交 | multi JNE(0x72) argc1 → 0F 85 00 00 00 00 stub；marker `yoyo_in_dll_s3_multi_jne` | commit `c0a23a4` |
-| **S3.58** | ✅ 已本地提交 | multi JCC 0x73..=0x7A 表驱动 → 0F cc 00..00 stub；marker `yoyo_in_dll_s3_multi_jcc` | commit `049f0c9` |
-| **S3.59** | ✅ 已本地提交 | multi SET slot0 any imm32 直 emit（非 DEADBEEF-only）；marker `yoyo_in_dll_s3_multi_set_imm` | commit `4c938d5` |
-| **S3.60** | ✅ 已本地提交 | multi ADD slot0 any imm32 直 emit（非 +5-only）；marker `yoyo_in_dll_s3_multi_add_imm` | commit `beea65d` |
-| **S3.61** | ✅ 已本地提交 | multi SUB slot0 any imm32 直 emit（非 -5-only）；marker `yoyo_in_dll_s3_multi_sub_imm` | commit `a312674` |
-| **S3.62** | ✅ 已本地提交 | multi GET any dst/src slot<16 disp8 直 emit；marker `yoyo_in_dll_s3_multi_get_slots` | commit `365d26f` |
-| **S3.63** | ✅ 已本地提交 | multi MOVRR any dst/src slot<16 disp8 直 emit；marker `yoyo_in_dll_s3_multi_movrr` | commit `92af018` |
-| **S3.64** | ✅ 已本地提交 | multi INC any slot<16 disp8 直 emit；marker `yoyo_in_dll_s3_multi_inc` | commit `f61517a` |
-| **S3.65** | ✅ 已本地提交 | multi DEC any slot<16 disp8 直 emit；marker `yoyo_in_dll_s3_multi_dec` | commit `b0fcfe3` |
-| **S3.66** | ✅ 已本地提交 | multi CMP any a/b slot<16 disp8 直 emit；marker `yoyo_in_dll_s3_multi_cmp` | commit `ca8018f` |
-| **S3.67** | ✅ 已本地提交 | multi LABEL 记位 + JMP/CALL/JCC push_patch→pass-2 真 rel32；marker `yoyo_in_dll_s3_multi_rel32` | commit `87b9d55` |
-| **S3.68** | ✅ 已本地提交 | multi IMUL any dst/src slot<16 disp8 直 emit；marker `yoyo_in_dll_s3_multi_imul` | commit `20e8567` |
-| **S3.69** | ✅ 已本地提交 | multi ADDV/ORV/SUBV any dst/src slot<16 表驱动直 emit；marker `yoyo_in_dll_s3_multi_aluv` | commit `5ee30e3` |
-| **S3.70** | ✅ 已本地提交 | multi RAW_BYTE/RAW_BYTES 直 append .text；marker `yoyo_in_dll_s3_multi_raw` | commit `21c537a` |
-| **S3.71** | ✅ 已本地提交 | multi DATA/STR/RAW-data append data[]；marker `yoyo_in_dll_s3_multi_data` | commit `6ae0f57` |
-| **S3.72** | ✅ 已本地提交 | multi LDB oo=0 slot<16 直 emit（12B）；marker `yoyo_in_dll_s3_multi_ldb` | commit `1ee4ab0` |
-| **S3.73** | ✅ 已本地提交 | multi LDB oo≠0（+add imm32，19B）slot&lt;16；marker `yoyo_in_dll_s3_multi_ldb_oo` | commit `a1b931e` |
-| **S3.74** | ✅ 已本地提交 | multi MEMCPY_DATA slot&lt;16 直 emit（14B）；marker `yoyo_in_dll_s3_multi_mcpd` | commit `7089023` |
-| **S3.75** | ✅ 已本地提交 | multi MEMCPY_STATE n≤4 slot-disp8 展开 load/store；marker `yoyo_in_dll_s3_multi_mcps` | commit `84ca238` |
-| **S3.76** | ✅ 已本地提交 | multi ALLOC/LOAD/WRITE stub ≡ SET slot0；marker `yoyo_in_dll_s3_multi_plat` | commit `290679b` |
-| **S3.77** | ✅ 已本地提交 | multi SET any-slot≤255 disp8\|disp32；marker `yoyo_in_dll_s3_multi_slot32` | commit `e1c2441` |
-| **S3.78** | ✅ 已本地提交 | s1 SET(+stub) any-slot disp8\|disp32；marker `yoyo_in_dll_s1_set_d32` | commit `f4602f0` |
-| **S3.79** | ✅ 已本地提交 | multi GET any-slot≤255 disp8\|disp32；marker `yoyo_in_dll_s3_multi_get32` | commit `58aabde` |
-| **S3.80** | ✅ 已本地提交 | multi MOVRR any-slot≤255 disp8\|disp32；marker `yoyo_in_dll_s3_multi_mov32` | commit `6d86ac9` |
-| **S3.81** | ✅ 已本地提交 | multi INC any-slot≤255 disp8\|disp32；multi 入口 guard `rec_cnt≥3`；marker `yoyo_in_dll_s3_multi_inc32` | commit `f44fe61` |
-| **S3.82** | ✅ 已本地提交 | multi DEC any-slot≤255 disp8\|disp32；marker `yoyo_in_dll_s3_multi_dec32` | commit `1868f1a` |
-| **S3.83** | ✅ 已本地提交 | multi CMP any-slot≤255 disp8\|disp32；marker `yoyo_in_dll_s3_multi_cmp32` | commit `9a54d8c` |
-| **S3.84** | ✅ 已本地提交 | multi IMUL any-slot≤255 disp8\|disp32；marker `yoyo_in_dll_s3_multi_imul32` | commit `f758fff` |
-| **S3.85** | ✅ 已本地提交 | multi ALU-V any-slot≤255 disp8\|disp32；marker `yoyo_in_dll_s3_multi_aluv32` | commit `61851f4` |
-| **S3.86** | ✅ 已本地提交 | multi LDB any-slot≤255 disp8\|disp32；marker `yoyo_in_dll_s3_multi_ldb32` | commit `9da56b7` |
-| **S3.87** | ✅ 已本地提交 | multi MEMCPY_DATA/STATE any-slot≤255 disp8\|disp32；marker `yoyo_in_dll_s3_multi_mcp32` | commit `1817346` |
-| **S3.88** | ✅ 已本地提交 | multi ADD/SUB any-slot≤255 disp8\|disp32；marker `yoyo_in_dll_s3_multi_addsub32` | commit `fc75f75` |
-| **S3.89** | ✅ 已本地提交 | slim PE VirtualAlloc-only IAT @ `S1_SLIM_IAT_BASE`；ALLOC 仍 stub；marker `yoyo_in_dll_s3_slim_iat` | commit `bb81f28` |
-| **S3.90** | ✅ 已本地提交 | multi ALLOC → `call [r15+S1_SLIM_IAT_BASE]` + store；marker `yoyo_in_dll_s3_multi_alloc_iat` | commit `1a420c0` |
-| **S3.91** | ✅ 已本地提交 | s1 ALLOC → slim IAT（rcx-safe）；marker `yoyo_in_dll_s1_alloc_iat` | commit `4d01bc3` |
-| **S3.92** | ✅ 已本地提交 | slim IAT +CreateFileA/ReadFile/WriteFile；LOAD/WRITE 仍 stub；marker `yoyo_in_dll_s3_slim_iat_io` | commit `9fcf59e` |
-| **S3.93** | ✅ 已本地提交 | slim IAT +CloseHandle；PAD 仍 `0x100` | commit `6b6756e` |
-| **S3.94** | ✅ 已本地提交 | host `emit_slim_alloc/load/write`；TYB path=`r15+path_off`（≠ WIN32 `0x10000` 表） | commit `6b6756e` |
-| **S3.95** | ✅ 已本地提交 | multi LOAD → bake tmpl+patch；marker `yoyo_in_dll_s3_multi_load_iat` | commit `6b6756e` |
-| **S3.96** | ✅ 已本地提交 | multi WRITE → bake tmpl+patch；marker `yoyo_in_dll_s3_multi_write_iat` | commit `6b6756e` |
-| **S3.97** | ✅ 已本地提交 | s1 LOAD → slim IAT tmpl；marker `yoyo_in_dll_s1_load_iat` | commit `6b6756e` |
-| **S3.98** | ✅ 已本地提交 | s1 WRITE → slim IAT tmpl；marker `yoyo_in_dll_s1_write_iat` | commit `6b6756e` |
-| **S3.99** | ✅ 已本地提交 | slim PE `manual_map`+host resolve 填 IAT；ALLOC 冒烟；marker `yoyo_in_dll_s3_slim_iat_bind` | commit `7b1be25` |
-| **S3.100** | ✅ 已本地提交 | slim LOAD e2e（CreateFileA/ReadFile via bound IAT）；callee-save rbx/rsi；StubPlatform 仍 stub；marker `yoyo_in_dll_s3_slim_load_e2e` | commit `df6bb7b` |
-| **S3.101** | ✅ 已本地提交 | slim WRITE e2e（CreateFileA/WriteFile via bound IAT）；marker `yoyo_in_dll_s3_slim_write_e2e` | commit `ad0b671` |
-| **S3.102** | ✅ 已本地提交 | slim LOAD→WRITE roundtrip e2e；StubPlatform 仍 stub；marker `yoyo_in_dll_s3_slim_rw_roundtrip` | commit `4b40224` |
-| **S3.103** | ✅ 已本地提交 | S2.6 slim 真 I/O 验收脚本；marker 沿用 S3.99–S3.102 | commit `2de5ff6` |
-| **S3.104** | ✅ 已本地提交 | in-DLL recompile ALLOC PE → manual_map 真跑；marker `yoyo_in_dll_s3_in_dll_alloc_e2e` | commit `060154a` |
-| **S3.105** | ✅ 已本地提交 | in-DLL recompile LOAD PE → inject path → ReadFile e2e；marker `yoyo_in_dll_s3_in_dll_load_e2e` | commit `060154a` |
-| **S3.106** | ✅ 已本地提交 | in-DLL recompile WRITE PE → WriteFile e2e；marker `yoyo_in_dll_s3_in_dll_write_e2e` | commit `59077dc` |
-| **S3.107** | ✅ 已本地提交 | in-DLL LOAD→WRITE roundtrip e2e；marker `yoyo_in_dll_s3_in_dll_rw_roundtrip` | commit `886f431` |
-| **S3.108** | ✅ 已本地提交 | 验收脚本扩 host+in-DLL slim e2e；StubPlatform 仍 stub | commit `a10c20d` |
 | **S3.109** | ✅ 已本地提交 | 近端子集合同 + fixed-template 剩余 6 op meta-emit autopack 矩阵 | commit `3e3dec9` |
 | **S3.110+** | ⏳ 未开始 | `S3-subset-fixed10` 收口 / 减 Rust 辅助 / 真自举长杆 | 长杆 |
 
-> **写法**：已完成 S3.1–S3.109 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
 
 #### 当前诚实缺口（更新至 S3.109）
 
