@@ -791,45 +791,53 @@ pub fn emit_slim_alloc(slot: u16, size: u32) -> Vec<u8> {
 
 /// S3.94: LOAD_FILE — path at `[r15+path_off]` (slim .data byte offset, not WIN32 0x10000 table).
 /// CreateFileA → VirtualAlloc(READ_CHUNK) → ReadFile → CloseHandle → store buf ptr.
+/// Preserves rbx/rsi (Win64 non-volatiles). Frame = push×2 + `sub rsp,0x38` (16-align + 3 stack args).
 pub fn emit_slim_load_file(slot: u16, path_off: u32) -> Vec<u8> {
-    let mut out = Vec::with_capacity(160);
-    out.extend_from_slice(&[0x48, 0x83, 0xEC, 0x38]); // room for 3 stack args
+    let mut out = Vec::with_capacity(176);
+    out.extend_from_slice(&[0x53, 0x56]); // push rbx, rsi
+    out.extend_from_slice(&[0x48, 0x83, 0xEC, 0x38]); // shadow + 3 stack args (keep 16-align)
     // lea rcx, [r15+path_off]
     out.extend_from_slice(&[0x49, 0x8D, 0x8F]);
     out.extend_from_slice(&path_off.to_le_bytes());
     out.extend_from_slice(&[0xBA, 0x00, 0x00, 0x00, 0x80]); // GENERIC_READ
-    out.extend_from_slice(&[0x45, 0x31, 0xC0]); // xor r8d
-    out.extend_from_slice(&[0x45, 0x31, 0xC9]); // xor r9d
+    out.extend_from_slice(&[0x41, 0xB8, 0x01, 0x00, 0x00, 0x00]); // FILE_SHARE_READ
+    out.extend_from_slice(&[0x45, 0x31, 0xC9]); // xor r9d (sa=NULL)
     out.extend_from_slice(&[0xC7, 0x44, 0x24, 0x20, 0x03, 0x00, 0x00, 0x00]); // OPEN_EXISTING
-    out.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x28, 0x80, 0x00, 0x00, 0x00]);
-    out.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x30, 0x00, 0x00, 0x00, 0x00]);
+    out.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x28, 0x80, 0x00, 0x00, 0x00]); // FILE_ATTRIBUTE_NORMAL
+    out.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x30, 0x00, 0x00, 0x00, 0x00]); // hTemplate=NULL
     emit_slim_call_iat(&mut out, S1_SLIM_IAT_OFF_CREATE_FILE_A);
-    out.extend_from_slice(&[0x48, 0x89, 0xC3]); // mov rbx, rax
+    out.extend_from_slice(&[0x48, 0x89, 0xC3]); // mov rbx, rax (handle)
+    // VirtualAlloc(NULL, READ_CHUNK, COMMIT|RESERVE, READWRITE)
     out.extend_from_slice(&[0x31, 0xC9]);
     out.extend_from_slice(&[0xBA]);
     out.extend_from_slice(&S1_SLIM_READ_CHUNK.to_le_bytes());
     out.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
     out.extend_from_slice(&[0x41, 0xB9, 0x04, 0x00, 0x00, 0x00]);
     emit_slim_call_iat(&mut out, S1_SLIM_IAT_OFF_VIRTUAL_ALLOC);
-    out.extend_from_slice(&[0x48, 0x89, 0xC6]); // mov rsi, rax
+    out.extend_from_slice(&[0x48, 0x89, 0xC6]); // mov rsi, rax (buf)
+    // ReadFile(h, buf, READ_CHUNK, &bytes_read, NULL) — clear nRead first (h00 parity)
     out.extend_from_slice(&[0x48, 0x89, 0xD9]); // rcx = handle
     out.extend_from_slice(&[0x48, 0x89, 0xF2]); // rdx = buf
     out.extend_from_slice(&[0x41, 0xB8]);
     out.extend_from_slice(&S1_SLIM_READ_CHUNK.to_le_bytes());
+    out.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x20, 0x00, 0x00, 0x00, 0x00]); // nRead=0
     out.extend_from_slice(&[0x4C, 0x8D, 0x4C, 0x24, 0x20]); // lea r9,[rsp+0x20]
-    out.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x28, 0x00, 0x00, 0x00, 0x00]);
+    out.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x28, 0x00, 0x00, 0x00, 0x00]); // lpOverlapped=NULL
     emit_slim_call_iat(&mut out, S1_SLIM_IAT_OFF_READ_FILE);
     out.extend_from_slice(&[0x48, 0x89, 0xD9]);
     emit_slim_call_iat(&mut out, S1_SLIM_IAT_OFF_CLOSE_HANDLE);
     out.extend_from_slice(&[0x48, 0x83, 0xC4, 0x38]);
     out.extend_from_slice(&[0x48, 0x89, 0xF0]); // rax = buf
     emit_slim_store_disp32(&mut out, slot);
+    out.extend_from_slice(&[0x5E, 0x5B]); // pop rsi, rbx
     out
 }
 
 /// S3.94: WRITE_FILE — path at `[r15+path_off]`; buf=`[r15+slot*8]`; size=`[r15+sz_slot*8]`.
+/// Preserves rbx (Win64 non-volatile).
 pub fn emit_slim_write_file(slot: u16, path_off: u32, sz_slot: u16) -> Vec<u8> {
-    let mut out = Vec::with_capacity(140);
+    let mut out = Vec::with_capacity(148);
+    out.extend_from_slice(&[0x53, 0x56]); // push rbx, rsi (align + spare)
     out.extend_from_slice(&[0x48, 0x83, 0xEC, 0x38]);
     out.extend_from_slice(&[0x49, 0x8D, 0x8F]);
     out.extend_from_slice(&path_off.to_le_bytes());
@@ -853,20 +861,22 @@ pub fn emit_slim_write_file(slot: u16, path_off: u32, sz_slot: u16) -> Vec<u8> {
     out.extend_from_slice(&[0x48, 0x83, 0xC4, 0x38]);
     out.extend_from_slice(&[0x48, 0x31, 0xC0]); // xor rax,rax
     emit_slim_store_disp32(&mut out, slot);
+    out.extend_from_slice(&[0x5E, 0x5B]); // pop rsi, rbx
     out
 }
 
 /// Patch sites inside [`emit_slim_load_file`] / [`emit_slim_write_file`] blobs (for in-DLL bake).
 pub fn slim_load_path_patch_off() -> usize {
-    // after sub rsp (4) + lea opcode 49 8D 8F (3) → disp32
-    4 + 3
+    // push rbx,rsi (2) + sub rsp (4) + lea 49 8D 8F (3) → disp32
+    2 + 4 + 3
 }
 pub fn slim_load_slot_patch_off(blob: &[u8]) -> usize {
-    // last 4 bytes of trailing store disp32
-    blob.len() - 4
+    // store disp32 then pop rsi,rbx (2) — disp is 4 bytes before the pops
+    blob.len() - 2 - 4
 }
 pub fn slim_write_path_patch_off() -> usize {
-    4 + 3
+    // push rbx,rsi (2) + sub rsp (4) + lea (3)
+    2 + 4 + 3
 }
 pub fn slim_write_slot_load_patch_off(blob: &[u8]) -> usize {
     // first load_disp32 after mov rbx,rax (3) following CreateFile call
@@ -883,7 +893,8 @@ pub fn slim_write_sz_load_patch_off(blob: &[u8]) -> usize {
         + 3
 }
 pub fn slim_write_store_patch_off(blob: &[u8]) -> usize {
-    blob.len() - 4
+    // store disp32 then pop rsi,rbx (2)
+    blob.len() - 2 - 4
 }
 
 /// S1.5 — minimal PE32+ for in-DLL codegen (S3.93: +CloseHandle IAT, tiny `.data`).
@@ -2679,13 +2690,14 @@ mod tests {
     fn slim_io_blob_sizes_and_patches() {
         let load = emit_slim_load_file(0, 0);
         let write = emit_slim_write_file(0, 0, 0);
-        assert_eq!(load.len(), 144, "load blob len");
-        assert_eq!(write.len(), 123, "write blob len");
-        assert_eq!(slim_load_path_patch_off(), 7);
-        assert_eq!(slim_load_slot_patch_off(&load), load.len() - 4);
-        assert_eq!(slim_write_path_patch_off(), 7);
-        assert_eq!(&load[7..11], &[0, 0, 0, 0]);
-        assert_eq!(&write[7..11], &[0, 0, 0, 0]);
+        // push/pop rbx,rsi (+4); FILE_SHARE_READ (+3 vs xor r8d); clear nRead before lea (+9)
+        assert_eq!(load.len(), 160, "load blob len");
+        assert_eq!(write.len(), 127, "write blob len");
+        assert_eq!(slim_load_path_patch_off(), 9);
+        assert_eq!(slim_load_slot_patch_off(&load), load.len() - 6);
+        assert_eq!(slim_write_path_patch_off(), 9);
+        assert_eq!(&load[9..13], &[0, 0, 0, 0]);
+        assert_eq!(&write[9..13], &[0, 0, 0, 0]);
         assert_eq!(&load[slim_load_slot_patch_off(&load)..][..4], &[0, 0, 0, 0]);
     }
 
@@ -3907,6 +3919,148 @@ mod tests {
             // Free the VirtualAlloc'd user buffer (best-effort).
             VirtualFree(slot1 as *mut std::ffi::c_void, 0, MEM_RELEASE);
         }
+    }
+
+    /// S3.100: slim LOAD end-to-end — real CreateFileA/ReadFile via bound IAT.
+    /// StubPlatform stays stub (FlatBinary/H_00); TYB slim path is the real I/O lane.
+    #[test]
+    #[cfg(windows)]
+    fn s3_slim_pe_manual_map_load_file_e2e() {
+        use crate::pe_manual_map::{
+            collect_resolved_imports, manual_map_pe_dll, manual_map_pe_dll_executable,
+            parse_pe64_headers,
+        };
+        use std::ffi::CString;
+
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn LoadLibraryA(name: *const i8) -> *mut std::ffi::c_void;
+            fn GetProcAddress(
+                module: *mut std::ffi::c_void,
+                name: *const i8,
+            ) -> *mut std::ffi::c_void;
+            fn VirtualFree(lpAddress: *mut std::ffi::c_void, dwSize: usize, dwFreeType: u32)
+                -> i32;
+        }
+        const MEM_RELEASE: u32 = 0x8000;
+
+        fn host_resolve(dll: &str, name: &str) -> Option<u64> {
+            let dll_c = CString::new(dll).ok()?;
+            let name_c = CString::new(name).ok()?;
+            unsafe {
+                let module = LoadLibraryA(dll_c.as_ptr());
+                if module.is_null() {
+                    return None;
+                }
+                let proc = GetProcAddress(module, name_c.as_ptr());
+                if proc.is_null() {
+                    None
+                } else {
+                    Some(proc as u64)
+                }
+            }
+        }
+
+        // ASCII-only path under cwd (CreateFileA); avoid non-ANSI temp paths.
+        let dir = std::env::current_dir()
+            .unwrap_or_else(|_| std::env::temp_dir())
+            .join(format!("yoyo-s3100-load-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        let path = dir.join("payload.bin");
+        let payload = [0xDEu8, 0xAD, 0xBE, 0xEF, 0x01, 0x02, 0x03, 0x04];
+        std::fs::write(&path, &payload).expect("write payload");
+        let path_str = path.to_str().expect("path must be UTF-8/ANSI-safe").to_string();
+        assert!(
+            path_str.is_ascii(),
+            "CreateFileA path must be ASCII, got {path_str}"
+        );
+        let mut path_bytes = path_str.into_bytes();
+        path_bytes.push(0);
+
+        // path lives at .data+0x100 (past low state slots); LOAD slot1.
+        const PATH_OFF: u32 = 0x100;
+        let prog = TybProgram {
+            rec_cnt: 2,
+            records: vec![
+                TybRecord {
+                    op: 0x50,
+                    argc: 2,
+                    args_raw: [
+                        0x01,
+                        0x00,
+                        PATH_OFF as u8,
+                        (PATH_OFF >> 8) as u8,
+                        (PATH_OFF >> 16) as u8,
+                        (PATH_OFF >> 24) as u8,
+                    ],
+                },
+                TybRecord {
+                    op: 0xFF,
+                    argc: 0,
+                    args_raw: [0; 6],
+                },
+            ],
+        };
+        let mut cg = emit_x86(&prog);
+        cg.data.resize(PATH_OFF as usize, 0);
+        cg.data.extend_from_slice(&path_bytes);
+        assert!(
+            cg.data.len() < S1_SLIM_IAT_BASE as usize,
+            "path must not overlap IAT"
+        );
+        let pe = wrap_pe_slim(&cg).expect("slim LOAD PE");
+
+        let mapped = manual_map_pe_dll(&pe.bytes, host_resolve).expect("manual_map bind");
+        let imports = collect_resolved_imports(&mapped.image, &mapped.headers).expect("collect");
+        for name in [
+            "VirtualAlloc",
+            "CreateFileA",
+            "ReadFile",
+            "WriteFile",
+            "CloseHandle",
+        ] {
+            let va = imports
+                .iter()
+                .find(|(_, n, _, _)| n == name)
+                .map(|(_, _, _, va)| *va)
+                .unwrap_or(0);
+            assert!(va > 0x1_0000_0000, "{name} IAT unbound (va={va:#x})");
+        }
+        // Path bytes must land at r15+PATH_OFF in the mapped image.
+        let pe_off = u32::from_le_bytes(pe.bytes[0x3C..0x40].try_into().unwrap()) as usize;
+        let num_sec =
+            u16::from_le_bytes(pe.bytes[pe_off + 6..pe_off + 8].try_into().unwrap()) as usize;
+        let opt_size =
+            u16::from_le_bytes(pe.bytes[pe_off + 20..pe_off + 22].try_into().unwrap()) as usize;
+        let mut data_rva = 0u32;
+        for i in 0..num_sec {
+            let sh = pe_off + 24 + opt_size + i * 40;
+            if &pe.bytes[sh..sh + 5] == b".data" {
+                data_rva = u32::from_le_bytes(pe.bytes[sh + 12..sh + 16].try_into().unwrap());
+                break;
+            }
+        }
+        assert_ne!(data_rva, 0);
+        let path_in_img = &mapped.image
+            [(data_rva as usize + PATH_OFF as usize)..(data_rva as usize + PATH_OFF as usize + path_bytes.len())];
+        assert_eq!(path_in_img, path_bytes.as_slice(), "mapped path mismatch");
+        drop(mapped);
+
+        let exe = manual_map_pe_dll_executable(&pe.bytes, host_resolve).expect("exec map");
+        let headers = parse_pe64_headers(&pe.bytes).expect("headers");
+        unsafe {
+            let entry = (exe.base as usize + headers.entry_rva as usize) as *const ();
+            let f: extern "C" fn() = std::mem::transmute(entry);
+            f();
+            let buf = std::ptr::read_unaligned(
+                (exe.base as *const u8).add(data_rva as usize + 8) as *const u64,
+            );
+            assert_ne!(buf, 0, "LOAD must store buffer ptr");
+            let got = std::slice::from_raw_parts(buf as *const u8, payload.len());
+            assert_eq!(got, &payload, "ReadFile payload mismatch");
+            VirtualFree(buf as *mut std::ffi::c_void, 0, MEM_RELEASE);
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     // ============= S3.18: full .text compose (multi-op SET+RET) =============

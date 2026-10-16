@@ -597,6 +597,8 @@ impl StubPlatform {
     }
 }
 
+/// FlatBinary / H_00 self-test lane: keep movabs+store stubs.
+/// Real OS I/O for TYB slim PE is `s1_tyb_parser::emit_slim_*` (S3.94+) - not here.
 impl PlatformBackend for StubPlatform {
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
         use crate::assembler::{movabs, store_state};
