@@ -93,7 +93,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.77–98** ✅  | `6b6756e` | any-slot + LOAD/WRITE→slim IAT     |
 | **S3.99–108** ✅ | `a10c20d` | host+in-DLL 真 I/O e2e              |
 | **S3.109** ✅    | `3e3dec9` | 近端合同 + 剩余 op meta-emit             |
-| **S3.110** ✅    | （本步）    | `s3_subset_fixed10_meta_emit_parity` 10 op 字节对拍 |
+| **S3.110** ✅    | `7dcaa8d` | `s3_subset_fixed10_meta_emit_parity` 10 op 字节对拍 |
 | **S3.111** ⏳    | —         | 减一层 Rust pack · **本步** |
 
 
