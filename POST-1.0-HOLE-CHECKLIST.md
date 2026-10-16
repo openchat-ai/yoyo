@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.107 / meta-emit**：S3.106 in-DLL WRITE e2e GREEN；StubPlatform 仍 stub；下一刀 in-DLL roundtrip 或 meta-emit（**非**假 CLOSED）。
+**默认 `继续` = S3.108 / meta-emit**：S3.107 in-DLL roundtrip GREEN；StubPlatform 仍 stub；下一刀验收脚本扩 in-DLL e2e 或 meta-emit（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -580,25 +580,26 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.104** | ✅ 已本地提交 | in-DLL recompile ALLOC PE → manual_map 真跑；marker `yoyo_in_dll_s3_in_dll_alloc_e2e` | commit `060154a` |
 | **S3.105** | ✅ 已本地提交 | in-DLL recompile LOAD PE → inject path → ReadFile e2e；marker `yoyo_in_dll_s3_in_dll_load_e2e` | commit `060154a` |
 | **S3.106** | ✅ 已本地提交 | in-DLL recompile WRITE PE → WriteFile e2e；marker `yoyo_in_dll_s3_in_dll_write_e2e` | commit `59077dc` |
-| **S3.107+** | ⏳ 未开始 | in-DLL roundtrip / meta-emit 深挖 / 真 S3 自举 | 真自举长杆 |
+| **S3.107** | ✅ 已本地提交 | in-DLL LOAD→WRITE roundtrip e2e；marker `yoyo_in_dll_s3_in_dll_rw_roundtrip` | commit TBD |
+| **S3.108+** | ⏳ 未开始 | 验收脚本扩 in-DLL e2e / meta-emit 深挖 / 真 S3 自举 | 真自举长杆 |
 
-> **写法**：已完成 S3.1–S3.106 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
+> **写法**：已完成 S3.1–S3.107 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
 
-#### 当前诚实缺口（更新至 S3.106）
+#### 当前诚实缺口（更新至 S3.107）
 
 | 已进 | 仍未做 |
 |---|---|
-| host slim e2e + **in-DLL ALLOC/LOAD/WRITE 真跑** + S2.6 脚本 | `StubPlatform` 仍 stub；in-DLL roundtrip；真 S3 自举 |
+| host slim e2e + **in-DLL ALLOC/LOAD/WRITE/roundtrip 真跑** | `StubPlatform` 仍 stub；脚本未覆盖 in-DLL e2e；真 S3 自举 |
 
-#### S3.107 — in-DLL roundtrip 或 meta-emit（本步 · 未开始）
+#### S3.108 — 验收脚本扩 in-DLL 或 meta-emit（本步 · 未开始）
 
 | 项 | 内容 |
 |---|---|
-| 切片 | in-DLL LOAD→WRITE roundtrip e2e，或 meta-emit 扩面；StubPlatform **保持** stub；**不**假 CLOSED |
+| 切片 | `stage17-s2-runtime-effect-slim.ps1` 加跑 in-DLL e2e，或 meta-emit；StubPlatform **保持** stub；**不**假 CLOSED |
 | 验收 | sidecar/smoke GREEN；marker TBD |
 | 诚实 | OW-RT 仍 CUT · `closed=0` |
 
-**默认 `继续` = S3.107 / in-DLL roundtrip**。
+**默认 `继续` = S3.108 / 验收脚本**。
 
 ### 立项约束
 
