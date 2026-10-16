@@ -1298,6 +1298,9 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
     let s3_slim_load_e2e_marker: &[u8] = b"yoyo_in_dll_s3_slim_load_e2e\0";
     let s3_slim_load_e2e_marker_off = off;
     off += s3_slim_load_e2e_marker.len() as u32;
+    let s3_slim_write_e2e_marker: &[u8] = b"yoyo_in_dll_s3_slim_write_e2e\0";
+    let s3_slim_write_e2e_marker_off = off;
+    off += s3_slim_write_e2e_marker.len() as u32;
     // S3.94/S3.95: baked slim LOAD/WRITE machine-code templates (path=0,slot=0).
     let slim_load_tmpl = crate::s1_tyb_parser::emit_slim_load_file(0, 0);
     let slim_load_tmpl_off = off;
@@ -1467,6 +1470,8 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
         s3_slim_iat_bind_marker_off,
         s3_slim_load_e2e_marker,
         s3_slim_load_e2e_marker_off,
+        s3_slim_write_e2e_marker,
+        s3_slim_write_e2e_marker_off,
         &slim_load_tmpl,
         slim_load_tmpl_off,
         &slim_write_tmpl,
@@ -1641,6 +1646,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     s3_slim_iat_bind_marker_off: u32,
     s3_slim_load_e2e_marker: &[u8],
     s3_slim_load_e2e_marker_off: u32,
+    s3_slim_write_e2e_marker: &[u8],
+    s3_slim_write_e2e_marker_off: u32,
     slim_load_tmpl: &[u8],
     slim_load_tmpl_off: u32,
     slim_write_tmpl: &[u8],
@@ -6226,6 +6233,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     exp[s3_slim_load_e2e_marker_off as usize
         ..s3_slim_load_e2e_marker_off as usize + s3_slim_load_e2e_marker.len()]
         .copy_from_slice(s3_slim_load_e2e_marker);
+    exp[s3_slim_write_e2e_marker_off as usize
+        ..s3_slim_write_e2e_marker_off as usize + s3_slim_write_e2e_marker.len()]
+        .copy_from_slice(s3_slim_write_e2e_marker);
     exp[slim_load_tmpl_off as usize
         ..slim_load_tmpl_off as usize + slim_load_tmpl.len()]
         .copy_from_slice(slim_load_tmpl);
@@ -7129,6 +7139,10 @@ mod tests {
         assert!(
             ascii.contains("yoyo_in_dll_s3_slim_load_e2e"),
             "S3.100 slim LOAD e2e marker must be baked into .rdata"
+        );
+        assert!(
+            ascii.contains("yoyo_in_dll_s3_slim_write_e2e"),
+            "S3.101 slim WRITE e2e marker must be baked into .rdata"
         );
         assert!(
             ascii.contains("yoyo_in_dll_s3_table_bake"),
