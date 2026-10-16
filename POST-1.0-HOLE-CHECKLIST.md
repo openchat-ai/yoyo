@@ -1,4 +1,4 @@
-# Post-v1.0 关洞负责人看板（path 2 · 缩宿主信任 · 整仓竣工）
+﻿# Post-v1.0 关洞负责人看板（path 2 · 缩宿主信任 · 整仓竣工）
 
 ## 北星
 
@@ -10,14 +10,11 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 ## 阻塞 / 勿做
 
-```text
-项                状态   说明
-长杆              OW-RT  去 Rust sidecar；日常 = S3
-HARD BLOCK CI AV  已关   #[ignore] + issue #37；诊断长文已折
-勿做              —      勿 fake CLOSED / AUTO ACTIVE=1 / invent
-                         Stage；勿定点·oracle·hop 当 CLOSED；勿用 CI
-                         当调试器
-```
+| 项 | 状态 | 说明 |
+|----|------|------|
+| **长杆** | OW-RT | 去 Rust sidecar；日常 = S3 |
+| **HARD BLOCK CI AV** | 🟢 已关 | `#[ignore]` + [#37](https://github.com/openchat-ai/yoyo/issues/37)；诊断长文已折 |
+| **勿做** | — | 勿 fake CLOSED；勿 `AUTO ACTIVE=1`；勿 invent Stage；勿定点/oracle/hop 当 CLOSED；勿用 CI 当调试器 |
 
 **相关**：`SCOPE-CUT-v1.0-hole-inventory.md` · `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md` · `SCOPE-CUT-v1.0-ow-seed-observe.md` · `AUTO_TO_1.0.md` · `ci-anti-thrash.mdc`
 
@@ -27,25 +24,23 @@ HARD BLOCK CI AV  已关   #[ignore] + issue #37；诊断长文已折
 
 权威 disposition：`SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 / CI → `git log`。
 
-```text
-洞            门       诚实
-OW-H00        C        CUT · full .text EQUAL 才谈 CLOSED
-OW-STUB       A/C      CUT · stub_tail_nonzero==0
-OW-RT         D–F · I  CUT · 长杆 → S3
-OW-IAT        A/C      CUT · 依赖 OW-RT 去 sidecar
-OW-SEED       G/H/J    CUT · J=bootstrap 例外（不再待关）；I→OW-RT
-REL-FULLTEXT  C        CUT · 设计上不毕业
-REL-STUBOS    C        CUT · 非本长杆优先
+| 洞 | 门 | 诚实 |
+|---|---|---|
+| **OW-H00** | C | CUT · full `.text` EQUAL 才谈 CLOSED |
+| **OW-STUB** | A/C | CUT · `stub_tail_nonzero==0` |
+| **OW-RT** | D–F · **I** | CUT · **长杆** → S3 |
+| **OW-IAT** | A/C | CUT · 依赖 OW-RT 去 sidecar |
+| **OW-SEED** | G/H/J | CUT · J=bootstrap 例外（不再待关）；I→OW-RT |
+| **REL-FULLTEXT** | C | CUT · **设计上不毕业** |
+| **REL-STUBOS** | C | CUT · 非本长杆优先 |
 
-门   状态  pin / 一句话
-A–C  ✅    f8eb429 / Linux tramp / 11a2cea FINAL ·
-           path 2 里程碑
-D–F  ✅    OW-RT DLL emit / origin / YOYO-built · 仍
-           CUT
-G–H  ✅    OW-SEED 操作发射 + trust-root · 仍 CUT
-I    —     → OW-RT 长杆（实验 RED · 预期）
-J    ✅    bootstrap 例外 · 不再待关
-```
+| 门 | pin / 一句话 |
+|---|---|
+| **A–C** ✅ | `f8eb429` / Linux tramp / `11a2cea` FINAL · path 2 里程碑 |
+| **D–F** ✅ | OW-RT DLL emit / origin / YOYO-built · 仍 CUT |
+| **G–H** ✅ | OW-SEED 操作发射 + trust-root · 仍 CUT |
+| **I** — | → OW-RT 长杆（实验 RED · 预期） |
+| **J** ✅ | bootstrap 例外 · 不再待关 |
 
 > 勿 invent 重开关洞门。`stage17-*` = 门禁文件名 ≠ ROADMAP Stage 17。
 
@@ -53,37 +48,33 @@ J    ✅    bootstrap 例外 · 不再待关
 
 ## Stage 17+ / S3（日常主线）
 
-```text
-阶段   状态  一句话
-S1     ✅    in-DLL mini codegen（TYB→slim PE）
-S2     ✅    slim 真 I/O 钩子 · StubPlatform 仍 stub ·
-             pin 2de5ff6
-S3     ⏳    meta-emit 近端 subset；真自举 = 半年+
-S4/S5  地图  全 ISA / 形式化 · 不排假工期
-```
+| 阶段 | 状态 | 一句话 |
+|------|------|--------|
+| **S1** | ✅ | in-DLL mini codegen（TYB→slim PE） |
+| **S2** | ✅ | slim 真 I/O 钩子 · StubPlatform **仍 stub** · pin `2de5ff6` |
+| **S3** | ⏳ | meta-emit 近端 subset；真自举 = 半年+ |
+| **S4/S5** | 地图 | 全 ISA / 形式化 · **不排假工期** |
 
 ### 近端子集合同（`S3-subset-fixed10`）
 
-```text
-可 GREEN                                                不算毕业
-固定模板 10 op · meta-emit / emit_x86 · .text 字节对拍  任意 slot/imm、全 mini-ISA
-允许 Rust 辅助打包/调度                                 零 Rust 独写完整 codegen
-slim 真 I/O（S3.99–108）；StubPlatform stub             StubPlatform 变真 OS
-—                                                       任何 OW-* CLOSED 话术（closed=0）
-```
+| 可 GREEN | **不算**毕业 |
+|---|---|
+| 固定模板 10 op · meta-emit / `emit_x86` **`.text` 字节对拍** | 任意 slot/imm、全 mini-ISA |
+| 允许 Rust 辅助打包/调度 | 零 Rust 独写完整 codegen |
+| slim 真 I/O（S3.99–108）；StubPlatform **stub** | StubPlatform 变真 OS |
+| — | 任何 OW-* **CLOSED** 话术（`closed=0`） |
 
 ### S3 进度索引
 
-```text
-波段          pin      一句话
-S3.1–29   ✅  d310710  RAW_BYTES + 固定模板 10 op host 表
-S3.30–52  ✅  673297e  bake 表 + multi bake
-S3.53–76  ✅  290679b  JMP/CALL/JCC + ALU/MEM/平台 stub
-S3.77–98  ✅  6b6756e  any-slot + LOAD/WRITE→slim IAT
-S3.99–108 ✅  a10c20d  host+in-DLL 真 I/O e2e
-S3.109    ✅  3e3dec9  近端合同 + 剩余 op meta-emit
-S3.110    ⏳  —        钉 subset 验收 / 减 Rust pack · 本步
-```
+| 波段 | pin | 一句话 |
+|---|---|---|
+| **S3.1–29** ✅ | `d310710` | RAW_BYTES + 固定模板 10 op host 表 |
+| **S3.30–52** ✅ | `673297e` | bake 表 + multi bake |
+| **S3.53–76** ✅ | `290679b` | JMP/CALL/JCC + ALU/MEM/平台 stub |
+| **S3.77–98** ✅ | `6b6756e` | any-slot + LOAD/WRITE→slim IAT |
+| **S3.99–108** ✅ | `a10c20d` | host+in-DLL 真 I/O e2e |
+| **S3.109** ✅ | `3e3dec9` | 近端合同 + 剩余 op meta-emit |
+| **S3.110** ⏳ | — | 钉 subset 验收 / 减 Rust pack · **本步** |
 
 **缺口**：合同毕业标记 · 减 Rust 辅助 · 真自举。逐步正文 → `git log`。
 
