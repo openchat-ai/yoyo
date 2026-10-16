@@ -25,8 +25,8 @@
 //! SET/RET/LABEL/NOP/RAW_BYTE + GET/MOVRR/ADD·SUB imm/INC/DEC +
 //! CMP/CALL/JMP/JCC (two-pass labels, ≤16) + IMUL/ADDV/ORV/SUBV +
 //! LDB/MEMCPY_DATA/MEMCPY_STATE (n≤4) + DATA/STR/RAW (≤64B → `.data`) +
-//! RAW_BYTES (argc≤3 → `.text`) + ALLOC/LOAD_FILE/WRITE_FILE **stub form**
-//! (argc=2, same encoding as SET; not real OS alloc/I/O).
+//! RAW_BYTES (argc≤3 → `.text`) + ALLOC→slim VirtualAlloc IAT +
+//! LOAD_FILE/WRITE_FILE **stub** (argc=2 ≡ SET; not real OS I/O).
 //! Non-TYB inputs still use the oracle table. Marker `yoyo_in_dll_s1_codegen`.
 //! Stage 17+ **S3.30–S3.50**: fixed-template fast-paths + `.rdata` 10-row bake.
 //! Dual +RET pilots for all 10 rows; argc0 scan; ≥3 multi bake (argc0 + fixed
@@ -1269,6 +1269,9 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
     let s3_multi_alloc_iat_marker: &[u8] = b"yoyo_in_dll_s3_multi_alloc_iat\0";
     let s3_multi_alloc_iat_marker_off = off;
     off += s3_multi_alloc_iat_marker.len() as u32;
+    let s1_alloc_iat_marker: &[u8] = b"yoyo_in_dll_s1_alloc_iat\0";
+    let s1_alloc_iat_marker_off = off;
+    off += s1_alloc_iat_marker.len() as u32;
     // S3.58: cc bytes for TYB JCC 0x73..=0x7A (JL..JA); index = op - 0x73
     let s3_jcc_rest_cc: &[u8] = &[0x8C, 0x8D, 0x8E, 0x8F, 0x82, 0x83, 0x86, 0x87];
     let s3_jcc_rest_cc_off = off;
@@ -1415,6 +1418,8 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
         s3_slim_iat_marker_off,
         s3_multi_alloc_iat_marker,
         s3_multi_alloc_iat_marker_off,
+        s1_alloc_iat_marker,
+        s1_alloc_iat_marker_off,
         s3_jcc_rest_cc,
         s3_jcc_rest_cc_off,
         s3_aluv_ops,
@@ -1569,6 +1574,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     s3_slim_iat_marker_off: u32,
     s3_multi_alloc_iat_marker: &[u8],
     s3_multi_alloc_iat_marker_off: u32,
+    s1_alloc_iat_marker: &[u8],
+    s1_alloc_iat_marker_off: u32,
     s3_jcc_rest_cc: &[u8],
     s3_jcc_rest_cc_off: u32,
     s3_aluv_ops: &[u8],
@@ -1869,7 +1876,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x41, 0x5D, 0x41, 0x5C, 0x5F, 0x5E, 0x5B, 0xC3]);
 
     // ----- S1 mini TYB codegen (after epilogue; entered only via jmp_s1) -----
-    // Mini-ISA: … + S2.4 ALLOC/LOAD_FILE/WRITE_FILE stub (= SET encoding)
+    // Mini-ISA: … + S3.91 ALLOC→IAT; S2.4 LOAD/WRITE stub (= SET encoding)
     let s1_at = export_code.len();
     patch_rel32(&mut export_code, jmp_s1, s1_at);
 
@@ -4172,8 +4179,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x3C, 0x30]); // cmp al, 0x30 SET
     let s1_je_set = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    // S2.4 stubs: same argc=2 movabs+store wire as SET
-    export_code.extend_from_slice(&[0x3C, 0x20]); // ALLOC stub
+    // S2.4: LOAD/WRITE stub ≡ SET; S3.91 ALLOC → slim IAT (not SET).
+    export_code.extend_from_slice(&[0x3C, 0x20]); // ALLOC (S3.91 → slim IAT)
     let s1_je_alloc = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     export_code.extend_from_slice(&[0x3C, 0x50]); // LOAD_FILE stub
@@ -4270,11 +4277,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     patch_rel8(&mut export_code, s1_ja_jcc, s1_jmp_fail_op);
 
     // --- SET argc must be 2: emit movabs rax,imm64 + store [r15+slot*8]
-    // S2.4: ALLOC/LOAD_FILE/WRITE_FILE stub share this body (identical encoding).
+    // S2.4/S3.91: LOAD/WRITE stub share SET; ALLOC → slim IAT (below).
     // S3.78: slot≤255 → disp8 (14B) or disp32 (17B).
     let s1_set = export_code.len();
     patch_jcc32(&mut export_code, s1_je_set, s1_set);
-    patch_jcc32(&mut export_code, s1_je_alloc, s1_set);
     patch_jcc32(&mut export_code, s1_je_loadf, s1_set);
     patch_jcc32(&mut export_code, s1_je_writef, s1_set);
     export_code.extend_from_slice(&[0x80, 0xFA, 0x02]); // cmp dl, 2
@@ -4327,6 +4333,73 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x41, 0x89, 0x44, 0x24, 0x0D]); // mov [r12+13], eax
     export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x11]); // add r12, 17
     let s1_jmp_next_set_d32 = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+    // S3.91: ALLOC any slot≤255 → VirtualAlloc([r15+S1_SLIM_IAT_BASE]) + store
+    // rcx = record (must not clobber); eax/r10 scratch.
+    let s1_alloc = export_code.len();
+    patch_jcc32(&mut export_code, s1_je_alloc, s1_alloc);
+    export_code.extend_from_slice(&[0x80, 0xFA, 0x02]); // argc=2
+    let s1_jne_alloc_argc = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // movzx eax, slot
+    export_code.extend_from_slice(&[0x3D, 0x00, 0x01, 0x00, 0x00]); // cmp eax, 256
+    let s1_jae_alloc_slot = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x83, 0xF8, 0x10]); // cmp eax, 16 (flags keep)
+    export_code.extend_from_slice(&[0xB8, 0x26, 0x00, 0x00, 0x00]); // eax=38
+    export_code.extend_from_slice(&[0x41, 0xBA, 0x29, 0x00, 0x00, 0x00]); // r10d=41
+    export_code.extend_from_slice(&[0x41, 0x0F, 0x43, 0xC2]); // cmovae eax, r10d
+    export_code.extend_from_slice(&[0x49, 0x89, 0xC0]); // r8 = size
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x4C, 0x01, 0xC0]);
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
+    let s1_ja_alloc_ovf = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x48]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x83]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x02, 0xEC]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x03, 0x28]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x04, 0x31]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x05, 0xC9]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x06, 0xBA]);
+    export_code.extend_from_slice(&[0x8B, 0x41, 0x04]); // size imm from record
+    export_code.extend_from_slice(&[0x41, 0x89, 0x44, 0x24, 0x07]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0B, 0x41]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0C, 0xB8]);
+    export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x0D]);
+    export_code.extend_from_slice(&0x0000_3000u32.to_le_bytes());
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x11, 0x41]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x12, 0xB9]);
+    export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x13]);
+    export_code.extend_from_slice(&0x0000_0004u32.to_le_bytes());
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x17, 0x41]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x18, 0xFF]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x19, 0x97]);
+    export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x1A]);
+    export_code.extend_from_slice(&crate::s1_tyb_parser::S1_SLIM_IAT_BASE.to_le_bytes());
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x1E, 0x48]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x1F, 0x83]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x20, 0xC4]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x21, 0x28]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // slot
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x22, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x23, 0x89]);
+    export_code.extend_from_slice(&[0x66, 0x83, 0x79, 0x02, 0x10]); // cmp word [rcx+2], 16
+    let s1_jae_alloc_st32 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x24, 0x47]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x25]); // disp8 from al
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x26]);
+    let s1_jmp_next_alloc = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let s1_alloc_st32 = export_code.len();
+    patch_jcc32(&mut export_code, s1_jae_alloc_st32, s1_alloc_st32);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x24, 0x87]);
+    export_code.extend_from_slice(&[0x41, 0x89, 0x44, 0x24, 0x25]); // disp32
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x29]);
+    let s1_jmp_next_alloc_d32 = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // --- RET
@@ -5165,6 +5238,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     for at in [
         s1_jmp_next,
         s1_jmp_next_set_d32,
+        s1_jmp_next_alloc,
+        s1_jmp_next_alloc_d32,
         s1_jmp_next2,
         s1_jmp_next3,
         s1_jmp_next4,
@@ -5379,6 +5454,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         s1_ja_set_ovf,
         s1_ja_set_ovf17,
         s1_jae_slot, // slot>255
+        s1_jne_alloc_argc, // S3.91 s1 ALLOC argc
+        s1_jae_alloc_slot, // S3.91 s1 ALLOC slot>255
+        s1_ja_alloc_ovf, // S3.91 s1 ALLOC IAT overflow
         s1_jne_ret_argc,
         s1_ja_ret_ovf,
         s1_jne_label_argc,
@@ -5771,6 +5849,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     exp[s3_multi_alloc_iat_marker_off as usize
         ..s3_multi_alloc_iat_marker_off as usize + s3_multi_alloc_iat_marker.len()]
         .copy_from_slice(s3_multi_alloc_iat_marker);
+    exp[s1_alloc_iat_marker_off as usize
+        ..s1_alloc_iat_marker_off as usize + s1_alloc_iat_marker.len()]
+        .copy_from_slice(s1_alloc_iat_marker);
     exp[s3_jcc_rest_cc_off as usize
         ..s3_jcc_rest_cc_off as usize + s3_jcc_rest_cc.len()]
         .copy_from_slice(s3_jcc_rest_cc);
@@ -6636,6 +6717,10 @@ mod tests {
         assert!(
             ascii.contains("yoyo_in_dll_s3_multi_alloc_iat"),
             "S3.90 multi ALLOC→IAT marker must be baked into .rdata"
+        );
+        assert!(
+            ascii.contains("yoyo_in_dll_s1_alloc_iat"),
+            "S3.91 s1 ALLOC→IAT marker must be baked into .rdata"
         );
         assert!(
             ascii.contains("yoyo_in_dll_s3_table_bake"),
@@ -8065,6 +8150,42 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// S3.91: s1_loop ALLOC slot1 size=0x1000 → VirtualAlloc via slim IAT + store.
+    /// 2-rec (ALLOC+RET) falls past dual pilots → s1_loop.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_sidecar_in_dll_s1_tyb_alloc_iat() {
+        let dir = temp_work("in-dll-s1-tyb-alloc-iat");
+        let mut tyb = Vec::new();
+        tyb.extend_from_slice(b"TYB\0");
+        tyb.extend_from_slice(&[0, 0]);
+        tyb.extend_from_slice(&2u16.to_le_bytes());
+        tyb.push(0x20); // ALLOC
+        tyb.push(2);
+        tyb.extend_from_slice(&[0x01, 0x00, 0x00, 0x10, 0x00, 0x00]); // slot1 size=0x1000
+        tyb.push(0xFF);
+        tyb.push(0);
+        tyb.extend_from_slice(&[0u8; 6]);
+        std::fs::write(dir.join("input.tyb"), &tyb).expect("write tyb");
+        assert_eq!(yoyo_sidecar_in_dll_recompile(&dir), EXIT_OK);
+        let out = std::fs::read(dir.join(OUTPUT_NAME)).expect("output.exe");
+        let off = crate::s1_tyb_parser::S1_SLIM_TEXT_PAYLOAD_OFF;
+        let iat = crate::s1_tyb_parser::S1_SLIM_IAT_BASE.to_le_bytes();
+        let expect = [
+            0x48, 0x83, 0xEC, 0x28, // sub rsp,0x28
+            0x31, 0xC9, // xor ecx,ecx
+            0xBA, 0x00, 0x10, 0x00, 0x00, // mov edx,0x1000
+            0x41, 0xB8, 0x00, 0x30, 0x00, 0x00, // r8d=MEM_COMMIT|RESERVE
+            0x41, 0xB9, 0x04, 0x00, 0x00, 0x00, // r9d=PAGE_READWRITE
+            0x41, 0xFF, 0x97, iat[0], iat[1], iat[2], iat[3], // call [r15+IAT]
+            0x48, 0x83, 0xC4, 0x28, // add rsp,0x28
+            0x49, 0x89, 0x47, 0x08, // store slot1
+            0xC3,
+        ];
+        assert_eq!(&out[off..off + expect.len()], &expect, "s1 ALLOC→IAT + RET");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// S3.83: CMP a16,b1 + NOP + RET — multi mixed disp32/disp8 + cmp.
     #[test]
     #[cfg(windows)]
@@ -8462,10 +8583,8 @@ mod tests {
                 "raw_bytes_ret",
                 vec![(0xA1, 2, [0xCC, 0, 0xDD, 0, 0, 0])],
             ),
-            (
-                "alloc_stub_ret",
-                vec![(0x20, 2, [1, 0, 0x10, 0, 0, 0]), (0xFF, 0, [0; 6])],
-            ),
+            // S3.91: ALLOC in-DLL → IAT (≠ host StubPlatform movabs); covered by
+            // yoyo_sidecar_in_dll_s1_tyb_alloc_iat — not host↔DLL text parity.
             (
                 "load_file_stub_ret",
                 vec![(0x50, 2, [0, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])],
