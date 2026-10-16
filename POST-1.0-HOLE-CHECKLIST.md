@@ -564,7 +564,7 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.89** | ✅ 已本地提交 | slim PE VirtualAlloc-only IAT @ `S1_SLIM_IAT_BASE`；ALLOC 仍 stub；marker `yoyo_in_dll_s3_slim_iat` | commit `bb81f28` |
 | **S3.90** | ✅ 已本地提交 | multi ALLOC → `call [r15+S1_SLIM_IAT_BASE]` + store；marker `yoyo_in_dll_s3_multi_alloc_iat` | commit `1a420c0` |
 | **S3.91** | ✅ 已本地提交 | s1 ALLOC → slim IAT（rcx-safe）；marker `yoyo_in_dll_s1_alloc_iat` | commit `4d01bc3` |
-| **S3.92** | ✅ 已本地提交 | slim IAT +CreateFileA/ReadFile/WriteFile；LOAD/WRITE 仍 stub；marker `yoyo_in_dll_s3_slim_iat_io` | commit TBD |
+| **S3.92** | ✅ 已本地提交 | slim IAT +CreateFileA/ReadFile/WriteFile；LOAD/WRITE 仍 stub；marker `yoyo_in_dll_s3_slim_iat_io` | commit `9fcf59e` |
 | **S3.93+** | ⏳ 未开始 | LOAD/WRITE emit → file IAT | 真自举长杆 |
 
 > **写法**：已完成 S3.1–S3.92 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
