@@ -723,13 +723,18 @@ pub const S1_SLIM_MAX_CODE: usize = 512;
 /// Slim `.data` virtual size (state base for R15); keeps PE ≪ `link_pe` H_00 pad.
 pub const S1_SLIM_DATA_VS: u32 = 0x1000;
 
-/// S3.89: VirtualAlloc-only IAT blob size (IAT+desc+names+ILT, 16-aligned).
-pub const S1_SLIM_IAT_PAD: usize = 0x70;
-/// S3.89: IAT lives at high end of slim `.data` so r15+0 state slots stay free.
-/// Future ALLOC emit: `call [r15 + S1_SLIM_IAT_BASE]` (≠ win32 slot0 until slots migrate).
+/// S3.92: slim IAT blob (VirtualAlloc+CreateFileA+ReadFile+WriteFile; 16-aligned).
+pub const S1_SLIM_IAT_PAD: usize = 0x100;
+/// S3.89/S3.92: IAT at high end of slim `.data` so r15+0 state slots stay free.
+/// ALLOC: `call [r15 + S1_SLIM_IAT_BASE]` (= VirtualAlloc slot0).
 pub const S1_SLIM_IAT_BASE: u32 = S1_SLIM_DATA_VS - S1_SLIM_IAT_PAD as u32;
+/// IAT slot byte offsets from [`S1_SLIM_IAT_BASE`] (qword stride).
+pub const S1_SLIM_IAT_OFF_VIRTUAL_ALLOC: u32 = 0;
+pub const S1_SLIM_IAT_OFF_CREATE_FILE_A: u32 = 8;
+pub const S1_SLIM_IAT_OFF_READ_FILE: u32 = 16;
+pub const S1_SLIM_IAT_OFF_WRITE_FILE: u32 = 24;
 
-/// S1.5 — minimal PE32+ for in-DLL codegen (S3.89: +VirtualAlloc IAT, tiny `.data`).
+/// S1.5 — minimal PE32+ for in-DLL codegen (S3.92: +file-I/O IAT, tiny `.data`).
 ///
 /// Layout mirrors `pe_link::link_pe_impl` startup (`lea r15,[rip+disp]; jmp code`)
 /// but with `.data` VS = [`S1_SLIM_DATA_VS`] so the image fits in ~6–8 KiB.
@@ -865,18 +870,41 @@ pub fn wrap_pe_slim_bytes(
     let code_dst = text_file_off + PE_STARTUP_LEN as usize;
     img[code_dst..code_dst + code.len()].copy_from_slice(code);
 
-    // S3.89: VirtualAlloc-only IAT at high end of .data (r15+S1_SLIM_IAT_BASE).
+    // S3.92: 4-import IAT at high end of .data (r15+S1_SLIM_IAT_BASE).
+    // Layout (rel to iat_base): IAT 0x00 (5×8), ILT 0x28, desc 0x50, dll 0x78,
+    // hint-names 0x88… — VirtualAlloc stays slot0 so ALLOC emit is unchanged.
     let data_file_off = (HEADERS_RAW + code_raw) as usize;
     let iat_base = S1_SLIM_IAT_BASE as usize;
     let iat_off = iat_base;
-    let desc_off = iat_base + 0x10;
-    let dll_name_off = iat_base + 0x38;
-    let hn_off = iat_base + 0x46;
-    let ilt_off = iat_base + 0x58;
-    debug_assert_eq!(align_up_usize(0x58 + 16, 16), S1_SLIM_IAT_PAD);
-    let hn_rva = data_rva + hn_off as u32;
-    write_u64(&mut img, data_file_off + iat_off, hn_rva as u64);
-    write_u64(&mut img, data_file_off + ilt_off, hn_rva as u64);
+    let ilt_off = iat_base + 0x28;
+    let desc_off = iat_base + 0x50;
+    let dll_name_off = iat_base + 0x78;
+    let hn0_off = iat_base + 0x88;
+    let names: &[&[u8]] = &[
+        b"VirtualAlloc\0",
+        b"CreateFileA\0",
+        b"ReadFile\0",
+        b"WriteFile\0",
+    ];
+    let mut hn_offs = [0usize; 4];
+    let mut hn_cur = hn0_off;
+    for (i, name) in names.iter().enumerate() {
+        hn_offs[i] = hn_cur;
+        img[data_file_off + hn_cur] = 0;
+        img[data_file_off + hn_cur + 1] = 0;
+        img[data_file_off + hn_cur + 2..data_file_off + hn_cur + 2 + name.len()]
+            .copy_from_slice(name);
+        hn_cur += 2 + name.len();
+        hn_cur = align_up_usize(hn_cur, 2);
+    }
+    debug_assert!(hn_cur - iat_base <= S1_SLIM_IAT_PAD);
+    debug_assert_eq!(S1_SLIM_IAT_PAD, 0x100);
+    for i in 0..4 {
+        let hn_rva = data_rva + hn_offs[i] as u32;
+        write_u64(&mut img, data_file_off + iat_off + i * 8, hn_rva as u64);
+        write_u64(&mut img, data_file_off + ilt_off + i * 8, hn_rva as u64);
+    }
+    // IAT/ILT null terminators already zero-filled.
     write_u32(&mut img, data_file_off + desc_off, data_rva + ilt_off as u32);
     write_u32(
         &mut img,
@@ -890,10 +918,6 @@ pub fn wrap_pe_slim_bytes(
     );
     img[data_file_off + dll_name_off..data_file_off + dll_name_off + 13]
         .copy_from_slice(b"kernel32.dll\0");
-    img[data_file_off + hn_off] = 0;
-    img[data_file_off + hn_off + 1] = 0;
-    img[data_file_off + hn_off + 2..data_file_off + hn_off + 15]
-        .copy_from_slice(b"VirtualAlloc\0");
     write_u32(&mut img, opt + 120, data_rva + desc_off as u32);
     write_u32(&mut img, opt + 124, 40);
     let copy_n = data.len().min(iat_base).min(data_raw as usize);

@@ -411,7 +411,7 @@ Run `35553987325`（commit `146b58b`）：
 
 ### 下一步
 
-**默认 `继续` = S3.92**：S3.91 s1 ALLOC→IAT 已 GREEN；下一刀 LOAD/WRITE 真 I/O（**非**假 CLOSED）。
+**默认 `继续` = S3.93**：S3.92 slim file-I/O IAT 已 GREEN；下一刀 LOAD/WRITE emit（**非**假 CLOSED）。
 
 **S1 已收口**（见下表 S1.1–S1.7.f）：TYB→slim PE 的 in-DLL mini codegen + host parity。
 
@@ -564,25 +564,26 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.89** | ✅ 已本地提交 | slim PE VirtualAlloc-only IAT @ `S1_SLIM_IAT_BASE`；ALLOC 仍 stub；marker `yoyo_in_dll_s3_slim_iat` | commit `bb81f28` |
 | **S3.90** | ✅ 已本地提交 | multi ALLOC → `call [r15+S1_SLIM_IAT_BASE]` + store；marker `yoyo_in_dll_s3_multi_alloc_iat` | commit `1a420c0` |
 | **S3.91** | ✅ 已本地提交 | s1 ALLOC → slim IAT（rcx-safe）；marker `yoyo_in_dll_s1_alloc_iat` | commit `4d01bc3` |
-| **S3.92+** | ⏳ 未开始 | LOAD/WRITE 真 I/O（CreateFile/Read/Write IAT） | 真自举长杆 |
+| **S3.92** | ✅ 已本地提交 | slim IAT +CreateFileA/ReadFile/WriteFile；LOAD/WRITE 仍 stub；marker `yoyo_in_dll_s3_slim_iat_io` | commit TBD |
+| **S3.93+** | ⏳ 未开始 | LOAD/WRITE emit → file IAT | 真自举长杆 |
 
-> **写法**：已完成 S3.1–S3.91 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
+> **写法**：已完成 S3.1–S3.92 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
 
-#### 当前诚实缺口（multi→JE · 更新至 S3.91）
+#### 当前诚实缺口（multi→JE · 更新至 S3.92）
 
 | 已进 multi / s1（非 JE） | 仍掉 JE / 未做 |
 |---|---|
-| 全 slot any-slot；slim VirtualAlloc IAT；**multi+s1 ALLOC→IAT** | LOAD/WRITE 仍 SET stub；host ALLOC 仍 StubPlatform；手动 map 未 bind IAT |
+| 全 slot any-slot；slim VA+file IAT；**multi+s1 ALLOC→IAT** | LOAD/WRITE 仍 SET stub；host ALLOC/IO 仍 StubPlatform；手动 map 未 bind IAT |
 
-#### S3.92 — LOAD/WRITE 真 I/O（本步 · 未开始）
+#### S3.93 — LOAD/WRITE emit → file IAT（本步 · 未开始）
 
 | 项 | 内容 |
 |---|---|
-| 切片 | CreateFile/ReadFile/WriteFile IAT 扩展 + LOAD/WRITE emit；**不**假 CLOSED |
+| 切片 | LOAD/WRITE 对齐 CreateFileA/ReadFile/WriteFile IAT emit；**不**假 CLOSED |
 | 验收 | sidecar GREEN；marker TBD |
 | 诚实 | OW-RT 仍 CUT · `closed=0` |
 
-**默认 `继续` = S3.92**。
+**默认 `继续` = S3.93**。
 
 ### 立项约束
 
@@ -751,4 +752,4 @@ Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
 
 *创建：2026-08-31 · v1.0 毕业后 · post-v1.0 path 2 关洞 · 模板对齐 STAGE16_OWNER_CHECKLIST.md*
 
-**当前分支诚实快照（2026-10-16 · + S3.91）**：s1+multi ALLOC→slim IAT GREEN · 默认 `继续`=**S3.92**（LOAD/WRITE 真 I/O）· OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag** · （历史逐步快照已折叠；见 git）
+**当前分支诚实快照（2026-10-16 · + S3.92）**：slim file-I/O IAT GREEN · LOAD/WRITE 仍 stub · 默认 `继续`=**S3.93**（LOAD/WRITE emit）· OW-RT **仍 CUT** · `closed=0 cut=7` · **无假 CLOSED** · **无 tag** · （历史逐步快照已折叠；见 git）

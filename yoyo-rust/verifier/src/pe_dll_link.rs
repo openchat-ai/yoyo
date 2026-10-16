@@ -911,8 +911,12 @@ const _: () = assert!(IN_DLL_S1_DATA_CAP == 384);
 const _: () = assert!(IN_DLL_S1_STACK == 0x2E00);
 const _: () = assert!(IN_DLL_S1_DATA_OFF + IN_DLL_S1_DATA_CAP <= IN_DLL_S1_STACK);
 const _: () = assert!(crate::s1_tyb_parser::S1_SLIM_DATA_PAYLOAD_OFF == 0x800);
-const _: () = assert!(crate::s1_tyb_parser::S1_SLIM_IAT_PAD == 0x70);
-const _: () = assert!(crate::s1_tyb_parser::S1_SLIM_IAT_BASE == 0xF90);
+const _: () = assert!(crate::s1_tyb_parser::S1_SLIM_IAT_PAD == 0x100);
+const _: () = assert!(crate::s1_tyb_parser::S1_SLIM_IAT_BASE == 0xF00);
+const _: () = assert!(crate::s1_tyb_parser::S1_SLIM_IAT_OFF_VIRTUAL_ALLOC == 0);
+const _: () = assert!(crate::s1_tyb_parser::S1_SLIM_IAT_OFF_CREATE_FILE_A == 8);
+const _: () = assert!(crate::s1_tyb_parser::S1_SLIM_IAT_OFF_READ_FILE == 16);
+const _: () = assert!(crate::s1_tyb_parser::S1_SLIM_IAT_OFF_WRITE_FILE == 24);
 
 #[inline]
 fn push_u32_le(buf: &mut Vec<u8>, v: u32) {
@@ -1272,6 +1276,9 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
     let s1_alloc_iat_marker: &[u8] = b"yoyo_in_dll_s1_alloc_iat\0";
     let s1_alloc_iat_marker_off = off;
     off += s1_alloc_iat_marker.len() as u32;
+    let s3_slim_iat_io_marker: &[u8] = b"yoyo_in_dll_s3_slim_iat_io\0";
+    let s3_slim_iat_io_marker_off = off;
+    off += s3_slim_iat_io_marker.len() as u32;
     // S3.58: cc bytes for TYB JCC 0x73..=0x7A (JL..JA); index = op - 0x73
     let s3_jcc_rest_cc: &[u8] = &[0x8C, 0x8D, 0x8E, 0x8F, 0x82, 0x83, 0x86, 0x87];
     let s3_jcc_rest_cc_off = off;
@@ -1420,6 +1427,8 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
         s3_multi_alloc_iat_marker_off,
         s1_alloc_iat_marker,
         s1_alloc_iat_marker_off,
+        s3_slim_iat_io_marker,
+        s3_slim_iat_io_marker_off,
         s3_jcc_rest_cc,
         s3_jcc_rest_cc_off,
         s3_aluv_ops,
@@ -1576,6 +1585,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     s3_multi_alloc_iat_marker_off: u32,
     s1_alloc_iat_marker: &[u8],
     s1_alloc_iat_marker_off: u32,
+    s3_slim_iat_io_marker: &[u8],
+    s3_slim_iat_io_marker_off: u32,
     s3_jcc_rest_cc: &[u8],
     s3_jcc_rest_cc_off: u32,
     s3_aluv_ops: &[u8],
@@ -5852,6 +5863,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     exp[s1_alloc_iat_marker_off as usize
         ..s1_alloc_iat_marker_off as usize + s1_alloc_iat_marker.len()]
         .copy_from_slice(s1_alloc_iat_marker);
+    exp[s3_slim_iat_io_marker_off as usize
+        ..s3_slim_iat_io_marker_off as usize + s3_slim_iat_io_marker.len()]
+        .copy_from_slice(s3_slim_iat_io_marker);
     exp[s3_jcc_rest_cc_off as usize
         ..s3_jcc_rest_cc_off as usize + s3_jcc_rest_cc.len()]
         .copy_from_slice(s3_jcc_rest_cc);
@@ -6721,6 +6735,10 @@ mod tests {
         assert!(
             ascii.contains("yoyo_in_dll_s1_alloc_iat"),
             "S3.91 s1 ALLOC→IAT marker must be baked into .rdata"
+        );
+        assert!(
+            ascii.contains("yoyo_in_dll_s3_slim_iat_io"),
+            "S3.92 slim PE file-I/O IAT marker must be baked into .rdata"
         );
         assert!(
             ascii.contains("yoyo_in_dll_s3_table_bake"),
@@ -8050,7 +8068,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.89: slim PE template carries VirtualAlloc IAT (ALLOC emit still stub).
+    /// S3.89/S3.92: slim PE IAT carries VirtualAlloc + file I/O imports.
     #[test]
     #[cfg(windows)]
     fn yoyo_sidecar_in_dll_s3_slim_iat_virtual_alloc() {
@@ -8074,6 +8092,28 @@ mod tests {
             ascii.contains("kernel32.dll"),
             "S3.89 slim PE must name kernel32.dll"
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.92: slim PE IAT adds CreateFileA/ReadFile/WriteFile (LOAD/WRITE still stub).
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_sidecar_in_dll_s3_slim_iat_io() {
+        let dir = temp_work("in-dll-s3-slim-iat-io");
+        let mut tyb = Vec::new();
+        tyb.extend_from_slice(b"TYB\0");
+        tyb.extend_from_slice(&[0, 0]);
+        tyb.extend_from_slice(&1u16.to_le_bytes());
+        tyb.push(0xFF);
+        tyb.push(0);
+        tyb.extend_from_slice(&[0u8; 6]);
+        std::fs::write(dir.join("input.tyb"), &tyb).expect("write tyb");
+        assert_eq!(yoyo_sidecar_in_dll_recompile(&dir), EXIT_OK);
+        let out = std::fs::read(dir.join(OUTPUT_NAME)).expect("output.exe");
+        let ascii = String::from_utf8_lossy(&out);
+        for name in ["VirtualAlloc", "CreateFileA", "ReadFile", "WriteFile"] {
+            assert!(ascii.contains(name), "S3.92 slim PE must import {name}");
+        }
         let _ = std::fs::remove_dir_all(&dir);
     }
 
