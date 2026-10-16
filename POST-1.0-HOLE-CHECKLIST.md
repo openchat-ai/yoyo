@@ -95,7 +95,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.109** ✅    | `3e3dec9` | 近端合同 + 剩余 op meta-emit             |
 | **S3.110** ✅    | `7dcaa8d` | `s3_subset_fixed10_meta_emit_parity` 10 op 字节对拍 |
 | **S3.111** ✅    | `0fa5d9e` | fixed10 证明去掉 `pack_meta_emit`；mini=YOYO 表 |
-| **S3.112** ✅    | （本步）    | 删宿主固件三段 RAW `0xA1` 序言（sim 本就跳过） |
+| **S3.112** ✅    | `0d593d3` | 删宿主固件三段 RAW `0xA1` 序言（sim 本就跳过） |
 | **S3.113** ⏳    | —         | 减 in-DLL 同源 RAW 序言 · **本步** |
 
 
