@@ -571,7 +571,7 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.96** | ✅ 已本地提交 | multi WRITE → bake tmpl+patch；marker `yoyo_in_dll_s3_multi_write_iat` | commit `6b6756e` |
 | **S3.97** | ✅ 已本地提交 | s1 LOAD → slim IAT tmpl；marker `yoyo_in_dll_s1_load_iat` | commit `6b6756e` |
 | **S3.98** | ✅ 已本地提交 | s1 WRITE → slim IAT tmpl；marker `yoyo_in_dll_s1_write_iat` | commit `6b6756e` |
-| **S3.99** | ✅ 已本地提交 | slim PE `manual_map`+host resolve 填 IAT；ALLOC 冒烟；marker `yoyo_in_dll_s3_slim_iat_bind` | commit TBD |
+| **S3.99** | ✅ 已本地提交 | slim PE `manual_map`+host resolve 填 IAT；ALLOC 冒烟；marker `yoyo_in_dll_s3_slim_iat_bind` | commit `7b1be25` |
 | **S3.100+** | ⏳ 未开始 | StubPlatform 对齐 slim / S2 子集 / 真 S3 自举 | 真自举长杆 |
 
 > **写法**：已完成 S3.1–S3.99 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
