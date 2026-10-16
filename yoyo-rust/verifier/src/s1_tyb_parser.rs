@@ -623,34 +623,52 @@ pub fn emit_x86(prog: &TybProgram) -> CodegenOutput {
             0xA1 => {
                 text.extend(arg_low_bytes(rec));
             }
-            // --- ALLOC slot, size (S2.2 StubPlatform-aligned stub) ---
+            // --- ALLOC slot, size (S3.94: slim VirtualAlloc IAT) ---
             0x20 => {
                 if let Some((slot, size)) = arg_slot_imm(rec) {
-                    emit_movabs_rax(&mut text, size);
-                    emit_store_state(&mut text, slot, Reg::Rax);
+                    if slot <= 255 {
+                        text.extend(emit_slim_alloc(slot, size));
+                    } else {
+                        text.push(0x90);
+                    }
                 } else {
                     text.push(0x90);
                 }
             }
-            // --- LOAD_FILE slot, str_idx (S2.3 StubPlatform-aligned stub) ---
+            // --- LOAD_FILE slot, path_off (S3.94: slim IAT; path at r15+path_off) ---
             0x50 => {
-                if let Some((slot, str_idx)) = arg_slot_imm(rec) {
-                    emit_movabs_rax(&mut text, str_idx);
-                    emit_store_state(&mut text, slot, Reg::Rax);
+                if let Some((slot, path_off)) = arg_slot_imm(rec) {
+                    if slot <= 255 && path_off < S1_SLIM_IAT_BASE {
+                        text.extend(emit_slim_load_file(slot, path_off));
+                    } else {
+                        text.push(0x90);
+                    }
                 } else {
                     text.push(0x90);
                 }
             }
-            // --- WRITE_FILE slot, str_idx [, sz] (S2.3; sz ignored on stub) ---
+            // --- WRITE_FILE slot, path_off, sz_slot (S3.94: argc=3 slim IAT) ---
             0x51 => {
-                let parsed = if rec.argc == 3 {
-                    arg_slot3(rec).map(|(slot, str_idx, _sz)| (slot, str_idx as u32))
-                } else {
-                    arg_slot_imm(rec)
-                };
-                if let Some((slot, str_idx)) = parsed {
-                    emit_movabs_rax(&mut text, str_idx);
-                    emit_store_state(&mut text, slot, Reg::Rax);
+                if let Some((slot, path_off, sz_slot)) = arg_slot3(rec) {
+                    if slot <= 255
+                        && sz_slot <= 255
+                        && (path_off as u32) < S1_SLIM_IAT_BASE
+                    {
+                        text.extend(emit_slim_write_file(
+                            slot,
+                            path_off as u32,
+                            sz_slot,
+                        ));
+                    } else {
+                        text.push(0x90);
+                    }
+                } else if let Some((slot, path_off)) = arg_slot_imm(rec) {
+                    // argc=2: sz_slot=0 (legacy wire; size from slot0)
+                    if slot <= 255 && path_off < S1_SLIM_IAT_BASE {
+                        text.extend(emit_slim_write_file(slot, path_off, 0));
+                    } else {
+                        text.push(0x90);
+                    }
                 } else {
                     text.push(0x90);
                 }
@@ -723,9 +741,9 @@ pub const S1_SLIM_MAX_CODE: usize = 512;
 /// Slim `.data` virtual size (state base for R15); keeps PE ≪ `link_pe` H_00 pad.
 pub const S1_SLIM_DATA_VS: u32 = 0x1000;
 
-/// S3.92: slim IAT blob (VirtualAlloc+CreateFileA+ReadFile+WriteFile; 16-aligned).
+/// S3.93: slim IAT blob (VA+CreateFileA+ReadFile+WriteFile+CloseHandle; 16-aligned).
 pub const S1_SLIM_IAT_PAD: usize = 0x100;
-/// S3.89/S3.92: IAT at high end of slim `.data` so r15+0 state slots stay free.
+/// S3.89+: IAT at high end of slim `.data` so r15+0 state slots stay free.
 /// ALLOC: `call [r15 + S1_SLIM_IAT_BASE]` (= VirtualAlloc slot0).
 pub const S1_SLIM_IAT_BASE: u32 = S1_SLIM_DATA_VS - S1_SLIM_IAT_PAD as u32;
 /// IAT slot byte offsets from [`S1_SLIM_IAT_BASE`] (qword stride).
@@ -733,8 +751,142 @@ pub const S1_SLIM_IAT_OFF_VIRTUAL_ALLOC: u32 = 0;
 pub const S1_SLIM_IAT_OFF_CREATE_FILE_A: u32 = 8;
 pub const S1_SLIM_IAT_OFF_READ_FILE: u32 = 16;
 pub const S1_SLIM_IAT_OFF_WRITE_FILE: u32 = 24;
+pub const S1_SLIM_IAT_OFF_CLOSE_HANDLE: u32 = 32;
+/// Slim LOAD reads into a VirtualAlloc'd buffer of this size.
+pub const S1_SLIM_READ_CHUNK: u32 = 0x10000;
 
-/// S1.5 — minimal PE32+ for in-DLL codegen (S3.92: +file-I/O IAT, tiny `.data`).
+fn emit_slim_call_iat(out: &mut Vec<u8>, off: u32) {
+    out.extend_from_slice(&[0x41, 0xFF, 0x97]);
+    out.extend_from_slice(&(S1_SLIM_IAT_BASE + off).to_le_bytes());
+}
+
+fn emit_slim_store_disp32(out: &mut Vec<u8>, slot: u16) {
+    // mov [r15+slot*8], rax — always disp32 (any-slot≤255)
+    let disp = (slot as u32) * 8;
+    out.extend_from_slice(&[0x49, 0x89, 0x87]);
+    out.extend_from_slice(&disp.to_le_bytes());
+}
+
+fn emit_slim_load_disp32(out: &mut Vec<u8>, slot: u16, dest_modrm: u8) {
+    // mov dest, [r15+slot*8] — dest_modrm: rax=0x87 rcx=0x8F rdx=0x97 r8=0x87|/r
+    let disp = (slot as u32) * 8;
+    out.extend_from_slice(&[0x49, 0x8B, dest_modrm]);
+    out.extend_from_slice(&disp.to_le_bytes());
+}
+
+/// S3.94: ALLOC → VirtualAlloc via slim IAT + store (disp32).
+pub fn emit_slim_alloc(slot: u16, size: u32) -> Vec<u8> {
+    let mut out = Vec::with_capacity(48);
+    out.extend_from_slice(&[0x48, 0x83, 0xEC, 0x28]);
+    out.extend_from_slice(&[0x31, 0xC9]); // xor ecx,ecx
+    out.extend_from_slice(&[0xBA]);
+    out.extend_from_slice(&size.to_le_bytes());
+    out.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
+    out.extend_from_slice(&[0x41, 0xB9, 0x04, 0x00, 0x00, 0x00]);
+    emit_slim_call_iat(&mut out, S1_SLIM_IAT_OFF_VIRTUAL_ALLOC);
+    out.extend_from_slice(&[0x48, 0x83, 0xC4, 0x28]);
+    emit_slim_store_disp32(&mut out, slot);
+    out
+}
+
+/// S3.94: LOAD_FILE — path at `[r15+path_off]` (slim .data byte offset, not WIN32 0x10000 table).
+/// CreateFileA → VirtualAlloc(READ_CHUNK) → ReadFile → CloseHandle → store buf ptr.
+pub fn emit_slim_load_file(slot: u16, path_off: u32) -> Vec<u8> {
+    let mut out = Vec::with_capacity(160);
+    out.extend_from_slice(&[0x48, 0x83, 0xEC, 0x38]); // room for 3 stack args
+    // lea rcx, [r15+path_off]
+    out.extend_from_slice(&[0x49, 0x8D, 0x8F]);
+    out.extend_from_slice(&path_off.to_le_bytes());
+    out.extend_from_slice(&[0xBA, 0x00, 0x00, 0x00, 0x80]); // GENERIC_READ
+    out.extend_from_slice(&[0x45, 0x31, 0xC0]); // xor r8d
+    out.extend_from_slice(&[0x45, 0x31, 0xC9]); // xor r9d
+    out.extend_from_slice(&[0xC7, 0x44, 0x24, 0x20, 0x03, 0x00, 0x00, 0x00]); // OPEN_EXISTING
+    out.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x28, 0x80, 0x00, 0x00, 0x00]);
+    out.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x30, 0x00, 0x00, 0x00, 0x00]);
+    emit_slim_call_iat(&mut out, S1_SLIM_IAT_OFF_CREATE_FILE_A);
+    out.extend_from_slice(&[0x48, 0x89, 0xC3]); // mov rbx, rax
+    out.extend_from_slice(&[0x31, 0xC9]);
+    out.extend_from_slice(&[0xBA]);
+    out.extend_from_slice(&S1_SLIM_READ_CHUNK.to_le_bytes());
+    out.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
+    out.extend_from_slice(&[0x41, 0xB9, 0x04, 0x00, 0x00, 0x00]);
+    emit_slim_call_iat(&mut out, S1_SLIM_IAT_OFF_VIRTUAL_ALLOC);
+    out.extend_from_slice(&[0x48, 0x89, 0xC6]); // mov rsi, rax
+    out.extend_from_slice(&[0x48, 0x89, 0xD9]); // rcx = handle
+    out.extend_from_slice(&[0x48, 0x89, 0xF2]); // rdx = buf
+    out.extend_from_slice(&[0x41, 0xB8]);
+    out.extend_from_slice(&S1_SLIM_READ_CHUNK.to_le_bytes());
+    out.extend_from_slice(&[0x4C, 0x8D, 0x4C, 0x24, 0x20]); // lea r9,[rsp+0x20]
+    out.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x28, 0x00, 0x00, 0x00, 0x00]);
+    emit_slim_call_iat(&mut out, S1_SLIM_IAT_OFF_READ_FILE);
+    out.extend_from_slice(&[0x48, 0x89, 0xD9]);
+    emit_slim_call_iat(&mut out, S1_SLIM_IAT_OFF_CLOSE_HANDLE);
+    out.extend_from_slice(&[0x48, 0x83, 0xC4, 0x38]);
+    out.extend_from_slice(&[0x48, 0x89, 0xF0]); // rax = buf
+    emit_slim_store_disp32(&mut out, slot);
+    out
+}
+
+/// S3.94: WRITE_FILE — path at `[r15+path_off]`; buf=`[r15+slot*8]`; size=`[r15+sz_slot*8]`.
+pub fn emit_slim_write_file(slot: u16, path_off: u32, sz_slot: u16) -> Vec<u8> {
+    let mut out = Vec::with_capacity(140);
+    out.extend_from_slice(&[0x48, 0x83, 0xEC, 0x38]);
+    out.extend_from_slice(&[0x49, 0x8D, 0x8F]);
+    out.extend_from_slice(&path_off.to_le_bytes());
+    out.extend_from_slice(&[0xBA, 0x00, 0x00, 0x00, 0x40]); // GENERIC_WRITE
+    out.extend_from_slice(&[0x45, 0x31, 0xC0]);
+    out.extend_from_slice(&[0x45, 0x31, 0xC9]);
+    out.extend_from_slice(&[0xC7, 0x44, 0x24, 0x20, 0x02, 0x00, 0x00, 0x00]); // CREATE_ALWAYS
+    out.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x28, 0x80, 0x00, 0x00, 0x00]);
+    out.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x30, 0x00, 0x00, 0x00, 0x00]);
+    emit_slim_call_iat(&mut out, S1_SLIM_IAT_OFF_CREATE_FILE_A);
+    out.extend_from_slice(&[0x48, 0x89, 0xC3]);
+    emit_slim_load_disp32(&mut out, slot, 0x97); // mov rdx, [r15+slot]
+    emit_slim_load_disp32(&mut out, sz_slot, 0x87); // mov rax, [r15+sz] — then mov r8,rax
+    out.extend_from_slice(&[0x49, 0x89, 0xC0]); // mov r8, rax
+    out.extend_from_slice(&[0x48, 0x89, 0xD9]); // rcx = handle
+    out.extend_from_slice(&[0x4C, 0x8D, 0x4C, 0x24, 0x20]);
+    out.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x28, 0x00, 0x00, 0x00, 0x00]);
+    emit_slim_call_iat(&mut out, S1_SLIM_IAT_OFF_WRITE_FILE);
+    out.extend_from_slice(&[0x48, 0x89, 0xD9]);
+    emit_slim_call_iat(&mut out, S1_SLIM_IAT_OFF_CLOSE_HANDLE);
+    out.extend_from_slice(&[0x48, 0x83, 0xC4, 0x38]);
+    out.extend_from_slice(&[0x48, 0x31, 0xC0]); // xor rax,rax
+    emit_slim_store_disp32(&mut out, slot);
+    out
+}
+
+/// Patch sites inside [`emit_slim_load_file`] / [`emit_slim_write_file`] blobs (for in-DLL bake).
+pub fn slim_load_path_patch_off() -> usize {
+    // after sub rsp (4) + lea opcode 49 8D 8F (3) → disp32
+    4 + 3
+}
+pub fn slim_load_slot_patch_off(blob: &[u8]) -> usize {
+    // last 4 bytes of trailing store disp32
+    blob.len() - 4
+}
+pub fn slim_write_path_patch_off() -> usize {
+    4 + 3
+}
+pub fn slim_write_slot_load_patch_off(blob: &[u8]) -> usize {
+    // first load_disp32 after mov rbx,rax (3) following CreateFile call
+    // Find 49 8B 97 (mov rdx,[r15+…])
+    blob.windows(3)
+        .position(|w| w == [0x49, 0x8B, 0x97])
+        .expect("write tmpl rdx load")
+        + 3
+}
+pub fn slim_write_sz_load_patch_off(blob: &[u8]) -> usize {
+    blob.windows(3)
+        .position(|w| w == [0x49, 0x8B, 0x87])
+        .expect("write tmpl rax/sz load")
+        + 3
+}
+pub fn slim_write_store_patch_off(blob: &[u8]) -> usize {
+    blob.len() - 4
+}
+
+/// S1.5 — minimal PE32+ for in-DLL codegen (S3.93: +CloseHandle IAT, tiny `.data`).
 ///
 /// Layout mirrors `pe_link::link_pe_impl` startup (`lea r15,[rip+disp]; jmp code`)
 /// but with `.data` VS = [`S1_SLIM_DATA_VS`] so the image fits in ~6–8 KiB.
@@ -870,23 +1022,24 @@ pub fn wrap_pe_slim_bytes(
     let code_dst = text_file_off + PE_STARTUP_LEN as usize;
     img[code_dst..code_dst + code.len()].copy_from_slice(code);
 
-    // S3.92: 4-import IAT at high end of .data (r15+S1_SLIM_IAT_BASE).
-    // Layout (rel to iat_base): IAT 0x00 (5×8), ILT 0x28, desc 0x50, dll 0x78,
-    // hint-names 0x88… — VirtualAlloc stays slot0 so ALLOC emit is unchanged.
+    // S3.93: 5-import IAT at high end of .data (r15+S1_SLIM_IAT_BASE).
+    // Layout: IAT 0x00 (6×8), ILT 0x30, desc 0x60, dll 0x88, hint-names 0x98…
+    // VirtualAlloc stays slot0 so ALLOC emit is unchanged.
     let data_file_off = (HEADERS_RAW + code_raw) as usize;
     let iat_base = S1_SLIM_IAT_BASE as usize;
     let iat_off = iat_base;
-    let ilt_off = iat_base + 0x28;
-    let desc_off = iat_base + 0x50;
-    let dll_name_off = iat_base + 0x78;
-    let hn0_off = iat_base + 0x88;
+    let ilt_off = iat_base + 0x30;
+    let desc_off = iat_base + 0x60;
+    let dll_name_off = iat_base + 0x88;
+    let hn0_off = iat_base + 0x98;
     let names: &[&[u8]] = &[
         b"VirtualAlloc\0",
         b"CreateFileA\0",
         b"ReadFile\0",
         b"WriteFile\0",
+        b"CloseHandle\0",
     ];
-    let mut hn_offs = [0usize; 4];
+    let mut hn_offs = [0usize; 5];
     let mut hn_cur = hn0_off;
     for (i, name) in names.iter().enumerate() {
         hn_offs[i] = hn_cur;
@@ -899,7 +1052,7 @@ pub fn wrap_pe_slim_bytes(
     }
     debug_assert!(hn_cur - iat_base <= S1_SLIM_IAT_PAD);
     debug_assert_eq!(S1_SLIM_IAT_PAD, 0x100);
-    for i in 0..4 {
+    for i in 0..5 {
         let hn_rva = data_rva + hn_offs[i] as u32;
         write_u64(&mut img, data_file_off + iat_off + i * 8, hn_rva as u64);
         write_u64(&mut img, data_file_off + ilt_off + i * 8, hn_rva as u64);
@@ -1032,13 +1185,12 @@ pub fn validate_tyb_mini(prog: &TybProgram) -> crate::types::IsaResult<()> {
                     );
                 }
             }
-            0x20 | 0x50 | 0x51 => {
-                // S2.4 stub form: argc=2 only (same wire as SET); not real OS I/O.
+            0x20 | 0x50 => {
                 if rec.argc != 2 {
                     return bad(
                         i,
                         format!(
-                            "s1 mini ALLOC/LOAD_FILE/WRITE_FILE stub requires argc=2, got {}",
+                            "s1 mini ALLOC/LOAD_FILE requires argc=2, got {}",
                             rec.argc
                         ),
                     );
@@ -1047,8 +1199,54 @@ pub fn validate_tyb_mini(prog: &TybProgram) -> crate::types::IsaResult<()> {
                 if !mini_slot_any_ok(slot) {
                     return bad(
                         i,
-                        format!("s1 mini platform-stub slot {slot} out of range (>255)"),
+                        format!("s1 mini ALLOC/LOAD slot {slot} out of range (>255)"),
                     );
+                }
+                if rec.op == 0x50 {
+                    let path_off = u32::from_le_bytes([
+                        rec.args_raw[2],
+                        rec.args_raw[3],
+                        rec.args_raw[4],
+                        rec.args_raw[5],
+                    ]);
+                    if path_off >= S1_SLIM_IAT_BASE {
+                        return bad(
+                            i,
+                            format!("s1 mini LOAD path_off 0x{path_off:x} overlaps IAT"),
+                        );
+                    }
+                }
+            }
+            0x51 => {
+                if rec.argc != 2 && rec.argc != 3 {
+                    return bad(
+                        i,
+                        format!("s1 mini WRITE_FILE requires argc=2|3, got {}", rec.argc),
+                    );
+                }
+                let slot = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]);
+                if !mini_slot_any_ok(slot) {
+                    return bad(i, format!("s1 mini WRITE slot {slot} out of range"));
+                }
+                if rec.argc == 3 {
+                    let path_off = u16::from_le_bytes([rec.args_raw[2], rec.args_raw[3]]);
+                    let sz_slot = u16::from_le_bytes([rec.args_raw[4], rec.args_raw[5]]);
+                    if !mini_slot_any_ok(sz_slot) {
+                        return bad(i, format!("s1 mini WRITE sz_slot out of range"));
+                    }
+                    if (path_off as u32) >= S1_SLIM_IAT_BASE {
+                        return bad(i, format!("s1 mini WRITE path_off overlaps IAT"));
+                    }
+                } else {
+                    let path_off = u32::from_le_bytes([
+                        rec.args_raw[2],
+                        rec.args_raw[3],
+                        rec.args_raw[4],
+                        rec.args_raw[5],
+                    ]);
+                    if path_off >= S1_SLIM_IAT_BASE {
+                        return bad(i, format!("s1 mini WRITE path_off overlaps IAT"));
+                    }
                 }
             }
             0x30 => {
@@ -2478,9 +2676,22 @@ mod tests {
     }
 
     #[test]
-    fn emit_x86_alloc_stub_stores_size() {
-        // S2.2: StubPlatform-aligned — movabs rax,size + store slot + ret
-        // slot=1 → disp8 8; size=0x10
+    fn slim_io_blob_sizes_and_patches() {
+        let load = emit_slim_load_file(0, 0);
+        let write = emit_slim_write_file(0, 0, 0);
+        assert_eq!(load.len(), 144, "load blob len");
+        assert_eq!(write.len(), 123, "write blob len");
+        assert_eq!(slim_load_path_patch_off(), 7);
+        assert_eq!(slim_load_slot_patch_off(&load), load.len() - 4);
+        assert_eq!(slim_write_path_patch_off(), 7);
+        assert_eq!(&load[7..11], &[0, 0, 0, 0]);
+        assert_eq!(&write[7..11], &[0, 0, 0, 0]);
+        assert_eq!(&load[slim_load_slot_patch_off(&load)..][..4], &[0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn emit_x86_alloc_slim_iat() {
+        // S3.94: VirtualAlloc via slim IAT + disp32 store
         let prog = TybProgram {
             rec_cnt: 1,
             records: vec![TybRecord {
@@ -2490,14 +2701,9 @@ mod tests {
             }],
         };
         let out = emit_x86(&prog);
-        assert_eq!(
-            &out.text,
-            &[
-                0x48, 0xB8, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // movabs
-                0x49, 0x89, 0x47, 0x08, // store [r15+8]
-                0xC3,
-            ]
-        );
+        let expect = emit_slim_alloc(1, 0x10);
+        assert_eq!(&out.text[..expect.len()], expect.as_slice());
+        assert_eq!(*out.text.last().unwrap(), 0xC3);
         assert!(out.data.is_empty());
     }
 
@@ -2508,47 +2714,36 @@ mod tests {
     }
 
     #[test]
-    fn emit_x86_load_file_stub_stores_str_idx() {
-        // LOAD_FILE slot=0 str_idx=0 → movabs 0 + store disp0 + ret
+    fn emit_x86_load_file_slim_iat() {
         let prog = TybProgram {
             rec_cnt: 1,
             records: vec![TybRecord {
                 op: 0x50,
                 argc: 2,
-                args_raw: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
+                args_raw: [0x00, 0x00, 0x08, 0x00, 0x00, 0x00], // path_off=8
             }],
         };
         let out = emit_x86(&prog);
-        assert_eq!(
-            &out.text,
-            &[
-                0x48, 0xB8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x49, 0x89, 0x47, 0x00,
-                0xC3,
-            ]
-        );
+        let expect = emit_slim_load_file(0, 8);
+        assert_eq!(&out.text[..expect.len()], expect.as_slice());
+        assert_eq!(*out.text.last().unwrap(), 0xC3);
     }
 
     #[test]
-    fn emit_x86_write_file_stub_ignores_sz() {
-        // WRITE_FILE argc=3 slot=1 str_idx=2 sz=99 → same as movabs 2 + store
+    fn emit_x86_write_file_slim_iat() {
+        // argc=3: slot=1 path_off=2 sz_slot=3
         let prog = TybProgram {
             rec_cnt: 1,
             records: vec![TybRecord {
                 op: 0x51,
                 argc: 3,
-                args_raw: [0x01, 0x00, 0x02, 0x00, 0x63, 0x00],
+                args_raw: [0x01, 0x00, 0x02, 0x00, 0x03, 0x00],
             }],
         };
         let out = emit_x86(&prog);
-        assert_eq!(
-            &out.text,
-            &[
-                0x48, 0xB8, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x49, 0x89, 0x47, 0x08,
-                0xC3,
-            ]
-        );
+        let expect = emit_slim_write_file(1, 2, 3);
+        assert_eq!(&out.text[..expect.len()], expect.as_slice());
+        assert_eq!(*out.text.last().unwrap(), 0xC3);
     }
 
     #[test]
