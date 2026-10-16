@@ -461,7 +461,7 @@ Run `35553987325`（commit `146b58b`）：
 | **S2.3** | ✅ 已本地提交 | host LOAD_FILE/WRITE_FILE = StubPlatform 对齐（`movabs` str_idx+store；sz 忽略）；mini **仍拒** | commit `e136f82` · 非真文件 I/O；in-DLL=S2.4 |
 | **S2.4** | ✅ 已本地提交 | in-DLL mini 对齐 stub：ALLOC/LOAD_FILE/WRITE_FILE argc=2 → 与 SET 同编码；parity +3 | commit `24b944c` · **仍非**真 OS I/O |
 | **S2.5** | ✅ 已本地提交 | 最小 runtime-效果 stub 固件 `.ty`/`.tyb` + `stage17-s2-runtime-effect.ps1` | commit `5f8e959` · **仍非**真 OS I/O · 非 CLOSED |
-| **S2.6** | ✅ 已本地提交 | slim 真 I/O 验收脚本 `stage17-s2-runtime-effect-slim.ps1`（跑 S3.99–S3.102 e2e） | commit TBD · StubPlatform **仍** stub · 非 CLOSED |
+| **S2.6** | ✅ 已本地提交 | slim 真 I/O 验收脚本 `stage17-s2-runtime-effect-slim.ps1`（跑 S3.99–S3.102 e2e） | commit `2de5ff6` · StubPlatform **仍** stub · 非 CLOSED |
 
 > **写法**：已完成子步细节不重复展开；状态 / commit / marker 以进度表为准。历史逐步正文见 git（本文件旧 revision）。
 
@@ -576,7 +576,7 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.100** | ✅ 已本地提交 | slim LOAD e2e（CreateFileA/ReadFile via bound IAT）；callee-save rbx/rsi；StubPlatform 仍 stub；marker `yoyo_in_dll_s3_slim_load_e2e` | commit `df6bb7b` |
 | **S3.101** | ✅ 已本地提交 | slim WRITE e2e（CreateFileA/WriteFile via bound IAT）；marker `yoyo_in_dll_s3_slim_write_e2e` | commit `ad0b671` |
 | **S3.102** | ✅ 已本地提交 | slim LOAD→WRITE roundtrip e2e；StubPlatform 仍 stub；marker `yoyo_in_dll_s3_slim_rw_roundtrip` | commit `4b40224` |
-| **S3.103** | ✅ 已本地提交 | S2.6 slim 真 I/O 验收脚本；marker 沿用 S3.99–S3.102 | commit TBD |
+| **S3.103** | ✅ 已本地提交 | S2.6 slim 真 I/O 验收脚本；marker 沿用 S3.99–S3.102 | commit `2de5ff6` |
 | **S3.104+** | ⏳ 未开始 | meta-emit 深挖 / in-DLL 真 I/O 接线 / 真 S3 自举 | 真自举长杆 |
 
 > **写法**：已完成 S3.1–S3.103 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
