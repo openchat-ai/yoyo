@@ -3426,35 +3426,12 @@ mod tests {
     const S3_SCAN_I: u16 = 11;
     const S3_SCAN_NROWS: u16 = 10;
 
-    fn pack_data_recs(bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
-        let mut recs = Vec::new();
-        let mut i = 0;
-        while i < bytes.len() {
-            let n = (bytes.len() - i).min(3);
-            let mut a = [0u8; 6];
-            for k in 0..n {
-                a[k * 2] = bytes[i + k];
-            }
-            recs.push((0x10, n as u8, a));
-            i += n;
-        }
-        recs
-    }
-
-    fn tmpl_row(op: u8, payload: &[u8]) -> [u8; 20] {
-        let mut r = [0u8; 20];
-        r[0] = op;
-        r[1] = payload.len() as u8;
-        r[4..4 + payload.len()].copy_from_slice(payload);
-        r
-    }
-
     /// TYB: 2-row DATA table (RET, NOP) + scan loop → state[OUT]=first template byte.
     fn s3_table_scan_tyb(needle: u8) -> Vec<u8> {
         let mut table = Vec::new();
-        table.extend_from_slice(&tmpl_row(0xFF, &[0xC3]));
-        table.extend_from_slice(&tmpl_row(0x00, &[0x90]));
-        let mut recs = pack_data_recs(&table);
+        table.extend_from_slice(&s3_host_tmpl_row(0xFF, &[0xC3]));
+        table.extend_from_slice(&s3_host_tmpl_row(0x00, &[0x90]));
+        let mut recs = s3_host_pack_bytes(0x10, &table);
         // lea rax,[r15]; mov [r15+15*8],rax — PE runtime ptr seed (sim seeds offset 0)
         recs.push((0xA1, 3, [0x49, 0, 0x8D, 0, 0x07, 0]));
         recs.push((0xA1, 3, [0x49, 0, 0x89, 0, 0x47, 0]));
@@ -3630,40 +3607,19 @@ mod tests {
     /// .data offset for composed template bytes (beyond table + slot area).
     const S3_OUTBUF_OFF: u32 = 0xC8; // 200
 
-    fn set_body_deadbeef() -> [u8; 14] {
-        [
-            0x48, 0xB8, 0xEF, 0xBE, 0xAD, 0xDE, 0, 0, 0, 0, 0x49, 0x89, 0x47, 0x00,
-        ]
-    }
-
-    fn pack_raw_recs(bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
-        let mut recs = Vec::new();
-        let mut i = 0;
-        while i < bytes.len() {
-            let n = (bytes.len() - i).min(3);
-            let mut a = [0u8; 6];
-            for k in 0..n {
-                a[k * 2] = bytes[i + k];
-            }
-            recs.push((0xA1, n as u8, a));
-            i += n;
-        }
-        recs
-    }
-
     /// S3.17: 3-row table (RET/NOP/SET) + scan + MEMCPY_DATA → outbuf@.data+0xC8.
     fn s3_table_compose_tyb(needle: u8) -> Vec<u8> {
         let mut table = Vec::new();
-        table.extend_from_slice(&tmpl_row(0xFF, &[0xC3]));
-        table.extend_from_slice(&tmpl_row(0x00, &[0x90]));
-        table.extend_from_slice(&tmpl_row(0x30, &set_body_deadbeef()));
-        let mut recs = pack_data_recs(&table);
+        table.extend_from_slice(&s3_host_tmpl_row(0xFF, &[0xC3]));
+        table.extend_from_slice(&s3_host_tmpl_row(0x00, &[0x90]));
+        table.extend_from_slice(&s3_host_tmpl_row(0x30, &s3_host_set_body()));
+        let mut recs = s3_host_pack_bytes(0x10, &table);
         // lea rax,[r15]; mov [r15+15*8],rax  — scan ptr
-        recs.extend(pack_raw_recs(&[
+        recs.extend(s3_host_pack_bytes(0xA1, &[
             0x49, 0x8D, 0x07, 0x49, 0x89, 0x47, 0x78,
         ]));
         // lea rax,[r15+0xC8]; mov [r15+9*8],rax  — compose dst
-        recs.extend(pack_raw_recs(&[
+        recs.extend(s3_host_pack_bytes(0xA1, &[
             0x49, 0x8D, 0x87, 0xC8, 0x00, 0x00, 0x00, 0x49, 0x89, 0x47, 0x48,
         ]));
 
@@ -3821,7 +3777,7 @@ mod tests {
         let nop = s3_sim_table_compose(&s3_table_compose_tyb(0x00)).expect("nop");
         assert_eq!(nop, vec![0x90]);
         let set = s3_sim_table_compose(&s3_table_compose_tyb(0x30)).expect("set");
-        assert_eq!(set.as_slice(), set_body_deadbeef().as_slice());
+        assert_eq!(set.as_slice(), s3_host_set_body().as_slice());
         // full SET+RET ≡ emit_x86
         let mut composed = set;
         composed.push(0xC3);
@@ -3908,7 +3864,7 @@ mod tests {
         let tyb = s3_table_compose_tyb(0x30);
         let pe = compile_tyb_to_pe_mini(&tyb).expect("mini");
         let got = s3_run_slim_pe_outbuf(&pe.bytes, 14);
-        assert_eq!(got.as_slice(), set_body_deadbeef().as_slice());
+        assert_eq!(got.as_slice(), s3_host_set_body().as_slice());
         let tyb_ret = s3_table_compose_tyb(0xFF);
         let pe_ret = compile_tyb_to_pe_mini(&tyb_ret).expect("mini ret");
         let got_ret = s3_run_slim_pe_outbuf(&pe_ret.bytes, 1);
@@ -4490,15 +4446,15 @@ mod tests {
     /// S3.18: scan SET then RET → outbuf full `.text` ≡ emit_x86(SET+RET).
     fn s3_table_fulltext_set_ret_tyb() -> Vec<u8> {
         let mut table = Vec::new();
-        table.extend_from_slice(&tmpl_row(0xFF, &[0xC3]));
-        table.extend_from_slice(&tmpl_row(0x00, &[0x90]));
-        table.extend_from_slice(&tmpl_row(0x30, &set_body_deadbeef()));
-        let mut recs = pack_data_recs(&table);
-        recs.extend(pack_raw_recs(S3_LEA_PTR));
-        recs.extend(pack_raw_recs(S3_LEA_DST));
+        table.extend_from_slice(&s3_host_tmpl_row(0xFF, &[0xC3]));
+        table.extend_from_slice(&s3_host_tmpl_row(0x00, &[0x90]));
+        table.extend_from_slice(&s3_host_tmpl_row(0x30, &s3_host_set_body()));
+        let mut recs = s3_host_pack_bytes(0x10, &table);
+        recs.extend(s3_host_pack_bytes(0xA1, S3_LEA_PTR));
+        recs.extend(s3_host_pack_bytes(0xA1, S3_LEA_DST));
         append_scan_memcpy(&mut recs, 0x30, 1, 2, true);
         // re-seed table ptr for second scan
-        recs.extend(pack_raw_recs(S3_LEA_PTR));
+        recs.extend(s3_host_pack_bytes(0xA1, S3_LEA_PTR));
         append_scan_memcpy(&mut recs, 0xFF, 3, 4, false);
         recs.push((0xFF, 0, [0; 6]));
         tyb_from_records(&recs)
@@ -4640,7 +4596,7 @@ mod tests {
         .text;
         assert_eq!(got, expect);
         // also ≡ SET body ‖ RET
-        let mut hand = set_body_deadbeef().to_vec();
+        let mut hand = s3_host_set_body().to_vec();
         hand.push(0xC3);
         assert_eq!(got, hand);
         assert!(compile_tyb_to_pe_mini(&tyb).is_ok());
@@ -4690,9 +4646,9 @@ mod tests {
     fn s3_table_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
         assert!(!ops.is_empty() && ops.len() <= 8);
         let mut payload = vec![0u8; S3_TABLE_OFF as usize];
-        payload.extend_from_slice(&tmpl_row(0xFF, &[0xC3]));
-        payload.extend_from_slice(&tmpl_row(0x00, &[0x90]));
-        payload.extend_from_slice(&tmpl_row(0x30, &set_body_deadbeef()));
+        payload.extend_from_slice(&s3_host_tmpl_row(0xFF, &[0xC3]));
+        payload.extend_from_slice(&s3_host_tmpl_row(0x00, &[0x90]));
+        payload.extend_from_slice(&s3_host_tmpl_row(0x30, &s3_host_set_body()));
         assert_eq!(payload.len(), S3_PROG_OFF as usize);
         payload.push(ops.len() as u8);
         payload.extend_from_slice(ops);
@@ -4700,18 +4656,18 @@ mod tests {
         while payload.len() < S3_OUTBUF_OFF as usize {
             payload.push(0);
         }
-        let mut recs = pack_data_recs(&payload);
+        let mut recs = s3_host_pack_bytes(0x10, &payload);
         // lea rax,[r15+0x80]; store table_base (slot3) + scan ptr (slot15)
-        recs.extend(pack_raw_recs(&[
+        recs.extend(s3_host_pack_bytes(0xA1, &[
             0x49, 0x8D, 0x87, 0x80, 0x00, 0x00, 0x00, // lea rax,[r15+0x80]
             0x49, 0x89, 0x47, 0x18, // mov [r15+3*8],rax
             0x49, 0x89, 0x47, 0x78, // mov [r15+15*8],rax
         ]));
         // lea rax,[r15+0xC8]; store dst slot9
-        recs.extend(pack_raw_recs(S3_LEA_DST));
+        recs.extend(s3_host_pack_bytes(0xA1, S3_LEA_DST));
         // lea rax,[r15+0xBD]; store prog_ptr slot2  (first op = PROG_OFF+1)
         let op0 = S3_PROG_OFF + 1;
-        recs.extend(pack_raw_recs(&[
+        recs.extend(s3_host_pack_bytes(0xA1, &[
             0x49, 0x8D, 0x87, // lea rax,[r15+disp32]
             (op0 & 0xFF) as u8,
             ((op0 >> 8) & 0xFF) as u8,
