@@ -98,7 +98,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.112** ✅    | `0d593d3` | 删宿主固件三段 RAW `0xA1` 序言（sim 本就跳过） |
 | **S3.113–115** ✅ | `05c8eba` | 打包 / 行模板 / SET body 收成一份；in-DLL RAW 留给 PE |
 | **S3.116–117** ✅ | `40de19f` | 一套 prog-loop sim + 一份循环指令尾 |
-| **S3.118–119** ✅ | （本批） | scan/compose/fulltext 走同一 sim；host 直调 |
+| **S3.118–119** ✅ | `53cd9d8` | scan/compose/fulltext 走同一 sim；host 直调 |
 | **S3.120** ⏳    | —         | 抽 DATA 前缀 · golden 不变 · **本步** |
 
 
