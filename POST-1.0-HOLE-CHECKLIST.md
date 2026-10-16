@@ -565,12 +565,12 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.90** | ✅ 已本地提交 | multi ALLOC → `call [r15+S1_SLIM_IAT_BASE]` + store；marker `yoyo_in_dll_s3_multi_alloc_iat` | commit `1a420c0` |
 | **S3.91** | ✅ 已本地提交 | s1 ALLOC → slim IAT（rcx-safe）；marker `yoyo_in_dll_s1_alloc_iat` | commit `4d01bc3` |
 | **S3.92** | ✅ 已本地提交 | slim IAT +CreateFileA/ReadFile/WriteFile；LOAD/WRITE 仍 stub；marker `yoyo_in_dll_s3_slim_iat_io` | commit `9fcf59e` |
-| **S3.93** | ✅ 已本地提交 | slim IAT +CloseHandle；PAD 仍 `0x100` | commit TBD |
-| **S3.94** | ✅ 已本地提交 | host `emit_slim_alloc/load/write`；TYB path=`r15+path_off`（≠ WIN32 `0x10000` 表） | commit TBD |
-| **S3.95** | ✅ 已本地提交 | multi LOAD → bake tmpl+patch；marker `yoyo_in_dll_s3_multi_load_iat` | commit TBD |
-| **S3.96** | ✅ 已本地提交 | multi WRITE → bake tmpl+patch；marker `yoyo_in_dll_s3_multi_write_iat` | commit TBD |
-| **S3.97** | ✅ 已本地提交 | s1 LOAD → slim IAT tmpl；marker `yoyo_in_dll_s1_load_iat` | commit TBD |
-| **S3.98** | ✅ 已本地提交 | s1 WRITE → slim IAT tmpl；marker `yoyo_in_dll_s1_write_iat` | commit TBD |
+| **S3.93** | ✅ 已本地提交 | slim IAT +CloseHandle；PAD 仍 `0x100` | commit `6b6756e` |
+| **S3.94** | ✅ 已本地提交 | host `emit_slim_alloc/load/write`；TYB path=`r15+path_off`（≠ WIN32 `0x10000` 表） | commit `6b6756e` |
+| **S3.95** | ✅ 已本地提交 | multi LOAD → bake tmpl+patch；marker `yoyo_in_dll_s3_multi_load_iat` | commit `6b6756e` |
+| **S3.96** | ✅ 已本地提交 | multi WRITE → bake tmpl+patch；marker `yoyo_in_dll_s3_multi_write_iat` | commit `6b6756e` |
+| **S3.97** | ✅ 已本地提交 | s1 LOAD → slim IAT tmpl；marker `yoyo_in_dll_s1_load_iat` | commit `6b6756e` |
+| **S3.98** | ✅ 已本地提交 | s1 WRITE → slim IAT tmpl；marker `yoyo_in_dll_s1_write_iat` | commit `6b6756e` |
 | **S3.99+** | ⏳ 未开始 | 手动 map bind IAT / S2 子集 / 真 S3 自举 | 真自举长杆 |
 
 > **写法**：已完成 S3.1–S3.98 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
