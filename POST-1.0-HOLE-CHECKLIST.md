@@ -581,7 +581,7 @@ Run `35553987325`（commit `146b58b`）：
 | **S3.105** | ✅ 已本地提交 | in-DLL recompile LOAD PE → inject path → ReadFile e2e；marker `yoyo_in_dll_s3_in_dll_load_e2e` | commit `060154a` |
 | **S3.106** | ✅ 已本地提交 | in-DLL recompile WRITE PE → WriteFile e2e；marker `yoyo_in_dll_s3_in_dll_write_e2e` | commit `59077dc` |
 | **S3.107** | ✅ 已本地提交 | in-DLL LOAD→WRITE roundtrip e2e；marker `yoyo_in_dll_s3_in_dll_rw_roundtrip` | commit `886f431` |
-| **S3.108** | ✅ 已本地提交 | 验收脚本扩 host+in-DLL slim e2e；StubPlatform 仍 stub | commit TBD |
+| **S3.108** | ✅ 已本地提交 | 验收脚本扩 host+in-DLL slim e2e；StubPlatform 仍 stub | commit `a10c20d` |
 | **S3.109+** | ⏳ 未开始 | meta-emit 深挖 / 真 S3 自举 | 真自举长杆 |
 
 > **写法**：已完成 S3.1–S3.108 的逐步「切片/验收/诚实」正文已折叠；**进度表 = 权威索引**（含 commit / marker）。细节查 `git log` / 旧 revision。
