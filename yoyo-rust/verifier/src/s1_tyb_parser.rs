@@ -1442,8 +1442,9 @@ pub fn compile_tyb_to_pe(tyb: &[u8]) -> crate::types::IsaResult<crate::pe_link::
 ///
 /// S3.21/S3.111: fixed-template 10 ops prefer YOYO table-compose
 /// ([`try_compile_tyb_via_yoyo_table`]); otherwise `emit_x86`.
-/// Subset proof does not go through `pack_meta_emit_*`. Firmware prologue
-/// RAW_BYTES pack (`s3_host_pack_bytes`) remains. in-DLL dispatcher remains Rust. OW-RT CUT.
+/// Subset proof does not go through `pack_meta_emit_*`. Host firmware keeps
+/// one DATA pack (`s3_host_pack_bytes(0x10)`); RAW prologue dropped in S3.112.
+/// in-DLL dispatcher remains Rust. OW-RT CUT.
 pub fn compile_tyb_to_pe_mini(tyb: &[u8]) -> crate::types::IsaResult<crate::pe_link::PeImage> {
     if let Some(pe) = try_compile_tyb_via_yoyo_table(tyb) {
         return Ok(pe);
@@ -1614,38 +1615,10 @@ fn s3_host_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
         payload.len(),
         S1_MINI_DATA_MAX
     );
+    // S3.112: host sim seeds table/outbuf/op cursor and skips 0xA1, so the
+    // three RAW_BYTES pointer prologues are not on the emit path. Dropped.
+    // `s3_host_pack_bytes(0x10)` for the template DATA remains.
     let mut recs = s3_host_pack_bytes(0x10, &payload);
-    recs.extend(s3_host_pack_bytes(
-        0xA1,
-        &[
-            0x49, 0x8D, 0x87, 0x80, 0x00, 0x00, 0x00, 0x49, 0x89, 0x47, 0x18, 0x49, 0x89, 0x47,
-            0x78,
-        ],
-    ));
-    // lea rax,[r15+0x160]; store dst slot9
-    recs.extend(s3_host_pack_bytes(
-        0xA1,
-        &[
-            0x49, 0x8D, 0x87, 0x60, 0x01, 0x00, 0x00, 0x49, 0x89, 0x47, 0x48,
-        ],
-    ));
-    let op0 = S3_HOST_PROG_OFF + 1;
-    recs.extend(s3_host_pack_bytes(
-        0xA1,
-        &[
-            0x49,
-            0x8D,
-            0x87,
-            (op0 & 0xFF) as u8,
-            ((op0 >> 8) & 0xFF) as u8,
-            ((op0 >> 16) & 0xFF) as u8,
-            ((op0 >> 24) & 0xFF) as u8,
-            0x49,
-            0x89,
-            0x47,
-            0x10,
-        ],
-    ));
     let slot = |s: u16| s.to_le_bytes();
     let set = |s: u16, imm: u32| {
         let sb = slot(s);
@@ -3315,6 +3288,11 @@ mod tests {
             ),
         ];
         assert_eq!(cases.len(), 10, "fixed10 contract");
+        let fw = parse_tyb(&s3_host_prog_loop_tyb(&[0xFF])).unwrap();
+        assert!(
+            fw.records.iter().all(|r| r.op != 0xA1),
+            "S3.112 host firmware has no RAW prologue"
+        );
         for (name, semantic) in cases {
             let tyb = tyb_from_records(&semantic);
             let prog = parse_tyb(&tyb).unwrap();
