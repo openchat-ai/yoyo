@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.111**（减一层 Rust pack；**不**假 CLOSED）。`S3-subset-fixed10` 总测已绿。
+**默认** `继续` **= S3.112**（再减固件 `s3_host_pack_bytes` 一层；**不**假 CLOSED）。fixed10 证明已不走 `pack_meta_emit`。
 
 ## 阻塞 / 勿做
 
@@ -75,7 +75,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | 可 GREEN                                              | **不算**毕业                          |
 | ---------------------------------------------------- | --------------------------------- |
 | 固定模板 10 op · meta-emit / `emit_x86` `.text` **字节对拍** | 任意 slot/imm、全 mini-ISA            |
-| 允许 Rust 辅助打包/调度                                      | 零 Rust 独写完整 codegen               |
+| 固件仍可 Rust `s3_host_pack_bytes`；subset 证明不走 `pack_meta_emit` | 零 Rust 独写完整 codegen               |
 | slim 真 I/O（S3.99–108）；StubPlatform **stub**          | StubPlatform 变真 OS                |
 | —                                                    | 任何 OW-* **CLOSED** 话术（`closed=0`） |
 
@@ -94,10 +94,11 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.99–108** ✅ | `a10c20d` | host+in-DLL 真 I/O e2e              |
 | **S3.109** ✅    | `3e3dec9` | 近端合同 + 剩余 op meta-emit             |
 | **S3.110** ✅    | `7dcaa8d` | `s3_subset_fixed10_meta_emit_parity` 10 op 字节对拍 |
-| **S3.111** ⏳    | —         | 减一层 Rust pack · **本步** |
+| **S3.111** ✅    | （本步）    | fixed10 证明去掉 `pack_meta_emit`；mini=YOYO 表 |
+| **S3.112** ⏳    | —         | 再减固件 `s3_host_pack_bytes` 一层 · **本步** |
 
 
-**缺口**：减 Rust 辅助 · 真自举。逐步正文 → `git log`。
+**缺口**：固件 RAW 打包仍在 · 真自举。逐步正文 → `git log`。
 
 ---
 
@@ -133,7 +134,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.111**；path 2 已勾勿重开。
+- `继续` → **S3.112**；path 2 已勾勿重开。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -141,4 +142,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-16**：`S3-subset-fixed10` 总测 GREEN · 默认 **S3.111** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-16**：fixed10 证明不走 `pack_meta_emit` · 默认 **S3.112** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）

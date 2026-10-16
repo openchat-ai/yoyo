@@ -1440,9 +1440,10 @@ pub fn compile_tyb_to_pe(tyb: &[u8]) -> crate::types::IsaResult<crate::pe_link::
 
 /// S1.6 — host path aligned with in-DLL mini-ISA (fail closed on other ops).
 ///
-/// S3.21: fixed-template subset (RET / NOP / SET-slot0-DEADBEEF) prefers
-/// YOYO table-compose ([`try_compile_tyb_via_yoyo_table`]); otherwise `emit_x86`.
-/// in-DLL dispatcher remains Rust. OW-RT CUT.
+/// S3.21/S3.111: fixed-template 10 ops prefer YOYO table-compose
+/// ([`try_compile_tyb_via_yoyo_table`]); otherwise `emit_x86`.
+/// Subset proof does not go through `pack_meta_emit_*`. Firmware prologue
+/// RAW_BYTES pack (`s3_host_pack_bytes`) remains. in-DLL dispatcher remains Rust. OW-RT CUT.
 pub fn compile_tyb_to_pe_mini(tyb: &[u8]) -> crate::types::IsaResult<crate::pe_link::PeImage> {
     if let Some(pe) = try_compile_tyb_via_yoyo_table(tyb) {
         return Ok(pe);
@@ -3222,8 +3223,8 @@ mod tests {
         }
     }
 
-    /// S3.109: meta-emit autopack covers remaining fixed-template subset ops (+RET).
-    /// Near-term contract (`S3-subset-fixed10`): INC/ADD/DEC/SUB/MOVRR/CMP — still Rust packer.
+    /// S3.109/S3.111: remaining fixed-template ops. Rust `pack_meta_emit` dropped;
+    /// YOYO table compose must match `emit_x86` (oracle only).
     #[test]
     fn s3_meta_emit_autopack_fixed_template_rest() {
         let cases: Vec<(&str, Vec<(u8, u8, [u8; 6])>)> = vec![
@@ -3260,25 +3261,18 @@ mod tests {
                 "{name} must stay inside fixed_template_ops"
             );
             let expect = emit_x86(&prog).text;
-            let meta = pack_meta_emit_raw_bytes_tyb(&expect);
-            let pe = compile_tyb_to_pe_mini(&meta).expect("autopack mini");
-            let got = slim_pe_user_text(&pe.bytes, expect.len()).expect("slice");
-            assert_eq!(got, expect.as_slice(), "{name} meta-emit == emit_x86");
-            assert_eq!(
-                emit_x86(&parse_tyb(&meta).unwrap()).text,
-                expect,
-                "{name} pack round-trip"
-            );
-            // When YOYO table compose applies, it must match emit_x86 too.
-            if let Some(via) = try_emit_text_via_yoyo_table(&fixed_template_ops(&prog).unwrap()) {
-                assert_eq!(via, expect, "{name} yoyo_table == emit_x86");
-            }
+            let ops = fixed_template_ops(&prog).unwrap();
+            let via = try_emit_text_via_yoyo_table(&ops).unwrap_or_else(|| panic!("{name} yoyo table"));
+            assert_eq!(via, expect, "{name} yoyo_table == emit_x86");
+            let pe = compile_tyb_to_pe_mini(&tyb).expect("mini");
+            let pe_y = try_compile_tyb_via_yoyo_table(&tyb).expect("yoyo pe");
+            assert_eq!(pe.bytes, pe_y.bytes, "{name} mini took YOYO path, not emit_x86");
         }
     }
 
-    /// S3.110: `S3-subset-fixed10` one-shot gate.
-    /// All 10 fixed-template ops: meta-emit autopack AND YOYO table compose
-    /// are `.text` byte-identical with `emit_x86`. Rust packer still present — not CLOSED.
+    /// S3.110/S3.111: `S3-subset-fixed10` one-shot gate.
+    /// All 10 ops: YOYO table compose == `emit_x86`, and mini PE is the YOYO path
+    /// (no `pack_meta_emit` driver). Firmware Rust pack remains — not CLOSED.
     #[test]
     fn s3_subset_fixed10_meta_emit_parity() {
         let cases: Vec<(&str, Vec<(u8, u8, [u8; 6])>)> = vec![
@@ -3326,12 +3320,16 @@ mod tests {
             let prog = parse_tyb(&tyb).unwrap();
             let ops = fixed_template_ops(&prog).unwrap_or_else(|| panic!("{name} outside subset"));
             let expect = emit_x86(&prog).text;
-            let meta = pack_meta_emit_raw_bytes_tyb(&expect);
-            let pe = compile_tyb_to_pe_mini(&meta).expect("autopack mini");
-            let got = slim_pe_user_text(&pe.bytes, expect.len()).expect("slice");
-            assert_eq!(got, expect.as_slice(), "{name} meta-emit == emit_x86");
             let via = try_emit_text_via_yoyo_table(&ops).unwrap_or_else(|| panic!("{name} yoyo table"));
             assert_eq!(via, expect, "{name} yoyo_table == emit_x86");
+            let pe = compile_tyb_to_pe_mini(&tyb).expect("mini");
+            let pe_y = try_compile_tyb_via_yoyo_table(&tyb).expect("yoyo pe");
+            assert_eq!(pe.bytes, pe_y.bytes, "{name} mini took YOYO path");
+            assert_eq!(
+                slim_pe_user_text(&pe.bytes, expect.len()).unwrap(),
+                expect.as_slice(),
+                "{name} PE .text"
+            );
         }
     }
 
