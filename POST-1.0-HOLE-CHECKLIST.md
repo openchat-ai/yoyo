@@ -533,125 +533,42 @@ Run `35553987325`（commit `146b58b`）：
 
 ## 验收命令
 
+**两层别混**：下面「日常」= 当前 Stage 17+ / S3 主线；「path 2 归档」= 已勾完的关洞门禁，修洞回归时才跑。
 
+### 日常（当前主线 · S3）
 
 ```powershell
-
 cd F:\yoyo
-
-
-
-# Gate A — Win OW-IAT wire-up（post-v1.0 门禁；脚本名 stage17 ≠ ROADMAP Stage 17）
-
-& .\scripts\stage17-ow-iat-wireup.ps1
-
-
-
-# Gate B — Linux tramp / sidecar 回归
-
-& wsl -e bash /mnt/f/yoyo/scripts/stage10-linux-pure-m4.sh
-
-
-
-# Gate C — 洞清单 FINAL + Stage 15-A 不退化
-
-& .\scripts\stage16-scope-cut-finalize.ps1 -SkipBuild
-
-& .\scripts\stage15-hole-inventory.ps1 -SkipBuild
-
-
-
-# Gate D — OW-RT PE DLL emit spike（整仓竣工）
-
-& .\scripts\stage17-ow-rt-yoyo-runtime.ps1
-
-
-
-# v1.0 全回归（post-v1.0 修洞前/后 sanity）
-
-& .\scripts\stage16-v09-regress.ps1 -SkipBuild
-
-
-
-# 日常 DDC
-
+& .\scripts\stage17-s2-runtime-effect-slim.ps1   # host+in-DLL slim 真 I/O e2e
 cd F:\yoyo\yoyo-rust\verifier
-
-cargo run -- test ddc
-
+cargo test --lib -- s3_meta_emit_autopack --test-threads=1
 ```
 
+### path 2 归档（关洞回归 · 非日常）
 
+```powershell
+cd F:\yoyo
+& .\scripts\stage17-ow-iat-wireup.ps1              # Gate A OW-IAT
+& wsl -e bash /mnt/f/yoyo/scripts/stage10-linux-pure-m4.sh  # Gate B
+& .\scripts\stage16-scope-cut-finalize.ps1 -SkipBuild       # Gate C
+& .\scripts\stage15-hole-inventory.ps1 -SkipBuild
+& .\scripts\stage17-ow-rt-yoyo-runtime.ps1         # Gate D OW-RT
+& .\scripts\stage16-v09-regress.ps1 -SkipBuild     # v1.0 sanity
+cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
+```
 
-> **注**：`stage17-*.ps1` 文件名沿用 post-v1.0 门禁编号；**不**表示 ROADMAP 存在 Stage 17。
-
-
+> `stage17-*.ps1` = post-v1.0 **门禁文件名**，≠ ROADMAP「有一个 Stage 17 功能轨」。
 
 ---
 
+## 对 AI / 负责人（精简）
 
-
-## 对 AI 说什么（复制粘贴话术）
-
-
-
-### 任务 D — OW-RT DLL emit（已勾）
-
-
-
-```text
-
-Post-v1.0 整仓竣工 Gate D：pe_dll_link PE32+ DLL emit spike。
-
-验收：& .\scripts\stage17-ow-rt-yoyo-runtime.ps1 exit 0。
-
-约束：yoyo_built=ABSENT；OW-RT 仍 CUT；勿假 CLOSED。
-
-```
-
-
-
-### 任务 E — YOYO-origin stub export
-
-
-
-```text
-
-Post-v1.0 整仓竣工 Gate E：YOYO-origin stub 填 pe_dll_link export body。
-
-目标：固定 exit probe；门禁 yoyo_origin_export=PRESENT；仍 CUT。
-
-约束：本地先绿；不替换生产 sidecar 则禁止 OW-RT CLOSED。
-
-```
-
-
+- 用户说 `继续` → 读本看板「默认继续」刀号；path 2 已勾门勿 invent 重开。
+- **禁止**假 CLOSED；OW-* GREEN ≠ CLOSED；`closed=0`。
+- 本地 smoke 先绿；连续 2 次红 CI → 停推。
+- AUTO：`ACTIVE=0` · `COMPLETED=1`。
 
 ---
-
-
-
-## 负责人原则
-
-
-
-0. **path 2 = 关洞，不是新功能轨** — 只缩 OW-* / 诚实 CUT；禁止 invent ROADMAP 外能力。
-
-1. **OW-H00 勿假 CLOSED** — Gate C 重测 full `.text` DIFF → **CUT**；slot 对齐 ≠ CLOSED。
-
-2. **OW-IAT / OW-RT GREEN ≠ CLOSED** — sidecar / Rust runtime 仍在则必 CUT。
-
-3. **整仓竣工长杆诚实** — OW-SEED 分相 **G→H→I→J**（月级）；G 勾 ≠ CLOSED；勿把长杆塞回单个未勾门。
-
-4. **CI anti-thrash** — 本地 smoke 先绿；连续 2 次红 CI → 停推。
-
-5. **AUTO 停手** — `ACTIVE=0` · `COMPLETED=1`；用户 `继续/关洞/整仓竣工` 才读本看板 tick。
-
-
-
----
-
-
 
 *创建：2026-08-31 · v1.0 毕业后 · post-v1.0 path 2 关洞 · 模板对齐 STAGE16_OWNER_CHECKLIST.md*
 
