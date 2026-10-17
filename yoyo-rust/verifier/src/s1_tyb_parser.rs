@@ -1575,6 +1575,21 @@ fn s3_host_movrr_body() -> Vec<u8> {
 fn s3_host_cmp_body() -> Vec<u8> {
     s3_host_body(0x65, 2, [0, 0, 1, 0, 0, 0])
 }
+/// S3.123: RET is the whole emit (do not strip the only `C3`).
+fn s3_host_ret_body() -> Vec<u8> {
+    let text = emit_x86(
+        &parse_tyb(&s3_host_tyb_from_records(&[(0xFF, 0, [0; 6])])).expect("ret tyb"),
+    )
+    .text;
+    assert_eq!(text, vec![0xC3]);
+    text
+}
+/// S3.123: NOP emit is `90 C3`; drop the trailing RET.
+fn s3_host_nop_body() -> Vec<u8> {
+    let b = s3_host_body(0x00, 0, [0; 6]);
+    assert_eq!(b, vec![0x90]);
+    b
+}
 
 /// S3.120: pad to table base, append template rows, then `[n][ops…]`, pad to `outbuf`.
 fn s3_prog_data_payload(rows: &[(u8, &[u8])], ops: &[u8], outbuf: usize) -> Vec<u8> {
@@ -1600,10 +1615,12 @@ fn s3_host_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
     let sub = s3_host_sub5_body();
     let mov = s3_host_movrr_body();
     let cmp = s3_host_cmp_body();
+    let retb = s3_host_ret_body();
+    let nopb = s3_host_nop_body();
     let payload = s3_prog_data_payload(
         &[
-            (0xFF, &[0xC3]),
-            (0x00, &[0x90]),
+            (0xFF, &retb),
+            (0x00, &nopb),
             (0x30, &set),
             (0x60, &get),
             (0x66, &inc),
@@ -3455,8 +3472,8 @@ mod tests {
     /// TYB: 2-row DATA table (RET, NOP) + scan loop → state[OUT]=first template byte.
     fn s3_table_scan_tyb(needle: u8) -> Vec<u8> {
         let mut table = Vec::new();
-        table.extend_from_slice(&s3_host_tmpl_row(0xFF, &[0xC3]));
-        table.extend_from_slice(&s3_host_tmpl_row(0x00, &[0x90]));
+        table.extend_from_slice(&s3_host_tmpl_row(0xFF, &s3_host_ret_body()));
+        table.extend_from_slice(&s3_host_tmpl_row(0x00, &s3_host_nop_body()));
         let mut recs = s3_host_pack_bytes(0x10, &table);
         // lea rax,[r15]; mov [r15+15*8],rax — PE runtime ptr seed (sim seeds offset 0)
         recs.push((0xA1, 3, [0x49, 0, 0x8D, 0, 0x07, 0]));
@@ -3557,8 +3574,8 @@ mod tests {
     /// S3.17: 3-row table (RET/NOP/SET) + scan + MEMCPY_DATA → outbuf@.data+0xC8.
     fn s3_table_compose_tyb(needle: u8) -> Vec<u8> {
         let mut table = Vec::new();
-        table.extend_from_slice(&s3_host_tmpl_row(0xFF, &[0xC3]));
-        table.extend_from_slice(&s3_host_tmpl_row(0x00, &[0x90]));
+        table.extend_from_slice(&s3_host_tmpl_row(0xFF, &s3_host_ret_body()));
+        table.extend_from_slice(&s3_host_tmpl_row(0x00, &s3_host_nop_body()));
         table.extend_from_slice(&s3_host_tmpl_row(0x30, &s3_host_set_body()));
         let mut recs = s3_host_pack_bytes(0x10, &table);
         // lea rax,[r15]; mov [r15+15*8],rax  — scan ptr
@@ -4294,8 +4311,8 @@ mod tests {
     /// S3.18: scan SET then RET → outbuf full `.text` ≡ emit_x86(SET+RET).
     fn s3_table_fulltext_set_ret_tyb() -> Vec<u8> {
         let mut table = Vec::new();
-        table.extend_from_slice(&s3_host_tmpl_row(0xFF, &[0xC3]));
-        table.extend_from_slice(&s3_host_tmpl_row(0x00, &[0x90]));
+        table.extend_from_slice(&s3_host_tmpl_row(0xFF, &s3_host_ret_body()));
+        table.extend_from_slice(&s3_host_tmpl_row(0x00, &s3_host_nop_body()));
         table.extend_from_slice(&s3_host_tmpl_row(0x30, &s3_host_set_body()));
         let mut recs = s3_host_pack_bytes(0x10, &table);
         recs.extend(s3_host_pack_bytes(0xA1, S3_LEA_PTR));
@@ -4377,8 +4394,10 @@ mod tests {
     fn s3_table_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
         assert!(!ops.is_empty() && ops.len() <= 8);
         let set = s3_host_set_body();
+        let retb = s3_host_ret_body();
+        let nopb = s3_host_nop_body();
         let payload = s3_prog_data_payload(
-            &[(0xFF, &[0xC3]), (0x00, &[0x90]), (0x30, &set)],
+            &[(0xFF, &retb), (0x00, &nopb), (0x30, &set)],
             ops,
             S3_OUTBUF_OFF as usize,
         );
