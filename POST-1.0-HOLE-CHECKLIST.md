@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.171**（170 地图已刷新；下一刀发射器循环化 / 减 Rust 拼；仍不改 golden；**不**假 CLOSED）。
+**默认** `继续` **= S3.172**（171 发射器循环 STB 已绿；下一刀从记录拼 flat 也走 IR；仍不改 golden；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -178,4 +178,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-17**：发射 TYB→mini PE · 默认 **S3.170** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-17**：TYB 发射进地图 · 默认 **S3.171** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
