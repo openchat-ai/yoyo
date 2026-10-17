@@ -1694,23 +1694,15 @@ fn s3_yoyo_emit_tyb_file_two_phase(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u
     for &(op, argc, a) in records {
         s3_append_emit_rec_stb(&mut recs, op, argc, a);
     }
-    // Phase 2: loop-copy staging → outbuf (composed).
-    const L_LOOP: u32 = 1;
-    const L_DONE: u32 = 2;
-    const CUR: u16 = S3_PACK_LOOP_CUR;
-    const END: u16 = S3_PACK_LOOP_END;
-    recs.push(s3_rec_set(CUR, pay));
-    recs.push(s3_rec_set(END, out_off));
+    // Phase 2 (S3.182): one MEMCPY staging → outbuf. Length is state, not an imm.
+    recs.push(s3_rec_set(S3_PACK_LOOP_CUR, pay));
+    recs.push(s3_rec_set(S3_PACK_LOOP_END, flat_len));
     recs.push(s3_rec_set(S3_PACK_PROTO_DST, out_off));
-    recs.push(s3_rec_label(L_LOOP));
-    recs.push(s3_rec_cmp(CUR, END));
-    recs.push(s3_rec_je(L_DONE));
-    recs.push(s3_rec_ldb(S3_PACK_STB_TMP, CUR, 0));
-    recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_PROTO_DST, 0));
-    recs.push(s3_rec_add(CUR, 1));
-    recs.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
-    recs.push(s3_rec_jmp(L_LOOP));
-    recs.push(s3_rec_label(L_DONE));
+    recs.push(s3_rec_memcpy(
+        S3_PACK_PROTO_DST,
+        S3_PACK_LOOP_CUR,
+        S3_PACK_LOOP_END,
+    ));
     recs.push((0xFF, 0, [0; 6]));
     (s3_host_tyb_from_records(&recs), out_off)
 }
@@ -4035,7 +4027,7 @@ mod tests {
         let mut big = vec![s3_fixed_rec(0x00); 16];
         big.push(s3_fixed_rec(0xFF));
         let (fw_2, _) = s3_yoyo_emit_tyb_file(&big);
-        assert!(parse_tyb(&fw_2).unwrap().records.iter().any(|r| r.op == 0x70));
+        assert!(parse_tyb(&fw_2).unwrap().records.iter().any(|r| r.op == 0x84));
         assert!(s3_unpack_data_tyb(&fw_2).iter().all(|&b| b == 0));
         // Cliff: `s3_append_emit_rec_stb` / `s3_rec_*` builders remain Rust.
         let _ = s3_rec_stb(0, 1, 0);
@@ -4185,7 +4177,7 @@ mod tests {
         big.push(s3_fixed_rec(0xFF));
         assert!(HEADER_SIZE + big.len() * RECORD_SIZE > S3_EMIT_UNROLL_MAX_FLAT);
         let (fw_b, off_b) = s3_yoyo_emit_tyb_file(&big);
-        assert!(parse_tyb(&fw_b).unwrap().records.iter().any(|r| r.op == 0x70));
+        assert!(parse_tyb(&fw_b).unwrap().records.iter().any(|r| r.op == 0x84));
         assert!(s3_unpack_data_tyb(&fw_b).iter().all(|&b| b == 0));
         assert_eq!(
             s3_sim_prog_loop(&fw_b, 0, off_b, 0).unwrap(),
@@ -4215,7 +4207,8 @@ mod tests {
         big.push(s3_fixed_rec(0xFF));
         let expect = s3_host_tyb_from_records(&big);
         let (fw, out_off) = s3_yoyo_emit_tyb_file_two_phase(&big);
-        assert!(parse_tyb(&fw).unwrap().records.iter().any(|r| r.op == 0x70));
+        assert!(parse_tyb(&fw).unwrap().records.iter().any(|r| r.op == 0x84));
+        assert!(!parse_tyb(&fw).unwrap().records.iter().any(|r| r.op == 0x70));
         assert!(s3_unpack_data_tyb(&fw).iter().all(|&b| b == 0));
         let got = s3_sim_prog_loop(&fw, 0, out_off, 0).expect("two-phase");
         assert_eq!(got, expect);
