@@ -3972,8 +3972,8 @@ mod tests {
         data[2] = 0xBE;
         let mut recs = s3_pack_data_bytewise(&data);
         // slot 15 = .data base; slot 9 = outbuf (same lea seeds as compose).
-        s3_append_raw_a1(&mut recs, S3_LEA_PTR);
-        s3_append_raw_a1(&mut recs, &S3_LEA_DST);
+        recs.extend_from_slice(s3_lea_ptr_a1_recs());
+        recs.extend_from_slice(s3_lea_dst_a1_recs());
         const BASE: u16 = 15;
         const DST: u16 = 9;
         const TMP: u16 = 11;
@@ -4113,6 +4113,10 @@ mod tests {
         s3_append_raw_a1(&mut expect, &S3_LEA_DST);
         s3_append_raw_a1(&mut expect, &S3_LEA_PROG);
         assert_eq!(s3_in_dll_lea_prologue_recs(), expect.as_slice());
+        assert!(std::ptr::eq(s3_lea_ptr_a1_recs(), s3_lea_ptr_a1_recs()));
+        assert!(std::ptr::eq(s3_lea_dst_a1_recs(), s3_lea_dst_a1_recs()));
+        assert_eq!(s3_lea_ptr_a1_recs(), s3_host_pack_bytes(0xA1, S3_LEA_PTR).as_slice());
+        assert_eq!(s3_lea_dst_a1_recs(), s3_host_pack_bytes(0xA1, &S3_LEA_DST).as_slice());
     }
 
     /// S3.149/S3.151: packer scratch DATA length == out_off; prefix OnceLock stable.
@@ -4450,8 +4454,8 @@ mod tests {
         let table = s3_fixed_table(&[0xFF, 0x00]);
         // S3.147: DATA via_ir (Rust pack remains packer-scratch only).
         let mut recs = s3_pack_data_via_ir(&table);
-        // S3.131/S3.150: short `lea rax,[r15]` seed (not disp32 — would break goldens).
-        s3_append_raw_a1(&mut recs, S3_LEA_PTR);
+        // S3.131/S3.165: short `lea rax,[r15]` seed from OnceLock (not disp32).
+        recs.extend_from_slice(s3_lea_ptr_a1_recs());
         append_scan_byte_out(&mut recs, needle, 2, 1, 2);
         tyb_from_records(&recs)
     }
@@ -4514,8 +4518,8 @@ mod tests {
     fn s3_table_compose_tyb(needle: u8) -> Vec<u8> {
         let table = s3_fixed_table(&[0xFF, 0x00, 0x30]);
         let mut recs = s3_pack_data_via_ir(&table);
-        s3_append_raw_a1(&mut recs, S3_LEA_PTR);
-        s3_append_raw_a1(&mut recs, &S3_LEA_DST);
+        recs.extend_from_slice(s3_lea_ptr_a1_recs());
+        recs.extend_from_slice(s3_lea_dst_a1_recs());
         append_scan_memcpy(&mut recs, needle, 1, 2, false);
         recs.push(s3_fixed_rec(0xFF));
         tyb_from_records(&recs)
@@ -5198,6 +5202,30 @@ mod tests {
             .as_slice()
     }
 
+    /// S3.165: cached A1 pack of short `lea rax,[r15]` seed.
+    fn s3_lea_ptr_a1_recs() -> &'static [(u8, u8, [u8; 6])] {
+        use std::sync::OnceLock;
+        static R: OnceLock<Vec<(u8, u8, [u8; 6])>> = OnceLock::new();
+        R.get_or_init(|| {
+            let mut r = Vec::new();
+            s3_append_raw_a1(&mut r, S3_LEA_PTR);
+            r
+        })
+        .as_slice()
+    }
+
+    /// S3.165: cached A1 pack of outbuf `lea` seed.
+    fn s3_lea_dst_a1_recs() -> &'static [(u8, u8, [u8; 6])] {
+        use std::sync::OnceLock;
+        static R: OnceLock<Vec<(u8, u8, [u8; 6])>> = OnceLock::new();
+        R.get_or_init(|| {
+            let mut r = Vec::new();
+            s3_append_raw_a1(&mut r, &S3_LEA_DST);
+            r
+        })
+        .as_slice()
+    }
+
     /// Append one table-scan + MEMCPY_DATA; optionally ADDV dst+=len afterwards.
     fn append_scan_memcpy(
         recs: &mut Vec<(u8, u8, [u8; 6])>,
@@ -5233,11 +5261,11 @@ mod tests {
     fn s3_table_fulltext_set_ret_tyb() -> Vec<u8> {
         let table = s3_fixed_table(&[0xFF, 0x00, 0x30]);
         let mut recs = s3_pack_data_via_ir(&table);
-        s3_append_raw_a1(&mut recs, S3_LEA_PTR);
-        s3_append_raw_a1(&mut recs, &S3_LEA_DST);
+        recs.extend_from_slice(s3_lea_ptr_a1_recs());
+        recs.extend_from_slice(s3_lea_dst_a1_recs());
         append_scan_memcpy(&mut recs, 0x30, 1, 2, true);
         // re-seed table ptr for second scan
-        s3_append_raw_a1(&mut recs, S3_LEA_PTR);
+        recs.extend_from_slice(s3_lea_ptr_a1_recs());
         append_scan_memcpy(&mut recs, 0xFF, 3, 4, false);
         recs.push(s3_fixed_rec(0xFF));
         tyb_from_records(&recs)

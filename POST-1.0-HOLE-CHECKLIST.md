@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.165**（164 lea prologue OnceLock；下一刀 scan/compose lea 缓存或 TYB 记录原型；仍不改 golden；**不**假 CLOSED）。
+**默认** `继续` **= S3.166**（165 scan/compose lea OnceLock；下一刀 TYB 记录流原型；仍不改 golden；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -126,10 +126,11 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.161** ✅    | `37aa36d` | via_ir 路径强制 STB loop 门禁 |
 | **S3.162** ✅    | `7687072` | bootstrap bytewise = 地板（无 YOYO 写 TYB 记录前不可消） |
 | **S3.163** ✅    | `cce0b51` | IR 自举地图门禁（done/floor/cliff） |
-| **S3.164** ⏳    | —         | in-DLL lea A1 OnceLock 缓存 · **本步** |
+| **S3.164** ✅    | `d5a9008` | in-DLL 三 lea A1 prologue OnceLock |
+| **S3.165** ⏳    | —         | scan/compose lea 缓存 / TYB 记录原型 · **本步** |
 
 
-**缺口**：bootstrap bytewise 地板 · 短 lea 必留 · 真自举（YOYO 写 TYB）。逐步正文 → `git log`。
+**缺口**：bootstrap bytewise 地板 · 短 lea 字节必留 · 真自举（YOYO 写 TYB）。逐步正文 → `git log`。
 
 ---
 
@@ -165,7 +166,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.164**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.165**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -173,4 +174,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-17**：IR 自举地图钉 · 默认 **S3.164** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-17**：lea OnceLock · 默认 **S3.165** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
