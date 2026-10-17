@@ -3923,19 +3923,28 @@ mod tests {
         );
     }
 
-    /// S3.163/S3.170: IR self-host roadmap gate — pack/STB/TYB-emit vs remaining.
-    /// Not a schedule. Emitter IR is still Rust-assembled; next cliff = YOYO
-    /// builds the emitter program (or TYB bytes) without `s3_append_emit_rec_stb`.
+    /// S3.163/S3.173: IR self-host roadmap gate — pack/STB/TYB-emit vs remaining.
+    /// Flat TYB content is IR-written (S3.172). Cliff: Rust still *assembles*
+    /// the emitter IR (`s3_append_emit_rec_stb`); YOYO must build that program.
     #[test]
     fn s3_ir_selfhost_roadmap() {
         // Done: DATA pack algorithm runs as YOYO IR (STB loop) via via_ir.
         let (probe, _) = s3_yoyo_pack_loop_stb_tyb(&[1, 2, 3, 4]);
         assert!(parse_tyb(&probe).unwrap().records.iter().any(|r| r.op == 0x81));
         assert_eq!(s3_pack_data_via_ir(&[9, 8, 7]), s3_pack_data(&[9, 8, 7]));
-        // Done: YOYO STB can emit a full TYB file that mini-PE accepts.
+        // Done: YOYO STB emits full TYB (flat by IR) that mini-PE accepts.
         let body = [s3_fixed_rec(0xFF)];
         let (fw, off) = s3_yoyo_emit_tyb_file(&body);
+        assert!(
+            !parse_tyb(&fw)
+                .unwrap()
+                .records
+                .iter()
+                .any(|r| r.op == 0x70),
+            "default emit is unrolled IR write, not loop-staged"
+        );
         let emitted = s3_sim_prog_loop(&fw, 0, off, 0).unwrap();
+        assert_eq!(emitted, s3_host_tyb_from_records(&body));
         assert!(compile_tyb_to_pe_mini(&emitted).is_ok());
         // Floor: bootstrap scratch is still Rust bytewise TYB records.
         let prefix = s3_pack_scratch_prefix_recs();
