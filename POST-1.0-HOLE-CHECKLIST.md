@@ -130,11 +130,12 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.165** ✅    | `45ec7aa` | scan/compose/fulltext lea A1 OnceLock |
 | **S3.166–167** ✅ | `b3e06ba` | STB 发射 TYB 记录 + 完整文件（magic+cnt+recs） |
 | **S3.168** ✅    | `e188dd9` | fixed10 经 STB 发射 TYB 对拍 emit_x86 |
-| **S3.169–170** ✅ | —         | 发射 TYB→mini PE；自举地图含 TYB 发射已做 |
-| **S3.171** ⏳    | —         | 发射器循环化（减 per-byte Rust SET 展开）· **本步** |
+| **S3.169–170** ✅ | `ce0fead` | 发射 TYB→mini PE；自举地图含 TYB 发射已做 |
+| **S3.171** ✅    | —         | 发射器改循环 STB（flat 仍 Rust 预置） |
+| **S3.172** ⏳    | —         | flat TYB 由记录 IR 拼出 · **本步** |
 
 
-**缺口**：bootstrap bytewise 地板 · 短 lea 字节必留 · 发射器仍 Rust 拼 IR · 真自举。逐步正文 → `git log`。
+**缺口**：bootstrap bytewise 地板 · 短 lea 字节必留 · flat 预置仍 Rust · 真自举。逐步正文 → `git log`。
 
 ---
 
@@ -170,7 +171,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.171**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.172**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -178,4 +179,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-17**：TYB 发射进地图 · 默认 **S3.171** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-17**：循环发射器 · 默认 **S3.172** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
