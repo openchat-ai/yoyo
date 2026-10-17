@@ -1534,6 +1534,29 @@ fn s3_pack_data(bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     s3_host_pack_bytes(0x10, bytes)
 }
 
+/// S3.137: inverse of `s3_pack_data` — recover flat payload from DATA `0x10` records.
+fn s3_unpack_data(recs: &[(u8, u8, [u8; 6])]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for &(op, argc, a) in recs {
+        assert_eq!(op, 0x10, "s3_unpack_data: expected DATA 0x10, got {op:#x}");
+        for k in 0..argc as usize {
+            out.push(a[k * 2]);
+        }
+    }
+    out
+}
+
+fn s3_unpack_data_tyb(tyb: &[u8]) -> Vec<u8> {
+    let prog = parse_tyb(tyb).expect("unpack tyb");
+    let mut out = Vec::new();
+    for rec in &prog.records {
+        if rec.op == 0x10 {
+            out.extend(arg_low_bytes(rec));
+        }
+    }
+    out
+}
+
 fn s3_host_tmpl_row(op: u8, payload: &[u8]) -> [u8; 20] {
     let mut r = [0u8; 20];
     r[0] = op;
@@ -1584,27 +1607,6 @@ fn s3_host_body_of(op: u8) -> Vec<u8> {
 fn s3_host_set_body() -> Vec<u8> {
     s3_host_body_of(0x30)
 }
-fn s3_host_get_body() -> Vec<u8> {
-    s3_host_body_of(0x60)
-}
-fn s3_host_inc_body() -> Vec<u8> {
-    s3_host_body_of(0x66)
-}
-fn s3_host_add5_body() -> Vec<u8> {
-    s3_host_body_of(0x62)
-}
-fn s3_host_dec_body() -> Vec<u8> {
-    s3_host_body_of(0x67)
-}
-fn s3_host_sub5_body() -> Vec<u8> {
-    s3_host_body_of(0x61)
-}
-fn s3_host_movrr_body() -> Vec<u8> {
-    s3_host_body_of(0x64)
-}
-fn s3_host_cmp_body() -> Vec<u8> {
-    s3_host_body_of(0x65)
-}
 /// S3.123: RET is the whole emit (do not strip the only `C3`).
 fn s3_host_ret_body() -> Vec<u8> {
     let text = emit_x86(
@@ -1644,20 +1646,28 @@ fn s3_fixed10_named_cases() -> Vec<(&'static str, Vec<(u8, u8, [u8; 6])>)> {
         .collect()
 }
 
-fn s3_fixed_row(op: u8) -> Vec<u8> {
+/// S3.138: one emit_x86 bake per fixed10 op; reused for every firmware build.
+fn s3_compute_fixed_body(op: u8) -> Vec<u8> {
     match op {
         0xFF => s3_host_ret_body(),
         0x00 => s3_host_nop_body(),
-        0x30 => s3_host_set_body(),
-        0x60 => s3_host_get_body(),
-        0x66 => s3_host_inc_body(),
-        0x62 => s3_host_add5_body(),
-        0x67 => s3_host_dec_body(),
-        0x61 => s3_host_sub5_body(),
-        0x64 => s3_host_movrr_body(),
-        0x65 => s3_host_cmp_body(),
-        _ => panic!("s3_fixed_row: opcode {op:#x} is outside fixed10"),
+        o if S3_FIXED10_OPS.contains(&o) => s3_host_body_of(o),
+        _ => panic!("s3_compute_fixed_body: opcode {op:#x} is outside fixed10"),
     }
+}
+
+fn s3_fixed_bodies() -> &'static [Vec<u8>; 10] {
+    use std::sync::OnceLock;
+    static BODIES: OnceLock<[Vec<u8>; 10]> = OnceLock::new();
+    BODIES.get_or_init(|| S3_FIXED10_OPS.map(s3_compute_fixed_body))
+}
+
+fn s3_fixed_row(op: u8) -> Vec<u8> {
+    let idx = S3_FIXED10_OPS
+        .iter()
+        .position(|&o| o == op)
+        .unwrap_or_else(|| panic!("s3_fixed_row: opcode {op:#x} is outside fixed10"));
+    s3_fixed_bodies()[idx].clone()
 }
 
 fn s3_fixed_table(ops: &[u8]) -> Vec<u8> {
@@ -3401,6 +3411,89 @@ mod tests {
         // Payload pad reaches outbuf; Rust packer still owns that layout.
         let payload = s3_fixed_payload(&S3_FIXED10_OPS, &[0xFF], S3_HOST_OUTBUF_OFF as usize);
         assert_eq!(payload.len(), S3_HOST_OUTBUF_OFF as usize);
+    }
+
+    /// S3.137: pack ↔ unpack is the YOYO-target algorithm (still implemented in Rust).
+    #[test]
+    fn s3_pack_data_roundtrip_and_host_payload() {
+        for n in 0usize..=64 {
+            let bytes: Vec<u8> = (0..n).map(|i| (i * 17 + 3) as u8).collect();
+            let packed = s3_pack_data(&bytes);
+            assert_eq!(s3_unpack_data(&packed), bytes, "len {n}");
+            let tyb = s3_host_tyb_from_records(&packed);
+            assert_eq!(s3_unpack_data_tyb(&tyb), bytes, "tyb len {n}");
+        }
+        let ops = &[0x30u8, 0xFF];
+        let payload = s3_fixed_payload(&S3_FIXED10_OPS, ops, S3_HOST_OUTBUF_OFF as usize);
+        let tyb = s3_host_prog_loop_tyb(ops);
+        assert_eq!(
+            s3_unpack_data_tyb(&tyb),
+            payload,
+            "host firmware DATA must unpack to fixed payload"
+        );
+    }
+
+    /// S3.138: cached bodies stay equal to a fresh emit_x86 bake.
+    #[test]
+    fn s3_fixed_bodies_match_emit_x86_bake() {
+        for op in S3_FIXED10_OPS {
+            assert_eq!(
+                s3_fixed_row(op),
+                s3_compute_fixed_body(op),
+                "cached body {op:#x}"
+            );
+        }
+        // Second call hits OnceLock; still matches.
+        assert_eq!(s3_fixed_row(0x30), s3_host_set_body());
+        assert_eq!(s3_fixed_row(0xFF), s3_host_ret_body());
+        assert_eq!(s3_fixed_row(0x00), s3_host_nop_body());
+    }
+
+    /// S3.139: host emit firmware's last Rust mile — DATA `0x10` + loop IR only.
+    #[test]
+    fn s3_host_firmware_last_rust_mile_opcodes() {
+        let tyb = s3_host_prog_loop_tyb(&[0x62, 0xFF]);
+        let prog = parse_tyb(&tyb).unwrap();
+        let mut saw_data = false;
+        let mut saw_ir = false;
+        for rec in &prog.records {
+            match rec.op {
+                0x10 => saw_data = true,
+                0xA1 | 0xA0 | 0x12 | 0x13 => panic!("host firmware must not carry {:#x}", rec.op),
+                0x30 | 0x40 | 0x62 | 0x64 | 0x65 | 0x68 | 0x70 | 0x71 | 0x73 | 0x74 | 0x80
+                | 0x84 | 0xFF => saw_ir = true,
+                other => panic!("unexpected host firmware op {other:#x}"),
+            }
+        }
+        assert!(saw_data && saw_ir);
+        assert!(
+            try_emit_text_via_yoyo_table(&[0x62, 0xFF]).is_some(),
+            "host path still YOYO-composes"
+        );
+    }
+
+    /// S3.140: every RET-terminated sequence of length ≤3 over fixed10 — yoyo == emit_x86.
+    #[test]
+    fn s3_fixed10_yoyo_exhaust_ret_terminated() {
+        let check = |ops: &[u8]| {
+            let recs: Vec<_> = ops.iter().map(|o| s3_fixed_rec(*o)).collect();
+            let tyb = s3_host_tyb_from_records(&recs);
+            let expect = emit_x86(&parse_tyb(&tyb).unwrap()).text;
+            let via = try_emit_text_via_yoyo_table(ops)
+                .unwrap_or_else(|| panic!("yoyo table missing for {ops:?}"));
+            assert_eq!(via, expect, "ops={ops:?}");
+        };
+        check(&[0xFF]);
+        let mut n = 1usize;
+        for a in S3_FIXED10_OPS {
+            check(&[a, 0xFF]);
+            n += 1;
+            for b in S3_FIXED10_OPS {
+                check(&[a, b, 0xFF]);
+                n += 1;
+            }
+        }
+        assert_eq!(n, 1 + 10 + 100, "RET-terminated exhaust count");
     }
 
     /// S3.110/S3.111: `S3-subset-fixed10` one-shot gate.

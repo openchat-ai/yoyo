@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.137**（YOYO 表 DATA 已收成 `s3_pack_data`；下一刀仍不改 golden；**不**假 CLOSED）。
+**默认** `继续` **= S3.141**（pack 算法已钉；下一刀把 pack 算法往 YOYO IR 推，仍不改 golden；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -107,10 +107,11 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.133–134** ✅ | `3f1e2a7` | IR 记录一份；scan→`append_scan_byte_out` |
 | **S3.135** ✅    | `e431341` | 剩余 Rust 面清单（DATA `0x10` / 短 `lea` / in-DLL A1） |
 | **S3.136** ✅    | `60052d6` | YOYO 表 DATA 统一走 `s3_pack_data`（仍 Rust） |
-| **S3.137** ⏳    | —         | 不改 golden · DATA pack 仍 sidecar · **本步** |
+| **S3.137–140** ✅ | （本批） | pack↔unpack；body OnceLock；host 最后一英里；111 例穷尽对拍 |
+| **S3.141** ⏳    | —         | pack 算法 → YOYO IR 微步 · **本步** |
 
 
-**缺口**：`s3_pack_data` 仍是 Rust · in-DLL 短编码 RAW `lea` 必留 · 真自举。折叠轴收口。逐步正文 → `git log`。
+**缺口**：`s3_pack_data` 仍是 Rust（算法已钉）· in-DLL 短编码 RAW `lea` 必留 · 真自举。逐步正文 → `git log`。
 
 ---
 
@@ -146,7 +147,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.137**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.141**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -154,4 +155,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-17**：`s3_pack_data` 收口 · 默认 **S3.137** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-17**：pack 对拍 + 111 例穷尽 · 默认 **S3.141** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
