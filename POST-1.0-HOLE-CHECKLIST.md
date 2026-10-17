@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.186**（185 展开路径也无 DATA 填充；下一刀仍是 bytewise scratch 地板；仍不改 golden；**不**假 CLOSED）。
+**默认** `继续` **= S3.187**（186 前缀收到 5 字节；下一刀去掉展开 pack 的 outbuf 零洞；仍不改 golden；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -145,11 +145,12 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.182** ✅    | `13509d9` | phase2 单次 MEMCPY staging→outbuf；无 loop |
 | **S3.183** ✅    | `17e4742` | phase1 相同字节折叠为 SUB/JE 循环；单字节仍 SET |
 | **S3.184** ✅    | `21db3dc` | 大发射无 DATA 记录；STB 自己撑开缓冲 |
-| **S3.185** ✅    | —         | 展开 / 记录发射也无 0x20 零填充 |
-| **S3.186** ⏳    | —         | bytewise scratch 地板 · **本步** |
+| **S3.185** ✅    | `96cc167` | 展开 / 记录发射也无 0x20 零填充 |
+| **S3.186** ✅    | —         | pack 前缀只留 5 个常量；去掉未读的 0x20 零洞 |
+| **S3.187** ⏳    | —         | 展开 pack 去掉 outbuf 前零洞 · **本步** |
 
 
-**缺口**：bytewise bootstrap 地板（loop-staged / pack scratch）· 短 lea · 单字节仍 SET · 真自举。逐步正文 → `git log`。
+**缺口**：bytewise 仍覆盖 5 常量 + payload · 展开 pack 仍打包 outbuf 零洞 · 短 lea · 单字节仍 SET · 真自举。逐步正文 → `git log`。
 
 ---
 
@@ -185,7 +186,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.186**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.187**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -193,4 +194,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-17**：发射路径无 DATA 填充 · 默认 **S3.186** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-17**：pack 前缀 5 字节 · 默认 **S3.187** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）

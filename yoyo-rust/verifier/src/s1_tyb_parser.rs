@@ -1822,7 +1822,8 @@ const S3_PACK_PROTO_CONST_1: u32 = 1;
 const S3_PACK_PROTO_CONST_2: u32 = 2;
 const S3_PACK_PROTO_CONST_3: u32 = 3;
 const S3_PACK_PROTO_CONST_Z: u32 = 4; // zero pad
-const S3_PACK_PROTO_PAY: u32 = 0x20;
+/// S3.186: payload starts right after the 5 const bytes. The old `0x20` gap was unread zeros.
+const S3_PACK_PROTO_PAY: u32 = S3_PACK_PROTO_CONST_Z + 1;
 /// S3.142 fixed out (small unroll only); S3.145 loop uses `s3_pack_proto_out_off`.
 const S3_PACK_PROTO_OUT: u32 = 0x80;
 const S3_PACK_PROTO_SRC: u16 = 8;
@@ -2104,7 +2105,7 @@ fn s3_yoyo_pack_loop_stb_tyb(payload: &[u8]) -> (Vec<u8>, u32) {
     (s3_host_tyb_from_records(&recs), out_off)
 }
 
-/// S3.151/S3.153: OnceLock bytewise pack of const+zero gap `[0..PAY)` for via_ir scratch.
+/// S3.151/S3.186: OnceLock bytewise pack of the 5 const bytes `[0..PAY)`.
 fn s3_pack_scratch_prefix_recs() -> &'static [(u8, u8, [u8; 6])] {
     use std::sync::OnceLock;
     static PREFIX: OnceLock<Vec<(u8, u8, [u8; 6])>> = OnceLock::new();
@@ -4492,6 +4493,11 @@ mod tests {
         assert!(
             data_recs.iter().all(|r| r.argc == 1),
             "bootstrap scratch DATA must be argc=1 bytewise"
+        );
+        assert_eq!(
+            s3_pack_scratch_prefix_recs().len(),
+            S3_PACK_PROTO_PAY as usize,
+            "S3.186: prefix is the 5 const bytes, not a 0x20 zero gap"
         );
         let via = s3_pack_data_via_ir(&bytes);
         assert!(via.iter().any(|(_, argc, _)| *argc == 3) || bytes.len() < 3);
