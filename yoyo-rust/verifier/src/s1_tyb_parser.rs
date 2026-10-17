@@ -1574,6 +1574,29 @@ fn s3_pack_data_wire(bytes: &[u8]) -> Vec<u8> {
     out
 }
 
+/// S3.144: parse pack wire (8B×N) back into DATA records.
+fn s3_pack_wire_to_records(wire: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
+    assert_eq!(wire.len() % 8, 0, "pack wire must be 8-byte records");
+    wire.chunks_exact(8)
+        .map(|c| {
+            let mut a = [0u8; 6];
+            a.copy_from_slice(&c[2..8]);
+            (c[0], c[1], a)
+        })
+        .collect()
+}
+
+/// S3.144: pack via YOYO loop IR (sim) → wire → records; empty stays empty.
+fn s3_pack_data_via_ir(bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
+    if bytes.is_empty() {
+        return Vec::new();
+    }
+    let tyb = s3_yoyo_pack_loop_tyb(bytes);
+    let wire = s3_sim_prog_loop(&tyb, 0, S3_PACK_PROTO_OUT, 0)
+        .expect("s3_pack_data_via_ir: sim pack");
+    s3_pack_wire_to_records(&wire)
+}
+
 /// S3.142 pack-proto DATA layout (no STB — write via 1-byte MEMCPY from consts/payload).
 const S3_PACK_PROTO_CONST_OP: u32 = 0; // byte 0x10
 const S3_PACK_PROTO_CONST_1: u32 = 1;
@@ -1646,6 +1669,103 @@ fn s3_yoyo_pack_proto_tyb(payload: &[u8]) -> Vec<u8> {
     data[pay..pay + payload.len()].copy_from_slice(payload);
     let mut recs = s3_pack_data(&data);
     recs.extend(s3_yoyo_pack_proto_ir(payload.len()));
+    s3_host_tyb_from_records(&recs)
+}
+
+/// S3.143 loop pack slots (CUR/END/REM/CHUNK/THREE; SRC/DST/ONE shared with 142).
+const S3_PACK_LOOP_CUR: u16 = 4;
+const S3_PACK_LOOP_END: u16 = 5;
+const S3_PACK_LOOP_REM: u16 = 6;
+const S3_PACK_LOOP_CHUNK: u16 = 7;
+const S3_PACK_LOOP_THREE: u16 = 10;
+const S3_PACK_LOOP_L_LOOP: u32 = 1;
+const S3_PACK_LOOP_L_USE_REM: u32 = 2;
+const S3_PACK_LOOP_L_PACK: u32 = 3;
+const S3_PACK_LOOP_L_DONE: u32 = 4;
+
+/// S3.143: looped YOYO IR pack (CMP/JL/SUBV/ADDV/MEMCPY). Payload must be
+/// zero-padded 2B past `payload_len` so chunk=1/2 can still read 3 arg lows.
+fn s3_yoyo_pack_loop_ir(payload_len: u32) -> Vec<(u8, u8, [u8; 6])> {
+    let mut r = Vec::new();
+    r.push(s3_rec_set(S3_PACK_PROTO_ONE, 1));
+    r.push(s3_rec_set(S3_PACK_LOOP_THREE, S3_PACK_CHUNK as u32));
+    r.push(s3_rec_set(S3_PACK_PROTO_DST, S3_PACK_PROTO_OUT));
+    r.push(s3_rec_set(S3_PACK_LOOP_CUR, S3_PACK_PROTO_PAY));
+    r.push(s3_rec_set(
+        S3_PACK_LOOP_END,
+        S3_PACK_PROTO_PAY + payload_len,
+    ));
+    r.push(s3_rec_label(S3_PACK_LOOP_L_LOOP));
+    r.push(s3_rec_cmp(S3_PACK_LOOP_CUR, S3_PACK_LOOP_END));
+    r.push(s3_rec_je(S3_PACK_LOOP_L_DONE));
+    r.push(s3_rec_movrr(S3_PACK_LOOP_REM, S3_PACK_LOOP_END));
+    r.push(s3_rec_subv(S3_PACK_LOOP_REM, S3_PACK_LOOP_CUR));
+    r.push(s3_rec_movrr(S3_PACK_LOOP_CHUNK, S3_PACK_LOOP_THREE));
+    r.push(s3_rec_cmp(S3_PACK_LOOP_REM, S3_PACK_LOOP_THREE));
+    r.push(s3_rec_jl(S3_PACK_LOOP_L_USE_REM));
+    r.push(s3_rec_jmp(S3_PACK_LOOP_L_PACK));
+    r.push(s3_rec_label(S3_PACK_LOOP_L_USE_REM));
+    r.push(s3_rec_movrr(S3_PACK_LOOP_CHUNK, S3_PACK_LOOP_REM));
+    r.push(s3_rec_label(S3_PACK_LOOP_L_PACK));
+    // op 0x10
+    r.push(s3_rec_set(S3_PACK_PROTO_SRC, S3_PACK_PROTO_CONST_OP));
+    r.push(s3_rec_memcpy(
+        S3_PACK_PROTO_DST,
+        S3_PACK_PROTO_SRC,
+        S3_PACK_PROTO_ONE,
+    ));
+    r.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
+    // argc = DATA[CHUNK] (consts at 1/2/3)
+    r.push(s3_rec_set(S3_PACK_PROTO_SRC, 0));
+    r.push(s3_rec_addv(S3_PACK_PROTO_SRC, S3_PACK_LOOP_CHUNK));
+    r.push(s3_rec_memcpy(
+        S3_PACK_PROTO_DST,
+        S3_PACK_PROTO_SRC,
+        S3_PACK_PROTO_ONE,
+    ));
+    r.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
+    // args: b0,0,b1,0,b2,0 (over-read safe via payload zero pad)
+    for k in 0..S3_PACK_CHUNK as u32 {
+        r.push(s3_rec_movrr(S3_PACK_PROTO_SRC, S3_PACK_LOOP_CUR));
+        if k > 0 {
+            r.push(s3_rec_add(S3_PACK_PROTO_SRC, k));
+        }
+        r.push(s3_rec_memcpy(
+            S3_PACK_PROTO_DST,
+            S3_PACK_PROTO_SRC,
+            S3_PACK_PROTO_ONE,
+        ));
+        r.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
+        r.push(s3_rec_set(S3_PACK_PROTO_SRC, S3_PACK_PROTO_CONST_Z));
+        r.push(s3_rec_memcpy(
+            S3_PACK_PROTO_DST,
+            S3_PACK_PROTO_SRC,
+            S3_PACK_PROTO_ONE,
+        ));
+        r.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
+    }
+    r.push(s3_rec_addv(S3_PACK_LOOP_CUR, S3_PACK_LOOP_CHUNK));
+    r.push(s3_rec_jmp(S3_PACK_LOOP_L_LOOP));
+    r.push(s3_rec_label(S3_PACK_LOOP_L_DONE));
+    r.push((0xFF, 0, [0; 6]));
+    r
+}
+
+/// S3.143: firmware for looped pack IR; payload zero-padded +2 for arg over-read.
+fn s3_yoyo_pack_loop_tyb(payload: &[u8]) -> Vec<u8> {
+    assert!(!payload.is_empty());
+    let wire_bytes = ((payload.len() + S3_PACK_CHUNK - 1) / S3_PACK_CHUNK) * 8;
+    let mut data = vec![0u8; S3_PACK_PROTO_OUT as usize + wire_bytes];
+    data[S3_PACK_PROTO_CONST_OP as usize] = 0x10;
+    data[S3_PACK_PROTO_CONST_1 as usize] = 1;
+    data[S3_PACK_PROTO_CONST_2 as usize] = 2;
+    data[S3_PACK_PROTO_CONST_3 as usize] = 3;
+    let pay = S3_PACK_PROTO_PAY as usize;
+    // Ensure +2 zero pad past payload for chunk over-read (within outbuf gap).
+    assert!(pay + payload.len() + 2 <= S3_PACK_PROTO_OUT as usize);
+    data[pay..pay + payload.len()].copy_from_slice(payload);
+    let mut recs = s3_pack_data(&data);
+    recs.extend(s3_yoyo_pack_loop_ir(payload.len() as u32));
     s3_host_tyb_from_records(&recs)
 }
 
@@ -1869,6 +1989,11 @@ fn s3_rec_addv(dst: u16, src: u16) -> (u8, u8, [u8; 6]) {
     let s = src.to_le_bytes();
     (0x68, 2, [d[0], d[1], s[0], s[1], 0, 0])
 }
+fn s3_rec_subv(dst: u16, src: u16) -> (u8, u8, [u8; 6]) {
+    let d = dst.to_le_bytes();
+    let s = src.to_le_bytes();
+    (0x6A, 2, [d[0], d[1], s[0], s[1], 0, 0])
+}
 
 /// S3.117: shared scan/compose tail. `nrows` is 10 (host) or 3 (in-DLL).
 fn s3_prog_loop_code(ops_len: u32, nrows: u32) -> Vec<(u8, u8, [u8; 6])> {
@@ -1974,6 +2099,12 @@ fn s3_sim_prog_loop(tyb: &[u8], table_off: u64, outbuf: u32, prog_ptr: u64) -> R
             0x68 => {
                 let (d, s) = arg_slot_slot(rec).ok_or(0xFB)?;
                 state[d as usize] = state[d as usize].wrapping_add(state[s as usize]);
+                pc += 1;
+            }
+            // S3.143: SUBV for loop rem = end - cur in pack IR.
+            0x6A => {
+                let (d, s) = arg_slot_slot(rec).ok_or(0xFB)?;
+                state[d as usize] = state[d as usize].wrapping_sub(state[s as usize]);
                 pc += 1;
             }
             0x80 => {
@@ -3550,6 +3681,47 @@ mod tests {
             let got = s3_sim_prog_loop(&tyb, 0, S3_PACK_PROTO_OUT, 0)
                 .unwrap_or_else(|e| panic!("sim pack len {n}: {e:#x}"));
             assert_eq!(got, expect, "YOYO IR pack != s3_pack_data wire, len {n}");
+        }
+    }
+
+    /// S3.143: looped YOYO IR pack (SUBV/CMP/JL) == `s3_pack_data` wire for lens 1..=64.
+    #[test]
+    fn s3_yoyo_ir_pack_loop_parity() {
+        for n in 1usize..=64 {
+            let bytes: Vec<u8> = (0..n).map(|i| (i * 17 + 3) as u8).collect();
+            let expect = s3_pack_data_wire(&bytes);
+            let tyb = s3_yoyo_pack_loop_tyb(&bytes);
+            let prog = parse_tyb(&tyb).expect("pack loop tyb");
+            assert!(
+                prog.records.iter().any(|r| r.op == 0x6A),
+                "loop pack must use SUBV"
+            );
+            assert!(
+                prog.records.iter().any(|r| r.op == 0x73),
+                "loop pack must use JL"
+            );
+            let got = s3_sim_prog_loop(&tyb, 0, S3_PACK_PROTO_OUT, 0)
+                .unwrap_or_else(|e| panic!("sim loop pack len {n}: {e:#x}"));
+            assert_eq!(got, expect, "loop IR pack != s3_pack_data wire, len {n}");
+        }
+    }
+
+    /// S3.144: IR wire→records equals `s3_pack_data` (still not host firmware path).
+    #[test]
+    fn s3_pack_data_via_ir_records_parity() {
+        assert!(s3_pack_data_via_ir(&[]).is_empty());
+        for n in 1usize..=64 {
+            let bytes: Vec<u8> = (0..n).map(|i| (i * 19 + 7) as u8).collect();
+            assert_eq!(
+                s3_pack_data_via_ir(&bytes),
+                s3_pack_data(&bytes),
+                "via_ir records != s3_pack_data, len {n}"
+            );
+            assert_eq!(
+                s3_unpack_data(&s3_pack_data_via_ir(&bytes)),
+                bytes,
+                "via_ir unpack, len {n}"
+            );
         }
     }
 

@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.143**（142 IR pack 原型已绿；下一刀 loop 版 pack + sim SUBV；仍不改 golden；**不**假 CLOSED）。
+**默认** `继续` **= S3.145**（144 via_ir records 已绿；下一刀动态布局让 via_ir 能打 host 固件 payload；仍不改 golden；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -109,11 +109,13 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.136** ✅    | `60052d6` | YOYO 表 DATA 统一走 `s3_pack_data`（仍 Rust） |
 | **S3.137–140** ✅ | `3596c40` | pack↔unpack；body OnceLock；host 最后一英里；111 例穷尽对拍 |
 | **S3.141** ✅    | `6010384` | `S3_PACK_CHUNK=3` 规格 + 记录数门禁 |
-| **S3.142** ✅    | —         | YOYO IR pack 原型（unroll SET/ADD/MEMCPY）对拍 wire |
-| **S3.143** ⏳    | —         | loop 版 pack IR + sim SUBV · **本步** |
+| **S3.142** ✅    | `c4a4ff0` | YOYO IR pack 原型（unroll SET/ADD/MEMCPY）对拍 wire |
+| **S3.143** ✅    | —         | loop 版 pack IR + sim SUBV；1..=64 wire 对拍 |
+| **S3.144** ✅    | —         | IR wire→records == `s3_pack_data`（via_ir） |
+| **S3.145** ⏳    | —         | 动态 pack 布局 · via_ir 打 host 级 payload · **本步** |
 
 
-**缺口**：`s3_pack_data` 仍是 Rust（IR 原型已存在；loop/自举未完）· in-DLL 短编码 RAW `lea` 必留 · 真自举。逐步正文 → `git log`。
+**缺口**：`s3_pack_data` 仍是 Rust（via_ir 已对拍；未接管 host 固件）· in-DLL 短编码 RAW `lea` 必留 · 真自举。逐步正文 → `git log`。
 
 ---
 
@@ -149,7 +151,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.143**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.145**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -157,4 +159,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-17**：IR pack 原型绿 · 默认 **S3.143** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-17**：loop pack IR 绿 · 默认 **S3.144** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
