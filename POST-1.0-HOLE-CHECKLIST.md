@@ -101,7 +101,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.118–119** ✅ | `53cd9d8` | scan/compose/fulltext 走同一 sim；host 直调 |
 | **S3.120–122** ✅ | `1f3b4f9` | 共用 DATA 前缀；模板体改由 `emit_x86` 生成 |
 | **S3.123** ✅    | `8fa5693` | RET/NOP 单字节改走 `emit_x86` |
-| **S3.124–128** ✅ | （本批） | fixed10 一份；`lea` 由 disp/slot 生成；SET/ADD 记录一份 |
+| **S3.124–128** ✅ | `fcb497e` | fixed10 一份；`lea` 由 disp/slot 生成；SET/ADD 记录一份 |
 | **S3.129** ⏳    | —         | 行体参数与 `fixed_template_ops` 对拍 · **本步** |
 
 
