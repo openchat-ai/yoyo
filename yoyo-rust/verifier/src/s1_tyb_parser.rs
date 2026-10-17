@@ -1816,13 +1816,8 @@ fn s3_pack_data_via_ir(bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
 }
 
 /// S3.142/S3.145 pack-proto DATA layout (no STB — write via 1-byte MEMCPY from consts/payload).
-const S3_PACK_PROTO_CONST_OP: u32 = 0; // byte 0x10
-const S3_PACK_PROTO_CONST_1: u32 = 1;
-const S3_PACK_PROTO_CONST_2: u32 = 2;
-const S3_PACK_PROTO_CONST_3: u32 = 3;
-const S3_PACK_PROTO_CONST_Z: u32 = 4; // zero pad
-/// S3.186: payload starts right after the 5 const bytes. The old `0x20` gap was unread zeros.
-const S3_PACK_PROTO_PAY: u32 = S3_PACK_PROTO_CONST_Z + 1;
+/// S3.186: old payload cursor, kept for the out_off formula check. Live packers no longer use it.
+const S3_PACK_PROTO_PAY: u32 = 5;
 /// S3.142 fixed out (small unroll only); S3.145 loop uses `s3_pack_proto_out_off`.
 const S3_PACK_PROTO_OUT: u32 = 0x80;
 const S3_PACK_PROTO_SRC: u16 = 8;
@@ -1869,21 +1864,16 @@ fn s3_pack_proto_putc_stb(recs: &mut Vec<(u8, u8, [u8; 6])>, src_off: u32) {
 /// S3.142: one DATA `0x10` record (8 wire bytes) from payload at `base`, argc=`n`.
 fn s3_pack_proto_record(recs: &mut Vec<(u8, u8, [u8; 6])>, base: u32, n: u8) {
     debug_assert!((1..=S3_PACK_CHUNK as u8).contains(&n));
-    s3_pack_proto_putc(recs, S3_PACK_PROTO_CONST_OP);
-    let argc_off = match n {
-        1 => S3_PACK_PROTO_CONST_1,
-        2 => S3_PACK_PROTO_CONST_2,
-        3 => S3_PACK_PROTO_CONST_3,
-        _ => unreachable!(),
-    };
-    s3_pack_proto_putc(recs, argc_off);
+    const BASE: u32 = 16;
+    s3_pack_proto_putc(recs, BASE);
+    s3_pack_proto_putc(recs, BASE + n as u32);
     for k in 0..S3_PACK_CHUNK as u32 {
         if (k as u8) < n {
             s3_pack_proto_putc(recs, base + k);
         } else {
-            s3_pack_proto_putc(recs, S3_PACK_PROTO_CONST_Z);
+            s3_pack_proto_putc(recs, BASE + 4);
         }
-        s3_pack_proto_putc(recs, S3_PACK_PROTO_CONST_Z);
+        s3_pack_proto_putc(recs, BASE + 4);
     }
 }
 
@@ -1891,35 +1881,30 @@ fn s3_pack_proto_record(recs: &mut Vec<(u8, u8, [u8; 6])>, base: u32, n: u8) {
 /// Builder is still Rust; the *executed* algorithm is YOYO ops (no STB — 1-byte MEMCPY).
 fn s3_yoyo_pack_proto_ir(payload_len: usize) -> Vec<(u8, u8, [u8; 6])> {
     let mut recs = Vec::new();
+    // S3.195: consts live at 16, payload at 0. Both sit below the fixed outbuf.
+    recs.push(s3_rec_set(S3_PACK_PROTO_DST, 16));
+    for b in [0x10u8, 1, 2, 3, 0] {
+        recs.push(s3_rec_set(S3_PACK_STB_TMP, b as u32));
+        recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_PROTO_DST, 0));
+        recs.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
+    }
     recs.push(s3_rec_set(S3_PACK_PROTO_ONE, 1));
     recs.push(s3_rec_set(S3_PACK_PROTO_DST, S3_PACK_PROTO_OUT));
     let mut i = 0usize;
     while i < payload_len {
         let n = (payload_len - i).min(S3_PACK_CHUNK) as u8;
-        s3_pack_proto_record(&mut recs, S3_PACK_PROTO_PAY + i as u32, n);
+        s3_pack_proto_record(&mut recs, i as u32, n);
         i += n as usize;
     }
     recs.push((0xFF, 0, [0; 6]));
     recs
 }
 
-/// S3.187: consts + payload only. Outbuf is not pre-packed; MEMCPY/STB grow it.
-fn s3_pack_proto_scratch(payload: &[u8]) -> Vec<u8> {
-    let mut data = vec![0u8; S3_PACK_PROTO_PAY as usize + payload.len()];
-    data[S3_PACK_PROTO_CONST_OP as usize] = 0x10;
-    data[S3_PACK_PROTO_CONST_1 as usize] = 1;
-    data[S3_PACK_PROTO_CONST_2 as usize] = 2;
-    data[S3_PACK_PROTO_CONST_3 as usize] = 3;
-    let pay = S3_PACK_PROTO_PAY as usize;
-    data[pay..].copy_from_slice(payload);
-    data
-}
-
-/// S3.142/S3.187: firmware = const/payload DATA + unrolled pack IR.
+/// S3.142/S3.195: firmware = payload DATA + unrolled pack IR.
 fn s3_yoyo_pack_proto_tyb(payload: &[u8]) -> Vec<u8> {
     assert!(!payload.is_empty() && payload.len() <= 6);
     // S3.153: bootstrap scratch is bytewise (not chunk-3).
-    let mut recs = s3_pack_data_bytewise(&s3_pack_proto_scratch(payload));
+    let mut recs = s3_pack_data_bytewise(payload);
     recs.extend(s3_yoyo_pack_proto_ir(payload.len()));
     s3_host_tyb_from_records(&recs)
 }
@@ -4146,8 +4131,8 @@ mod tests {
             let tyb = s3_yoyo_pack_proto_tyb(&bytes);
             assert_eq!(
                 s3_unpack_data_tyb(&tyb).len(),
-                S3_PACK_PROTO_PAY as usize + n,
-                "S3.187: no outbuf zero gap in proto scratch"
+                n,
+                "S3.195: proto scratch is the payload only"
             );
             let prog = parse_tyb(&tyb).expect("pack proto tyb");
             assert!(
