@@ -1529,6 +1529,11 @@ fn s3_host_pack_bytes(op: u8, bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     recs
 }
 
+/// S3.150: RAW `0xA1` pack helper (short lea / PE seeds — still Rust chunk pack).
+fn s3_append_raw_a1(recs: &mut Vec<(u8, u8, [u8; 6])>, bytes: &[u8]) {
+    recs.extend(s3_host_pack_bytes(0xA1, bytes));
+}
+
 /// S3.141: YOYO-target chunk size for DATA `0x10` pack (still Rust today).
 const S3_PACK_CHUNK: usize = 3;
 
@@ -3728,6 +3733,27 @@ mod tests {
         }
     }
 
+    /// S3.150: RAW A1 short-lea packs go through `s3_append_raw_a1` (still Rust).
+    #[test]
+    fn s3_append_raw_a1_matches_host_pack() {
+        let mut a = Vec::new();
+        s3_append_raw_a1(&mut a, S3_LEA_PTR);
+        assert_eq!(a, s3_host_pack_bytes(0xA1, S3_LEA_PTR));
+        assert_eq!(S3_LEA_PTR.len(), 7);
+        let dll = parse_tyb(&s3_table_prog_loop_tyb(&[0xFF])).unwrap();
+        let a1_bytes: usize = dll
+            .records
+            .iter()
+            .filter(|r| r.op == 0xA1)
+            .map(|r| r.argc as usize)
+            .sum();
+        assert_eq!(
+            a1_bytes,
+            S3_LEA_TABLE.len() + S3_LEA_DST.len() + S3_LEA_PROG.len(),
+            "in-DLL A1 payload bytes == three lea seeds"
+        );
+    }
+
     /// S3.149: packer scratch DATA length == out_off (no pre-packed outbuf zeros).
     #[test]
     fn s3_pack_loop_scratch_excludes_outbuf() {
@@ -4051,8 +4077,8 @@ mod tests {
         let table = s3_fixed_table(&[0xFF, 0x00]);
         // S3.147: DATA via_ir (Rust pack remains packer-scratch only).
         let mut recs = s3_pack_data_via_ir(&table);
-        // S3.131: short `lea rax,[r15]` seed (not disp32 — would lengthen and break goldens).
-        recs.extend(s3_host_pack_bytes(0xA1, S3_LEA_PTR));
+        // S3.131/S3.150: short `lea rax,[r15]` seed (not disp32 — would break goldens).
+        s3_append_raw_a1(&mut recs, S3_LEA_PTR);
         append_scan_byte_out(&mut recs, needle, 2, 1, 2);
         tyb_from_records(&recs)
     }
@@ -4115,8 +4141,8 @@ mod tests {
     fn s3_table_compose_tyb(needle: u8) -> Vec<u8> {
         let table = s3_fixed_table(&[0xFF, 0x00, 0x30]);
         let mut recs = s3_pack_data_via_ir(&table);
-        recs.extend(s3_host_pack_bytes(0xA1, S3_LEA_PTR));
-        recs.extend(s3_host_pack_bytes(0xA1, &S3_LEA_DST));
+        s3_append_raw_a1(&mut recs, S3_LEA_PTR);
+        s3_append_raw_a1(&mut recs, &S3_LEA_DST);
         append_scan_memcpy(&mut recs, needle, 1, 2, false);
         recs.push(s3_fixed_rec(0xFF));
         tyb_from_records(&recs)
@@ -4819,11 +4845,11 @@ mod tests {
     fn s3_table_fulltext_set_ret_tyb() -> Vec<u8> {
         let table = s3_fixed_table(&[0xFF, 0x00, 0x30]);
         let mut recs = s3_pack_data_via_ir(&table);
-        recs.extend(s3_host_pack_bytes(0xA1, S3_LEA_PTR));
-        recs.extend(s3_host_pack_bytes(0xA1, &S3_LEA_DST));
+        s3_append_raw_a1(&mut recs, S3_LEA_PTR);
+        s3_append_raw_a1(&mut recs, &S3_LEA_DST);
         append_scan_memcpy(&mut recs, 0x30, 1, 2, true);
         // re-seed table ptr for second scan
-        recs.extend(s3_host_pack_bytes(0xA1, S3_LEA_PTR));
+        s3_append_raw_a1(&mut recs, S3_LEA_PTR);
         append_scan_memcpy(&mut recs, 0xFF, 3, 4, false);
         recs.push(s3_fixed_rec(0xFF));
         tyb_from_records(&recs)
@@ -4900,11 +4926,11 @@ mod tests {
         let payload = s3_fixed_payload(&S3_FIXED10_OPS[..3], ops, S3_OUTBUF_OFF as usize);
         assert_eq!(S3_TABLE_OFF + 60, S3_PROG_OFF);
         assert_eq!(S3_PROG_OFF + 1, 0xBD);
-        // S3.147: in-DLL DATA via_ir; RAW A1 lea packs stay Rust.
+        // S3.147/S3.150: in-DLL DATA via_ir; RAW A1 lea prologue via shared helper.
         let mut recs = s3_pack_data_via_ir(&payload);
-        recs.extend(s3_host_pack_bytes(0xA1, &S3_LEA_TABLE));
-        recs.extend(s3_host_pack_bytes(0xA1, &S3_LEA_DST));
-        recs.extend(s3_host_pack_bytes(0xA1, &S3_LEA_PROG));
+        s3_append_raw_a1(&mut recs, &S3_LEA_TABLE);
+        s3_append_raw_a1(&mut recs, &S3_LEA_DST);
+        s3_append_raw_a1(&mut recs, &S3_LEA_PROG);
 
         recs.extend(s3_prog_loop_code(ops.len() as u32, 3));
         tyb_from_records(&recs)
