@@ -99,7 +99,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.113–115** ✅ | `05c8eba` | 打包 / 行模板 / SET body 收成一份；in-DLL RAW 留给 PE |
 | **S3.116–117** ✅ | `40de19f` | 一套 prog-loop sim + 一份循环指令尾 |
 | **S3.118–119** ✅ | `53cd9d8` | scan/compose/fulltext 走同一 sim；host 直调 |
-| **S3.120–122** ✅ | （本批） | 共用 DATA 前缀；模板体改由 `emit_x86` 生成 |
+| **S3.120–122** ✅ | `1f3b4f9` | 共用 DATA 前缀；模板体改由 `emit_x86` 生成 |
 | **S3.123** ⏳    | —         | RET/NOP 单字节也走 `emit_x86` · **本步** |
 
 
