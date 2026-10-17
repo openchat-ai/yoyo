@@ -3890,14 +3890,20 @@ mod tests {
         );
     }
 
-    /// S3.163: IR self-host roadmap gate — what pack/STB folded vs what remains.
-    /// Not a schedule. YOYO writing TYB records is the next capability cliff.
+    /// S3.163/S3.170: IR self-host roadmap gate — pack/STB/TYB-emit vs remaining.
+    /// Not a schedule. Emitter IR is still Rust-assembled; next cliff = YOYO
+    /// builds the emitter program (or TYB bytes) without `s3_append_emit_rec_stb`.
     #[test]
     fn s3_ir_selfhost_roadmap() {
         // Done: DATA pack algorithm runs as YOYO IR (STB loop) via via_ir.
         let (probe, _) = s3_yoyo_pack_loop_stb_tyb(&[1, 2, 3, 4]);
         assert!(parse_tyb(&probe).unwrap().records.iter().any(|r| r.op == 0x81));
         assert_eq!(s3_pack_data_via_ir(&[9, 8, 7]), s3_pack_data(&[9, 8, 7]));
+        // Done: YOYO STB can emit a full TYB file that mini-PE accepts.
+        let body = [s3_fixed_rec(0xFF)];
+        let (fw, off) = s3_yoyo_emit_tyb_file(&body);
+        let emitted = s3_sim_prog_loop(&fw, 0, off, 0).unwrap();
+        assert!(compile_tyb_to_pe_mini(&emitted).is_ok());
         // Floor: bootstrap scratch is still Rust bytewise TYB records.
         let prefix = s3_pack_scratch_prefix_recs();
         assert!(prefix.iter().all(|(_, argc, _)| *argc == 1));
@@ -3909,8 +3915,7 @@ mod tests {
         assert!(dll.records.iter().any(|r| r.op == 0xA1));
         let host = parse_tyb(&s3_host_prog_loop_tyb(&[0xFF])).unwrap();
         assert!(host.records.iter().all(|r| r.op != 0xA1));
-        // Cliff: IR builders (`s3_rec_*`) and body bake remain Rust until
-        // YOYO can emit TYB record streams (op+argc+args) itself.
+        // Cliff: `s3_append_emit_rec_stb` / `s3_rec_*` builders remain Rust.
         let _ = s3_rec_stb(0, 1, 0);
         assert_eq!(s3_fixed_row(0xFF), s3_compute_fixed_body(0xFF));
     }
@@ -4084,6 +4089,17 @@ mod tests {
             if let Some(yoyo) = try_emit_text_via_yoyo_table(&ops) {
                 assert_eq!(yoyo, expect, "{name}: yoyo table still matches");
             }
+        }
+    }
+
+    /// S3.169: STB-emitted fixed10 TYB files compile through mini PE.
+    #[test]
+    fn s3_stb_emitted_tyb_compiles_mini_pe() {
+        for (name, body) in s3_fixed10_named_cases() {
+            let (fw, out_off) = s3_yoyo_emit_tyb_file(&body);
+            let emitted = s3_sim_prog_loop(&fw, 0, out_off, 0)
+                .unwrap_or_else(|e| panic!("{name}: emit {e:#x}"));
+            compile_tyb_to_pe_mini(&emitted).unwrap_or_else(|e| panic!("{name}: mini pe {e}"));
         }
     }
 
