@@ -1759,20 +1759,31 @@ fn s3_yoyo_pack_loop_ir(pay_off: u32, out_off: u32, payload_len: u32) -> Vec<(u8
     r
 }
 
-/// S3.143/S3.145/S3.149: firmware for looped pack IR; returns (tyb, out_off).
-/// Scratch DATA is only const+payload+2B pad (no pre-zeroed outbuf — sim grows).
+/// S3.151: OnceLock pack of const+zero gap `[0..PAY)` for via_ir scratch.
+fn s3_pack_scratch_prefix_recs() -> &'static [(u8, u8, [u8; 6])] {
+    use std::sync::OnceLock;
+    static PREFIX: OnceLock<Vec<(u8, u8, [u8; 6])>> = OnceLock::new();
+    PREFIX.get_or_init(|| {
+        let mut head = vec![0u8; S3_PACK_PROTO_PAY as usize];
+        head[S3_PACK_PROTO_CONST_OP as usize] = 0x10;
+        head[S3_PACK_PROTO_CONST_1 as usize] = 1;
+        head[S3_PACK_PROTO_CONST_2 as usize] = 2;
+        head[S3_PACK_PROTO_CONST_3 as usize] = 3;
+        s3_host_pack_bytes(0x10, &head)
+    })
+    .as_slice()
+}
+
+/// S3.143/S3.145/S3.149/S3.151: firmware for looped pack IR; returns (tyb, out_off).
+/// Scratch = cached prefix `[0..PAY)` + Rust-pack(payload+2B pad); sim grows outbuf.
 fn s3_yoyo_pack_loop_tyb(payload: &[u8]) -> (Vec<u8>, u32) {
     assert!(!payload.is_empty());
     let out_off = s3_pack_proto_out_off(payload.len());
-    let mut data = vec![0u8; out_off as usize];
-    data[S3_PACK_PROTO_CONST_OP as usize] = 0x10;
-    data[S3_PACK_PROTO_CONST_1 as usize] = 1;
-    data[S3_PACK_PROTO_CONST_2 as usize] = 2;
-    data[S3_PACK_PROTO_CONST_3 as usize] = 3;
-    let pay = S3_PACK_PROTO_PAY as usize;
-    data[pay..pay + payload.len()].copy_from_slice(payload);
-    // S3.148/S3.149: bootstrap scratch — Rust pack of const+payload only (not outbuf).
-    let mut recs = s3_host_pack_bytes(0x10, &data);
+    let mut body = payload.to_vec();
+    body.push(0);
+    body.push(0);
+    let mut recs = s3_pack_scratch_prefix_recs().to_vec();
+    recs.extend(s3_host_pack_bytes(0x10, &body));
     recs.extend(s3_yoyo_pack_loop_ir(
         S3_PACK_PROTO_PAY,
         out_off,
@@ -3628,8 +3639,9 @@ mod tests {
         );
     }
 
-    /// S3.135/S3.146: inventory of remaining Rust sidecar after fixed10 firmware fold.
-    /// Host DATA records now via_ir; Rust `s3_pack_data` remains for packer scratch + ref.
+    /// S3.135/S3.152: remaining Rust sidecar after pack via_ir fold (honest inventory).
+    /// Still Rust: via_ir bootstrap `host_pack_bytes(payload+2)`, short lea A1 bytes,
+    /// `emit_x86` body OnceLock, IR record builders. Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
         assert_eq!(S3_LEA_PTR.len(), 7, "short lea must stay 7B (not disp32)");
@@ -3645,12 +3657,12 @@ mod tests {
         assert_eq!(
             host_data.len(),
             s3_pack_data_via_ir(&payload).len(),
-            "S3.146: host DATA record count == via_ir"
+            "host DATA record count == via_ir"
         );
         assert_eq!(
             s3_unpack_data_tyb(&s3_host_prog_loop_tyb(&[0xFF])),
             payload,
-            "S3.146: host DATA unpacks to fixed payload"
+            "host DATA unpacks to fixed payload"
         );
         assert_eq!(
             s3_pack_data(&[0xAA, 0xBB, 0xCC, 0xDD]),
@@ -3661,6 +3673,10 @@ mod tests {
         let a1 = dll.records.iter().filter(|r| r.op == 0xA1).count();
         assert!(a1 >= 3, "in-DLL keeps ≥3 RAW lea packs for PE, got {a1}");
         assert_eq!(payload.len(), S3_HOST_OUTBUF_OFF as usize);
+        // S3.152: bootstrap still packs payload+2 in Rust (prefix is OnceLock).
+        let (_tyb, out_off) = s3_yoyo_pack_loop_tyb(&[0xAB, 0xCD]);
+        assert_eq!(out_off, s3_pack_proto_out_off(2));
+        assert!(!s3_pack_scratch_prefix_recs().is_empty());
     }
 
     /// S3.137/S3.141: pack ↔ unpack is the YOYO-target algorithm (still implemented in Rust).
@@ -3754,7 +3770,7 @@ mod tests {
         );
     }
 
-    /// S3.149: packer scratch DATA length == out_off (no pre-packed outbuf zeros).
+    /// S3.149/S3.151: packer scratch DATA length == out_off; prefix OnceLock stable.
     #[test]
     fn s3_pack_loop_scratch_excludes_outbuf() {
         let bytes: Vec<u8> = (0..64).map(|i| i as u8).collect();
@@ -3767,6 +3783,13 @@ mod tests {
             "scratch must stop at out_off (sim grows outbuf)"
         );
         assert_eq!(&scratch[S3_PACK_PROTO_PAY as usize..][..64], &bytes[..]);
+        assert_eq!(scratch[0], 0x10);
+        assert_eq!(&scratch[1..4], &[1, 2, 3]);
+        // Second call hits OnceLock — same pointer.
+        assert!(std::ptr::eq(
+            s3_pack_scratch_prefix_recs(),
+            s3_pack_scratch_prefix_recs()
+        ));
     }
 
     /// S3.148: `s3_pack_data` is reference-only; firmware builders use via_ir /

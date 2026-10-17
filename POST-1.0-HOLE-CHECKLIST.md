@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.151**（150 A1 helper 已收；下一刀 scratch 前缀 OnceLock；仍不改 golden；**不**假 CLOSED）。
+**默认** `继续` **= S3.153**（152 剩余面已刷新；下一刀真自举近端 / STB 或 bootstrap 再削；仍不改 golden；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -114,10 +114,12 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.145–146** ✅ | `3ff56ce` | 动态布局；host 固件 DATA 改走 via_ir |
 | **S3.147–148** ✅ | `a85b062` | 表路径 via_ir；`s3_pack_data` 仅参照；scratch=`host_pack_bytes` |
 | **S3.149** ✅    | `e6a48db` | scratch 仅 const+payload；sim MEMCPY 增长 outbuf |
-| **S3.150** ⏳    | —         | 短 lea / in-DLL A1 轴 · **本步** |
+| **S3.150** ✅    | `85aa57f` | `s3_append_raw_a1`；in-DLL 三 lea 种子共用 |
+| **S3.151–152** ✅ | —         | scratch 前缀 OnceLock；pack 后剩余 Rust 面清单 |
+| **S3.153** ⏳    | —         | bootstrap 再削 / STB / 真自举近端 · **本步** |
 
 
-**缺口**：via_ir bootstrap 仍 Rust `host_pack_bytes`(缩小) · in-DLL 短编码 RAW `lea` 必留 · 真自举。逐步正文 → `git log`。
+**缺口**：via_ir bootstrap 仍 Rust pack(payload+2) · in-DLL 短 lea 字节必留 · 真自举。逐步正文 → `git log`。
 
 ---
 
@@ -153,7 +155,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.150**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.153**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -161,4 +163,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-17**：pack 轴收拢 · 默认 **S3.150** 短 lea · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-17**：pack 后剩余面钉死 · 默认 **S3.153** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
