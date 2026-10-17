@@ -3350,6 +3350,12 @@ mod tests {
             fw.records.iter().all(|r| r.op != 0xA1),
             "S3.112 host firmware has no RAW prologue"
         );
+        // S3.132: in-DLL still needs short-form RAW lea for PE (host sim seeds offsets).
+        let dll = parse_tyb(&s3_table_prog_loop_tyb(&[0xFF])).unwrap();
+        assert!(
+            dll.records.iter().any(|r| r.op == 0xA1),
+            "in-DLL prog-loop must keep RAW lea for PE"
+        );
         for (name, semantic) in cases {
             let tyb = tyb_from_records(&semantic);
             let prog = parse_tyb(&tyb).unwrap();
@@ -3487,10 +3493,8 @@ mod tests {
     fn s3_table_scan_tyb(needle: u8) -> Vec<u8> {
         let table = s3_fixed_table(&[0xFF, 0x00]);
         let mut recs = s3_host_pack_bytes(0x10, &table);
-        // lea rax,[r15]; mov [r15+15*8],rax — PE runtime ptr seed (sim seeds offset 0)
-        recs.push((0xA1, 3, [0x49, 0, 0x8D, 0, 0x07, 0]));
-        recs.push((0xA1, 3, [0x49, 0, 0x89, 0, 0x47, 0]));
-        recs.push((0xA1, 1, [0x78, 0, 0, 0, 0, 0])); // disp8=0x78 = slot15*8
+        // S3.131: short `lea rax,[r15]` seed (not disp32 — would lengthen and break goldens).
+        recs.extend(s3_host_pack_bytes(0xA1, S3_LEA_PTR));
         let slot = |s: u16| s.to_le_bytes();
         let set = s3_rec_set;
         let add = s3_rec_add;
@@ -3512,10 +3516,10 @@ mod tests {
         recs.push((0x65, 2, [i[0], i[1], nr[0], nr[1], 0, 0])); // CMP i,nrows
         recs.push((0x73, 1, [1, 0, 0, 0, 0, 0])); // JL loop
         recs.push(set(S3_SCAN_OUT, 0xFE)); // miss
-        recs.push((0xFF, 0, [0; 6]));
+        recs.push(s3_fixed_rec(0xFF));
         recs.push((0x40, 1, [2, 0, 0, 0, 0, 0])); // LABEL found
         recs.push((0x80, 3, [out[0], out[1], p[0], p[1], 4, 0])); // LDB out,[ptr+4]
-        recs.push((0xFF, 0, [0; 6]));
+        recs.push(s3_fixed_rec(0xFF));
         tyb_from_records(&recs)
     }
 
@@ -3551,13 +3555,11 @@ mod tests {
         assert_eq!(s3_sim_table_scan(&s3_table_scan_tyb(0x00)), 0x90);
         assert_eq!(s3_sim_table_scan(&s3_table_scan_tyb(0xAB)), 0xFE); // miss
         // Match emit_x86(RET) / emit_x86(NOP;RET) first bytes
-        let ret_b = emit_x86(&parse_tyb(&tyb_from_records(&[(0xFF, 0, [0; 6])])).unwrap()).text;
+        let ret_b = emit_x86(&parse_tyb(&tyb_from_records(&[s3_fixed_rec(0xFF)])).unwrap()).text;
         assert_eq!(ret_b, vec![0xC3]);
-        let nop_b = emit_x86(&parse_tyb(&tyb_from_records(&[
-            (0x00, 0, [0; 6]),
-            (0xFF, 0, [0; 6]),
-        ]))
-        .unwrap())
+        let nop_b = emit_x86(
+            &parse_tyb(&tyb_from_records(&[s3_fixed_rec(0x00), s3_fixed_rec(0xFF)])).unwrap(),
+        )
         .text;
         assert_eq!(nop_b[0], 0x90);
         // Golden fixture (needle=RET) matches builder
@@ -3575,48 +3577,14 @@ mod tests {
     /// .data offset for composed template bytes (beyond table + slot area).
     const S3_OUTBUF_OFF: u32 = 0xC8; // 200
 
-    /// S3.17: 3-row table (RET/NOP/SET) + scan + MEMCPY_DATA → outbuf@.data+0xC8.
+    /// S3.17/S3.131: 3-row table + shared short lea + `append_scan_memcpy` + RET.
     fn s3_table_compose_tyb(needle: u8) -> Vec<u8> {
         let table = s3_fixed_table(&[0xFF, 0x00, 0x30]);
         let mut recs = s3_host_pack_bytes(0x10, &table);
-        // lea rax,[r15]; mov [r15+15*8],rax  — scan ptr
-        recs.extend(s3_host_pack_bytes(0xA1, &[
-            0x49, 0x8D, 0x07, 0x49, 0x89, 0x47, 0x78,
-        ]));
-        // lea rax,[r15+0xC8]; mov [r15+9*8],rax  — compose dst
+        recs.extend(s3_host_pack_bytes(0xA1, S3_LEA_PTR));
         recs.extend(s3_host_pack_bytes(0xA1, &S3_LEA_DST));
-
-        let slot = |s: u16| s.to_le_bytes();
-        let set = s3_rec_set;
-        let add = s3_rec_add;
-        let p = slot(S3_SCAN_PTR);
-        let o = slot(S3_SCAN_OP);
-        let n = slot(S3_SCAN_NEEDLE);
-        let i = slot(S3_SCAN_I);
-        let nr = slot(S3_SCAN_NROWS);
-        let len = slot(S3_SCAN_OUT); // reuse OUT as len after found
-        let src = slot(S3_COMPOSE_SRC);
-        let dst = slot(S3_COMPOSE_DST);
-
-        recs.push(set(S3_SCAN_NEEDLE, needle as u32));
-        recs.push(set(S3_SCAN_I, 0));
-        recs.push(set(S3_SCAN_NROWS, 3));
-        recs.push((0x40, 1, [1, 0, 0, 0, 0, 0])); // loop
-        recs.push((0x80, 3, [o[0], o[1], p[0], p[1], 0, 0]));
-        recs.push((0x65, 2, [o[0], o[1], n[0], n[1], 0, 0]));
-        recs.push((0x71, 1, [2, 0, 0, 0, 0, 0])); // JE found
-        recs.push(add(S3_SCAN_PTR, 20));
-        recs.push(add(S3_SCAN_I, 1));
-        recs.push((0x65, 2, [i[0], i[1], nr[0], nr[1], 0, 0]));
-        recs.push((0x73, 1, [1, 0, 0, 0, 0, 0])); // JL loop
-        recs.push(set(S3_SCAN_OUT, 0xFE)); // miss status
-        recs.push((0xFF, 0, [0; 6]));
-        recs.push((0x40, 1, [2, 0, 0, 0, 0, 0])); // found
-        recs.push((0x80, 3, [len[0], len[1], p[0], p[1], 1, 0])); // LDB len
-        recs.push((0x64, 2, [src[0], src[1], p[0], p[1], 0, 0])); // MOVRR src,ptr
-        recs.push(add(S3_COMPOSE_SRC, 4)); // skip op/len/pad → bytes
-        recs.push((0x84, 3, [dst[0], dst[1], src[0], src[1], len[0], len[1]]));
-        recs.push((0xFF, 0, [0; 6]));
+        append_scan_memcpy(&mut recs, needle, 1, 2, false);
+        recs.push(s3_fixed_rec(0xFF));
         tyb_from_records(&recs)
     }
 
@@ -3637,11 +3605,9 @@ mod tests {
         // full SET+RET ≡ emit_x86
         let mut composed = set;
         composed.push(0xC3);
-        let expect = emit_x86(&parse_tyb(&tyb_from_records(&[
-            (0x30, 2, [0, 0, 0xEF, 0xBE, 0xAD, 0xDE]),
-            (0xFF, 0, [0; 6]),
-        ]))
-        .unwrap())
+        let expect = emit_x86(
+            &parse_tyb(&tyb_from_records(&[s3_fixed_rec(0x30), s3_fixed_rec(0xFF)])).unwrap(),
+        )
         .text;
         assert_eq!(composed, expect);
         assert_eq!(s3_sim_table_compose(&s3_table_compose_tyb(0xAB)), Err(0xFE));
@@ -4318,7 +4284,7 @@ mod tests {
         recs.push((0x65, 2, [i[0], i[1], nr[0], nr[1], 0, 0]));
         recs.push((0x73, 1, [lb[0], lb[1], lb[2], lb[3], 0, 0]));
         recs.push(set(S3_SCAN_OUT, 0xFE));
-        recs.push((0xFF, 0, [0; 6]));
+        recs.push(s3_fixed_rec(0xFF));
         recs.push((0x40, 1, [fb[0], fb[1], fb[2], fb[3], 0, 0]));
         recs.push((0x80, 3, [len[0], len[1], p[0], p[1], 1, 0]));
         recs.push((0x64, 2, [src[0], src[1], p[0], p[1], 0, 0]));
@@ -4340,7 +4306,7 @@ mod tests {
         // re-seed table ptr for second scan
         recs.extend(s3_host_pack_bytes(0xA1, S3_LEA_PTR));
         append_scan_memcpy(&mut recs, 0xFF, 3, 4, false);
-        recs.push((0xFF, 0, [0; 6]));
+        recs.push(s3_fixed_rec(0xFF));
         tyb_from_records(&recs)
     }
 

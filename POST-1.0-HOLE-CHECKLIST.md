@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.131**（fixed10 固件折叠到此；下一刀不改 golden、不加 opcode；**不**假 CLOSED）。
+**默认** `继续` **= S3.133**（fixed10 固件折叠收口；下一轴不改 golden / 不加 opcode；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -103,10 +103,11 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.123** ✅    | `8fa5693` | RET/NOP 单字节改走 `emit_x86` |
 | **S3.124–128** ✅ | `fcb497e` | fixed10 一份；`lea` 由 disp/slot 生成；SET/ADD 记录一份 |
 | **S3.129–130** ✅ | `432040f` | `s3_fixed_rec` 对拍；10 例由同一张表拼出 |
-| **S3.131** ⏳    | —         | 固件折叠止于此 · 不改 golden · **本步** |
+| **S3.131–132** ✅ | （本批） | 短 `lea` 共用；compose→`append_scan_memcpy`；in-DLL 仍有 A1 |
+| **S3.133** ⏳    | —         | 折叠收口 · 下一轴不改 golden · **本步** |
 
 
-**缺口**：fixed10 固件折叠已尽 · in-DLL 仍要 RAW `lea`（短编码，不能换成 disp32）· 真自举。逐步正文 → `git log`。
+**缺口**：DATA `0x10` 仍由 Rust pack · in-DLL 短编码 RAW `lea` 必留 · 真自举。逐步正文 → `git log`。
 
 ---
 
@@ -142,7 +143,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.131**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 固件字节不要再折。
+- `继续` → **S3.133**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -150,4 +151,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-17**：`s3_fixed_rec` 对拍 · 默认 **S3.131** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-17**：短 `lea` / compose 共用 · 默认 **S3.133** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
