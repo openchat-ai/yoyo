@@ -1605,6 +1605,38 @@ fn s3_yoyo_emit_recs_tyb(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
     (s3_host_tyb_from_records(&recs), out_off)
 }
 
+/// S3.167: STB-emit full TYB file: magic + reserved + rec_cnt + records.
+fn s3_yoyo_emit_tyb_file(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
+    assert!(records.len() <= 255, "S3.167 prototype: rec_cnt fits u8 path");
+    let out_off = 0x20u32;
+    let mut recs = s3_pack_data_bytewise(&vec![0u8; out_off as usize]);
+    recs.push(s3_rec_set(S3_PACK_PROTO_DST, out_off));
+    // magic "TYB\0"
+    for &b in &TYB_MAGIC {
+        recs.push(s3_rec_set(S3_PACK_STB_TMP, b as u32));
+        recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_PROTO_DST, 0));
+        recs.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
+    }
+    // reserved u16 = 0
+    for _ in 0..2 {
+        recs.push(s3_rec_set(S3_PACK_STB_TMP, 0));
+        recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_PROTO_DST, 0));
+        recs.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
+    }
+    // rec_cnt u16 LE
+    let cnt = (records.len() as u16).to_le_bytes();
+    for &b in &cnt {
+        recs.push(s3_rec_set(S3_PACK_STB_TMP, b as u32));
+        recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_PROTO_DST, 0));
+        recs.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
+    }
+    for &(op, argc, a) in records {
+        s3_append_emit_rec_stb(&mut recs, op, argc, a);
+    }
+    recs.push((0xFF, 0, [0; 6]));
+    (s3_host_tyb_from_records(&recs), out_off)
+}
+
 /// S3.141: YOYO-target chunk size for DATA `0x10` pack (still Rust today).
 const S3_PACK_CHUNK: usize = 3;
 
@@ -4012,6 +4044,28 @@ mod tests {
         assert_eq!(got, expect);
         // Round-trip: wire → records → matches inputs.
         assert_eq!(s3_pack_wire_to_records(&got), vec![ret, set]);
+    }
+
+    /// S3.167: YOYO STB-emits a full TYB file (== `s3_host_tyb_from_records`).
+    #[test]
+    fn s3_yoyo_emit_full_tyb_file_via_stb() {
+        let body = [
+            s3_rec_set(0, 0xDEAD_BEEF),
+            (0xFFu8, 0u8, [0u8; 6]),
+        ];
+        let expect = s3_host_tyb_from_records(&body);
+        let (fw, out_off) = s3_yoyo_emit_tyb_file(&body);
+        let got = s3_sim_prog_loop(&fw, 0, out_off, 0).expect("emit tyb file");
+        assert_eq!(got, expect);
+        let parsed = parse_tyb(&got).expect("emitted tyb parses");
+        assert_eq!(parsed.rec_cnt, 2);
+        assert_eq!(parsed.records[0].op, 0x30);
+        assert_eq!(parsed.records[1].op, 0xFF);
+        // emit_x86 of emitted file matches hand-built.
+        assert_eq!(
+            emit_x86(&parsed).text,
+            emit_x86(&parse_tyb(&expect).unwrap()).text
+        );
     }
 
     /// S3.159: STB copy runs on slim PE (Windows); outbuf gets source bytes.
