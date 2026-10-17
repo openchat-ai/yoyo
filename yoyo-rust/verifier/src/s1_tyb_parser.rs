@@ -1665,9 +1665,17 @@ fn s3_yoyo_emit_tyb_file_loop_staged(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>,
     (s3_host_tyb_from_records(&recs), out_off)
 }
 
-/// S3.172: default emit — flat TYB bytes written by IR SET+STB (no Rust flat preimage).
+/// S3.177: prefer unrolled IR write (no Rust flat) for small files; loop-staged
+/// O(1) IR when flat would explode unrolled size (still Rust flat preimage).
+const S3_EMIT_UNROLL_MAX_FLAT: usize = 64;
+
 fn s3_yoyo_emit_tyb_file(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
-    s3_yoyo_emit_tyb_file_unrolled(records)
+    let flat_len = HEADER_SIZE + records.len() * RECORD_SIZE;
+    if flat_len <= S3_EMIT_UNROLL_MAX_FLAT {
+        s3_yoyo_emit_tyb_file_unrolled(records)
+    } else {
+        s3_yoyo_emit_tyb_file_loop_staged(records)
+    }
 }
 
 /// S3.141: YOYO-target chunk size for DATA `0x10` pack (still Rust today).
@@ -3942,7 +3950,7 @@ mod tests {
                 .records
                 .iter()
                 .any(|r| r.op == 0x70),
-            "default emit is unrolled IR write, not loop-staged"
+            "small RET TYB uses unrolled emit (no JMP)"
         );
         let emitted = s3_sim_prog_loop(&fw, 0, off, 0).unwrap();
         assert_eq!(emitted, s3_host_tyb_from_records(&body));
@@ -3958,6 +3966,15 @@ mod tests {
         assert!(dll.records.iter().any(|r| r.op == 0xA1));
         let host = parse_tyb(&s3_host_prog_loop_tyb(&[0xFF])).unwrap();
         assert!(host.records.iter().all(|r| r.op != 0xA1));
+        // Floors + O(1) escape hatch (S3.174/S3.175).
+        let one = [s3_fixed_rec(0xFF)];
+        let (fw_u, _) = s3_yoyo_emit_tyb_file_unrolled(&one);
+        assert!(
+            parse_tyb(&fw_u).unwrap().records.iter().filter(|r| r.op == 0x81).count()
+                == HEADER_SIZE + RECORD_SIZE
+        );
+        let (fw_l, _) = s3_yoyo_emit_tyb_file_loop_staged(&one);
+        assert!(parse_tyb(&fw_l).unwrap().records.iter().any(|r| r.op == 0x70));
         // Cliff: `s3_append_emit_rec_stb` / `s3_rec_*` builders remain Rust.
         let _ = s3_rec_stb(0, 1, 0);
         assert_eq!(s3_fixed_row(0xFF), s3_compute_fixed_body(0xFF));
