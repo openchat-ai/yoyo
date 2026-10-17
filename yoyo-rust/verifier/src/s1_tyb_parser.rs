@@ -1862,6 +1862,72 @@ fn s3_yoyo_pack_loop_ir(pay_off: u32, out_off: u32, payload_len: u32) -> Vec<(u8
     r
 }
 
+/// S3.157: putc from address in `src_slot` via LDB→STB.
+fn s3_pack_loop_putc_from_slot(recs: &mut Vec<(u8, u8, [u8; 6])>, src_slot: u16) {
+    recs.push(s3_rec_ldb(S3_PACK_STB_TMP, src_slot, 0));
+    recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_PROTO_DST, 0));
+    recs.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
+}
+
+/// S3.157: looped pack IR using LDB→STB instead of MEMCPY.
+fn s3_yoyo_pack_loop_stb_ir(pay_off: u32, out_off: u32, payload_len: u32) -> Vec<(u8, u8, [u8; 6])> {
+    let mut r = Vec::new();
+    r.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
+    r.push(s3_rec_set(S3_PACK_LOOP_THREE, S3_PACK_CHUNK as u32));
+    r.push(s3_rec_set(S3_PACK_PROTO_DST, out_off));
+    r.push(s3_rec_set(S3_PACK_LOOP_CUR, pay_off));
+    r.push(s3_rec_set(S3_PACK_LOOP_END, pay_off + payload_len));
+    r.push(s3_rec_label(S3_PACK_LOOP_L_LOOP));
+    r.push(s3_rec_cmp(S3_PACK_LOOP_CUR, S3_PACK_LOOP_END));
+    r.push(s3_rec_je(S3_PACK_LOOP_L_DONE));
+    r.push(s3_rec_movrr(S3_PACK_LOOP_REM, S3_PACK_LOOP_END));
+    r.push(s3_rec_subv(S3_PACK_LOOP_REM, S3_PACK_LOOP_CUR));
+    r.push(s3_rec_movrr(S3_PACK_LOOP_CHUNK, S3_PACK_LOOP_THREE));
+    r.push(s3_rec_cmp(S3_PACK_LOOP_REM, S3_PACK_LOOP_THREE));
+    r.push(s3_rec_jl(S3_PACK_LOOP_L_USE_REM));
+    r.push(s3_rec_jmp(S3_PACK_LOOP_L_PACK));
+    r.push(s3_rec_label(S3_PACK_LOOP_L_USE_REM));
+    r.push(s3_rec_movrr(S3_PACK_LOOP_CHUNK, S3_PACK_LOOP_REM));
+    r.push(s3_rec_label(S3_PACK_LOOP_L_PACK));
+    // op 0x10 from const[0]
+    r.push(s3_rec_set(S3_PACK_PROTO_SRC, S3_PACK_PROTO_CONST_OP));
+    s3_pack_loop_putc_from_slot(&mut r, S3_PACK_PROTO_SRC);
+    // argc = DATA[CHUNK]
+    r.push(s3_rec_set(S3_PACK_PROTO_SRC, 0));
+    r.push(s3_rec_addv(S3_PACK_PROTO_SRC, S3_PACK_LOOP_CHUNK));
+    s3_pack_loop_putc_from_slot(&mut r, S3_PACK_PROTO_SRC);
+    for k in 0..S3_PACK_CHUNK as u32 {
+        r.push(s3_rec_movrr(S3_PACK_PROTO_SRC, S3_PACK_LOOP_CUR));
+        if k > 0 {
+            r.push(s3_rec_add(S3_PACK_PROTO_SRC, k));
+        }
+        s3_pack_loop_putc_from_slot(&mut r, S3_PACK_PROTO_SRC);
+        r.push(s3_rec_set(S3_PACK_PROTO_SRC, S3_PACK_PROTO_CONST_Z));
+        s3_pack_loop_putc_from_slot(&mut r, S3_PACK_PROTO_SRC);
+    }
+    r.push(s3_rec_addv(S3_PACK_LOOP_CUR, S3_PACK_LOOP_CHUNK));
+    r.push(s3_rec_jmp(S3_PACK_LOOP_L_LOOP));
+    r.push(s3_rec_label(S3_PACK_LOOP_L_DONE));
+    r.push((0xFF, 0, [0; 6]));
+    r
+}
+
+fn s3_yoyo_pack_loop_stb_tyb(payload: &[u8]) -> (Vec<u8>, u32) {
+    assert!(!payload.is_empty());
+    let out_off = s3_pack_proto_out_off(payload.len());
+    let mut body = payload.to_vec();
+    body.push(0);
+    body.push(0);
+    let mut recs = s3_pack_scratch_prefix_recs().to_vec();
+    recs.extend(s3_pack_data_bytewise(&body));
+    recs.extend(s3_yoyo_pack_loop_stb_ir(
+        S3_PACK_PROTO_PAY,
+        out_off,
+        payload.len() as u32,
+    ));
+    (s3_host_tyb_from_records(&recs), out_off)
+}
+
 /// S3.151/S3.153: OnceLock bytewise pack of const+zero gap `[0..PAY)` for via_ir scratch.
 fn s3_pack_scratch_prefix_recs() -> &'static [(u8, u8, [u8; 6])] {
     use std::sync::OnceLock;
@@ -3867,6 +3933,23 @@ mod tests {
             let got = s3_sim_prog_loop(&tyb, 0, out_off, 0)
                 .unwrap_or_else(|e| panic!("sim loop pack len {n}: {e:#x}"));
             assert_eq!(got, expect, "loop IR pack != s3_pack_data wire, len {n}");
+        }
+    }
+
+    /// S3.157: looped STB pack IR == `s3_pack_data` wire for lens 1..=64.
+    #[test]
+    fn s3_yoyo_ir_pack_loop_stb_parity() {
+        for n in 1usize..=64 {
+            let bytes: Vec<u8> = (0..n).map(|i| (i * 17 + 3) as u8).collect();
+            let expect = s3_pack_data_wire(&bytes);
+            let (tyb, out_off) = s3_yoyo_pack_loop_stb_tyb(&bytes);
+            assert!(
+                parse_tyb(&tyb).unwrap().records.iter().any(|r| r.op == 0x81),
+                "loop STB pack must use STB"
+            );
+            let got = s3_sim_prog_loop(&tyb, 0, out_off, 0)
+                .unwrap_or_else(|e| panic!("loop stb pack len {n}: {e:#x}"));
+            assert_eq!(got, expect, "loop STB IR pack != wire, len {n}");
         }
     }
 
