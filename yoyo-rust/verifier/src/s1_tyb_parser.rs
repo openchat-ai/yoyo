@@ -4563,6 +4563,18 @@ mod tests {
         ));
     }
 
+    /// S3.188: a short last chunk still reads CUR+1 and CUR+2. Those two zeros stay.
+    #[test]
+    fn s3_pack_scratch_keeps_overread_pad() {
+        let payload = [0x11u8];
+        let (tyb, out_off) = s3_yoyo_pack_loop_stb_tyb(&payload);
+        let scratch = s3_unpack_data_tyb(&tyb);
+        assert_eq!(scratch.len() as u32, out_off);
+        assert_eq!(scratch.len(), S3_PACK_PROTO_PAY as usize + payload.len() + 2);
+        assert_eq!(&scratch[scratch.len() - 2..], &[0, 0]);
+        assert_eq!(s3_pack_data_via_ir(&payload), s3_pack_data(&payload));
+    }
+
     /// S3.148: `s3_pack_data` is reference-only; firmware builders use via_ir /
     /// bootstrap `s3_host_pack_bytes` for packer scratch (not `s3_pack_data`).
     #[test]

@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.188**（187 展开 pack 不再打包 outbuf 零洞；下一刀钉住 payload+2 零垫；仍不改 golden；**不**假 CLOSED）。
+**默认** `继续` **= S3.189**（188 钉住 payload+2 零垫；下一刀去掉 loop-staged 未读前缀；仍不改 golden；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -147,11 +147,12 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.184** ✅    | `21db3dc` | 大发射无 DATA 记录；STB 自己撑开缓冲 |
 | **S3.185** ✅    | `96cc167` | 展开 / 记录发射也无 0x20 零填充 |
 | **S3.186** ✅    | `5401868` | pack 前缀只留 5 个常量；去掉未读的 0x20 零洞 |
-| **S3.187** ✅    | —         | 展开 pack scratch 只留常量+payload；outbuf 由写入撑开 |
-| **S3.188** ⏳    | —         | 钉住 payload 后 2 字节零垫 · **本步** |
+| **S3.187** ✅    | `994f665` | 展开 pack scratch 只留常量+payload；outbuf 由写入撑开 |
+| **S3.188** ✅    | —         | 短 chunk 会读 payload 后 2 个零；这 2 字节不砍 |
+| **S3.189** ⏳    | —         | loop-staged 去掉未读前缀 · **本步** |
 
 
-**缺口**：bytewise 仍覆盖 5 常量 + payload+2 · 短 lea · 单字节仍 SET · 真自举。逐步正文 → `git log`。
+**缺口**：bytewise 仍覆盖 5 常量 + payload+2 · loop-staged 对照仍含未读前缀 · 短 lea · 单字节仍 SET · 真自举。逐步正文 → `git log`。
 
 ---
 
@@ -187,7 +188,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.188**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.189**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -195,4 +196,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-17**：展开 pack 无 outbuf 零洞 · 默认 **S3.188** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-17**：payload+2 零垫钉住 · 默认 **S3.189** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
