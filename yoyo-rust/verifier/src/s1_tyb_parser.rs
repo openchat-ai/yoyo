@@ -3372,6 +3372,28 @@ mod tests {
         );
     }
 
+    /// S3.135: inventory of remaining Rust sidecar after fixed10 firmware fold.
+    /// Does not shrink the surface — documents it so the next axis stays honest.
+    #[test]
+    fn s3_fixed10_fold_remaining_rust_surface() {
+        assert_eq!(S3_LEA_PTR.len(), 7, "short lea must stay 7B (not disp32)");
+        assert_eq!(S3_LEA_PTR, &[0x49, 0x8D, 0x07, 0x49, 0x89, 0x47, 0x78]);
+        let host = parse_tyb(&s3_host_prog_loop_tyb(&[0xFF])).unwrap();
+        let host_data: Vec<_> = host.records.iter().filter(|r| matches!(r.op, 0x10 | 0x12 | 0x13)).collect();
+        assert!(!host_data.is_empty(), "host still Rust-packs DATA");
+        assert!(
+            host_data.iter().all(|r| r.op == 0x10),
+            "host DATA must stay op 0x10 only"
+        );
+        assert!(host.records.iter().all(|r| r.op != 0xA1));
+        let dll = parse_tyb(&s3_table_prog_loop_tyb(&[0xFF])).unwrap();
+        let a1 = dll.records.iter().filter(|r| r.op == 0xA1).count();
+        assert!(a1 >= 3, "in-DLL keeps ≥3 RAW lea packs for PE, got {a1}");
+        // Payload pad reaches outbuf; Rust packer still owns that layout.
+        let payload = s3_fixed_payload(&S3_FIXED10_OPS, &[0xFF], S3_HOST_OUTBUF_OFF as usize);
+        assert_eq!(payload.len(), S3_HOST_OUTBUF_OFF as usize);
+    }
+
     /// S3.110/S3.111: `S3-subset-fixed10` one-shot gate.
     /// All 10 ops: YOYO table compose == `emit_x86`, and mini PE is the YOYO path
     /// (no `pack_meta_emit` driver). Firmware Rust pack remains — not CLOSED.
