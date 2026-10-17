@@ -1586,28 +1586,33 @@ fn s3_pack_wire_to_records(wire: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
         .collect()
 }
 
-/// S3.144: pack via YOYO loop IR (sim) → wire → records; empty stays empty.
+/// S3.144/S3.145: pack via YOYO loop IR (sim) → wire → records; empty stays empty.
 fn s3_pack_data_via_ir(bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     if bytes.is_empty() {
         return Vec::new();
     }
-    let tyb = s3_yoyo_pack_loop_tyb(bytes);
-    let wire = s3_sim_prog_loop(&tyb, 0, S3_PACK_PROTO_OUT, 0)
-        .expect("s3_pack_data_via_ir: sim pack");
+    let (tyb, out_off) = s3_yoyo_pack_loop_tyb(bytes);
+    let wire = s3_sim_prog_loop(&tyb, 0, out_off, 0).expect("s3_pack_data_via_ir: sim pack");
     s3_pack_wire_to_records(&wire)
 }
 
-/// S3.142 pack-proto DATA layout (no STB — write via 1-byte MEMCPY from consts/payload).
+/// S3.142/S3.145 pack-proto DATA layout (no STB — write via 1-byte MEMCPY from consts/payload).
 const S3_PACK_PROTO_CONST_OP: u32 = 0; // byte 0x10
 const S3_PACK_PROTO_CONST_1: u32 = 1;
 const S3_PACK_PROTO_CONST_2: u32 = 2;
 const S3_PACK_PROTO_CONST_3: u32 = 3;
 const S3_PACK_PROTO_CONST_Z: u32 = 4; // zero pad
 const S3_PACK_PROTO_PAY: u32 = 0x20;
+/// S3.142 fixed out (small unroll only); S3.145 loop uses `s3_pack_proto_out_off`.
 const S3_PACK_PROTO_OUT: u32 = 0x80;
 const S3_PACK_PROTO_SRC: u16 = 8;
 const S3_PACK_PROTO_DST: u16 = 9;
 const S3_PACK_PROTO_ONE: u16 = 12;
+
+/// S3.145: outbuf sits just past payload + 2B zero pad (host-sized payloads fit).
+fn s3_pack_proto_out_off(payload_len: usize) -> u32 {
+    S3_PACK_PROTO_PAY + payload_len as u32 + 2
+}
 
 /// S3.142: emit one byte from DATA[`src_off`] to *DST, then DST += 1.
 fn s3_pack_proto_putc(recs: &mut Vec<(u8, u8, [u8; 6])>, src_off: u32) {
@@ -1683,18 +1688,15 @@ const S3_PACK_LOOP_L_USE_REM: u32 = 2;
 const S3_PACK_LOOP_L_PACK: u32 = 3;
 const S3_PACK_LOOP_L_DONE: u32 = 4;
 
-/// S3.143: looped YOYO IR pack (CMP/JL/SUBV/ADDV/MEMCPY). Payload must be
+/// S3.143/S3.145: looped YOYO IR pack (CMP/JL/SUBV/ADDV/MEMCPY). Payload must be
 /// zero-padded 2B past `payload_len` so chunk=1/2 can still read 3 arg lows.
-fn s3_yoyo_pack_loop_ir(payload_len: u32) -> Vec<(u8, u8, [u8; 6])> {
+fn s3_yoyo_pack_loop_ir(pay_off: u32, out_off: u32, payload_len: u32) -> Vec<(u8, u8, [u8; 6])> {
     let mut r = Vec::new();
     r.push(s3_rec_set(S3_PACK_PROTO_ONE, 1));
     r.push(s3_rec_set(S3_PACK_LOOP_THREE, S3_PACK_CHUNK as u32));
-    r.push(s3_rec_set(S3_PACK_PROTO_DST, S3_PACK_PROTO_OUT));
-    r.push(s3_rec_set(S3_PACK_LOOP_CUR, S3_PACK_PROTO_PAY));
-    r.push(s3_rec_set(
-        S3_PACK_LOOP_END,
-        S3_PACK_PROTO_PAY + payload_len,
-    ));
+    r.push(s3_rec_set(S3_PACK_PROTO_DST, out_off));
+    r.push(s3_rec_set(S3_PACK_LOOP_CUR, pay_off));
+    r.push(s3_rec_set(S3_PACK_LOOP_END, pay_off + payload_len));
     r.push(s3_rec_label(S3_PACK_LOOP_L_LOOP));
     r.push(s3_rec_cmp(S3_PACK_LOOP_CUR, S3_PACK_LOOP_END));
     r.push(s3_rec_je(S3_PACK_LOOP_L_DONE));
@@ -1751,22 +1753,26 @@ fn s3_yoyo_pack_loop_ir(payload_len: u32) -> Vec<(u8, u8, [u8; 6])> {
     r
 }
 
-/// S3.143: firmware for looped pack IR; payload zero-padded +2 for arg over-read.
-fn s3_yoyo_pack_loop_tyb(payload: &[u8]) -> Vec<u8> {
+/// S3.143/S3.145: firmware for looped pack IR; returns (tyb, out_off).
+/// Payload zero-padded +2 for arg over-read; outbuf follows dynamically.
+fn s3_yoyo_pack_loop_tyb(payload: &[u8]) -> (Vec<u8>, u32) {
     assert!(!payload.is_empty());
+    let out_off = s3_pack_proto_out_off(payload.len());
     let wire_bytes = ((payload.len() + S3_PACK_CHUNK - 1) / S3_PACK_CHUNK) * 8;
-    let mut data = vec![0u8; S3_PACK_PROTO_OUT as usize + wire_bytes];
+    let mut data = vec![0u8; out_off as usize + wire_bytes];
     data[S3_PACK_PROTO_CONST_OP as usize] = 0x10;
     data[S3_PACK_PROTO_CONST_1 as usize] = 1;
     data[S3_PACK_PROTO_CONST_2 as usize] = 2;
     data[S3_PACK_PROTO_CONST_3 as usize] = 3;
     let pay = S3_PACK_PROTO_PAY as usize;
-    // Ensure +2 zero pad past payload for chunk over-read (within outbuf gap).
-    assert!(pay + payload.len() + 2 <= S3_PACK_PROTO_OUT as usize);
     data[pay..pay + payload.len()].copy_from_slice(payload);
     let mut recs = s3_pack_data(&data);
-    recs.extend(s3_yoyo_pack_loop_ir(payload.len() as u32));
-    s3_host_tyb_from_records(&recs)
+    recs.extend(s3_yoyo_pack_loop_ir(
+        S3_PACK_PROTO_PAY,
+        out_off,
+        payload.len() as u32,
+    ));
+    (s3_host_tyb_from_records(&recs), out_off)
 }
 
 fn s3_host_tmpl_row(op: u8, payload: &[u8]) -> [u8; 20] {
@@ -1925,8 +1931,9 @@ fn s3_host_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
     );
     // S3.112: host sim seeds table/outbuf/op cursor and skips 0xA1, so the
     // three RAW_BYTES pointer prologues are not on the emit path. Dropped.
-    // `s3_pack_data` for the template DATA remains (Rust sidecar).
-    let mut recs = s3_pack_data(&payload);
+    // S3.146: host DATA records come from YOYO loop IR (via_ir). Rust
+    // `s3_pack_data` remains only inside the packer scratch firmware.
+    let mut recs = s3_pack_data_via_ir(&payload);
     recs.extend(s3_prog_loop_code(ops.len() as u32, S3_HOST_NROWS));
     s3_host_tyb_from_records(&recs)
 }
@@ -2037,14 +2044,15 @@ fn s3_prog_loop_code(ops_len: u32, nrows: u32) -> Vec<(u8, u8, [u8; 6])> {
 /// (3-row, outbuf 0xC8) only differ by these seeds. RAW `0xA1` is skipped.
 fn s3_sim_prog_loop(tyb: &[u8], table_off: u64, outbuf: u32, prog_ptr: u64) -> Result<Vec<u8>, u8> {
     let prog = parse_tyb(tyb).map_err(|_| 0xFDu8)?;
-    let mut data = vec![0u8; 512];
-    let mut off = 0usize;
+    // S3.145: size DATA to packed image (host-sized pack IR needs >512).
+    let mut data = Vec::new();
     for rec in &prog.records {
         if matches!(rec.op, 0x10 | 0x12 | 0x13) {
-            let b = arg_low_bytes(rec);
-            data[off..off + b.len()].copy_from_slice(&b);
-            off += b.len();
+            data.extend_from_slice(&arg_low_bytes(rec));
         }
+    }
+    if data.len() < 512 {
+        data.resize(512, 0);
     }
     let mut state = [0u64; 16];
     state[3] = table_off;
@@ -3610,18 +3618,29 @@ mod tests {
         );
     }
 
-    /// S3.135: inventory of remaining Rust sidecar after fixed10 firmware fold.
-    /// Does not shrink the surface — documents it so the next axis stays honest.
+    /// S3.135/S3.146: inventory of remaining Rust sidecar after fixed10 firmware fold.
+    /// Host DATA records now via_ir; Rust `s3_pack_data` remains for packer scratch + ref.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
         assert_eq!(S3_LEA_PTR.len(), 7, "short lea must stay 7B (not disp32)");
         assert_eq!(S3_LEA_PTR, &[0x49, 0x8D, 0x07, 0x49, 0x89, 0x47, 0x78]);
         let host = parse_tyb(&s3_host_prog_loop_tyb(&[0xFF])).unwrap();
         let host_data: Vec<_> = host.records.iter().filter(|r| matches!(r.op, 0x10 | 0x12 | 0x13)).collect();
-        assert!(!host_data.is_empty(), "host still Rust-packs DATA via s3_pack_data");
+        assert!(!host_data.is_empty(), "host still carries DATA 0x10 records");
         assert!(
             host_data.iter().all(|r| r.op == 0x10),
-            "host DATA must stay op 0x10 only (s3_pack_data)"
+            "host DATA must stay op 0x10 only"
+        );
+        let payload = s3_fixed_payload(&S3_FIXED10_OPS, &[0xFF], S3_HOST_OUTBUF_OFF as usize);
+        assert_eq!(
+            host_data.len(),
+            s3_pack_data_via_ir(&payload).len(),
+            "S3.146: host DATA record count == via_ir"
+        );
+        assert_eq!(
+            s3_unpack_data_tyb(&s3_host_prog_loop_tyb(&[0xFF])),
+            payload,
+            "S3.146: host DATA unpacks to fixed payload"
         );
         assert_eq!(
             s3_pack_data(&[0xAA, 0xBB, 0xCC, 0xDD]),
@@ -3631,8 +3650,6 @@ mod tests {
         let dll = parse_tyb(&s3_table_prog_loop_tyb(&[0xFF])).unwrap();
         let a1 = dll.records.iter().filter(|r| r.op == 0xA1).count();
         assert!(a1 >= 3, "in-DLL keeps ≥3 RAW lea packs for PE, got {a1}");
-        // Payload pad reaches outbuf; Rust packer still owns that layout.
-        let payload = s3_fixed_payload(&S3_FIXED10_OPS, &[0xFF], S3_HOST_OUTBUF_OFF as usize);
         assert_eq!(payload.len(), S3_HOST_OUTBUF_OFF as usize);
     }
 
@@ -3690,7 +3707,7 @@ mod tests {
         for n in 1usize..=64 {
             let bytes: Vec<u8> = (0..n).map(|i| (i * 17 + 3) as u8).collect();
             let expect = s3_pack_data_wire(&bytes);
-            let tyb = s3_yoyo_pack_loop_tyb(&bytes);
+            let (tyb, out_off) = s3_yoyo_pack_loop_tyb(&bytes);
             let prog = parse_tyb(&tyb).expect("pack loop tyb");
             assert!(
                 prog.records.iter().any(|r| r.op == 0x6A),
@@ -3700,10 +3717,24 @@ mod tests {
                 prog.records.iter().any(|r| r.op == 0x73),
                 "loop pack must use JL"
             );
-            let got = s3_sim_prog_loop(&tyb, 0, S3_PACK_PROTO_OUT, 0)
+            let got = s3_sim_prog_loop(&tyb, 0, out_off, 0)
                 .unwrap_or_else(|e| panic!("sim loop pack len {n}: {e:#x}"));
             assert_eq!(got, expect, "loop IR pack != s3_pack_data wire, len {n}");
         }
+    }
+
+    /// S3.145: dynamic out_off lets via_ir pack host-sized payloads (0x160).
+    #[test]
+    fn s3_pack_via_ir_host_sized_payload() {
+        let n = S3_HOST_OUTBUF_OFF as usize;
+        assert_eq!(s3_pack_proto_out_off(n), S3_PACK_PROTO_PAY + n as u32 + 2);
+        let bytes: Vec<u8> = (0..n).map(|i| (i * 13 + 11) as u8).collect();
+        let via = s3_pack_data_via_ir(&bytes);
+        assert_eq!(via, s3_pack_data(&bytes), "host-sized via_ir != s3_pack_data");
+        assert_eq!(s3_unpack_data(&via), bytes);
+        // Also a mid size between 64 and host.
+        let mid: Vec<u8> = (0..200).map(|i| i as u8).collect();
+        assert_eq!(s3_pack_data_via_ir(&mid), s3_pack_data(&mid));
     }
 
     /// S3.144: IR wire→records equals `s3_pack_data` (still not host firmware path).
