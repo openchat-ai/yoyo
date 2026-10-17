@@ -4147,10 +4147,15 @@ mod tests {
         assert_eq!(s3_pack_data_via_ir(&mid), s3_pack_data(&mid));
     }
 
-    /// S3.144: IR wire→records equals `s3_pack_data` (still not host firmware path).
+    /// S3.144/S3.161: IR wire→records equals `s3_pack_data`; via_ir firmware uses STB.
     #[test]
     fn s3_pack_data_via_ir_records_parity() {
         assert!(s3_pack_data_via_ir(&[]).is_empty());
+        let (probe, _) = s3_yoyo_pack_loop_stb_tyb(&[0x11, 0x22, 0x33]);
+        assert!(
+            parse_tyb(&probe).unwrap().records.iter().any(|r| r.op == 0x81),
+            "S3.161: via_ir path must be STB loop"
+        );
         for n in 1usize..=64 {
             let bytes: Vec<u8> = (0..n).map(|i| (i * 19 + 7) as u8).collect();
             assert_eq!(

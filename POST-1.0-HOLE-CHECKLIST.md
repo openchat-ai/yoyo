@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.161**（160 剩余面已钉；下一刀削 bytewise bootstrap 或短 lea；仍不改 golden；**不**假 CLOSED）。
+**默认** `继续` **= S3.162**（161 via_ir=STB 门禁；下一刀削 bytewise bootstrap；仍不改 golden；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -122,8 +122,9 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.157** ✅    | `a0d224f` | loop STB pack IR 1..=64 wire 对拍 |
 | **S3.158** ✅    | `25eae12` | via_ir 改走 loop STB（host/表 DATA） |
 | **S3.159** ✅    | `54e4023` | STB copy slim PE e2e（Windows） |
-| **S3.160** ✅    | —         | pack+STB 后剩余 Rust 面再钉 |
-| **S3.161** ⏳    | —         | 削 bytewise bootstrap / 短 lea · **本步** |
+| **S3.160** ✅    | `f2fae2c` | pack+STB 后剩余 Rust 面再钉 |
+| **S3.161** ✅    | —         | via_ir 路径强制 STB loop 门禁 |
+| **S3.162** ⏳    | —         | 削 bytewise bootstrap · **本步** |
 
 
 **缺口**：bootstrap 仍 Rust 逐字节建记录 · 短 lea 必留 · 真自举。逐步正文 → `git log`。
@@ -162,7 +163,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.161**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.162**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -170,4 +171,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-17**：S3.142–160 pack/STB 轴收 · 默认 **S3.161** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-17**：S3.142–161 pack/STB 轴收 · 默认 **S3.162** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
