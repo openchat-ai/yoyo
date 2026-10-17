@@ -4094,6 +4094,39 @@ mod tests {
         assert_eq!(adds, flat_len, "ADD DST per byte");
     }
 
+    /// S3.175: loop-staged emit IR size is O(1) in flat length (vs unrolled O(n)).
+    #[test]
+    fn s3_emit_loop_staged_ir_size_independent_of_flat() {
+        let small = [s3_fixed_rec(0xFF)];
+        let mut big = vec![s3_fixed_rec(0x00); 8];
+        big.push(s3_fixed_rec(0xFF));
+        let ir_len = |body: &[(u8, u8, [u8; 6])]| {
+            let (fw, _) = s3_yoyo_emit_tyb_file_loop_staged(body);
+            parse_tyb(&fw)
+                .unwrap()
+                .records
+                .iter()
+                .filter(|r| !matches!(r.op, 0x10 | 0x12 | 0x13))
+                .count()
+        };
+        let a = ir_len(&small);
+        let b = ir_len(&big);
+        assert_eq!(a, b, "loop-staged IR count must not grow with flat size");
+        let (fw_u, _) = s3_yoyo_emit_tyb_file_unrolled(&big);
+        let u = parse_tyb(&fw_u)
+            .unwrap()
+            .records
+            .iter()
+            .filter(|r| !matches!(r.op, 0x10 | 0x12 | 0x13))
+            .count();
+        assert!(u > b * 2, "unrolled IR much larger than loop-staged");
+        let (fw_l, off_l) = s3_yoyo_emit_tyb_file_loop_staged(&big);
+        assert_eq!(
+            s3_sim_prog_loop(&fw_l, 0, off_l, 0).unwrap(),
+            s3_host_tyb_from_records(&big)
+        );
+    }
+
     /// S3.166: YOYO IR STB-emits TYB record wire (== hand `s3_rec_wire`).
     #[test]
     fn s3_yoyo_emit_tyb_records_via_stb() {
