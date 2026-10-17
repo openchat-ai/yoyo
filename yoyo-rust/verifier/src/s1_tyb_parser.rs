@@ -1704,8 +1704,8 @@ fn s3_append_stb_runs(
     label_id
 }
 
-/// S3.181/S3.183: IR writes staging (runs, not SET per byte), then one MEMCPY
-/// to outbuf. Bootstrap DATA is zeros only — no Rust flat preimage.
+/// S3.181/S3.184: IR writes staging (runs, not SET per byte), then one MEMCPY
+/// to outbuf. No DATA records — STB grows the image. No Rust flat preimage.
 fn s3_yoyo_emit_tyb_file_two_phase(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
     assert!(records.len() <= 255);
     let pay = 0x10u32;
@@ -1719,7 +1719,8 @@ fn s3_yoyo_emit_tyb_file_two_phase(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u
         flat.extend_from_slice(&s3_rec_wire(op, argc, a));
     }
     debug_assert_eq!(flat.len(), flat_len as usize);
-    let mut recs = s3_pack_data_bytewise(&vec![0u8; out_off as usize]);
+    // S3.184: no zero DATA image. STB grows the sim buffer; bytes below `pay` stay absent.
+    let mut recs = Vec::new();
     recs.push(s3_rec_set(S3_PACK_PROTO_DST, pay));
     recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
     s3_append_stb_runs(&mut recs, &flat, 1);
@@ -4256,7 +4257,7 @@ mod tests {
             sets * 4 < flat_len,
             "S3.183 runs collapse SET-per-byte: sets={sets} flat={flat_len}"
         );
-        assert!(s3_unpack_data_tyb(&fw).iter().all(|&b| b == 0));
+        assert!(s3_unpack_data_tyb(&fw).is_empty(), "S3.184: no zero DATA pad");
         let got = s3_sim_prog_loop(&fw, 0, out_off, 0).expect("two-phase");
         assert_eq!(got, expect);
         compile_tyb_to_pe_mini(&got).expect("two-phase emitted TYB mini pe");
