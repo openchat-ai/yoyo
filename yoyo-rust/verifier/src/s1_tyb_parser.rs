@@ -3826,9 +3826,10 @@ mod tests {
         );
     }
 
-    /// S3.135/S3.152: remaining Rust sidecar after pack via_ir fold (honest inventory).
-    /// Still Rust: via_ir bootstrap `host_pack_bytes(payload+2)`, short lea A1 bytes,
-    /// `emit_x86` body OnceLock, IR record builders. Not CLOSED.
+    /// S3.135/S3.160: remaining Rust sidecar after pack+STB fold (honest inventory).
+    /// Still Rust: via_ir bootstrap bytewise scratch records, short lea A1 bytes,
+    /// `emit_x86` body OnceLock, IR record builders. STB pack path is YOYO IR.
+    /// Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
         assert_eq!(S3_LEA_PTR.len(), 7, "short lea must stay 7B (not disp32)");
