@@ -2063,21 +2063,20 @@ fn s3_yoyo_pack_loop_stb_ir(pay_off: u32, out_off: u32, payload_len: u32) -> Vec
     r.push(s3_rec_label(S3_PACK_LOOP_L_USE_REM));
     r.push(s3_rec_movrr(S3_PACK_LOOP_CHUNK, S3_PACK_LOOP_REM));
     r.push(s3_rec_label(S3_PACK_LOOP_L_PACK));
-    // op 0x10 from const[0]
-    r.push(s3_rec_set(S3_PACK_PROTO_SRC, S3_PACK_PROTO_CONST_OP));
-    s3_pack_loop_putc_from_slot(&mut r, S3_PACK_PROTO_SRC);
-    // argc = DATA[CHUNK]
-    r.push(s3_rec_set(S3_PACK_PROTO_SRC, 0));
-    r.push(s3_rec_addv(S3_PACK_PROTO_SRC, S3_PACK_LOOP_CHUNK));
-    s3_pack_loop_putc_from_slot(&mut r, S3_PACK_PROTO_SRC);
+    // S3.190: op, argc, and the zero pad come from slots. No const bytes in DATA.
+    r.push(s3_rec_set(S3_PACK_STB_TMP, 0x10));
+    r.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_PROTO_DST, 0));
+    r.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
+    r.push(s3_rec_stb(S3_PACK_LOOP_CHUNK, S3_PACK_PROTO_DST, 0));
+    r.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
     for k in 0..S3_PACK_CHUNK as u32 {
         r.push(s3_rec_movrr(S3_PACK_PROTO_SRC, S3_PACK_LOOP_CUR));
         if k > 0 {
             r.push(s3_rec_add(S3_PACK_PROTO_SRC, k));
         }
         s3_pack_loop_putc_from_slot(&mut r, S3_PACK_PROTO_SRC);
-        r.push(s3_rec_set(S3_PACK_PROTO_SRC, S3_PACK_PROTO_CONST_Z));
-        s3_pack_loop_putc_from_slot(&mut r, S3_PACK_PROTO_SRC);
+        r.push(s3_rec_stb(S3_PACK_STB_ZERO, S3_PACK_PROTO_DST, 0));
+        r.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
     }
     r.push(s3_rec_addv(S3_PACK_LOOP_CUR, S3_PACK_LOOP_CHUNK));
     r.push(s3_rec_jmp(S3_PACK_LOOP_L_LOOP));
@@ -2088,17 +2087,13 @@ fn s3_yoyo_pack_loop_stb_ir(pay_off: u32, out_off: u32, payload_len: u32) -> Vec
 
 fn s3_yoyo_pack_loop_stb_tyb(payload: &[u8]) -> (Vec<u8>, u32) {
     assert!(!payload.is_empty());
-    let out_off = s3_pack_proto_out_off(payload.len());
+    // Payload sits at 0. The two pad bytes are the short-chunk overread.
+    let out_off = payload.len() as u32 + 2;
     let mut body = payload.to_vec();
     body.push(0);
     body.push(0);
-    let mut recs = s3_pack_scratch_prefix_recs().to_vec();
-    recs.extend(s3_pack_data_bytewise(&body));
-    recs.extend(s3_yoyo_pack_loop_stb_ir(
-        S3_PACK_PROTO_PAY,
-        out_off,
-        payload.len() as u32,
-    ));
+    let mut recs = s3_pack_data_bytewise(&body);
+    recs.extend(s3_yoyo_pack_loop_stb_ir(0, out_off, payload.len() as u32));
     (s3_host_tyb_from_records(&recs), out_off)
 }
 
@@ -4042,7 +4037,10 @@ mod tests {
         let emitted = s3_sim_prog_loop(&fw, 0, off, 0).unwrap();
         assert_eq!(emitted, s3_host_tyb_from_records(&body));
         assert!(compile_tyb_to_pe_mini(&emitted).is_ok());
-        // Floor: bootstrap scratch is still Rust bytewise TYB records.
+        // S3.190: via_ir scratch is payload+2 only. MEMCPY comparison still has the 5 consts.
+        let (via_fw, via_off) = s3_yoyo_pack_loop_stb_tyb(&[1, 2, 3, 4]);
+        assert_eq!(via_off, 6);
+        assert_eq!(s3_unpack_data_tyb(&via_fw).len(), 6);
         let prefix = s3_pack_scratch_prefix_recs();
         assert!(prefix.iter().all(|(_, argc, _)| *argc == 1));
         // Floor: in-DLL short lea RAW bytes stay (golden / PE seed).
@@ -4570,7 +4568,8 @@ mod tests {
         let (tyb, out_off) = s3_yoyo_pack_loop_stb_tyb(&payload);
         let scratch = s3_unpack_data_tyb(&tyb);
         assert_eq!(scratch.len() as u32, out_off);
-        assert_eq!(scratch.len(), S3_PACK_PROTO_PAY as usize + payload.len() + 2);
+        assert_eq!(scratch.len(), payload.len() + 2, "S3.190: no const prefix in via_ir scratch");
+        assert_eq!(scratch[0], payload[0]);
         assert_eq!(&scratch[scratch.len() - 2..], &[0, 0]);
         assert_eq!(s3_pack_data_via_ir(&payload), s3_pack_data(&payload));
     }
