@@ -1542,7 +1542,7 @@ fn s3_host_body(op: u8, argc: u8, args: [u8; 6]) -> Vec<u8> {
     let text = emit_x86(
         &parse_tyb(&s3_host_tyb_from_records(&[
             (op, argc, args),
-            (0xFF, 0, [0; 6]),
+            s3_fixed_rec(0xFF),
         ]))
         .expect("body tyb"),
     )
@@ -1551,34 +1551,59 @@ fn s3_host_body(op: u8, argc: u8, args: [u8; 6]) -> Vec<u8> {
     text[..text.len() - 1].to_vec()
 }
 
+/// S3.129: canonical argc/args for one fixed10 opcode. Does not tighten `fixed_template_ops`.
+fn s3_fixed_rec(op: u8) -> (u8, u8, [u8; 6]) {
+    let pack = |slot: u16, imm: u32| {
+        let s = slot.to_le_bytes();
+        let i = imm.to_le_bytes();
+        [s[0], s[1], i[0], i[1], i[2], i[3]]
+    };
+    match op {
+        0xFF | 0x00 => (op, 0, [0; 6]),
+        0x30 => (op, 2, pack(0, S3_HOST_SET_DEADBEEF)),
+        0x60 => (op, 2, pack(0, 1)),
+        0x66 | 0x67 => (op, 1, [0; 6]),
+        0x62 => (op, 2, pack(0, S3_HOST_ADD_IMM)),
+        0x61 => (op, 2, pack(0, S3_HOST_SUB_IMM)),
+        0x64 => (op, 2, pack(1, 0)),
+        0x65 => (op, 2, pack(0, 1)),
+        _ => panic!("s3_fixed_rec: opcode {op:#x} is outside fixed10"),
+    }
+}
+
+fn s3_host_body_of(op: u8) -> Vec<u8> {
+    let (o, argc, args) = s3_fixed_rec(op);
+    s3_host_body(o, argc, args)
+}
+
 fn s3_host_set_body() -> Vec<u8> {
-    s3_host_body(0x30, 2, [0, 0, 0xEF, 0xBE, 0xAD, 0xDE])
+    s3_host_body_of(0x30)
 }
 fn s3_host_get_body() -> Vec<u8> {
-    s3_host_body(0x60, 2, [0, 0, 1, 0, 0, 0])
+    s3_host_body_of(0x60)
 }
 fn s3_host_inc_body() -> Vec<u8> {
-    s3_host_body(0x66, 1, [0, 0, 0, 0, 0, 0])
+    s3_host_body_of(0x66)
 }
 fn s3_host_add5_body() -> Vec<u8> {
-    s3_host_body(0x62, 2, [0, 0, 5, 0, 0, 0])
+    s3_host_body_of(0x62)
 }
 fn s3_host_dec_body() -> Vec<u8> {
-    s3_host_body(0x67, 1, [0, 0, 0, 0, 0, 0])
+    s3_host_body_of(0x67)
 }
 fn s3_host_sub5_body() -> Vec<u8> {
-    s3_host_body(0x61, 2, [0, 0, 5, 0, 0, 0])
+    s3_host_body_of(0x61)
 }
 fn s3_host_movrr_body() -> Vec<u8> {
-    s3_host_body(0x64, 2, [1, 0, 0, 0, 0, 0])
+    s3_host_body_of(0x64)
 }
 fn s3_host_cmp_body() -> Vec<u8> {
-    s3_host_body(0x65, 2, [0, 0, 1, 0, 0, 0])
+    s3_host_body_of(0x65)
 }
 /// S3.123: RET is the whole emit (do not strip the only `C3`).
 fn s3_host_ret_body() -> Vec<u8> {
     let text = emit_x86(
-        &parse_tyb(&s3_host_tyb_from_records(&[(0xFF, 0, [0; 6])])).expect("ret tyb"),
+        &parse_tyb(&s3_host_tyb_from_records(&[s3_fixed_rec(0xFF)])).expect("ret tyb"),
     )
     .text;
     assert_eq!(text, vec![0xC3]);
@@ -1586,7 +1611,7 @@ fn s3_host_ret_body() -> Vec<u8> {
 }
 /// S3.123: NOP emit is `90 C3`; drop the trailing RET.
 fn s3_host_nop_body() -> Vec<u8> {
-    let b = s3_host_body(0x00, 0, [0; 6]);
+    let b = s3_host_body_of(0x00);
     assert_eq!(b, vec![0x90]);
     b
 }
@@ -1595,6 +1620,24 @@ fn s3_host_nop_body() -> Vec<u8> {
 const S3_FIXED10_OPS: [u8; 10] = [
     0xFF, 0x00, 0x30, 0x60, 0x66, 0x62, 0x67, 0x61, 0x64, 0x65,
 ];
+
+fn s3_fixed10_named_cases() -> Vec<(&'static str, Vec<(u8, u8, [u8; 6])>)> {
+    const NAMES: [&str; 10] = [
+        "RET", "NOP+RET", "SET+RET", "GET+RET", "INC+RET", "ADD+RET", "DEC+RET", "SUB+RET",
+        "MOVRR+RET", "CMP+RET",
+    ];
+    S3_FIXED10_OPS
+        .iter()
+        .zip(NAMES)
+        .map(|(op, name)| {
+            let mut recs = vec![s3_fixed_rec(*op)];
+            if *op != 0xFF {
+                recs.push(s3_fixed_rec(0xFF));
+            }
+            (name, recs)
+        })
+        .collect()
+}
 
 fn s3_fixed_row(op: u8) -> Vec<u8> {
     match op {
@@ -3252,32 +3295,10 @@ mod tests {
     /// YOYO table compose must match `emit_x86` (oracle only).
     #[test]
     fn s3_meta_emit_autopack_fixed_template_rest() {
-        let cases: Vec<(&str, Vec<(u8, u8, [u8; 6])>)> = vec![
-            (
-                "INC+RET",
-                vec![(0x66, 1, [0, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])],
-            ),
-            (
-                "ADD+RET",
-                vec![(0x62, 2, [0, 0, 5, 0, 0, 0]), (0xFF, 0, [0; 6])],
-            ),
-            (
-                "DEC+RET",
-                vec![(0x67, 1, [0, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])],
-            ),
-            (
-                "SUB+RET",
-                vec![(0x61, 2, [0, 0, 5, 0, 0, 0]), (0xFF, 0, [0; 6])],
-            ),
-            (
-                "MOVRR+RET",
-                vec![(0x64, 2, [1, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])],
-            ),
-            (
-                "CMP+RET",
-                vec![(0x65, 2, [0, 0, 1, 0, 0, 0]), (0xFF, 0, [0; 6])],
-            ),
-        ];
+        let cases: Vec<(&str, Vec<(u8, u8, [u8; 6])>)> = s3_fixed10_named_cases()
+            .into_iter()
+            .filter(|(name, _)| !matches!(*name, "RET" | "NOP+RET" | "SET+RET" | "GET+RET"))
+            .collect();
         for (name, semantic) in cases {
             let tyb = tyb_from_records(&semantic);
             let prog = parse_tyb(&tyb).unwrap();
@@ -3295,50 +3316,34 @@ mod tests {
         }
     }
 
+    /// S3.129: each canonical fixed10 record is accepted; acceptance rules stay in `fixed_template_ops`.
+    #[test]
+    fn s3_fixed_rec_stays_inside_fixed_template_ops() {
+        for op in S3_FIXED10_OPS {
+            let tyb = s3_host_tyb_from_records(&[s3_fixed_rec(op)]);
+            assert_eq!(
+                fixed_template_ops(&parse_tyb(&tyb).unwrap()),
+                Some(vec![op]),
+                "fixed rec {op:#x}"
+            );
+        }
+        let all = s3_fixed10_named_cases();
+        assert_eq!(all.len(), 10);
+        assert_eq!(
+            all.iter().map(|(n, _)| *n).collect::<Vec<_>>(),
+            vec![
+                "RET", "NOP+RET", "SET+RET", "GET+RET", "INC+RET", "ADD+RET", "DEC+RET",
+                "SUB+RET", "MOVRR+RET", "CMP+RET",
+            ]
+        );
+    }
+
     /// S3.110/S3.111: `S3-subset-fixed10` one-shot gate.
     /// All 10 ops: YOYO table compose == `emit_x86`, and mini PE is the YOYO path
     /// (no `pack_meta_emit` driver). Firmware Rust pack remains — not CLOSED.
     #[test]
     fn s3_subset_fixed10_meta_emit_parity() {
-        let cases: Vec<(&str, Vec<(u8, u8, [u8; 6])>)> = vec![
-            ("RET", vec![(0xFF, 0, [0; 6])]),
-            ("NOP+RET", vec![(0x00, 0, [0; 6]), (0xFF, 0, [0; 6])]),
-            (
-                "SET+RET",
-                vec![
-                    (0x30, 2, [0, 0, 0xEF, 0xBE, 0xAD, 0xDE]),
-                    (0xFF, 0, [0; 6]),
-                ],
-            ),
-            (
-                "GET+RET",
-                vec![(0x60, 2, [0, 0, 1, 0, 0, 0]), (0xFF, 0, [0; 6])],
-            ),
-            (
-                "INC+RET",
-                vec![(0x66, 1, [0, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])],
-            ),
-            (
-                "ADD+RET",
-                vec![(0x62, 2, [0, 0, 5, 0, 0, 0]), (0xFF, 0, [0; 6])],
-            ),
-            (
-                "DEC+RET",
-                vec![(0x67, 1, [0, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])],
-            ),
-            (
-                "SUB+RET",
-                vec![(0x61, 2, [0, 0, 5, 0, 0, 0]), (0xFF, 0, [0; 6])],
-            ),
-            (
-                "MOVRR+RET",
-                vec![(0x64, 2, [1, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])],
-            ),
-            (
-                "CMP+RET",
-                vec![(0x65, 2, [0, 0, 1, 0, 0, 0]), (0xFF, 0, [0; 6])],
-            ),
-        ];
+        let cases = s3_fixed10_named_cases();
         assert_eq!(cases.len(), 10, "fixed10 contract");
         let fw = parse_tyb(&s3_host_prog_loop_tyb(&[0xFF])).unwrap();
         assert!(
