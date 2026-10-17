@@ -1564,8 +1564,8 @@ fn s3_append_raw_a1(recs: &mut Vec<(u8, u8, [u8; 6])>, bytes: &[u8]) {
     recs.extend(s3_host_pack_bytes(0xA1, bytes));
 }
 
-/// S3.153: bootstrap scratch DATA as argc=1 per byte (no chunk-3 algorithm).
-/// via_ir still emits proper chunk-3 wire; this only feeds the packer firmware image.
+/// S3.153/S3.162: bootstrap scratch DATA as argc=1 per byte (no chunk-3 algorithm).
+/// Floor until YOYO can emit TYB records itself. via_ir still emits chunk-3 wire.
 fn s3_pack_data_bytewise(bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     bytes
         .iter()
