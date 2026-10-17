@@ -2049,6 +2049,11 @@ fn s3_yoyo_pack_loop_stb_ir(pay_off: u32, out_off: u32, payload_len: u32) -> Vec
     let mut r = Vec::new();
     r.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
     r.push(s3_rec_set(S3_PACK_LOOP_THREE, S3_PACK_CHUNK as u32));
+    // S3.192: the two overread zeros are stores, not DATA records.
+    r.push(s3_rec_set(S3_PACK_PROTO_DST, pay_off + payload_len));
+    r.push(s3_rec_stb(S3_PACK_STB_ZERO, S3_PACK_PROTO_DST, 0));
+    r.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
+    r.push(s3_rec_stb(S3_PACK_STB_ZERO, S3_PACK_PROTO_DST, 0));
     r.push(s3_rec_set(S3_PACK_PROTO_DST, out_off));
     r.push(s3_rec_set(S3_PACK_LOOP_CUR, pay_off));
     r.push(s3_rec_set(S3_PACK_LOOP_END, pay_off + payload_len));
@@ -2088,12 +2093,9 @@ fn s3_yoyo_pack_loop_stb_ir(pay_off: u32, out_off: u32, payload_len: u32) -> Vec
 
 fn s3_yoyo_pack_loop_stb_tyb(payload: &[u8]) -> (Vec<u8>, u32) {
     assert!(!payload.is_empty());
-    // Payload sits at 0. The two pad bytes are the short-chunk overread.
+    // Payload sits at 0. IR writes the two overread zeros just past it.
     let out_off = payload.len() as u32 + 2;
-    let mut body = payload.to_vec();
-    body.push(0);
-    body.push(0);
-    let mut recs = s3_pack_data_bytewise(&body);
+    let mut recs = s3_pack_data_bytewise(payload);
     recs.extend(s3_yoyo_pack_loop_stb_ir(0, out_off, payload.len() as u32));
     (s3_host_tyb_from_records(&recs), out_off)
 }
@@ -4041,7 +4043,7 @@ mod tests {
         // S3.190: via_ir scratch is payload+2 only. MEMCPY comparison still has the 5 consts.
         let (via_fw, via_off) = s3_yoyo_pack_loop_stb_tyb(&[1, 2, 3, 4]);
         assert_eq!(via_off, 6);
-        assert_eq!(s3_unpack_data_tyb(&via_fw).len(), 6);
+        assert_eq!(s3_unpack_data_tyb(&via_fw).len(), 4);
         let prefix = s3_pack_scratch_prefix_recs();
         assert!(prefix.iter().all(|(_, argc, _)| *argc == 1));
         // Floor: in-DLL short lea RAW bytes stay (golden / PE seed).
@@ -4573,10 +4575,9 @@ mod tests {
         let payload = [0x11u8];
         let (tyb, out_off) = s3_yoyo_pack_loop_stb_tyb(&payload);
         let scratch = s3_unpack_data_tyb(&tyb);
-        assert_eq!(scratch.len() as u32, out_off);
-        assert_eq!(scratch.len(), payload.len() + 2, "S3.190: no const prefix in via_ir scratch");
-        assert_eq!(scratch[0], payload[0]);
-        assert_eq!(&scratch[scratch.len() - 2..], &[0, 0]);
+        assert_eq!(out_off, payload.len() as u32 + 2);
+        assert_eq!(scratch.len(), payload.len(), "S3.192: overread pad is not in DATA");
+        assert_eq!(scratch, payload);
         assert_eq!(s3_pack_data_via_ir(&payload), s3_pack_data(&payload));
     }
 
