@@ -1529,8 +1529,14 @@ fn s3_host_pack_bytes(op: u8, bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     recs
 }
 
-/// S3.136: YOYO-table firmware DATA pack is always op `0x10` (still Rust).
+/// S3.141: YOYO-target chunk size for DATA `0x10` pack (still Rust today).
+const S3_PACK_CHUNK: usize = 3;
+
+/// S3.136/S3.141: YOYO-table firmware DATA pack is always op `0x10` (still Rust).
+/// Algorithm (portable to YOYO IR later): walk `bytes` in chunks of `S3_PACK_CHUNK`,
+/// each record argc=chunk_len, low bytes at args[0], args[2], args[4].
 fn s3_pack_data(bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
+    debug_assert_eq!(S3_PACK_CHUNK, 3);
     s3_host_pack_bytes(0x10, bytes)
 }
 
@@ -3413,12 +3419,15 @@ mod tests {
         assert_eq!(payload.len(), S3_HOST_OUTBUF_OFF as usize);
     }
 
-    /// S3.137: pack ↔ unpack is the YOYO-target algorithm (still implemented in Rust).
+    /// S3.137/S3.141: pack ↔ unpack is the YOYO-target algorithm (still implemented in Rust).
     #[test]
     fn s3_pack_data_roundtrip_and_host_payload() {
+        assert_eq!(S3_PACK_CHUNK, 3);
         for n in 0usize..=64 {
             let bytes: Vec<u8> = (0..n).map(|i| (i * 17 + 3) as u8).collect();
             let packed = s3_pack_data(&bytes);
+            let expect_recs = if n == 0 { 0 } else { (n + S3_PACK_CHUNK - 1) / S3_PACK_CHUNK };
+            assert_eq!(packed.len(), expect_recs, "chunk count len {n}");
             assert_eq!(s3_unpack_data(&packed), bytes, "len {n}");
             let tyb = s3_host_tyb_from_records(&packed);
             assert_eq!(s3_unpack_data_tyb(&tyb), bytes, "tyb len {n}");
