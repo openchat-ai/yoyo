@@ -1754,20 +1754,19 @@ fn s3_yoyo_pack_loop_ir(pay_off: u32, out_off: u32, payload_len: u32) -> Vec<(u8
     r
 }
 
-/// S3.143/S3.145: firmware for looped pack IR; returns (tyb, out_off).
-/// Payload zero-padded +2 for arg over-read; outbuf follows dynamically.
+/// S3.143/S3.145/S3.149: firmware for looped pack IR; returns (tyb, out_off).
+/// Scratch DATA is only const+payload+2B pad (no pre-zeroed outbuf — sim grows).
 fn s3_yoyo_pack_loop_tyb(payload: &[u8]) -> (Vec<u8>, u32) {
     assert!(!payload.is_empty());
     let out_off = s3_pack_proto_out_off(payload.len());
-    let wire_bytes = ((payload.len() + S3_PACK_CHUNK - 1) / S3_PACK_CHUNK) * 8;
-    let mut data = vec![0u8; out_off as usize + wire_bytes];
+    let mut data = vec![0u8; out_off as usize];
     data[S3_PACK_PROTO_CONST_OP as usize] = 0x10;
     data[S3_PACK_PROTO_CONST_1 as usize] = 1;
     data[S3_PACK_PROTO_CONST_2 as usize] = 2;
     data[S3_PACK_PROTO_CONST_3 as usize] = 3;
     let pay = S3_PACK_PROTO_PAY as usize;
     data[pay..pay + payload.len()].copy_from_slice(payload);
-    // S3.148: via_ir bootstrap scratch — last Rust DATA pack call site in prod path.
+    // S3.148/S3.149: bootstrap scratch — Rust pack of const+payload only (not outbuf).
     let mut recs = s3_host_pack_bytes(0x10, &data);
     recs.extend(s3_yoyo_pack_loop_ir(
         S3_PACK_PROTO_PAY,
@@ -2129,7 +2128,11 @@ fn s3_sim_prog_loop(tyb: &[u8], table_off: u64, outbuf: u32, prog_ptr: u64) -> R
                 let s = state[src as usize] as usize;
                 let n = state[n as usize] as usize;
                 let tmp = data.get(s..s + n).ok_or(0xFA)?.to_vec();
-                data.get_mut(d..d + n).ok_or(0xFA)?.copy_from_slice(&tmp);
+                // S3.149: grow DATA for outbuf writes beyond packed scratch image.
+                if d + n > data.len() {
+                    data.resize(d + n, 0);
+                }
+                data[d..d + n].copy_from_slice(&tmp);
                 composed += n;
                 pc += 1;
             }
@@ -3723,6 +3726,21 @@ mod tests {
                 .unwrap_or_else(|e| panic!("sim loop pack len {n}: {e:#x}"));
             assert_eq!(got, expect, "loop IR pack != s3_pack_data wire, len {n}");
         }
+    }
+
+    /// S3.149: packer scratch DATA length == out_off (no pre-packed outbuf zeros).
+    #[test]
+    fn s3_pack_loop_scratch_excludes_outbuf() {
+        let bytes: Vec<u8> = (0..64).map(|i| i as u8).collect();
+        let (tyb, out_off) = s3_yoyo_pack_loop_tyb(&bytes);
+        assert_eq!(out_off, s3_pack_proto_out_off(64));
+        let scratch = s3_unpack_data_tyb(&tyb);
+        assert_eq!(
+            scratch.len(),
+            out_off as usize,
+            "scratch must stop at out_off (sim grows outbuf)"
+        );
+        assert_eq!(&scratch[S3_PACK_PROTO_PAY as usize..][..64], &bytes[..]);
     }
 
     /// S3.148: `s3_pack_data` is reference-only; firmware builders use via_ir /
