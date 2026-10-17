@@ -1637,14 +1637,13 @@ fn s3_yoyo_emit_tyb_file_unrolled(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u3
     (s3_host_tyb_from_records(&recs), out_off)
 }
 
-/// S3.171: loop STB-copy of Rust-staged flat (kept for comparison).
+/// S3.171/S3.189: loop STB-copy of Rust-staged flat (comparison only).
+/// Flat sits at 0 — the old `0x10` prefix was never read.
 fn s3_yoyo_emit_tyb_file_loop_staged(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
     let flat = s3_host_tyb_from_records(records);
-    let pay = 0x10u32;
-    let out_off = pay + flat.len() as u32;
-    let mut data = vec![0u8; out_off as usize];
-    data[pay as usize..pay as usize + flat.len()].copy_from_slice(&flat);
-    let mut recs = s3_pack_data_bytewise(&data);
+    let pay = 0u32;
+    let out_off = flat.len() as u32;
+    let mut recs = s3_pack_data_bytewise(&flat);
     const L_LOOP: u32 = 1;
     const L_DONE: u32 = 2;
     const CUR: u16 = S3_PACK_LOOP_CUR;
@@ -4295,6 +4294,7 @@ mod tests {
             .count();
         assert!(u > b * 2, "unrolled IR much larger than loop-staged");
         let (fw_l, off_l) = s3_yoyo_emit_tyb_file_loop_staged(&big);
+        assert_eq!(s3_unpack_data_tyb(&fw_l), s3_host_tyb_from_records(&big));
         assert_eq!(
             s3_sim_prog_loop(&fw_l, 0, off_l, 0).unwrap(),
             s3_host_tyb_from_records(&big)
