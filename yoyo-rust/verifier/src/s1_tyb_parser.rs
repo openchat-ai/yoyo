@@ -4085,7 +4085,7 @@ mod tests {
         assert_eq!(via, s3_pack_data(&bytes));
     }
 
-    /// S3.150: RAW A1 short-lea packs go through `s3_append_raw_a1` (still Rust).
+    /// S3.150/S3.164: RAW A1 short-lea packs; in-DLL prologue OnceLock-stable.
     #[test]
     fn s3_append_raw_a1_matches_host_pack() {
         let mut a = Vec::new();
@@ -4104,6 +4104,15 @@ mod tests {
             S3_LEA_TABLE.len() + S3_LEA_DST.len() + S3_LEA_PROG.len(),
             "in-DLL A1 payload bytes == three lea seeds"
         );
+        assert!(std::ptr::eq(
+            s3_in_dll_lea_prologue_recs(),
+            s3_in_dll_lea_prologue_recs()
+        ));
+        let mut expect = Vec::new();
+        s3_append_raw_a1(&mut expect, &S3_LEA_TABLE);
+        s3_append_raw_a1(&mut expect, &S3_LEA_DST);
+        s3_append_raw_a1(&mut expect, &S3_LEA_PROG);
+        assert_eq!(s3_in_dll_lea_prologue_recs(), expect.as_slice());
     }
 
     /// S3.149/S3.151: packer scratch DATA length == out_off; prefix OnceLock stable.
@@ -5174,6 +5183,21 @@ mod tests {
     /// prog cursor = `S3_PROG_OFF + 1` = 0xBD. Checked where the firmware is built.
     const S3_LEA_PROG: [u8; 11] = s3_lea_store(0xBD, 2);
 
+    /// S3.164: OnceLock of in-DLL three-lea A1 prologue (bytes unchanged).
+    fn s3_in_dll_lea_prologue_recs() -> &'static [(u8, u8, [u8; 6])] {
+        use std::sync::OnceLock;
+        static PROLOGUE: OnceLock<Vec<(u8, u8, [u8; 6])>> = OnceLock::new();
+        PROLOGUE
+            .get_or_init(|| {
+                let mut r = Vec::new();
+                s3_append_raw_a1(&mut r, &S3_LEA_TABLE);
+                s3_append_raw_a1(&mut r, &S3_LEA_DST);
+                s3_append_raw_a1(&mut r, &S3_LEA_PROG);
+                r
+            })
+            .as_slice()
+    }
+
     /// Append one table-scan + MEMCPY_DATA; optionally ADDV dst+=len afterwards.
     fn append_scan_memcpy(
         recs: &mut Vec<(u8, u8, [u8; 6])>,
@@ -5290,11 +5314,9 @@ mod tests {
         let payload = s3_fixed_payload(&S3_FIXED10_OPS[..3], ops, S3_OUTBUF_OFF as usize);
         assert_eq!(S3_TABLE_OFF + 60, S3_PROG_OFF);
         assert_eq!(S3_PROG_OFF + 1, 0xBD);
-        // S3.147/S3.150: in-DLL DATA via_ir; RAW A1 lea prologue via shared helper.
+        // S3.147/S3.164: in-DLL DATA via_ir; lea A1 prologue from OnceLock.
         let mut recs = s3_pack_data_via_ir(&payload);
-        s3_append_raw_a1(&mut recs, &S3_LEA_TABLE);
-        s3_append_raw_a1(&mut recs, &S3_LEA_DST);
-        s3_append_raw_a1(&mut recs, &S3_LEA_PROG);
+        recs.extend_from_slice(s3_in_dll_lea_prologue_recs());
 
         recs.extend(s3_prog_loop_code(ops.len() as u32, 3));
         tyb_from_records(&recs)
