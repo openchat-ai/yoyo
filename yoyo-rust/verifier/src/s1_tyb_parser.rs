@@ -4263,6 +4263,15 @@ mod tests {
         compile_tyb_to_pe_mini(&got).expect("two-phase emitted TYB mini pe");
     }
 
+    /// S3.199: the O(1) comparison path still keeps the Rust flat in DATA.
+    /// Folding that flat into IR is the two-phase path, which is not O(1).
+    #[test]
+    fn s3_loop_staged_keeps_rust_flat_in_data() {
+        let body = [s3_fixed_rec(0xFF)];
+        let (fw, _) = s3_yoyo_emit_tyb_file_loop_staged(&body);
+        assert_eq!(s3_unpack_data_tyb(&fw), s3_host_tyb_from_records(&body));
+    }
+
     /// S3.175: loop-staged emit IR size is O(1) in flat length (vs unrolled O(n)).
     #[test]
     fn s3_emit_loop_staged_ir_size_independent_of_flat() {
