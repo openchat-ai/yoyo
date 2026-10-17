@@ -4112,6 +4112,24 @@ mod tests {
         assert_eq!(adds, flat_len, "ADD DST per byte");
     }
 
+    /// S3.177: hybrid emit picks unrolled under cap, loop-staged above.
+    #[test]
+    fn s3_emit_hybrid_picks_path_by_flat_size() {
+        let small = [s3_fixed_rec(0xFF)];
+        assert!(HEADER_SIZE + RECORD_SIZE <= S3_EMIT_UNROLL_MAX_FLAT);
+        let (fw_s, _) = s3_yoyo_emit_tyb_file(&small);
+        assert!(!parse_tyb(&fw_s).unwrap().records.iter().any(|r| r.op == 0x70));
+        let mut big = vec![s3_fixed_rec(0x00); 16];
+        big.push(s3_fixed_rec(0xFF));
+        assert!(HEADER_SIZE + big.len() * RECORD_SIZE > S3_EMIT_UNROLL_MAX_FLAT);
+        let (fw_b, off_b) = s3_yoyo_emit_tyb_file(&big);
+        assert!(parse_tyb(&fw_b).unwrap().records.iter().any(|r| r.op == 0x70));
+        assert_eq!(
+            s3_sim_prog_loop(&fw_b, 0, off_b, 0).unwrap(),
+            s3_host_tyb_from_records(&big)
+        );
+    }
+
     /// S3.175: loop-staged emit IR size is O(1) in flat length (vs unrolled O(n)).
     #[test]
     fn s3_emit_loop_staged_ir_size_independent_of_flat() {
