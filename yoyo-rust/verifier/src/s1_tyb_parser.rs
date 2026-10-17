@@ -1534,6 +1534,15 @@ fn s3_append_raw_a1(recs: &mut Vec<(u8, u8, [u8; 6])>, bytes: &[u8]) {
     recs.extend(s3_host_pack_bytes(0xA1, bytes));
 }
 
+/// S3.153: bootstrap scratch DATA as argc=1 per byte (no chunk-3 algorithm).
+/// via_ir still emits proper chunk-3 wire; this only feeds the packer firmware image.
+fn s3_pack_data_bytewise(bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
+    bytes
+        .iter()
+        .map(|&b| (0x10u8, 1u8, [b, 0, 0, 0, 0, 0]))
+        .collect()
+}
+
 /// S3.141: YOYO-target chunk size for DATA `0x10` pack (still Rust today).
 const S3_PACK_CHUNK: usize = 3;
 
@@ -1667,7 +1676,7 @@ fn s3_yoyo_pack_proto_ir(payload_len: usize) -> Vec<(u8, u8, [u8; 6])> {
     recs
 }
 
-/// S3.142: firmware = const/payload/outbuf DATA + unrolled pack IR.
+/// S3.142/S3.153: firmware = const/payload/outbuf DATA + unrolled pack IR.
 fn s3_yoyo_pack_proto_tyb(payload: &[u8]) -> Vec<u8> {
     assert!(!payload.is_empty() && payload.len() <= 6);
     let mut data = vec![0u8; S3_PACK_PROTO_OUT as usize + 16];
@@ -1677,8 +1686,8 @@ fn s3_yoyo_pack_proto_tyb(payload: &[u8]) -> Vec<u8> {
     data[S3_PACK_PROTO_CONST_3 as usize] = 3;
     let pay = S3_PACK_PROTO_PAY as usize;
     data[pay..pay + payload.len()].copy_from_slice(payload);
-    // S3.148: scratch DATA uses host_pack_bytes (bootstrap); not s3_pack_data.
-    let mut recs = s3_host_pack_bytes(0x10, &data);
+    // S3.153: bootstrap scratch is bytewise (not chunk-3).
+    let mut recs = s3_pack_data_bytewise(&data);
     recs.extend(s3_yoyo_pack_proto_ir(payload.len()));
     s3_host_tyb_from_records(&recs)
 }
@@ -1759,7 +1768,7 @@ fn s3_yoyo_pack_loop_ir(pay_off: u32, out_off: u32, payload_len: u32) -> Vec<(u8
     r
 }
 
-/// S3.151: OnceLock pack of const+zero gap `[0..PAY)` for via_ir scratch.
+/// S3.151/S3.153: OnceLock bytewise pack of const+zero gap `[0..PAY)` for via_ir scratch.
 fn s3_pack_scratch_prefix_recs() -> &'static [(u8, u8, [u8; 6])] {
     use std::sync::OnceLock;
     static PREFIX: OnceLock<Vec<(u8, u8, [u8; 6])>> = OnceLock::new();
@@ -1769,13 +1778,13 @@ fn s3_pack_scratch_prefix_recs() -> &'static [(u8, u8, [u8; 6])] {
         head[S3_PACK_PROTO_CONST_1 as usize] = 1;
         head[S3_PACK_PROTO_CONST_2 as usize] = 2;
         head[S3_PACK_PROTO_CONST_3 as usize] = 3;
-        s3_host_pack_bytes(0x10, &head)
+        s3_pack_data_bytewise(&head)
     })
     .as_slice()
 }
 
-/// S3.143/S3.145/S3.149/S3.151: firmware for looped pack IR; returns (tyb, out_off).
-/// Scratch = cached prefix `[0..PAY)` + Rust-pack(payload+2B pad); sim grows outbuf.
+/// S3.143–S3.153: firmware for looped pack IR; returns (tyb, out_off).
+/// Scratch = cached prefix + bytewise(payload+2); chunk-3 only from YOYO IR output.
 fn s3_yoyo_pack_loop_tyb(payload: &[u8]) -> (Vec<u8>, u32) {
     assert!(!payload.is_empty());
     let out_off = s3_pack_proto_out_off(payload.len());
@@ -1783,7 +1792,7 @@ fn s3_yoyo_pack_loop_tyb(payload: &[u8]) -> (Vec<u8>, u32) {
     body.push(0);
     body.push(0);
     let mut recs = s3_pack_scratch_prefix_recs().to_vec();
-    recs.extend(s3_host_pack_bytes(0x10, &body));
+    recs.extend(s3_pack_data_bytewise(&body));
     recs.extend(s3_yoyo_pack_loop_ir(
         S3_PACK_PROTO_PAY,
         out_off,
@@ -3747,6 +3756,22 @@ mod tests {
                 .unwrap_or_else(|e| panic!("sim loop pack len {n}: {e:#x}"));
             assert_eq!(got, expect, "loop IR pack != s3_pack_data wire, len {n}");
         }
+    }
+
+    /// S3.153: via_ir bootstrap scratch is bytewise argc=1; chunk-3 only in IR output.
+    #[test]
+    fn s3_pack_bootstrap_scratch_is_bytewise() {
+        let bytes = [0xAAu8, 0xBB, 0xCC];
+        let (tyb, _) = s3_yoyo_pack_loop_tyb(&bytes);
+        let prog = parse_tyb(&tyb).unwrap();
+        let data_recs: Vec<_> = prog.records.iter().filter(|r| r.op == 0x10).collect();
+        assert!(
+            data_recs.iter().all(|r| r.argc == 1),
+            "bootstrap scratch DATA must be argc=1 bytewise"
+        );
+        let via = s3_pack_data_via_ir(&bytes);
+        assert!(via.iter().any(|(_, argc, _)| *argc == 3) || bytes.len() < 3);
+        assert_eq!(via, s3_pack_data(&bytes));
     }
 
     /// S3.150: RAW A1 short-lea packs go through `s3_append_raw_a1` (still Rust).

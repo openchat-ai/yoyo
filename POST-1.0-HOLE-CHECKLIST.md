@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.153**（152 剩余面已刷新；下一刀真自举近端 / STB 或 bootstrap 再削；仍不改 golden；**不**假 CLOSED）。
+**默认** `继续` **= S3.154**（153 bootstrap 改 bytewise；下一刀真自举近端 / STB；仍不改 golden；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -115,11 +115,12 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.147–148** ✅ | `a85b062` | 表路径 via_ir；`s3_pack_data` 仅参照；scratch=`host_pack_bytes` |
 | **S3.149** ✅    | `e6a48db` | scratch 仅 const+payload；sim MEMCPY 增长 outbuf |
 | **S3.150** ✅    | `85aa57f` | `s3_append_raw_a1`；in-DLL 三 lea 种子共用 |
-| **S3.151–152** ✅ | —         | scratch 前缀 OnceLock；pack 后剩余 Rust 面清单 |
-| **S3.153** ⏳    | —         | bootstrap 再削 / STB / 真自举近端 · **本步** |
+| **S3.151–152** ✅ | `8186680` | scratch 前缀 OnceLock；pack 后剩余 Rust 面清单 |
+| **S3.153** ✅    | —         | bootstrap scratch bytewise；chunk-3 仅 IR 输出 |
+| **S3.154** ⏳    | —         | STB / 真自举近端 · **本步** |
 
 
-**缺口**：via_ir bootstrap 仍 Rust pack(payload+2) · in-DLL 短 lea 字节必留 · 真自举。逐步正文 → `git log`。
+**缺口**：bootstrap 仍 Rust 逐字节建记录 · in-DLL 短 lea 字节必留 · 真自举。逐步正文 → `git log`。
 
 ---
 
