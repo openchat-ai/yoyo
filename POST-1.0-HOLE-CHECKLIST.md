@@ -137,7 +137,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.174** ✅    | `ce60263` | SET+STB×byte 展开 = 发射器地板（门禁） |
 | **S3.175** ✅    | `c46db00` | loop-staged 发射 IR 大小与 flat 无关 |
 | **S3.176** ✅    | `7d9e782` | 真自举近端清单（两地板 + O(1) 旁路） |
-| **S3.177** ✅    | —         | 混合发射：小 flat 展开 / 大 flat loop-staged |
+| **S3.177** ✅    | `8d003f2` | 混合发射：小 flat 展开 / 大 flat loop-staged |
 | **S3.178** ⏳    | —         | 真自举 · **本步** |
 
 
