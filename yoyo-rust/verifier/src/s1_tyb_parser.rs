@@ -2145,7 +2145,7 @@ fn s3_rec_ldb(dst: u16, src: u16, off: u16) -> (u8, u8, [u8; 6]) {
     let o = off.to_le_bytes();
     (0x80, 3, [d[0], d[1], s[0], s[1], o[0], o[1]])
 }
-/// S3.154: STB val base off — store low byte of state[val] to data[state[base]+off] (sim-only).
+/// S3.154/S3.156: STB val base off — store low byte of state[val] to data[state[base]+off].
 fn s3_rec_stb(val: u16, base: u16, off: u16) -> (u8, u8, [u8; 6]) {
     let v = val.to_le_bytes();
     let b = base.to_le_bytes();
@@ -3934,6 +3934,33 @@ mod tests {
                 .unwrap_or_else(|e| panic!("sim loop pack len {n}: {e:#x}"));
             assert_eq!(got, expect, "loop IR pack != s3_pack_data wire, len {n}");
         }
+    }
+
+    /// S3.159: STB copy runs on slim PE (Windows); outbuf gets source bytes.
+    #[test]
+    #[cfg(windows)]
+    fn s3_stb_copy_runs_on_pe() {
+        let mut data = vec![0u8; S3_OUTBUF_OFF as usize + 4];
+        data[0] = 0xDE;
+        data[1] = 0xAD;
+        data[2] = 0xBE;
+        let mut recs = s3_pack_data_bytewise(&data);
+        // slot 15 = .data base; slot 9 = outbuf (same lea seeds as compose).
+        s3_append_raw_a1(&mut recs, S3_LEA_PTR);
+        s3_append_raw_a1(&mut recs, &S3_LEA_DST);
+        const BASE: u16 = 15;
+        const DST: u16 = 9;
+        const TMP: u16 = 11;
+        for k in 0..3u16 {
+            recs.push(s3_rec_ldb(TMP, BASE, k));
+            recs.push(s3_rec_stb(TMP, DST, 0));
+            recs.push(s3_rec_add(DST, 1));
+        }
+        recs.push((0xFF, 0, [0; 6]));
+        let tyb = tyb_from_records(&recs);
+        let pe = compile_tyb_to_pe_mini(&tyb).expect("stb mini pe");
+        let got = s3_run_slim_pe_outbuf(&pe.bytes, 3);
+        assert_eq!(got, vec![0xDE, 0xAD, 0xBE]);
     }
 
     /// S3.157: looped STB pack IR == `s3_pack_data` wire for lens 1..=64.
