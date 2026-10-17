@@ -1665,35 +1665,64 @@ fn s3_yoyo_emit_tyb_file_loop_staged(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>,
     (s3_host_tyb_from_records(&recs), out_off)
 }
 
-/// S3.181: IR SET+STB builds flat into staging (below outbuf), then O(1) loop
-/// copies staging → outbuf. Bootstrap DATA is zeros only — no Rust flat preimage.
+/// S3.183: STB `bytes` at DST. Identical bytes of length >= 2 share one SET and a
+/// SUB/JE loop. Singletons stay SET+STB+ADD. Returns the next free label id.
+/// Rust still chooses the immediates; they are not copied into DATA.
+fn s3_append_stb_runs(
+    recs: &mut Vec<(u8, u8, [u8; 6])>,
+    bytes: &[u8],
+    mut label_id: u32,
+) -> u32 {
+    let mut i = 0;
+    while i < bytes.len() {
+        let b = bytes[i];
+        let mut n = 1usize;
+        while i + n < bytes.len() && bytes[i + n] == b {
+            n += 1;
+        }
+        if n == 1 {
+            recs.push(s3_rec_set(S3_PACK_STB_TMP, b as u32));
+            recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_PROTO_DST, 0));
+            recs.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
+        } else {
+            let l_loop = label_id;
+            let l_done = label_id + 1;
+            label_id += 2;
+            recs.push(s3_rec_set(S3_PACK_STB_TMP, b as u32));
+            recs.push(s3_rec_set(S3_PACK_LOOP_REM, n as u32));
+            recs.push(s3_rec_label(l_loop));
+            recs.push(s3_rec_cmp(S3_PACK_LOOP_REM, S3_PACK_STB_ZERO));
+            recs.push(s3_rec_je(l_done));
+            recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_PROTO_DST, 0));
+            recs.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
+            recs.push(s3_rec_sub(S3_PACK_LOOP_REM, 1));
+            recs.push(s3_rec_jmp(l_loop));
+            recs.push(s3_rec_label(l_done));
+        }
+        i += n;
+    }
+    label_id
+}
+
+/// S3.181/S3.183: IR writes staging (runs, not SET per byte), then one MEMCPY
+/// to outbuf. Bootstrap DATA is zeros only — no Rust flat preimage.
 fn s3_yoyo_emit_tyb_file_two_phase(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
     assert!(records.len() <= 255);
     let pay = 0x10u32;
     let flat_len = HEADER_SIZE as u32 + records.len() as u32 * RECORD_SIZE as u32;
     let out_off = pay + flat_len;
-    let mut recs = s3_pack_data_bytewise(&vec![0u8; out_off as usize]);
-    // Phase 1: write header+records at `pay` (not composed — below outbuf).
-    recs.push(s3_rec_set(S3_PACK_PROTO_DST, pay));
-    for &b in &TYB_MAGIC {
-        recs.push(s3_rec_set(S3_PACK_STB_TMP, b as u32));
-        recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_PROTO_DST, 0));
-        recs.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
-    }
-    for _ in 0..2 {
-        recs.push(s3_rec_set(S3_PACK_STB_TMP, 0));
-        recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_PROTO_DST, 0));
-        recs.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
-    }
-    let cnt = (records.len() as u16).to_le_bytes();
-    for &b in &cnt {
-        recs.push(s3_rec_set(S3_PACK_STB_TMP, b as u32));
-        recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_PROTO_DST, 0));
-        recs.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
-    }
+    let mut flat = Vec::with_capacity(flat_len as usize);
+    flat.extend_from_slice(&TYB_MAGIC);
+    flat.extend_from_slice(&0u16.to_le_bytes());
+    flat.extend_from_slice(&(records.len() as u16).to_le_bytes());
     for &(op, argc, a) in records {
-        s3_append_emit_rec_stb(&mut recs, op, argc, a);
+        flat.extend_from_slice(&s3_rec_wire(op, argc, a));
     }
+    debug_assert_eq!(flat.len(), flat_len as usize);
+    let mut recs = s3_pack_data_bytewise(&vec![0u8; out_off as usize]);
+    recs.push(s3_rec_set(S3_PACK_PROTO_DST, pay));
+    recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
+    s3_append_stb_runs(&mut recs, &flat, 1);
     // Phase 2 (S3.182): one MEMCPY staging → outbuf. Length is state, not an imm.
     recs.push(s3_rec_set(S3_PACK_LOOP_CUR, pay));
     recs.push(s3_rec_set(S3_PACK_LOOP_END, flat_len));
@@ -2281,6 +2310,11 @@ fn s3_rec_add(slot: u16, imm: u32) -> (u8, u8, [u8; 6]) {
     let ib = imm.to_le_bytes();
     (0x62, 2, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
 }
+fn s3_rec_sub(slot: u16, imm: u32) -> (u8, u8, [u8; 6]) {
+    let sb = slot.to_le_bytes();
+    let ib = imm.to_le_bytes();
+    (0x61, 2, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
+}
 fn s3_rec_label(id: u32) -> (u8, u8, [u8; 6]) {
     let b = id.to_le_bytes();
     (0x40, 1, [b[0], b[1], b[2], b[3], 0, 0])
@@ -2436,6 +2470,12 @@ fn s3_sim_prog_loop(tyb: &[u8], table_off: u64, outbuf: u32, prog_ptr: u64) -> R
             0x62 => {
                 let (s, imm) = arg_slot_imm(rec).ok_or(0xFB)?;
                 state[s as usize] = state[s as usize].wrapping_add(imm as u64);
+                pc += 1;
+            }
+            // S3.183: SUB imm — countdown for STB runs (emit_x86 already has 0x61).
+            0x61 => {
+                let (s, imm) = arg_slot_imm(rec).ok_or(0xFB)?;
+                state[s as usize] = state[s as usize].wrapping_sub(imm as u64);
                 pc += 1;
             }
             0x64 => {
@@ -4207,8 +4247,15 @@ mod tests {
         big.push(s3_fixed_rec(0xFF));
         let expect = s3_host_tyb_from_records(&big);
         let (fw, out_off) = s3_yoyo_emit_tyb_file_two_phase(&big);
-        assert!(parse_tyb(&fw).unwrap().records.iter().any(|r| r.op == 0x84));
-        assert!(!parse_tyb(&fw).unwrap().records.iter().any(|r| r.op == 0x70));
+        let ir = parse_tyb(&fw).unwrap();
+        assert!(ir.records.iter().any(|r| r.op == 0x84));
+        assert!(ir.records.iter().any(|r| r.op == 0x61), "zero run uses SUB");
+        let sets = ir.records.iter().filter(|r| r.op == 0x30).count();
+        let flat_len = HEADER_SIZE + big.len() * RECORD_SIZE;
+        assert!(
+            sets * 4 < flat_len,
+            "S3.183 runs collapse SET-per-byte: sets={sets} flat={flat_len}"
+        );
         assert!(s3_unpack_data_tyb(&fw).iter().all(|&b| b == 0));
         let got = s3_sim_prog_loop(&fw, 0, out_off, 0).expect("two-phase");
         assert_eq!(got, expect);
