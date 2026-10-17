@@ -108,7 +108,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.135** ✅    | `e431341` | 剩余 Rust 面清单（DATA `0x10` / 短 `lea` / in-DLL A1） |
 | **S3.136** ✅    | `60052d6` | YOYO 表 DATA 统一走 `s3_pack_data`（仍 Rust） |
 | **S3.137–140** ✅ | `3596c40` | pack↔unpack；body OnceLock；host 最后一英里；111 例穷尽对拍 |
-| **S3.141** ✅    | （本批） | `S3_PACK_CHUNK=3` 规格 + 记录数门禁 |
+| **S3.141** ✅    | `6010384` | `S3_PACK_CHUNK=3` 规格 + 记录数门禁 |
 | **S3.142** ⏳    | —         | YOYO IR 写 pack 原型 · **本步** |
 
 
