@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.133**（fixed10 固件折叠收口；下一轴不改 golden / 不加 opcode；**不**假 CLOSED）。
+**默认** `继续` **= S3.134**（scan 尾也收成 `append_scan_*`；不改 golden；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -103,7 +103,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.123** ✅    | `8fa5693` | RET/NOP 单字节改走 `emit_x86` |
 | **S3.124–128** ✅ | `fcb497e` | fixed10 一份；`lea` 由 disp/slot 生成；SET/ADD 记录一份 |
 | **S3.129–130** ✅ | `432040f` | `s3_fixed_rec` 对拍；10 例由同一张表拼出 |
-| **S3.131–132** ✅ | （本批） | 短 `lea` 共用；compose→`append_scan_memcpy`；in-DLL 仍有 A1 |
+| **S3.131–132** ✅ | `c3ad6e4` | 短 `lea` 共用；compose→`append_scan_memcpy`；in-DLL 仍有 A1 |
 | **S3.133** ⏳    | —         | 折叠收口 · 下一轴不改 golden · **本步** |
 
 
