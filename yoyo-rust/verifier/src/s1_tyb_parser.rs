@@ -1628,7 +1628,7 @@ fn s3_pack_proto_out_off(payload_len: usize) -> u32 {
     S3_PACK_PROTO_PAY + payload_len as u32 + 2
 }
 
-/// S3.142: emit one byte from DATA[`src_off`] to *DST, then DST += 1.
+/// S3.142: emit one byte from DATA[`src_off`] to *DST, then DST += 1 (MEMCPY).
 fn s3_pack_proto_putc(recs: &mut Vec<(u8, u8, [u8; 6])>, src_off: u32) {
     recs.push(s3_rec_set(S3_PACK_PROTO_SRC, src_off));
     recs.push(s3_rec_memcpy(
@@ -1636,6 +1636,20 @@ fn s3_pack_proto_putc(recs: &mut Vec<(u8, u8, [u8; 6])>, src_off: u32) {
         S3_PACK_PROTO_SRC,
         S3_PACK_PROTO_ONE,
     ));
+    recs.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
+}
+
+const S3_PACK_STB_TMP: u16 = 11;
+const S3_PACK_STB_ZERO: u16 = 13;
+
+/// S3.155: emit one byte via LDB→STB (sim-only STB); DST += 1.
+fn s3_pack_proto_putc_stb(recs: &mut Vec<(u8, u8, [u8; 6])>, src_off: u32) {
+    recs.push(s3_rec_ldb(
+        S3_PACK_STB_TMP,
+        S3_PACK_STB_ZERO,
+        src_off as u16,
+    ));
+    recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_PROTO_DST, 0));
     recs.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
 }
 
@@ -1689,6 +1703,56 @@ fn s3_yoyo_pack_proto_tyb(payload: &[u8]) -> Vec<u8> {
     // S3.153: bootstrap scratch is bytewise (not chunk-3).
     let mut recs = s3_pack_data_bytewise(&data);
     recs.extend(s3_yoyo_pack_proto_ir(payload.len()));
+    s3_host_tyb_from_records(&recs)
+}
+
+/// S3.155: one DATA record via LDB→STB putc.
+fn s3_pack_proto_record_stb(recs: &mut Vec<(u8, u8, [u8; 6])>, base: u32, n: u8) {
+    debug_assert!((1..=S3_PACK_CHUNK as u8).contains(&n));
+    s3_pack_proto_putc_stb(recs, S3_PACK_PROTO_CONST_OP);
+    let argc_off = match n {
+        1 => S3_PACK_PROTO_CONST_1,
+        2 => S3_PACK_PROTO_CONST_2,
+        3 => S3_PACK_PROTO_CONST_3,
+        _ => unreachable!(),
+    };
+    s3_pack_proto_putc_stb(recs, argc_off);
+    for k in 0..S3_PACK_CHUNK as u32 {
+        if (k as u8) < n {
+            s3_pack_proto_putc_stb(recs, base + k);
+        } else {
+            s3_pack_proto_putc_stb(recs, S3_PACK_PROTO_CONST_Z);
+        }
+        s3_pack_proto_putc_stb(recs, S3_PACK_PROTO_CONST_Z);
+    }
+}
+
+/// S3.155: unrolled pack IR using LDB→STB (sim-only).
+fn s3_yoyo_pack_stb_ir(payload_len: usize) -> Vec<(u8, u8, [u8; 6])> {
+    let mut recs = Vec::new();
+    recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
+    recs.push(s3_rec_set(S3_PACK_PROTO_DST, S3_PACK_PROTO_OUT));
+    let mut i = 0usize;
+    while i < payload_len {
+        let n = (payload_len - i).min(S3_PACK_CHUNK) as u8;
+        s3_pack_proto_record_stb(&mut recs, S3_PACK_PROTO_PAY + i as u32, n);
+        i += n as usize;
+    }
+    recs.push((0xFF, 0, [0; 6]));
+    recs
+}
+
+fn s3_yoyo_pack_stb_tyb(payload: &[u8]) -> Vec<u8> {
+    assert!(!payload.is_empty() && payload.len() <= 6);
+    let mut data = vec![0u8; S3_PACK_PROTO_OUT as usize + 16];
+    data[S3_PACK_PROTO_CONST_OP as usize] = 0x10;
+    data[S3_PACK_PROTO_CONST_1 as usize] = 1;
+    data[S3_PACK_PROTO_CONST_2 as usize] = 2;
+    data[S3_PACK_PROTO_CONST_3 as usize] = 3;
+    let pay = S3_PACK_PROTO_PAY as usize;
+    data[pay..pay + payload.len()].copy_from_slice(payload);
+    let mut recs = s3_pack_data_bytewise(&data);
+    recs.extend(s3_yoyo_pack_stb_ir(payload.len()));
     s3_host_tyb_from_records(&recs)
 }
 
@@ -1985,6 +2049,13 @@ fn s3_rec_ldb(dst: u16, src: u16, off: u16) -> (u8, u8, [u8; 6]) {
     let o = off.to_le_bytes();
     (0x80, 3, [d[0], d[1], s[0], s[1], o[0], o[1]])
 }
+/// S3.154: STB val base off — store low byte of state[val] to data[state[base]+off] (sim-only).
+fn s3_rec_stb(val: u16, base: u16, off: u16) -> (u8, u8, [u8; 6]) {
+    let v = val.to_le_bytes();
+    let b = base.to_le_bytes();
+    let o = off.to_le_bytes();
+    (0x81, 3, [v[0], v[1], b[0], b[1], o[0], o[1]])
+}
 fn s3_rec_cmp(a: u16, b: u16) -> (u8, u8, [u8; 6]) {
     let aa = a.to_le_bytes();
     let bb = b.to_le_bytes();
@@ -2145,6 +2216,17 @@ fn s3_sim_prog_loop(tyb: &[u8], table_off: u64, outbuf: u32, prog_ptr: u64) -> R
                 let (dd, ss, oo) = arg_slot3(rec).ok_or(0xFB)?;
                 let addr = state[ss as usize] as usize + oo as usize;
                 state[dd as usize] = *data.get(addr).ok_or(0xFA)? as u64;
+                pc += 1;
+            }
+            // S3.154: STB val base off (sim-only; emit still NOP-unknown).
+            0x81 => {
+                let (val, base, oo) = arg_slot3(rec).ok_or(0xFB)?;
+                let addr = state[base as usize] as usize + oo as usize;
+                if addr >= data.len() {
+                    data.resize(addr + 1, 0);
+                }
+                data[addr] = state[val as usize] as u8;
+                composed += 1;
                 pc += 1;
             }
             0x84 => {
@@ -3756,6 +3838,54 @@ mod tests {
                 .unwrap_or_else(|e| panic!("sim loop pack len {n}: {e:#x}"));
             assert_eq!(got, expect, "loop IR pack != s3_pack_data wire, len {n}");
         }
+    }
+
+    /// S3.155: unrolled STB pack IR == `s3_pack_data` wire (lens 1..=6).
+    #[test]
+    fn s3_yoyo_ir_pack_stb_parity() {
+        for n in 1usize..=6 {
+            let bytes: Vec<u8> = (0..n).map(|i| (i * 17 + 3) as u8).collect();
+            let expect = s3_pack_data_wire(&bytes);
+            let tyb = s3_yoyo_pack_stb_tyb(&bytes);
+            assert!(
+                parse_tyb(&tyb).unwrap().records.iter().any(|r| r.op == 0x81),
+                "STB pack must use op 0x81"
+            );
+            let got = s3_sim_prog_loop(&tyb, 0, S3_PACK_PROTO_OUT, 0)
+                .unwrap_or_else(|e| panic!("stb pack len {n}: {e:#x}"));
+            assert_eq!(got, expect, "STB IR pack != wire, len {n}");
+        }
+    }
+
+    /// S3.154: sim STB stores bytes; LDB→STB copy matches MEMCPY of same span.
+    #[test]
+    fn s3_sim_stb_ldb_roundtrip() {
+        const TMP: u16 = 11;
+        const ZERO: u16 = 13;
+        let mut data = vec![0u8; 0x40];
+        data[0] = 0x10;
+        data[1] = 1;
+        data[2] = 2;
+        data[0x20] = 0xAA;
+        data[0x21] = 0xBB;
+        data[0x22] = 0xCC;
+        let mut recs = s3_pack_data_bytewise(&data);
+        recs.push(s3_rec_set(ZERO, 0));
+        recs.push(s3_rec_set(S3_PACK_PROTO_DST, 0x30));
+        recs.push(s3_rec_set(S3_PACK_PROTO_ONE, 1));
+        for k in 0..3u32 {
+            recs.push(s3_rec_ldb(TMP, ZERO, (0x20 + k) as u16));
+            recs.push(s3_rec_stb(TMP, S3_PACK_PROTO_DST, 0));
+            recs.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
+        }
+        recs.push((0xFF, 0, [0; 6]));
+        let tyb = s3_host_tyb_from_records(&recs);
+        let got = s3_sim_prog_loop(&tyb, 0, 0x30, 0).expect("stb copy");
+        assert_eq!(got, vec![0xAA, 0xBB, 0xCC]);
+        assert!(
+            parse_tyb(&tyb).unwrap().records.iter().any(|r| r.op == 0x81),
+            "must use STB"
+        );
     }
 
     /// S3.153: via_ir bootstrap scratch is bytewise argc=1; chunk-3 only in IR output.
