@@ -357,6 +357,16 @@ fn emit_ldb(out: &mut Vec<u8>, dd: u16, ss: u16, oo: u16) {
     emit_store_state(out, dd, Reg::Rax);
 }
 
+/// S3.156: STB val base oo — store low byte of state[val] to [state[base]+oo].
+fn emit_stb(out: &mut Vec<u8>, val: u16, base: u16, oo: u16) {
+    emit_load_state(out, val, Reg::Rcx);
+    emit_load_state(out, base, Reg::Rax);
+    if oo != 0 {
+        emit_add_imm(out, Reg::Rax, oo as u32);
+    }
+    out.extend_from_slice(&[0x88, 0x08]); // mov byte [rax], cl
+}
+
 /// MEMCPY_DATA dst src n — pointer-form: RSI=S[src], RDI=S[dst], RCX=S[n], rep movsb.
 /// Arg order on the wire is (dst, src, n) per `isa_table` / `emit.rs`.
 fn emit_memcpy_data(out: &mut Vec<u8>, dst: u16, src: u16, n: u16) {
@@ -583,6 +593,14 @@ pub fn emit_x86(prog: &TybProgram) -> CodegenOutput {
             0x80 => {
                 if let Some((dd, ss, oo)) = arg_slot3(rec) {
                     emit_ldb(&mut text, dd, ss, oo);
+                } else {
+                    text.push(0x90);
+                }
+            }
+            // --- S3.156: STB val base oo ---
+            0x81 => {
+                if let Some((val, base, oo)) = arg_slot3(rec) {
+                    emit_stb(&mut text, val, base, oo);
                 } else {
                     text.push(0x90);
                 }
@@ -1144,6 +1162,7 @@ pub fn is_s1_mini_op(op: u8) -> bool {
             | 0x79
             | 0x7A
             | 0x80
+            | 0x81
             | 0x84
             | 0x85
             | 0xA0
@@ -1334,6 +1353,17 @@ pub fn validate_tyb_mini(prog: &TybProgram) -> crate::types::IsaResult<()> {
                 let ss = u16::from_le_bytes([rec.args_raw[2], rec.args_raw[3]]);
                 if !mini_slot_disp8_ok(dd) || !mini_slot_disp8_ok(ss) {
                     return bad(i, "s1 mini LDB slot disp32 unsupported".into());
+                }
+            }
+            // S3.156: STB val base oo (same slot rules as LDB).
+            0x81 => {
+                if rec.argc != 3 {
+                    return bad(i, format!("s1 mini STB requires argc=3, got {}", rec.argc));
+                }
+                let val = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]);
+                let base = u16::from_le_bytes([rec.args_raw[2], rec.args_raw[3]]);
+                if !mini_slot_disp8_ok(val) || !mini_slot_disp8_ok(base) {
+                    return bad(i, "s1 mini STB slot disp32 unsupported".into());
                 }
             }
             0x84 => {
@@ -3838,6 +3868,21 @@ mod tests {
                 .unwrap_or_else(|e| panic!("sim loop pack len {n}: {e:#x}"));
             assert_eq!(got, expect, "loop IR pack != s3_pack_data wire, len {n}");
         }
+    }
+
+    /// S3.156: emit_stb produces load-val / load-base / mov [rax], cl.
+    #[test]
+    fn s3_emit_stb_bytes() {
+        let prog = parse_tyb(&s3_host_tyb_from_records(&[
+            s3_rec_stb(1, 2, 0),
+            (0xFF, 0, [0; 6]),
+        ]))
+        .unwrap();
+        let text = emit_x86(&prog).text;
+        // Ends with mov [rax], cl (88 08) then ret C3 — not a lone NOP.
+        assert!(text.windows(2).any(|w| w == [0x88, 0x08]), "missing mov [rax],cl");
+        assert_eq!(*text.last().unwrap(), 0xC3);
+        assert!(!text.iter().all(|&b| b == 0x90 || b == 0xC3));
     }
 
     /// S3.155: unrolled STB pack IR == `s3_pack_data` wire (lens 1..=6).
