@@ -1630,12 +1630,12 @@ fn s3_pack_wire_to_records(wire: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
         .collect()
 }
 
-/// S3.144/S3.145: pack via YOYO loop IR (sim) → wire → records; empty stays empty.
+/// S3.144/S3.158: pack via YOYO loop STB IR (sim) → wire → records; empty stays empty.
 fn s3_pack_data_via_ir(bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     if bytes.is_empty() {
         return Vec::new();
     }
-    let (tyb, out_off) = s3_yoyo_pack_loop_tyb(bytes);
+    let (tyb, out_off) = s3_yoyo_pack_loop_stb_tyb(bytes);
     let wire = s3_sim_prog_loop(&tyb, 0, out_off, 0).expect("s3_pack_data_via_ir: sim pack");
     s3_pack_wire_to_records(&wire)
 }
