@@ -1596,7 +1596,7 @@ fn s3_append_emit_rec_stb(
 /// S3.166: firmware that STB-emits given records to outbuf (empty DATA image).
 fn s3_yoyo_emit_recs_tyb(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
     let out_off = 0x20u32;
-    let mut recs = s3_pack_data_bytewise(&vec![0u8; out_off as usize]);
+    let mut recs = Vec::new();
     recs.push(s3_rec_set(S3_PACK_PROTO_DST, out_off));
     for &(op, argc, a) in records {
         s3_append_emit_rec_stb(&mut recs, op, argc, a);
@@ -1609,7 +1609,7 @@ fn s3_yoyo_emit_recs_tyb(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
 fn s3_yoyo_emit_tyb_file_unrolled(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
     assert!(records.len() <= 255, "S3.167 prototype: rec_cnt fits u8 path");
     let out_off = 0x20u32;
-    let mut recs = s3_pack_data_bytewise(&vec![0u8; out_off as usize]);
+    let mut recs = Vec::new();
     recs.push(s3_rec_set(S3_PACK_PROTO_DST, out_off));
     // magic "TYB\0"
     for &b in &TYB_MAGIC {
@@ -4058,6 +4058,7 @@ mod tests {
         // Floors + O(1) escape hatch (S3.174/S3.175).
         let one = [s3_fixed_rec(0xFF)];
         let (fw_u, _) = s3_yoyo_emit_tyb_file_unrolled(&one);
+        assert!(s3_unpack_data_tyb(&fw_u).is_empty());
         assert!(
             parse_tyb(&fw_u).unwrap().records.iter().filter(|r| r.op == 0x81).count()
                 == HEADER_SIZE + RECORD_SIZE
@@ -4069,7 +4070,7 @@ mod tests {
         big.push(s3_fixed_rec(0xFF));
         let (fw_2, _) = s3_yoyo_emit_tyb_file(&big);
         assert!(parse_tyb(&fw_2).unwrap().records.iter().any(|r| r.op == 0x84));
-        assert!(s3_unpack_data_tyb(&fw_2).iter().all(|&b| b == 0));
+        assert!(s3_unpack_data_tyb(&fw_2).is_empty());
         // Cliff: `s3_append_emit_rec_stb` / `s3_rec_*` builders remain Rust.
         let _ = s3_rec_stb(0, 1, 0);
         assert_eq!(s3_fixed_row(0xFF), s3_compute_fixed_body(0xFF));
@@ -4306,6 +4307,7 @@ mod tests {
             .flatten()
             .collect();
         let (tyb, out_off) = s3_yoyo_emit_recs_tyb(&[ret, set]);
+        assert!(s3_unpack_data_tyb(&tyb).is_empty());
         assert!(
             parse_tyb(&tyb).unwrap().records.iter().any(|r| r.op == 0x81),
             "emit path must use STB"
