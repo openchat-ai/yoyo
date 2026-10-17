@@ -1573,6 +1573,38 @@ fn s3_pack_data_bytewise(bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
         .collect()
 }
 
+/// S3.166: flatten one TYB record to 8 wire bytes (op+argc+args).
+fn s3_rec_wire(op: u8, argc: u8, a: [u8; 6]) -> [u8; 8] {
+    [op, argc, a[0], a[1], a[2], a[3], a[4], a[5]]
+}
+
+/// S3.166: append STB writes of one record from SET immediates (YOYO emits TYB wire).
+fn s3_append_emit_rec_stb(
+    recs: &mut Vec<(u8, u8, [u8; 6])>,
+    op: u8,
+    argc: u8,
+    a: [u8; 6],
+) {
+    let bytes = s3_rec_wire(op, argc, a);
+    for &b in &bytes {
+        recs.push(s3_rec_set(S3_PACK_STB_TMP, b as u32));
+        recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_PROTO_DST, 0));
+        recs.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
+    }
+}
+
+/// S3.166: firmware that STB-emits given records to outbuf (empty DATA image).
+fn s3_yoyo_emit_recs_tyb(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
+    let out_off = 0x20u32;
+    let mut recs = s3_pack_data_bytewise(&vec![0u8; out_off as usize]);
+    recs.push(s3_rec_set(S3_PACK_PROTO_DST, out_off));
+    for &(op, argc, a) in records {
+        s3_append_emit_rec_stb(&mut recs, op, argc, a);
+    }
+    recs.push((0xFF, 0, [0; 6]));
+    (s3_host_tyb_from_records(&recs), out_off)
+}
+
 /// S3.141: YOYO-target chunk size for DATA `0x10` pack (still Rust today).
 const S3_PACK_CHUNK: usize = 3;
 
@@ -3960,6 +3992,26 @@ mod tests {
                 .unwrap_or_else(|e| panic!("sim loop pack len {n}: {e:#x}"));
             assert_eq!(got, expect, "loop IR pack != s3_pack_data wire, len {n}");
         }
+    }
+
+    /// S3.166: YOYO IR STB-emits TYB record wire (== hand `s3_rec_wire`).
+    #[test]
+    fn s3_yoyo_emit_tyb_records_via_stb() {
+        let ret = (0xFFu8, 0u8, [0u8; 6]);
+        let set = s3_rec_set(0, 0xDEAD_BEEF);
+        let expect: Vec<u8> = [s3_rec_wire(ret.0, ret.1, ret.2), s3_rec_wire(set.0, set.1, set.2)]
+            .into_iter()
+            .flatten()
+            .collect();
+        let (tyb, out_off) = s3_yoyo_emit_recs_tyb(&[ret, set]);
+        assert!(
+            parse_tyb(&tyb).unwrap().records.iter().any(|r| r.op == 0x81),
+            "emit path must use STB"
+        );
+        let got = s3_sim_prog_loop(&tyb, 0, out_off, 0).expect("emit recs");
+        assert_eq!(got, expect);
+        // Round-trip: wire → records → matches inputs.
+        assert_eq!(s3_pack_wire_to_records(&got), vec![ret, set]);
     }
 
     /// S3.159: STB copy runs on slim PE (Windows); outbuf gets source bytes.
