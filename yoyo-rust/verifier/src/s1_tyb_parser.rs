@@ -2042,12 +2042,14 @@ fn s3_pack_loop_putc_from_slot(recs: &mut Vec<(u8, u8, [u8; 6])>, src_slot: u16)
 }
 
 /// S3.157: looped pack IR using LDB→STB instead of MEMCPY.
-fn s3_yoyo_pack_loop_stb_ir(pay_off: u32, out_off: u32, payload_len: u32) -> Vec<(u8, u8, [u8; 6])> {
+fn s3_yoyo_pack_loop_stb_ir(pay_off: u32, out_off: u32, payload: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
+    let payload_len = payload.len() as u32;
     let mut r = Vec::new();
     r.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
     r.push(s3_rec_set(S3_PACK_LOOP_THREE, S3_PACK_CHUNK as u32));
-    // S3.192: the two overread zeros are stores, not DATA records.
-    r.push(s3_rec_set(S3_PACK_PROTO_DST, pay_off + payload_len));
+    // S3.196: payload itself is IR stores. Repeated bytes share one SET.
+    r.push(s3_rec_set(S3_PACK_PROTO_DST, pay_off));
+    s3_append_stb_runs(&mut r, payload, 10);
     r.push(s3_rec_stb(S3_PACK_STB_ZERO, S3_PACK_PROTO_DST, 0));
     r.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
     r.push(s3_rec_stb(S3_PACK_STB_ZERO, S3_PACK_PROTO_DST, 0));
@@ -2090,10 +2092,9 @@ fn s3_yoyo_pack_loop_stb_ir(pay_off: u32, out_off: u32, payload_len: u32) -> Vec
 
 fn s3_yoyo_pack_loop_stb_tyb(payload: &[u8]) -> (Vec<u8>, u32) {
     assert!(!payload.is_empty());
-    // Payload sits at 0. IR writes the two overread zeros just past it.
+    // S3.196: no DATA records. IR writes the payload, then the two overread zeros.
     let out_off = payload.len() as u32 + 2;
-    let mut recs = s3_pack_data_bytewise(payload);
-    recs.extend(s3_yoyo_pack_loop_stb_ir(0, out_off, payload.len() as u32));
+    let recs = s3_yoyo_pack_loop_stb_ir(0, out_off, payload);
     (s3_host_tyb_from_records(&recs), out_off)
 }
 
@@ -4025,7 +4026,7 @@ mod tests {
         // S3.192/S3.194: both loop packers keep only payload bytes in DATA.
         let (via_fw, via_off) = s3_yoyo_pack_loop_stb_tyb(&[1, 2, 3, 4]);
         assert_eq!(via_off, 6);
-        assert_eq!(s3_unpack_data_tyb(&via_fw).len(), 4);
+        assert!(s3_unpack_data_tyb(&via_fw).is_empty());
         // Floor: in-DLL short lea RAW bytes stay (golden / PE seed).
         assert_eq!(S3_LEA_PTR.len(), 7);
         assert_eq!(S3_LEA_TABLE.len(), 15);
@@ -4553,8 +4554,7 @@ mod tests {
         let (tyb, out_off) = s3_yoyo_pack_loop_stb_tyb(&payload);
         let scratch = s3_unpack_data_tyb(&tyb);
         assert_eq!(out_off, payload.len() as u32 + 2);
-        assert_eq!(scratch.len(), payload.len(), "S3.192: overread pad is not in DATA");
-        assert_eq!(scratch, payload);
+        assert!(scratch.is_empty(), "S3.196: via_ir pack has no DATA records");
         assert_eq!(s3_pack_data_via_ir(&payload), s3_pack_data(&payload));
     }
 
