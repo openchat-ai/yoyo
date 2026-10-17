@@ -1962,10 +1962,18 @@ const S3_PACK_LOOP_L_DONE: u32 = 4;
 fn s3_yoyo_pack_loop_ir(
     pay_off: u32,
     out_off: u32,
-    payload_len: u32,
+    payload: &[u8],
     const_base: u32,
 ) -> Vec<(u8, u8, [u8; 6])> {
+    let payload_len = payload.len() as u32;
     let mut r = Vec::new();
+    // S3.197: payload and the two overread zeros are stores. Labels start at 10.
+    r.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
+    r.push(s3_rec_set(S3_PACK_PROTO_DST, pay_off));
+    s3_append_stb_runs(&mut r, payload, 10);
+    r.push(s3_rec_stb(S3_PACK_STB_ZERO, S3_PACK_PROTO_DST, 0));
+    r.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
+    r.push(s3_rec_stb(S3_PACK_STB_ZERO, S3_PACK_PROTO_DST, 0));
     // S3.194: [0x10, 1, 2, 3, 0] is written below outbuf, not packed as DATA.
     r.push(s3_rec_set(S3_PACK_PROTO_DST, const_base));
     for b in [0x10u8, 1, 2, 3, 0] {
@@ -2103,16 +2111,7 @@ fn s3_yoyo_pack_loop_tyb(payload: &[u8]) -> (Vec<u8>, u32) {
     assert!(!payload.is_empty());
     let const_base = payload.len() as u32 + 2;
     let out_off = const_base + 5;
-    let mut body = payload.to_vec();
-    body.push(0);
-    body.push(0);
-    let mut recs = s3_pack_data_bytewise(&body);
-    recs.extend(s3_yoyo_pack_loop_ir(
-        0,
-        out_off,
-        payload.len() as u32,
-        const_base,
-    ));
+    let recs = s3_yoyo_pack_loop_ir(0, out_off, payload, const_base);
     (s3_host_tyb_from_records(&recs), out_off)
 }
 
@@ -4094,7 +4093,7 @@ mod tests {
         // S3.194: MEMCPY loop scratch is payload+2; five consts are IR stores past that.
         let (cmp, out_off) = s3_yoyo_pack_loop_tyb(&[0xAB, 0xCD]);
         assert_eq!(out_off, 2 + 2 + 5);
-        assert_eq!(s3_unpack_data_tyb(&cmp).len(), 4);
+        assert!(s3_unpack_data_tyb(&cmp).is_empty());
     }
 
     /// S3.137/S3.141: pack ↔ unpack is the YOYO-target algorithm (still implemented in Rust).
@@ -4495,7 +4494,7 @@ mod tests {
             data_recs.iter().all(|r| r.argc == 1),
             "bootstrap scratch DATA must be argc=1 bytewise"
         );
-        assert_eq!(data_recs.len(), bytes.len() + 2);
+        assert!(data_recs.is_empty(), "S3.197: MEMCPY loop pack has no DATA");
         let via = s3_pack_data_via_ir(&bytes);
         assert!(via.iter().any(|(_, argc, _)| *argc == 3) || bytes.len() < 3);
         assert_eq!(via, s3_pack_data(&bytes));
@@ -4541,10 +4540,10 @@ mod tests {
         let bytes: Vec<u8> = (0..64).map(|i| i as u8).collect();
         let (tyb, out_off) = s3_yoyo_pack_loop_tyb(&bytes);
         assert_eq!(out_off, 64 + 2 + 5);
-        let scratch = s3_unpack_data_tyb(&tyb);
-        assert_eq!(scratch.len(), 66, "S3.194: DATA is payload plus the two-byte pad");
-        assert_eq!(&scratch[..64], &bytes[..]);
-        assert_eq!(&scratch[64..], &[0, 0]);
+        assert!(
+            s3_unpack_data_tyb(&tyb).is_empty(),
+            "S3.197: MEMCPY loop DATA is empty"
+        );
     }
 
     /// S3.188: a short last chunk still reads CUR+1 and CUR+2. Those two zeros stay.
