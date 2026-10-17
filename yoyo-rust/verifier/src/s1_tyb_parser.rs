@@ -4068,6 +4068,25 @@ mod tests {
         );
     }
 
+    /// S3.168: fixed10 cases via STB-emitted TYB == emit_x86 / yoyo table.
+    #[test]
+    fn s3_fixed10_via_stb_emitted_tyb_parity() {
+        for (name, body) in s3_fixed10_named_cases() {
+            let hand = s3_host_tyb_from_records(&body);
+            let expect = emit_x86(&parse_tyb(&hand).unwrap()).text;
+            let (fw, out_off) = s3_yoyo_emit_tyb_file(&body);
+            let emitted = s3_sim_prog_loop(&fw, 0, out_off, 0)
+                .unwrap_or_else(|e| panic!("{name}: emit tyb {e:#x}"));
+            assert_eq!(emitted, hand, "{name}: STB-emitted TYB bytes");
+            let via = emit_x86(&parse_tyb(&emitted).unwrap()).text;
+            assert_eq!(via, expect, "{name}: emit_x86 via emitted TYB");
+            let ops: Vec<u8> = body.iter().map(|(op, _, _)| *op).collect();
+            if let Some(yoyo) = try_emit_text_via_yoyo_table(&ops) {
+                assert_eq!(yoyo, expect, "{name}: yoyo table still matches");
+            }
+        }
+    }
+
     /// S3.159: STB copy runs on slim PE (Windows); outbuf gets source bytes.
     #[test]
     #[cfg(windows)]
