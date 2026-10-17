@@ -1637,9 +1637,8 @@ fn s3_yoyo_emit_tyb_file_unrolled(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u3
     (s3_host_tyb_from_records(&recs), out_off)
 }
 
-/// S3.171: loop STB-copy of a pre-staged TYB image (header+recs) from DATA→outbuf.
-/// Staging still Rust (`s3_host_tyb_from_records` + bytewise); emit *loop* is YOYO IR.
-fn s3_yoyo_emit_tyb_file(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
+/// S3.171: loop STB-copy of Rust-staged flat (kept for comparison).
+fn s3_yoyo_emit_tyb_file_loop_staged(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
     let flat = s3_host_tyb_from_records(records);
     let pay = 0x10u32;
     let out_off = pay + flat.len() as u32;
@@ -1664,6 +1663,11 @@ fn s3_yoyo_emit_tyb_file(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
     recs.push(s3_rec_label(L_DONE));
     recs.push((0xFF, 0, [0; 6]));
     (s3_host_tyb_from_records(&recs), out_off)
+}
+
+/// S3.172: default emit — flat TYB bytes written by IR SET+STB (no Rust flat preimage).
+fn s3_yoyo_emit_tyb_file(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
+    s3_yoyo_emit_tyb_file_unrolled(records)
 }
 
 /// S3.141: YOYO-target chunk size for DATA `0x10` pack (still Rust today).
@@ -4080,7 +4084,7 @@ mod tests {
         assert_eq!(s3_pack_wire_to_records(&got), vec![ret, set]);
     }
 
-    /// S3.167/S3.171: YOYO STB-emits a full TYB file (== `s3_host_tyb_from_records`).
+    /// S3.167/S3.171/S3.172: YOYO STB-emits a full TYB file (== hand bytes).
     #[test]
     fn s3_yoyo_emit_full_tyb_file_via_stb() {
         let body = [
@@ -4088,11 +4092,9 @@ mod tests {
             (0xFFu8, 0u8, [0u8; 6]),
         ];
         let expect = s3_host_tyb_from_records(&body);
+        // S3.172 default: IR writes flat (unrolled SET+STB), no Rust preimage.
         let (fw, out_off) = s3_yoyo_emit_tyb_file(&body);
-        assert!(
-            parse_tyb(&fw).unwrap().records.iter().any(|r| r.op == 0x70),
-            "S3.171: emit path must use JMP loop"
-        );
+        assert!(parse_tyb(&fw).unwrap().records.iter().any(|r| r.op == 0x81));
         let got = s3_sim_prog_loop(&fw, 0, out_off, 0).expect("emit tyb file");
         assert_eq!(got, expect);
         let parsed = parse_tyb(&got).expect("emitted tyb parses");
@@ -4103,10 +4105,10 @@ mod tests {
             emit_x86(&parsed).text,
             emit_x86(&parse_tyb(&expect).unwrap()).text
         );
-        // Unrolled path still matches (reference).
-        let (fw_u, off_u) = s3_yoyo_emit_tyb_file_unrolled(&body);
-        let got_u = s3_sim_prog_loop(&fw_u, 0, off_u, 0).unwrap();
-        assert_eq!(got_u, expect);
+        // S3.171 loop+Rust-stage still matches.
+        let (fw_l, off_l) = s3_yoyo_emit_tyb_file_loop_staged(&body);
+        assert!(parse_tyb(&fw_l).unwrap().records.iter().any(|r| r.op == 0x70));
+        assert_eq!(s3_sim_prog_loop(&fw_l, 0, off_l, 0).unwrap(), expect);
     }
 
     /// S3.168: fixed10 cases via STB-emitted TYB == emit_x86 / yoyo table.
