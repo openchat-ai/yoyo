@@ -1848,6 +1848,13 @@ fn s3_pack_proto_putc(recs: &mut Vec<(u8, u8, [u8; 6])>, src_off: u32) {
 const S3_PACK_STB_TMP: u16 = 11;
 const S3_PACK_STB_ZERO: u16 = 13;
 
+/// S3.191: store an immediate byte (op, argc, or zero pad) — not a DATA const.
+fn s3_pack_proto_putc_imm(recs: &mut Vec<(u8, u8, [u8; 6])>, byte: u8) {
+    recs.push(s3_rec_set(S3_PACK_STB_TMP, byte as u32));
+    recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_PROTO_DST, 0));
+    recs.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
+}
+
 /// S3.155: emit one byte via LDB→STB (sim-only STB); DST += 1.
 fn s3_pack_proto_putc_stb(recs: &mut Vec<(u8, u8, [u8; 6])>, src_off: u32) {
     recs.push(s3_rec_ldb(
@@ -1920,21 +1927,15 @@ fn s3_yoyo_pack_proto_tyb(payload: &[u8]) -> Vec<u8> {
 /// S3.155: one DATA record via LDB→STB putc.
 fn s3_pack_proto_record_stb(recs: &mut Vec<(u8, u8, [u8; 6])>, base: u32, n: u8) {
     debug_assert!((1..=S3_PACK_CHUNK as u8).contains(&n));
-    s3_pack_proto_putc_stb(recs, S3_PACK_PROTO_CONST_OP);
-    let argc_off = match n {
-        1 => S3_PACK_PROTO_CONST_1,
-        2 => S3_PACK_PROTO_CONST_2,
-        3 => S3_PACK_PROTO_CONST_3,
-        _ => unreachable!(),
-    };
-    s3_pack_proto_putc_stb(recs, argc_off);
+    s3_pack_proto_putc_imm(recs, 0x10);
+    s3_pack_proto_putc_imm(recs, n);
     for k in 0..S3_PACK_CHUNK as u32 {
         if (k as u8) < n {
             s3_pack_proto_putc_stb(recs, base + k);
         } else {
-            s3_pack_proto_putc_stb(recs, S3_PACK_PROTO_CONST_Z);
+            s3_pack_proto_putc_imm(recs, 0);
         }
-        s3_pack_proto_putc_stb(recs, S3_PACK_PROTO_CONST_Z);
+        s3_pack_proto_putc_imm(recs, 0);
     }
 }
 
@@ -1946,7 +1947,7 @@ fn s3_yoyo_pack_stb_ir(payload_len: usize) -> Vec<(u8, u8, [u8; 6])> {
     let mut i = 0usize;
     while i < payload_len {
         let n = (payload_len - i).min(S3_PACK_CHUNK) as u8;
-        s3_pack_proto_record_stb(&mut recs, S3_PACK_PROTO_PAY + i as u32, n);
+        s3_pack_proto_record_stb(&mut recs, i as u32, n);
         i += n as usize;
     }
     recs.push((0xFF, 0, [0; 6]));
@@ -1955,7 +1956,7 @@ fn s3_yoyo_pack_stb_ir(payload_len: usize) -> Vec<(u8, u8, [u8; 6])> {
 
 fn s3_yoyo_pack_stb_tyb(payload: &[u8]) -> Vec<u8> {
     assert!(!payload.is_empty() && payload.len() <= 6);
-    let mut recs = s3_pack_data_bytewise(&s3_pack_proto_scratch(payload));
+    let mut recs = s3_pack_data_bytewise(payload);
     recs.extend(s3_yoyo_pack_stb_ir(payload.len()));
     s3_host_tyb_from_records(&recs)
 }
@@ -4443,6 +4444,11 @@ mod tests {
             let bytes: Vec<u8> = (0..n).map(|i| (i * 17 + 3) as u8).collect();
             let expect = s3_pack_data_wire(&bytes);
             let tyb = s3_yoyo_pack_stb_tyb(&bytes);
+            assert_eq!(
+                s3_unpack_data_tyb(&tyb).len(),
+                n,
+                "S3.191: unrolled STB scratch is the payload only"
+            );
             assert!(
                 parse_tyb(&tyb).unwrap().records.iter().any(|r| r.op == 0x81),
                 "STB pack must use op 0x81"
