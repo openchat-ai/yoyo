@@ -1879,9 +1879,13 @@ fn s3_pack_proto_record(recs: &mut Vec<(u8, u8, [u8; 6])>, base: u32, n: u8) {
 
 /// S3.142: unrolled YOYO IR pack (SET/ADD/MEMCPY/RET) matching `s3_pack_data` wire.
 /// Builder is still Rust; the *executed* algorithm is YOYO ops (no STB — 1-byte MEMCPY).
-fn s3_yoyo_pack_proto_ir(payload_len: usize) -> Vec<(u8, u8, [u8; 6])> {
+fn s3_yoyo_pack_proto_ir(payload: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
+    let payload_len = payload.len();
     let mut recs = Vec::new();
-    // S3.195: consts live at 16, payload at 0. Both sit below the fixed outbuf.
+    // S3.198: payload at 0, consts at 16. Both below the fixed outbuf. No DATA.
+    recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
+    recs.push(s3_rec_set(S3_PACK_PROTO_DST, 0));
+    s3_append_stb_runs(&mut recs, payload, 10);
     recs.push(s3_rec_set(S3_PACK_PROTO_DST, 16));
     for b in [0x10u8, 1, 2, 3, 0] {
         recs.push(s3_rec_set(S3_PACK_STB_TMP, b as u32));
@@ -1904,8 +1908,7 @@ fn s3_yoyo_pack_proto_ir(payload_len: usize) -> Vec<(u8, u8, [u8; 6])> {
 fn s3_yoyo_pack_proto_tyb(payload: &[u8]) -> Vec<u8> {
     assert!(!payload.is_empty() && payload.len() <= 6);
     // S3.153: bootstrap scratch is bytewise (not chunk-3).
-    let mut recs = s3_pack_data_bytewise(payload);
-    recs.extend(s3_yoyo_pack_proto_ir(payload.len()));
+    let recs = s3_yoyo_pack_proto_ir(payload);
     s3_host_tyb_from_records(&recs)
 }
 
@@ -1925,9 +1928,12 @@ fn s3_pack_proto_record_stb(recs: &mut Vec<(u8, u8, [u8; 6])>, base: u32, n: u8)
 }
 
 /// S3.155: unrolled pack IR using LDB→STB (sim-only).
-fn s3_yoyo_pack_stb_ir(payload_len: usize) -> Vec<(u8, u8, [u8; 6])> {
+fn s3_yoyo_pack_stb_ir(payload: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
+    let payload_len = payload.len();
     let mut recs = Vec::new();
     recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
+    recs.push(s3_rec_set(S3_PACK_PROTO_DST, 0));
+    s3_append_stb_runs(&mut recs, payload, 10);
     recs.push(s3_rec_set(S3_PACK_PROTO_DST, S3_PACK_PROTO_OUT));
     let mut i = 0usize;
     while i < payload_len {
@@ -1941,8 +1947,7 @@ fn s3_yoyo_pack_stb_ir(payload_len: usize) -> Vec<(u8, u8, [u8; 6])> {
 
 fn s3_yoyo_pack_stb_tyb(payload: &[u8]) -> Vec<u8> {
     assert!(!payload.is_empty() && payload.len() <= 6);
-    let mut recs = s3_pack_data_bytewise(payload);
-    recs.extend(s3_yoyo_pack_stb_ir(payload.len()));
+    let recs = s3_yoyo_pack_stb_ir(payload);
     s3_host_tyb_from_records(&recs)
 }
 
@@ -4129,10 +4134,9 @@ mod tests {
             let expect = s3_pack_data_wire(&bytes);
             assert_eq!(expect.len(), ((n + S3_PACK_CHUNK - 1) / S3_PACK_CHUNK) * 8);
             let tyb = s3_yoyo_pack_proto_tyb(&bytes);
-            assert_eq!(
-                s3_unpack_data_tyb(&tyb).len(),
-                n,
-                "S3.195: proto scratch is the payload only"
+            assert!(
+                s3_unpack_data_tyb(&tyb).is_empty(),
+                "S3.198: proto pack has no DATA"
             );
             let prog = parse_tyb(&tyb).expect("pack proto tyb");
             assert!(
@@ -4437,10 +4441,9 @@ mod tests {
             let bytes: Vec<u8> = (0..n).map(|i| (i * 17 + 3) as u8).collect();
             let expect = s3_pack_data_wire(&bytes);
             let tyb = s3_yoyo_pack_stb_tyb(&bytes);
-            assert_eq!(
-                s3_unpack_data_tyb(&tyb).len(),
-                n,
-                "S3.191: unrolled STB scratch is the payload only"
+            assert!(
+                s3_unpack_data_tyb(&tyb).is_empty(),
+                "S3.198: unrolled STB pack has no DATA"
             );
             assert!(
                 parse_tyb(&tyb).unwrap().records.iter().any(|r| r.op == 0x81),

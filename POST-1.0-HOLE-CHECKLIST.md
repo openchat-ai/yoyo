@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.198**（197 MEMCPY 循环也无 DATA；下一刀两条展开 pack 的 payload 也改由 IR 写；仍不改 golden；**不**假 CLOSED）。
+**默认** `继续` **= S3.199**（198 四条 pack 都无 DATA；下一刀钉住 loop-staged 对照仍含 Rust flat；仍不改 golden；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -157,11 +157,12 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.194** ✅    | `e31f834` | MEMCPY 循环的 5 常量由 IR 写到 payload+2 之后 |
 | **S3.195** ✅    | `0ceedea` | 展开 MEMCPY pack 的常量改由 IR 写到地址 16 |
 | **S3.196** ✅    | `2a472df` | via_ir pack 无 DATA；payload 由 IR 写入，重复字节折叠 |
-| **S3.197** ✅    | —         | MEMCPY 循环的 payload 和零垫也由 IR 写；DATA 为空 |
-| **S3.198** ⏳    | —         | 两条展开 pack 的 payload 改由 IR 写 · **本步** |
+| **S3.197** ✅    | `15cc210` | MEMCPY 循环的 payload 和零垫也由 IR 写；DATA 为空 |
+| **S3.198** ✅    | —         | 两条展开 pack 的 payload 也由 IR 写；DATA 为空 |
+| **S3.199** ⏳    | —         | 钉住 loop-staged 对照仍含 Rust flat · **本步** |
 
 
-**缺口**：展开 pack 仍 bytewise 打包 payload · 短 lea · 单字节仍 SET（无 SHR）· 真自举。逐步正文 → `git log`。
+**缺口**：loop-staged 对照仍把 Rust flat 放进 DATA · 短 lea · 单字节仍 SET（无 SHR）· 真自举。逐步正文 → `git log`。
 
 ---
 
@@ -197,7 +198,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.198**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.199**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -205,4 +206,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-17**：两条循环 pack 都无 DATA · 默认 **S3.198** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-17**：四条 pack 都无 DATA · 默认 **S3.199** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
