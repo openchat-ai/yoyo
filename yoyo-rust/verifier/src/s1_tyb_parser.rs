@@ -1712,7 +1712,8 @@ fn s3_yoyo_emit_tyb_file_two_phase(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u
     (s3_host_tyb_from_records(&recs), out_off)
 }
 
-/// S3.177/S3.178: small → unrolled IR write; large → two-phase (IR staging + loop).
+/// S3.177/S3.180: small → unrolled IR write (no Rust flat); large → loop-staged
+/// O(1) IR (Rust flat in scratch). Two-phase loop stays a reference path.
 const S3_EMIT_UNROLL_MAX_FLAT: usize = 64;
 
 fn s3_yoyo_emit_tyb_file(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
@@ -1720,7 +1721,7 @@ fn s3_yoyo_emit_tyb_file(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
     if flat_len <= S3_EMIT_UNROLL_MAX_FLAT {
         s3_yoyo_emit_tyb_file_unrolled(records)
     } else {
-        s3_yoyo_emit_tyb_file_two_phase(records)
+        s3_yoyo_emit_tyb_file_loop_staged(records)
     }
 }
 
@@ -2465,8 +2466,8 @@ fn s3_sim_prog_loop(tyb: &[u8], table_off: u64, outbuf: u32, prog_ptr: u64) -> R
                 state[dd as usize] = *data.get(addr).ok_or(0xFA)? as u64;
                 pc += 1;
             }
-            // S3.154/S3.178: STB — composed only counts writes into outbuf region
-            // (enables IR staging below outbuf without polluting return length).
+            // S3.154: STB val base off. S3.180: composed counts every store
+            // (pack path writes from 0; filtering by outbuf dropped those bytes).
             0x81 => {
                 let (val, base, oo) = arg_slot3(rec).ok_or(0xFB)?;
                 let addr = state[base as usize] as usize + oo as usize;
@@ -2474,10 +2475,7 @@ fn s3_sim_prog_loop(tyb: &[u8], table_off: u64, outbuf: u32, prog_ptr: u64) -> R
                     data.resize(addr + 1, 0);
                 }
                 data[addr] = state[val as usize] as u8;
-                let ob = outbuf as usize;
-                if addr >= ob {
-                    composed += 1;
-                }
+                composed += 1;
                 pc += 1;
             }
             0x84 => {
@@ -2491,12 +2489,7 @@ fn s3_sim_prog_loop(tyb: &[u8], table_off: u64, outbuf: u32, prog_ptr: u64) -> R
                     data.resize(d + n, 0);
                 }
                 data[d..d + n].copy_from_slice(&tmp);
-                // S3.178: count only bytes landing in [outbuf, …).
-                let ob = outbuf as usize;
-                if d + n > ob {
-                    let start = d.max(ob);
-                    composed += d + n - start;
-                }
+                composed += n;
                 pc += 1;
             }
             0x65 => {
@@ -4035,8 +4028,13 @@ mod tests {
         big.push(s3_fixed_rec(0xFF));
         let (fw_2, _) = s3_yoyo_emit_tyb_file(&big);
         assert!(parse_tyb(&fw_2).unwrap().records.iter().any(|r| r.op == 0x70));
-        let stb_n = parse_tyb(&fw_2).unwrap().records.iter().filter(|r| r.op == 0x81).count();
-        assert!(stb_n < 8, "S3.179 large emit is loop copy, stb={stb_n}");
+        let stb_n = parse_tyb(&fw_2)
+            .unwrap()
+            .records
+            .iter()
+            .filter(|r| r.op == 0x81)
+            .count();
+        assert!(stb_n < 8, "S3.180 large emit is loop copy, stb={stb_n}");
         // Cliff: `s3_append_emit_rec_stb` / `s3_rec_*` builders remain Rust.
         let _ = s3_rec_stb(0, 1, 0);
         assert_eq!(s3_fixed_row(0xFF), s3_compute_fixed_body(0xFF));
@@ -4188,6 +4186,20 @@ mod tests {
         assert!(parse_tyb(&fw_b).unwrap().records.iter().any(|r| r.op == 0x70));
         assert_eq!(
             s3_sim_prog_loop(&fw_b, 0, off_b, 0).unwrap(),
+            s3_host_tyb_from_records(&big)
+        );
+    }
+
+    /// S3.180: default large emit is loop-staged (parity) and O(1) STB ops.
+    #[test]
+    fn s3_emit_large_default_is_loop_staged() {
+        let mut big = vec![s3_fixed_rec(0x00); 16];
+        big.push(s3_fixed_rec(0xFF));
+        let (fw, off) = s3_yoyo_emit_tyb_file(&big);
+        let (fw_l, _) = s3_yoyo_emit_tyb_file_loop_staged(&big);
+        assert_eq!(fw, fw_l);
+        assert_eq!(
+            s3_sim_prog_loop(&fw, 0, off, 0).unwrap(),
             s3_host_tyb_from_records(&big)
         );
     }
