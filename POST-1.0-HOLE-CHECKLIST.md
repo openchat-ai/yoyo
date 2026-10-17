@@ -106,7 +106,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.131–132** ✅ | `c3ad6e4` | 短 `lea` 共用；compose→`append_scan_memcpy`；in-DLL 仍有 A1 |
 | **S3.133–134** ✅ | `3f1e2a7` | IR 记录一份；scan→`append_scan_byte_out` |
 | **S3.135** ✅    | `e431341` | 剩余 Rust 面清单（DATA `0x10` / 短 `lea` / in-DLL A1） |
-| **S3.136** ✅    | （本批） | YOYO 表 DATA 统一走 `s3_pack_data`（仍 Rust） |
+| **S3.136** ✅    | `60052d6` | YOYO 表 DATA 统一走 `s3_pack_data`（仍 Rust） |
 | **S3.137** ⏳    | —         | 不改 golden · DATA pack 仍 sidecar · **本步** |
 
 
