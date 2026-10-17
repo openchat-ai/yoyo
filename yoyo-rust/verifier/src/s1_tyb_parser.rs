@@ -3826,6 +3826,31 @@ mod tests {
         );
     }
 
+    /// S3.163: IR self-host roadmap gate — what pack/STB folded vs what remains.
+    /// Not a schedule. YOYO writing TYB records is the next capability cliff.
+    #[test]
+    fn s3_ir_selfhost_roadmap() {
+        // Done: DATA pack algorithm runs as YOYO IR (STB loop) via via_ir.
+        let (probe, _) = s3_yoyo_pack_loop_stb_tyb(&[1, 2, 3, 4]);
+        assert!(parse_tyb(&probe).unwrap().records.iter().any(|r| r.op == 0x81));
+        assert_eq!(s3_pack_data_via_ir(&[9, 8, 7]), s3_pack_data(&[9, 8, 7]));
+        // Floor: bootstrap scratch is still Rust bytewise TYB records.
+        let prefix = s3_pack_scratch_prefix_recs();
+        assert!(prefix.iter().all(|(_, argc, _)| *argc == 1));
+        // Floor: in-DLL short lea RAW bytes stay (golden / PE seed).
+        assert_eq!(S3_LEA_PTR.len(), 7);
+        assert_eq!(S3_LEA_TABLE.len(), 15);
+        assert_eq!(S3_LEA_DST.len() + S3_LEA_PROG.len(), 22);
+        let dll = parse_tyb(&s3_table_prog_loop_tyb(&[0xFF])).unwrap();
+        assert!(dll.records.iter().any(|r| r.op == 0xA1));
+        let host = parse_tyb(&s3_host_prog_loop_tyb(&[0xFF])).unwrap();
+        assert!(host.records.iter().all(|r| r.op != 0xA1));
+        // Cliff: IR builders (`s3_rec_*`) and body bake remain Rust until
+        // YOYO can emit TYB record streams (op+argc+args) itself.
+        let _ = s3_rec_stb(0, 1, 0);
+        assert_eq!(s3_fixed_row(0xFF), s3_compute_fixed_body(0xFF));
+    }
+
     /// S3.135/S3.160: remaining Rust sidecar after pack+STB fold (honest inventory).
     /// Still Rust: via_ir bootstrap bytewise scratch records, short lea A1 bytes,
     /// `emit_x86` body OnceLock, IR record builders. STB pack path is YOYO IR.
