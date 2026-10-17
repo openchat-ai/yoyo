@@ -1537,78 +1537,89 @@ fn s3_host_tmpl_row(op: u8, payload: &[u8]) -> [u8; 20] {
     r
 }
 
-fn s3_host_set_body() -> [u8; 14] {
-    [
-        0x48, 0xB8, 0xEF, 0xBE, 0xAD, 0xDE, 0, 0, 0, 0, 0x49, 0x89, 0x47, 0x00,
-    ]
+/// S3.122: template body is `emit_x86(op + RET)` without the trailing `C3`.
+fn s3_host_body(op: u8, argc: u8, args: [u8; 6]) -> Vec<u8> {
+    let text = emit_x86(
+        &parse_tyb(&s3_host_tyb_from_records(&[
+            (op, argc, args),
+            (0xFF, 0, [0; 6]),
+        ]))
+        .expect("body tyb"),
+    )
+    .text;
+    assert!(text.ends_with(&[0xC3]), "template body must end in RET");
+    text[..text.len() - 1].to_vec()
 }
 
-/// GET dst0←src1 body (no RET): load [r15+8]→rax; store [r15+0].
-fn s3_host_get_body() -> [u8; 8] {
-    [0x49, 0x8B, 0x47, 0x08, 0x49, 0x89, 0x47, 0x00]
+fn s3_host_set_body() -> Vec<u8> {
+    s3_host_body(0x30, 2, [0, 0, 0xEF, 0xBE, 0xAD, 0xDE])
+}
+fn s3_host_get_body() -> Vec<u8> {
+    s3_host_body(0x60, 2, [0, 0, 1, 0, 0, 0])
+}
+fn s3_host_inc_body() -> Vec<u8> {
+    s3_host_body(0x66, 1, [0, 0, 0, 0, 0, 0])
+}
+fn s3_host_add5_body() -> Vec<u8> {
+    s3_host_body(0x62, 2, [0, 0, 5, 0, 0, 0])
+}
+fn s3_host_dec_body() -> Vec<u8> {
+    s3_host_body(0x67, 1, [0, 0, 0, 0, 0, 0])
+}
+fn s3_host_sub5_body() -> Vec<u8> {
+    s3_host_body(0x61, 2, [0, 0, 5, 0, 0, 0])
+}
+fn s3_host_movrr_body() -> Vec<u8> {
+    s3_host_body(0x64, 2, [1, 0, 0, 0, 0, 0])
+}
+fn s3_host_cmp_body() -> Vec<u8> {
+    s3_host_body(0x65, 2, [0, 0, 1, 0, 0, 0])
 }
 
-/// INC slot0 body (no RET): load; inc rax; store.
-fn s3_host_inc_body() -> [u8; 11] {
-    [
-        0x49, 0x8B, 0x47, 0x00, 0x48, 0xFF, 0xC0, 0x49, 0x89, 0x47, 0x00,
-    ]
-}
-
-/// ADD slot0,+5 body (no RET): load; add rax,imm32; store.
-fn s3_host_add5_body() -> [u8; 15] {
-    [
-        0x49, 0x8B, 0x47, 0x00, 0x48, 0x81, 0xC0, 0x05, 0x00, 0x00, 0x00, 0x49, 0x89, 0x47,
-        0x00,
-    ]
-}
-
-/// DEC slot0 body (no RET): load; dec rax; store.
-fn s3_host_dec_body() -> [u8; 11] {
-    [
-        0x49, 0x8B, 0x47, 0x00, 0x48, 0xFF, 0xC8, 0x49, 0x89, 0x47, 0x00,
-    ]
-}
-
-/// SUB slot0,-5 body (no RET): load; sub rax,imm32; store.
-fn s3_host_sub5_body() -> [u8; 15] {
-    [
-        0x49, 0x8B, 0x47, 0x00, 0x48, 0x81, 0xE8, 0x05, 0x00, 0x00, 0x00, 0x49, 0x89, 0x47,
-        0x00,
-    ]
-}
-
-/// MOVRR dst1←src0 body (no RET): load [r15+0]; store [r15+8].
-fn s3_host_movrr_body() -> [u8; 8] {
-    [0x49, 0x8B, 0x47, 0x00, 0x49, 0x89, 0x47, 0x08]
-}
-
-/// CMP slot0,slot1 body (no RET): load a→rax; load b→rcx; cmp rax,rcx.
-fn s3_host_cmp_body() -> [u8; 11] {
-    [
-        0x49, 0x8B, 0x47, 0x00, 0x49, 0x8B, 0x4F, 0x08, 0x48, 0x39, 0xC8,
-    ]
+/// S3.120: pad to table base, append template rows, then `[n][ops…]`, pad to `outbuf`.
+fn s3_prog_data_payload(rows: &[(u8, &[u8])], ops: &[u8], outbuf: usize) -> Vec<u8> {
+    let mut payload = vec![0u8; S3_HOST_TABLE_OFF as usize];
+    for (op, body) in rows {
+        payload.extend_from_slice(&s3_host_tmpl_row(*op, body));
+    }
+    payload.push(ops.len() as u8);
+    payload.extend_from_slice(ops);
+    while payload.len() < outbuf {
+        payload.push(0);
+    }
+    payload
 }
 
 /// Build program-loop firmware TYB for `ops`.
 fn s3_host_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
-    let mut payload = vec![0u8; S3_HOST_TABLE_OFF as usize];
-    payload.extend_from_slice(&s3_host_tmpl_row(0xFF, &[0xC3]));
-    payload.extend_from_slice(&s3_host_tmpl_row(0x00, &[0x90]));
-    payload.extend_from_slice(&s3_host_tmpl_row(0x30, &s3_host_set_body()));
-    payload.extend_from_slice(&s3_host_tmpl_row(0x60, &s3_host_get_body()));
-    payload.extend_from_slice(&s3_host_tmpl_row(0x66, &s3_host_inc_body()));
-    payload.extend_from_slice(&s3_host_tmpl_row(0x62, &s3_host_add5_body()));
-    payload.extend_from_slice(&s3_host_tmpl_row(0x67, &s3_host_dec_body()));
-    payload.extend_from_slice(&s3_host_tmpl_row(0x61, &s3_host_sub5_body()));
-    payload.extend_from_slice(&s3_host_tmpl_row(0x64, &s3_host_movrr_body()));
-    payload.extend_from_slice(&s3_host_tmpl_row(0x65, &s3_host_cmp_body()));
-    debug_assert_eq!(payload.len(), S3_HOST_PROG_OFF as usize);
-    payload.push(ops.len() as u8);
-    payload.extend_from_slice(ops);
-    while payload.len() < S3_HOST_OUTBUF_OFF as usize {
-        payload.push(0);
-    }
+    let set = s3_host_set_body();
+    let get = s3_host_get_body();
+    let inc = s3_host_inc_body();
+    let add = s3_host_add5_body();
+    let dec = s3_host_dec_body();
+    let sub = s3_host_sub5_body();
+    let mov = s3_host_movrr_body();
+    let cmp = s3_host_cmp_body();
+    let payload = s3_prog_data_payload(
+        &[
+            (0xFF, &[0xC3]),
+            (0x00, &[0x90]),
+            (0x30, &set),
+            (0x60, &get),
+            (0x66, &inc),
+            (0x62, &add),
+            (0x67, &dec),
+            (0x61, &sub),
+            (0x64, &mov),
+            (0x65, &cmp),
+        ],
+        ops,
+        S3_HOST_OUTBUF_OFF as usize,
+    );
+    debug_assert_eq!(
+        S3_HOST_TABLE_OFF as usize + 10 * 20,
+        S3_HOST_PROG_OFF as usize
+    );
     assert!(
         payload.len() <= S1_MINI_DATA_MAX,
         "host table DATA {} > {}",
@@ -2911,11 +2922,7 @@ mod tests {
     // ============= S1.6: mini-ISA + parity helpers =============
 
     fn tyb_from_records(recs: &[(u8, u8, [u8; 6])]) -> Vec<u8> {
-        let mut v = header(recs.len() as u16);
-        for &(op, argc, a) in recs {
-            v.extend_from_slice(&record(op, argc, a));
-        }
-        v
+        s3_host_tyb_from_records(recs)
     }
 
     #[test]
@@ -4324,7 +4331,7 @@ mod tests {
         .text;
         assert_eq!(got, expect);
         // also ≡ SET body ‖ RET
-        let mut hand = s3_host_set_body().to_vec();
+        let mut hand = s3_host_set_body();
         hand.push(0xC3);
         assert_eq!(got, hand);
         assert!(compile_tyb_to_pe_mini(&tyb).is_ok());
@@ -4369,17 +4376,13 @@ mod tests {
     /// S3.19: DATA pad+table+program; outer loop loads needles; scan+MEMCPY each.
     fn s3_table_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
         assert!(!ops.is_empty() && ops.len() <= 8);
-        let mut payload = vec![0u8; S3_TABLE_OFF as usize];
-        payload.extend_from_slice(&s3_host_tmpl_row(0xFF, &[0xC3]));
-        payload.extend_from_slice(&s3_host_tmpl_row(0x00, &[0x90]));
-        payload.extend_from_slice(&s3_host_tmpl_row(0x30, &s3_host_set_body()));
-        assert_eq!(payload.len(), S3_PROG_OFF as usize);
-        payload.push(ops.len() as u8);
-        payload.extend_from_slice(ops);
-        // pad to outbuf so layout is stable (zeros)
-        while payload.len() < S3_OUTBUF_OFF as usize {
-            payload.push(0);
-        }
+        let set = s3_host_set_body();
+        let payload = s3_prog_data_payload(
+            &[(0xFF, &[0xC3]), (0x00, &[0x90]), (0x30, &set)],
+            ops,
+            S3_OUTBUF_OFF as usize,
+        );
+        assert_eq!(S3_TABLE_OFF + 60, S3_PROG_OFF);
         let mut recs = s3_host_pack_bytes(0x10, &payload);
         // lea rax,[r15+0x80]; store table_base (slot3) + scan ptr (slot15)
         recs.extend(s3_host_pack_bytes(0xA1, &[
