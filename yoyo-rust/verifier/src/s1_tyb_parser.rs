@@ -1672,7 +1672,8 @@ fn s3_yoyo_pack_proto_tyb(payload: &[u8]) -> Vec<u8> {
     data[S3_PACK_PROTO_CONST_3 as usize] = 3;
     let pay = S3_PACK_PROTO_PAY as usize;
     data[pay..pay + payload.len()].copy_from_slice(payload);
-    let mut recs = s3_pack_data(&data);
+    // S3.148: scratch DATA uses host_pack_bytes (bootstrap); not s3_pack_data.
+    let mut recs = s3_host_pack_bytes(0x10, &data);
     recs.extend(s3_yoyo_pack_proto_ir(payload.len()));
     s3_host_tyb_from_records(&recs)
 }
@@ -3999,7 +4000,8 @@ mod tests {
     /// TYB: 2-row DATA table (RET, NOP) + scan loop → state[OUT]=first template byte.
     fn s3_table_scan_tyb(needle: u8) -> Vec<u8> {
         let table = s3_fixed_table(&[0xFF, 0x00]);
-        let mut recs = s3_pack_data(&table);
+        // S3.147: DATA via_ir (Rust pack remains packer-scratch only).
+        let mut recs = s3_pack_data_via_ir(&table);
         // S3.131: short `lea rax,[r15]` seed (not disp32 — would lengthen and break goldens).
         recs.extend(s3_host_pack_bytes(0xA1, S3_LEA_PTR));
         append_scan_byte_out(&mut recs, needle, 2, 1, 2);
@@ -4063,7 +4065,7 @@ mod tests {
     /// S3.17/S3.131: 3-row table + shared short lea + `append_scan_memcpy` + RET.
     fn s3_table_compose_tyb(needle: u8) -> Vec<u8> {
         let table = s3_fixed_table(&[0xFF, 0x00, 0x30]);
-        let mut recs = s3_pack_data(&table);
+        let mut recs = s3_pack_data_via_ir(&table);
         recs.extend(s3_host_pack_bytes(0xA1, S3_LEA_PTR));
         recs.extend(s3_host_pack_bytes(0xA1, &S3_LEA_DST));
         append_scan_memcpy(&mut recs, needle, 1, 2, false);
@@ -4767,7 +4769,7 @@ mod tests {
     /// S3.18: scan SET then RET → outbuf full `.text` ≡ emit_x86(SET+RET).
     fn s3_table_fulltext_set_ret_tyb() -> Vec<u8> {
         let table = s3_fixed_table(&[0xFF, 0x00, 0x30]);
-        let mut recs = s3_pack_data(&table);
+        let mut recs = s3_pack_data_via_ir(&table);
         recs.extend(s3_host_pack_bytes(0xA1, S3_LEA_PTR));
         recs.extend(s3_host_pack_bytes(0xA1, &S3_LEA_DST));
         append_scan_memcpy(&mut recs, 0x30, 1, 2, true);
@@ -4849,7 +4851,8 @@ mod tests {
         let payload = s3_fixed_payload(&S3_FIXED10_OPS[..3], ops, S3_OUTBUF_OFF as usize);
         assert_eq!(S3_TABLE_OFF + 60, S3_PROG_OFF);
         assert_eq!(S3_PROG_OFF + 1, 0xBD);
-        let mut recs = s3_pack_data(&payload);
+        // S3.147: in-DLL DATA via_ir; RAW A1 lea packs stay Rust.
+        let mut recs = s3_pack_data_via_ir(&payload);
         recs.extend(s3_host_pack_bytes(0xA1, &S3_LEA_TABLE));
         recs.extend(s3_host_pack_bytes(0xA1, &S3_LEA_DST));
         recs.extend(s3_host_pack_bytes(0xA1, &S3_LEA_PROG));
