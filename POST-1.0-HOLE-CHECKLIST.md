@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.162**（161 via_ir=STB 门禁；下一刀削 bytewise bootstrap；仍不改 golden；**不**假 CLOSED）。
+**默认** `继续` **= S3.163**（162 bootstrap bytewise 定为地板；下一刀短 lea / IR 自举地图；仍不改 golden；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -123,11 +123,12 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.158** ✅    | `25eae12` | via_ir 改走 loop STB（host/表 DATA） |
 | **S3.159** ✅    | `54e4023` | STB copy slim PE e2e（Windows） |
 | **S3.160** ✅    | `f2fae2c` | pack+STB 后剩余 Rust 面再钉 |
-| **S3.161** ✅    | —         | via_ir 路径强制 STB loop 门禁 |
-| **S3.162** ⏳    | —         | 削 bytewise bootstrap · **本步** |
+| **S3.161** ✅    | `37aa36d` | via_ir 路径强制 STB loop 门禁 |
+| **S3.162** ✅    | —         | bootstrap bytewise = 地板（无 YOYO 写 TYB 记录前不可消） |
+| **S3.163** ⏳    | —         | 短 lea / IR 自举地图 · **本步** |
 
 
-**缺口**：bootstrap 仍 Rust 逐字节建记录 · 短 lea 必留 · 真自举。逐步正文 → `git log`。
+**缺口**：bootstrap bytewise 地板 · 短 lea 必留 · 真自举（YOYO 写 TYB）。逐步正文 → `git log`。
 
 ---
 
