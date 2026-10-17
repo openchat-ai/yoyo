@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.181**（180 大发射回 loop-staged；下一刀真自举；仍不改 golden；**不**假 CLOSED）。
+**默认** `继续` **= S3.182**（181 大发射改 IR 两阶段、DATA 全零；下一刀削 phase1 SET 展开；仍不改 golden；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -140,11 +140,12 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.177** ✅    | `8d003f2` | 混合发射：小 flat 展开 / 大 flat loop-staged |
 | **S3.178** ✅    | `aa98a27` | 两阶段发射起步；sim composed 只计 outbuf |
 | **S3.179** ✅    | `0523dc5` | 两阶段改 O(1) loop 拷贝（flat 仍在 scratch） |
-| **S3.180** ✅    | —         | 大 flat 默认回 loop-staged；composed 计全部写入 |
-| **S3.181** ⏳    | —         | 真自举 · **本步** |
+| **S3.180** ✅    | `803ffda` | 大 flat 默认回 loop-staged；composed 计全部写入 |
+| **S3.181** ✅    | —         | 大发射 IR 两阶段写 staging；DATA 全零；composed 只计 outbuf |
+| **S3.182** ⏳    | —         | 削 phase1 SET×byte 展开 · **本步** |
 
 
-**缺口**：bytewise bootstrap 地板 · 短 lea · 大 flat scratch 仍含 Rust 字节 · 真自举。逐步正文 → `git log`。
+**缺口**：bytewise bootstrap 地板 · 短 lea · phase1 仍 SET×byte · 真自举。逐步正文 → `git log`。
 
 ---
 
@@ -180,7 +181,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.181**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.182**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -188,4 +189,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-17**：大发射 loop-staged · 默认 **S3.181** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-17**：大发射 IR 两阶段 · 默认 **S3.182** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
