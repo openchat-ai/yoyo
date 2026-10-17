@@ -1704,7 +1704,7 @@ fn s3_host_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
     s3_host_tyb_from_records(&recs)
 }
 
-/// S3.128: SET/ADD record layout shared by prog-loop, scan, and compose.
+/// S3.128/S3.133: IR record builders shared by prog-loop, scan, and compose.
 fn s3_rec_set(slot: u16, imm: u32) -> (u8, u8, [u8; 6]) {
     let sb = slot.to_le_bytes();
     let ib = imm.to_le_bytes();
@@ -1715,55 +1715,89 @@ fn s3_rec_add(slot: u16, imm: u32) -> (u8, u8, [u8; 6]) {
     let ib = imm.to_le_bytes();
     (0x62, 2, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
 }
+fn s3_rec_label(id: u32) -> (u8, u8, [u8; 6]) {
+    let b = id.to_le_bytes();
+    (0x40, 1, [b[0], b[1], b[2], b[3], 0, 0])
+}
+fn s3_rec_ldb(dst: u16, src: u16, off: u16) -> (u8, u8, [u8; 6]) {
+    let d = dst.to_le_bytes();
+    let s = src.to_le_bytes();
+    let o = off.to_le_bytes();
+    (0x80, 3, [d[0], d[1], s[0], s[1], o[0], o[1]])
+}
+fn s3_rec_cmp(a: u16, b: u16) -> (u8, u8, [u8; 6]) {
+    let aa = a.to_le_bytes();
+    let bb = b.to_le_bytes();
+    (0x65, 2, [aa[0], aa[1], bb[0], bb[1], 0, 0])
+}
+fn s3_rec_movrr(dst: u16, src: u16) -> (u8, u8, [u8; 6]) {
+    let d = dst.to_le_bytes();
+    let s = src.to_le_bytes();
+    (0x64, 2, [d[0], d[1], s[0], s[1], 0, 0])
+}
+fn s3_rec_je(id: u32) -> (u8, u8, [u8; 6]) {
+    let b = id.to_le_bytes();
+    (0x71, 1, [b[0], b[1], b[2], b[3], 0, 0])
+}
+fn s3_rec_jl(id: u32) -> (u8, u8, [u8; 6]) {
+    let b = id.to_le_bytes();
+    (0x73, 1, [b[0], b[1], b[2], b[3], 0, 0])
+}
+fn s3_rec_jz(id: u32) -> (u8, u8, [u8; 6]) {
+    let b = id.to_le_bytes();
+    (0x74, 1, [b[0], b[1], b[2], b[3], 0, 0])
+}
+fn s3_rec_jmp(id: u32) -> (u8, u8, [u8; 6]) {
+    let b = id.to_le_bytes();
+    (0x70, 1, [b[0], b[1], b[2], b[3], 0, 0])
+}
+fn s3_rec_memcpy(dst: u16, src: u16, len: u16) -> (u8, u8, [u8; 6]) {
+    let d = dst.to_le_bytes();
+    let s = src.to_le_bytes();
+    let n = len.to_le_bytes();
+    (0x84, 3, [d[0], d[1], s[0], s[1], n[0], n[1]])
+}
+fn s3_rec_addv(dst: u16, src: u16) -> (u8, u8, [u8; 6]) {
+    let d = dst.to_le_bytes();
+    let s = src.to_le_bytes();
+    (0x68, 2, [d[0], d[1], s[0], s[1], 0, 0])
+}
 
 /// S3.117: shared scan/compose tail. `nrows` is 10 (host) or 3 (in-DLL).
 fn s3_prog_loop_code(ops_len: u32, nrows: u32) -> Vec<(u8, u8, [u8; 6])> {
-    let slot = |s: u16| s.to_le_bytes();
     let set = s3_rec_set;
     let add = s3_rec_add;
-    let p = slot(15);
-    let o = slot(13);
-    let n = slot(14);
-    let i = slot(11);
-    let nr = slot(10);
-    let len = slot(12);
-    let src = slot(8);
-    let dst = slot(9);
-    let pi = slot(0);
-    let pn = slot(1);
-    let pp = slot(2);
-    let tb = slot(3);
     vec![
         set(1, ops_len),
         set(0, 0),
-        (0x40, 1, [5, 0, 0, 0, 0, 0]),
-        (0x65, 2, [pi[0], pi[1], pn[0], pn[1], 0, 0]),
-        (0x74, 1, [6, 0, 0, 0, 0, 0]),
-        (0x80, 3, [n[0], n[1], pp[0], pp[1], 0, 0]),
-        (0x64, 2, [p[0], p[1], tb[0], tb[1], 0, 0]),
+        s3_rec_label(5),
+        s3_rec_cmp(0, 1),
+        s3_rec_jz(6),
+        s3_rec_ldb(14, 2, 0),
+        s3_rec_movrr(15, 3),
         set(11, 0),
         set(10, nrows),
-        (0x40, 1, [1, 0, 0, 0, 0, 0]),
-        (0x80, 3, [o[0], o[1], p[0], p[1], 0, 0]),
-        (0x65, 2, [o[0], o[1], n[0], n[1], 0, 0]),
-        (0x71, 1, [2, 0, 0, 0, 0, 0]),
+        s3_rec_label(1),
+        s3_rec_ldb(13, 15, 0),
+        s3_rec_cmp(13, 14),
+        s3_rec_je(2),
         add(15, 20),
         add(11, 1),
-        (0x65, 2, [i[0], i[1], nr[0], nr[1], 0, 0]),
-        (0x73, 1, [1, 0, 0, 0, 0, 0]),
+        s3_rec_cmp(11, 10),
+        s3_rec_jl(1),
         set(12, 0xFE),
-        (0xFF, 0, [0; 6]),
-        (0x40, 1, [2, 0, 0, 0, 0, 0]),
-        (0x80, 3, [len[0], len[1], p[0], p[1], 1, 0]),
-        (0x64, 2, [src[0], src[1], p[0], p[1], 0, 0]),
+        s3_fixed_rec(0xFF),
+        s3_rec_label(2),
+        s3_rec_ldb(12, 15, 1),
+        s3_rec_movrr(8, 15),
         add(8, 4),
-        (0x84, 3, [dst[0], dst[1], src[0], src[1], len[0], len[1]]),
-        (0x68, 2, [dst[0], dst[1], len[0], len[1], 0, 0]),
+        s3_rec_memcpy(9, 8, 12),
+        s3_rec_addv(9, 12),
         add(2, 1),
         add(0, 1),
-        (0x70, 1, [5, 0, 0, 0, 0, 0]),
-        (0x40, 1, [6, 0, 0, 0, 0, 0]),
-        (0xFF, 0, [0; 6]),
+        s3_rec_jmp(5),
+        s3_rec_label(6),
+        s3_fixed_rec(0xFF),
     ]
 }
 
@@ -3489,37 +3523,39 @@ mod tests {
     const S3_SCAN_I: u16 = 11;
     const S3_SCAN_NROWS: u16 = 10;
 
+    /// S3.134: table scan → OUT = first template byte (no memcpy). `nrows` is 2 for scan.
+    fn append_scan_byte_out(
+        recs: &mut Vec<(u8, u8, [u8; 6])>,
+        needle: u8,
+        nrows: u32,
+        loop_id: u32,
+        found_id: u32,
+    ) {
+        recs.push(s3_rec_set(S3_SCAN_NEEDLE, needle as u32));
+        recs.push(s3_rec_set(S3_SCAN_I, 0));
+        recs.push(s3_rec_set(S3_SCAN_NROWS, nrows));
+        recs.push(s3_rec_label(loop_id));
+        recs.push(s3_rec_ldb(S3_SCAN_OP, S3_SCAN_PTR, 0));
+        recs.push(s3_rec_cmp(S3_SCAN_OP, S3_SCAN_NEEDLE));
+        recs.push(s3_rec_je(found_id));
+        recs.push(s3_rec_add(S3_SCAN_PTR, 20));
+        recs.push(s3_rec_add(S3_SCAN_I, 1));
+        recs.push(s3_rec_cmp(S3_SCAN_I, S3_SCAN_NROWS));
+        recs.push(s3_rec_jl(loop_id));
+        recs.push(s3_rec_set(S3_SCAN_OUT, 0xFE));
+        recs.push(s3_fixed_rec(0xFF));
+        recs.push(s3_rec_label(found_id));
+        recs.push(s3_rec_ldb(S3_SCAN_OUT, S3_SCAN_PTR, 4));
+        recs.push(s3_fixed_rec(0xFF));
+    }
+
     /// TYB: 2-row DATA table (RET, NOP) + scan loop → state[OUT]=first template byte.
     fn s3_table_scan_tyb(needle: u8) -> Vec<u8> {
         let table = s3_fixed_table(&[0xFF, 0x00]);
         let mut recs = s3_host_pack_bytes(0x10, &table);
         // S3.131: short `lea rax,[r15]` seed (not disp32 — would lengthen and break goldens).
         recs.extend(s3_host_pack_bytes(0xA1, S3_LEA_PTR));
-        let slot = |s: u16| s.to_le_bytes();
-        let set = s3_rec_set;
-        let add = s3_rec_add;
-        let p = slot(S3_SCAN_PTR);
-        let o = slot(S3_SCAN_OP);
-        let n = slot(S3_SCAN_NEEDLE);
-        let i = slot(S3_SCAN_I);
-        let nr = slot(S3_SCAN_NROWS);
-        let out = slot(S3_SCAN_OUT);
-        recs.push(set(S3_SCAN_NEEDLE, needle as u32));
-        recs.push(set(S3_SCAN_I, 0));
-        recs.push(set(S3_SCAN_NROWS, 2));
-        recs.push((0x40, 1, [1, 0, 0, 0, 0, 0])); // LABEL loop
-        recs.push((0x80, 3, [o[0], o[1], p[0], p[1], 0, 0])); // LDB op,[ptr]
-        recs.push((0x65, 2, [o[0], o[1], n[0], n[1], 0, 0])); // CMP op,needle
-        recs.push((0x71, 1, [2, 0, 0, 0, 0, 0])); // JE found
-        recs.push(add(S3_SCAN_PTR, 20));
-        recs.push(add(S3_SCAN_I, 1));
-        recs.push((0x65, 2, [i[0], i[1], nr[0], nr[1], 0, 0])); // CMP i,nrows
-        recs.push((0x73, 1, [1, 0, 0, 0, 0, 0])); // JL loop
-        recs.push(set(S3_SCAN_OUT, 0xFE)); // miss
-        recs.push(s3_fixed_rec(0xFF));
-        recs.push((0x40, 1, [2, 0, 0, 0, 0, 0])); // LABEL found
-        recs.push((0x80, 3, [out[0], out[1], p[0], p[1], 4, 0])); // LDB out,[ptr+4]
-        recs.push(s3_fixed_rec(0xFF));
+        append_scan_byte_out(&mut recs, needle, 2, 1, 2);
         tyb_from_records(&recs)
     }
 
@@ -4258,41 +4294,26 @@ mod tests {
         found_id: u32,
         advance_dst: bool,
     ) {
-        let slot = |s: u16| s.to_le_bytes();
-        let set = s3_rec_set;
-        let add = s3_rec_add;
-        let p = slot(S3_SCAN_PTR);
-        let o = slot(S3_SCAN_OP);
-        let n = slot(S3_SCAN_NEEDLE);
-        let i = slot(S3_SCAN_I);
-        let nr = slot(S3_SCAN_NROWS);
-        let len = slot(S3_SCAN_OUT);
-        let src = slot(S3_COMPOSE_SRC);
-        let dst = slot(S3_COMPOSE_DST);
-        let lb = loop_id.to_le_bytes();
-        let fb = found_id.to_le_bytes();
-
-        recs.push(set(S3_SCAN_NEEDLE, needle as u32));
-        recs.push(set(S3_SCAN_I, 0));
-        recs.push(set(S3_SCAN_NROWS, 3));
-        recs.push((0x40, 1, [lb[0], lb[1], lb[2], lb[3], 0, 0]));
-        recs.push((0x80, 3, [o[0], o[1], p[0], p[1], 0, 0]));
-        recs.push((0x65, 2, [o[0], o[1], n[0], n[1], 0, 0]));
-        recs.push((0x71, 1, [fb[0], fb[1], fb[2], fb[3], 0, 0]));
-        recs.push(add(S3_SCAN_PTR, 20));
-        recs.push(add(S3_SCAN_I, 1));
-        recs.push((0x65, 2, [i[0], i[1], nr[0], nr[1], 0, 0]));
-        recs.push((0x73, 1, [lb[0], lb[1], lb[2], lb[3], 0, 0]));
-        recs.push(set(S3_SCAN_OUT, 0xFE));
+        recs.push(s3_rec_set(S3_SCAN_NEEDLE, needle as u32));
+        recs.push(s3_rec_set(S3_SCAN_I, 0));
+        recs.push(s3_rec_set(S3_SCAN_NROWS, 3));
+        recs.push(s3_rec_label(loop_id));
+        recs.push(s3_rec_ldb(S3_SCAN_OP, S3_SCAN_PTR, 0));
+        recs.push(s3_rec_cmp(S3_SCAN_OP, S3_SCAN_NEEDLE));
+        recs.push(s3_rec_je(found_id));
+        recs.push(s3_rec_add(S3_SCAN_PTR, 20));
+        recs.push(s3_rec_add(S3_SCAN_I, 1));
+        recs.push(s3_rec_cmp(S3_SCAN_I, S3_SCAN_NROWS));
+        recs.push(s3_rec_jl(loop_id));
+        recs.push(s3_rec_set(S3_SCAN_OUT, 0xFE));
         recs.push(s3_fixed_rec(0xFF));
-        recs.push((0x40, 1, [fb[0], fb[1], fb[2], fb[3], 0, 0]));
-        recs.push((0x80, 3, [len[0], len[1], p[0], p[1], 1, 0]));
-        recs.push((0x64, 2, [src[0], src[1], p[0], p[1], 0, 0]));
-        recs.push(add(S3_COMPOSE_SRC, 4));
-        recs.push((0x84, 3, [dst[0], dst[1], src[0], src[1], len[0], len[1]]));
+        recs.push(s3_rec_label(found_id));
+        recs.push(s3_rec_ldb(S3_SCAN_OUT, S3_SCAN_PTR, 1));
+        recs.push(s3_rec_movrr(S3_COMPOSE_SRC, S3_SCAN_PTR));
+        recs.push(s3_rec_add(S3_COMPOSE_SRC, 4));
+        recs.push(s3_rec_memcpy(S3_COMPOSE_DST, S3_COMPOSE_SRC, S3_SCAN_OUT));
         if advance_dst {
-            // ADDV dst, len
-            recs.push((0x68, 2, [dst[0], dst[1], len[0], len[1], 0, 0]));
+            recs.push(s3_rec_addv(S3_COMPOSE_DST, S3_SCAN_OUT));
         }
     }
 
