@@ -1591,7 +1591,42 @@ fn s3_host_nop_body() -> Vec<u8> {
     b
 }
 
+/// S3.124: one body per fixed-subset opcode (host table order).
+const S3_FIXED10_OPS: [u8; 10] = [
+    0xFF, 0x00, 0x30, 0x60, 0x66, 0x62, 0x67, 0x61, 0x64, 0x65,
+];
+
+fn s3_fixed_row(op: u8) -> Vec<u8> {
+    match op {
+        0xFF => s3_host_ret_body(),
+        0x00 => s3_host_nop_body(),
+        0x30 => s3_host_set_body(),
+        0x60 => s3_host_get_body(),
+        0x66 => s3_host_inc_body(),
+        0x62 => s3_host_add5_body(),
+        0x67 => s3_host_dec_body(),
+        0x61 => s3_host_sub5_body(),
+        0x64 => s3_host_movrr_body(),
+        0x65 => s3_host_cmp_body(),
+        _ => panic!("s3_fixed_row: opcode {op:#x} is outside fixed10"),
+    }
+}
+
+fn s3_fixed_table(ops: &[u8]) -> Vec<u8> {
+    let mut table = Vec::with_capacity(ops.len() * 20);
+    for op in ops {
+        table.extend_from_slice(&s3_host_tmpl_row(*op, &s3_fixed_row(*op)));
+    }
+    table
+}
+
 /// S3.120: pad to table base, append template rows, then `[n][ops…]`, pad to `outbuf`.
+fn s3_fixed_payload(row_ops: &[u8], prog: &[u8], outbuf: usize) -> Vec<u8> {
+    let owned: Vec<(u8, Vec<u8>)> = row_ops.iter().map(|op| (*op, s3_fixed_row(*op))).collect();
+    let rows: Vec<(u8, &[u8])> = owned.iter().map(|(op, b)| (*op, b.as_slice())).collect();
+    s3_prog_data_payload(&rows, prog, outbuf)
+}
+
 fn s3_prog_data_payload(rows: &[(u8, &[u8])], ops: &[u8], outbuf: usize) -> Vec<u8> {
     let mut payload = vec![0u8; S3_HOST_TABLE_OFF as usize];
     for (op, body) in rows {
@@ -1607,32 +1642,7 @@ fn s3_prog_data_payload(rows: &[(u8, &[u8])], ops: &[u8], outbuf: usize) -> Vec<
 
 /// Build program-loop firmware TYB for `ops`.
 fn s3_host_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
-    let set = s3_host_set_body();
-    let get = s3_host_get_body();
-    let inc = s3_host_inc_body();
-    let add = s3_host_add5_body();
-    let dec = s3_host_dec_body();
-    let sub = s3_host_sub5_body();
-    let mov = s3_host_movrr_body();
-    let cmp = s3_host_cmp_body();
-    let retb = s3_host_ret_body();
-    let nopb = s3_host_nop_body();
-    let payload = s3_prog_data_payload(
-        &[
-            (0xFF, &retb),
-            (0x00, &nopb),
-            (0x30, &set),
-            (0x60, &get),
-            (0x66, &inc),
-            (0x62, &add),
-            (0x67, &dec),
-            (0x61, &sub),
-            (0x64, &mov),
-            (0x65, &cmp),
-        ],
-        ops,
-        S3_HOST_OUTBUF_OFF as usize,
-    );
+    let payload = s3_fixed_payload(&S3_FIXED10_OPS, ops, S3_HOST_OUTBUF_OFF as usize);
     debug_assert_eq!(
         S3_HOST_TABLE_OFF as usize + 10 * 20,
         S3_HOST_PROG_OFF as usize
@@ -1651,19 +1661,23 @@ fn s3_host_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
     s3_host_tyb_from_records(&recs)
 }
 
+/// S3.128: SET/ADD record layout shared by prog-loop, scan, and compose.
+fn s3_rec_set(slot: u16, imm: u32) -> (u8, u8, [u8; 6]) {
+    let sb = slot.to_le_bytes();
+    let ib = imm.to_le_bytes();
+    (0x30, 2, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
+}
+fn s3_rec_add(slot: u16, imm: u32) -> (u8, u8, [u8; 6]) {
+    let sb = slot.to_le_bytes();
+    let ib = imm.to_le_bytes();
+    (0x62, 2, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
+}
+
 /// S3.117: shared scan/compose tail. `nrows` is 10 (host) or 3 (in-DLL).
 fn s3_prog_loop_code(ops_len: u32, nrows: u32) -> Vec<(u8, u8, [u8; 6])> {
     let slot = |s: u16| s.to_le_bytes();
-    let set = |s: u16, imm: u32| {
-        let sb = slot(s);
-        let ib = imm.to_le_bytes();
-        (0x30u8, 2u8, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
-    };
-    let add = |s: u16, imm: u32| {
-        let sb = slot(s);
-        let ib = imm.to_le_bytes();
-        (0x62u8, 2u8, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
-    };
+    let set = s3_rec_set;
+    let add = s3_rec_add;
     let p = slot(15);
     let o = slot(13);
     let n = slot(14);
@@ -1922,12 +1936,7 @@ pub fn try_emit_text_via_yoyo_table(ops: &[u8]) -> Option<Vec<u8>> {
     if ops.is_empty() || ops.len() > 8 {
         return None;
     }
-    if !ops.iter().all(|o| {
-        matches!(
-            o,
-            0xFF | 0x00 | 0x30 | 0x60 | 0x66 | 0x62 | 0x67 | 0x61 | 0x64 | 0x65
-        )
-    }) {
+    if !ops.iter().all(|o| S3_FIXED10_OPS.contains(o)) {
         return None;
     }
     s3_sim_prog_loop(
@@ -3471,25 +3480,15 @@ mod tests {
 
     /// TYB: 2-row DATA table (RET, NOP) + scan loop → state[OUT]=first template byte.
     fn s3_table_scan_tyb(needle: u8) -> Vec<u8> {
-        let mut table = Vec::new();
-        table.extend_from_slice(&s3_host_tmpl_row(0xFF, &s3_host_ret_body()));
-        table.extend_from_slice(&s3_host_tmpl_row(0x00, &s3_host_nop_body()));
+        let table = s3_fixed_table(&[0xFF, 0x00]);
         let mut recs = s3_host_pack_bytes(0x10, &table);
         // lea rax,[r15]; mov [r15+15*8],rax — PE runtime ptr seed (sim seeds offset 0)
         recs.push((0xA1, 3, [0x49, 0, 0x8D, 0, 0x07, 0]));
         recs.push((0xA1, 3, [0x49, 0, 0x89, 0, 0x47, 0]));
         recs.push((0xA1, 1, [0x78, 0, 0, 0, 0, 0])); // disp8=0x78 = slot15*8
         let slot = |s: u16| s.to_le_bytes();
-        let set = |s: u16, imm: u32| {
-            let sb = slot(s);
-            let ib = imm.to_le_bytes();
-            (0x30u8, 2u8, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
-        };
-        let add = |s: u16, imm: u32| {
-            let sb = slot(s);
-            let ib = imm.to_le_bytes();
-            (0x62u8, 2u8, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
-        };
+        let set = s3_rec_set;
+        let add = s3_rec_add;
         let p = slot(S3_SCAN_PTR);
         let o = slot(S3_SCAN_OP);
         let n = slot(S3_SCAN_NEEDLE);
@@ -3573,31 +3572,18 @@ mod tests {
 
     /// S3.17: 3-row table (RET/NOP/SET) + scan + MEMCPY_DATA → outbuf@.data+0xC8.
     fn s3_table_compose_tyb(needle: u8) -> Vec<u8> {
-        let mut table = Vec::new();
-        table.extend_from_slice(&s3_host_tmpl_row(0xFF, &s3_host_ret_body()));
-        table.extend_from_slice(&s3_host_tmpl_row(0x00, &s3_host_nop_body()));
-        table.extend_from_slice(&s3_host_tmpl_row(0x30, &s3_host_set_body()));
+        let table = s3_fixed_table(&[0xFF, 0x00, 0x30]);
         let mut recs = s3_host_pack_bytes(0x10, &table);
         // lea rax,[r15]; mov [r15+15*8],rax  — scan ptr
         recs.extend(s3_host_pack_bytes(0xA1, &[
             0x49, 0x8D, 0x07, 0x49, 0x89, 0x47, 0x78,
         ]));
         // lea rax,[r15+0xC8]; mov [r15+9*8],rax  — compose dst
-        recs.extend(s3_host_pack_bytes(0xA1, &[
-            0x49, 0x8D, 0x87, 0xC8, 0x00, 0x00, 0x00, 0x49, 0x89, 0x47, 0x48,
-        ]));
+        recs.extend(s3_host_pack_bytes(0xA1, &S3_LEA_DST));
 
         let slot = |s: u16| s.to_le_bytes();
-        let set = |s: u16, imm: u32| {
-            let sb = slot(s);
-            let ib = imm.to_le_bytes();
-            (0x30u8, 2u8, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
-        };
-        let add = |s: u16, imm: u32| {
-            let sb = slot(s);
-            let ib = imm.to_le_bytes();
-            (0x62u8, 2u8, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
-        };
+        let set = s3_rec_set;
+        let add = s3_rec_add;
         let p = slot(S3_SCAN_PTR);
         let o = slot(S3_SCAN_OP);
         let n = slot(S3_SCAN_NEEDLE);
@@ -4250,9 +4236,48 @@ mod tests {
     // ============= S3.18: full .text compose (multi-op SET+RET) =============
 
     const S3_LEA_PTR: &[u8] = &[0x49, 0x8D, 0x07, 0x49, 0x89, 0x47, 0x78]; // lea rax,[r15]; mov [r15+0x78],rax
-    const S3_LEA_DST: &[u8] = &[
-        0x49, 0x8D, 0x87, 0xC8, 0x00, 0x00, 0x00, 0x49, 0x89, 0x47, 0x48,
-    ];
+    /// S3.127: `lea rax,[r15+disp32]; mov [r15+slot*8], rax`.
+    const fn s3_lea_store(disp: u32, slot: u8) -> [u8; 11] {
+        let d = disp.to_le_bytes();
+        [
+            0x49,
+            0x8D,
+            0x87,
+            d[0],
+            d[1],
+            d[2],
+            d[3],
+            0x49,
+            0x89,
+            0x47,
+            slot.wrapping_mul(8),
+        ]
+    }
+    /// S3.127: one lea, then two slot stores (table base + scan ptr).
+    const fn s3_lea_two(disp: u32, a: u8, b: u8) -> [u8; 15] {
+        let d = disp.to_le_bytes();
+        [
+            0x49,
+            0x8D,
+            0x87,
+            d[0],
+            d[1],
+            d[2],
+            d[3],
+            0x49,
+            0x89,
+            0x47,
+            a.wrapping_mul(8),
+            0x49,
+            0x89,
+            0x47,
+            b.wrapping_mul(8),
+        ]
+    }
+    const S3_LEA_TABLE: [u8; 15] = s3_lea_two(0x80, 3, 15);
+    const S3_LEA_DST: [u8; 11] = s3_lea_store(0xC8, 9);
+    /// prog cursor = `S3_PROG_OFF + 1` = 0xBD. Checked where the firmware is built.
+    const S3_LEA_PROG: [u8; 11] = s3_lea_store(0xBD, 2);
 
     /// Append one table-scan + MEMCPY_DATA; optionally ADDV dst+=len afterwards.
     fn append_scan_memcpy(
@@ -4263,16 +4288,8 @@ mod tests {
         advance_dst: bool,
     ) {
         let slot = |s: u16| s.to_le_bytes();
-        let set = |s: u16, imm: u32| {
-            let sb = slot(s);
-            let ib = imm.to_le_bytes();
-            (0x30u8, 2u8, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
-        };
-        let add = |s: u16, imm: u32| {
-            let sb = slot(s);
-            let ib = imm.to_le_bytes();
-            (0x62u8, 2u8, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
-        };
+        let set = s3_rec_set;
+        let add = s3_rec_add;
         let p = slot(S3_SCAN_PTR);
         let o = slot(S3_SCAN_OP);
         let n = slot(S3_SCAN_NEEDLE);
@@ -4310,13 +4327,10 @@ mod tests {
 
     /// S3.18: scan SET then RET → outbuf full `.text` ≡ emit_x86(SET+RET).
     fn s3_table_fulltext_set_ret_tyb() -> Vec<u8> {
-        let mut table = Vec::new();
-        table.extend_from_slice(&s3_host_tmpl_row(0xFF, &s3_host_ret_body()));
-        table.extend_from_slice(&s3_host_tmpl_row(0x00, &s3_host_nop_body()));
-        table.extend_from_slice(&s3_host_tmpl_row(0x30, &s3_host_set_body()));
+        let table = s3_fixed_table(&[0xFF, 0x00, 0x30]);
         let mut recs = s3_host_pack_bytes(0x10, &table);
         recs.extend(s3_host_pack_bytes(0xA1, S3_LEA_PTR));
-        recs.extend(s3_host_pack_bytes(0xA1, S3_LEA_DST));
+        recs.extend(s3_host_pack_bytes(0xA1, &S3_LEA_DST));
         append_scan_memcpy(&mut recs, 0x30, 1, 2, true);
         // re-seed table ptr for second scan
         recs.extend(s3_host_pack_bytes(0xA1, S3_LEA_PTR));
@@ -4393,34 +4407,13 @@ mod tests {
     /// S3.19: DATA pad+table+program; outer loop loads needles; scan+MEMCPY each.
     fn s3_table_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
         assert!(!ops.is_empty() && ops.len() <= 8);
-        let set = s3_host_set_body();
-        let retb = s3_host_ret_body();
-        let nopb = s3_host_nop_body();
-        let payload = s3_prog_data_payload(
-            &[(0xFF, &retb), (0x00, &nopb), (0x30, &set)],
-            ops,
-            S3_OUTBUF_OFF as usize,
-        );
+        let payload = s3_fixed_payload(&S3_FIXED10_OPS[..3], ops, S3_OUTBUF_OFF as usize);
         assert_eq!(S3_TABLE_OFF + 60, S3_PROG_OFF);
+        assert_eq!(S3_PROG_OFF + 1, 0xBD);
         let mut recs = s3_host_pack_bytes(0x10, &payload);
-        // lea rax,[r15+0x80]; store table_base (slot3) + scan ptr (slot15)
-        recs.extend(s3_host_pack_bytes(0xA1, &[
-            0x49, 0x8D, 0x87, 0x80, 0x00, 0x00, 0x00, // lea rax,[r15+0x80]
-            0x49, 0x89, 0x47, 0x18, // mov [r15+3*8],rax
-            0x49, 0x89, 0x47, 0x78, // mov [r15+15*8],rax
-        ]));
-        // lea rax,[r15+0xC8]; store dst slot9
-        recs.extend(s3_host_pack_bytes(0xA1, S3_LEA_DST));
-        // lea rax,[r15+0xBD]; store prog_ptr slot2  (first op = PROG_OFF+1)
-        let op0 = S3_PROG_OFF + 1;
-        recs.extend(s3_host_pack_bytes(0xA1, &[
-            0x49, 0x8D, 0x87, // lea rax,[r15+disp32]
-            (op0 & 0xFF) as u8,
-            ((op0 >> 8) & 0xFF) as u8,
-            ((op0 >> 16) & 0xFF) as u8,
-            ((op0 >> 24) & 0xFF) as u8,
-            0x49, 0x89, 0x47, 0x10, // mov [r15+2*8],rax
-        ]));
+        recs.extend(s3_host_pack_bytes(0xA1, &S3_LEA_TABLE));
+        recs.extend(s3_host_pack_bytes(0xA1, &S3_LEA_DST));
+        recs.extend(s3_host_pack_bytes(0xA1, &S3_LEA_PROG));
 
         recs.extend(s3_prog_loop_code(ops.len() as u32, 3));
         tyb_from_records(&recs)

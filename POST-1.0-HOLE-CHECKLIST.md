@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.124**（10 op 行体收成 `s3_fixed_row`；golden 不变；**不**假 CLOSED）。
+**默认** `继续` **= S3.129**（`s3_fixed_row` 的 argc/args 与 `fixed_template_ops` 对拍，只加测试、不改接受条件；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -101,10 +101,11 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.118–119** ✅ | `53cd9d8` | scan/compose/fulltext 走同一 sim；host 直调 |
 | **S3.120–122** ✅ | `1f3b4f9` | 共用 DATA 前缀；模板体改由 `emit_x86` 生成 |
 | **S3.123** ✅    | `8fa5693` | RET/NOP 单字节改走 `emit_x86` |
-| **S3.124** ⏳    | —         | 10 op 行体收成一份 · **本步** |
+| **S3.124–128** ✅ | （本批） | fixed10 一份；`lea` 由 disp/slot 生成；SET/ADD 记录一份 |
+| **S3.129** ⏳    | —         | 行体参数与 `fixed_template_ops` 对拍 · **本步** |
 
 
-**缺口**：行体仍各处手拼 · in-DLL RAW（PE 需要）· 真自举。逐步正文 → `git log`。
+**缺口**：行体参数与 `fixed_template_ops` 尚未对拍 · 真自举。逐步正文 → `git log`。
 
 ---
 
@@ -140,7 +141,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.124**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。
+- `继续` → **S3.129**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -148,4 +149,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-17**：RET/NOP 来自 `emit_x86` · 默认 **S3.124** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-17**：SET/ADD 记录一份 · 默认 **S3.129** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
