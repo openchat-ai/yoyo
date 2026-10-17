@@ -1974,8 +1974,20 @@ const S3_PACK_LOOP_L_DONE: u32 = 4;
 
 /// S3.143/S3.145: looped YOYO IR pack (CMP/JL/SUBV/ADDV/MEMCPY). Payload must be
 /// zero-padded 2B past `payload_len` so chunk=1/2 can still read 3 arg lows.
-fn s3_yoyo_pack_loop_ir(pay_off: u32, out_off: u32, payload_len: u32) -> Vec<(u8, u8, [u8; 6])> {
+fn s3_yoyo_pack_loop_ir(
+    pay_off: u32,
+    out_off: u32,
+    payload_len: u32,
+    const_base: u32,
+) -> Vec<(u8, u8, [u8; 6])> {
     let mut r = Vec::new();
+    // S3.194: [0x10, 1, 2, 3, 0] is written below outbuf, not packed as DATA.
+    r.push(s3_rec_set(S3_PACK_PROTO_DST, const_base));
+    for b in [0x10u8, 1, 2, 3, 0] {
+        r.push(s3_rec_set(S3_PACK_STB_TMP, b as u32));
+        r.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_PROTO_DST, 0));
+        r.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
+    }
     r.push(s3_rec_set(S3_PACK_PROTO_ONE, 1));
     r.push(s3_rec_set(S3_PACK_LOOP_THREE, S3_PACK_CHUNK as u32));
     r.push(s3_rec_set(S3_PACK_PROTO_DST, out_off));
@@ -1993,16 +2005,16 @@ fn s3_yoyo_pack_loop_ir(pay_off: u32, out_off: u32, payload_len: u32) -> Vec<(u8
     r.push(s3_rec_label(S3_PACK_LOOP_L_USE_REM));
     r.push(s3_rec_movrr(S3_PACK_LOOP_CHUNK, S3_PACK_LOOP_REM));
     r.push(s3_rec_label(S3_PACK_LOOP_L_PACK));
-    // op 0x10
-    r.push(s3_rec_set(S3_PACK_PROTO_SRC, S3_PACK_PROTO_CONST_OP));
+    // op 0x10 at const_base
+    r.push(s3_rec_set(S3_PACK_PROTO_SRC, const_base));
     r.push(s3_rec_memcpy(
         S3_PACK_PROTO_DST,
         S3_PACK_PROTO_SRC,
         S3_PACK_PROTO_ONE,
     ));
     r.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
-    // argc = DATA[CHUNK] (consts at 1/2/3)
-    r.push(s3_rec_set(S3_PACK_PROTO_SRC, 0));
+    // argc = mem[const_base + CHUNK] (1, 2, or 3)
+    r.push(s3_rec_set(S3_PACK_PROTO_SRC, const_base));
     r.push(s3_rec_addv(S3_PACK_PROTO_SRC, S3_PACK_LOOP_CHUNK));
     r.push(s3_rec_memcpy(
         S3_PACK_PROTO_DST,
@@ -2022,7 +2034,7 @@ fn s3_yoyo_pack_loop_ir(pay_off: u32, out_off: u32, payload_len: u32) -> Vec<(u8
             S3_PACK_PROTO_ONE,
         ));
         r.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
-        r.push(s3_rec_set(S3_PACK_PROTO_SRC, S3_PACK_PROTO_CONST_Z));
+        r.push(s3_rec_set(S3_PACK_PROTO_SRC, const_base + 4));
         r.push(s3_rec_memcpy(
             S3_PACK_PROTO_DST,
             S3_PACK_PROTO_SRC,
@@ -2100,35 +2112,20 @@ fn s3_yoyo_pack_loop_stb_tyb(payload: &[u8]) -> (Vec<u8>, u32) {
     (s3_host_tyb_from_records(&recs), out_off)
 }
 
-/// S3.151/S3.186: OnceLock bytewise pack of the 5 const bytes `[0..PAY)`.
-fn s3_pack_scratch_prefix_recs() -> &'static [(u8, u8, [u8; 6])] {
-    use std::sync::OnceLock;
-    static PREFIX: OnceLock<Vec<(u8, u8, [u8; 6])>> = OnceLock::new();
-    PREFIX.get_or_init(|| {
-        let mut head = vec![0u8; S3_PACK_PROTO_PAY as usize];
-        head[S3_PACK_PROTO_CONST_OP as usize] = 0x10;
-        head[S3_PACK_PROTO_CONST_1 as usize] = 1;
-        head[S3_PACK_PROTO_CONST_2 as usize] = 2;
-        head[S3_PACK_PROTO_CONST_3 as usize] = 3;
-        s3_pack_data_bytewise(&head)
-    })
-    .as_slice()
-}
-
-/// S3.143–S3.153: firmware for looped pack IR; returns (tyb, out_off).
-/// Scratch = cached prefix + bytewise(payload+2); chunk-3 only from YOYO IR output.
+/// S3.143–S3.194: MEMCPY loop pack. DATA is payload+2; five consts are IR stores past that.
 fn s3_yoyo_pack_loop_tyb(payload: &[u8]) -> (Vec<u8>, u32) {
     assert!(!payload.is_empty());
-    let out_off = s3_pack_proto_out_off(payload.len());
+    let const_base = payload.len() as u32 + 2;
+    let out_off = const_base + 5;
     let mut body = payload.to_vec();
     body.push(0);
     body.push(0);
-    let mut recs = s3_pack_scratch_prefix_recs().to_vec();
-    recs.extend(s3_pack_data_bytewise(&body));
+    let mut recs = s3_pack_data_bytewise(&body);
     recs.extend(s3_yoyo_pack_loop_ir(
-        S3_PACK_PROTO_PAY,
+        0,
         out_off,
         payload.len() as u32,
+        const_base,
     ));
     (s3_host_tyb_from_records(&recs), out_off)
 }
@@ -4040,12 +4037,10 @@ mod tests {
         let emitted = s3_sim_prog_loop(&fw, 0, off, 0).unwrap();
         assert_eq!(emitted, s3_host_tyb_from_records(&body));
         assert!(compile_tyb_to_pe_mini(&emitted).is_ok());
-        // S3.190: via_ir scratch is payload+2 only. MEMCPY comparison still has the 5 consts.
+        // S3.192/S3.194: both loop packers keep only payload bytes in DATA.
         let (via_fw, via_off) = s3_yoyo_pack_loop_stb_tyb(&[1, 2, 3, 4]);
         assert_eq!(via_off, 6);
         assert_eq!(s3_unpack_data_tyb(&via_fw).len(), 4);
-        let prefix = s3_pack_scratch_prefix_recs();
-        assert!(prefix.iter().all(|(_, argc, _)| *argc == 1));
         // Floor: in-DLL short lea RAW bytes stay (golden / PE seed).
         assert_eq!(S3_LEA_PTR.len(), 7);
         assert_eq!(S3_LEA_TABLE.len(), 15);
@@ -4110,10 +4105,10 @@ mod tests {
         let a1 = dll.records.iter().filter(|r| r.op == 0xA1).count();
         assert!(a1 >= 3, "in-DLL keeps ≥3 RAW lea packs for PE, got {a1}");
         assert_eq!(payload.len(), S3_HOST_OUTBUF_OFF as usize);
-        // S3.152: bootstrap still packs payload+2 in Rust (prefix is OnceLock).
-        let (_tyb, out_off) = s3_yoyo_pack_loop_tyb(&[0xAB, 0xCD]);
-        assert_eq!(out_off, s3_pack_proto_out_off(2));
-        assert!(!s3_pack_scratch_prefix_recs().is_empty());
+        // S3.194: MEMCPY loop scratch is payload+2; five consts are IR stores past that.
+        let (cmp, out_off) = s3_yoyo_pack_loop_tyb(&[0xAB, 0xCD]);
+        assert_eq!(out_off, 2 + 2 + 5);
+        assert_eq!(s3_unpack_data_tyb(&cmp).len(), 4);
     }
 
     /// S3.137/S3.141: pack ↔ unpack is the YOYO-target algorithm (still implemented in Rust).
@@ -4514,11 +4509,7 @@ mod tests {
             data_recs.iter().all(|r| r.argc == 1),
             "bootstrap scratch DATA must be argc=1 bytewise"
         );
-        assert_eq!(
-            s3_pack_scratch_prefix_recs().len(),
-            S3_PACK_PROTO_PAY as usize,
-            "S3.186: prefix is the 5 const bytes, not a 0x20 zero gap"
-        );
+        assert_eq!(data_recs.len(), bytes.len() + 2);
         let via = s3_pack_data_via_ir(&bytes);
         assert!(via.iter().any(|(_, argc, _)| *argc == 3) || bytes.len() < 3);
         assert_eq!(via, s3_pack_data(&bytes));
@@ -4563,21 +4554,11 @@ mod tests {
     fn s3_pack_loop_scratch_excludes_outbuf() {
         let bytes: Vec<u8> = (0..64).map(|i| i as u8).collect();
         let (tyb, out_off) = s3_yoyo_pack_loop_tyb(&bytes);
-        assert_eq!(out_off, s3_pack_proto_out_off(64));
+        assert_eq!(out_off, 64 + 2 + 5);
         let scratch = s3_unpack_data_tyb(&tyb);
-        assert_eq!(
-            scratch.len(),
-            out_off as usize,
-            "scratch must stop at out_off (sim grows outbuf)"
-        );
-        assert_eq!(&scratch[S3_PACK_PROTO_PAY as usize..][..64], &bytes[..]);
-        assert_eq!(scratch[0], 0x10);
-        assert_eq!(&scratch[1..4], &[1, 2, 3]);
-        // Second call hits OnceLock — same pointer.
-        assert!(std::ptr::eq(
-            s3_pack_scratch_prefix_recs(),
-            s3_pack_scratch_prefix_recs()
-        ));
+        assert_eq!(scratch.len(), 66, "S3.194: DATA is payload plus the two-byte pad");
+        assert_eq!(&scratch[..64], &bytes[..]);
+        assert_eq!(&scratch[64..], &[0, 0]);
     }
 
     /// S3.188: a short last chunk still reads CUR+1 and CUR+2. Those two zeros stay.
