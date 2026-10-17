@@ -1563,6 +1563,92 @@ fn s3_unpack_data_tyb(tyb: &[u8]) -> Vec<u8> {
     out
 }
 
+/// S3.142: flatten `s3_pack_data` records to wire bytes (op+argc+6 args each).
+fn s3_pack_data_wire(bytes: &[u8]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for (op, argc, a) in s3_pack_data(bytes) {
+        out.push(op);
+        out.push(argc);
+        out.extend_from_slice(&a);
+    }
+    out
+}
+
+/// S3.142 pack-proto DATA layout (no STB — write via 1-byte MEMCPY from consts/payload).
+const S3_PACK_PROTO_CONST_OP: u32 = 0; // byte 0x10
+const S3_PACK_PROTO_CONST_1: u32 = 1;
+const S3_PACK_PROTO_CONST_2: u32 = 2;
+const S3_PACK_PROTO_CONST_3: u32 = 3;
+const S3_PACK_PROTO_CONST_Z: u32 = 4; // zero pad
+const S3_PACK_PROTO_PAY: u32 = 0x20;
+const S3_PACK_PROTO_OUT: u32 = 0x80;
+const S3_PACK_PROTO_SRC: u16 = 8;
+const S3_PACK_PROTO_DST: u16 = 9;
+const S3_PACK_PROTO_ONE: u16 = 12;
+
+/// S3.142: emit one byte from DATA[`src_off`] to *DST, then DST += 1.
+fn s3_pack_proto_putc(recs: &mut Vec<(u8, u8, [u8; 6])>, src_off: u32) {
+    recs.push(s3_rec_set(S3_PACK_PROTO_SRC, src_off));
+    recs.push(s3_rec_memcpy(
+        S3_PACK_PROTO_DST,
+        S3_PACK_PROTO_SRC,
+        S3_PACK_PROTO_ONE,
+    ));
+    recs.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
+}
+
+/// S3.142: one DATA `0x10` record (8 wire bytes) from payload at `base`, argc=`n`.
+fn s3_pack_proto_record(recs: &mut Vec<(u8, u8, [u8; 6])>, base: u32, n: u8) {
+    debug_assert!((1..=S3_PACK_CHUNK as u8).contains(&n));
+    s3_pack_proto_putc(recs, S3_PACK_PROTO_CONST_OP);
+    let argc_off = match n {
+        1 => S3_PACK_PROTO_CONST_1,
+        2 => S3_PACK_PROTO_CONST_2,
+        3 => S3_PACK_PROTO_CONST_3,
+        _ => unreachable!(),
+    };
+    s3_pack_proto_putc(recs, argc_off);
+    for k in 0..S3_PACK_CHUNK as u32 {
+        if (k as u8) < n {
+            s3_pack_proto_putc(recs, base + k);
+        } else {
+            s3_pack_proto_putc(recs, S3_PACK_PROTO_CONST_Z);
+        }
+        s3_pack_proto_putc(recs, S3_PACK_PROTO_CONST_Z);
+    }
+}
+
+/// S3.142: unrolled YOYO IR pack (SET/ADD/MEMCPY/RET) matching `s3_pack_data` wire.
+/// Builder is still Rust; the *executed* algorithm is YOYO ops (no STB — 1-byte MEMCPY).
+fn s3_yoyo_pack_proto_ir(payload_len: usize) -> Vec<(u8, u8, [u8; 6])> {
+    let mut recs = Vec::new();
+    recs.push(s3_rec_set(S3_PACK_PROTO_ONE, 1));
+    recs.push(s3_rec_set(S3_PACK_PROTO_DST, S3_PACK_PROTO_OUT));
+    let mut i = 0usize;
+    while i < payload_len {
+        let n = (payload_len - i).min(S3_PACK_CHUNK) as u8;
+        s3_pack_proto_record(&mut recs, S3_PACK_PROTO_PAY + i as u32, n);
+        i += n as usize;
+    }
+    recs.push((0xFF, 0, [0; 6]));
+    recs
+}
+
+/// S3.142: firmware = const/payload/outbuf DATA + unrolled pack IR.
+fn s3_yoyo_pack_proto_tyb(payload: &[u8]) -> Vec<u8> {
+    assert!(!payload.is_empty() && payload.len() <= 6);
+    let mut data = vec![0u8; S3_PACK_PROTO_OUT as usize + 16];
+    data[S3_PACK_PROTO_CONST_OP as usize] = 0x10;
+    data[S3_PACK_PROTO_CONST_1 as usize] = 1;
+    data[S3_PACK_PROTO_CONST_2 as usize] = 2;
+    data[S3_PACK_PROTO_CONST_3 as usize] = 3;
+    let pay = S3_PACK_PROTO_PAY as usize;
+    data[pay..pay + payload.len()].copy_from_slice(payload);
+    let mut recs = s3_pack_data(&data);
+    recs.extend(s3_yoyo_pack_proto_ir(payload.len()));
+    s3_host_tyb_from_records(&recs)
+}
+
 fn s3_host_tmpl_row(op: u8, payload: &[u8]) -> [u8; 20] {
     let mut r = [0u8; 20];
     r[0] = op;
@@ -3440,6 +3526,31 @@ mod tests {
             payload,
             "host firmware DATA must unpack to fixed payload"
         );
+    }
+
+    /// S3.142: YOYO IR pack prototype (unrolled SET/ADD/MEMCPY) == `s3_pack_data` wire.
+    /// No STB; no golden change. Builder still Rust — executed algorithm is YOYO ops.
+    #[test]
+    fn s3_yoyo_ir_pack_proto_parity() {
+        assert!(s3_pack_data_wire(&[]).is_empty());
+        for n in 1usize..=6 {
+            let bytes: Vec<u8> = (0..n).map(|i| (i * 17 + 3) as u8).collect();
+            let expect = s3_pack_data_wire(&bytes);
+            assert_eq!(expect.len(), ((n + S3_PACK_CHUNK - 1) / S3_PACK_CHUNK) * 8);
+            let tyb = s3_yoyo_pack_proto_tyb(&bytes);
+            let prog = parse_tyb(&tyb).expect("pack proto tyb");
+            assert!(
+                prog.records.iter().any(|r| r.op == 0x84),
+                "pack proto must use MEMCPY"
+            );
+            assert!(
+                prog.records.iter().all(|r| !matches!(r.op, 0xA1 | 0xA0 | 0x12 | 0x13)),
+                "pack proto stays host-style (no RAW/A1)"
+            );
+            let got = s3_sim_prog_loop(&tyb, 0, S3_PACK_PROTO_OUT, 0)
+                .unwrap_or_else(|e| panic!("sim pack len {n}: {e:#x}"));
+            assert_eq!(got, expect, "YOYO IR pack != s3_pack_data wire, len {n}");
+        }
     }
 
     /// S3.138: cached bodies stay equal to a fresh emit_x86 bake.
