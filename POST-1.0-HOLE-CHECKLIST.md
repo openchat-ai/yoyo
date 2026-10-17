@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.148**（147 表/in-DLL DATA 已 via_ir；下一刀 packer scratch 去 `s3_pack_data` 或 STB；仍不改 golden；**不**假 CLOSED）。
+**默认** `继续` **= S3.149**（148 `s3_pack_data` 仅参照；下一刀 bootstrap scratch 再收 / 短 lea；仍不改 golden；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -112,11 +112,11 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.142** ✅    | `c4a4ff0` | YOYO IR pack 原型（unroll SET/ADD/MEMCPY）对拍 wire |
 | **S3.143–144** ✅ | `91b4dcd` | loop pack + via_ir records == `s3_pack_data` |
 | **S3.145–146** ✅ | `3ff56ce` | 动态布局；host 固件 DATA 改走 via_ir |
-| **S3.147** ✅    | —         | scan/compose/fulltext/in-DLL DATA 均 via_ir |
-| **S3.148** ⏳    | —         | packer scratch 去 `s3_pack_data` · **本步** |
+| **S3.147–148** ✅ | `a85b062` | 表路径 via_ir；`s3_pack_data` 仅参照；scratch=`host_pack_bytes` |
+| **S3.149** ⏳    | —         | bootstrap scratch 再收 / 短 lea 轴 · **本步** |
 
 
-**缺口**：`s3_pack_data` 仅剩 packer scratch + 对拍参照 · in-DLL 短编码 RAW `lea` 必留 · 真自举。逐步正文 → `git log`。
+**缺口**：via_ir bootstrap 仍 Rust `host_pack_bytes` · in-DLL 短编码 RAW `lea` 必留 · 真自举。逐步正文 → `git log`。
 
 ---
 
@@ -152,7 +152,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.148**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.149**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -160,4 +160,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-17**：表路径 via_ir · 默认 **S3.148** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-17**：pack 轴 via_ir 收拢 · 默认 **S3.149** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）

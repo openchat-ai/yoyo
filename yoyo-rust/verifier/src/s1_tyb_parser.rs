@@ -1767,7 +1767,8 @@ fn s3_yoyo_pack_loop_tyb(payload: &[u8]) -> (Vec<u8>, u32) {
     data[S3_PACK_PROTO_CONST_3 as usize] = 3;
     let pay = S3_PACK_PROTO_PAY as usize;
     data[pay..pay + payload.len()].copy_from_slice(payload);
-    let mut recs = s3_pack_data(&data);
+    // S3.148: via_ir bootstrap scratch — last Rust DATA pack call site in prod path.
+    let mut recs = s3_host_pack_bytes(0x10, &data);
     recs.extend(s3_yoyo_pack_loop_ir(
         S3_PACK_PROTO_PAY,
         out_off,
@@ -3722,6 +3723,36 @@ mod tests {
                 .unwrap_or_else(|e| panic!("sim loop pack len {n}: {e:#x}"));
             assert_eq!(got, expect, "loop IR pack != s3_pack_data wire, len {n}");
         }
+    }
+
+    /// S3.148: `s3_pack_data` is reference-only; firmware builders use via_ir /
+    /// bootstrap `s3_host_pack_bytes` for packer scratch (not `s3_pack_data`).
+    #[test]
+    fn s3_pack_data_reference_only_after_firmware_fold() {
+        assert_eq!(
+            s3_pack_data(&[0x10, 0x20, 0x30, 0x40]),
+            s3_host_pack_bytes(0x10, &[0x10, 0x20, 0x30, 0x40])
+        );
+        let host_payload =
+            s3_fixed_payload(&S3_FIXED10_OPS, &[0xFF], S3_HOST_OUTBUF_OFF as usize);
+        let host = parse_tyb(&s3_host_prog_loop_tyb(&[0xFF])).unwrap();
+        let host_data: Vec<_> = host
+            .records
+            .iter()
+            .filter(|r| r.op == 0x10)
+            .map(|r| (r.op, r.argc, r.args_raw))
+            .collect();
+        assert_eq!(host_data, s3_pack_data_via_ir(&host_payload));
+        let dll_payload =
+            s3_fixed_payload(&S3_FIXED10_OPS[..3], &[0xFF], S3_OUTBUF_OFF as usize);
+        let dll = parse_tyb(&s3_table_prog_loop_tyb(&[0xFF])).unwrap();
+        let dll_data: Vec<_> = dll
+            .records
+            .iter()
+            .filter(|r| r.op == 0x10)
+            .map(|r| (r.op, r.argc, r.args_raw))
+            .collect();
+        assert_eq!(dll_data, s3_pack_data_via_ir(&dll_payload));
     }
 
     /// S3.145: dynamic out_off lets via_ir pack host-sized payloads (0x160).
