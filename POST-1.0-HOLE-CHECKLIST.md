@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.178**（177 混合发射策略已绿；下一刀真自举；仍不改 golden；**不**假 CLOSED）。
+**默认** `继续` **= S3.179**（178 两阶段发射已绿；下一刀削发射器 SET 展开；仍不改 golden；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -138,10 +138,11 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.175** ✅    | `c46db00` | loop-staged 发射 IR 大小与 flat 无关 |
 | **S3.176** ✅    | `7d9e782` | 真自举近端清单（两地板 + O(1) 旁路） |
 | **S3.177** ✅    | `8d003f2` | 混合发射：小 flat 展开 / 大 flat loop-staged |
-| **S3.178** ⏳    | —         | 真自举 · **本步** |
+| **S3.178** ✅    | —         | 大 flat 两阶段：IR 写 staging + loop 拷出（无 Rust 预置） |
+| **S3.179** ⏳    | —         | 削两阶段 SET 展开 · **本步** |
 
 
-**缺口**：两地板（bytewise bootstrap / SET×byte 发射）· 短 lea · loop-staged 仍需 Rust flat · 真自举。逐步正文 → `git log`。
+**缺口**：两地板（bytewise bootstrap / SET×byte 发射）· 短 lea · 发射器仍 Rust 拼 IR · 真自举。逐步正文 → `git log`。
 
 ---
 
@@ -177,7 +178,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.178**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.179**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -185,4 +186,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-17**：混合发射 · 默认 **S3.178** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-17**：两阶段发射 · 默认 **S3.179** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）

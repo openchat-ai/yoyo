@@ -1665,8 +1665,57 @@ fn s3_yoyo_emit_tyb_file_loop_staged(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>,
     (s3_host_tyb_from_records(&recs), out_off)
 }
 
-/// S3.177: prefer unrolled IR write (no Rust flat) for small files; loop-staged
-/// O(1) IR when flat would explode unrolled size (still Rust flat preimage).
+/// S3.178: IR STB-builds flat into staging (below outbuf), then loop-copies out.
+/// No Rust flat preimage — only zero bootstrap DATA. Needs sim composed=outbuf-only.
+fn s3_yoyo_emit_tyb_file_two_phase(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
+    assert!(records.len() <= 255);
+    let pay = 0x10u32;
+    let flat_len = HEADER_SIZE as u32 + records.len() as u32 * RECORD_SIZE as u32;
+    let out_off = pay + flat_len;
+    let mut recs = s3_pack_data_bytewise(&vec![0u8; out_off as usize]);
+    // Phase 1: write header+records into staging at `pay` (not counted in composed).
+    recs.push(s3_rec_set(S3_PACK_PROTO_DST, pay));
+    for &b in &TYB_MAGIC {
+        recs.push(s3_rec_set(S3_PACK_STB_TMP, b as u32));
+        recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_PROTO_DST, 0));
+        recs.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
+    }
+    for _ in 0..2 {
+        recs.push(s3_rec_set(S3_PACK_STB_TMP, 0));
+        recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_PROTO_DST, 0));
+        recs.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
+    }
+    let cnt = (records.len() as u16).to_le_bytes();
+    for &b in &cnt {
+        recs.push(s3_rec_set(S3_PACK_STB_TMP, b as u32));
+        recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_PROTO_DST, 0));
+        recs.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
+    }
+    for &(op, argc, a) in records {
+        s3_append_emit_rec_stb(&mut recs, op, argc, a);
+    }
+    // Phase 2: loop-copy staging → outbuf (composed counts these writes).
+    const L_LOOP: u32 = 1;
+    const L_DONE: u32 = 2;
+    const CUR: u16 = S3_PACK_LOOP_CUR;
+    const END: u16 = S3_PACK_LOOP_END;
+    recs.push(s3_rec_set(CUR, pay));
+    recs.push(s3_rec_set(END, out_off));
+    recs.push(s3_rec_set(S3_PACK_PROTO_DST, out_off));
+    recs.push(s3_rec_label(L_LOOP));
+    recs.push(s3_rec_cmp(CUR, END));
+    recs.push(s3_rec_je(L_DONE));
+    recs.push(s3_rec_ldb(S3_PACK_STB_TMP, CUR, 0));
+    recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_PROTO_DST, 0));
+    recs.push(s3_rec_add(CUR, 1));
+    recs.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
+    recs.push(s3_rec_jmp(L_LOOP));
+    recs.push(s3_rec_label(L_DONE));
+    recs.push((0xFF, 0, [0; 6]));
+    (s3_host_tyb_from_records(&recs), out_off)
+}
+
+/// S3.177/S3.178: small → unrolled IR write; large → two-phase (IR staging + loop).
 const S3_EMIT_UNROLL_MAX_FLAT: usize = 64;
 
 fn s3_yoyo_emit_tyb_file(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
@@ -1674,7 +1723,7 @@ fn s3_yoyo_emit_tyb_file(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
     if flat_len <= S3_EMIT_UNROLL_MAX_FLAT {
         s3_yoyo_emit_tyb_file_unrolled(records)
     } else {
-        s3_yoyo_emit_tyb_file_loop_staged(records)
+        s3_yoyo_emit_tyb_file_two_phase(records)
     }
 }
 
@@ -2419,7 +2468,8 @@ fn s3_sim_prog_loop(tyb: &[u8], table_off: u64, outbuf: u32, prog_ptr: u64) -> R
                 state[dd as usize] = *data.get(addr).ok_or(0xFA)? as u64;
                 pc += 1;
             }
-            // S3.154: STB val base off (sim-only; emit still NOP-unknown).
+            // S3.154/S3.178: STB — composed only counts writes into outbuf region
+            // (enables IR staging below outbuf without polluting return length).
             0x81 => {
                 let (val, base, oo) = arg_slot3(rec).ok_or(0xFB)?;
                 let addr = state[base as usize] as usize + oo as usize;
@@ -2427,7 +2477,10 @@ fn s3_sim_prog_loop(tyb: &[u8], table_off: u64, outbuf: u32, prog_ptr: u64) -> R
                     data.resize(addr + 1, 0);
                 }
                 data[addr] = state[val as usize] as u8;
-                composed += 1;
+                let ob = outbuf as usize;
+                if addr >= ob {
+                    composed += 1;
+                }
                 pc += 1;
             }
             0x84 => {
@@ -2441,7 +2494,12 @@ fn s3_sim_prog_loop(tyb: &[u8], table_off: u64, outbuf: u32, prog_ptr: u64) -> R
                     data.resize(d + n, 0);
                 }
                 data[d..d + n].copy_from_slice(&tmp);
-                composed += n;
+                // S3.178: count only bytes landing in [outbuf, …).
+                let ob = outbuf as usize;
+                if d + n > ob {
+                    let start = d.max(ob);
+                    composed += d + n - start;
+                }
                 pc += 1;
             }
             0x65 => {
@@ -3975,6 +4033,12 @@ mod tests {
         );
         let (fw_l, _) = s3_yoyo_emit_tyb_file_loop_staged(&one);
         assert!(parse_tyb(&fw_l).unwrap().records.iter().any(|r| r.op == 0x70));
+        // S3.178: large emit uses two-phase (IR staging), not Rust flat preimage.
+        let mut big = vec![s3_fixed_rec(0x00); 16];
+        big.push(s3_fixed_rec(0xFF));
+        let (fw_2, _) = s3_yoyo_emit_tyb_file(&big);
+        assert!(parse_tyb(&fw_2).unwrap().records.iter().any(|r| r.op == 0x70));
+        assert!(s3_unpack_data_tyb(&fw_2).iter().all(|&b| b == 0));
         // Cliff: `s3_append_emit_rec_stb` / `s3_rec_*` builders remain Rust.
         let _ = s3_rec_stb(0, 1, 0);
         assert_eq!(s3_fixed_row(0xFF), s3_compute_fixed_body(0xFF));
@@ -4112,7 +4176,7 @@ mod tests {
         assert_eq!(adds, flat_len, "ADD DST per byte");
     }
 
-    /// S3.177: hybrid emit picks unrolled under cap, loop-staged above.
+    /// S3.177/S3.178: hybrid picks unrolled under cap, two-phase (no Rust flat) above.
     #[test]
     fn s3_emit_hybrid_picks_path_by_flat_size() {
         let small = [s3_fixed_rec(0xFF)];
@@ -4124,10 +4188,28 @@ mod tests {
         assert!(HEADER_SIZE + big.len() * RECORD_SIZE > S3_EMIT_UNROLL_MAX_FLAT);
         let (fw_b, off_b) = s3_yoyo_emit_tyb_file(&big);
         assert!(parse_tyb(&fw_b).unwrap().records.iter().any(|r| r.op == 0x70));
+        // S3.178: firmware DATA is zeros only (IR builds staging, no Rust preimage).
+        assert!(s3_unpack_data_tyb(&fw_b).iter().all(|&b| b == 0));
         assert_eq!(
             s3_sim_prog_loop(&fw_b, 0, off_b, 0).unwrap(),
             s3_host_tyb_from_records(&big)
         );
+    }
+
+    /// S3.178: two-phase emit — IR stages below outbuf; composed returns only out copy.
+    #[test]
+    fn s3_emit_two_phase_no_rust_flat_preimage() {
+        let mut body = vec![s3_fixed_rec(0x00); 12];
+        body.push(s3_rec_set(0, 0xCAFEBABE));
+        body.push(s3_fixed_rec(0xFF));
+        let expect = s3_host_tyb_from_records(&body);
+        let (fw, out_off) = s3_yoyo_emit_tyb_file_two_phase(&body);
+        assert!(parse_tyb(&fw).unwrap().records.iter().any(|r| r.op == 0x70));
+        assert!(s3_unpack_data_tyb(&fw).iter().all(|&b| b == 0));
+        let got = s3_sim_prog_loop(&fw, 0, out_off, 0).expect("two-phase emit");
+        assert_eq!(got, expect);
+        assert_eq!(got.len(), expect.len());
+        compile_tyb_to_pe_mini(&got).expect("two-phase emitted TYB mini pe");
     }
 
     /// S3.175: loop-staged emit IR size is O(1) in flat length (vs unrolled O(n)).
