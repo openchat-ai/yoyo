@@ -3923,9 +3923,10 @@ mod tests {
         );
     }
 
-    /// S3.163/S3.173: IR self-host roadmap gate — pack/STB/TYB-emit vs remaining.
-    /// Flat TYB content is IR-written (S3.172). Cliff: Rust still *assembles*
-    /// the emitter IR (`s3_append_emit_rec_stb`); YOYO must build that program.
+    /// S3.163/S3.176: IR self-host near-end inventory (not a schedule).
+    /// Floors: (1) bytewise bootstrap scratch (2) unrolled SET×byte emit.
+    /// Escape: loop-staged emit is O(1) IR but still needs Rust flat preimage.
+    /// Cliff: YOYO must assemble emitter IR / write TYB without Rust helpers.
     #[test]
     fn s3_ir_selfhost_roadmap() {
         // Done: DATA pack algorithm runs as YOYO IR (STB loop) via via_ir.
