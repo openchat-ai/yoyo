@@ -4191,6 +4191,17 @@ mod tests {
         }
     }
 
+    /// S3.193: distinct bytes do not fold. No shift op, so each stays one SET.
+    #[test]
+    fn s3_emit_unique_bytes_stay_one_set() {
+        let bytes: Vec<u8> = (1..9).collect();
+        let mut recs = Vec::new();
+        s3_append_stb_runs(&mut recs, &bytes, 1);
+        let sets = recs.iter().filter(|r| r.0 == 0x30).count();
+        assert_eq!(sets, bytes.len(), "unique byte stays one SET");
+        assert!(recs.iter().all(|r| r.0 != 0x61 && r.0 != 0x70));
+    }
+
     /// S3.174: unrolled emit costs 3 IR ops per output byte (SET+STB+ADD) — floor.
     #[test]
     fn s3_emit_set_stb_expansion_floor() {
