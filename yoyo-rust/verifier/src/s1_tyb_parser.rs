@@ -4073,6 +4073,27 @@ mod tests {
         }
     }
 
+    /// S3.174: unrolled emit costs 3 IR ops per output byte (SET+STB+ADD) — floor.
+    #[test]
+    fn s3_emit_set_stb_expansion_floor() {
+        let body = [(0xFFu8, 0u8, [0u8; 6])];
+        let flat_len = HEADER_SIZE + RECORD_SIZE; // 8 + 8
+        let (fw, _) = s3_yoyo_emit_tyb_file_unrolled(&body);
+        let ir: Vec<_> = parse_tyb(&fw)
+            .unwrap()
+            .records
+            .into_iter()
+            .filter(|r| !matches!(r.op, 0x10 | 0x12 | 0x13 | 0xA1 | 0xA0))
+            .collect();
+        // SET DST + 3 ops/byte + RET (ignore labels).
+        let sets = ir.iter().filter(|r| r.op == 0x30).count();
+        let stbs = ir.iter().filter(|r| r.op == 0x81).count();
+        let adds = ir.iter().filter(|r| r.op == 0x62).count();
+        assert_eq!(stbs, flat_len, "one STB per output byte");
+        assert_eq!(sets, flat_len + 1, "SET per byte + initial DST");
+        assert_eq!(adds, flat_len, "ADD DST per byte");
+    }
+
     /// S3.166: YOYO IR STB-emits TYB record wire (== hand `s3_rec_wire`).
     #[test]
     fn s3_yoyo_emit_tyb_records_via_stb() {
