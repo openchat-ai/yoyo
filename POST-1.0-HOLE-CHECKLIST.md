@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.227**（226 phase1 共用 append_stb_flat_at；lea / 真自举仍地板；仍不改 golden；**不**假 CLOSED）。
+**默认** `继续` **= S3.228**（227 钉 in-DLL .text 以 37B lea 开头；真自举仍 cliff；仍不改 golden；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -186,11 +186,12 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.223** ✅    | `2b24667` | 钉短 lea 37B RAW 地板；empty-DATA+STB 已入库存 |
 | **S3.224** ✅    | `fde8ba3` | 四 shape 收 s3_rec_*；真自举 cliff 更清楚 |
 | **S3.225** ✅    | `11a01f8` | record/file emit 共用 s3_yoyo_emit_flat_via_stb |
-| **S3.226** ✅    | —         | two-phase/loop-staged phase1 共用 append_stb_flat_at |
-| **S3.227** ⏳    | —         | 真自举 / lea 地板 · **本步** |
+| **S3.226** ✅    | `78a0db8` | two-phase/loop-staged phase1 共用 append_stb_flat_at |
+| **S3.227** ✅    | —         | 钉 in-DLL .text 以 37B short-lea RAW 开头 |
+| **S3.228** ⏳    | —         | 真自举 · **本步** |
 
 
-**缺口**：短 lea RAW（37B）· Rust 仍填 4 shape / STB-flat phase1 · 真自举。逐步正文 → `git log`。
+**缺口**：短 lea RAW（.text 头 37B 已钉）· Rust 仍填 4 shape / STB-flat · 真自举。逐步正文 → `git log`。
 
 ---
 
@@ -226,7 +227,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.227**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.228**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -234,4 +235,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-19**：STB-flat phase1 共用 · 默认 **S3.227** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-19**：lea .text 头 37B 已钉 · 默认 **S3.228** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）

@@ -4110,8 +4110,8 @@ mod tests {
     /// S3.163/S3.176/S3.222/S3.224: IR self-host near-end inventory (not a schedule).
     /// Floors: (1) short lea RAW (2) one SET per distinct emit byte (no SHR;
     /// short seed + in-DLL share `s3_append_stb_poke_global_distinct`).
-    /// Cliff: YOYO fills the 4 record shapes + STB-flat emit primitive without
-    /// Rust `s3_rec_*` / `s3_yoyo_emit_flat_via_stb` helpers.
+    /// Cliff: YOYO fills the 4 record shapes + STB-flat phase1 (`s3_append_stb_flat_at`)
+    /// without Rust helpers.
     #[test]
     fn s3_ir_selfhost_roadmap() {
         // Done: DATA pack algorithm runs as YOYO IR (STB loop) via via_ir.
@@ -4290,6 +4290,30 @@ mod tests {
         let (cmp, out_off) = s3_yoyo_pack_loop_tyb(&[0xAB, 0xCD]);
         assert_eq!(out_off, 2 + 2 + 5);
         assert!(s3_unpack_data_tyb(&cmp).is_empty());
+    }
+
+    /// S3.227: default in-DLL `.text` opens with the 37B short-lea RAW (A1) floor.
+    /// Host firmware has no lea prefix. Golden via_ir also keeps the same lea head.
+    #[test]
+    fn s3_in_dll_text_starts_with_short_lea_raw() {
+        let mut lea = Vec::with_capacity(37);
+        lea.extend_from_slice(&S3_LEA_TABLE);
+        lea.extend_from_slice(&S3_LEA_DST);
+        lea.extend_from_slice(&S3_LEA_PROG);
+        assert_eq!(lea.len(), 37);
+        let dll_text = emit_x86(&parse_tyb(&s3_table_prog_loop_tyb(&[0xFF])).unwrap()).text;
+        assert!(
+            dll_text.starts_with(&lea),
+            "default empty-DATA in-DLL .text must open with short lea RAW"
+        );
+        let via_text =
+            emit_x86(&parse_tyb(&s3_table_prog_loop_tyb_via_ir(&[0xFF])).unwrap()).text;
+        assert!(via_text.starts_with(&lea), "via_ir golden also opens with lea");
+        let host_text = emit_x86(&parse_tyb(&s3_host_prog_loop_tyb(&[0xFF])).unwrap()).text;
+        assert!(
+            !host_text.starts_with(&lea),
+            "host firmware has no short lea RAW prefix"
+        );
     }
 
     /// S3.214: host prog loop is a thinner record stream than the golden in-DLL one.
