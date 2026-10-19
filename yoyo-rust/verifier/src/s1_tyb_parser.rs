@@ -2384,6 +2384,16 @@ fn s3_rec_shape_of(op: u8) -> Option<S3RecShape> {
     S3_REC_OP_SHAPE.iter().find(|(o, _)| *o == op).map(|(_, s)| *s)
 }
 
+/// S3.229: op→shape table as a flat byte payload (op, shape_tag)×N — YOYO-readable.
+fn s3_rec_op_shape_bytes() -> Vec<u8> {
+    let mut out = Vec::with_capacity(S3_REC_OP_SHAPE.len() * 2);
+    for &(op, shape) in S3_REC_OP_SHAPE {
+        out.push(op);
+        out.push(shape as u8);
+    }
+    out
+}
+
 fn s3_rec_slot_imm(op: u8, slot: u16, imm: u32) -> (u8, u8, [u8; 6]) {
     debug_assert_eq!(s3_rec_shape_of(op), Some(S3RecShape::SlotImm));
     let sb = slot.to_le_bytes();
@@ -4146,7 +4156,7 @@ mod tests {
     /// S3.163/S3.176/S3.222/S3.224: IR self-host near-end inventory (not a schedule).
     /// Floors: (1) short lea RAW (2) one SET per distinct emit byte (no SHR;
     /// short seed + in-DLL share `s3_append_stb_poke_global_distinct`).
-    /// Cliff: YOYO fills the 4 record shapes + STB-flat phase1 (`s3_append_stb_flat_at`)
+    /// Cliff: YOYO reads `S3_REC_OP_SHAPE` and fills shapes + STB-flat phase1
     /// without Rust helpers.
     #[test]
     fn s3_ir_selfhost_roadmap() {
@@ -4291,6 +4301,32 @@ mod tests {
             by_shape[*s as usize] += 1;
         }
         assert_eq!(by_shape, [3, 4, 5, 3], "SlotImm/SlotSlot/U32/Slot3 counts");
+    }
+
+    /// S3.229: op→shape table packs as empty-DATA STB flat and round-trips.
+    #[test]
+    fn s3_rec_op_shape_table_stb_payload() {
+        let bytes = s3_rec_op_shape_bytes();
+        assert_eq!(bytes.len(), 30, "15 ops × (op, shape)");
+        assert_eq!(&bytes[..4], &[0x30, 0, 0x61, 0]);
+        assert_eq!(&bytes[bytes.len() - 2..], &[0x84, 3]);
+        // Empty-DATA emit of the table payload; sim recovers the same bytes.
+        let (tyb, off) = s3_yoyo_emit_flat_via_stb(&bytes, 0x20);
+        assert!(s3_unpack_data_tyb(&tyb).is_empty());
+        assert_eq!(s3_sim_prog_loop(&tyb, 0, off, 0).unwrap(), bytes);
+        // Rebuild lookup from the payload bytes alone.
+        let mut rebuilt = Vec::new();
+        for chunk in bytes.chunks_exact(2) {
+            let shape = match chunk[1] {
+                0 => S3RecShape::SlotImm,
+                1 => S3RecShape::SlotSlot,
+                2 => S3RecShape::U32,
+                3 => S3RecShape::Slot3,
+                o => panic!("bad shape tag {o}"),
+            };
+            rebuilt.push((chunk[0], shape));
+        }
+        assert_eq!(rebuilt.as_slice(), S3_REC_OP_SHAPE);
     }
 
     /// S3.135/S3.160/S3.223: remaining Rust sidecar after pack+STB fold (honest).
