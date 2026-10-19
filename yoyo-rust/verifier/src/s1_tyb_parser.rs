@@ -4179,8 +4179,9 @@ mod tests {
     }
 
 
-    /// S3.209/S3.210: poke-only seed beats run-fold; S3.210 imm8 STB oo + BASE
-    /// brings the 3-row seed under 512, but +short lea still overflows — via_ir stays.
+    /// S3.209–S3.211: poke-only seed beats run-fold and fits mini alone (S3.210
+    /// imm8 STB oo). S3.211: seed±RET compiles; +short-lea A1 still overflows —
+    /// in-DLL keeps via_ir (lea stores VAs; SET imm cannot replace it on PE).
     #[test]
     fn s3_ir_seed_poke_beats_run_fold_still_over_cap() {
         let payload = s3_fixed_payload(&S3_FIXED10_OPS[..3], &[0xFF], S3_OUTBUF_OFF as usize);
@@ -4189,9 +4190,8 @@ mod tests {
         let slice = &payload[start..end];
         let mut poked = Vec::new();
         s3_ir_seed_at(&mut poked, 0x80, slice, 10);
-        let poke_code = emit_x86(&parse_tyb(&tyb_from_records(&poked)).unwrap())
-            .text
-            .len();
+        let poke_tyb = tyb_from_records(&poked);
+        let poke_code = emit_x86(&parse_tyb(&poke_tyb).unwrap()).text.len();
         let mut run_recs = Vec::new();
         run_recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
         run_recs.push(s3_rec_set(S3_PACK_PROTO_DST, 0x80));
@@ -4208,9 +4208,21 @@ mod tests {
             "S3.210: short poke seed {poke_code} must fit mini cap {}",
             S1_SLIM_MAX_CODE
         );
+        // S3.211: seed alone is a valid mini PE (no DATA); lea is the remaining cliff.
+        let mut seed_ret = poked.clone();
+        seed_ret.push(s3_fixed_rec(0xFF));
+        compile_tyb_to_pe_mini(&tyb_from_records(&seed_ret))
+            .expect("poke seed + RET must fit mini");
         let mut full = poked.clone();
         full.extend_from_slice(s3_in_dll_lea_prologue_recs());
         full.extend(s3_prog_loop_code(1, 3));
+        let full_code = emit_x86(&parse_tyb(&tyb_from_records(&full)).unwrap())
+            .text
+            .len();
+        assert!(
+            full_code > S1_SLIM_MAX_CODE,
+            "seed+lea+prog {full_code} must exceed cap"
+        );
         assert!(
             compile_tyb_to_pe_mini(&tyb_from_records(&full)).is_err(),
             "poke seed + short lea still over mini cap"
