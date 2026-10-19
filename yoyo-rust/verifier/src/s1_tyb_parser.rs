@@ -1578,17 +1578,6 @@ fn s3_rec_wire(op: u8, argc: u8, a: [u8; 6]) -> [u8; 8] {
     [op, argc, a[0], a[1], a[2], a[3], a[4], a[5]]
 }
 
-/// S3.166/S3.200: append STB writes of one record (run-folded when bytes repeat).
-fn s3_append_emit_rec_stb(
-    recs: &mut Vec<(u8, u8, [u8; 6])>,
-    op: u8,
-    argc: u8,
-    a: [u8; 6],
-    label_id: u32,
-) -> u32 {
-    s3_append_stb_runs(recs, &s3_rec_wire(op, argc, a), label_id)
-}
-
 /// S3.166/S3.200: firmware that STB-emits given records to outbuf (empty DATA image).
 fn s3_yoyo_emit_recs_tyb(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
     let out_off = 0x20u32;
@@ -4045,7 +4034,7 @@ mod tests {
         let (fw_2, _) = s3_yoyo_emit_tyb_file(&big);
         assert!(parse_tyb(&fw_2).unwrap().records.iter().any(|r| r.op == 0x84));
         assert!(s3_unpack_data_tyb(&fw_2).is_empty());
-        // Cliff: `s3_append_emit_rec_stb` / `s3_rec_*` builders remain Rust.
+        // Cliff: `s3_append_stb_runs` / `s3_rec_*` builders remain Rust.
         let _ = s3_rec_stb(0, 1, 0);
         assert_eq!(s3_fixed_row(0xFF), s3_compute_fixed_body(0xFF));
     }
