@@ -1679,6 +1679,30 @@ fn s3_append_stb_runs(
     label_id
 }
 
+/// S3.222: one SET per distinct nonzero; STB `oo` relative to already-live BASE.
+/// Caller owns BASE (SET absolute, or MOVRR from lea slot15). No SHR.
+fn s3_append_stb_poke_global_distinct(
+    recs: &mut Vec<(u8, u8, [u8; 6])>,
+    bytes: &[u8],
+) {
+    let mut by_val: Vec<(u8, Vec<u16>)> = Vec::new();
+    for (i, &b) in bytes.iter().enumerate() {
+        if b == 0 {
+            continue;
+        }
+        match by_val.iter_mut().find(|(v, _)| *v == b) {
+            Some((_, offs)) => offs.push(i as u16),
+            None => by_val.push((b, vec![i as u16])),
+        }
+    }
+    for (b, offs) in by_val {
+        recs.push(s3_rec_set(S3_PACK_STB_TMP, b as u32));
+        for oo in offs {
+            recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_STB_BASE, oo));
+        }
+    }
+}
+
 /// S3.209–S3.217: IR-seed sparse bytes — poke only nonzero offsets via STB `oo`.
 /// Gaps stay zero from empty-image / STB resize. Short spans (≤127) use one SET
 /// per distinct nonzero (keeps in-DLL seed under 512). Longer host seeds walk
@@ -1692,24 +1716,9 @@ fn s3_append_stb_zero_then_poke(
     const WIN: usize = 127;
     if bytes.len() <= WIN {
         // Global distinct: fewest TMP SETs; single BASE window.
-        let mut by_val: Vec<(u8, Vec<u16>)> = Vec::new();
-        for (i, &b) in bytes.iter().enumerate() {
-            if b == 0 {
-                continue;
-            }
-            match by_val.iter_mut().find(|(v, _)| *v == b) {
-                Some((_, offs)) => offs.push(i as u16),
-                None => by_val.push((b, vec![i as u16])),
-            }
-        }
-        if !by_val.is_empty() {
+        if bytes.iter().any(|&b| b != 0) {
             recs.push(s3_rec_set(S3_PACK_STB_BASE, base));
-        }
-        for (b, offs) in by_val {
-            recs.push(s3_rec_set(S3_PACK_STB_TMP, b as u32));
-            for oo in offs {
-                recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_STB_BASE, oo));
-            }
+            s3_append_stb_poke_global_distinct(recs, bytes);
         }
         return label_id;
     }
@@ -4095,8 +4104,9 @@ mod tests {
         );
     }
 
-    /// S3.163/S3.176: IR self-host near-end inventory (not a schedule).
-    /// Floors: (1) short lea RAW (2) one SET per distinct emit byte (no SHR).
+    /// S3.163/S3.176/S3.222: IR self-host near-end inventory (not a schedule).
+    /// Floors: (1) short lea RAW (2) one SET per distinct emit byte (no SHR;
+    /// short seed + in-DLL share `s3_append_stb_poke_global_distinct`).
     /// Cliff: YOYO must assemble emitter / pack IR without Rust helpers.
     #[test]
     fn s3_ir_selfhost_roadmap() {
@@ -4552,6 +4562,72 @@ mod tests {
         let sets = recs.iter().filter(|r| r.0 == 0x30).count();
         assert_eq!(sets, bytes.len(), "unique byte stays one SET");
         assert!(recs.iter().all(|r| r.0 != 0x61 && r.0 != 0x70));
+    }
+
+    /// S3.222: short seed + in-DLL empty-DATA share one global-distinct poke helper.
+    /// BASE is caller-owned (SET absolute vs MOVRR from lea). Still one SET/distinct; no SHR.
+    #[test]
+    fn s3_shared_global_distinct_poke_floor() {
+        let payload = s3_fixed_payload(&S3_FIXED10_OPS[..3], &[0x30, 0xFF], S3_OUTBUF_OFF as usize);
+        let start = S3_TABLE_OFF as usize;
+        let end = S3_PROG_OFF as usize + 1 + 2;
+        let slice = &payload[start..end];
+        assert!(slice.len() <= 127);
+        let distinct: std::collections::BTreeSet<u8> =
+            slice.iter().copied().filter(|&b| b != 0).collect();
+
+        let mut via_set = Vec::new();
+        s3_append_stb_zero_then_poke(&mut via_set, S3_TABLE_OFF, slice, 10);
+        let mut via_shared = Vec::new();
+        via_shared.push(s3_rec_set(S3_PACK_STB_BASE, S3_TABLE_OFF));
+        s3_append_stb_poke_global_distinct(&mut via_shared, slice);
+        assert_eq!(via_set, via_shared, "short zero_then_poke == SET BASE + shared poke");
+
+        let mut poke_only = Vec::new();
+        s3_append_stb_poke_global_distinct(&mut poke_only, slice);
+        let tmp_sets = poke_only
+            .iter()
+            .filter(|r| {
+                r.0 == 0x30 && u16::from_le_bytes([r.2[0], r.2[1]]) == S3_PACK_STB_TMP
+            })
+            .count();
+        assert_eq!(tmp_sets, distinct.len(), "shared poke: one SET TMP per distinct");
+        assert!(poke_only.iter().all(|r| r.0 != 0x61 && r.0 != 0x70));
+
+        let dll = parse_tyb(&s3_table_prog_loop_tyb_ir_seed(&[0x30, 0xFF])).unwrap();
+        let base_sets = dll
+            .records
+            .iter()
+            .filter(|r| {
+                r.op == 0x30
+                    && u16::from_le_bytes([r.args_raw[0], r.args_raw[1]]) == S3_PACK_STB_BASE
+            })
+            .count();
+        assert_eq!(base_sets, 0, "in-DLL uses MOVRR BASE←15, not SET BASE");
+        assert!(dll.records.iter().any(|r| {
+            r.op == 0x64
+                && u16::from_le_bytes([r.args_raw[0], r.args_raw[1]]) == S3_PACK_STB_BASE
+                && u16::from_le_bytes([r.args_raw[2], r.args_raw[3]]) == 15
+        }));
+        // Shared poke records appear contiguously after MOVRR BASE←15.
+        let dll_tuples: Vec<_> = dll
+            .records
+            .iter()
+            .map(|r| (r.op, r.argc, r.args_raw))
+            .collect();
+        let mov = dll_tuples
+            .iter()
+            .position(|r| {
+                r.0 == 0x64
+                    && u16::from_le_bytes([r.2[0], r.2[1]]) == S3_PACK_STB_BASE
+                    && u16::from_le_bytes([r.2[2], r.2[3]]) == 15
+            })
+            .expect("MOVRR BASE←15");
+        assert_eq!(
+            &dll_tuples[mov + 1..mov + 1 + poke_only.len()],
+            poke_only.as_slice(),
+            "in-DLL seed poke is the shared helper stream"
+        );
     }
 
     /// S3.174/S3.200: distinct bytes still need one SET each; repeated zeros fold.
@@ -6150,8 +6226,8 @@ mod tests {
         tyb_from_records(&recs)
     }
 
-    /// S3.220: empty-DATA in-DLL — lea first (slot15 = table VA / sim table_off),
-    /// then poke relative through STB_BASE, then prog. Golden fixture unchanged.
+    /// S3.220/S3.222: empty-DATA in-DLL — lea first (slot15 = table VA / sim table_off),
+    /// MOVRR BASE←15, then shared global-distinct poke, then prog. Golden unchanged.
     fn s3_table_prog_loop_tyb_ir_seed(ops: &[u8]) -> Vec<u8> {
         assert!(!ops.is_empty() && ops.len() <= 8);
         let payload = s3_fixed_payload(&S3_FIXED10_OPS[..3], ops, S3_OUTBUF_OFF as usize);
@@ -6163,23 +6239,8 @@ mod tests {
         // PE: lea writes table VA into slot 15. Sim skips A1 but seeds state[15]=table_off.
         recs.extend_from_slice(s3_in_dll_lea_prologue_recs());
         recs.push(s3_rec_movrr(S3_PACK_STB_BASE, 15));
-        // Global-distinct poke at existing BASE (no SET BASE to a raw offset).
-        let mut by_val: Vec<(u8, Vec<u16>)> = Vec::new();
-        for (i, &b) in slice.iter().enumerate() {
-            if b == 0 {
-                continue;
-            }
-            match by_val.iter_mut().find(|(v, _)| *v == b) {
-                Some((_, offs)) => offs.push(i as u16),
-                None => by_val.push((b, vec![i as u16])),
-            }
-        }
-        for (b, offs) in by_val {
-            recs.push(s3_rec_set(S3_PACK_STB_TMP, b as u32));
-            for oo in offs {
-                recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_STB_BASE, oo));
-            }
-        }
+        // Shared SET×distinct poke; BASE already live (no absolute SET).
+        s3_append_stb_poke_global_distinct(&mut recs, slice);
         recs.extend(s3_prog_loop_code(ops.len() as u32, 3));
         tyb_from_records(&recs)
     }
