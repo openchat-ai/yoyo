@@ -4363,6 +4363,29 @@ mod tests {
         );
     }
 
+    /// S3.231: poke-seed op→shape at 0x200, then MEMCPY to outbuf — sim readback.
+    #[test]
+    fn s3_rec_op_shape_table_poke_memcpy_readback() {
+        let bytes = s3_rec_op_shape_bytes();
+        let base = 0x200u32;
+        let out = 0x300u32;
+        let mut recs = Vec::new();
+        s3_ir_seed_at(&mut recs, base, &bytes, 10);
+        recs.push(s3_rec_set(S3_PACK_LOOP_CUR, base));
+        recs.push(s3_rec_set(S3_PACK_LOOP_END, bytes.len() as u32));
+        recs.push(s3_rec_set(S3_PACK_PROTO_DST, out));
+        recs.push(s3_rec_memcpy(
+            S3_PACK_PROTO_DST,
+            S3_PACK_LOOP_CUR,
+            S3_PACK_LOOP_END,
+        ));
+        recs.push((0xFF, 0, [0; 6]));
+        let tyb = s3_host_tyb_from_records(&recs);
+        assert!(s3_unpack_data_tyb(&tyb).is_empty());
+        assert!(parse_tyb(&tyb).unwrap().records.iter().any(|r| r.op == 0x84));
+        assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
+    }
+
     /// S3.135/S3.160/S3.223: remaining Rust sidecar after pack+STB fold (honest).
     /// Still Rust: short lea A1 bytes (in-DLL PE seed), `emit_x86` body OnceLock,
     /// IR record builders / run folders. Host+default in-DLL seeds are empty-DATA;
