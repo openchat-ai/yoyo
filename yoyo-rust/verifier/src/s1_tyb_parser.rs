@@ -278,6 +278,7 @@ fn emit_load_state(out: &mut Vec<u8>, slot: u16, dest: Reg) {
 }
 
 /// add reg, imm32 → REX.W 81 /0.
+/// (imm8 form is STB-only — fixed10 ADD golden pins imm32; do not change this.)
 fn emit_add_imm(out: &mut Vec<u8>, reg: Reg, imm: u32) {
     let rex = rex_wrxb(true, false, false, reg.rex_bit());
     out.extend_from_slice(&[rex, 0x81, 0xC0 | reg.low3()]);
@@ -358,7 +359,7 @@ fn emit_ldb(out: &mut Vec<u8>, dd: u16, ss: u16, oo: u16) {
 }
 
 /// S3.156/S3.210: STB val base oo — store low byte of state[val] to [state[base]+oo].
-/// Small `oo` (1..=127) uses `add reg, imm8` (4B) instead of imm32 (7B).
+/// Small `oo` (1..=127) uses imm8 add (STB-only; fixed10 ADD golden stays imm32).
 fn emit_stb(out: &mut Vec<u8>, val: u16, base: u16, oo: u16) {
     emit_load_state(out, val, Reg::Rcx);
     emit_load_state(out, base, Reg::Rax);
@@ -2394,6 +2395,7 @@ fn s3_rec_subv(dst: u16, src: u16) -> (u8, u8, [u8; 6]) {
 }
 
 /// S3.117: shared scan/compose tail. `nrows` is 10 (host) or 3 (in-DLL).
+/// (S3.213: shrinking this TYB rewrites in-DLL golden — leave the record stream.)
 fn s3_prog_loop_code(ops_len: u32, nrows: u32) -> Vec<(u8, u8, [u8; 6])> {
     let set = s3_rec_set;
     let add = s3_rec_add;
@@ -4180,9 +4182,9 @@ mod tests {
 
 
 
-    /// S3.209–S3.212: poke seed fits mini alone; S3.212 pin — short lea A1 is only
-    /// ~38B of .text, while `s3_prog_loop_code` is ~291B. seed+prog (no lea) already
-    /// exceeds 512; lea is not the bulk of the in-DLL overflow. via_ir stays.
+    /// S3.209–S3.213: poke seed fits mini alone; seed+prog exceeds 512 (lea ~38B).
+    /// S3.213 floors: cannot imm8-ify ADD (fixed10 golden) or edit `s3_prog_loop_code`
+    /// records (in-DLL golden). via_ir stays until those cliffs move.
     #[test]
     fn s3_ir_seed_poke_beats_run_fold_still_over_cap() {
         let payload = s3_fixed_payload(&S3_FIXED10_OPS[..3], &[0xFF], S3_OUTBUF_OFF as usize);
@@ -4242,6 +4244,12 @@ mod tests {
         assert!(
             seed_prog_code > S1_SLIM_MAX_CODE,
             "seed+prog (no lea) {seed_prog_code} already over cap — lea is not the bulk"
+        );
+        // S3.213: deficit stays large; ADD imm8 / prog-loop edits are golden-blocked.
+        assert!(
+            seed_prog_code - S1_SLIM_MAX_CODE > 200,
+            "deficit {} too small to match known golden-blocked cliffs",
+            seed_prog_code - S1_SLIM_MAX_CODE
         );
         let mut full = poked.clone();
         full.extend_from_slice(s3_in_dll_lea_prologue_recs());
