@@ -4154,8 +4154,9 @@ mod tests {
     }
 
     /// S3.163/S3.176/S3.222/S3.224: IR self-host near-end inventory (not a schedule).
-    /// Floors: (1) short lea RAW (2) one SET per distinct emit byte (no SHR;
-    /// short seed + in-DLL share `s3_append_stb_poke_global_distinct`).
+    /// Floors: (1) short lea → `.text` only via A1 (STB/poke can hold the 37B
+    /// payload but do not inject `.text`) (2) one SET per distinct emit byte
+    /// (no SHR; shared `s3_append_stb_poke_global_distinct`).
     /// Cliff: YOYO reads `S3_REC_OP_SHAPE` (STB-packable via `s3_rec_op_shape_bytes`)
     /// and fills shapes + STB-flat phase1 without Rust helpers.
     #[test]
@@ -4394,9 +4395,13 @@ mod tests {
     fn s3_fixed10_fold_remaining_rust_surface() {
         assert_eq!(S3_LEA_PTR.len(), 7, "short lea must stay 7B (not disp32)");
         assert_eq!(S3_LEA_PTR, &[0x49, 0x8D, 0x07, 0x49, 0x89, 0x47, 0x78]);
-        // S3.223: in-DLL three-lea RAW floor size (table+dst+prog) — PE seed cliff.
-        let lea_floor = S3_LEA_TABLE.len() + S3_LEA_DST.len() + S3_LEA_PROG.len();
+        // S3.223/S3.234: in-DLL three-lea RAW floor size — PE seed cliff.
+        let lea_floor = s3_short_lea_raw_bytes().len();
         assert_eq!(lea_floor, 37, "short lea RAW floor stays 37B");
+        assert_eq!(
+            lea_floor,
+            S3_LEA_TABLE.len() + S3_LEA_DST.len() + S3_LEA_PROG.len()
+        );
         let host = parse_tyb(&s3_host_prog_loop_tyb(&[0xFF])).unwrap();
         let host_data: Vec<_> = host.records.iter().filter(|r| matches!(r.op, 0x10 | 0x12 | 0x13)).collect();
         assert!(host_data.is_empty(), "S3.205: host firmware has no DATA seed");
@@ -4461,14 +4466,6 @@ mod tests {
 
     /// S3.232: short-lea RAW bytes are a STB-flat / poke payload (YOYO can materialize
     /// the constant); A1 still injects them into in-DLL `.text` (floor unchanged).
-    fn s3_short_lea_raw_bytes() -> Vec<u8> {
-        let mut lea = Vec::with_capacity(37);
-        lea.extend_from_slice(&S3_LEA_TABLE);
-        lea.extend_from_slice(&S3_LEA_DST);
-        lea.extend_from_slice(&S3_LEA_PROG);
-        lea
-    }
-
     #[test]
     fn s3_short_lea_raw_stb_and_poke_payload() {
         let lea = s3_short_lea_raw_bytes();
@@ -6379,16 +6376,27 @@ mod tests {
     /// prog cursor = `S3_PROG_OFF + 1` = 0xBD. Checked where the firmware is built.
     const S3_LEA_PROG: [u8; 11] = s3_lea_store(0xBD, 2);
 
-    /// S3.164: OnceLock of in-DLL three-lea A1 prologue (bytes unchanged).
+    /// S3.232/S3.234: single source for in-DLL short-lea RAW (table‖dst‖prog = 37B).
+    fn s3_short_lea_raw_bytes() -> Vec<u8> {
+        let mut lea = Vec::with_capacity(37);
+        lea.extend_from_slice(&S3_LEA_TABLE);
+        lea.extend_from_slice(&S3_LEA_DST);
+        lea.extend_from_slice(&S3_LEA_PROG);
+        lea
+    }
+
+    /// S3.164/S3.234: OnceLock of in-DLL three-lea A1 prologue from the shared 37B.
     fn s3_in_dll_lea_prologue_recs() -> &'static [(u8, u8, [u8; 6])] {
         use std::sync::OnceLock;
         static PROLOGUE: OnceLock<Vec<(u8, u8, [u8; 6])>> = OnceLock::new();
         PROLOGUE
             .get_or_init(|| {
+                let lea = s3_short_lea_raw_bytes();
+                assert_eq!(lea.len(), 37);
                 let mut r = Vec::new();
-                s3_append_raw_a1(&mut r, &S3_LEA_TABLE);
-                s3_append_raw_a1(&mut r, &S3_LEA_DST);
-                s3_append_raw_a1(&mut r, &S3_LEA_PROG);
+                s3_append_raw_a1(&mut r, &lea[..15]); // TABLE
+                s3_append_raw_a1(&mut r, &lea[15..26]); // DST
+                s3_append_raw_a1(&mut r, &lea[26..37]); // PROG
                 r
             })
             .as_slice()
