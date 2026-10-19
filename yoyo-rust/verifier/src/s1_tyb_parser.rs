@@ -2350,23 +2350,59 @@ fn s3_host_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
     s3_host_tyb_from_records(&recs)
 }
 
-/// S3.224: IR record shapes — YOYO-target layouts; Rust still fills bytes today.
-/// Named `s3_rec_*` wrappers stay for call sites; shapes are the cliff to lift.
+/// S3.224/S3.228: IR record shapes — YOYO-target layouts; Rust still fills bytes.
+/// Named `s3_rec_*` wrappers stay for call sites; the op→shape table is the cliff.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+enum S3RecShape {
+    SlotImm = 0,
+    SlotSlot = 1,
+    U32 = 2,
+    Slot3 = 3,
+}
+
+/// Fixed10 / pack / emit ops that Rust still builds. YOYO reads this table later.
+const S3_REC_OP_SHAPE: &[(u8, S3RecShape)] = &[
+    (0x30, S3RecShape::SlotImm),  // SET
+    (0x61, S3RecShape::SlotImm),  // SUB imm
+    (0x62, S3RecShape::SlotImm),  // ADD imm
+    (0x40, S3RecShape::U32),      // LABEL
+    (0x70, S3RecShape::U32),      // JMP
+    (0x71, S3RecShape::U32),      // JE
+    (0x73, S3RecShape::U32),      // JL
+    (0x74, S3RecShape::U32),      // JZ
+    (0x64, S3RecShape::SlotSlot), // MOVRR
+    (0x65, S3RecShape::SlotSlot), // CMP
+    (0x68, S3RecShape::SlotSlot), // ADDV
+    (0x6A, S3RecShape::SlotSlot), // SUBV
+    (0x80, S3RecShape::Slot3),    // LDB
+    (0x81, S3RecShape::Slot3),    // STB
+    (0x84, S3RecShape::Slot3),    // MEMCPY
+];
+
+fn s3_rec_shape_of(op: u8) -> Option<S3RecShape> {
+    S3_REC_OP_SHAPE.iter().find(|(o, _)| *o == op).map(|(_, s)| *s)
+}
+
 fn s3_rec_slot_imm(op: u8, slot: u16, imm: u32) -> (u8, u8, [u8; 6]) {
+    debug_assert_eq!(s3_rec_shape_of(op), Some(S3RecShape::SlotImm));
     let sb = slot.to_le_bytes();
     let ib = imm.to_le_bytes();
     (op, 2, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
 }
 fn s3_rec_slot_slot(op: u8, a: u16, b: u16) -> (u8, u8, [u8; 6]) {
+    debug_assert_eq!(s3_rec_shape_of(op), Some(S3RecShape::SlotSlot));
     let aa = a.to_le_bytes();
     let bb = b.to_le_bytes();
     (op, 2, [aa[0], aa[1], bb[0], bb[1], 0, 0])
 }
 fn s3_rec_u32(op: u8, id: u32) -> (u8, u8, [u8; 6]) {
+    debug_assert_eq!(s3_rec_shape_of(op), Some(S3RecShape::U32));
     let b = id.to_le_bytes();
     (op, 1, [b[0], b[1], b[2], b[3], 0, 0])
 }
 fn s3_rec_slot3(op: u8, a: u16, b: u16, c: u16) -> (u8, u8, [u8; 6]) {
+    debug_assert_eq!(s3_rec_shape_of(op), Some(S3RecShape::Slot3));
     let aa = a.to_le_bytes();
     let bb = b.to_le_bytes();
     let cc = c.to_le_bytes();
@@ -4214,8 +4250,8 @@ mod tests {
         }
     }
 
-    /// S3.224: named builders are thin op tags over 4 wire shapes (slot+imm,
-    /// slot+slot, u32, slot³). Lifting self-host means YOYO fills these shapes.
+    /// S3.224/S3.228: named builders are thin op tags over 4 wire shapes; op→shape
+    /// table is the YOYO-target data plane (15 ops). Rust still fills bytes.
     #[test]
     fn s3_rec_builder_shapes_floor() {
         assert_eq!(s3_rec_set(3, 0x11), s3_rec_slot_imm(0x30, 3, 0x11));
@@ -4238,6 +4274,23 @@ mod tests {
         assert_eq!(s3_rec_slot_slot(0x64, 0, 0).1, 2);
         assert_eq!(s3_rec_u32(0x40, 0).1, 1);
         assert_eq!(s3_rec_slot3(0x81, 0, 0, 0).1, 3);
+        // S3.228: op→shape table covers every named builder op exactly once.
+        assert_eq!(S3_REC_OP_SHAPE.len(), 15);
+        assert_eq!(s3_rec_shape_of(0x30), Some(S3RecShape::SlotImm));
+        assert_eq!(s3_rec_shape_of(0x64), Some(S3RecShape::SlotSlot));
+        assert_eq!(s3_rec_shape_of(0x40), Some(S3RecShape::U32));
+        assert_eq!(s3_rec_shape_of(0x81), Some(S3RecShape::Slot3));
+        assert_eq!(s3_rec_shape_of(0xFF), None, "RET is not a shaped builder");
+        let mut ops: Vec<u8> = S3_REC_OP_SHAPE.iter().map(|(o, _)| *o).collect();
+        let before = ops.len();
+        ops.sort_unstable();
+        ops.dedup();
+        assert_eq!(ops.len(), before, "op→shape table has unique ops");
+        let mut by_shape = [0usize; 4];
+        for (_, s) in S3_REC_OP_SHAPE {
+            by_shape[*s as usize] += 1;
+        }
+        assert_eq!(by_shape, [3, 4, 5, 3], "SlotImm/SlotSlot/U32/Slot3 counts");
     }
 
     /// S3.135/S3.160/S3.223: remaining Rust sidecar after pack+STB fold (honest).
