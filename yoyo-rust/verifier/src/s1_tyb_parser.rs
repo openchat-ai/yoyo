@@ -4074,8 +4074,8 @@ mod tests {
         assert!(s3_unpack_data_tyb(&cmp).is_empty());
     }
 
-    /// S3.205: host IR-writes the table (no DATA). in-DLL still embeds via_ir DATA
-    /// because short-lea A1 + IR seed exceeds the mini code cap.
+    /// S3.205/S3.206: host IR-writes the table. in-DLL keeps via_ir DATA because
+    /// short-lea A1 + IR seed exceeds the mini 512B code cap.
     #[test]
     fn s3_host_firmware_data_is_via_ir_product() {
         let host = parse_tyb(&s3_host_prog_loop_tyb(&[0xFF])).unwrap();
@@ -4084,6 +4084,26 @@ mod tests {
         let dll = parse_tyb(&s3_table_prog_loop_tyb(&[0xFF])).unwrap();
         assert!(dll.records.iter().any(|r| r.op == 0x10), "in-DLL keeps via_ir DATA");
         assert!(dll.records.iter().any(|r| r.op == 0xA1), "in-DLL keeps lea A1");
+        compile_tyb_to_pe_mini(&s3_table_prog_loop_tyb(&[0xFF])).expect("in-DLL fits mini");
+    }
+
+    /// S3.206: IR-seeding the in-DLL table while keeping short lea blows the code cap.
+    #[test]
+    fn s3_in_dll_ir_seed_exceeds_mini_code_cap() {
+        let payload = s3_fixed_payload(&S3_FIXED10_OPS[..3], &[0xFF], S3_OUTBUF_OFF as usize);
+        let mut recs = Vec::new();
+        recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
+        recs.push(s3_rec_set(S3_PACK_PROTO_DST, 0));
+        s3_append_stb_runs(&mut recs, &payload, 10);
+        recs.extend_from_slice(s3_in_dll_lea_prologue_recs());
+        recs.extend(s3_prog_loop_code(1, 3));
+        let tyb = tyb_from_records(&recs);
+        assert!(
+            compile_tyb_to_pe_mini(&tyb).is_err(),
+            "S3.206: IR seed + short lea must exceed mini code cap"
+        );
+        // Control: via_ir DATA path still fits.
+        compile_tyb_to_pe_mini(&s3_table_prog_loop_tyb(&[0xFF])).expect("via_ir in-DLL fits");
     }
 
     /// S3.137/S3.141: pack ↔ unpack is the YOYO-target algorithm (still implemented in Rust).
