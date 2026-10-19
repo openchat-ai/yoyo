@@ -4415,6 +4415,39 @@ mod tests {
         assert_eq!(0x400 + 0x400, S1_SLIM_DATA_PAYLOAD_OFF);
     }
 
+    /// S3.218: poke+lea+prog needs ~800B — fits a 1024 cap, not 512. Raising
+    /// moves DATA to 0xA00 and shifts every `pe_dll_link` IN_DLL_S1_* stack
+    /// offset (PE_SIZE/STACK included). Golden via_ir stays until that rewrite.
+    #[test]
+    fn s3_cap_raise_1024_recipe_and_poke_lea_prog_need() {
+        let payload = s3_fixed_payload(&S3_FIXED10_OPS[..3], &[0xFF], S3_OUTBUF_OFF as usize);
+        let start = 0x80usize;
+        let end = 0xBC + 1 + 1;
+        let mut recs = Vec::new();
+        s3_ir_seed_at(&mut recs, 0x80, &payload[start..end], 10);
+        recs.extend_from_slice(s3_in_dll_lea_prologue_recs());
+        recs.extend(s3_prog_loop_code(1, 3));
+        let need = emit_x86(&parse_tyb(&tyb_from_records(&recs)).unwrap())
+            .text
+            .len();
+        assert!(
+            need > S1_SLIM_MAX_CODE,
+            "poke+lea+prog {need} must still miss current 512 cap"
+        );
+        assert!(
+            need <= 1024,
+            "poke+lea+prog {need} must fit a 1024 slim cap"
+        );
+        // Recipe: MAX=1024 → code_raw=align(13+1024,0x200)=0x600 → DATA@0xA00.
+        const FILE_ALIGN: usize = 0x200;
+        let code_raw = (13 + 1024 + FILE_ALIGN - 1) & !(FILE_ALIGN - 1);
+        assert_eq!(code_raw, 0x600);
+        assert_eq!(0x400 + code_raw, 0xA00);
+        // Still on 512 until pe_dll_link stack layout is rewritten.
+        assert_eq!(S1_SLIM_MAX_CODE, 512);
+        assert_eq!(S1_SLIM_DATA_PAYLOAD_OFF, 0x800);
+    }
+
     /// S3.207: even table+prog-only IR seed + short lea exceeds the 512B mini cap.
     #[test]
     fn s3_in_dll_ir_seed_exceeds_mini_code_cap() {
