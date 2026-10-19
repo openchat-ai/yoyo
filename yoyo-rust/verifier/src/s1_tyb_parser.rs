@@ -4442,10 +4442,7 @@ mod tests {
     /// Host firmware has no lea prefix. Golden via_ir also keeps the same lea head.
     #[test]
     fn s3_in_dll_text_starts_with_short_lea_raw() {
-        let mut lea = Vec::with_capacity(37);
-        lea.extend_from_slice(&S3_LEA_TABLE);
-        lea.extend_from_slice(&S3_LEA_DST);
-        lea.extend_from_slice(&S3_LEA_PROG);
+        let lea = s3_short_lea_raw_bytes();
         assert_eq!(lea.len(), 37);
         let dll_text = emit_x86(&parse_tyb(&s3_table_prog_loop_tyb(&[0xFF])).unwrap()).text;
         assert!(
@@ -4460,6 +4457,42 @@ mod tests {
             !host_text.starts_with(&lea),
             "host firmware has no short lea RAW prefix"
         );
+    }
+
+    /// S3.232: short-lea RAW bytes are a STB-flat / poke payload (YOYO can materialize
+    /// the constant); A1 still injects them into in-DLL `.text` (floor unchanged).
+    fn s3_short_lea_raw_bytes() -> Vec<u8> {
+        let mut lea = Vec::with_capacity(37);
+        lea.extend_from_slice(&S3_LEA_TABLE);
+        lea.extend_from_slice(&S3_LEA_DST);
+        lea.extend_from_slice(&S3_LEA_PROG);
+        lea
+    }
+
+    #[test]
+    fn s3_short_lea_raw_stb_and_poke_payload() {
+        let lea = s3_short_lea_raw_bytes();
+        assert_eq!(lea.len(), 37);
+        let (tyb, off) = s3_yoyo_emit_flat_via_stb(&lea, 0x20);
+        assert!(s3_unpack_data_tyb(&tyb).is_empty());
+        assert_eq!(s3_sim_prog_loop(&tyb, 0, off, 0).unwrap(), lea);
+        let distinct: std::collections::BTreeSet<u8> =
+            lea.iter().copied().filter(|&b| b != 0).collect();
+        let mut poked = Vec::new();
+        s3_ir_seed_at(&mut poked, 0x80, &lea, 10);
+        let tmp_sets = poked
+            .iter()
+            .filter(|r| {
+                r.0 == 0x30 && u16::from_le_bytes([r.2[0], r.2[1]]) == S3_PACK_STB_TMP
+            })
+            .count();
+        assert_eq!(tmp_sets, distinct.len());
+        // Chunked A1 pack (table/dst/prog) still matches the OnceLock prologue.
+        let mut a1 = Vec::new();
+        s3_append_raw_a1(&mut a1, &S3_LEA_TABLE);
+        s3_append_raw_a1(&mut a1, &S3_LEA_DST);
+        s3_append_raw_a1(&mut a1, &S3_LEA_PROG);
+        assert_eq!(a1.as_slice(), s3_in_dll_lea_prologue_recs());
     }
 
     /// S3.214: host prog loop is a thinner record stream than the golden in-DLL one.
