@@ -6125,14 +6125,49 @@ mod tests {
     const S3_PROG_OFF: u32 = S3_TABLE_OFF + 60; // 0xBC
 
     /// S3.19: DATA pad+table+program; outer loop loads needles; scan+MEMCPY each.
+    /// Golden TYB stays via_ir; empty-DATA twin is [`s3_table_prog_loop_tyb_ir_seed`].
     fn s3_table_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
         assert!(!ops.is_empty() && ops.len() <= 8);
         let payload = s3_fixed_payload(&S3_FIXED10_OPS[..3], ops, S3_OUTBUF_OFF as usize);
         assert_eq!(S3_TABLE_OFF + 60, S3_PROG_OFF);
         assert_eq!(S3_PROG_OFF + 1, 0xBD);
-        // S3.219: 1024 cap fits poke+lea+prog; golden still via_ir (TYB pinned).
+        // Golden path: via_ir DATA (TYB fixture pinned).
         let mut recs = s3_pack_data_via_ir(&payload);
         recs.extend_from_slice(s3_in_dll_lea_prologue_recs());
+        recs.extend(s3_prog_loop_code(ops.len() as u32, 3));
+        tyb_from_records(&recs)
+    }
+
+    /// S3.220: empty-DATA in-DLL — lea first (slot15 = table VA / sim table_off),
+    /// then poke relative through STB_BASE, then prog. Golden fixture unchanged.
+    fn s3_table_prog_loop_tyb_ir_seed(ops: &[u8]) -> Vec<u8> {
+        assert!(!ops.is_empty() && ops.len() <= 8);
+        let payload = s3_fixed_payload(&S3_FIXED10_OPS[..3], ops, S3_OUTBUF_OFF as usize);
+        let start = S3_TABLE_OFF as usize;
+        let end = S3_PROG_OFF as usize + 1 + ops.len();
+        let slice = &payload[start..end];
+        assert!(slice.len() <= 127, "in-DLL seed must stay one imm8 window");
+        let mut recs = Vec::new();
+        // PE: lea writes table VA into slot 15. Sim skips A1 but seeds state[15]=table_off.
+        recs.extend_from_slice(s3_in_dll_lea_prologue_recs());
+        recs.push(s3_rec_movrr(S3_PACK_STB_BASE, 15));
+        // Global-distinct poke at existing BASE (no SET BASE to a raw offset).
+        let mut by_val: Vec<(u8, Vec<u16>)> = Vec::new();
+        for (i, &b) in slice.iter().enumerate() {
+            if b == 0 {
+                continue;
+            }
+            match by_val.iter_mut().find(|(v, _)| *v == b) {
+                Some((_, offs)) => offs.push(i as u16),
+                None => by_val.push((b, vec![i as u16])),
+            }
+        }
+        for (b, offs) in by_val {
+            recs.push(s3_rec_set(S3_PACK_STB_TMP, b as u32));
+            for oo in offs {
+                recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_STB_BASE, oo));
+            }
+        }
         recs.extend(s3_prog_loop_code(ops.len() as u32, 3));
         tyb_from_records(&recs)
     }
@@ -6187,6 +6222,50 @@ mod tests {
             .join("../../yoyo/tests/golden/s3_yoyo_table_prog_loop.tyb");
         let golden = std::fs::read(&path).expect("golden prog loop");
         assert_eq!(golden, set_ret);
+    }
+
+    /// S3.220: empty-DATA IR-seed twin matches via_ir sim; fits mini; no DATA.
+    #[test]
+    fn s3_table_prog_loop_ir_seed_empty_data_parity() {
+        for ops in [&[0xFFu8][..], &[0x00, 0xFF][..], &[0x30, 0xFF][..]] {
+            let via = s3_table_prog_loop_tyb(ops);
+            let seeded = s3_table_prog_loop_tyb_ir_seed(ops);
+            assert!(s3_unpack_data_tyb(&seeded).is_empty(), "ops {ops:?}");
+            assert!(
+                parse_tyb(&seeded).unwrap().records.iter().all(|r| r.op != 0x10),
+                "no DATA op"
+            );
+            assert_eq!(
+                s3_sim_table_prog_loop(&seeded).unwrap(),
+                s3_sim_table_prog_loop(&via).unwrap(),
+                "sim parity ops {ops:?}"
+            );
+            compile_tyb_to_pe_mini(&seeded).expect("ir-seed mini");
+            let user = emit_x86(&parse_tyb(&seeded).unwrap()).text;
+            assert!(user.len() <= S1_SLIM_MAX_CODE, "code {}", user.len());
+        }
+        // Golden fixture still equals via_ir builder.
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../yoyo/tests/golden/s3_yoyo_table_prog_loop.tyb");
+        let golden = std::fs::read(&path).expect("golden");
+        assert_eq!(golden, s3_table_prog_loop_tyb(&[0x30, 0xFF]));
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn s3_yoyo_table_prog_loop_ir_seed_runs_on_pe() {
+        let tyb = s3_table_prog_loop_tyb_ir_seed(&[0x30, 0xFF]);
+        let pe = compile_tyb_to_pe_mini(&tyb).expect("mini ir-seed");
+        let expect = emit_x86(
+            &parse_tyb(&tyb_from_records(&[
+                (0x30, 2, [0, 0, 0xEF, 0xBE, 0xAD, 0xDE]),
+                (0xFF, 0, [0; 6]),
+            ]))
+            .unwrap(),
+        )
+        .text;
+        let got = s3_run_slim_pe_outbuf(&pe.bytes, expect.len());
+        assert_eq!(got, expect);
     }
 
     #[test]
