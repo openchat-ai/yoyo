@@ -4074,6 +4074,34 @@ mod tests {
         assert!(s3_unpack_data_tyb(&cmp).is_empty());
     }
 
+    /// S3.204: host / in-DLL firmware still embed via_ir(payload) as DATA 0x10.
+    /// Pack/emit builders are empty-DATA; the table firmware is the remaining seed.
+    #[test]
+    fn s3_host_firmware_data_is_via_ir_product() {
+        let host_payload =
+            s3_fixed_payload(&S3_FIXED10_OPS, &[0xFF], S3_HOST_OUTBUF_OFF as usize);
+        let host = parse_tyb(&s3_host_prog_loop_tyb(&[0xFF])).unwrap();
+        let host_data: Vec<_> = host
+            .records
+            .iter()
+            .filter(|r| r.op == 0x10)
+            .map(|r| (r.op, r.argc, r.args_raw))
+            .collect();
+        assert_eq!(host_data, s3_pack_data_via_ir(&host_payload));
+        assert!(!host_data.is_empty());
+        let dll_payload =
+            s3_fixed_payload(&S3_FIXED10_OPS[..3], &[0xFF], S3_OUTBUF_OFF as usize);
+        let dll = parse_tyb(&s3_table_prog_loop_tyb(&[0xFF])).unwrap();
+        let dll_data: Vec<_> = dll
+            .records
+            .iter()
+            .filter(|r| r.op == 0x10)
+            .map(|r| (r.op, r.argc, r.args_raw))
+            .collect();
+        assert_eq!(dll_data, s3_pack_data_via_ir(&dll_payload));
+        assert!(!dll_data.is_empty());
+    }
+
     /// S3.137/S3.141: pack ↔ unpack is the YOYO-target algorithm (still implemented in Rust).
     #[test]
     fn s3_pack_data_roundtrip_and_host_payload() {
