@@ -2419,9 +2419,8 @@ const S3_SHAPE_ARGC: u32 = 0x60;
 const S3_SHAPE_JOB: u32 = 0x68;
 const S3_SHAPE_OUT: u32 = 0x80;
 
-/// S3.238: scan/fill control stream. Same bytes for every op; the job image
-/// (poke) holds the op and the six arg bytes. Rust still writes this stream.
-fn s3_yoyo_shape_fill_ctrl() -> Vec<(u8, u8, [u8; 6])> {
+/// One record: JOB points at op‖6 args, DST is the write cursor. Advances DST by 8.
+fn s3_yoyo_shape_fill_one() -> Vec<(u8, u8, [u8; 6])> {
     const CUR: u16 = 4;
     const END: u16 = 5;
     const SHAPE: u16 = 6;
@@ -2439,7 +2438,6 @@ fn s3_yoyo_shape_fill_ctrl() -> Vec<(u8, u8, [u8; 6])> {
     const L_DONE: u32 = 5;
 
     let mut recs = Vec::new();
-    recs.push(s3_rec_set(JOB, S3_SHAPE_JOB));
     recs.push(s3_rec_ldb(NEEDLE, JOB, 0));
     recs.push(s3_rec_set(CUR, S3_SHAPE_TABLE));
     recs.push(s3_rec_set(END, S3_SHAPE_TABLE + s3_rec_op_shape_bytes().len() as u32));
@@ -2456,7 +2454,6 @@ fn s3_yoyo_shape_fill_ctrl() -> Vec<(u8, u8, [u8; 6])> {
     recs.push(s3_rec_ldb(SHAPE, CUR, 1));
     recs.push(s3_rec_label(L_SCAN_DONE));
 
-    recs.push(s3_rec_set(DST, S3_SHAPE_OUT));
     recs.push(s3_rec_movrr(BYTE, NEEDLE));
     recs.push(s3_rec_stb(BYTE, DST, 0));
     recs.push(s3_rec_add(DST, 1));
@@ -2479,8 +2476,65 @@ fn s3_yoyo_shape_fill_ctrl() -> Vec<(u8, u8, [u8; 6])> {
     recs.push(s3_rec_sub(REM, 1));
     recs.push(s3_rec_jmp(L_ARGS));
     recs.push(s3_rec_label(L_DONE));
+    recs
+}
+
+/// S3.238: one-job control stream. The job image holds op‖args. Rust still writes this.
+fn s3_yoyo_shape_fill_ctrl() -> Vec<(u8, u8, [u8; 6])> {
+    const JOB: u16 = 1;
+    const DST: u16 = 9;
+    let mut recs = Vec::new();
+    recs.push(s3_rec_set(JOB, S3_SHAPE_JOB));
+    recs.push(s3_rec_set(DST, S3_SHAPE_OUT));
+    recs.extend(s3_yoyo_shape_fill_one());
     recs.push((0xFF, 0, [0; 6]));
     recs
+}
+
+/// S3.239: count-prefixed job blob at [`S3_SHAPE_JOB`]. One copy of the fill body
+/// walks every record. Outbuf sits past the largest blob (15×7+1).
+const S3_SHAPE_MANY_OUT: u32 = 0x180;
+
+fn s3_yoyo_shape_fill_many_ctrl() -> Vec<(u8, u8, [u8; 6])> {
+    const CUR_REC: u16 = 2;
+    const NLEFT: u16 = 3;
+    const JOB: u16 = 1;
+    const DST: u16 = 9;
+    const L_OUTER: u32 = 7;
+    const L_ALL_DONE: u32 = 6;
+    let mut recs = Vec::new();
+    recs.push(s3_rec_set(CUR_REC, S3_SHAPE_JOB));
+    recs.push(s3_rec_ldb(NLEFT, CUR_REC, 0));
+    recs.push(s3_rec_add(CUR_REC, 1));
+    recs.push(s3_rec_set(DST, S3_SHAPE_MANY_OUT));
+    recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
+    recs.push(s3_rec_label(L_OUTER));
+    recs.push(s3_rec_cmp(NLEFT, S3_PACK_STB_ZERO));
+    recs.push(s3_rec_je(L_ALL_DONE));
+    recs.push(s3_rec_movrr(JOB, CUR_REC));
+    recs.extend(s3_yoyo_shape_fill_one());
+    recs.push(s3_rec_add(CUR_REC, 7));
+    recs.push(s3_rec_sub(NLEFT, 1));
+    recs.push(s3_rec_jmp(L_OUTER));
+    recs.push(s3_rec_label(L_ALL_DONE));
+    recs.push((0xFF, 0, [0; 6]));
+    recs
+}
+
+fn s3_yoyo_shape_fill_many_tyb(jobs: &[(u8, [u8; 6])]) -> (Vec<u8>, u32) {
+    assert!(!jobs.is_empty() && jobs.len() <= 15);
+    let mut blob = Vec::with_capacity(1 + jobs.len() * 7);
+    blob.push(jobs.len() as u8);
+    for &(op, args) in jobs {
+        blob.push(op);
+        blob.extend_from_slice(&args);
+    }
+    let mut recs = Vec::new();
+    s3_ir_seed_at(&mut recs, S3_SHAPE_TABLE, &s3_rec_op_shape_bytes(), 20);
+    s3_ir_seed_at(&mut recs, S3_SHAPE_ARGC, &s3_shape_argc_bytes(), 21);
+    s3_ir_seed_at(&mut recs, S3_SHAPE_JOB, &blob, 22);
+    recs.extend(s3_yoyo_shape_fill_many_ctrl());
+    (s3_host_tyb_from_records(&recs), S3_SHAPE_MANY_OUT)
 }
 
 /// S3.236/S3.238: poke op→shape, argc, and one job (op‖args), then the fixed
@@ -4271,8 +4325,8 @@ mod tests {
     /// Floors: (1) short lea → `.text` only via A1 (STB/poke can hold the 37B
     /// payload but do not inject `.text`) (2) one SET per distinct emit byte
     /// (no SHR; shared `s3_append_stb_poke_global_distinct`).
-    /// Cliff: YOYO fills shapes without Rust. S3.236/S3.237 scan the table in IR;
-    /// argc and arg bytes are payloads. Rust still builds that scan IR.
+    /// Cliff: YOYO fills shapes without Rust. S3.236–S3.239 scan in IR; one body
+    /// fills many jobs. Rust still builds that control IR.
     #[test]
     fn s3_ir_selfhost_roadmap() {
         // Done: DATA pack algorithm runs as YOYO IR (STB loop) via via_ir.
@@ -4515,6 +4569,47 @@ mod tests {
         };
         assert_eq!(tail(&a), tail(&b), "control IR does not depend on the job");
         assert_eq!(tail(&a), ctrl);
+    }
+
+    /// S3.239: one fill body, count-prefixed blob, many records in order.
+    #[test]
+    fn s3_yoyo_shape_fill_many_matches_rust_wire() {
+        let jobs: [(u8, [u8; 6]); 4] = [
+            (0x30, [3, 0, 0x11, 0, 0, 0]),
+            (0x40, [7, 0, 0, 0, 0, 0]),
+            (0x64, [1, 0, 2, 0, 0, 0]),
+            (0x81, [11, 0, 14, 0, 5, 0]),
+        ];
+        let (tyb, out) = s3_yoyo_shape_fill_many_tyb(&jobs);
+        assert!(s3_unpack_data_tyb(&tyb).is_empty());
+        let mut expect = Vec::new();
+        for &(op, args) in &jobs {
+            let shape = s3_rec_shape_of(op).unwrap();
+            let argc = match shape {
+                S3RecShape::SlotImm | S3RecShape::SlotSlot => 2,
+                S3RecShape::U32 => 1,
+                S3RecShape::Slot3 => 3,
+            };
+            expect.extend_from_slice(&s3_rec_wire(op, argc, args));
+        }
+        assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), expect);
+        let ir = parse_tyb(&tyb).unwrap();
+        let one = s3_yoyo_shape_fill_one();
+        let bodies = ir.records.iter().filter(|r| r.op == 0x40).count();
+        // one body has 4 labels; outer adds 2.
+        assert_eq!(bodies, one.iter().filter(|r| r.0 == 0x40).count() + 2);
+        let ctrl = s3_yoyo_shape_fill_many_ctrl();
+        let (other, _) = s3_yoyo_shape_fill_many_tyb(&jobs[..1]);
+        let tail = |tyb: &[u8]| {
+            let recs = parse_tyb(tyb).unwrap().records;
+            let start = recs.len() - ctrl.len();
+            recs[start..]
+                .iter()
+                .map(|r| (r.op, r.argc, r.args_raw))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(tail(&tyb), tail(&other), "many-ctrl ignores job count");
+        assert_eq!(tail(&tyb), ctrl);
     }
 
     /// S3.229: op→shape table packs as empty-DATA STB flat and round-trips.
