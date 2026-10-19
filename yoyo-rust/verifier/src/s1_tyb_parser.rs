@@ -4229,15 +4229,21 @@ mod tests {
         );
     }
 
-    /// S3.207: host IR-writes table+prog (no leading-pad IR). in-DLL keeps via_ir.
+    /// S3.207/S3.221: host IR-writes table. Default in-DLL is empty-DATA; via_ir is golden-only.
     #[test]
     fn s3_host_firmware_data_is_via_ir_product() {
         let host = parse_tyb(&s3_host_prog_loop_tyb(&[0xFF])).unwrap();
         assert!(host.records.iter().all(|r| r.op != 0x10));
         assert!(host.records.iter().any(|r| r.op == 0x81));
         let dll = parse_tyb(&s3_table_prog_loop_tyb(&[0xFF])).unwrap();
-        assert!(dll.records.iter().any(|r| r.op == 0x10), "in-DLL keeps via_ir DATA");
+        assert!(
+            dll.records.iter().all(|r| r.op != 0x10),
+            "S3.221: default in-DLL has no DATA"
+        );
+        assert!(dll.records.iter().any(|r| r.op == 0x81));
         assert!(dll.records.iter().any(|r| r.op == 0xA1), "in-DLL keeps lea A1");
+        let via = parse_tyb(&s3_table_prog_loop_tyb_via_ir(&[0xFF])).unwrap();
+        assert!(via.records.iter().any(|r| r.op == 0x10), "golden via_ir still DATA");
         compile_tyb_to_pe_mini(&s3_table_prog_loop_tyb(&[0xFF])).expect("in-DLL fits mini");
     }
 
@@ -4369,10 +4375,10 @@ mod tests {
         full.extend(s3_prog_loop_code(1, 3));
         compile_tyb_to_pe_mini(&tyb_from_records(&full))
             .expect("S3.219: poke+lea+prog fits raised mini cap");
-        let via_code = emit_x86(&parse_tyb(&s3_table_prog_loop_tyb(&[0xFF])).unwrap())
+        let dll_code = emit_x86(&parse_tyb(&s3_table_prog_loop_tyb(&[0xFF])).unwrap())
             .text
             .len();
-        assert!(via_code <= S1_SLIM_MAX_CODE, "via_ir in-DLL code {via_code}");
+        assert!(dll_code <= S1_SLIM_MAX_CODE, "default empty-DATA in-DLL code {dll_code}");
         assert!(poked.iter().any(|r| {
             r.0 == 0x30 && u16::from_le_bytes([r.2[0], r.2[1]]) == S3_PACK_STB_BASE
         }));
@@ -4431,12 +4437,12 @@ mod tests {
         compile_tyb_to_pe_mini(&tyb).expect("S3.219: poke+lea+prog mini PE");
         assert!(s3_unpack_data_tyb(&tyb).is_empty());
         assert!(
-            parse_tyb(&s3_table_prog_loop_tyb(&[0xFF]))
+            parse_tyb(&s3_table_prog_loop_tyb_via_ir(&[0xFF]))
                 .unwrap()
                 .records
                 .iter()
                 .any(|r| r.op == 0x10),
-            "golden in-DLL keeps via_ir"
+            "golden via_ir helper keeps DATA"
         );
     }
 
@@ -4453,7 +4459,8 @@ mod tests {
         seeded.extend(s3_prog_loop_code(1, 3));
         compile_tyb_to_pe_mini(&tyb_from_records(&seeded))
             .expect("S3.219: poke+lea+prog fits 1024 cap");
-        compile_tyb_to_pe_mini(&s3_table_prog_loop_tyb(&[0xFF])).expect("via_ir in-DLL fits");
+        compile_tyb_to_pe_mini(&s3_table_prog_loop_tyb_via_ir(&[0xFF]))
+            .expect("via_ir golden path fits");
     }
 
     /// S3.137/S3.141: pack ↔ unpack is the YOYO-target algorithm (still implemented in Rust).
@@ -4940,7 +4947,8 @@ mod tests {
         assert!(s3_unpack_data_tyb(&s3_host_prog_loop_tyb(&[0xFF])).is_empty());
         let dll_payload =
             s3_fixed_payload(&S3_FIXED10_OPS[..3], &[0xFF], S3_OUTBUF_OFF as usize);
-        let dll = parse_tyb(&s3_table_prog_loop_tyb(&[0xFF])).unwrap();
+        assert!(s3_unpack_data_tyb(&s3_table_prog_loop_tyb(&[0xFF])).is_empty());
+        let dll = parse_tyb(&s3_table_prog_loop_tyb_via_ir(&[0xFF])).unwrap();
         let dll_data: Vec<_> = dll
             .records
             .iter()
@@ -6124,14 +6132,18 @@ mod tests {
     /// Program: [n][op…] immediately after 3×20B table.
     const S3_PROG_OFF: u32 = S3_TABLE_OFF + 60; // 0xBC
 
-    /// S3.19: DATA pad+table+program; outer loop loads needles; scan+MEMCPY each.
-    /// Golden TYB stays via_ir; empty-DATA twin is [`s3_table_prog_loop_tyb_ir_seed`].
+    /// S3.19/S3.221: default in-DLL prog loop is empty-DATA IR seed.
+    /// Golden fixture stays [`s3_table_prog_loop_tyb_via_ir`].
     fn s3_table_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
+        s3_table_prog_loop_tyb_ir_seed(ops)
+    }
+
+    /// S3.19 via_ir DATA path — golden TYB bytes only. Not the default builder.
+    fn s3_table_prog_loop_tyb_via_ir(ops: &[u8]) -> Vec<u8> {
         assert!(!ops.is_empty() && ops.len() <= 8);
         let payload = s3_fixed_payload(&S3_FIXED10_OPS[..3], ops, S3_OUTBUF_OFF as usize);
         assert_eq!(S3_TABLE_OFF + 60, S3_PROG_OFF);
         assert_eq!(S3_PROG_OFF + 1, 0xBD);
-        // Golden path: via_ir DATA (TYB fixture pinned).
         let mut recs = s3_pack_data_via_ir(&payload);
         recs.extend_from_slice(s3_in_dll_lea_prologue_recs());
         recs.extend(s3_prog_loop_code(ops.len() as u32, 3));
@@ -6221,14 +6233,16 @@ mod tests {
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../yoyo/tests/golden/s3_yoyo_table_prog_loop.tyb");
         let golden = std::fs::read(&path).expect("golden prog loop");
-        assert_eq!(golden, set_ret);
+        // S3.221: fixture stays via_ir; default builder is empty-DATA.
+        assert_eq!(golden, s3_table_prog_loop_tyb_via_ir(&[0x30, 0xFF]));
+        assert_ne!(golden, set_ret);
     }
 
     /// S3.220: empty-DATA IR-seed twin matches via_ir sim; fits mini; no DATA.
     #[test]
     fn s3_table_prog_loop_ir_seed_empty_data_parity() {
         for ops in [&[0xFFu8][..], &[0x00, 0xFF][..], &[0x30, 0xFF][..]] {
-            let via = s3_table_prog_loop_tyb(ops);
+            let via = s3_table_prog_loop_tyb_via_ir(ops);
             let seeded = s3_table_prog_loop_tyb_ir_seed(ops);
             assert!(s3_unpack_data_tyb(&seeded).is_empty(), "ops {ops:?}");
             assert!(
@@ -6248,7 +6262,12 @@ mod tests {
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../yoyo/tests/golden/s3_yoyo_table_prog_loop.tyb");
         let golden = std::fs::read(&path).expect("golden");
-        assert_eq!(golden, s3_table_prog_loop_tyb(&[0x30, 0xFF]));
+        assert_eq!(golden, s3_table_prog_loop_tyb_via_ir(&[0x30, 0xFF]));
+        assert_eq!(
+            s3_table_prog_loop_tyb(&[0x30, 0xFF]),
+            s3_table_prog_loop_tyb_ir_seed(&[0x30, 0xFF]),
+            "S3.221: default builder is the empty-DATA seed"
+        );
     }
 
     #[test]
