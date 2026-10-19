@@ -1584,22 +1584,28 @@ fn s3_rec_wire(op: u8, argc: u8, a: [u8; 6]) -> [u8; 8] {
     [op, argc, a[0], a[1], a[2], a[3], a[4], a[5]]
 }
 
-/// S3.166/S3.200: firmware that STB-emits given records to outbuf (empty DATA image).
+/// S3.225: shared empty-DATA STB emit — write `flat` at `out_off`, then RET.
+/// YOYO-target: one emit primitive; Rust still builds the run-folded IR today.
+fn s3_yoyo_emit_flat_via_stb(flat: &[u8], out_off: u32) -> (Vec<u8>, u32) {
+    let mut recs = Vec::new();
+    recs.push(s3_rec_set(S3_PACK_PROTO_DST, out_off));
+    recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
+    s3_append_stb_runs(&mut recs, flat, 1);
+    recs.push((0xFF, 0, [0; 6]));
+    (s3_host_tyb_from_records(&recs), out_off)
+}
+
+/// S3.166/S3.200/S3.225: firmware that STB-emits given records to outbuf (empty DATA).
 fn s3_yoyo_emit_recs_tyb(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
     let out_off = 0x20u32;
     let mut flat = Vec::with_capacity(records.len() * RECORD_SIZE);
     for &(op, argc, a) in records {
         flat.extend_from_slice(&s3_rec_wire(op, argc, a));
     }
-    let mut recs = Vec::new();
-    recs.push(s3_rec_set(S3_PACK_PROTO_DST, out_off));
-    recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
-    s3_append_stb_runs(&mut recs, &flat, 1);
-    recs.push((0xFF, 0, [0; 6]));
-    (s3_host_tyb_from_records(&recs), out_off)
+    s3_yoyo_emit_flat_via_stb(&flat, out_off)
 }
 
-/// S3.167/S3.200: STB-emit full TYB file via run-folded wire (same as two-phase phase1).
+/// S3.167/S3.200/S3.225: STB-emit full TYB file via run-folded wire.
 fn s3_yoyo_emit_tyb_file_unrolled(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
     assert!(records.len() <= 255, "S3.167 prototype: rec_cnt fits u8 path");
     let out_off = 0x20u32;
@@ -1610,12 +1616,7 @@ fn s3_yoyo_emit_tyb_file_unrolled(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u3
     for &(op, argc, a) in records {
         flat.extend_from_slice(&s3_rec_wire(op, argc, a));
     }
-    let mut recs = Vec::new();
-    recs.push(s3_rec_set(S3_PACK_PROTO_DST, out_off));
-    recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
-    s3_append_stb_runs(&mut recs, &flat, 1);
-    recs.push((0xFF, 0, [0; 6]));
-    (s3_host_tyb_from_records(&recs), out_off)
+    s3_yoyo_emit_flat_via_stb(&flat, out_off)
 }
 
 /// S3.171/S3.202: comparison path. Flat is IR-written at 0 (run-folded), then one
@@ -4160,6 +4161,37 @@ mod tests {
         // Cliff: `s3_append_stb_runs` / shape fillers remain Rust (S3.224: 4 shapes).
         let _ = s3_rec_stb(0, 1, 0);
         assert_eq!(s3_fixed_row(0xFF), s3_compute_fixed_body(0xFF));
+    }
+
+    /// S3.225: record-only and full-file unrolled emit share one STB-flat primitive.
+    #[test]
+    fn s3_emit_flat_via_stb_shared() {
+        let body = [s3_fixed_rec(0xFF)];
+        let (recs_tyb, recs_off) = s3_yoyo_emit_recs_tyb(&body);
+        let (file_tyb, file_off) = s3_yoyo_emit_tyb_file_unrolled(&body);
+        assert_eq!(recs_off, 0x20);
+        assert_eq!(file_off, 0x20);
+        let recs_ir = parse_tyb(&recs_tyb).unwrap();
+        let file_ir = parse_tyb(&file_tyb).unwrap();
+        // Same prologue shape: SET DST, SET ZERO, then STB runs, RET.
+        assert_eq!(recs_ir.records[0].op, 0x30);
+        assert_eq!(recs_ir.records[1].op, 0x30);
+        assert!(recs_ir.records.iter().any(|r| r.op == 0x81));
+        assert_eq!(recs_ir.records.last().unwrap().op, 0xFF);
+        assert_eq!(file_ir.records[0].op, 0x30);
+        assert_eq!(file_ir.records[1].op, 0x30);
+        assert!(file_ir.records.iter().any(|r| r.op == 0x81));
+        assert_eq!(file_ir.records.last().unwrap().op, 0xFF);
+        assert!(s3_unpack_data_tyb(&recs_tyb).is_empty());
+        assert!(s3_unpack_data_tyb(&file_tyb).is_empty());
+        // Shared helper matches hand-built path for a tiny flat.
+        let flat = s3_rec_wire(0xFF, 0, [0; 6]);
+        let (via, off) = s3_yoyo_emit_flat_via_stb(&flat, 0x20);
+        assert_eq!(off, 0x20);
+        assert_eq!(
+            s3_sim_prog_loop(&via, 0, off, 0).unwrap(),
+            flat.to_vec()
+        );
     }
 
     /// S3.224: named builders are thin op tags over 4 wire shapes (slot+imm,
