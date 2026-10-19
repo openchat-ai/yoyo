@@ -4179,9 +4179,10 @@ mod tests {
     }
 
 
-    /// S3.209–S3.211: poke-only seed beats run-fold and fits mini alone (S3.210
-    /// imm8 STB oo). S3.211: seed±RET compiles; +short-lea A1 still overflows —
-    /// in-DLL keeps via_ir (lea stores VAs; SET imm cannot replace it on PE).
+
+    /// S3.209–S3.212: poke seed fits mini alone; S3.212 pin — short lea A1 is only
+    /// ~38B of .text, while `s3_prog_loop_code` is ~291B. seed+prog (no lea) already
+    /// exceeds 512; lea is not the bulk of the in-DLL overflow. via_ir stays.
     #[test]
     fn s3_ir_seed_poke_beats_run_fold_still_over_cap() {
         let payload = s3_fixed_payload(&S3_FIXED10_OPS[..3], &[0xFF], S3_OUTBUF_OFF as usize);
@@ -4190,8 +4191,9 @@ mod tests {
         let slice = &payload[start..end];
         let mut poked = Vec::new();
         s3_ir_seed_at(&mut poked, 0x80, slice, 10);
-        let poke_tyb = tyb_from_records(&poked);
-        let poke_code = emit_x86(&parse_tyb(&poke_tyb).unwrap()).text.len();
+        let poke_code = emit_x86(&parse_tyb(&tyb_from_records(&poked)).unwrap())
+            .text
+            .len();
         let mut run_recs = Vec::new();
         run_recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
         run_recs.push(s3_rec_set(S3_PACK_PROTO_DST, 0x80));
@@ -4208,30 +4210,50 @@ mod tests {
             "S3.210: short poke seed {poke_code} must fit mini cap {}",
             S1_SLIM_MAX_CODE
         );
-        // S3.211: seed alone is a valid mini PE (no DATA); lea is the remaining cliff.
         let mut seed_ret = poked.clone();
         seed_ret.push(s3_fixed_rec(0xFF));
         compile_tyb_to_pe_mini(&tyb_from_records(&seed_ret))
             .expect("poke seed + RET must fit mini");
+        // S3.212: lea A1 .text ≈ raw lea bytes; prog loop is the heavy sibling.
+        let lea_code = emit_x86(&parse_tyb(&tyb_from_records(
+            &s3_in_dll_lea_prologue_recs().to_vec(),
+        ))
+        .unwrap())
+        .text
+        .len();
+        let prog_code =
+            emit_x86(&parse_tyb(&tyb_from_records(&s3_prog_loop_code(1, 3))).unwrap())
+                .text
+                .len();
+        assert!(
+            lea_code < 64,
+            "short lea A1 .text {lea_code} should stay near raw 37B"
+        );
+        assert!(
+            prog_code > lea_code * 4,
+            "prog loop {prog_code} dwarfs lea {lea_code}"
+        );
+        let mut seed_prog = poked.clone();
+        seed_prog.extend(s3_prog_loop_code(1, 3));
+        let seed_prog_code =
+            emit_x86(&parse_tyb(&tyb_from_records(&seed_prog)).unwrap())
+                .text
+                .len();
+        assert!(
+            seed_prog_code > S1_SLIM_MAX_CODE,
+            "seed+prog (no lea) {seed_prog_code} already over cap — lea is not the bulk"
+        );
         let mut full = poked.clone();
         full.extend_from_slice(s3_in_dll_lea_prologue_recs());
         full.extend(s3_prog_loop_code(1, 3));
-        let full_code = emit_x86(&parse_tyb(&tyb_from_records(&full)).unwrap())
-            .text
-            .len();
-        assert!(
-            full_code > S1_SLIM_MAX_CODE,
-            "seed+lea+prog {full_code} must exceed cap"
-        );
         assert!(
             compile_tyb_to_pe_mini(&tyb_from_records(&full)).is_err(),
-            "poke seed + short lea still over mini cap"
+            "poke seed + lea + prog still over mini cap"
         );
         let via_code = emit_x86(&parse_tyb(&s3_table_prog_loop_tyb(&[0xFF])).unwrap())
             .text
             .len();
         assert!(via_code <= S1_SLIM_MAX_CODE, "via_ir in-DLL code {via_code}");
-        // Short span: BASE SET + relative oo (imm8 path).
         assert!(poked.iter().any(|r| {
             r.0 == 0x30 && u16::from_le_bytes([r.2[0], r.2[1]]) == S3_PACK_STB_BASE
         }));
@@ -5943,8 +5965,8 @@ mod tests {
         let payload = s3_fixed_payload(&S3_FIXED10_OPS[..3], ops, S3_OUTBUF_OFF as usize);
         assert_eq!(S3_TABLE_OFF + 60, S3_PROG_OFF);
         assert_eq!(S3_PROG_OFF + 1, 0xBD);
-        // S3.210: poke+imm8 seed fits (~473B) but +short-lea A1 still overflows
-        // the 512B mini cap — in-DLL keeps via_ir DATA.
+        // S3.212: poke seed fits alone; seed+prog (~764) already over 512 — lea
+        // A1 is only ~38B. in-DLL keeps via_ir DATA.
         let mut recs = s3_pack_data_via_ir(&payload);
         recs.extend_from_slice(s3_in_dll_lea_prologue_recs());
         recs.extend(s3_prog_loop_code(ops.len() as u32, 3));
