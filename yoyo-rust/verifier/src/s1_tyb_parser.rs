@@ -2342,80 +2342,75 @@ fn s3_host_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
     s3_host_tyb_from_records(&recs)
 }
 
-/// S3.128/S3.133: IR record builders shared by prog-loop, scan, and compose.
-fn s3_rec_set(slot: u16, imm: u32) -> (u8, u8, [u8; 6]) {
+/// S3.224: IR record shapes — YOYO-target layouts; Rust still fills bytes today.
+/// Named `s3_rec_*` wrappers stay for call sites; shapes are the cliff to lift.
+fn s3_rec_slot_imm(op: u8, slot: u16, imm: u32) -> (u8, u8, [u8; 6]) {
     let sb = slot.to_le_bytes();
     let ib = imm.to_le_bytes();
-    (0x30, 2, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
+    (op, 2, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
+}
+fn s3_rec_slot_slot(op: u8, a: u16, b: u16) -> (u8, u8, [u8; 6]) {
+    let aa = a.to_le_bytes();
+    let bb = b.to_le_bytes();
+    (op, 2, [aa[0], aa[1], bb[0], bb[1], 0, 0])
+}
+fn s3_rec_u32(op: u8, id: u32) -> (u8, u8, [u8; 6]) {
+    let b = id.to_le_bytes();
+    (op, 1, [b[0], b[1], b[2], b[3], 0, 0])
+}
+fn s3_rec_slot3(op: u8, a: u16, b: u16, c: u16) -> (u8, u8, [u8; 6]) {
+    let aa = a.to_le_bytes();
+    let bb = b.to_le_bytes();
+    let cc = c.to_le_bytes();
+    (op, 3, [aa[0], aa[1], bb[0], bb[1], cc[0], cc[1]])
+}
+
+/// S3.128/S3.133/S3.224: IR record builders shared by prog-loop, scan, and compose.
+fn s3_rec_set(slot: u16, imm: u32) -> (u8, u8, [u8; 6]) {
+    s3_rec_slot_imm(0x30, slot, imm)
 }
 fn s3_rec_add(slot: u16, imm: u32) -> (u8, u8, [u8; 6]) {
-    let sb = slot.to_le_bytes();
-    let ib = imm.to_le_bytes();
-    (0x62, 2, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
+    s3_rec_slot_imm(0x62, slot, imm)
 }
 fn s3_rec_sub(slot: u16, imm: u32) -> (u8, u8, [u8; 6]) {
-    let sb = slot.to_le_bytes();
-    let ib = imm.to_le_bytes();
-    (0x61, 2, [sb[0], sb[1], ib[0], ib[1], ib[2], ib[3]])
+    s3_rec_slot_imm(0x61, slot, imm)
 }
 fn s3_rec_label(id: u32) -> (u8, u8, [u8; 6]) {
-    let b = id.to_le_bytes();
-    (0x40, 1, [b[0], b[1], b[2], b[3], 0, 0])
+    s3_rec_u32(0x40, id)
 }
 fn s3_rec_ldb(dst: u16, src: u16, off: u16) -> (u8, u8, [u8; 6]) {
-    let d = dst.to_le_bytes();
-    let s = src.to_le_bytes();
-    let o = off.to_le_bytes();
-    (0x80, 3, [d[0], d[1], s[0], s[1], o[0], o[1]])
+    s3_rec_slot3(0x80, dst, src, off)
 }
 /// S3.154/S3.156: STB val base off — store low byte of state[val] to data[state[base]+off].
 fn s3_rec_stb(val: u16, base: u16, off: u16) -> (u8, u8, [u8; 6]) {
-    let v = val.to_le_bytes();
-    let b = base.to_le_bytes();
-    let o = off.to_le_bytes();
-    (0x81, 3, [v[0], v[1], b[0], b[1], o[0], o[1]])
+    s3_rec_slot3(0x81, val, base, off)
 }
 fn s3_rec_cmp(a: u16, b: u16) -> (u8, u8, [u8; 6]) {
-    let aa = a.to_le_bytes();
-    let bb = b.to_le_bytes();
-    (0x65, 2, [aa[0], aa[1], bb[0], bb[1], 0, 0])
+    s3_rec_slot_slot(0x65, a, b)
 }
 fn s3_rec_movrr(dst: u16, src: u16) -> (u8, u8, [u8; 6]) {
-    let d = dst.to_le_bytes();
-    let s = src.to_le_bytes();
-    (0x64, 2, [d[0], d[1], s[0], s[1], 0, 0])
+    s3_rec_slot_slot(0x64, dst, src)
 }
 fn s3_rec_je(id: u32) -> (u8, u8, [u8; 6]) {
-    let b = id.to_le_bytes();
-    (0x71, 1, [b[0], b[1], b[2], b[3], 0, 0])
+    s3_rec_u32(0x71, id)
 }
 fn s3_rec_jl(id: u32) -> (u8, u8, [u8; 6]) {
-    let b = id.to_le_bytes();
-    (0x73, 1, [b[0], b[1], b[2], b[3], 0, 0])
+    s3_rec_u32(0x73, id)
 }
 fn s3_rec_jz(id: u32) -> (u8, u8, [u8; 6]) {
-    let b = id.to_le_bytes();
-    (0x74, 1, [b[0], b[1], b[2], b[3], 0, 0])
+    s3_rec_u32(0x74, id)
 }
 fn s3_rec_jmp(id: u32) -> (u8, u8, [u8; 6]) {
-    let b = id.to_le_bytes();
-    (0x70, 1, [b[0], b[1], b[2], b[3], 0, 0])
+    s3_rec_u32(0x70, id)
 }
 fn s3_rec_memcpy(dst: u16, src: u16, len: u16) -> (u8, u8, [u8; 6]) {
-    let d = dst.to_le_bytes();
-    let s = src.to_le_bytes();
-    let n = len.to_le_bytes();
-    (0x84, 3, [d[0], d[1], s[0], s[1], n[0], n[1]])
+    s3_rec_slot3(0x84, dst, src, len)
 }
 fn s3_rec_addv(dst: u16, src: u16) -> (u8, u8, [u8; 6]) {
-    let d = dst.to_le_bytes();
-    let s = src.to_le_bytes();
-    (0x68, 2, [d[0], d[1], s[0], s[1], 0, 0])
+    s3_rec_slot_slot(0x68, dst, src)
 }
 fn s3_rec_subv(dst: u16, src: u16) -> (u8, u8, [u8; 6]) {
-    let d = dst.to_le_bytes();
-    let s = src.to_le_bytes();
-    (0x6A, 2, [d[0], d[1], s[0], s[1], 0, 0])
+    s3_rec_slot_slot(0x6A, dst, src)
 }
 
 /// S3.117: shared scan/compose tail. `nrows` is 10 (host) or 3 (in-DLL).
@@ -4104,10 +4099,11 @@ mod tests {
         );
     }
 
-    /// S3.163/S3.176/S3.222: IR self-host near-end inventory (not a schedule).
+    /// S3.163/S3.176/S3.222/S3.224: IR self-host near-end inventory (not a schedule).
     /// Floors: (1) short lea RAW (2) one SET per distinct emit byte (no SHR;
     /// short seed + in-DLL share `s3_append_stb_poke_global_distinct`).
-    /// Cliff: YOYO must assemble emitter / pack IR without Rust helpers.
+    /// Cliff: YOYO fills the 4 record shapes (slot+imm / slot+slot / u32 / slot³)
+    /// without Rust `s3_rec_*` helpers.
     #[test]
     fn s3_ir_selfhost_roadmap() {
         // Done: DATA pack algorithm runs as YOYO IR (STB loop) via via_ir.
@@ -4161,9 +4157,35 @@ mod tests {
         let (fw_2, _) = s3_yoyo_emit_tyb_file(&big);
         assert!(parse_tyb(&fw_2).unwrap().records.iter().any(|r| r.op == 0x84));
         assert!(s3_unpack_data_tyb(&fw_2).is_empty());
-        // Cliff: `s3_append_stb_runs` / `s3_rec_*` builders remain Rust.
+        // Cliff: `s3_append_stb_runs` / shape fillers remain Rust (S3.224: 4 shapes).
         let _ = s3_rec_stb(0, 1, 0);
         assert_eq!(s3_fixed_row(0xFF), s3_compute_fixed_body(0xFF));
+    }
+
+    /// S3.224: named builders are thin op tags over 4 wire shapes (slot+imm,
+    /// slot+slot, u32, slot³). Lifting self-host means YOYO fills these shapes.
+    #[test]
+    fn s3_rec_builder_shapes_floor() {
+        assert_eq!(s3_rec_set(3, 0x11), s3_rec_slot_imm(0x30, 3, 0x11));
+        assert_eq!(s3_rec_add(3, 5), s3_rec_slot_imm(0x62, 3, 5));
+        assert_eq!(s3_rec_sub(3, 5), s3_rec_slot_imm(0x61, 3, 5));
+        assert_eq!(s3_rec_movrr(1, 2), s3_rec_slot_slot(0x64, 1, 2));
+        assert_eq!(s3_rec_cmp(0, 1), s3_rec_slot_slot(0x65, 0, 1));
+        assert_eq!(s3_rec_addv(9, 12), s3_rec_slot_slot(0x68, 9, 12));
+        assert_eq!(s3_rec_subv(4, 5), s3_rec_slot_slot(0x6A, 4, 5));
+        assert_eq!(s3_rec_label(7), s3_rec_u32(0x40, 7));
+        assert_eq!(s3_rec_jmp(7), s3_rec_u32(0x70, 7));
+        assert_eq!(s3_rec_je(7), s3_rec_u32(0x71, 7));
+        assert_eq!(s3_rec_jl(7), s3_rec_u32(0x73, 7));
+        assert_eq!(s3_rec_jz(7), s3_rec_u32(0x74, 7));
+        assert_eq!(s3_rec_ldb(1, 2, 3), s3_rec_slot3(0x80, 1, 2, 3));
+        assert_eq!(s3_rec_stb(11, 14, 5), s3_rec_slot3(0x81, 11, 14, 5));
+        assert_eq!(s3_rec_memcpy(9, 10, 11), s3_rec_slot3(0x84, 9, 10, 11));
+        // Shape argc pins (YOYO-target): imm/slot=2, u32=1, slot³=3.
+        assert_eq!(s3_rec_slot_imm(0x30, 0, 0).1, 2);
+        assert_eq!(s3_rec_slot_slot(0x64, 0, 0).1, 2);
+        assert_eq!(s3_rec_u32(0x40, 0).1, 1);
+        assert_eq!(s3_rec_slot3(0x81, 0, 0, 0).1, 3);
     }
 
     /// S3.135/S3.160/S3.223: remaining Rust sidecar after pack+STB fold (honest).
