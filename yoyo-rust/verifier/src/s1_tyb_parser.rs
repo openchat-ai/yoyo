@@ -2413,15 +2413,15 @@ fn s3_shape_argc_bytes() -> [u8; 4] {
     argc
 }
 
-/// S3.236/S3.237: YOYO IR scans the poke-seeded op→shape table and writes one
-/// 8-byte record. Argc is an indexed load from [`s3_shape_argc_bytes`]; the six
-/// arg bytes are a poke payload walked by one loop. Rust still emits this IR
-/// (no SHR) but no longer unrolls argc branches or per-arg stores.
-fn s3_yoyo_shape_fill_tyb(op: u8, args: [u8; 6]) -> (Vec<u8>, u32) {
-    const TABLE: u32 = 0x40;
-    const ARGC: u32 = 0x60;
-    const ARGS: u32 = 0x68;
-    const OUT: u32 = 0x80;
+const S3_SHAPE_TABLE: u32 = 0x40;
+const S3_SHAPE_ARGC: u32 = 0x60;
+/// One job: op byte then 6 arg bytes. Control IR never SETs these.
+const S3_SHAPE_JOB: u32 = 0x68;
+const S3_SHAPE_OUT: u32 = 0x80;
+
+/// S3.238: scan/fill control stream. Same bytes for every op; the job image
+/// (poke) holds the op and the six arg bytes. Rust still writes this stream.
+fn s3_yoyo_shape_fill_ctrl() -> Vec<(u8, u8, [u8; 6])> {
     const CUR: u16 = 4;
     const END: u16 = 5;
     const SHAPE: u16 = 6;
@@ -2431,21 +2431,18 @@ fn s3_yoyo_shape_fill_tyb(op: u8, args: [u8; 6]) -> (Vec<u8>, u32) {
     const REM: u16 = 10;
     const TMP: u16 = 11;
     const BYTE: u16 = 12;
+    const JOB: u16 = 1;
     const L_LOOP: u32 = 1;
     const L_HIT: u32 = 2;
     const L_SCAN_DONE: u32 = 3;
     const L_ARGS: u32 = 4;
     const L_DONE: u32 = 5;
 
-    let table = s3_rec_op_shape_bytes();
-    let argc = s3_shape_argc_bytes();
     let mut recs = Vec::new();
-    s3_ir_seed_at(&mut recs, TABLE, &table, 20);
-    s3_ir_seed_at(&mut recs, ARGC, &argc, 21);
-    s3_ir_seed_at(&mut recs, ARGS, &args, 22);
-    recs.push(s3_rec_set(CUR, TABLE));
-    recs.push(s3_rec_set(END, TABLE + table.len() as u32));
-    recs.push(s3_rec_set(NEEDLE, op as u32));
+    recs.push(s3_rec_set(JOB, S3_SHAPE_JOB));
+    recs.push(s3_rec_ldb(NEEDLE, JOB, 0));
+    recs.push(s3_rec_set(CUR, S3_SHAPE_TABLE));
+    recs.push(s3_rec_set(END, S3_SHAPE_TABLE + s3_rec_op_shape_bytes().len() as u32));
     recs.push(s3_rec_set(SHAPE, 0xFF));
     recs.push(s3_rec_label(L_LOOP));
     recs.push(s3_rec_cmp(CUR, END));
@@ -2459,18 +2456,17 @@ fn s3_yoyo_shape_fill_tyb(op: u8, args: [u8; 6]) -> (Vec<u8>, u32) {
     recs.push(s3_rec_ldb(SHAPE, CUR, 1));
     recs.push(s3_rec_label(L_SCAN_DONE));
 
-    recs.push(s3_rec_set(DST, OUT));
-    recs.push(s3_rec_set(BYTE, op as u32));
+    recs.push(s3_rec_set(DST, S3_SHAPE_OUT));
+    recs.push(s3_rec_movrr(BYTE, NEEDLE));
     recs.push(s3_rec_stb(BYTE, DST, 0));
     recs.push(s3_rec_add(DST, 1));
-    // argc = argc_table[shape]
-    recs.push(s3_rec_set(CUR, ARGC));
+    recs.push(s3_rec_set(CUR, S3_SHAPE_ARGC));
     recs.push(s3_rec_addv(CUR, SHAPE));
     recs.push(s3_rec_ldb(BYTE, CUR, 0));
     recs.push(s3_rec_stb(BYTE, DST, 0));
     recs.push(s3_rec_add(DST, 1));
-    // six arg bytes from the poke image
-    recs.push(s3_rec_set(SRC, ARGS));
+    recs.push(s3_rec_movrr(SRC, JOB));
+    recs.push(s3_rec_add(SRC, 1));
     recs.push(s3_rec_set(REM, 6));
     recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
     recs.push(s3_rec_label(L_ARGS));
@@ -2484,7 +2480,21 @@ fn s3_yoyo_shape_fill_tyb(op: u8, args: [u8; 6]) -> (Vec<u8>, u32) {
     recs.push(s3_rec_jmp(L_ARGS));
     recs.push(s3_rec_label(L_DONE));
     recs.push((0xFF, 0, [0; 6]));
-    (s3_host_tyb_from_records(&recs), OUT)
+    recs
+}
+
+/// S3.236/S3.238: poke op→shape, argc, and one job (op‖args), then the fixed
+/// control stream. Rust still emits that stream (no SHR).
+fn s3_yoyo_shape_fill_tyb(op: u8, args: [u8; 6]) -> (Vec<u8>, u32) {
+    let mut job = Vec::with_capacity(7);
+    job.push(op);
+    job.extend_from_slice(&args);
+    let mut recs = Vec::new();
+    s3_ir_seed_at(&mut recs, S3_SHAPE_TABLE, &s3_rec_op_shape_bytes(), 20);
+    s3_ir_seed_at(&mut recs, S3_SHAPE_ARGC, &s3_shape_argc_bytes(), 21);
+    s3_ir_seed_at(&mut recs, S3_SHAPE_JOB, &job, 22);
+    recs.extend(s3_yoyo_shape_fill_ctrl());
+    (s3_host_tyb_from_records(&recs), S3_SHAPE_OUT)
 }
 
 /// S3.235: build a record by looking up `op` in `S3_REC_OP_SHAPE`, then filling
@@ -4467,7 +4477,15 @@ mod tests {
                 expect.to_vec(),
                 "op {op:#x} shape {shape:?}"
             );
-            // S3.237: one SET of the op byte; argc and args are loads, not unrolled SETs.
+            // S3.238: op/args live in the job poke. Control SETs neither slot 7 nor slot 12.
+            let needle_sets = ir
+                .records
+                .iter()
+                .filter(|r| {
+                    r.op == 0x30
+                        && u16::from_le_bytes([r.args_raw[0], r.args_raw[1]]) == 7
+                })
+                .count();
             let byte_sets = ir
                 .records
                 .iter()
@@ -4476,13 +4494,27 @@ mod tests {
                         && u16::from_le_bytes([r.args_raw[0], r.args_raw[1]]) == 12
                 })
                 .count();
-            assert_eq!(byte_sets, 1, "op {op:#x} argc/args are not per-byte SETs");
+            assert_eq!(needle_sets, 0, "op {op:#x} needle is a load");
+            assert_eq!(byte_sets, 0, "op {op:#x} wire bytes are loads");
             assert!(
                 ir.records.iter().any(|r| r.op == 0x68),
                 "op {op:#x} argc is an indexed ADDV load"
             );
         }
         assert_eq!(s3_shape_argc_bytes(), [2, 2, 1, 3]);
+        let (a, _) = s3_yoyo_shape_fill_tyb(0x30, [3, 0, 0x11, 0, 0, 0]);
+        let (b, _) = s3_yoyo_shape_fill_tyb(0x81, [11, 0, 14, 0, 5, 0]);
+        let ctrl = s3_yoyo_shape_fill_ctrl();
+        let tail = |tyb: &[u8]| {
+            let recs = parse_tyb(tyb).unwrap().records;
+            let start = recs.len() - ctrl.len();
+            recs[start..]
+                .iter()
+                .map(|r| (r.op, r.argc, r.args_raw))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(tail(&a), tail(&b), "control IR does not depend on the job");
+        assert_eq!(tail(&a), ctrl);
     }
 
     /// S3.229: op→shape table packs as empty-DATA STB flat and round-trips.
