@@ -4495,6 +4495,36 @@ mod tests {
         assert_eq!(a1.as_slice(), s3_in_dll_lea_prologue_recs());
     }
 
+    /// S3.233: STB-flat / poke can materialize lea bytes, but only A1 injects them
+    /// into `.text`. Shaped emit alone does not open `.text` with the lea prefix.
+    #[test]
+    fn s3_short_lea_text_only_via_a1_floor() {
+        let lea = s3_short_lea_raw_bytes();
+        let (flat_tyb, _) = s3_yoyo_emit_flat_via_stb(&lea, 0x20);
+        let flat_text = emit_x86(&parse_tyb(&flat_tyb).unwrap()).text;
+        assert!(
+            !flat_text.starts_with(&lea),
+            "STB-flat of lea payload must not become .text head"
+        );
+        let mut poke = Vec::new();
+        s3_ir_seed_at(&mut poke, 0x80, &lea, 10);
+        poke.push((0xFF, 0, [0; 6]));
+        let poke_text = emit_x86(&parse_tyb(&s3_host_tyb_from_records(&poke)).unwrap()).text;
+        assert!(
+            !poke_text.starts_with(&lea),
+            "poke-seed of lea payload must not become .text head"
+        );
+        // A1 path is the floor that does inject.
+        let a1_tyb = tyb_from_records(s3_in_dll_lea_prologue_recs());
+        let a1_text = emit_x86(&parse_tyb(&a1_tyb).unwrap()).text;
+        assert!(a1_text.starts_with(&lea), "A1 prologue alone opens .text with lea");
+        assert!(
+            emit_x86(&parse_tyb(&s3_table_prog_loop_tyb(&[0xFF])).unwrap())
+                .text
+                .starts_with(&lea)
+        );
+    }
+
     /// S3.214: host prog loop is a thinner record stream than the golden in-DLL one.
     #[test]
     fn s3_host_prog_loop_thinner_than_in_dll_golden() {
