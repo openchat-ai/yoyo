@@ -2231,6 +2231,19 @@ fn s3_prog_data_payload(rows: &[(u8, &[u8])], ops: &[u8], outbuf: usize) -> Vec<
     payload
 }
 
+/// S3.207: IR-write `bytes` at `base`. Bytes before `base` stay zero from the
+/// empty image — do not spend IR on the leading pad.
+fn s3_ir_seed_at(
+    recs: &mut Vec<(u8, u8, [u8; 6])>,
+    base: u32,
+    bytes: &[u8],
+    label_id: u32,
+) -> u32 {
+    recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
+    recs.push(s3_rec_set(S3_PACK_PROTO_DST, base));
+    s3_append_stb_runs(recs, bytes, label_id)
+}
+
 /// Build program-loop firmware TYB for `ops`.
 fn s3_host_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
     let payload = s3_fixed_payload(&S3_FIXED10_OPS, ops, S3_HOST_OUTBUF_OFF as usize);
@@ -2245,11 +2258,13 @@ fn s3_host_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
         S1_MINI_DATA_MAX
     );
     // S3.112: host sim seeds table/outbuf/op cursor and skips 0xA1.
-    // S3.205: no DATA seed. IR writes the fixed payload, then the prog loop.
+    // S3.207: IR-write table+prog only; [0..TABLE) stays zero. Slot 9 is the
+    // outbuf cursor — restore it after the seed so the prog loop lands right.
+    let start = S3_HOST_TABLE_OFF as usize;
+    let end = S3_HOST_PROG_OFF as usize + 1 + ops.len();
     let mut recs = Vec::new();
-    recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
-    recs.push(s3_rec_set(S3_PACK_PROTO_DST, 0));
-    s3_append_stb_runs(&mut recs, &payload, 10);
+    s3_ir_seed_at(&mut recs, S3_HOST_TABLE_OFF, &payload[start..end], 10);
+    recs.push(s3_rec_set(S3_PACK_PROTO_DST, S3_HOST_OUTBUF_OFF));
     recs.extend(s3_prog_loop_code(ops.len() as u32, S3_HOST_NROWS));
     s3_host_tyb_from_records(&recs)
 }
@@ -4074,8 +4089,7 @@ mod tests {
         assert!(s3_unpack_data_tyb(&cmp).is_empty());
     }
 
-    /// S3.205/S3.206: host IR-writes the table. in-DLL keeps via_ir DATA because
-    /// short-lea A1 + IR seed exceeds the mini 512B code cap.
+    /// S3.207: host IR-writes table+prog (no leading-pad IR). in-DLL keeps via_ir.
     #[test]
     fn s3_host_firmware_data_is_via_ir_product() {
         let host = parse_tyb(&s3_host_prog_loop_tyb(&[0xFF])).unwrap();
@@ -4087,22 +4101,43 @@ mod tests {
         compile_tyb_to_pe_mini(&s3_table_prog_loop_tyb(&[0xFF])).expect("in-DLL fits mini");
     }
 
-    /// S3.206: IR-seeding the in-DLL table while keeping short lea blows the code cap.
+    /// S3.207: host seed cursor starts at TABLE_OFF, not at 0 (leading pad skipped).
+    #[test]
+    fn s3_host_ir_seed_skips_leading_zero_pad() {
+        let tyb = s3_host_prog_loop_tyb(&[0xFF]);
+        let sets: Vec<_> = parse_tyb(&tyb)
+            .unwrap()
+            .records
+            .into_iter()
+            .filter(|r| r.op == 0x30)
+            .collect();
+        // First two SETs: STB_ZERO=0, DST=TABLE_OFF.
+        assert!(sets.len() >= 2);
+        let dst0 = u16::from_le_bytes([sets[1].args_raw[0], sets[1].args_raw[1]]);
+        let imm0 = u32::from_le_bytes([
+            sets[1].args_raw[2],
+            sets[1].args_raw[3],
+            sets[1].args_raw[4],
+            sets[1].args_raw[5],
+        ]);
+        assert_eq!(dst0, S3_PACK_PROTO_DST);
+        assert_eq!(imm0, S3_HOST_TABLE_OFF);
+    }
+
+    /// S3.207: even table+prog-only IR seed + short lea exceeds the 512B mini cap.
     #[test]
     fn s3_in_dll_ir_seed_exceeds_mini_code_cap() {
         let payload = s3_fixed_payload(&S3_FIXED10_OPS[..3], &[0xFF], S3_OUTBUF_OFF as usize);
-        let mut recs = Vec::new();
-        recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
-        recs.push(s3_rec_set(S3_PACK_PROTO_DST, 0));
-        s3_append_stb_runs(&mut recs, &payload, 10);
-        recs.extend_from_slice(s3_in_dll_lea_prologue_recs());
-        recs.extend(s3_prog_loop_code(1, 3));
-        let tyb = tyb_from_records(&recs);
+        let start = 0x80usize;
+        let end = 0xBC + 1 + 1;
+        let mut seeded = Vec::new();
+        s3_ir_seed_at(&mut seeded, 0x80, &payload[start..end], 10);
+        seeded.extend_from_slice(s3_in_dll_lea_prologue_recs());
+        seeded.extend(s3_prog_loop_code(1, 3));
         assert!(
-            compile_tyb_to_pe_mini(&tyb).is_err(),
-            "S3.206: IR seed + short lea must exceed mini code cap"
+            compile_tyb_to_pe_mini(&tyb_from_records(&seeded)).is_err(),
+            "table+prog IR seed + lea must exceed mini code cap"
         );
-        // Control: via_ir DATA path still fits.
         compile_tyb_to_pe_mini(&s3_table_prog_loop_tyb(&[0xFF])).expect("via_ir in-DLL fits");
     }
 
@@ -5780,8 +5815,8 @@ mod tests {
         let payload = s3_fixed_payload(&S3_FIXED10_OPS[..3], ops, S3_OUTBUF_OFF as usize);
         assert_eq!(S3_TABLE_OFF + 60, S3_PROG_OFF);
         assert_eq!(S3_PROG_OFF + 1, 0xBD);
-        // S3.147/S3.164: in-DLL keeps via_ir DATA — IR-seeding the table blows the
-        // 512B mini code cap once short-lea A1 is also present (S3.205 host-only).
+        // S3.207: in-DLL still embeds via_ir DATA. Table+prog IR seed alone is
+        // still ~1.7KiB with short-lea A1 — over the 512B mini cap.
         let mut recs = s3_pack_data_via_ir(&payload);
         recs.extend_from_slice(s3_in_dll_lea_prologue_recs());
         recs.extend(s3_prog_loop_code(ops.len() as u32, 3));
