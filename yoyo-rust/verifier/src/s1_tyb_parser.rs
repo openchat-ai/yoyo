@@ -4156,8 +4156,8 @@ mod tests {
     /// S3.163/S3.176/S3.222/S3.224: IR self-host near-end inventory (not a schedule).
     /// Floors: (1) short lea RAW (2) one SET per distinct emit byte (no SHR;
     /// short seed + in-DLL share `s3_append_stb_poke_global_distinct`).
-    /// Cliff: YOYO reads `S3_REC_OP_SHAPE` and fills shapes + STB-flat phase1
-    /// without Rust helpers.
+    /// Cliff: YOYO reads `S3_REC_OP_SHAPE` (STB-packable via `s3_rec_op_shape_bytes`)
+    /// and fills shapes + STB-flat phase1 without Rust helpers.
     #[test]
     fn s3_ir_selfhost_roadmap() {
         // Done: DATA pack algorithm runs as YOYO IR (STB loop) via via_ir.
@@ -4327,6 +4327,40 @@ mod tests {
             rebuilt.push((chunk[0], shape));
         }
         assert_eq!(rebuilt.as_slice(), S3_REC_OP_SHAPE);
+    }
+
+    /// S3.230: op→shape payload also seeds via shared global-distinct poke (empty DATA).
+    /// Shape tag 0 stays image-zero (poke skips); nonzero ops/tags get one SET each.
+    #[test]
+    fn s3_rec_op_shape_table_ir_seed_poke() {
+        let bytes = s3_rec_op_shape_bytes();
+        let distinct: std::collections::BTreeSet<u8> =
+            bytes.iter().copied().filter(|&b| b != 0).collect();
+        assert!(distinct.len() < bytes.len(), "shape tag 0 leaves some zeros");
+        let mut recs = Vec::new();
+        s3_ir_seed_at(&mut recs, 0x200, &bytes, 10);
+        recs.push((0xFF, 0, [0; 6]));
+        let tyb = s3_host_tyb_from_records(&recs);
+        assert!(s3_unpack_data_tyb(&tyb).is_empty());
+        let tmp_sets = recs
+            .iter()
+            .filter(|r| {
+                r.0 == 0x30 && u16::from_le_bytes([r.2[0], r.2[1]]) == S3_PACK_STB_TMP
+            })
+            .count();
+        assert_eq!(tmp_sets, distinct.len(), "one SET TMP per distinct nonzero");
+        assert!(recs.iter().any(|r| {
+            r.0 == 0x30 && u16::from_le_bytes([r.2[0], r.2[1]]) == S3_PACK_STB_BASE
+        }));
+        // Same poke stream as the shared helper after SET BASE.
+        let mut via = Vec::new();
+        via.push(s3_rec_set(S3_PACK_STB_BASE, 0x200));
+        s3_append_stb_poke_global_distinct(&mut via, &bytes);
+        assert_eq!(
+            &recs[..recs.len() - 1],
+            via.as_slice(),
+            "ir_seed_at short path == SET BASE + shared poke"
+        );
     }
 
     /// S3.135/S3.160/S3.223: remaining Rust sidecar after pack+STB fold (honest).
