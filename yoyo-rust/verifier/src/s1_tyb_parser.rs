@@ -2314,7 +2314,7 @@ fn s3_host_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
     let mut recs = Vec::new();
     s3_ir_seed_at(&mut recs, S3_HOST_TABLE_OFF, &payload[start..end], 10);
     recs.push(s3_rec_set(S3_PACK_PROTO_DST, S3_HOST_OUTBUF_OFF));
-    recs.extend(s3_prog_loop_code(ops.len() as u32, S3_HOST_NROWS));
+    recs.extend(s3_prog_loop_code_host(ops.len() as u32, S3_HOST_NROWS));
     s3_host_tyb_from_records(&recs)
 }
 
@@ -2395,7 +2395,8 @@ fn s3_rec_subv(dst: u16, src: u16) -> (u8, u8, [u8; 6]) {
 }
 
 /// S3.117: shared scan/compose tail. `nrows` is 10 (host) or 3 (in-DLL).
-/// (S3.213: shrinking this TYB rewrites in-DLL golden — leave the record stream.)
+/// Record stream is golden-pinned for in-DLL — do not edit. Host uses
+/// [`s3_prog_loop_code_host`].
 fn s3_prog_loop_code(ops_len: u32, nrows: u32) -> Vec<(u8, u8, [u8; 6])> {
     let set = s3_rec_set;
     let add = s3_rec_add;
@@ -2408,6 +2409,46 @@ fn s3_prog_loop_code(ops_len: u32, nrows: u32) -> Vec<(u8, u8, [u8; 6])> {
         s3_rec_ldb(14, 2, 0),
         s3_rec_movrr(15, 3),
         set(11, 0),
+        set(10, nrows),
+        s3_rec_label(1),
+        s3_rec_ldb(13, 15, 0),
+        s3_rec_cmp(13, 14),
+        s3_rec_je(2),
+        add(15, 20),
+        add(11, 1),
+        s3_rec_cmp(11, 10),
+        s3_rec_jl(1),
+        set(12, 0xFE),
+        s3_fixed_rec(0xFF),
+        s3_rec_label(2),
+        s3_rec_ldb(12, 15, 1),
+        s3_rec_movrr(8, 15),
+        add(8, 4),
+        s3_rec_memcpy(9, 8, 12),
+        s3_rec_addv(9, 12),
+        add(2, 1),
+        add(0, 1),
+        s3_rec_jmp(5),
+        s3_rec_label(6),
+        s3_fixed_rec(0xFF),
+    ]
+}
+
+/// S3.214: host-only prog loop — drop redundant `SET i=0` (fresh state) and
+/// reset the scan index with MOVRR from an untouched zero slot. Same semantics
+/// as [`s3_prog_loop_code`]; in-DLL golden keeps the older record stream.
+fn s3_prog_loop_code_host(ops_len: u32, nrows: u32) -> Vec<(u8, u8, [u8; 6])> {
+    let set = s3_rec_set;
+    let add = s3_rec_add;
+    const ZERO_SLOT: u16 = 4;
+    vec![
+        set(1, ops_len),
+        s3_rec_label(5),
+        s3_rec_cmp(0, 1),
+        s3_rec_jz(6),
+        s3_rec_ldb(14, 2, 0),
+        s3_rec_movrr(15, 3),
+        s3_rec_movrr(11, ZERO_SLOT),
         set(10, nrows),
         s3_rec_label(1),
         s3_rec_ldb(13, 15, 0),
@@ -4137,6 +4178,40 @@ mod tests {
         let (cmp, out_off) = s3_yoyo_pack_loop_tyb(&[0xAB, 0xCD]);
         assert_eq!(out_off, 2 + 2 + 5);
         assert!(s3_unpack_data_tyb(&cmp).is_empty());
+    }
+
+    /// S3.214: host prog loop is a thinner record stream than the golden in-DLL one.
+    #[test]
+    fn s3_host_prog_loop_thinner_than_in_dll_golden() {
+        let host = s3_prog_loop_code_host(1, S3_HOST_NROWS);
+        let dll = s3_prog_loop_code(1, 3);
+        assert!(
+            host.len() < dll.len(),
+            "host {} records should be under golden dll {}",
+            host.len(),
+            dll.len()
+        );
+        let host_code = emit_x86(&parse_tyb(&s3_host_tyb_from_records(&host)).unwrap())
+            .text
+            .len();
+        let dll_code = emit_x86(&parse_tyb(&s3_host_tyb_from_records(&dll)).unwrap())
+            .text
+            .len();
+        assert!(
+            host_code < dll_code,
+            "host .text {host_code} should beat golden-style {dll_code}"
+        );
+        // Semantics: host RET firmware still emits C3 via sim.
+        assert_eq!(
+            s3_sim_prog_loop(
+                &s3_host_prog_loop_tyb(&[0xFF]),
+                S3_HOST_TABLE_OFF as u64,
+                S3_HOST_OUTBUF_OFF,
+                (S3_HOST_PROG_OFF + 1) as u64,
+            )
+            .unwrap(),
+            vec![0xC3]
+        );
     }
 
     /// S3.207: host IR-writes table+prog (no leading-pad IR). in-DLL keeps via_ir.
