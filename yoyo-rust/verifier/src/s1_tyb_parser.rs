@@ -1584,13 +1584,24 @@ fn s3_rec_wire(op: u8, argc: u8, a: [u8; 6]) -> [u8; 8] {
     [op, argc, a[0], a[1], a[2], a[3], a[4], a[5]]
 }
 
-/// S3.225: shared empty-DATA STB emit — write `flat` at `out_off`, then RET.
+/// S3.226: append SET DST + SET ZERO + run-folded STB of `flat` at `out_off`.
+/// Shared by one-shot emit and two-phase / loop-staged phase1. Returns next label id.
+fn s3_append_stb_flat_at(
+    recs: &mut Vec<(u8, u8, [u8; 6])>,
+    flat: &[u8],
+    out_off: u32,
+    label_id: u32,
+) -> u32 {
+    recs.push(s3_rec_set(S3_PACK_PROTO_DST, out_off));
+    recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
+    s3_append_stb_runs(recs, flat, label_id)
+}
+
+/// S3.225/S3.226: shared empty-DATA STB emit — write `flat` at `out_off`, then RET.
 /// YOYO-target: one emit primitive; Rust still builds the run-folded IR today.
 fn s3_yoyo_emit_flat_via_stb(flat: &[u8], out_off: u32) -> (Vec<u8>, u32) {
     let mut recs = Vec::new();
-    recs.push(s3_rec_set(S3_PACK_PROTO_DST, out_off));
-    recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
-    s3_append_stb_runs(&mut recs, flat, 1);
+    s3_append_stb_flat_at(&mut recs, flat, out_off, 1);
     recs.push((0xFF, 0, [0; 6]));
     (s3_host_tyb_from_records(&recs), out_off)
 }
@@ -1619,16 +1630,14 @@ fn s3_yoyo_emit_tyb_file_unrolled(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u3
     s3_yoyo_emit_flat_via_stb(&flat, out_off)
 }
 
-/// S3.171/S3.202: comparison path. Flat is IR-written at 0 (run-folded), then one
-/// MEMCPY to outbuf. No DATA records. IR size grows with runs; the copy is O(1).
+/// S3.171/S3.202/S3.226: comparison path. Flat is IR-written at 0 (run-folded), then
+/// one MEMCPY to outbuf. Phase1 shares `s3_append_stb_flat_at`.
 fn s3_yoyo_emit_tyb_file_loop_staged(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
     let flat = s3_host_tyb_from_records(records);
     let pay = 0u32;
     let out_off = flat.len() as u32;
     let mut recs = Vec::new();
-    recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
-    recs.push(s3_rec_set(S3_PACK_PROTO_DST, pay));
-    s3_append_stb_runs(&mut recs, &flat, 10);
+    s3_append_stb_flat_at(&mut recs, &flat, pay, 10);
     recs.push(s3_rec_set(S3_PACK_LOOP_CUR, pay));
     recs.push(s3_rec_set(S3_PACK_LOOP_END, out_off));
     recs.push(s3_rec_set(S3_PACK_PROTO_DST, out_off));
@@ -1761,11 +1770,9 @@ fn s3_yoyo_emit_tyb_file_two_phase(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u
         flat.extend_from_slice(&s3_rec_wire(op, argc, a));
     }
     debug_assert_eq!(flat.len(), flat_len as usize);
-    // S3.184: no zero DATA image. STB grows the sim buffer; bytes below `pay` stay absent.
+    // S3.184/S3.226: no zero DATA; phase1 is the shared STB-flat prefix.
     let mut recs = Vec::new();
-    recs.push(s3_rec_set(S3_PACK_PROTO_DST, pay));
-    recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
-    s3_append_stb_runs(&mut recs, &flat, 1);
+    s3_append_stb_flat_at(&mut recs, &flat, pay, 1);
     // Phase 2 (S3.182): one MEMCPY staging → outbuf. Length is state, not an imm.
     recs.push(s3_rec_set(S3_PACK_LOOP_CUR, pay));
     recs.push(s3_rec_set(S3_PACK_LOOP_END, flat_len));
@@ -4103,8 +4110,8 @@ mod tests {
     /// S3.163/S3.176/S3.222/S3.224: IR self-host near-end inventory (not a schedule).
     /// Floors: (1) short lea RAW (2) one SET per distinct emit byte (no SHR;
     /// short seed + in-DLL share `s3_append_stb_poke_global_distinct`).
-    /// Cliff: YOYO fills the 4 record shapes (slot+imm / slot+slot / u32 / slot³)
-    /// without Rust `s3_rec_*` helpers.
+    /// Cliff: YOYO fills the 4 record shapes + STB-flat emit primitive without
+    /// Rust `s3_rec_*` / `s3_yoyo_emit_flat_via_stb` helpers.
     #[test]
     fn s3_ir_selfhost_roadmap() {
         // Done: DATA pack algorithm runs as YOYO IR (STB loop) via via_ir.
@@ -4163,7 +4170,7 @@ mod tests {
         assert_eq!(s3_fixed_row(0xFF), s3_compute_fixed_body(0xFF));
     }
 
-    /// S3.225: record-only and full-file unrolled emit share one STB-flat primitive.
+    /// S3.225/S3.226: unrolled + two-phase + loop-staged share STB-flat phase1 prefix.
     #[test]
     fn s3_emit_flat_via_stb_shared() {
         let body = [s3_fixed_rec(0xFF)];
@@ -4192,6 +4199,19 @@ mod tests {
             s3_sim_prog_loop(&via, 0, off, 0).unwrap(),
             flat.to_vec()
         );
+        // S3.226: two-phase / loop-staged open with the same DST+ZERO prefix.
+        let mut big = vec![s3_fixed_rec(0x00); 16];
+        big.push(s3_fixed_rec(0xFF));
+        let (fw2, _) = s3_yoyo_emit_tyb_file_two_phase(&big);
+        let (fwl, _) = s3_yoyo_emit_tyb_file_loop_staged(&body);
+        for (name, tyb) in [("two_phase", &fw2), ("loop_staged", &fwl)] {
+            let ir = parse_tyb(tyb).unwrap();
+            assert_eq!(ir.records[0].op, 0x30, "{name} DST");
+            assert_eq!(ir.records[1].op, 0x30, "{name} ZERO");
+            assert!(ir.records.iter().any(|r| r.op == 0x81), "{name} STB");
+            assert!(ir.records.iter().any(|r| r.op == 0x84), "{name} MEMCPY");
+            assert!(s3_unpack_data_tyb(tyb).is_empty(), "{name} empty DATA");
+        }
     }
 
     /// S3.224: named builders are thin op tags over 4 wire shapes (slot+imm,
