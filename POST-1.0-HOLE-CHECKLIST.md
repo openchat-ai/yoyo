@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.202**（201 去掉未用 append；下一刀 loop-staged 对照也改 IR 写 flat；仍不改 golden；**不**假 CLOSED）。
+**默认** `继续` **= S3.203**（202 loop-staged 也无 DATA；下一刀钉住 bytewise 只剩测试辅助；仍不改 golden；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -161,11 +161,12 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.198** ✅    | `f992398` | 两条展开 pack 的 payload 也由 IR 写；DATA 为空 |
 | **S3.199** ✅    | `363acb3` | loop-staged 对照仍把 Rust flat 放在 DATA，用来保持 O(1) IR |
 | **S3.200** ✅    | `444ef88` | 小文件 / 记录发射也走 run 折叠；与大文件 phase1 同一条路 |
-| **S3.201** ✅    | —         | 删掉未用的逐字节 append 助手 |
-| **S3.202** ⏳    | —         | loop-staged 对照改 IR 写 flat · **本步** |
+| **S3.201** ✅    | `01663ed` | 删掉未用的逐字节 append 助手 |
+| **S3.202** ✅    | —         | loop-staged 对照也 IR 写 flat + MEMCPY；DATA 为空 |
+| **S3.203** ⏳    | —         | 钉住 bytewise 只剩测试辅助 · **本步** |
 
 
-**缺口**：loop-staged 对照仍 bytewise 打包 Rust flat · 短 lea · 单字节仍 SET（无 SHR）· 真自举。逐步正文 → `git log`。
+**缺口**：短 lea · 单字节仍 SET（无 SHR）· 发射 / pack IR 仍由 Rust 拼 · 真自举。逐步正文 → `git log`。
 
 ---
 
@@ -201,7 +202,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.202**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.203**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -209,4 +210,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-19**：清掉未用 append · 默认 **S3.202** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-19**：发射对照也无 DATA · 默认 **S3.203** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）

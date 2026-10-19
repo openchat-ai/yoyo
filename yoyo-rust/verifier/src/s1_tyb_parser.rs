@@ -1612,29 +1612,24 @@ fn s3_yoyo_emit_tyb_file_unrolled(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u3
     (s3_host_tyb_from_records(&recs), out_off)
 }
 
-/// S3.171/S3.189: loop STB-copy of Rust-staged flat (comparison only).
-/// Flat sits at 0 — the old `0x10` prefix was never read.
+/// S3.171/S3.202: comparison path. Flat is IR-written at 0 (run-folded), then one
+/// MEMCPY to outbuf. No DATA records. IR size grows with runs; the copy is O(1).
 fn s3_yoyo_emit_tyb_file_loop_staged(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
     let flat = s3_host_tyb_from_records(records);
     let pay = 0u32;
     let out_off = flat.len() as u32;
-    let mut recs = s3_pack_data_bytewise(&flat);
-    const L_LOOP: u32 = 1;
-    const L_DONE: u32 = 2;
-    const CUR: u16 = S3_PACK_LOOP_CUR;
-    const END: u16 = S3_PACK_LOOP_END;
-    recs.push(s3_rec_set(CUR, pay));
-    recs.push(s3_rec_set(END, out_off));
+    let mut recs = Vec::new();
+    recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
+    recs.push(s3_rec_set(S3_PACK_PROTO_DST, pay));
+    s3_append_stb_runs(&mut recs, &flat, 10);
+    recs.push(s3_rec_set(S3_PACK_LOOP_CUR, pay));
+    recs.push(s3_rec_set(S3_PACK_LOOP_END, out_off));
     recs.push(s3_rec_set(S3_PACK_PROTO_DST, out_off));
-    recs.push(s3_rec_label(L_LOOP));
-    recs.push(s3_rec_cmp(CUR, END));
-    recs.push(s3_rec_je(L_DONE));
-    recs.push(s3_rec_ldb(S3_PACK_STB_TMP, CUR, 0));
-    recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_PROTO_DST, 0));
-    recs.push(s3_rec_add(CUR, 1));
-    recs.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
-    recs.push(s3_rec_jmp(L_LOOP));
-    recs.push(s3_rec_label(L_DONE));
+    recs.push(s3_rec_memcpy(
+        S3_PACK_PROTO_DST,
+        S3_PACK_LOOP_CUR,
+        S3_PACK_LOOP_END,
+    ));
     recs.push((0xFF, 0, [0; 6]));
     (s3_host_tyb_from_records(&recs), out_off)
 }
@@ -4027,7 +4022,8 @@ mod tests {
             .count();
         assert!(stb_u < HEADER_SIZE + RECORD_SIZE);
         let (fw_l, _) = s3_yoyo_emit_tyb_file_loop_staged(&one);
-        assert!(parse_tyb(&fw_l).unwrap().records.iter().any(|r| r.op == 0x70));
+        assert!(parse_tyb(&fw_l).unwrap().records.iter().any(|r| r.op == 0x84));
+        assert!(s3_unpack_data_tyb(&fw_l).is_empty());
         // S3.181: large emit is two-phase IR staging (zero DATA), not Rust flat.
         let mut big = vec![s3_fixed_rec(0x00); 16];
         big.push(s3_fixed_rec(0xFF));
@@ -4238,43 +4234,38 @@ mod tests {
         compile_tyb_to_pe_mini(&got).expect("two-phase emitted TYB mini pe");
     }
 
-    /// S3.199: the O(1) comparison path still keeps the Rust flat in DATA.
-    /// Folding that flat into IR is the two-phase path, which is not O(1).
+    /// S3.202: comparison path has empty DATA; flat is IR-written then MEMCPY'd.
     #[test]
-    fn s3_loop_staged_keeps_rust_flat_in_data() {
+    fn s3_loop_staged_data_is_empty() {
         let body = [s3_fixed_rec(0xFF)];
-        let (fw, _) = s3_yoyo_emit_tyb_file_loop_staged(&body);
-        assert_eq!(s3_unpack_data_tyb(&fw), s3_host_tyb_from_records(&body));
+        let (fw, off) = s3_yoyo_emit_tyb_file_loop_staged(&body);
+        assert!(s3_unpack_data_tyb(&fw).is_empty());
+        assert!(parse_tyb(&fw).unwrap().records.iter().any(|r| r.op == 0x84));
+        assert_eq!(
+            s3_sim_prog_loop(&fw, 0, off, 0).unwrap(),
+            s3_host_tyb_from_records(&body)
+        );
     }
 
-    /// S3.175: loop-staged emit IR size is O(1) in flat length (vs unrolled O(n)).
+    /// S3.175/S3.202: the MEMCPY copy is O(1); staging runs grow with the flat.
     #[test]
     fn s3_emit_loop_staged_ir_size_independent_of_flat() {
         let small = [s3_fixed_rec(0xFF)];
         let mut big = vec![s3_fixed_rec(0x00); 8];
         big.push(s3_fixed_rec(0xFF));
-        let ir_len = |body: &[(u8, u8, [u8; 6])]| {
+        let memcpy_n = |body: &[(u8, u8, [u8; 6])]| {
             let (fw, _) = s3_yoyo_emit_tyb_file_loop_staged(body);
             parse_tyb(&fw)
                 .unwrap()
                 .records
                 .iter()
-                .filter(|r| !matches!(r.op, 0x10 | 0x12 | 0x13))
+                .filter(|r| r.op == 0x84)
                 .count()
         };
-        let a = ir_len(&small);
-        let b = ir_len(&big);
-        assert_eq!(a, b, "loop-staged IR count must not grow with flat size");
-        let (fw_u, _) = s3_yoyo_emit_tyb_file_unrolled(&big);
-        let u = parse_tyb(&fw_u)
-            .unwrap()
-            .records
-            .iter()
-            .filter(|r| !matches!(r.op, 0x10 | 0x12 | 0x13))
-            .count();
-        assert!(u > b * 2, "unrolled IR much larger than loop-staged");
+        assert_eq!(memcpy_n(&small), 1);
+        assert_eq!(memcpy_n(&big), 1);
         let (fw_l, off_l) = s3_yoyo_emit_tyb_file_loop_staged(&big);
-        assert_eq!(s3_unpack_data_tyb(&fw_l), s3_host_tyb_from_records(&big));
+        assert!(s3_unpack_data_tyb(&fw_l).is_empty());
         assert_eq!(
             s3_sim_prog_loop(&fw_l, 0, off_l, 0).unwrap(),
             s3_host_tyb_from_records(&big)
@@ -4323,9 +4314,9 @@ mod tests {
             emit_x86(&parsed).text,
             emit_x86(&parse_tyb(&expect).unwrap()).text
         );
-        // S3.171 loop+Rust-stage still matches.
+        // S3.202: comparison path is IR-written flat + MEMCPY.
         let (fw_l, off_l) = s3_yoyo_emit_tyb_file_loop_staged(&body);
-        assert!(parse_tyb(&fw_l).unwrap().records.iter().any(|r| r.op == 0x70));
+        assert!(parse_tyb(&fw_l).unwrap().records.iter().any(|r| r.op == 0x84));
         assert_eq!(s3_sim_prog_loop(&fw_l, 0, off_l, 0).unwrap(), expect);
     }
 
