@@ -1680,43 +1680,40 @@ fn s3_append_stb_runs(
     label_id
 }
 
-/// S3.209/S3.210: IR-seed sparse bytes — poke only nonzero offsets via STB `oo`.
-/// Gaps stay zero from empty-image / STB resize. One SET per distinct nonzero
-/// value. Short spans (≤127) set BASE once and use relative `oo` so emit_stb
-/// takes the imm8 add path; longer host seeds use abs `oo` against ZERO.
-/// Does not touch DST (caller sets outbuf). `label_id` unused; kept for symmetry.
+/// S3.209/S3.210/S3.215: IR-seed sparse bytes — poke only nonzero offsets via
+/// STB `oo`. Gaps stay zero from empty-image / STB resize. One SET per distinct
+/// nonzero **per window**. Spans are chunked into ≤127-byte windows so every
+/// `oo` stays imm8 (host 10-row seeds included). Does not touch DST.
 fn s3_append_stb_zero_then_poke(
     recs: &mut Vec<(u8, u8, [u8; 6])>,
     base: u32,
     bytes: &[u8],
     label_id: u32,
 ) -> u32 {
-    let short = bytes.len() <= 127;
-    let (stb_base, oo_bias) = if short {
-        recs.push(s3_rec_set(S3_PACK_STB_BASE, base));
-        (S3_PACK_STB_BASE, 0u32)
-    } else {
-        let end = base as usize + bytes.len();
-        assert!(end <= u16::MAX as usize, "STB abs oo exceeds u16");
-        (S3_PACK_STB_ZERO, base)
-    };
-    // Group positions by nonzero value so each distinct byte is one SET.
-    let mut by_val: Vec<(u8, Vec<u16>)> = Vec::new();
-    for (i, &b) in bytes.iter().enumerate() {
-        if b == 0 {
-            continue;
+    const WIN: usize = 127;
+    let mut off = 0usize;
+    while off < bytes.len() {
+        let end = (off + WIN).min(bytes.len());
+        let window = &bytes[off..end];
+        let win_base = base + off as u32;
+        recs.push(s3_rec_set(S3_PACK_STB_BASE, win_base));
+        let mut by_val: Vec<(u8, Vec<u16>)> = Vec::new();
+        for (i, &b) in window.iter().enumerate() {
+            if b == 0 {
+                continue;
+            }
+            match by_val.iter_mut().find(|(v, _)| *v == b) {
+                Some((_, offs)) => offs.push(i as u16),
+                None => by_val.push((b, vec![i as u16])),
+            }
         }
-        let oo = (oo_bias as usize + i) as u16;
-        match by_val.iter_mut().find(|(v, _)| *v == b) {
-            Some((_, offs)) => offs.push(oo),
-            None => by_val.push((b, vec![oo])),
+        for (b, offs) in by_val {
+            recs.push(s3_rec_set(S3_PACK_STB_TMP, b as u32));
+            for oo in offs {
+                recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_STB_BASE, oo));
+            }
         }
-    }
-    for (b, offs) in by_val {
-        recs.push(s3_rec_set(S3_PACK_STB_TMP, b as u32));
-        for oo in offs {
-            recs.push(s3_rec_stb(S3_PACK_STB_TMP, stb_base, oo));
-        }
+        off = end;
     }
     label_id
 }
@@ -4236,11 +4233,17 @@ mod tests {
             .into_iter()
             .filter(|r| r.op == 0x30)
             .collect();
-        // S3.209: first SET is STB_TMP = first nonzero poke byte (no BASE/pad IR).
+        // S3.215: first SET is STB_BASE = TABLE_OFF (chunked imm8 windows).
         assert!(!sets.is_empty());
         let slot0 = u16::from_le_bytes([sets[0].args_raw[0], sets[0].args_raw[1]]);
-        assert_eq!(slot0, S3_PACK_STB_TMP);
-        // Absolute STB oo for that poke lands at TABLE_OFF + row offset.
+        let imm0 = u32::from_le_bytes([
+            sets[0].args_raw[2],
+            sets[0].args_raw[3],
+            sets[0].args_raw[4],
+            sets[0].args_raw[5],
+        ]);
+        assert_eq!(slot0, S3_PACK_STB_BASE);
+        assert_eq!(imm0, S3_HOST_TABLE_OFF);
         let stbs: Vec<_> = parse_tyb(&tyb)
             .unwrap()
             .records
@@ -4248,11 +4251,10 @@ mod tests {
             .filter(|r| r.op == 0x81)
             .collect();
         assert!(!stbs.is_empty());
+        let base0 = u16::from_le_bytes([stbs[0].args_raw[2], stbs[0].args_raw[3]]);
         let oo0 = u16::from_le_bytes([stbs[0].args_raw[4], stbs[0].args_raw[5]]);
-        assert!(
-            oo0 >= S3_HOST_TABLE_OFF as u16,
-            "poke oo {oo0:#x} below TABLE"
-        );
+        assert_eq!(base0, S3_PACK_STB_BASE);
+        assert!(oo0 < 128, "relative oo {oo0} must stay imm8");
     }
 
 
