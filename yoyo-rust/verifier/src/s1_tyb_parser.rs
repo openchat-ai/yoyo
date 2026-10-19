@@ -2244,11 +2244,12 @@ fn s3_host_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
         payload.len(),
         S1_MINI_DATA_MAX
     );
-    // S3.112: host sim seeds table/outbuf/op cursor and skips 0xA1, so the
-    // three RAW_BYTES pointer prologues are not on the emit path. Dropped.
-    // S3.146: host DATA records come from YOYO loop IR (via_ir). Rust
-    // `s3_pack_data` remains only inside the packer scratch firmware.
-    let mut recs = s3_pack_data_via_ir(&payload);
+    // S3.112: host sim seeds table/outbuf/op cursor and skips 0xA1.
+    // S3.205: no DATA seed. IR writes the fixed payload, then the prog loop.
+    let mut recs = Vec::new();
+    recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
+    recs.push(s3_rec_set(S3_PACK_PROTO_DST, 0));
+    s3_append_stb_runs(&mut recs, &payload, 10);
     recs.extend(s3_prog_loop_code(ops.len() as u32, S3_HOST_NROWS));
     s3_host_tyb_from_records(&recs)
 }
@@ -4043,21 +4044,17 @@ mod tests {
         assert_eq!(S3_LEA_PTR, &[0x49, 0x8D, 0x07, 0x49, 0x89, 0x47, 0x78]);
         let host = parse_tyb(&s3_host_prog_loop_tyb(&[0xFF])).unwrap();
         let host_data: Vec<_> = host.records.iter().filter(|r| matches!(r.op, 0x10 | 0x12 | 0x13)).collect();
-        assert!(!host_data.is_empty(), "host still carries DATA 0x10 records");
-        assert!(
-            host_data.iter().all(|r| r.op == 0x10),
-            "host DATA must stay op 0x10 only"
-        );
-        let payload = s3_fixed_payload(&S3_FIXED10_OPS, &[0xFF], S3_HOST_OUTBUF_OFF as usize);
+        assert!(host_data.is_empty(), "S3.205: host firmware has no DATA seed");
         assert_eq!(
-            host_data.len(),
-            s3_pack_data_via_ir(&payload).len(),
-            "host DATA record count == via_ir"
-        );
-        assert_eq!(
-            s3_unpack_data_tyb(&s3_host_prog_loop_tyb(&[0xFF])),
-            payload,
-            "host DATA unpacks to fixed payload"
+            s3_sim_prog_loop(
+                &s3_host_prog_loop_tyb(&[0xFF]),
+                S3_HOST_TABLE_OFF as u64,
+                S3_HOST_OUTBUF_OFF,
+                (S3_HOST_PROG_OFF + 1) as u64,
+            )
+            .unwrap(),
+            s3_compute_fixed_body(0xFF),
+            "host IR-seeded table still emits RET body"
         );
         assert_eq!(
             s3_pack_data(&[0xAA, 0xBB, 0xCC, 0xDD]),
@@ -4067,39 +4064,26 @@ mod tests {
         let dll = parse_tyb(&s3_table_prog_loop_tyb(&[0xFF])).unwrap();
         let a1 = dll.records.iter().filter(|r| r.op == 0xA1).count();
         assert!(a1 >= 3, "in-DLL keeps ≥3 RAW lea packs for PE, got {a1}");
-        assert_eq!(payload.len(), S3_HOST_OUTBUF_OFF as usize);
+        assert_eq!(
+            s3_fixed_payload(&S3_FIXED10_OPS, &[0xFF], S3_HOST_OUTBUF_OFF as usize).len(),
+            S3_HOST_OUTBUF_OFF as usize
+        );
         // S3.194: MEMCPY loop scratch is payload+2; five consts are IR stores past that.
         let (cmp, out_off) = s3_yoyo_pack_loop_tyb(&[0xAB, 0xCD]);
         assert_eq!(out_off, 2 + 2 + 5);
         assert!(s3_unpack_data_tyb(&cmp).is_empty());
     }
 
-    /// S3.204: host / in-DLL firmware still embed via_ir(payload) as DATA 0x10.
-    /// Pack/emit builders are empty-DATA; the table firmware is the remaining seed.
+    /// S3.205: host IR-writes the table (no DATA). in-DLL still embeds via_ir DATA
+    /// because short-lea A1 + IR seed exceeds the mini code cap.
     #[test]
     fn s3_host_firmware_data_is_via_ir_product() {
-        let host_payload =
-            s3_fixed_payload(&S3_FIXED10_OPS, &[0xFF], S3_HOST_OUTBUF_OFF as usize);
         let host = parse_tyb(&s3_host_prog_loop_tyb(&[0xFF])).unwrap();
-        let host_data: Vec<_> = host
-            .records
-            .iter()
-            .filter(|r| r.op == 0x10)
-            .map(|r| (r.op, r.argc, r.args_raw))
-            .collect();
-        assert_eq!(host_data, s3_pack_data_via_ir(&host_payload));
-        assert!(!host_data.is_empty());
-        let dll_payload =
-            s3_fixed_payload(&S3_FIXED10_OPS[..3], &[0xFF], S3_OUTBUF_OFF as usize);
+        assert!(host.records.iter().all(|r| r.op != 0x10));
+        assert!(host.records.iter().any(|r| r.op == 0x81));
         let dll = parse_tyb(&s3_table_prog_loop_tyb(&[0xFF])).unwrap();
-        let dll_data: Vec<_> = dll
-            .records
-            .iter()
-            .filter(|r| r.op == 0x10)
-            .map(|r| (r.op, r.argc, r.args_raw))
-            .collect();
-        assert_eq!(dll_data, s3_pack_data_via_ir(&dll_payload));
-        assert!(!dll_data.is_empty());
+        assert!(dll.records.iter().any(|r| r.op == 0x10), "in-DLL keeps via_ir DATA");
+        assert!(dll.records.iter().any(|r| r.op == 0xA1), "in-DLL keeps lea A1");
     }
 
     /// S3.137/S3.141: pack ↔ unpack is the YOYO-target algorithm (still implemented in Rust).
@@ -4116,13 +4100,19 @@ mod tests {
             assert_eq!(s3_unpack_data_tyb(&tyb), bytes, "tyb len {n}");
         }
         let ops = &[0x30u8, 0xFF];
-        let payload = s3_fixed_payload(&S3_FIXED10_OPS, ops, S3_HOST_OUTBUF_OFF as usize);
         let tyb = s3_host_prog_loop_tyb(ops);
-        assert_eq!(
-            s3_unpack_data_tyb(&tyb),
-            payload,
-            "host firmware DATA must unpack to fixed payload"
+        assert!(
+            s3_unpack_data_tyb(&tyb).is_empty(),
+            "S3.205: host firmware has no DATA seed"
         );
+        let got = s3_sim_prog_loop(
+            &tyb,
+            S3_HOST_TABLE_OFF as u64,
+            S3_HOST_OUTBUF_OFF,
+            (S3_HOST_PROG_OFF + 1) as u64,
+        )
+        .unwrap();
+        assert_eq!(got, emit_x86(&parse_tyb(&s3_host_tyb_from_records(&[s3_fixed_rec(0x30), s3_fixed_rec(0xFF)])).unwrap()).text);
     }
 
     /// S3.142: YOYO IR pack prototype (unrolled SET/ADD/MEMCPY) == `s3_pack_data` wire.
@@ -4570,24 +4560,14 @@ mod tests {
         assert_eq!(s3_pack_data_via_ir(&payload), s3_pack_data(&payload));
     }
 
-    /// S3.148: `s3_pack_data` is reference-only; firmware builders use via_ir /
-    /// bootstrap `s3_host_pack_bytes` for packer scratch (not `s3_pack_data`).
+    /// S3.148/S3.205: `s3_pack_data` stays reference-only; host/in-DLL no longer embed it.
     #[test]
     fn s3_pack_data_reference_only_after_firmware_fold() {
         assert_eq!(
             s3_pack_data(&[0x10, 0x20, 0x30, 0x40]),
             s3_host_pack_bytes(0x10, &[0x10, 0x20, 0x30, 0x40])
         );
-        let host_payload =
-            s3_fixed_payload(&S3_FIXED10_OPS, &[0xFF], S3_HOST_OUTBUF_OFF as usize);
-        let host = parse_tyb(&s3_host_prog_loop_tyb(&[0xFF])).unwrap();
-        let host_data: Vec<_> = host
-            .records
-            .iter()
-            .filter(|r| r.op == 0x10)
-            .map(|r| (r.op, r.argc, r.args_raw))
-            .collect();
-        assert_eq!(host_data, s3_pack_data_via_ir(&host_payload));
+        assert!(s3_unpack_data_tyb(&s3_host_prog_loop_tyb(&[0xFF])).is_empty());
         let dll_payload =
             s3_fixed_payload(&S3_FIXED10_OPS[..3], &[0xFF], S3_OUTBUF_OFF as usize);
         let dll = parse_tyb(&s3_table_prog_loop_tyb(&[0xFF])).unwrap();
@@ -4598,6 +4578,10 @@ mod tests {
             .map(|r| (r.op, r.argc, r.args_raw))
             .collect();
         assert_eq!(dll_data, s3_pack_data_via_ir(&dll_payload));
+        assert_eq!(
+            s3_pack_data_via_ir(&[1, 2, 3, 4]),
+            s3_pack_data(&[1, 2, 3, 4])
+        );
     }
 
     /// S3.145: dynamic out_off lets via_ir pack host-sized payloads (0x160).
@@ -4654,23 +4638,28 @@ mod tests {
         assert_eq!(s3_fixed_row(0x00), s3_host_nop_body());
     }
 
-    /// S3.139: host emit firmware's last Rust mile — DATA `0x10` + loop IR only.
+    /// S3.139/S3.205: host firmware is IR-only (table seed + loop). No DATA / A1.
     #[test]
     fn s3_host_firmware_last_rust_mile_opcodes() {
         let tyb = s3_host_prog_loop_tyb(&[0x62, 0xFF]);
         let prog = parse_tyb(&tyb).unwrap();
-        let mut saw_data = false;
+        let mut saw_stb = false;
         let mut saw_ir = false;
         for rec in &prog.records {
             match rec.op {
-                0x10 => saw_data = true,
-                0xA1 | 0xA0 | 0x12 | 0x13 => panic!("host firmware must not carry {:#x}", rec.op),
-                0x30 | 0x40 | 0x62 | 0x64 | 0x65 | 0x68 | 0x70 | 0x71 | 0x73 | 0x74 | 0x80
-                | 0x84 | 0xFF => saw_ir = true,
+                0x10 | 0xA1 | 0xA0 | 0x12 | 0x13 => {
+                    panic!("host firmware must not carry {:#x}", rec.op)
+                }
+                0x81 => {
+                    saw_stb = true;
+                    saw_ir = true;
+                }
+                0x30 | 0x40 | 0x61 | 0x62 | 0x64 | 0x65 | 0x68 | 0x70 | 0x71 | 0x73 | 0x74
+                | 0x80 | 0x84 | 0xFF => saw_ir = true,
                 other => panic!("unexpected host firmware op {other:#x}"),
             }
         }
-        assert!(saw_data && saw_ir);
+        assert!(saw_stb && saw_ir);
         assert!(
             try_emit_text_via_yoyo_table(&[0x62, 0xFF]).is_some(),
             "host path still YOYO-composes"
@@ -5771,10 +5760,10 @@ mod tests {
         let payload = s3_fixed_payload(&S3_FIXED10_OPS[..3], ops, S3_OUTBUF_OFF as usize);
         assert_eq!(S3_TABLE_OFF + 60, S3_PROG_OFF);
         assert_eq!(S3_PROG_OFF + 1, 0xBD);
-        // S3.147/S3.164: in-DLL DATA via_ir; lea A1 prologue from OnceLock.
+        // S3.147/S3.164: in-DLL keeps via_ir DATA — IR-seeding the table blows the
+        // 512B mini code cap once short-lea A1 is also present (S3.205 host-only).
         let mut recs = s3_pack_data_via_ir(&payload);
         recs.extend_from_slice(s3_in_dll_lea_prologue_recs());
-
         recs.extend(s3_prog_loop_code(ops.len() as u32, 3));
         tyb_from_records(&recs)
     }

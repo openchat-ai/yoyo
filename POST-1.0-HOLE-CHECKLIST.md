@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.205**（204 钉住宿主 DATA=via_ir；下一刀宿主固件改 IR 写表；仍不改 golden；**不**假 CLOSED）。
+**默认** `继续` **= S3.206**（205 宿主固件 IR 写表；下一刀钉住 in-DLL 仍靠 via_ir DATA（代码帽+短 lea）；仍不改 golden；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -164,11 +164,12 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.201** ✅    | `01663ed` | 删掉未用的逐字节 append 助手 |
 | **S3.202** ✅    | `fe9eae0` | loop-staged 对照也 IR 写 flat + MEMCPY；DATA 为空 |
 | **S3.203** ✅    | `6ff580b` | 生产 pack/emit 路径无 bytewise DATA；助手只留测试 |
-| **S3.204** ✅    | —         | 宿主 / in-DLL 固件 DATA 仍是 via_ir(payload) |
-| **S3.205** ⏳    | —         | 宿主固件改 IR 写表 · **本步** |
+| **S3.204** ✅    | `c41fc06` | 宿主 / in-DLL 固件 DATA 仍是 via_ir(payload) |
+| **S3.205** ✅    | —         | 宿主固件 IR 写表，无 DATA；in-DLL 因代码帽仍留 via_ir |
+| **S3.206** ⏳    | —         | 钉住 in-DLL via_ir DATA（短 lea + 512B 帽）· **本步** |
 
 
-**缺口**：宿主固件仍携带 via_ir 打出的 DATA · 短 lea · 单字节仍 SET（无 SHR）· Rust 仍拼 IR · 真自举。逐步正文 → `git log`。
+**缺口**：in-DLL 仍 via_ir DATA（短 lea + mini 代码帽）· 短 lea · 单字节仍 SET（无 SHR）· Rust 仍拼 IR · 真自举。逐步正文 → `git log`。
 
 ---
 
@@ -204,7 +205,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.205**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.206**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -212,4 +213,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-19**：宿主 DATA=via_ir 钉住 · 默认 **S3.205** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-19**：宿主 IR 写表 · 默认 **S3.206** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
