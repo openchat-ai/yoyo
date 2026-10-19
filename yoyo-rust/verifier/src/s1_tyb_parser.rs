@@ -1673,6 +1673,41 @@ fn s3_append_stb_runs(
     label_id
 }
 
+/// S3.209: IR-seed sparse bytes — poke only nonzero offsets via STB `oo`.
+/// Gaps stay zero from empty-image / STB resize. One SET per distinct nonzero
+/// value, then STB every position that holds it. Uses slot ZERO (fresh state = 0)
+/// as STB base so `oo` is an absolute file offset — no BASE SET. Does not touch
+/// DST (caller sets outbuf). `label_id` unused; kept for call-site symmetry.
+fn s3_append_stb_zero_then_poke(
+    recs: &mut Vec<(u8, u8, [u8; 6])>,
+    base: u32,
+    bytes: &[u8],
+    label_id: u32,
+) -> u32 {
+    let end = base as usize + bytes.len();
+    assert!(end <= u16::MAX as usize, "STB abs oo exceeds u16");
+    // Group positions by nonzero value so each distinct byte is one SET.
+    let mut by_val: Vec<(u8, Vec<u16>)> = Vec::new();
+    for (i, &b) in bytes.iter().enumerate() {
+        if b == 0 {
+            continue;
+        }
+        let abs = (base as usize + i) as u16;
+        match by_val.iter_mut().find(|(v, _)| *v == b) {
+            Some((_, offs)) => offs.push(abs),
+            None => by_val.push((b, vec![abs])),
+        }
+    }
+    for (b, offs) in by_val {
+        recs.push(s3_rec_set(S3_PACK_STB_TMP, b as u32));
+        for oo in offs {
+            // ZERO slot is 0 on entry; abs oo = base+i.
+            recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_STB_ZERO, oo));
+        }
+    }
+    label_id
+}
+
 /// S3.181/S3.184: IR writes staging (runs, not SET per byte), then one MEMCPY
 /// to outbuf. No DATA records — STB grows the image. No Rust flat preimage.
 fn s3_yoyo_emit_tyb_file_two_phase(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
@@ -2231,17 +2266,16 @@ fn s3_prog_data_payload(rows: &[(u8, &[u8])], ops: &[u8], outbuf: usize) -> Vec<
     payload
 }
 
-/// S3.207: IR-write `bytes` at `base`. Bytes before `base` stay zero from the
-/// empty image — do not spend IR on the leading pad.
+/// S3.207/S3.209: IR-write `bytes` at `base`. Bytes before `base` stay zero from
+/// the empty image — do not spend IR on the leading pad. Table-shaped payloads
+/// are sparse zeros; poke-only (one SET per distinct nonzero) beats run-fold.
 fn s3_ir_seed_at(
     recs: &mut Vec<(u8, u8, [u8; 6])>,
     base: u32,
     bytes: &[u8],
     label_id: u32,
 ) -> u32 {
-    recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
-    recs.push(s3_rec_set(S3_PACK_PROTO_DST, base));
-    s3_append_stb_runs(recs, bytes, label_id)
+    s3_append_stb_zero_then_poke(recs, base, bytes, label_id)
 }
 
 /// Build program-loop firmware TYB for `ops`.
@@ -2731,7 +2765,7 @@ mod tests {
         // Parse the actual seed source used in gate scripts.
         let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../yoyo/projects/yoyo.tyb");
         if !path.exists() {
-            eprintln!("skip: {} not present", path.display());
+            panic!("skip: {} not present", path.display());
             return;
         }
         let p = parse_tyb_file(&path).unwrap();
@@ -4111,17 +4145,77 @@ mod tests {
             .into_iter()
             .filter(|r| r.op == 0x30)
             .collect();
-        // First two SETs: STB_ZERO=0, DST=TABLE_OFF.
-        assert!(sets.len() >= 2);
-        let dst0 = u16::from_le_bytes([sets[1].args_raw[0], sets[1].args_raw[1]]);
-        let imm0 = u32::from_le_bytes([
-            sets[1].args_raw[2],
-            sets[1].args_raw[3],
-            sets[1].args_raw[4],
-            sets[1].args_raw[5],
-        ]);
-        assert_eq!(dst0, S3_PACK_PROTO_DST);
-        assert_eq!(imm0, S3_HOST_TABLE_OFF);
+        // S3.209: first SET is STB_TMP = first nonzero poke byte (no BASE/pad IR).
+        assert!(!sets.is_empty());
+        let slot0 = u16::from_le_bytes([sets[0].args_raw[0], sets[0].args_raw[1]]);
+        assert_eq!(slot0, S3_PACK_STB_TMP);
+        // Absolute STB oo for that poke lands at TABLE_OFF + row offset.
+        let stbs: Vec<_> = parse_tyb(&tyb)
+            .unwrap()
+            .records
+            .into_iter()
+            .filter(|r| r.op == 0x81)
+            .collect();
+        assert!(!stbs.is_empty());
+        let oo0 = u16::from_le_bytes([stbs[0].args_raw[4], stbs[0].args_raw[5]]);
+        assert!(
+            oo0 >= S3_HOST_TABLE_OFF as u16,
+            "poke oo {oo0:#x} below TABLE"
+        );
+    }
+
+
+    /// S3.209: table IR seed uses poke-only (one SET per distinct nonzero + STB oo).
+    /// Beats run-fold (~1.3KiB → ~0.5KiB) but seed alone still exceeds the 512B cap;
+    /// short lea on top stays over. in-DLL keeps via_ir.
+    #[test]
+    fn s3_ir_seed_poke_beats_run_fold_still_over_cap() {
+        let payload = s3_fixed_payload(&S3_FIXED10_OPS[..3], &[0xFF], S3_OUTBUF_OFF as usize);
+        let start = 0x80usize;
+        let end = 0xBC + 1 + 1;
+        let slice = &payload[start..end];
+        let mut poked = Vec::new();
+        s3_ir_seed_at(&mut poked, 0x80, slice, 10);
+        let poke_code = emit_x86(&parse_tyb(&tyb_from_records(&poked)).unwrap())
+            .text
+            .len();
+        let mut run_recs = Vec::new();
+        run_recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
+        run_recs.push(s3_rec_set(S3_PACK_PROTO_DST, 0x80));
+        s3_append_stb_runs(&mut run_recs, slice, 10);
+        let run_code = emit_x86(&parse_tyb(&tyb_from_records(&run_recs)).unwrap())
+            .text
+            .len();
+        assert!(
+            poke_code < run_code,
+            "poke-only {poke_code} should beat run-fold {run_code}"
+        );
+        assert!(
+            poke_code > S1_SLIM_MAX_CODE,
+            "poke-only seed {poke_code} still over mini cap {}",
+            S1_SLIM_MAX_CODE
+        );
+        assert!(
+            poke_code < 600,
+            "poke-only seed {poke_code} should stay near the cap"
+        );
+        let mut full = poked.clone();
+        full.extend_from_slice(s3_in_dll_lea_prologue_recs());
+        full.extend(s3_prog_loop_code(1, 3));
+        assert!(
+            compile_tyb_to_pe_mini(&tyb_from_records(&full)).is_err(),
+            "poke seed + short lea still over mini cap"
+        );
+        let via_code = emit_x86(&parse_tyb(&s3_table_prog_loop_tyb(&[0xFF])).unwrap())
+            .text
+            .len();
+        assert!(via_code <= S1_SLIM_MAX_CODE, "via_ir in-DLL code {via_code}");
+        // Pokes use abs oo against ZERO slot (fresh state = 0).
+        assert!(poked.iter().any(|r| {
+            r.0 == 0x81
+                && u16::from_le_bytes([r.2[2], r.2[3]]) == S3_PACK_STB_ZERO
+                && u16::from_le_bytes([r.2[4], r.2[5]]) >= 0x80
+        }));
     }
 
     /// S3.208: raising [`S1_SLIM_MAX_CODE`] moves the slim DATA file offset.
@@ -5825,8 +5919,8 @@ mod tests {
         let payload = s3_fixed_payload(&S3_FIXED10_OPS[..3], ops, S3_OUTBUF_OFF as usize);
         assert_eq!(S3_TABLE_OFF + 60, S3_PROG_OFF);
         assert_eq!(S3_PROG_OFF + 1, 0xBD);
-        // S3.207: in-DLL still embeds via_ir DATA. Table+prog IR seed alone is
-        // still ~1.7KiB with short-lea A1 — over the 512B mini cap.
+        // S3.209: poke-only table IR seed is ~517B alone; +short-lea A1 still
+        // over the 512B mini cap — in-DLL keeps via_ir DATA.
         let mut recs = s3_pack_data_via_ir(&payload);
         recs.extend_from_slice(s3_in_dll_lea_prologue_recs());
         recs.extend(s3_prog_loop_code(ops.len() as u32, 3));
