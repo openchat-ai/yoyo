@@ -840,8 +840,9 @@ const IN_DLL_RECOMPILE_MAX_INPUT: u32 = 0x1000;
 const IN_DLL_S1_CODE_OFF: u32 = 0x1080;
 const IN_DLL_S1_CODE_CAP: u32 = crate::s1_tyb_parser::S1_SLIM_MAX_CODE as u32;
 const IN_DLL_S1_PE_OFF: u32 = IN_DLL_S1_CODE_OFF + IN_DLL_S1_CODE_CAP;
-/// S3.7: was 0x1600; slim PE is now headers+0x400 code_raw+0x1000 data = 0x1800.
-const IN_DLL_S1_PE_SIZE: u32 = 0x1800;
+/// S3.7: headers+0x400 code_raw+0x1000 data = 0x1800.
+/// S3.219: code_raw=0x600 → headers+0x600+0x1000 = 0x1A00.
+const IN_DLL_S1_PE_SIZE: u32 = 0x1A00;
 const IN_DLL_S1_LABELS_OFF: u32 = IN_DLL_S1_PE_OFF + IN_DLL_S1_PE_SIZE;
 const IN_DLL_S1_PATCHES_OFF: u32 = IN_DLL_S1_LABELS_OFF + 16 * 8;
 const IN_DLL_S1_N_LABELS_OFF: u32 = IN_DLL_S1_PATCHES_OFF + 16 * 8;
@@ -849,11 +850,11 @@ const IN_DLL_S1_N_PATCHES_OFF: u32 = IN_DLL_S1_N_LABELS_OFF + 4;
 const IN_DLL_S1_DATA_LEN_OFF: u32 = IN_DLL_S1_N_LABELS_OFF + 8;
 const IN_DLL_S1_DATA_OFF: u32 = IN_DLL_S1_N_LABELS_OFF + 0x10;
 const IN_DLL_S1_DATA_CAP: u32 = crate::s1_tyb_parser::S1_MINI_DATA_MAX as u32;
-/// S3.10: 0x2C00→0x2D00 (data 128); S3.25: 0x2D00→**0x2E00** (data 384).
-const IN_DLL_S1_STACK: u32 = 0x2E00;
+/// S3.25: 0x2E00 (data 384). S3.219: raise past DATA_OFF+CAP after 1024 code cap.
+const IN_DLL_S1_STACK: u32 = 0x3200;
 
-/// Fail-closed layout math (S3.7 code/PE + S3.25 data cap).
-const _: () = assert!(IN_DLL_S1_CODE_CAP == 512);
+/// Fail-closed layout math (S3.219 code/PE + S3.25 data cap).
+const _: () = assert!(IN_DLL_S1_CODE_CAP == 1024);
 
 /// S3.37: one host-compatible template row (`op`, `len`, pad, payload@+4) = 20B.
 fn s3_in_dll_bake_tmpl_row(op: u8, payload: &[u8]) -> [u8; 20] {
@@ -901,16 +902,16 @@ fn s3_in_dll_bake_table() -> Vec<u8> {
     debug_assert_eq!(v.len(), 10 * 20);
     v
 }
-const _: () = assert!(IN_DLL_S1_PE_OFF == 0x1280);
-const _: () = assert!(IN_DLL_S1_PE_SIZE == 0x1800);
-const _: () = assert!(IN_DLL_S1_LABELS_OFF == 0x2A80);
-const _: () = assert!(IN_DLL_S1_PATCHES_OFF == 0x2B00);
-const _: () = assert!(IN_DLL_S1_N_LABELS_OFF == 0x2B80);
-const _: () = assert!(IN_DLL_S1_DATA_OFF == 0x2B90);
+const _: () = assert!(IN_DLL_S1_PE_OFF == 0x1480);
+const _: () = assert!(IN_DLL_S1_PE_SIZE == 0x1A00);
+const _: () = assert!(IN_DLL_S1_LABELS_OFF == 0x2E80);
+const _: () = assert!(IN_DLL_S1_PATCHES_OFF == 0x2F00);
+const _: () = assert!(IN_DLL_S1_N_LABELS_OFF == 0x2F80);
+const _: () = assert!(IN_DLL_S1_DATA_OFF == 0x2F90);
 const _: () = assert!(IN_DLL_S1_DATA_CAP == 384);
-const _: () = assert!(IN_DLL_S1_STACK == 0x2E00);
+const _: () = assert!(IN_DLL_S1_STACK == 0x3200);
 const _: () = assert!(IN_DLL_S1_DATA_OFF + IN_DLL_S1_DATA_CAP <= IN_DLL_S1_STACK);
-const _: () = assert!(crate::s1_tyb_parser::S1_SLIM_DATA_PAYLOAD_OFF == 0x800);
+const _: () = assert!(crate::s1_tyb_parser::S1_SLIM_DATA_PAYLOAD_OFF == 0xA00);
 const _: () = assert!(crate::s1_tyb_parser::S1_SLIM_IAT_PAD == 0x100);
 const _: () = assert!(crate::s1_tyb_parser::S1_SLIM_IAT_BASE == 0xF00);
 const _: () = assert!(crate::s1_tyb_parser::S1_SLIM_IAT_OFF_VIRTUAL_ALLOC == 0);

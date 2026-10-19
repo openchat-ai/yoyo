@@ -761,8 +761,8 @@ pub fn wrap_pe(out: &CodegenOutput) -> crate::types::IsaResult<crate::pe_link::P
 }
 
 /// Max `.text` payload (startup 13 + user code) for slim PE / in-DLL scratch.
-/// S3.7: raised 256→512 (in-DLL scratch + host slim PE keep in sync).
-pub const S1_SLIM_MAX_CODE: usize = 512;
+/// S3.7: 256→512. S3.219: 512→1024 so poke+lea+prog (~800B) can empty DATA.
+pub const S1_SLIM_MAX_CODE: usize = 1024;
 /// Slim `.data` virtual size (state base for R15); keeps PE ≪ `link_pe` H_00 pad.
 pub const S1_SLIM_DATA_VS: u32 = 0x1000;
 
@@ -1120,9 +1120,8 @@ pub fn wrap_pe_slim_bytes(
 pub const S1_SLIM_TEXT_PAYLOAD_OFF: usize = 0x400 + 13;
 
 /// File offset of user `.data` payload — headers 0x400 + code_raw for max code.
-/// S3.7: code_raw = align(13+512)=0x400 → data at 0x800 (was 0x600 at 256).
-/// S3.89: IAT at high end — user payload offset unchanged.
-pub const S1_SLIM_DATA_PAYLOAD_OFF: usize = 0x400 + 0x400;
+/// S3.7: align(13+512)=0x400 → data@0x800. S3.219: align(13+1024)=0x600 → @0xA00.
+pub const S1_SLIM_DATA_PAYLOAD_OFF: usize = 0x400 + 0x600;
 
 /// S1.5.b / S1.7.a–f in-DLL mini-ISA (must stay in sync with `pe_dll_link` export body).
 ///
@@ -3986,7 +3985,7 @@ mod tests {
     #[test]
     fn s3_soft_caps_after_s313() {
         // S3.7 code=512; S3.25 DATA=384.
-        assert_eq!(S1_SLIM_MAX_CODE, 512);
+        assert_eq!(S1_SLIM_MAX_CODE, 1024);
         assert_eq!(S1_MINI_DATA_MAX, 384);
     }
 
@@ -4356,23 +4355,20 @@ mod tests {
             emit_x86(&parse_tyb(&tyb_from_records(&seed_prog)).unwrap())
                 .text
                 .len();
+        // S3.219: raised cap fits seed+prog; lea was never the bulk (~38B).
         assert!(
-            seed_prog_code > S1_SLIM_MAX_CODE,
-            "seed+prog (no lea) {seed_prog_code} already over cap — lea is not the bulk"
+            seed_prog_code <= S1_SLIM_MAX_CODE,
+            "seed+prog {seed_prog_code} must fit raised cap"
         );
-        // S3.213: deficit stays large; ADD imm8 / prog-loop edits are golden-blocked.
         assert!(
-            seed_prog_code - S1_SLIM_MAX_CODE > 200,
-            "deficit {} too small to match known golden-blocked cliffs",
-            seed_prog_code - S1_SLIM_MAX_CODE
+            prog_code > lea_code * 4,
+            "prog still dwarfs lea after raise"
         );
         let mut full = poked.clone();
         full.extend_from_slice(s3_in_dll_lea_prologue_recs());
         full.extend(s3_prog_loop_code(1, 3));
-        assert!(
-            compile_tyb_to_pe_mini(&tyb_from_records(&full)).is_err(),
-            "poke seed + lea + prog still over mini cap"
-        );
+        compile_tyb_to_pe_mini(&tyb_from_records(&full))
+            .expect("S3.219: poke+lea+prog fits raised mini cap");
         let via_code = emit_x86(&parse_tyb(&s3_table_prog_loop_tyb(&[0xFF])).unwrap())
             .text
             .len();
@@ -4405,19 +4401,17 @@ mod tests {
         assert_eq!(tmp_sets, distinct.len());
     }
 
-    /// S3.208: raising [`S1_SLIM_MAX_CODE`] moves the slim DATA file offset.
-    /// `pe_dll_link` bakes `S1_SLIM_DATA_PAYLOAD_OFF == 0x800` — leave the cap.
+    /// S3.208/S3.219: slim DATA file offset tracks the code cap (now 1024 → @0xA00).
     #[test]
     fn s3_slim_code_cap_pins_data_payload_off() {
-        assert_eq!(S1_SLIM_MAX_CODE, 512);
-        assert_eq!(S1_SLIM_DATA_PAYLOAD_OFF, 0x800);
-        // align(13+512, 0x200) == 0x400; headers 0x400 → data at 0x800.
-        assert_eq!(0x400 + 0x400, S1_SLIM_DATA_PAYLOAD_OFF);
+        assert_eq!(S1_SLIM_MAX_CODE, 1024);
+        assert_eq!(S1_SLIM_DATA_PAYLOAD_OFF, 0xA00);
+        // align(13+1024, 0x200) == 0x600; headers 0x400 → data at 0xA00.
+        assert_eq!(0x400 + 0x600, S1_SLIM_DATA_PAYLOAD_OFF);
     }
 
-    /// S3.218: poke+lea+prog needs ~800B — fits a 1024 cap, not 512. Raising
-    /// moves DATA to 0xA00 and shifts every `pe_dll_link` IN_DLL_S1_* stack
-    /// offset (PE_SIZE/STACK included). Golden via_ir stays until that rewrite.
+    /// S3.218/S3.219: poke+lea+prog (~800B) compiles under the raised 1024 cap.
+    /// Golden in-DLL firmware still embeds via_ir DATA (TYB bytes pinned).
     #[test]
     fn s3_cap_raise_1024_recipe_and_poke_lea_prog_need() {
         let payload = s3_fixed_payload(&S3_FIXED10_OPS[..3], &[0xFF], S3_OUTBUF_OFF as usize);
@@ -4427,28 +4421,27 @@ mod tests {
         s3_ir_seed_at(&mut recs, 0x80, &payload[start..end], 10);
         recs.extend_from_slice(s3_in_dll_lea_prologue_recs());
         recs.extend(s3_prog_loop_code(1, 3));
-        let need = emit_x86(&parse_tyb(&tyb_from_records(&recs)).unwrap())
-            .text
-            .len();
+        let tyb = tyb_from_records(&recs);
+        let need = emit_x86(&parse_tyb(&tyb).unwrap()).text.len();
         assert!(
-            need > S1_SLIM_MAX_CODE,
-            "poke+lea+prog {need} must still miss current 512 cap"
+            need <= S1_SLIM_MAX_CODE,
+            "poke+lea+prog {need} must fit raised cap {}",
+            S1_SLIM_MAX_CODE
         );
+        compile_tyb_to_pe_mini(&tyb).expect("S3.219: poke+lea+prog mini PE");
+        assert!(s3_unpack_data_tyb(&tyb).is_empty());
         assert!(
-            need <= 1024,
-            "poke+lea+prog {need} must fit a 1024 slim cap"
+            parse_tyb(&s3_table_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .iter()
+                .any(|r| r.op == 0x10),
+            "golden in-DLL keeps via_ir"
         );
-        // Recipe: MAX=1024 → code_raw=align(13+1024,0x200)=0x600 → DATA@0xA00.
-        const FILE_ALIGN: usize = 0x200;
-        let code_raw = (13 + 1024 + FILE_ALIGN - 1) & !(FILE_ALIGN - 1);
-        assert_eq!(code_raw, 0x600);
-        assert_eq!(0x400 + code_raw, 0xA00);
-        // Still on 512 until pe_dll_link stack layout is rewritten.
-        assert_eq!(S1_SLIM_MAX_CODE, 512);
-        assert_eq!(S1_SLIM_DATA_PAYLOAD_OFF, 0x800);
     }
 
-    /// S3.207: even table+prog-only IR seed + short lea exceeds the 512B mini cap.
+    /// S3.207/S3.219: poke seed + lea + prog now fits the raised mini cap;
+    /// golden via_ir path still compiles.
     #[test]
     fn s3_in_dll_ir_seed_exceeds_mini_code_cap() {
         let payload = s3_fixed_payload(&S3_FIXED10_OPS[..3], &[0xFF], S3_OUTBUF_OFF as usize);
@@ -4458,10 +4451,8 @@ mod tests {
         s3_ir_seed_at(&mut seeded, 0x80, &payload[start..end], 10);
         seeded.extend_from_slice(s3_in_dll_lea_prologue_recs());
         seeded.extend(s3_prog_loop_code(1, 3));
-        assert!(
-            compile_tyb_to_pe_mini(&tyb_from_records(&seeded)).is_err(),
-            "table+prog IR seed + lea must exceed mini code cap"
-        );
+        compile_tyb_to_pe_mini(&tyb_from_records(&seeded))
+            .expect("S3.219: poke+lea+prog fits 1024 cap");
         compile_tyb_to_pe_mini(&s3_table_prog_loop_tyb(&[0xFF])).expect("via_ir in-DLL fits");
     }
 
@@ -6139,8 +6130,7 @@ mod tests {
         let payload = s3_fixed_payload(&S3_FIXED10_OPS[..3], ops, S3_OUTBUF_OFF as usize);
         assert_eq!(S3_TABLE_OFF + 60, S3_PROG_OFF);
         assert_eq!(S3_PROG_OFF + 1, 0xBD);
-        // S3.212: poke seed fits alone; seed+prog (~764) already over 512 — lea
-        // A1 is only ~38B. in-DLL keeps via_ir DATA.
+        // S3.219: 1024 cap fits poke+lea+prog; golden still via_ir (TYB pinned).
         let mut recs = s3_pack_data_via_ir(&payload);
         recs.extend_from_slice(s3_in_dll_lea_prologue_recs());
         recs.extend(s3_prog_loop_code(ops.len() as u32, 3));
