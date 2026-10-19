@@ -2394,6 +2394,17 @@ fn s3_rec_op_shape_bytes() -> Vec<u8> {
     out
 }
 
+/// S3.235: build a record by looking up `op` in `S3_REC_OP_SHAPE`, then filling
+/// the matching wire shape. YOYO-target dispatch; Rust still supplies immediates.
+fn s3_rec_from_shape(op: u8, a0: u32, a1: u32, a2: u32) -> (u8, u8, [u8; 6]) {
+    match s3_rec_shape_of(op).expect("op must be in S3_REC_OP_SHAPE") {
+        S3RecShape::SlotImm => s3_rec_slot_imm(op, a0 as u16, a1),
+        S3RecShape::SlotSlot => s3_rec_slot_slot(op, a0 as u16, a1 as u16),
+        S3RecShape::U32 => s3_rec_u32(op, a0),
+        S3RecShape::Slot3 => s3_rec_slot3(op, a0 as u16, a1 as u16, a2 as u16),
+    }
+}
+
 fn s3_rec_slot_imm(op: u8, slot: u16, imm: u32) -> (u8, u8, [u8; 6]) {
     debug_assert_eq!(s3_rec_shape_of(op), Some(S3RecShape::SlotImm));
     let sb = slot.to_le_bytes();
@@ -2419,52 +2430,52 @@ fn s3_rec_slot3(op: u8, a: u16, b: u16, c: u16) -> (u8, u8, [u8; 6]) {
     (op, 3, [aa[0], aa[1], bb[0], bb[1], cc[0], cc[1]])
 }
 
-/// S3.128/S3.133/S3.224: IR record builders shared by prog-loop, scan, and compose.
+/// S3.128/S3.133/S3.224/S3.235: named builders dispatch through `s3_rec_from_shape`.
 fn s3_rec_set(slot: u16, imm: u32) -> (u8, u8, [u8; 6]) {
-    s3_rec_slot_imm(0x30, slot, imm)
+    s3_rec_from_shape(0x30, slot as u32, imm, 0)
 }
 fn s3_rec_add(slot: u16, imm: u32) -> (u8, u8, [u8; 6]) {
-    s3_rec_slot_imm(0x62, slot, imm)
+    s3_rec_from_shape(0x62, slot as u32, imm, 0)
 }
 fn s3_rec_sub(slot: u16, imm: u32) -> (u8, u8, [u8; 6]) {
-    s3_rec_slot_imm(0x61, slot, imm)
+    s3_rec_from_shape(0x61, slot as u32, imm, 0)
 }
 fn s3_rec_label(id: u32) -> (u8, u8, [u8; 6]) {
-    s3_rec_u32(0x40, id)
+    s3_rec_from_shape(0x40, id, 0, 0)
 }
 fn s3_rec_ldb(dst: u16, src: u16, off: u16) -> (u8, u8, [u8; 6]) {
-    s3_rec_slot3(0x80, dst, src, off)
+    s3_rec_from_shape(0x80, dst as u32, src as u32, off as u32)
 }
 /// S3.154/S3.156: STB val base off — store low byte of state[val] to data[state[base]+off].
 fn s3_rec_stb(val: u16, base: u16, off: u16) -> (u8, u8, [u8; 6]) {
-    s3_rec_slot3(0x81, val, base, off)
+    s3_rec_from_shape(0x81, val as u32, base as u32, off as u32)
 }
 fn s3_rec_cmp(a: u16, b: u16) -> (u8, u8, [u8; 6]) {
-    s3_rec_slot_slot(0x65, a, b)
+    s3_rec_from_shape(0x65, a as u32, b as u32, 0)
 }
 fn s3_rec_movrr(dst: u16, src: u16) -> (u8, u8, [u8; 6]) {
-    s3_rec_slot_slot(0x64, dst, src)
+    s3_rec_from_shape(0x64, dst as u32, src as u32, 0)
 }
 fn s3_rec_je(id: u32) -> (u8, u8, [u8; 6]) {
-    s3_rec_u32(0x71, id)
+    s3_rec_from_shape(0x71, id, 0, 0)
 }
 fn s3_rec_jl(id: u32) -> (u8, u8, [u8; 6]) {
-    s3_rec_u32(0x73, id)
+    s3_rec_from_shape(0x73, id, 0, 0)
 }
 fn s3_rec_jz(id: u32) -> (u8, u8, [u8; 6]) {
-    s3_rec_u32(0x74, id)
+    s3_rec_from_shape(0x74, id, 0, 0)
 }
 fn s3_rec_jmp(id: u32) -> (u8, u8, [u8; 6]) {
-    s3_rec_u32(0x70, id)
+    s3_rec_from_shape(0x70, id, 0, 0)
 }
 fn s3_rec_memcpy(dst: u16, src: u16, len: u16) -> (u8, u8, [u8; 6]) {
-    s3_rec_slot3(0x84, dst, src, len)
+    s3_rec_from_shape(0x84, dst as u32, src as u32, len as u32)
 }
 fn s3_rec_addv(dst: u16, src: u16) -> (u8, u8, [u8; 6]) {
-    s3_rec_slot_slot(0x68, dst, src)
+    s3_rec_from_shape(0x68, dst as u32, src as u32, 0)
 }
 fn s3_rec_subv(dst: u16, src: u16) -> (u8, u8, [u8; 6]) {
-    s3_rec_slot_slot(0x6A, dst, src)
+    s3_rec_from_shape(0x6A, dst as u32, src as u32, 0)
 }
 
 /// S3.117: shared scan/compose tail. `nrows` is 10 (host) or 3 (in-DLL).
@@ -4157,8 +4168,8 @@ mod tests {
     /// Floors: (1) short lea → `.text` only via A1 (STB/poke can hold the 37B
     /// payload but do not inject `.text`) (2) one SET per distinct emit byte
     /// (no SHR; shared `s3_append_stb_poke_global_distinct`).
-    /// Cliff: YOYO reads `S3_REC_OP_SHAPE` (STB-packable via `s3_rec_op_shape_bytes`)
-    /// and fills shapes + STB-flat phase1 without Rust helpers.
+    /// Cliff: YOYO reads `S3_REC_OP_SHAPE` (STB-packable; Rust dispatches via
+    /// `s3_rec_from_shape`) and fills shapes + STB-flat phase1 without Rust helpers.
     #[test]
     fn s3_ir_selfhost_roadmap() {
         // Done: DATA pack algorithm runs as YOYO IR (STB loop) via via_ir.
@@ -4302,6 +4313,22 @@ mod tests {
             by_shape[*s as usize] += 1;
         }
         assert_eq!(by_shape, [3, 4, 5, 3], "SlotImm/SlotSlot/U32/Slot3 counts");
+        // S3.235: table-driven dispatch matches every named builder.
+        assert_eq!(s3_rec_from_shape(0x30, 3, 0x11, 0), s3_rec_set(3, 0x11));
+        assert_eq!(s3_rec_from_shape(0x62, 3, 5, 0), s3_rec_add(3, 5));
+        assert_eq!(s3_rec_from_shape(0x61, 3, 5, 0), s3_rec_sub(3, 5));
+        assert_eq!(s3_rec_from_shape(0x64, 1, 2, 0), s3_rec_movrr(1, 2));
+        assert_eq!(s3_rec_from_shape(0x65, 0, 1, 0), s3_rec_cmp(0, 1));
+        assert_eq!(s3_rec_from_shape(0x68, 9, 12, 0), s3_rec_addv(9, 12));
+        assert_eq!(s3_rec_from_shape(0x6A, 4, 5, 0), s3_rec_subv(4, 5));
+        assert_eq!(s3_rec_from_shape(0x40, 7, 0, 0), s3_rec_label(7));
+        assert_eq!(s3_rec_from_shape(0x70, 7, 0, 0), s3_rec_jmp(7));
+        assert_eq!(s3_rec_from_shape(0x71, 7, 0, 0), s3_rec_je(7));
+        assert_eq!(s3_rec_from_shape(0x73, 7, 0, 0), s3_rec_jl(7));
+        assert_eq!(s3_rec_from_shape(0x74, 7, 0, 0), s3_rec_jz(7));
+        assert_eq!(s3_rec_from_shape(0x80, 1, 2, 3), s3_rec_ldb(1, 2, 3));
+        assert_eq!(s3_rec_from_shape(0x81, 11, 14, 5), s3_rec_stb(11, 14, 5));
+        assert_eq!(s3_rec_from_shape(0x84, 9, 10, 11), s3_rec_memcpy(9, 10, 11));
     }
 
     /// S3.229: op→shape table packs as empty-DATA STB flat and round-trips.
