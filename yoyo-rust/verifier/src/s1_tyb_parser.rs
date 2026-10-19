@@ -1564,8 +1564,8 @@ fn s3_append_raw_a1(recs: &mut Vec<(u8, u8, [u8; 6])>, bytes: &[u8]) {
     recs.extend(s3_host_pack_bytes(0xA1, bytes));
 }
 
-/// S3.153/S3.162: bootstrap scratch DATA as argc=1 per byte (no chunk-3 algorithm).
-/// Floor until YOYO can emit TYB records itself. via_ir still emits chunk-3 wire.
+/// S3.153/S3.203: argc=1 per byte. Production pack/emit paths no longer call this;
+/// only a couple of unit tests still seed DATA this way.
 fn s3_pack_data_bytewise(bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     bytes
         .iter()
@@ -3974,9 +3974,8 @@ mod tests {
     }
 
     /// S3.163/S3.176: IR self-host near-end inventory (not a schedule).
-    /// Floors: (1) bytewise bootstrap scratch (2) unrolled SET×byte emit.
-    /// Escape: loop-staged emit is O(1) IR but still needs Rust flat preimage.
-    /// Cliff: YOYO must assemble emitter IR / write TYB without Rust helpers.
+    /// Floors: (1) short lea RAW (2) one SET per distinct emit byte (no SHR).
+    /// Cliff: YOYO must assemble emitter / pack IR without Rust helpers.
     #[test]
     fn s3_ir_selfhost_roadmap() {
         // Done: DATA pack algorithm runs as YOYO IR (STB loop) via via_ir.
@@ -4036,9 +4035,8 @@ mod tests {
     }
 
     /// S3.135/S3.160: remaining Rust sidecar after pack+STB fold (honest inventory).
-    /// Still Rust: via_ir bootstrap bytewise scratch records, short lea A1 bytes,
-    /// `emit_x86` body OnceLock, IR record builders. STB pack path is YOYO IR.
-    /// Not CLOSED.
+    /// Still Rust: short lea A1 bytes, `emit_x86` body OnceLock, IR record
+    /// builders / run folders. Pack + emit algorithms run as YOYO IR. Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
         assert_eq!(S3_LEA_PTR.len(), 7, "short lea must stay 7B (not disp32)");
@@ -4461,21 +4459,30 @@ mod tests {
         );
     }
 
-    /// S3.153: via_ir bootstrap scratch is bytewise argc=1; chunk-3 only in IR output.
+    /// S3.153/S3.203: production pack/emit TYBs carry no bytewise DATA seed.
     #[test]
     fn s3_pack_bootstrap_scratch_is_bytewise() {
         let bytes = [0xAAu8, 0xBB, 0xCC];
-        let (tyb, _) = s3_yoyo_pack_loop_tyb(&bytes);
-        let prog = parse_tyb(&tyb).unwrap();
-        let data_recs: Vec<_> = prog.records.iter().filter(|r| r.op == 0x10).collect();
-        assert!(
-            data_recs.iter().all(|r| r.argc == 1),
-            "bootstrap scratch DATA must be argc=1 bytewise"
-        );
-        assert!(data_recs.is_empty(), "S3.197: MEMCPY loop pack has no DATA");
+        for (name, tyb) in [
+            ("loop_stb", s3_yoyo_pack_loop_stb_tyb(&bytes).0),
+            ("loop_memcpy", s3_yoyo_pack_loop_tyb(&bytes).0),
+            ("proto", s3_yoyo_pack_proto_tyb(&bytes)),
+            ("stb", s3_yoyo_pack_stb_tyb(&bytes)),
+            ("emit", s3_yoyo_emit_tyb_file(&[s3_fixed_rec(0xFF)]).0),
+        ] {
+            let data: Vec<_> = parse_tyb(&tyb)
+                .unwrap()
+                .records
+                .into_iter()
+                .filter(|r| matches!(r.op, 0x10 | 0x12 | 0x13))
+                .collect();
+            assert!(data.is_empty(), "{name}: S3.203 production path has no DATA seed");
+        }
         let via = s3_pack_data_via_ir(&bytes);
-        assert!(via.iter().any(|(_, argc, _)| *argc == 3) || bytes.len() < 3);
+        assert!(via.iter().any(|(_, argc, _)| *argc == 3));
         assert_eq!(via, s3_pack_data(&bytes));
+        // Helper still exists for a couple of unit tests that seed DATA by hand.
+        assert_eq!(s3_pack_data_bytewise(&[1, 2]).len(), 2);
     }
 
     /// S3.150/S3.164: RAW A1 short-lea packs; in-DLL prologue OnceLock-stable.
