@@ -2394,6 +2394,88 @@ fn s3_rec_op_shape_bytes() -> Vec<u8> {
     out
 }
 
+/// S3.236: YOYO IR scans the poke-seeded op→shape table and writes one 8-byte
+/// record at outbuf. Rust still emits this IR and still supplies arg bytes
+/// (no SHR). Argc comes from the shape tag, not from a Rust `match`.
+fn s3_yoyo_shape_fill_tyb(op: u8, args: [u8; 6]) -> (Vec<u8>, u32) {
+    const TABLE: u32 = 0x40;
+    const OUT: u32 = 0x80;
+    const CUR: u16 = 4;
+    const END: u16 = 5;
+    const SHAPE: u16 = 6;
+    const NEEDLE: u16 = 7;
+    const DST: u16 = 9;
+    const TMP: u16 = 11;
+    const BYTE: u16 = 12;
+    const L_LOOP: u32 = 1;
+    const L_HIT: u32 = 2;
+    const L_SCAN_DONE: u32 = 3;
+    const L_ARGC2: u32 = 4;
+    const L_ARGC1: u32 = 5;
+    const L_ARGC3: u32 = 6;
+    const L_PUT: u32 = 7;
+    const L_FAIL: u32 = 8;
+
+    let table = s3_rec_op_shape_bytes();
+    let mut recs = Vec::new();
+    s3_ir_seed_at(&mut recs, TABLE, &table, 20);
+    recs.push(s3_rec_set(CUR, TABLE));
+    recs.push(s3_rec_set(END, TABLE + table.len() as u32));
+    recs.push(s3_rec_set(NEEDLE, op as u32));
+    recs.push(s3_rec_set(SHAPE, 0xFF));
+    recs.push(s3_rec_label(L_LOOP));
+    recs.push(s3_rec_cmp(CUR, END));
+    recs.push(s3_rec_je(L_SCAN_DONE));
+    recs.push(s3_rec_ldb(TMP, CUR, 0));
+    recs.push(s3_rec_cmp(TMP, NEEDLE));
+    recs.push(s3_rec_je(L_HIT));
+    recs.push(s3_rec_add(CUR, 2));
+    recs.push(s3_rec_jmp(L_LOOP));
+    recs.push(s3_rec_label(L_HIT));
+    recs.push(s3_rec_ldb(SHAPE, CUR, 1));
+    recs.push(s3_rec_label(L_SCAN_DONE));
+
+    recs.push(s3_rec_set(DST, OUT));
+    recs.push(s3_rec_set(BYTE, op as u32));
+    recs.push(s3_rec_stb(BYTE, DST, 0));
+    recs.push(s3_rec_add(DST, 1));
+
+    recs.push(s3_rec_set(TMP, 0));
+    recs.push(s3_rec_cmp(SHAPE, TMP));
+    recs.push(s3_rec_je(L_ARGC2));
+    recs.push(s3_rec_set(TMP, 1));
+    recs.push(s3_rec_cmp(SHAPE, TMP));
+    recs.push(s3_rec_je(L_ARGC2));
+    recs.push(s3_rec_set(TMP, 2));
+    recs.push(s3_rec_cmp(SHAPE, TMP));
+    recs.push(s3_rec_je(L_ARGC1));
+    recs.push(s3_rec_set(TMP, 3));
+    recs.push(s3_rec_cmp(SHAPE, TMP));
+    recs.push(s3_rec_je(L_ARGC3));
+    recs.push(s3_rec_jmp(L_FAIL));
+
+    recs.push(s3_rec_label(L_ARGC2));
+    recs.push(s3_rec_set(BYTE, 2));
+    recs.push(s3_rec_jmp(L_PUT));
+    recs.push(s3_rec_label(L_ARGC1));
+    recs.push(s3_rec_set(BYTE, 1));
+    recs.push(s3_rec_jmp(L_PUT));
+    recs.push(s3_rec_label(L_ARGC3));
+    recs.push(s3_rec_set(BYTE, 3));
+    recs.push(s3_rec_label(L_PUT));
+    recs.push(s3_rec_stb(BYTE, DST, 0));
+    recs.push(s3_rec_add(DST, 1));
+    for b in args {
+        recs.push(s3_rec_set(BYTE, b as u32));
+        recs.push(s3_rec_stb(BYTE, DST, 0));
+        recs.push(s3_rec_add(DST, 1));
+    }
+    recs.push((0xFF, 0, [0; 6]));
+    recs.push(s3_rec_label(L_FAIL));
+    recs.push((0xFF, 0, [0; 6]));
+    (s3_host_tyb_from_records(&recs), OUT)
+}
+
 /// S3.235: build a record by looking up `op` in `S3_REC_OP_SHAPE`, then filling
 /// the matching wire shape. YOYO-target dispatch; Rust still supplies immediates.
 fn s3_rec_from_shape(op: u8, a0: u32, a1: u32, a2: u32) -> (u8, u8, [u8; 6]) {
@@ -4168,8 +4250,8 @@ mod tests {
     /// Floors: (1) short lea → `.text` only via A1 (STB/poke can hold the 37B
     /// payload but do not inject `.text`) (2) one SET per distinct emit byte
     /// (no SHR; shared `s3_append_stb_poke_global_distinct`).
-    /// Cliff: YOYO reads `S3_REC_OP_SHAPE` (STB-packable; Rust dispatches via
-    /// `s3_rec_from_shape`) and fills shapes + STB-flat phase1 without Rust helpers.
+    /// Cliff: YOYO fills shapes without Rust. S3.236 scans the table in IR and
+    /// writes one record; Rust still builds that scan and still supplies arg bytes.
     #[test]
     fn s3_ir_selfhost_roadmap() {
         // Done: DATA pack algorithm runs as YOYO IR (STB loop) via via_ir.
@@ -4329,6 +4411,52 @@ mod tests {
         assert_eq!(s3_rec_from_shape(0x80, 1, 2, 3), s3_rec_ldb(1, 2, 3));
         assert_eq!(s3_rec_from_shape(0x81, 11, 14, 5), s3_rec_stb(11, 14, 5));
         assert_eq!(s3_rec_from_shape(0x84, 9, 10, 11), s3_rec_memcpy(9, 10, 11));
+    }
+
+    /// S3.236: YOYO IR looks up each builder op and emits the 8-byte record wire.
+    /// Argc comes from the scanned shape tag. Rust still assembles the scan IR.
+    #[test]
+    fn s3_yoyo_shape_fill_record_matches_rust_wire() {
+        let samples: &[(u8, [u8; 6])] = &[
+            (0x30, [3, 0, 0x11, 0, 0, 0]),
+            (0x61, [3, 0, 5, 0, 0, 0]),
+            (0x62, [3, 0, 5, 0, 0, 0]),
+            (0x40, [7, 0, 0, 0, 0, 0]),
+            (0x70, [7, 0, 0, 0, 0, 0]),
+            (0x71, [7, 0, 0, 0, 0, 0]),
+            (0x73, [7, 0, 0, 0, 0, 0]),
+            (0x74, [7, 0, 0, 0, 0, 0]),
+            (0x64, [1, 0, 2, 0, 0, 0]),
+            (0x65, [0, 0, 1, 0, 0, 0]),
+            (0x68, [9, 0, 12, 0, 0, 0]),
+            (0x6A, [4, 0, 5, 0, 0, 0]),
+            (0x80, [1, 0, 2, 0, 3, 0]),
+            (0x81, [11, 0, 14, 0, 5, 0]),
+            (0x84, [9, 0, 10, 0, 11, 0]),
+        ];
+        assert_eq!(samples.len(), S3_REC_OP_SHAPE.len());
+        for &(op, args) in samples {
+            let (tyb, out) = s3_yoyo_shape_fill_tyb(op, args);
+            assert!(s3_unpack_data_tyb(&tyb).is_empty(), "op {op:#x} empty DATA");
+            let ir = parse_tyb(&tyb).unwrap();
+            assert!(ir.records.iter().any(|r| r.op == 0x80), "op {op:#x} scans via LDB");
+            assert!(
+                ir.records.iter().all(|r| r.op != 0x10),
+                "op {op:#x} no DATA"
+            );
+            let shape = s3_rec_shape_of(op).unwrap();
+            let argc = match shape {
+                S3RecShape::SlotImm | S3RecShape::SlotSlot => 2,
+                S3RecShape::U32 => 1,
+                S3RecShape::Slot3 => 3,
+            };
+            let expect = s3_rec_wire(op, argc, args);
+            assert_eq!(
+                s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(),
+                expect.to_vec(),
+                "op {op:#x} shape {shape:?}"
+            );
+        }
     }
 
     /// S3.229: op→shape table packs as empty-DATA STB flat and round-trips.
