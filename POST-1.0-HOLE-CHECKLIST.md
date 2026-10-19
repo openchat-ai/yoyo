@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.210**（209 表 IR 改 poke-only 仍超 512；下一刀不发明 SHR、不改短 lea；仍不改 golden；**不**假 CLOSED）。
+**默认** `继续` **= S3.211**（210 poke+imm8 种子入帽但 +lea 仍爆；下一刀不发明 SHR、不改短 lea；仍不改 golden；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -169,11 +169,12 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.206** ✅    | `3f07394` | in-DLL IR 写表+短 lea 会超 512B mini 帽；via_ir DATA 留下 |
 | **S3.207** ✅    | `7a68ca7` | 宿主 IR 写表跳过 [0..TABLE) 零垫；写完复位 outbuf 槽 |
 | **S3.208** ✅    | `dae6242` | 512 帽绑死 DATA@0x800；抬帽要改 pe_dll_link 布局 |
-| **S3.209** ✅    | —         | 表 IR seed 改 poke-only（~1.3KiB→~517）；仍超 512 |
-| **S3.210** ⏳    | —         | 短 lea / SET×distinct / in-DLL via_ir · **本步** |
+| **S3.209** ✅    | `20bd36f` | 表 IR seed 改 poke-only（~1.3KiB→~517）；仍超 512 |
+| **S3.210** ✅    | —         | STB oo imm8 + BASE；3 行种子 ~473 入帽；+lea 仍爆 |
+| **S3.211** ⏳    | —         | 短 lea / in-DLL via_ir / SET×distinct · **本步** |
 
 
-**缺口**：in-DLL via_ir DATA（poke seed~517 仍超 512+lea）· 短 lea · 单字节仍 SET（无 SHR）· Rust 仍拼 IR · 真自举。逐步正文 → `git log`。
+**缺口**：in-DLL via_ir DATA（种子入帽、+短 lea 仍爆）· 短 lea · 单字节仍 SET（无 SHR）· Rust 仍拼 IR · 真自举。逐步正文 → `git log`。
 
 ---
 
@@ -209,7 +210,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.210**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.211**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -217,4 +218,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-19**：表 IR poke-only 仍超帽 · 默认 **S3.210** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-19**：poke+imm8 种子入帽 +lea 仍爆 · 默认 **S3.211** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
