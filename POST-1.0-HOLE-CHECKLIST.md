@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.223**（222 SET×distinct 共用 poke；短 lea / 真自举仍地板；仍不改 golden；**不**假 CLOSED）。
+**默认** `继续` **= S3.224**（223 钉短 lea 37B RAW 地板；Rust builders / 真自举仍在；仍不改 golden；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -182,11 +182,12 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.219** ✅    | `4ea0565` | MAX=1024；DATA@0xA00；pe_dll 栈 0x3200；poke+lea 可 mini |
 | **S3.220** ✅    | `ed43a4a` | empty-DATA IR-seed 孪生路径；golden via_ir 不动 |
 | **S3.221** ✅    | `7033793` | 默认 in-DLL 切 empty-DATA；via_ir 仅保 golden |
-| **S3.222** ✅    | `27154e5` | short seed + in-DLL 共用 global-distinct poke |
-| **S3.223** ⏳    | —         | 短 lea RAW / 真自举 · **本步** |
+| **S3.222** ✅    | `29eaf8e` | short seed + in-DLL 共用 global-distinct poke |
+| **S3.223** ✅    | —         | 钉短 lea 37B RAW 地板；empty-DATA+STB 已入库存 |
+| **S3.224** ⏳    | —         | 真自举 / Rust IR builders · **本步** |
 
 
-**缺口**：短 lea RAW · Rust 仍拼 IR builders · 真自举。逐步正文 → `git log`。
+**缺口**：短 lea RAW（37B 已钉）· Rust 仍拼 IR builders · 真自举。逐步正文 → `git log`。
 
 ---
 
@@ -222,7 +223,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.223**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.224**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -230,4 +231,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-19**：SET×distinct 共用 poke · 默认 **S3.223** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-19**：短 lea 37B 地板已钉 · 默认 **S3.224** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）

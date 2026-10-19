@@ -4166,13 +4166,17 @@ mod tests {
         assert_eq!(s3_fixed_row(0xFF), s3_compute_fixed_body(0xFF));
     }
 
-    /// S3.135/S3.160: remaining Rust sidecar after pack+STB fold (honest inventory).
-    /// Still Rust: short lea A1 bytes, `emit_x86` body OnceLock, IR record
-    /// builders / run folders. Pack + emit algorithms run as YOYO IR. Not CLOSED.
+    /// S3.135/S3.160/S3.223: remaining Rust sidecar after pack+STB fold (honest).
+    /// Still Rust: short lea A1 bytes (in-DLL PE seed), `emit_x86` body OnceLock,
+    /// IR record builders / run folders. Host+default in-DLL seeds are empty-DATA;
+    /// short seed shares `s3_append_stb_poke_global_distinct`. Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
         assert_eq!(S3_LEA_PTR.len(), 7, "short lea must stay 7B (not disp32)");
         assert_eq!(S3_LEA_PTR, &[0x49, 0x8D, 0x07, 0x49, 0x89, 0x47, 0x78]);
+        // S3.223: in-DLL three-lea RAW floor size (table+dst+prog) — PE seed cliff.
+        let lea_floor = S3_LEA_TABLE.len() + S3_LEA_DST.len() + S3_LEA_PROG.len();
+        assert_eq!(lea_floor, 37, "short lea RAW floor stays 37B");
         let host = parse_tyb(&s3_host_prog_loop_tyb(&[0xFF])).unwrap();
         let host_data: Vec<_> = host.records.iter().filter(|r| matches!(r.op, 0x10 | 0x12 | 0x13)).collect();
         assert!(host_data.is_empty(), "S3.205: host firmware has no DATA seed");
@@ -4193,8 +4197,17 @@ mod tests {
         );
         assert!(host.records.iter().all(|r| r.op != 0xA1));
         let dll = parse_tyb(&s3_table_prog_loop_tyb(&[0xFF])).unwrap();
+        assert!(dll.records.iter().all(|r| r.op != 0x10), "S3.221: default in-DLL empty-DATA");
+        assert!(dll.records.iter().any(|r| r.op == 0x81), "S3.222: seed uses STB poke");
         let a1 = dll.records.iter().filter(|r| r.op == 0xA1).count();
         assert!(a1 >= 3, "in-DLL keeps ≥3 RAW lea packs for PE, got {a1}");
+        let a1_bytes: usize = dll
+            .records
+            .iter()
+            .filter(|r| r.op == 0xA1)
+            .map(|r| r.argc as usize)
+            .sum();
+        assert_eq!(a1_bytes, lea_floor, "A1 payload bytes == lea floor");
         assert_eq!(
             s3_fixed_payload(&S3_FIXED10_OPS, &[0xFF], S3_HOST_OUTBUF_OFF as usize).len(),
             S3_HOST_OUTBUF_OFF as usize
