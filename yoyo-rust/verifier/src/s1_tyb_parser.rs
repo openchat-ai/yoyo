@@ -2394,31 +2394,55 @@ fn s3_rec_op_shape_bytes() -> Vec<u8> {
     out
 }
 
-/// S3.236: YOYO IR scans the poke-seeded op→shape table and writes one 8-byte
-/// record at outbuf. Rust still emits this IR and still supplies arg bytes
-/// (no SHR). Argc comes from the shape tag, not from a Rust `match`.
+/// S3.237: shape tag → argc. Indexed by the tag YOYO loaded (0..3).
+fn s3_shape_argc_bytes() -> [u8; 4] {
+    let mut argc = [0u8; 4];
+    for &(_, shape) in S3_REC_OP_SHAPE {
+        let tag = shape as u8;
+        let n = match shape {
+            S3RecShape::SlotImm | S3RecShape::SlotSlot => 2,
+            S3RecShape::U32 => 1,
+            S3RecShape::Slot3 => 3,
+        };
+        if argc[tag as usize] == 0 {
+            argc[tag as usize] = n;
+        } else {
+            debug_assert_eq!(argc[tag as usize], n);
+        }
+    }
+    argc
+}
+
+/// S3.236/S3.237: YOYO IR scans the poke-seeded op→shape table and writes one
+/// 8-byte record. Argc is an indexed load from [`s3_shape_argc_bytes`]; the six
+/// arg bytes are a poke payload walked by one loop. Rust still emits this IR
+/// (no SHR) but no longer unrolls argc branches or per-arg stores.
 fn s3_yoyo_shape_fill_tyb(op: u8, args: [u8; 6]) -> (Vec<u8>, u32) {
     const TABLE: u32 = 0x40;
+    const ARGC: u32 = 0x60;
+    const ARGS: u32 = 0x68;
     const OUT: u32 = 0x80;
     const CUR: u16 = 4;
     const END: u16 = 5;
     const SHAPE: u16 = 6;
     const NEEDLE: u16 = 7;
+    const SRC: u16 = 8;
     const DST: u16 = 9;
+    const REM: u16 = 10;
     const TMP: u16 = 11;
     const BYTE: u16 = 12;
     const L_LOOP: u32 = 1;
     const L_HIT: u32 = 2;
     const L_SCAN_DONE: u32 = 3;
-    const L_ARGC2: u32 = 4;
-    const L_ARGC1: u32 = 5;
-    const L_ARGC3: u32 = 6;
-    const L_PUT: u32 = 7;
-    const L_FAIL: u32 = 8;
+    const L_ARGS: u32 = 4;
+    const L_DONE: u32 = 5;
 
     let table = s3_rec_op_shape_bytes();
+    let argc = s3_shape_argc_bytes();
     let mut recs = Vec::new();
     s3_ir_seed_at(&mut recs, TABLE, &table, 20);
+    s3_ir_seed_at(&mut recs, ARGC, &argc, 21);
+    s3_ir_seed_at(&mut recs, ARGS, &args, 22);
     recs.push(s3_rec_set(CUR, TABLE));
     recs.push(s3_rec_set(END, TABLE + table.len() as u32));
     recs.push(s3_rec_set(NEEDLE, op as u32));
@@ -2439,39 +2463,26 @@ fn s3_yoyo_shape_fill_tyb(op: u8, args: [u8; 6]) -> (Vec<u8>, u32) {
     recs.push(s3_rec_set(BYTE, op as u32));
     recs.push(s3_rec_stb(BYTE, DST, 0));
     recs.push(s3_rec_add(DST, 1));
-
-    recs.push(s3_rec_set(TMP, 0));
-    recs.push(s3_rec_cmp(SHAPE, TMP));
-    recs.push(s3_rec_je(L_ARGC2));
-    recs.push(s3_rec_set(TMP, 1));
-    recs.push(s3_rec_cmp(SHAPE, TMP));
-    recs.push(s3_rec_je(L_ARGC2));
-    recs.push(s3_rec_set(TMP, 2));
-    recs.push(s3_rec_cmp(SHAPE, TMP));
-    recs.push(s3_rec_je(L_ARGC1));
-    recs.push(s3_rec_set(TMP, 3));
-    recs.push(s3_rec_cmp(SHAPE, TMP));
-    recs.push(s3_rec_je(L_ARGC3));
-    recs.push(s3_rec_jmp(L_FAIL));
-
-    recs.push(s3_rec_label(L_ARGC2));
-    recs.push(s3_rec_set(BYTE, 2));
-    recs.push(s3_rec_jmp(L_PUT));
-    recs.push(s3_rec_label(L_ARGC1));
-    recs.push(s3_rec_set(BYTE, 1));
-    recs.push(s3_rec_jmp(L_PUT));
-    recs.push(s3_rec_label(L_ARGC3));
-    recs.push(s3_rec_set(BYTE, 3));
-    recs.push(s3_rec_label(L_PUT));
+    // argc = argc_table[shape]
+    recs.push(s3_rec_set(CUR, ARGC));
+    recs.push(s3_rec_addv(CUR, SHAPE));
+    recs.push(s3_rec_ldb(BYTE, CUR, 0));
     recs.push(s3_rec_stb(BYTE, DST, 0));
     recs.push(s3_rec_add(DST, 1));
-    for b in args {
-        recs.push(s3_rec_set(BYTE, b as u32));
-        recs.push(s3_rec_stb(BYTE, DST, 0));
-        recs.push(s3_rec_add(DST, 1));
-    }
-    recs.push((0xFF, 0, [0; 6]));
-    recs.push(s3_rec_label(L_FAIL));
+    // six arg bytes from the poke image
+    recs.push(s3_rec_set(SRC, ARGS));
+    recs.push(s3_rec_set(REM, 6));
+    recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
+    recs.push(s3_rec_label(L_ARGS));
+    recs.push(s3_rec_cmp(REM, S3_PACK_STB_ZERO));
+    recs.push(s3_rec_je(L_DONE));
+    recs.push(s3_rec_ldb(BYTE, SRC, 0));
+    recs.push(s3_rec_stb(BYTE, DST, 0));
+    recs.push(s3_rec_add(DST, 1));
+    recs.push(s3_rec_add(SRC, 1));
+    recs.push(s3_rec_sub(REM, 1));
+    recs.push(s3_rec_jmp(L_ARGS));
+    recs.push(s3_rec_label(L_DONE));
     recs.push((0xFF, 0, [0; 6]));
     (s3_host_tyb_from_records(&recs), OUT)
 }
@@ -4250,8 +4261,8 @@ mod tests {
     /// Floors: (1) short lea → `.text` only via A1 (STB/poke can hold the 37B
     /// payload but do not inject `.text`) (2) one SET per distinct emit byte
     /// (no SHR; shared `s3_append_stb_poke_global_distinct`).
-    /// Cliff: YOYO fills shapes without Rust. S3.236 scans the table in IR and
-    /// writes one record; Rust still builds that scan and still supplies arg bytes.
+    /// Cliff: YOYO fills shapes without Rust. S3.236/S3.237 scan the table in IR;
+    /// argc and arg bytes are payloads. Rust still builds that scan IR.
     #[test]
     fn s3_ir_selfhost_roadmap() {
         // Done: DATA pack algorithm runs as YOYO IR (STB loop) via via_ir.
@@ -4456,7 +4467,22 @@ mod tests {
                 expect.to_vec(),
                 "op {op:#x} shape {shape:?}"
             );
+            // S3.237: one SET of the op byte; argc and args are loads, not unrolled SETs.
+            let byte_sets = ir
+                .records
+                .iter()
+                .filter(|r| {
+                    r.op == 0x30
+                        && u16::from_le_bytes([r.args_raw[0], r.args_raw[1]]) == 12
+                })
+                .count();
+            assert_eq!(byte_sets, 1, "op {op:#x} argc/args are not per-byte SETs");
+            assert!(
+                ir.records.iter().any(|r| r.op == 0x68),
+                "op {op:#x} argc is an indexed ADDV load"
+            );
         }
+        assert_eq!(s3_shape_argc_bytes(), [2, 2, 1, 3]);
     }
 
     /// S3.229: op→shape table packs as empty-DATA STB flat and round-trips.
