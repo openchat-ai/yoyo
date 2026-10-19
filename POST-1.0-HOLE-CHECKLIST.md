@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.216**（215 宿主 seed 分窗 imm8；下一刀仍绕 golden；**不**假 CLOSED）。
+**默认** `继续` **= S3.217**（216 全局 distinct SET、跨窗只切 BASE；下一刀仍绕 golden；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -175,8 +175,9 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.212** ✅    | `3a83b86` | 钉住 seed+prog 已超帽；lea A1 仅 ~38B 非大头 |
 | **S3.213** ✅    | `14f204b` | 钉住 ADD imm8/prog 改写均撞 golden；via_ir 留下 |
 | **S3.214** ✅    | `ef16de4` | 宿主 prog loop 单独瘦身；in-DLL golden 不动 |
-| **S3.215** ✅    | —         | 长 seed 分 ≤127 窗，STB oo 全走 imm8 |
-| **S3.216** ⏳    | —         | in-DLL via_ir / SET×distinct / 真自举 · **本步** |
+| **S3.215** ✅    | `590cbc9` | 长 seed 分 ≤127 窗，STB oo 全走 imm8 |
+| **S3.216** ✅    | —         | 全局 distinct 一次 SET；跨窗只切 BASE |
+| **S3.217** ⏳    | —         | in-DLL via_ir / SET×distinct / 真自举 · **本步** |
 
 
 **缺口**：in-DLL via_ir DATA（golden 挡 prog 瘦身）· 短 lea · 单字节仍 SET（无 SHR）· 真自举。逐步正文 → `git log`。
@@ -215,7 +216,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.216**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.217**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -223,4 +224,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-19**：宿主 seed 分窗 imm8 · 默认 **S3.216** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-19**：全局 distinct SET · 默认 **S3.217** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）

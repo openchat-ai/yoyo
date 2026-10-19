@@ -1680,10 +1680,10 @@ fn s3_append_stb_runs(
     label_id
 }
 
-/// S3.209/S3.210/S3.215: IR-seed sparse bytes — poke only nonzero offsets via
-/// STB `oo`. Gaps stay zero from empty-image / STB resize. One SET per distinct
-/// nonzero **per window**. Spans are chunked into ≤127-byte windows so every
-/// `oo` stays imm8 (host 10-row seeds included). Does not touch DST.
+/// S3.209/S3.210/S3.215/S3.216: IR-seed sparse bytes — poke only nonzero offsets
+/// via STB `oo`. Gaps stay zero from empty-image / STB resize. One SET per
+/// distinct nonzero **globally** (S3.216); BASE is switched only when the poke
+/// crosses a ≤127-byte window so every `oo` stays imm8. Does not touch DST.
 fn s3_append_stb_zero_then_poke(
     recs: &mut Vec<(u8, u8, [u8; 6])>,
     base: u32,
@@ -1691,29 +1691,30 @@ fn s3_append_stb_zero_then_poke(
     label_id: u32,
 ) -> u32 {
     const WIN: usize = 127;
-    let mut off = 0usize;
-    while off < bytes.len() {
-        let end = (off + WIN).min(bytes.len());
-        let window = &bytes[off..end];
-        let win_base = base + off as u32;
-        recs.push(s3_rec_set(S3_PACK_STB_BASE, win_base));
-        let mut by_val: Vec<(u8, Vec<u16>)> = Vec::new();
-        for (i, &b) in window.iter().enumerate() {
-            if b == 0 {
-                continue;
-            }
-            match by_val.iter_mut().find(|(v, _)| *v == b) {
-                Some((_, offs)) => offs.push(i as u16),
-                None => by_val.push((b, vec![i as u16])),
-            }
+    // Group absolute indices by nonzero value (one SET each for the whole span).
+    let mut by_val: Vec<(u8, Vec<usize>)> = Vec::new();
+    for (i, &b) in bytes.iter().enumerate() {
+        if b == 0 {
+            continue;
         }
-        for (b, offs) in by_val {
-            recs.push(s3_rec_set(S3_PACK_STB_TMP, b as u32));
-            for oo in offs {
-                recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_STB_BASE, oo));
-            }
+        match by_val.iter_mut().find(|(v, _)| *v == b) {
+            Some((_, offs)) => offs.push(i),
+            None => by_val.push((b, vec![i])),
         }
-        off = end;
+    }
+    let mut cur_win: Option<usize> = None;
+    for (b, offs) in by_val {
+        recs.push(s3_rec_set(S3_PACK_STB_TMP, b as u32));
+        for i in offs {
+            let win = i / WIN;
+            if cur_win != Some(win) {
+                let win_base = base + (win * WIN) as u32;
+                recs.push(s3_rec_set(S3_PACK_STB_BASE, win_base));
+                cur_win = Some(win);
+            }
+            let oo = (i % WIN) as u16;
+            recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_STB_BASE, oo));
+        }
     }
     label_id
 }
@@ -4233,17 +4234,19 @@ mod tests {
             .into_iter()
             .filter(|r| r.op == 0x30)
             .collect();
-        // S3.215: first SET is STB_BASE = TABLE_OFF (chunked imm8 windows).
-        assert!(!sets.is_empty());
+        // S3.216: first SET is STB_TMP (global distinct); BASE follows before STB.
+        assert!(sets.len() >= 2);
         let slot0 = u16::from_le_bytes([sets[0].args_raw[0], sets[0].args_raw[1]]);
-        let imm0 = u32::from_le_bytes([
-            sets[0].args_raw[2],
-            sets[0].args_raw[3],
-            sets[0].args_raw[4],
-            sets[0].args_raw[5],
+        assert_eq!(slot0, S3_PACK_STB_TMP);
+        let slot1 = u16::from_le_bytes([sets[1].args_raw[0], sets[1].args_raw[1]]);
+        let imm1 = u32::from_le_bytes([
+            sets[1].args_raw[2],
+            sets[1].args_raw[3],
+            sets[1].args_raw[4],
+            sets[1].args_raw[5],
         ]);
-        assert_eq!(slot0, S3_PACK_STB_BASE);
-        assert_eq!(imm0, S3_HOST_TABLE_OFF);
+        assert_eq!(slot1, S3_PACK_STB_BASE);
+        assert_eq!(imm1, S3_HOST_TABLE_OFF);
         let stbs: Vec<_> = parse_tyb(&tyb)
             .unwrap()
             .records
@@ -4251,10 +4254,19 @@ mod tests {
             .filter(|r| r.op == 0x81)
             .collect();
         assert!(!stbs.is_empty());
-        let base0 = u16::from_le_bytes([stbs[0].args_raw[2], stbs[0].args_raw[3]]);
-        let oo0 = u16::from_le_bytes([stbs[0].args_raw[4], stbs[0].args_raw[5]]);
-        assert_eq!(base0, S3_PACK_STB_BASE);
-        assert!(oo0 < 128, "relative oo {oo0} must stay imm8");
+        assert!(stbs.iter().all(|r| {
+            u16::from_le_bytes([r.args_raw[4], r.args_raw[5]]) < 128
+        }));
+        // Host span >127 → at least two BASE windows.
+        let bases: Vec<_> = sets
+            .iter()
+            .filter(|r| u16::from_le_bytes([r.args_raw[0], r.args_raw[1]]) == S3_PACK_STB_BASE)
+            .collect();
+        assert!(
+            bases.len() >= 2,
+            "host 10-row seed should span ≥2 imm8 windows, got {}",
+            bases.len()
+        );
     }
 
 
@@ -4347,6 +4359,16 @@ mod tests {
                 && u16::from_le_bytes([r.2[2], r.2[3]]) == S3_PACK_STB_BASE
                 && u16::from_le_bytes([r.2[4], r.2[5]]) < 128
         }));
+        // S3.216: one TMP SET per distinct nonzero (global), not per window.
+        let distinct: std::collections::BTreeSet<u8> =
+            slice.iter().copied().filter(|&b| b != 0).collect();
+        let tmp_sets = poked
+            .iter()
+            .filter(|r| {
+                r.0 == 0x30 && u16::from_le_bytes([r.2[0], r.2[1]]) == S3_PACK_STB_TMP
+            })
+            .count();
+        assert_eq!(tmp_sets, distinct.len(), "global distinct TMP SETs");
     }
 
     /// S3.208: raising [`S1_SLIM_MAX_CODE`] moves the slim DATA file offset.
