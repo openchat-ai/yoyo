@@ -2491,9 +2491,9 @@ fn s3_yoyo_shape_fill_ctrl() -> Vec<(u8, u8, [u8; 6])> {
     recs
 }
 
-/// S3.239: count-prefixed job blob at [`S3_SHAPE_JOB`]. One copy of the fill body
-/// walks every record. Outbuf sits past the largest blob (15×7+1).
-const S3_SHAPE_MANY_OUT: u32 = 0x180;
+/// S3.239/S3.240: count-prefixed job blob at [`S3_SHAPE_JOB`]. One copy of the
+/// fill body walks every record. Outbuf sits past a 64-job blob.
+const S3_SHAPE_MANY_OUT: u32 = 0x300;
 
 fn s3_yoyo_shape_fill_many_ctrl() -> Vec<(u8, u8, [u8; 6])> {
     const CUR_REC: u16 = 2;
@@ -2522,7 +2522,7 @@ fn s3_yoyo_shape_fill_many_ctrl() -> Vec<(u8, u8, [u8; 6])> {
 }
 
 fn s3_yoyo_shape_fill_many_tyb(jobs: &[(u8, [u8; 6])]) -> (Vec<u8>, u32) {
-    assert!(!jobs.is_empty() && jobs.len() <= 15);
+    assert!(!jobs.is_empty() && jobs.len() <= 64);
     let mut blob = Vec::with_capacity(1 + jobs.len() * 7);
     blob.push(jobs.len() as u8);
     for &(op, args) in jobs {
@@ -4610,6 +4610,31 @@ mod tests {
         };
         assert_eq!(tail(&tyb), tail(&other), "many-ctrl ignores job count");
         assert_eq!(tail(&tyb), ctrl);
+    }
+
+    /// S3.240: many-fill re-encodes its own control records. RET is not in the
+    /// shape table, so it stays outside the job blob.
+    #[test]
+    fn s3_yoyo_shape_fill_reencodes_own_ctrl() {
+        let ctrl = s3_yoyo_shape_fill_many_ctrl();
+        assert!(ctrl.iter().any(|r| r.0 == 0xFF));
+        let jobs: Vec<(u8, [u8; 6])> = ctrl
+            .iter()
+            .filter(|r| r.0 != 0xFF)
+            .map(|r| (r.0, r.2))
+            .collect();
+        assert!(jobs.len() > 15 && jobs.len() <= 64, "jobs {}", jobs.len());
+        let (tyb, out) = s3_yoyo_shape_fill_many_tyb(&jobs);
+        let mut expect = Vec::new();
+        for &(op, args) in &jobs {
+            let argc = match s3_rec_shape_of(op).expect("shaped") {
+                S3RecShape::SlotImm | S3RecShape::SlotSlot => 2,
+                S3RecShape::U32 => 1,
+                S3RecShape::Slot3 => 3,
+            };
+            expect.extend_from_slice(&s3_rec_wire(op, argc, args));
+        }
+        assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), expect);
     }
 
     /// S3.229: op→shape table packs as empty-DATA STB flat and round-trips.

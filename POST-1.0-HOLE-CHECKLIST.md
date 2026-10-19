@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.240**（239 一条 fill body 填多条 job；控制 IR 仍 Rust；仍不改 golden；**不**假 CLOSED）。
+**默认** `继续` **= S3.241**（240 many-fill 回写自身控制记录；RET 不在表内；仍不改 golden；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -199,11 +199,12 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.236** ✅    | `a3e59c9` | YOYO IR 扫 op→shape 表并写出 8 字节记录 |
 | **S3.237** ✅    | `5b3c73a` | argc 索引表 + 参数 poke 循环，去掉四路展开 |
 | **S3.238** ✅    | `485f57f` | 扫表控制 IR 与 op/参数无关，job 只在 poke |
-| **S3.239** ✅    | —         | 一条 fill body 按计数填多条 job |
-| **S3.240** ⏳    | —         | 用 many-fill 回写控制 IR 自身 · **本步** |
+| **S3.239** ✅    | `e149697` | 一条 fill body 按计数填多条 job |
+| **S3.240** ✅    | —         | many-fill 回写自身控制记录；RET 仍在表外 |
+| **S3.241** ⏳    | —         | 真自举：控制模板仍 Rust · **本步** |
 
 
-**缺口**：lea→.text 仍唯一靠 A1 · many-fill 的控制 IR 仍由 Rust 拼 · 真自举。逐步正文 → `git log`。
+**缺口**：lea→.text 仍唯一靠 A1 · RET 不在 shape 表 · 控制模板仍 Rust 拼 · 真自举。逐步正文 → `git log`。
 
 ---
 
@@ -239,7 +240,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.240**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.241**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -247,4 +248,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-19**：一条 body 填多条 job · 默认 **S3.240** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-19**：控制记录可回写 · 默认 **S3.241** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
