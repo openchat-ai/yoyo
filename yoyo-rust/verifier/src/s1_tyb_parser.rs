@@ -4124,6 +4124,16 @@ mod tests {
         assert_eq!(imm0, S3_HOST_TABLE_OFF);
     }
 
+    /// S3.208: raising [`S1_SLIM_MAX_CODE`] moves the slim DATA file offset.
+    /// `pe_dll_link` bakes `S1_SLIM_DATA_PAYLOAD_OFF == 0x800` — leave the cap.
+    #[test]
+    fn s3_slim_code_cap_pins_data_payload_off() {
+        assert_eq!(S1_SLIM_MAX_CODE, 512);
+        assert_eq!(S1_SLIM_DATA_PAYLOAD_OFF, 0x800);
+        // align(13+512, 0x200) == 0x400; headers 0x400 → data at 0x800.
+        assert_eq!(0x400 + 0x400, S1_SLIM_DATA_PAYLOAD_OFF);
+    }
+
     /// S3.207: even table+prog-only IR seed + short lea exceeds the 512B mini cap.
     #[test]
     fn s3_in_dll_ir_seed_exceeds_mini_code_cap() {
