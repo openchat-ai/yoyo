@@ -1843,8 +1843,9 @@ fn s3_pack_data_wire(bytes: &[u8]) -> Vec<u8> {
     out
 }
 
-/// S3.144: parse pack wire (8B×N) back into DATA records.
-fn s3_pack_wire_to_records(wire: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
+/// S3.144/S3.263: sole host bridge — parse 8B×N wire back into records.
+/// YOYO expand/pack emit wires; Rust reifies them for `host_tyb_from_records`.
+fn s3_host_wire_to_records(wire: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     assert_eq!(wire.len() % 8, 0, "pack wire must be 8-byte records");
     wire.chunks_exact(8)
         .map(|c| {
@@ -1855,6 +1856,11 @@ fn s3_pack_wire_to_records(wire: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
         .collect()
 }
 
+/// Pack-path alias of [`s3_host_wire_to_records`].
+fn s3_pack_wire_to_records(wire: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
+    s3_host_wire_to_records(wire)
+}
+
 /// S3.144/S3.158: pack via YOYO loop STB IR (sim) → wire → records; empty stays empty.
 fn s3_pack_data_via_ir(bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     if bytes.is_empty() {
@@ -1862,7 +1868,7 @@ fn s3_pack_data_via_ir(bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     }
     let (tyb, out_off) = s3_yoyo_pack_loop_stb_tyb(bytes);
     let wire = s3_sim_prog_loop(&tyb, 0, out_off, 0).expect("s3_pack_data_via_ir: sim pack");
-    s3_pack_wire_to_records(&wire)
+    s3_host_wire_to_records(&wire)
 }
 
 /// S3.142/S3.145 pack-proto DATA layout (no STB — write via 1-byte MEMCPY from consts/payload).
@@ -2562,11 +2568,11 @@ fn s3_yoyo_expand_flat_tyb(flat: &[u8]) -> (Vec<u8>, u32) {
     (s3_host_tyb_from_records(&recs), S3_EXPAND_OUT)
 }
 
-/// S3.254/S3.255: expand flat via YOYO sim, then parse 8-byte wires to records.
+/// S3.254/S3.255/S3.263: expand flat via YOYO sim, then host-bridge wire→records.
 fn s3_recs_from_flat_seed_via_yoyo(flat: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     let (tyb, out) = s3_yoyo_expand_flat_tyb(flat);
     let wire = s3_sim_prog_loop(&tyb, 0, out, 0).expect("expand flat via yoyo");
-    s3_pack_wire_to_records(&wire)
+    s3_host_wire_to_records(&wire)
 }
 
 const S3_SHAPE_FILL_ONE_AT: usize = 9;
@@ -4451,8 +4457,8 @@ mod tests {
     /// Floors: (1) short lea → `.text` only via A1 (STB/poke can hold the 37B
     /// payload but do not inject `.text`) (2) one SET per distinct emit byte
     /// (no SHR; shared `s3_append_stb_poke_global_distinct`).
-    /// Cliff: expand seed (argc poke‖ctrl) is flat (S3.260); Rust still
-    /// bootstraps that seed and still parses wire→records.
+    /// Cliff: expand seed is flat (S3.260); Rust still bootstraps it and still
+    /// host-parses wire→records (S3.263). A1 short-lea floor unchanged.
     #[test]
     fn s3_ir_selfhost_roadmap() {
         // Done: DATA pack algorithm runs as YOYO IR (STB loop) via via_ir.
@@ -4837,10 +4843,16 @@ mod tests {
             s3_sim_prog_loop(&exp_stb, 0, exp_off, 0).unwrap(),
             S3_EXPAND_CTRL_FLAT
         );
-        // S3.254/S3.259: YOYO expand matches Rust expand; assembler has no job SET END.
+        // S3.254/S3.259/S3.264: YOYO expand matches Rust; no job SET END; size floor.
         let (exp, off) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_ONE_FLAT);
         assert!(s3_unpack_data_tyb(&exp).is_empty());
         let exp_recs = parse_tyb(&exp).unwrap().records;
+        // job poke (flat‖FE) + 92-row expand seed; soft ceiling keeps S1_SLIM in mind.
+        assert!(
+            exp_recs.len() > S3_EXPAND_CTRL_ROWS && exp_recs.len() < 512,
+            "expand assembler recs {}",
+            exp_recs.len()
+        );
         assert!(
             !exp_recs.iter().any(|r| {
                 r.op == 0x30
@@ -5011,8 +5023,8 @@ mod tests {
 
     /// S3.135/S3.160/S3.223/S3.259: remaining Rust sidecar after pack+STB+expand.
     /// Still Rust: short lea A1 (in-DLL PE seed), `emit_x86` body OnceLock,
-    /// expand-ctrl bootstrap (`s3_recs_from_flat_seed`), wire→records parse,
-    /// IR builders / run folders. Empty-DATA seeds; Not CLOSED.
+    /// expand-ctrl bootstrap (`s3_bootstrap_expand_ctrl`), host wire→records
+    /// (`s3_host_wire_to_records`), IR builders / run folders. Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
         assert_eq!(S3_LEA_PTR.len(), 7, "short lea must stay 7B (not disp32)");
@@ -5025,6 +5037,21 @@ mod tests {
         );
         let one = s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_ONE_FLAT);
         assert_eq!(one, s3_recs_from_flat_seed(S3_SHAPE_FILL_ONE_FLAT));
+        // S3.263: sole host wire→records bridge round-trips; expand layout pinned.
+        for r in &one {
+            let w = s3_rec_wire(r.0, r.1, r.2);
+            assert_eq!(s3_host_wire_to_records(&w), vec![*r]);
+            assert_eq!(s3_pack_wire_to_records(&w), s3_host_wire_to_records(&w));
+        }
+        assert_eq!(S3_EXPAND_SEED, 0x40);
+        assert_eq!(S3_EXPAND_ARGC, 0x1C0);
+        assert_eq!(S3_EXPAND_OUT, 0x200);
+        assert_eq!(S3_EXPAND_SENTINEL, 0xFE);
+        assert_eq!(S3_EXPAND_ARGC - S3_EXPAND_SEED, 0x180);
+        // Host bridge is the only wire reifier for expand (pack alias shares it).
+        let (exp, off) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_ONE_FLAT);
+        let wire = s3_sim_prog_loop(&exp, 0, off, 0).unwrap();
+        assert_eq!(s3_host_wire_to_records(&wire), one);
         // S3.223/S3.234: in-DLL three-lea RAW floor size — PE seed cliff.
         let lea_floor = s3_short_lea_raw_bytes().len();
         assert_eq!(lea_floor, 37, "short lea RAW floor stays 37B");
