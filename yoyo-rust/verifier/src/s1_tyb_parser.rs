@@ -1856,11 +1856,6 @@ fn s3_host_wire_to_records(wire: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
         .collect()
 }
 
-/// Pack-path alias of [`s3_host_wire_to_records`].
-fn s3_pack_wire_to_records(wire: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
-    s3_host_wire_to_records(wire)
-}
-
 /// S3.144/S3.158: pack via YOYO loop STB IR (sim) → wire → records; empty stays empty.
 fn s3_pack_data_via_ir(bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     if bytes.is_empty() {
@@ -2472,7 +2467,8 @@ fn s3_recs_from_flat_seed(flat: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     s3_recs_from_flat_seed_with_argc(flat, S3_SEED_ARGC_BYTES)
 }
 
-/// S3.262: named bootstrap — expand the frozen expand seed without via_yoyo.
+/// S3.262/S3.264: named bootstrap — expand ctrl body flat without via_yoyo.
+/// Argc table is IR-seeded separately (`s3_yoyo_expand_flat_tyb`).
 fn s3_bootstrap_expand_ctrl() -> Vec<(u8, u8, [u8; 6])> {
     s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT)
 }
@@ -2494,64 +2490,38 @@ const S3_EXPAND_SEED: u32 = 0x40;
 const S3_EXPAND_ARGC: u32 = 0x1C0;
 const S3_EXPAND_OUT: u32 = 0x200;
 
-/// S3.256/S3.260: expand seed = argc-poke prelude ‖ expand-ctrl body.
 /// S3.257: trailing 0xFE sentinel ends the job blob — no job-side SET END.
-/// Bootstrap still Rust-expands this seed (cannot via_yoyo itself).
+/// S3.264: argc table is IR-seeded from `S3_SEED_ARGC_BYTES` (not 51 poke rows).
+/// Bootstrap still Rust-expands the ctrl body (cannot via_yoyo itself).
 const S3_EXPAND_SENTINEL: u8 = 0xFE;
-const S3_EXPAND_ARGC_POKE_ROWS: usize = 51;
-const S3_EXPAND_CTRL_BODY_ROWS: usize = 41;
-const S3_EXPAND_CTRL_ROWS: usize = S3_EXPAND_ARGC_POKE_ROWS + S3_EXPAND_CTRL_BODY_ROWS;
+const S3_EXPAND_CTRL_ROWS: usize = 41;
+/// Expand ctrl body only (job loop + argc scan + wire emit). RET last.
 const S3_EXPAND_CTRL_FLAT: &[u8] = &[
-    48, 14, 0, 192, 1, 0, 0, 48, 11, 0, 48, 0, 0, 0,
-    129, 11, 0, 14, 0, 0, 0, 48, 11, 0, 2, 0, 0, 0,
-    129, 11, 0, 14, 0, 1, 0, 129, 11, 0, 14, 0, 3, 0,
-    129, 11, 0, 14, 0, 5, 0, 129, 11, 0, 14, 0, 17, 0,
-    129, 11, 0, 14, 0, 19, 0, 129, 11, 0, 14, 0, 21, 0,
-    129, 11, 0, 14, 0, 23, 0, 48, 11, 0, 97, 0, 0, 0,
-    129, 11, 0, 14, 0, 2, 0, 48, 11, 0, 98, 0, 0, 0,
-    129, 11, 0, 14, 0, 4, 0, 48, 11, 0, 64, 0, 0, 0,
-    129, 11, 0, 14, 0, 6, 0, 48, 11, 0, 1, 0, 0, 0,
-    129, 11, 0, 14, 0, 7, 0, 129, 11, 0, 14, 0, 9, 0,
-    129, 11, 0, 14, 0, 11, 0, 129, 11, 0, 14, 0, 13, 0,
-    129, 11, 0, 14, 0, 15, 0, 48, 11, 0, 112, 0, 0, 0,
-    129, 11, 0, 14, 0, 8, 0, 48, 11, 0, 113, 0, 0, 0,
-    129, 11, 0, 14, 0, 10, 0, 48, 11, 0, 115, 0, 0, 0,
-    129, 11, 0, 14, 0, 12, 0, 48, 11, 0, 116, 0, 0, 0,
-    129, 11, 0, 14, 0, 14, 0, 48, 11, 0, 100, 0, 0, 0,
-    129, 11, 0, 14, 0, 16, 0, 48, 11, 0, 101, 0, 0, 0,
-    129, 11, 0, 14, 0, 18, 0, 48, 11, 0, 104, 0, 0, 0,
-    129, 11, 0, 14, 0, 20, 0, 48, 11, 0, 106, 0, 0, 0,
-    129, 11, 0, 14, 0, 22, 0, 48, 11, 0, 128, 0, 0, 0,
-    129, 11, 0, 14, 0, 24, 0, 48, 11, 0, 3, 0, 0, 0,
-    129, 11, 0, 14, 0, 25, 0, 129, 11, 0, 14, 0, 27, 0,
-    129, 11, 0, 14, 0, 29, 0, 48, 11, 0, 129, 0, 0, 0,
-    129, 11, 0, 14, 0, 26, 0, 48, 11, 0, 132, 0, 0, 0,
-    129, 11, 0, 14, 0, 28, 0, 48, 11, 0, 255, 0, 0, 0,
-    129, 11, 0, 14, 0, 30, 0, 48, 4, 0, 64, 0, 0, 0,
-    48, 5, 0, 254, 0, 0, 0, 48, 9, 0, 0, 2, 0, 0,
-    48, 13, 0, 0, 0, 0, 0, 64, 20, 0, 0, 0, 0, 0,
-    128, 7, 0, 4, 0, 0, 0, 101, 7, 0, 5, 0, 0, 0,
-    113, 21, 0, 0, 0, 0, 0, 48, 2, 0, 192, 1, 0, 0,
-    48, 3, 0, 224, 1, 0, 0, 64, 22, 0, 0, 0, 0, 0,
-    101, 2, 0, 3, 0, 0, 0, 113, 21, 0, 0, 0, 0, 0,
-    128, 11, 0, 2, 0, 0, 0, 101, 11, 0, 7, 0, 0, 0,
-    113, 23, 0, 0, 0, 0, 0, 98, 2, 0, 2, 0, 0, 0,
-    112, 22, 0, 0, 0, 0, 0, 64, 23, 0, 0, 0, 0, 0,
-    128, 6, 0, 2, 0, 1, 0, 129, 7, 0, 9, 0, 0, 0,
-    98, 9, 0, 1, 0, 0, 0, 129, 6, 0, 9, 0, 0, 0,
-    98, 9, 0, 1, 0, 0, 0, 100, 8, 0, 4, 0, 0, 0,
-    98, 8, 0, 1, 0, 0, 0, 48, 10, 0, 6, 0, 0, 0,
-    64, 24, 0, 0, 0, 0, 0, 101, 10, 0, 13, 0, 0, 0,
-    113, 25, 0, 0, 0, 0, 0, 128, 12, 0, 8, 0, 0, 0,
-    129, 12, 0, 9, 0, 0, 0, 98, 9, 0, 1, 0, 0, 0,
-    98, 8, 0, 1, 0, 0, 0, 97, 10, 0, 1, 0, 0, 0,
-    112, 24, 0, 0, 0, 0, 0, 64, 25, 0, 0, 0, 0, 0,
-    98, 4, 0, 7, 0, 0, 0, 112, 20, 0, 0, 0, 0, 0,
-    64, 21, 0, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, 0,
+    48, 4, 0, 64, 0, 0, 0, 48, 5, 0, 254, 0, 0, 0,
+    48, 9, 0, 0, 2, 0, 0, 48, 13, 0, 0, 0, 0, 0,
+    64, 20, 0, 0, 0, 0, 0, 128, 7, 0, 4, 0, 0, 0,
+    101, 7, 0, 5, 0, 0, 0, 113, 21, 0, 0, 0, 0, 0,
+    48, 2, 0, 192, 1, 0, 0, 48, 3, 0, 224, 1, 0, 0,
+    64, 22, 0, 0, 0, 0, 0, 101, 2, 0, 3, 0, 0, 0,
+    113, 21, 0, 0, 0, 0, 0, 128, 11, 0, 2, 0, 0, 0,
+    101, 11, 0, 7, 0, 0, 0, 113, 23, 0, 0, 0, 0, 0,
+    98, 2, 0, 2, 0, 0, 0, 112, 22, 0, 0, 0, 0, 0,
+    64, 23, 0, 0, 0, 0, 0, 128, 6, 0, 2, 0, 1, 0,
+    129, 7, 0, 9, 0, 0, 0, 98, 9, 0, 1, 0, 0, 0,
+    129, 6, 0, 9, 0, 0, 0, 98, 9, 0, 1, 0, 0, 0,
+    100, 8, 0, 4, 0, 0, 0, 98, 8, 0, 1, 0, 0, 0,
+    48, 10, 0, 6, 0, 0, 0, 64, 24, 0, 0, 0, 0, 0,
+    101, 10, 0, 13, 0, 0, 0, 113, 25, 0, 0, 0, 0, 0,
+    128, 12, 0, 8, 0, 0, 0, 129, 12, 0, 9, 0, 0, 0,
+    98, 9, 0, 1, 0, 0, 0, 98, 8, 0, 1, 0, 0, 0,
+    97, 10, 0, 1, 0, 0, 0, 112, 24, 0, 0, 0, 0, 0,
+    64, 25, 0, 0, 0, 0, 0, 98, 4, 0, 7, 0, 0, 0,
+    112, 20, 0, 0, 0, 0, 0, 64, 21, 0, 0, 0, 0, 0,
+    255, 0, 0, 0, 0, 0, 0,
 ];
 
-/// S3.254/S3.260: YOYO IR expands a 7×N flat seed into 8-byte record wires.
-/// Assembler: poke (flat‖0xFE) + one bootstrap-expanded expand seed. No argc poke call.
+/// S3.254/S3.260/S3.264: YOYO IR expands a 7×N flat seed into 8-byte record wires.
+/// Assembler: poke (flat‖0xFE) + IR-seed argc blob + bootstrap expand body.
 fn s3_yoyo_expand_flat_tyb(flat: &[u8]) -> (Vec<u8>, u32) {
     assert!(!flat.is_empty() && flat.len() % 7 == 0);
     assert!(
@@ -2559,11 +2529,14 @@ fn s3_yoyo_expand_flat_tyb(flat: &[u8]) -> (Vec<u8>, u32) {
         "flat op collides with expand sentinel"
     );
     assert!(flat.len() + 1 <= (S3_EXPAND_ARGC - S3_EXPAND_SEED) as usize);
+    // Body SETs argc end = 0x1E0; blob must fill [0x1C0, 0x1E0).
+    assert_eq!(S3_SEED_ARGC_BYTES.len() as u32, 0x1E0 - S3_EXPAND_ARGC);
     let mut job = Vec::with_capacity(flat.len() + 1);
     job.extend_from_slice(flat);
     job.push(S3_EXPAND_SENTINEL);
     let mut recs = Vec::new();
     s3_ir_seed_at(&mut recs, S3_EXPAND_SEED, &job, 30);
+    s3_ir_seed_at(&mut recs, S3_EXPAND_ARGC, S3_SEED_ARGC_BYTES, 31);
     recs.extend(s3_bootstrap_expand_ctrl());
     (s3_host_tyb_from_records(&recs), S3_EXPAND_OUT)
 }
@@ -2653,7 +2626,7 @@ fn s3_yoyo_shape_fill_many_ctrl() -> Vec<(u8, u8, [u8; 6])> {
 }
 
 fn s3_yoyo_shape_fill_many_tyb(jobs: &[(u8, [u8; 6])]) -> (Vec<u8>, u32) {
-    // S3.261: 64→128 so a full expand seed (argc-poke‖ctrl, minus RET) fits.
+    // S3.261: 64→128 (pre-264 argc-poke‖ctrl fit). S3.264 body-only is <<128.
     assert!(!jobs.is_empty() && jobs.len() <= 128);
     let mut blob = Vec::with_capacity(1 + jobs.len() * 7);
     blob.push(jobs.len() as u8);
@@ -4457,8 +4430,8 @@ mod tests {
     /// Floors: (1) short lea → `.text` only via A1 (STB/poke can hold the 37B
     /// payload but do not inject `.text`) (2) one SET per distinct emit byte
     /// (no SHR; shared `s3_append_stb_poke_global_distinct`).
-    /// Cliff: expand seed is flat (S3.260); Rust still bootstraps it and still
-    /// host-parses wire→records (S3.263). A1 short-lea floor unchanged.
+    /// Cliff: expand ctrl body is flat (S3.264); argc IR-seeded; Rust still
+    /// bootstraps body + host-parses wire→records (S3.263). A1 floor unchanged.
     #[test]
     fn s3_ir_selfhost_roadmap() {
         // Done: DATA pack algorithm runs as YOYO IR (STB loop) via via_ir.
@@ -4847,7 +4820,7 @@ mod tests {
         let (exp, off) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_ONE_FLAT);
         assert!(s3_unpack_data_tyb(&exp).is_empty());
         let exp_recs = parse_tyb(&exp).unwrap().records;
-        // job poke (flat‖FE) + 92-row expand seed; soft ceiling keeps S1_SLIM in mind.
+        // job poke + argc IR-seed + 41-row body; soft ceiling keeps S1_SLIM in mind.
         assert!(
             exp_recs.len() > S3_EXPAND_CTRL_ROWS && exp_recs.len() < 512,
             "expand assembler recs {}",
@@ -4884,12 +4857,12 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb_a, 0, off_a, 0).unwrap(), argc_bytes);
     }
 
-    /// S3.258/S3.261: full expand seed (argc-poke‖body) re-encodes via shape-fill.
-    /// S3.261 raised many-job cap 64→128 so 91 jobs fit.
+    /// S3.258/S3.261/S3.264: expand ctrl body re-encodes via shape-fill.
+    /// S3.264 dropped argc-poke rows; body-only jobs fit well under the 128 cap.
     #[test]
     fn s3_yoyo_expand_ctrl_reencodes_via_shape_fill() {
         assert_eq!(S3_EXPAND_CTRL_FLAT.len(), S3_EXPAND_CTRL_ROWS * 7);
-        assert_eq!(S3_EXPAND_CTRL_ROWS, S3_EXPAND_ARGC_POKE_ROWS + S3_EXPAND_CTRL_BODY_ROWS);
+        assert_eq!(S3_EXPAND_CTRL_ROWS, 41);
         let ctrl = s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT);
         assert_eq!(ctrl.len(), S3_EXPAND_CTRL_ROWS);
         assert_eq!(ctrl.last().unwrap().0, 0xFF);
@@ -4899,7 +4872,7 @@ mod tests {
             .map(|r| (r.0, r.2))
             .collect();
         assert_eq!(jobs.len(), S3_EXPAND_CTRL_ROWS - 1);
-        assert!(jobs.len() > 64 && jobs.len() <= 128);
+        assert!(jobs.len() < 64 && jobs.len() <= 128);
         let (tyb, out) = s3_yoyo_shape_fill_many_tyb(&jobs);
         let mut expect = Vec::new();
         for &(op, args) in &jobs {
@@ -5029,26 +5002,27 @@ mod tests {
     fn s3_fixed10_fold_remaining_rust_surface() {
         assert_eq!(S3_LEA_PTR.len(), 7, "short lea must stay 7B (not disp32)");
         assert_eq!(S3_LEA_PTR, &[0x49, 0x8D, 0x07, 0x49, 0x89, 0x47, 0x78]);
-        // S3.259/S3.262: expand-ctrl bootstrap is still Rust (cannot via_yoyo itself).
+        // S3.259/S3.262/S3.264: expand-ctrl body bootstrap is still Rust.
         assert_eq!(S3_EXPAND_CTRL_FLAT.len(), S3_EXPAND_CTRL_ROWS * 7);
+        assert_eq!(S3_EXPAND_CTRL_ROWS, 41, "S3.264: argc-poke rows removed");
         assert_eq!(
             s3_bootstrap_expand_ctrl(),
             s3_recs_from_flat_seed_with_argc(S3_EXPAND_CTRL_FLAT, S3_SEED_ARGC_BYTES)
         );
+        assert_eq!(S3_SEED_ARGC_BYTES.len() as u32, 0x1E0 - S3_EXPAND_ARGC);
         let one = s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_ONE_FLAT);
         assert_eq!(one, s3_recs_from_flat_seed(S3_SHAPE_FILL_ONE_FLAT));
-        // S3.263: sole host wire→records bridge round-trips; expand layout pinned.
+        // S3.263/S3.264: sole host wire→records bridge; expand layout pinned;
+        // argc IR-seeded (no poke rows in ctrl flat).
         for r in &one {
             let w = s3_rec_wire(r.0, r.1, r.2);
             assert_eq!(s3_host_wire_to_records(&w), vec![*r]);
-            assert_eq!(s3_pack_wire_to_records(&w), s3_host_wire_to_records(&w));
         }
         assert_eq!(S3_EXPAND_SEED, 0x40);
         assert_eq!(S3_EXPAND_ARGC, 0x1C0);
         assert_eq!(S3_EXPAND_OUT, 0x200);
         assert_eq!(S3_EXPAND_SENTINEL, 0xFE);
         assert_eq!(S3_EXPAND_ARGC - S3_EXPAND_SEED, 0x180);
-        // Host bridge is the only wire reifier for expand (pack alias shares it).
         let (exp, off) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_ONE_FLAT);
         let wire = s3_sim_prog_loop(&exp, 0, off, 0).unwrap();
         assert_eq!(s3_host_wire_to_records(&wire), one);
@@ -5733,7 +5707,7 @@ mod tests {
         let got = s3_sim_prog_loop(&tyb, 0, out_off, 0).expect("emit recs");
         assert_eq!(got, expect);
         // Round-trip: wire → records → matches inputs.
-        assert_eq!(s3_pack_wire_to_records(&got), vec![ret, set]);
+        assert_eq!(s3_host_wire_to_records(&got), vec![ret, set]);
     }
 
     /// S3.167/S3.171/S3.172: YOYO STB-emits a full TYB file (== hand bytes).
