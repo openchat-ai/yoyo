@@ -103,8 +103,9 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.204–223** ✅   | `2b24667`   | empty-DATA in-DLL；1024 帽；short-lea 37B 地板        |
 | **S3.224–241** ✅   | `128fe7d`   | op→shape + scan-fill；控制模板收成字节种子                  |
 | **S3.242–253** ✅   | `a98ddad`   | one/argc flat 冻结；展开只扫 argc；e2e I/O 离 cwd        |
-| **S3.254–255** ✅   | pending     | YOYO IR 展开 flat→wire；生产 one/many ctrl 走 via_yoyo     |
-| **S3.256** ⏳       | —           | 展开器本体仍 Rust 拼装 · 收成 flat 种子 · **本步**              |
+| **S3.254–255** ✅   | `20bd92d`   | YOYO IR 展开 flat→wire；生产 one/many ctrl 走 via_yoyo     |
+| **S3.256–259** ✅   | pending     | 展开 ctrl flat/哨兵/自再编码；剩余 Rust 面钉死（bootstrap/A1） |
+| **S3.260** ⏳       | —           | 继续缩 bootstrap / wire-parse 宿主面 · **本步**              |
 
 
 
