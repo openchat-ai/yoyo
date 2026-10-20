@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.246**（242–245 展开只查 argc；flat 种子可 STB；仍不改 golden；**不**假 CLOSED）。
+**默认** `继续` **= S3.254**（246–253 one/argc flat；展开扫 argc；仍 Rust 循环；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -202,18 +202,18 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.239** ✅    | `e149697` | 一条 fill body 按计数填多条 job |
 | **S3.240** ✅    | `3a3d29b` | many-fill 回写自身控制记录；RET 仍在表外 |
 | **S3.241** ✅    | `128fe7d` | 51 行控制模板收成字节种子；展开仍 Rust |
-| **S3.242** ✅    | 1ab7b7d | 展开只拷贝线格式并查 argc |
-| **S3.243** ✅    | 1ab7b7d | RET 走 argc=0，无单独分支 |
-| **S3.244** ✅    | 1ab7b7d | 控制种子压成 357B flat blob |
-| **S3.245** ✅    | 1ab7b7d | flat 控制种子 STB 发射并对拍 |
-| **S3.246** ✅    | —         | one-ctrl 收成单一 flat，不再拼三段 |
-| **S3.247** ✅    | —         | one-flat 亦可 STB 对拍 |
-| **S3.248** ✅    | —         | argc 种子 = shape 表 + RET→0 |
-| **S3.249** ✅    | —         | e2e I/O 离 cwd（pe_dll_link + s1 slim） |
-| **S3.250** ✅    | —         | argc 种子收成 flat 字节并可 STB |
-| **S3.251** ✅    | —         | argc 查表与 STB 同读一份 flat |
-| **S3.252** ✅    | —         | argc 冻结为常量 flat 种子 |
-| **S3.253** ✅    | —         | 展开只扫 argc flat，不查 shape 表 |
+| **S3.242** ✅    | `1ab7b7d` | 展开只拷贝线格式并查 argc |
+| **S3.243** ✅    | `1ab7b7d` | RET 走 argc=0，无单独分支 |
+| **S3.244** ✅    | `1ab7b7d` | 控制种子压成 357B flat blob |
+| **S3.245** ✅    | `1ab7b7d` | flat 控制种子 STB 发射并对拍 |
+| **S3.246** ✅    | `a98ddad` | one-ctrl 收成单一 flat，不再拼三段 |
+| **S3.247** ✅    | `a98ddad` | one-flat 亦可 STB 对拍 |
+| **S3.248** ✅    | `a98ddad` | argc 种子 = shape 表 + RET→0 |
+| **S3.249** ✅    | `a98ddad` | e2e I/O 离 cwd（pe_dll_link + s1 slim） |
+| **S3.250** ✅    | `a98ddad` | argc 种子收成 flat 字节并可 STB |
+| **S3.251** ✅    | `a98ddad` | argc 查表与 STB 同读一份 flat |
+| **S3.252** ✅    | `a98ddad` | argc 冻结为常量 flat 种子 |
+| **S3.253** ✅    | `a98ddad` | 展开只扫 argc flat，不查 shape 表 |
 | **S3.254** ⏳    | —         | 真自举：仍需 Rust 循环展开 · **本步** |
 
 
@@ -253,7 +253,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.246**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.254**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -261,4 +261,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-20**：flat 控制种子可 STB · 默认 **S3.246** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-20**：argc/one flat 冻结 · 展开扫 argc · 默认 **S3.254** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
