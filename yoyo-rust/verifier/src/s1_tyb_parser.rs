@@ -2419,17 +2419,17 @@ fn s3_shape_argc_bytes() -> [u8; 4] {
     argc
 }
 
-const S3_SHAPE_TABLE: u32 = 0x40;
-const S3_SHAPE_ARGC: u32 = 0x60;
-/// One job: op byte then 6 arg bytes. Control IR never SETs these.
-const S3_SHAPE_JOB: u32 = 0x68;
-const S3_SHAPE_OUT: u32 = 0x80;
-
 /// S3.252: argc seed is a frozen flat blob (shape-derived + RET→0). Not rebuilt at call.
 const S3_SEED_ARGC_BYTES: &[u8] = &[
     48, 2, 97, 2, 98, 2, 64, 1, 112, 1, 113, 1, 115, 1, 116, 1,
     100, 2, 101, 2, 104, 2, 106, 2, 128, 3, 129, 3, 132, 3, 255, 0,
 ];
+/// S3.286: shape-fill scans `(op,argc)` pairs (same blob as expand), not op→shape.
+const S3_SHAPE_TABLE: u32 = 0x40;
+const S3_SHAPE_TABLE_END: u32 = S3_SHAPE_TABLE + S3_SEED_ARGC_BYTES.len() as u32; // 0x60
+/// One job: op byte then 6 arg bytes. Control IR never SETs these.
+const S3_SHAPE_JOB: u32 = 0x68;
+const S3_SHAPE_OUT: u32 = 0x80;
 
 fn s3_seed_argc_bytes() -> Vec<u8> {
     S3_SEED_ARGC_BYTES.to_vec()
@@ -2584,31 +2584,29 @@ fn s3_recs_from_flat_seed_via_yoyo(flat: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
 }
 
 const S3_SHAPE_FILL_ONE_AT: usize = 7;
-const S3_SHAPE_FILL_ONE_LEN: usize = 23;
-const S3_SHAPE_FILL_MANY_ROWS: usize = 36;
+const S3_SHAPE_FILL_ONE_LEN: usize = 20;
+const S3_SHAPE_FILL_MANY_ROWS: usize = 33;
 
 /// S3.241/S3.244: shape-fill many-ctrl seed as a flat 7×N blob. RET is 0xFF.
-/// S3.284: argc-table miss exits (JE 6); drop SET 6=255 + LABEL 3.
+/// S3.286: scan `(op,argc)` pairs; STB argc direct (no shape-tag lookup).
 const S3_SHAPE_FILL_MANY_FLAT: &[u8] = &[
     48, 2, 0, 104, 0, 0, 0, 128, 3, 0, 2, 0, 0, 0,
     98, 2, 0, 1, 0, 0, 0, 48, 9, 0, 0, 3, 0, 0,
     64, 7, 0, 0, 0, 0, 0, 101, 3, 0, 13, 0, 0, 0,
     113, 6, 0, 0, 0, 0, 0, 128, 7, 0, 2, 0, 0, 0,
-    48, 4, 0, 64, 0, 0, 0, 48, 5, 0, 94, 0, 0, 0,
+    48, 4, 0, 64, 0, 0, 0, 48, 5, 0, 96, 0, 0, 0,
     64, 1, 0, 0, 0, 0, 0, 101, 4, 0, 5, 0, 0, 0,
     113, 6, 0, 0, 0, 0, 0, 128, 11, 0, 4, 0, 0, 0,
     101, 11, 0, 7, 0, 0, 0, 113, 2, 0, 0, 0, 0, 0,
     98, 4, 0, 2, 0, 0, 0, 112, 1, 0, 0, 0, 0, 0,
     64, 2, 0, 0, 0, 0, 0, 128, 6, 0, 4, 0, 1, 0,
     129, 7, 0, 9, 0, 0, 0, 98, 9, 0, 1, 0, 0, 0,
-    48, 4, 0, 96, 0, 0, 0, 104, 4, 0, 6, 0, 0, 0,
-    128, 12, 0, 4, 0, 0, 0, 129, 12, 0, 9, 0, 0, 0,
-    98, 9, 0, 1, 0, 0, 0, 98, 2, 0, 1, 0, 0, 0,
-    48, 10, 0, 6, 0, 0, 0, 132, 9, 0, 2, 0, 10, 0,
-    // S3.285: ADDV s9 only on many path (one exits after MEMCPY).
-    104, 9, 0, 10, 0, 0, 0, 98, 2, 0, 6, 0, 0, 0,
-    97, 3, 0, 1, 0, 0, 0, 112, 7, 0, 0, 0, 0, 0,
-    64, 6, 0, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, 0,
+    129, 6, 0, 9, 0, 0, 0, 98, 9, 0, 1, 0, 0, 0,
+    98, 2, 0, 1, 0, 0, 0, 48, 10, 0, 6, 0, 0, 0,
+    132, 9, 0, 2, 0, 10, 0, 104, 9, 0, 10, 0, 0, 0,
+    98, 2, 0, 6, 0, 0, 0, 97, 3, 0, 1, 0, 0, 0,
+    112, 7, 0, 0, 0, 0, 0, 64, 6, 0, 0, 0, 0, 0,
+    255, 0, 0, 0, 0, 0, 0,
 ];
 
 fn s3_yoyo_shape_fill_one() -> Vec<(u8, u8, [u8; 6])> {
@@ -2618,24 +2616,22 @@ fn s3_yoyo_shape_fill_one() -> Vec<(u8, u8, [u8; 6])> {
 }
 
 const S3_SHAPE_FILL_ONE_FLAT: &[u8] = &[
-    // S3.281/S3.284: job ptr slot2; miss exits via LABEL 6 (same id as many done).
+    // S3.286: `(op,argc)` scan; STB argc direct; miss → LABEL 6.
     48, 2, 0, 104, 0, 0, 0, 48, 9, 0, 128, 0, 0, 0,
     128, 7, 0, 2, 0, 0, 0, 48, 4, 0, 64, 0, 0, 0,
-    48, 5, 0, 94, 0, 0, 0, 64, 1, 0, 0, 0, 0, 0,
+    48, 5, 0, 96, 0, 0, 0, 64, 1, 0, 0, 0, 0, 0,
     101, 4, 0, 5, 0, 0, 0, 113, 6, 0, 0, 0, 0, 0,
     128, 11, 0, 4, 0, 0, 0, 101, 11, 0, 7, 0, 0, 0,
     113, 2, 0, 0, 0, 0, 0, 98, 4, 0, 2, 0, 0, 0,
     112, 1, 0, 0, 0, 0, 0, 64, 2, 0, 0, 0, 0, 0,
     128, 6, 0, 4, 0, 1, 0, 129, 7, 0, 9, 0, 0, 0,
-    98, 9, 0, 1, 0, 0, 0, 48, 4, 0, 96, 0, 0, 0,
-    104, 4, 0, 6, 0, 0, 0, 128, 12, 0, 4, 0, 0, 0,
-    129, 12, 0, 9, 0, 0, 0, 98, 9, 0, 1, 0, 0, 0,
-    98, 2, 0, 1, 0, 0, 0, 48, 10, 0, 6, 0, 0, 0,
-    132, 9, 0, 2, 0, 10, 0, 64, 6, 0, 0, 0, 0, 0,
-    255, 0, 0, 0, 0, 0, 0,
+    98, 9, 0, 1, 0, 0, 0, 129, 6, 0, 9, 0, 0, 0,
+    98, 9, 0, 1, 0, 0, 0, 98, 2, 0, 1, 0, 0, 0,
+    48, 10, 0, 6, 0, 0, 0, 132, 9, 0, 2, 0, 10, 0,
+    64, 6, 0, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, 0,
 ];
 
-const S3_SHAPE_FILL_ONE_ROWS: usize = 27;
+const S3_SHAPE_FILL_ONE_ROWS: usize = 24;
 
 /// S3.246/S3.255: one-job control expands via YOYO IR (not a Rust chunk loop).
 fn s3_yoyo_shape_fill_ctrl() -> Vec<(u8, u8, [u8; 6])> {
@@ -2659,23 +2655,21 @@ fn s3_yoyo_shape_fill_many_tyb(jobs: &[(u8, [u8; 6])]) -> (Vec<u8>, u32) {
         blob.extend_from_slice(&args);
     }
     let mut recs = Vec::new();
-    s3_ir_seed_at(&mut recs, S3_SHAPE_TABLE, &s3_rec_op_shape_bytes(), 20);
-    s3_ir_seed_at(&mut recs, S3_SHAPE_ARGC, &s3_shape_argc_bytes(), 21);
-    s3_ir_seed_at(&mut recs, S3_SHAPE_JOB, &blob, 22);
+    // S3.286: one `(op,argc)` seed (shared with expand); no op→shape + shape→argc.
+    s3_ir_seed_at(&mut recs, S3_SHAPE_TABLE, S3_SEED_ARGC_BYTES, 20);
+    s3_ir_seed_at(&mut recs, S3_SHAPE_JOB, &blob, 21);
     recs.extend(s3_yoyo_shape_fill_many_ctrl());
     (s3_host_tyb_from_records(&recs), S3_SHAPE_MANY_OUT)
 }
 
-/// S3.236/S3.238: poke op-shape, argc, and one job (op then args), then the fixed
-/// control stream.
+/// S3.236/S3.238/S3.286: poke `(op,argc)` table + one job, then the fixed control stream.
 fn s3_yoyo_shape_fill_tyb(op: u8, args: [u8; 6]) -> (Vec<u8>, u32) {
     let mut job = Vec::with_capacity(7);
     job.push(op);
     job.extend_from_slice(&args);
     let mut recs = Vec::new();
-    s3_ir_seed_at(&mut recs, S3_SHAPE_TABLE, &s3_rec_op_shape_bytes(), 20);
-    s3_ir_seed_at(&mut recs, S3_SHAPE_ARGC, &s3_shape_argc_bytes(), 21);
-    s3_ir_seed_at(&mut recs, S3_SHAPE_JOB, &job, 22);
+    s3_ir_seed_at(&mut recs, S3_SHAPE_TABLE, S3_SEED_ARGC_BYTES, 20);
+    s3_ir_seed_at(&mut recs, S3_SHAPE_JOB, &job, 21);
     recs.extend(s3_yoyo_shape_fill_ctrl());
     (s3_host_tyb_from_records(&recs), S3_SHAPE_OUT)
 }
@@ -4682,9 +4676,10 @@ mod tests {
                 .count();
             assert_eq!(needle_sets, 0, "op {op:#x} needle is a load");
             assert_eq!(byte_sets, 0, "op {op:#x} wire bytes are loads");
+            // S3.286: argc from matched `(op,argc)` pair via STB (no shape-tag ADDV).
             assert!(
-                ir.records.iter().any(|r| r.op == 0x68),
-                "op {op:#x} argc is an indexed ADDV load"
+                ir.records.iter().any(|r| r.op == 0x81),
+                "op {op:#x} emits STB for op/argc"
             );
         }
         assert_eq!(s3_shape_argc_bytes(), [2, 2, 1, 3]);
@@ -4848,7 +4843,7 @@ mod tests {
         assert!(s3_unpack_data_tyb(&exp).is_empty());
         let exp_recs = parse_tyb(&exp).unwrap().records;
         // S3.283: pin ONE-flat assembler size (in-place seed ptr; no MOVRR s8).
-        assert_eq!(exp_recs.len(), 245);
+        assert_eq!(exp_recs.len(), 227);
         assert_eq!(S3_EXPAND_ASM_ROWS, 34);
         assert_eq!(S3_EXPAND_INIT_ROWS, 4);
         assert_eq!(
@@ -5052,6 +5047,8 @@ mod tests {
         assert_eq!(S3_EXPAND_CTRL_FLAT.len(), S3_EXPAND_CTRL_ROWS * 7);
         assert_eq!(S3_EXPAND_CTRL_ROWS, 30, "S3.283: in-place seed ptr advance");
         assert_eq!(S3_EXPAND_INIT_ROWS, 4, "S3.277: drop zero INIT SETs");
+        assert_eq!(S3_SHAPE_TABLE_END, 0x60, "S3.286: (op,argc) table is 32B");
+        assert_eq!(S3_SHAPE_FILL_ONE_ROWS, 24, "S3.286: drop shape-tag argc lookup");
         // S3.276: ctrl-only expand is plain flat_seed (no named bootstrap).
         assert_eq!(
             s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT),
@@ -5062,9 +5059,9 @@ mod tests {
             s3_recs_from_flat_seed_with_argc(&s3_expand_asm_flat(), S3_SEED_ARGC_BYTES)
         );
         assert_eq!(S3_SEED_ARGC_BYTES.len() as u32, 0x1E0 - S3_EXPAND_ARGC);
-        // S3.285: ONE-flat expand assembler size (245; ADDV s9 many-only).
+        // S3.286: ONE-flat expand assembler size (227; `(op,argc)` scan).
         let (exp_pin, _) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_ONE_FLAT);
-        assert_eq!(parse_tyb(&exp_pin).unwrap().records.len(), 245);
+        assert_eq!(parse_tyb(&exp_pin).unwrap().records.len(), 227);
         let one = s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_ONE_FLAT);
         assert_eq!(one, s3_recs_from_flat_seed(S3_SHAPE_FILL_ONE_FLAT));
         // S3.269: pack wire-section wrap; expand already emits TYB (no wrap).
