@@ -2584,7 +2584,7 @@ fn s3_recs_from_flat_seed_via_yoyo(flat: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
 }
 
 const S3_SHAPE_FILL_ONE_AT: usize = 7;
-const S3_SHAPE_FILL_ONE_LEN: usize = 24;
+const S3_SHAPE_FILL_ONE_LEN: usize = 23;
 const S3_SHAPE_FILL_MANY_ROWS: usize = 36;
 
 /// S3.241/S3.244: shape-fill many-ctrl seed as a flat 7×N blob. RET is 0xFF.
@@ -2605,6 +2605,7 @@ const S3_SHAPE_FILL_MANY_FLAT: &[u8] = &[
     128, 12, 0, 4, 0, 0, 0, 129, 12, 0, 9, 0, 0, 0,
     98, 9, 0, 1, 0, 0, 0, 98, 2, 0, 1, 0, 0, 0,
     48, 10, 0, 6, 0, 0, 0, 132, 9, 0, 2, 0, 10, 0,
+    // S3.285: ADDV s9 only on many path (one exits after MEMCPY).
     104, 9, 0, 10, 0, 0, 0, 98, 2, 0, 6, 0, 0, 0,
     97, 3, 0, 1, 0, 0, 0, 112, 7, 0, 0, 0, 0, 0,
     64, 6, 0, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, 0,
@@ -2630,11 +2631,11 @@ const S3_SHAPE_FILL_ONE_FLAT: &[u8] = &[
     104, 4, 0, 6, 0, 0, 0, 128, 12, 0, 4, 0, 0, 0,
     129, 12, 0, 9, 0, 0, 0, 98, 9, 0, 1, 0, 0, 0,
     98, 2, 0, 1, 0, 0, 0, 48, 10, 0, 6, 0, 0, 0,
-    132, 9, 0, 2, 0, 10, 0, 104, 9, 0, 10, 0, 0, 0,
-    64, 6, 0, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, 0,
+    132, 9, 0, 2, 0, 10, 0, 64, 6, 0, 0, 0, 0, 0,
+    255, 0, 0, 0, 0, 0, 0,
 ];
 
-const S3_SHAPE_FILL_ONE_ROWS: usize = 28;
+const S3_SHAPE_FILL_ONE_ROWS: usize = 27;
 
 /// S3.246/S3.255: one-job control expands via YOYO IR (not a Rust chunk loop).
 fn s3_yoyo_shape_fill_ctrl() -> Vec<(u8, u8, [u8; 6])> {
@@ -4847,7 +4848,7 @@ mod tests {
         assert!(s3_unpack_data_tyb(&exp).is_empty());
         let exp_recs = parse_tyb(&exp).unwrap().records;
         // S3.283: pin ONE-flat assembler size (in-place seed ptr; no MOVRR s8).
-        assert_eq!(exp_recs.len(), 251);
+        assert_eq!(exp_recs.len(), 245);
         assert_eq!(S3_EXPAND_ASM_ROWS, 34);
         assert_eq!(S3_EXPAND_INIT_ROWS, 4);
         assert_eq!(
@@ -5061,9 +5062,9 @@ mod tests {
             s3_recs_from_flat_seed_with_argc(&s3_expand_asm_flat(), S3_SEED_ARGC_BYTES)
         );
         assert_eq!(S3_SEED_ARGC_BYTES.len() as u32, 0x1E0 - S3_EXPAND_ARGC);
-        // S3.284: ONE-flat expand assembler size (251; argc-miss exits).
+        // S3.285: ONE-flat expand assembler size (245; ADDV s9 many-only).
         let (exp_pin, _) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_ONE_FLAT);
-        assert_eq!(parse_tyb(&exp_pin).unwrap().records.len(), 251);
+        assert_eq!(parse_tyb(&exp_pin).unwrap().records.len(), 245);
         let one = s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_ONE_FLAT);
         assert_eq!(one, s3_recs_from_flat_seed(S3_SHAPE_FILL_ONE_FLAT));
         // S3.269: pack wire-section wrap; expand already emits TYB (no wrap).
