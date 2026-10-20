@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.283**（282 去死 ADDV s8；ctrl 32→31；asm 35；assembler 271→264；**不**假 CLOSED）。
+**默认** 继续 **= S3.284**（283 就地推进 seed 指针；ctrl 31→30；asm 34；assembler 264→257；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -125,8 +125,9 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.279** ✅       | ded3d5   | STB/pack 去 SET ZERO；slot13 image-zero floor |
 | **S3.280** ✅       | ecf0f73   | MEMCPY 代 arg 拷贝环；ctrl 39→32；asm 36；assembler 317→277 |
 | **S3.281** ✅       | 9013fea   | STB op 直写；去 MOVRR 暂存；many 40；one 31；assembler 271 |
-| **S3.282** ✅       | —           | 去死 ADDV s8；ctrl 31；asm 35；many 39；one 30；assembler 264 |
-| **S3.283** ⏳       | —           | 继续缩 bootstrap / A1 宿主面 · **本步**                   |
+| **S3.282** ✅       | dc0bc63   | 去死 ADDV s8；ctrl 31；asm 35；many 39；one 30；assembler 264 |
+| **S3.283** ✅       | —           | 就地推进 seed 指针；ctrl 30；asm 34；many 38；one 29；assembler 257 |
+| **S3.284** ⏳       | —           | 继续缩 bootstrap / A1 宿主面 · **本步**                   |
 
 
 
@@ -174,4 +175,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-20**：ctrl 31 · asm 35 · assembler 264 · many 39 · one 30 · 默认 **S3.283** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-20**：ctrl 30 · asm 34 · assembler 257 · many 38 · one 29 · 默认 **S3.284** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
