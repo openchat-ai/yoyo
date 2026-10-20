@@ -2419,119 +2419,98 @@ const S3_SHAPE_ARGC: u32 = 0x60;
 const S3_SHAPE_JOB: u32 = 0x68;
 const S3_SHAPE_OUT: u32 = 0x80;
 
-/// S3.241: expand one seed row (op + 6 arg bytes) through the shape table.
-/// RET (0xFF) has no shape and stays a bare record.
-fn s3_rec_from_wire_seed(row: &[u8; 7]) -> (u8, u8, [u8; 6]) {
-    let op = row[0];
-    let args = [row[1], row[2], row[3], row[4], row[5], row[6]];
+/// S3.242: seed rows already hold final wire args. Expander only looks up argc.
+/// S3.243: RET (0xFF) is argc 0 via the same path (not a special branch).
+fn s3_seed_argc(op: u8) -> u8 {
     if op == 0xFF {
-        return (0xFF, 0, [0; 6]);
+        return 0;
     }
-    let w = |i: usize| u16::from_le_bytes([args[i], args[i + 1]]) as u32;
     match s3_rec_shape_of(op).expect("shape-fill seed op") {
-        S3RecShape::SlotImm => {
-            let imm = u32::from_le_bytes([args[2], args[3], args[4], args[5]]);
-            s3_rec_from_shape(op, w(0), imm, 0)
-        }
-        S3RecShape::SlotSlot => s3_rec_from_shape(op, w(0), w(2), 0),
-        S3RecShape::U32 => {
-            let id = u32::from_le_bytes([args[0], args[1], args[2], args[3]]);
-            s3_rec_from_shape(op, id, 0, 0)
-        }
-        S3RecShape::Slot3 => s3_rec_from_shape(op, w(0), w(2), w(4)),
+        S3RecShape::SlotImm | S3RecShape::SlotSlot => 2,
+        S3RecShape::U32 => 1,
+        S3RecShape::Slot3 => 3,
     }
 }
 
-fn s3_recs_from_seed(seed: &[[u8; 7]]) -> Vec<(u8, u8, [u8; 6])> {
-    seed.iter().copied().map(|row| s3_rec_from_wire_seed(&row)).collect()
-}
-
-/// S3.241: shape-fill many-ctrl seed. Each row is op then 6 wire arg bytes.
-/// The one-record body is the slice at S3_SHAPE_FILL_ONE_AT. RET is 0xFF.
-const S3_SHAPE_FILL_MANY_SEED: &[[u8; 7]] = &[
-    [48, 2, 0, 104, 0, 0, 0],
-    [128, 3, 0, 2, 0, 0, 0],
-    [98, 2, 0, 1, 0, 0, 0],
-    [48, 9, 0, 0, 3, 0, 0],
-    [48, 13, 0, 0, 0, 0, 0],
-    [64, 7, 0, 0, 0, 0, 0],
-    [101, 3, 0, 13, 0, 0, 0],
-    [113, 6, 0, 0, 0, 0, 0],
-    [100, 1, 0, 2, 0, 0, 0],
-    [128, 7, 0, 1, 0, 0, 0],
-    [48, 4, 0, 64, 0, 0, 0],
-    [48, 5, 0, 94, 0, 0, 0],
-    [48, 6, 0, 255, 0, 0, 0],
-    [64, 1, 0, 0, 0, 0, 0],
-    [101, 4, 0, 5, 0, 0, 0],
-    [113, 3, 0, 0, 0, 0, 0],
-    [128, 11, 0, 4, 0, 0, 0],
-    [101, 11, 0, 7, 0, 0, 0],
-    [113, 2, 0, 0, 0, 0, 0],
-    [98, 4, 0, 2, 0, 0, 0],
-    [112, 1, 0, 0, 0, 0, 0],
-    [64, 2, 0, 0, 0, 0, 0],
-    [128, 6, 0, 4, 0, 1, 0],
-    [64, 3, 0, 0, 0, 0, 0],
-    [100, 12, 0, 7, 0, 0, 0],
-    [129, 12, 0, 9, 0, 0, 0],
-    [98, 9, 0, 1, 0, 0, 0],
-    [48, 4, 0, 96, 0, 0, 0],
-    [104, 4, 0, 6, 0, 0, 0],
-    [128, 12, 0, 4, 0, 0, 0],
-    [129, 12, 0, 9, 0, 0, 0],
-    [98, 9, 0, 1, 0, 0, 0],
-    [100, 8, 0, 1, 0, 0, 0],
-    [98, 8, 0, 1, 0, 0, 0],
-    [48, 10, 0, 6, 0, 0, 0],
-    [48, 13, 0, 0, 0, 0, 0],
-    [64, 4, 0, 0, 0, 0, 0],
-    [101, 10, 0, 13, 0, 0, 0],
-    [113, 5, 0, 0, 0, 0, 0],
-    [128, 12, 0, 8, 0, 0, 0],
-    [129, 12, 0, 9, 0, 0, 0],
-    [98, 9, 0, 1, 0, 0, 0],
-    [98, 8, 0, 1, 0, 0, 0],
-    [97, 10, 0, 1, 0, 0, 0],
-    [112, 4, 0, 0, 0, 0, 0],
-    [64, 5, 0, 0, 0, 0, 0],
-    [98, 2, 0, 7, 0, 0, 0],
-    [97, 3, 0, 1, 0, 0, 0],
-    [112, 7, 0, 0, 0, 0, 0],
-    [64, 6, 0, 0, 0, 0, 0],
-    [255, 0, 0, 0, 0, 0, 0],
-];
-const S3_SHAPE_FILL_ONE_AT: usize = 9;
-const S3_SHAPE_FILL_ONE_LEN: usize = 37;
-
-fn s3_yoyo_shape_fill_one() -> Vec<(u8, u8, [u8; 6])> {
-    s3_recs_from_seed(
-        &S3_SHAPE_FILL_MANY_SEED
-            [S3_SHAPE_FILL_ONE_AT..S3_SHAPE_FILL_ONE_AT + S3_SHAPE_FILL_ONE_LEN],
+fn s3_rec_from_wire_seed(row: &[u8; 7]) -> (u8, u8, [u8; 6]) {
+    (
+        row[0],
+        s3_seed_argc(row[0]),
+        [row[1], row[2], row[3], row[4], row[5], row[6]],
     )
 }
 
-/// One-job prefix: SET JOB, SET DST. RET is the last many-seed row.
-const S3_SHAPE_FILL_ONE_PREFIX: &[[u8; 7]] = &[
-    [0x30, 1, 0, 0x68, 0, 0, 0],
-    [0x30, 9, 0, 0x80, 0, 0, 0],
+/// S3.244: expand a flat 7×N seed blob into records.
+fn s3_recs_from_flat_seed(flat: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
+    assert_eq!(flat.len() % 7, 0);
+    flat.chunks_exact(7)
+        .map(|c| {
+            let row = [c[0], c[1], c[2], c[3], c[4], c[5], c[6]];
+            s3_rec_from_wire_seed(&row)
+        })
+        .collect()
+}
+
+const S3_SHAPE_FILL_ONE_AT: usize = 9;
+const S3_SHAPE_FILL_ONE_LEN: usize = 37;
+const S3_SHAPE_FILL_MANY_ROWS: usize = 51;
+
+/// S3.241/S3.244: shape-fill many-ctrl seed as a flat 7×N blob. RET is 0xFF.
+const S3_SHAPE_FILL_MANY_FLAT: &[u8] = &[
+    48, 2, 0, 104, 0, 0, 0, 128, 3, 0, 2, 0, 0, 0,
+    98, 2, 0, 1, 0, 0, 0, 48, 9, 0, 0, 3, 0, 0,
+    48, 13, 0, 0, 0, 0, 0, 64, 7, 0, 0, 0, 0, 0,
+    101, 3, 0, 13, 0, 0, 0, 113, 6, 0, 0, 0, 0, 0,
+    100, 1, 0, 2, 0, 0, 0, 128, 7, 0, 1, 0, 0, 0,
+    48, 4, 0, 64, 0, 0, 0, 48, 5, 0, 94, 0, 0, 0,
+    48, 6, 0, 255, 0, 0, 0, 64, 1, 0, 0, 0, 0, 0,
+    101, 4, 0, 5, 0, 0, 0, 113, 3, 0, 0, 0, 0, 0,
+    128, 11, 0, 4, 0, 0, 0, 101, 11, 0, 7, 0, 0, 0,
+    113, 2, 0, 0, 0, 0, 0, 98, 4, 0, 2, 0, 0, 0,
+    112, 1, 0, 0, 0, 0, 0, 64, 2, 0, 0, 0, 0, 0,
+    128, 6, 0, 4, 0, 1, 0, 64, 3, 0, 0, 0, 0, 0,
+    100, 12, 0, 7, 0, 0, 0, 129, 12, 0, 9, 0, 0, 0,
+    98, 9, 0, 1, 0, 0, 0, 48, 4, 0, 96, 0, 0, 0,
+    104, 4, 0, 6, 0, 0, 0, 128, 12, 0, 4, 0, 0, 0,
+    129, 12, 0, 9, 0, 0, 0, 98, 9, 0, 1, 0, 0, 0,
+    100, 8, 0, 1, 0, 0, 0, 98, 8, 0, 1, 0, 0, 0,
+    48, 10, 0, 6, 0, 0, 0, 48, 13, 0, 0, 0, 0, 0,
+    64, 4, 0, 0, 0, 0, 0, 101, 10, 0, 13, 0, 0, 0,
+    113, 5, 0, 0, 0, 0, 0, 128, 12, 0, 8, 0, 0, 0,
+    129, 12, 0, 9, 0, 0, 0, 98, 9, 0, 1, 0, 0, 0,
+    98, 8, 0, 1, 0, 0, 0, 97, 10, 0, 1, 0, 0, 0,
+    112, 4, 0, 0, 0, 0, 0, 64, 5, 0, 0, 0, 0, 0,
+    98, 2, 0, 7, 0, 0, 0, 97, 3, 0, 1, 0, 0, 0,
+    112, 7, 0, 0, 0, 0, 0, 64, 6, 0, 0, 0, 0, 0,
+    255, 0, 0, 0, 0, 0, 0,
 ];
 
-/// S3.238/S3.241: one-job control is prefix seed + one-body slice + RET seed.
+fn s3_yoyo_shape_fill_one() -> Vec<(u8, u8, [u8; 6])> {
+    let start = S3_SHAPE_FILL_ONE_AT * 7;
+    let end = start + S3_SHAPE_FILL_ONE_LEN * 7;
+    s3_recs_from_flat_seed(&S3_SHAPE_FILL_MANY_FLAT[start..end])
+}
+
+/// One-job prefix: SET JOB, SET DST. RET is the last many-seed row.
+const S3_SHAPE_FILL_ONE_PREFIX: &[u8] = &[
+    0x30, 1, 0, 0x68, 0, 0, 0, 0x30, 9, 0, 0x80, 0, 0, 0,
+];
+
+/// S3.238/S3.244: one-job control is prefix flat + one-body + RET from many flat.
 fn s3_yoyo_shape_fill_ctrl() -> Vec<(u8, u8, [u8; 6])> {
-    let mut recs = s3_recs_from_seed(S3_SHAPE_FILL_ONE_PREFIX);
+    let mut recs = s3_recs_from_flat_seed(S3_SHAPE_FILL_ONE_PREFIX);
     recs.extend(s3_yoyo_shape_fill_one());
-    recs.push(s3_rec_from_wire_seed(
-        S3_SHAPE_FILL_MANY_SEED.last().expect("RET row"),
+    recs.extend(s3_recs_from_flat_seed(
+        &S3_SHAPE_FILL_MANY_FLAT[S3_SHAPE_FILL_MANY_FLAT.len() - 7..],
     ));
     recs
 }
 
-/// S3.239/S3.241: many-ctrl is the seed table, not a Rust push list.
+/// S3.239/S3.244: many-ctrl expands from the flat seed blob.
 const S3_SHAPE_MANY_OUT: u32 = 0x300;
 
 fn s3_yoyo_shape_fill_many_ctrl() -> Vec<(u8, u8, [u8; 6])> {
-    s3_recs_from_seed(S3_SHAPE_FILL_MANY_SEED)
+    s3_recs_from_flat_seed(S3_SHAPE_FILL_MANY_FLAT)
 }
 
 fn s3_yoyo_shape_fill_many_tyb(jobs: &[(u8, [u8; 6])]) -> (Vec<u8>, u32) {
@@ -4338,8 +4317,8 @@ mod tests {
     /// Floors: (1) short lea → `.text` only via A1 (STB/poke can hold the 37B
     /// payload but do not inject `.text`) (2) one SET per distinct emit byte
     /// (no SHR; shared `s3_append_stb_poke_global_distinct`).
-    /// Cliff: YOYO fills shapes without Rust. S3.241 stores the fill control as a
-    /// byte seed; Rust still expands that seed and still wraps the one-job path.
+    /// Cliff: YOYO fills shapes without Rust. S3.244 stores fill control as a flat
+    /// seed; Rust still expands argc from the shape table.
     #[test]
     fn s3_ir_selfhost_roadmap() {
         // Done: DATA pack algorithm runs as YOYO IR (STB loop) via via_ir.
@@ -4625,14 +4604,16 @@ mod tests {
         assert_eq!(tail(&tyb), ctrl);
     }
 
-    /// S3.241: the many-ctrl seed expands back to the same wire args. No push list.
+    /// S3.241–S3.244: flat seed expands to wire args; argc is a table lookup.
     #[test]
     fn s3_shape_fill_seed_roundtrip() {
+        assert_eq!(S3_SHAPE_FILL_MANY_FLAT.len(), S3_SHAPE_FILL_MANY_ROWS * 7);
         let many = s3_yoyo_shape_fill_many_ctrl();
-        assert_eq!(many.len(), S3_SHAPE_FILL_MANY_SEED.len());
-        assert_eq!(many.len(), 51);
-        for (rec, row) in many.iter().zip(S3_SHAPE_FILL_MANY_SEED.iter()) {
+        assert_eq!(many.len(), S3_SHAPE_FILL_MANY_ROWS);
+        for (i, rec) in many.iter().enumerate() {
+            let row = &S3_SHAPE_FILL_MANY_FLAT[i * 7..i * 7 + 7];
             assert_eq!(rec.0, row[0]);
+            assert_eq!(rec.1, s3_seed_argc(row[0]));
             assert_eq!(rec.2, [row[1], row[2], row[3], row[4], row[5], row[6]]);
         }
         let one = s3_yoyo_shape_fill_one();
@@ -4642,6 +4623,31 @@ mod tests {
             many[S3_SHAPE_FILL_ONE_AT..S3_SHAPE_FILL_ONE_AT + S3_SHAPE_FILL_ONE_LEN]
         );
         assert_eq!(many.last().unwrap().0, 0xFF);
+        assert_eq!(s3_seed_argc(0xFF), 0);
+        assert_eq!(s3_seed_argc(0x30), 2);
+        assert_eq!(s3_seed_argc(0x40), 1);
+        assert_eq!(s3_seed_argc(0x81), 3);
+        // Expander does not re-encode through s3_rec_from_shape.
+        let row = [0x30u8, 2, 0, 104, 0, 0, 0];
+        assert_eq!(
+            s3_rec_from_wire_seed(&row),
+            (0x30, 2, [2, 0, 104, 0, 0, 0])
+        );
+    }
+
+    /// S3.245: control flat seed is STB-emittable empty-DATA payload.
+    #[test]
+    fn s3_shape_fill_flat_stb_payload() {
+        let (tyb, off) = s3_yoyo_emit_flat_via_stb(S3_SHAPE_FILL_MANY_FLAT, 0x20);
+        assert!(s3_unpack_data_tyb(&tyb).is_empty());
+        assert_eq!(
+            s3_sim_prog_loop(&tyb, 0, off, 0).unwrap(),
+            S3_SHAPE_FILL_MANY_FLAT
+        );
+        assert_eq!(
+            s3_recs_from_flat_seed(S3_SHAPE_FILL_MANY_FLAT),
+            s3_yoyo_shape_fill_many_ctrl()
+        );
     }
 
     /// S3.240: many-fill re-encodes its own control records. RET is not in the
