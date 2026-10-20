@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.265**（264 expand argc IR-seed / ctrl 41 行；**不**假 CLOSED）。
+**默认** `继续` **= S3.266**（265 expand assembler 312 pin；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -107,8 +107,9 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.256–259** ✅   | `791936a`   | 展开 ctrl flat/哨兵/自再编码；剩余 Rust 面钉死（bootstrap/A1） |
 | **S3.260–262** ✅   | `94f3e77`   | argc-poke 并入展开种子；many-job 128；命名 bootstrap 唯一生产点 |
 | **S3.263** ✅       | `e6d9362`   | sole host wire→records；expand layout 钉死                   |
-| **S3.264** ✅       | pending     | expand argc IR-seed；ctrl flat 92→41；kill pack alias          |
-| **S3.265** ⏳       | —           | 继续缩 wire-parse / A1 宿主面 · **本步**                   |
+| **S3.264** ✅       | `8534834`   | expand argc IR-seed；ctrl flat 92→41；kill pack alias          |
+| **S3.265** ✅       | pending     | expand ONE assembler=312；coalesce 劣于 two-seed；A1 三块不动 |
+| **S3.266** ⏳       | —           | 继续缩 wire-parse / A1 宿主面 · **本步**                   |
 
 
 
@@ -148,7 +149,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.265**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.266**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -156,4 +157,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-20**：expand ctrl 41 行 + argc IR-seed · 默认 **S3.265** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-20**：expand assembler 312 pin · 默认 **S3.266** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）

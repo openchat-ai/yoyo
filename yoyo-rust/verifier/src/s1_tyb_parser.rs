@@ -2520,8 +2520,9 @@ const S3_EXPAND_CTRL_FLAT: &[u8] = &[
     255, 0, 0, 0, 0, 0, 0,
 ];
 
-/// S3.254/S3.260/S3.264: YOYO IR expands a 7×N flat seed into 8-byte record wires.
-/// Assembler: poke (flat‖0xFE) + IR-seed argc blob + bootstrap expand body.
+/// S3.254/S3.260/S3.264/S3.265: YOYO IR expands a 7×N flat seed into 8B wires.
+/// Assembler: job poke (flat‖FE) + argc IR-seed + bootstrap body.
+/// (S3.265: coalesced [SEED..0x1E0) poke was tried — 324 > two-seed 312; keep split.)
 fn s3_yoyo_expand_flat_tyb(flat: &[u8]) -> (Vec<u8>, u32) {
     assert!(!flat.is_empty() && flat.len() % 7 == 0);
     assert!(
@@ -4820,12 +4821,27 @@ mod tests {
         let (exp, off) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_ONE_FLAT);
         assert!(s3_unpack_data_tyb(&exp).is_empty());
         let exp_recs = parse_tyb(&exp).unwrap().records;
-        // job poke + argc IR-seed + 41-row body; soft ceiling keeps S1_SLIM in mind.
-        assert!(
-            exp_recs.len() > S3_EXPAND_CTRL_ROWS && exp_recs.len() < 512,
-            "expand assembler recs {}",
-            exp_recs.len()
-        );
+        // S3.265: pin ONE-flat two-seed assembler size; coalesce regresses.
+        assert_eq!(exp_recs.len(), 312);
+        {
+            let mut job = S3_SHAPE_FILL_ONE_FLAT.to_vec();
+            job.push(S3_EXPAND_SENTINEL);
+            let span = (0x1E0 - S3_EXPAND_SEED) as usize;
+            let mut coalesced = vec![0u8; span];
+            coalesced[..job.len()].copy_from_slice(&job);
+            let argc_at = (S3_EXPAND_ARGC - S3_EXPAND_SEED) as usize;
+            coalesced[argc_at..argc_at + S3_SEED_ARGC_BYTES.len()]
+                .copy_from_slice(S3_SEED_ARGC_BYTES);
+            let mut one_poke = Vec::new();
+            s3_ir_seed_at(&mut one_poke, S3_EXPAND_SEED, &coalesced, 30);
+            one_poke.extend(s3_bootstrap_expand_ctrl());
+            assert!(
+                one_poke.len() > exp_recs.len(),
+                "coalesce {} must stay worse than two-seed {}",
+                one_poke.len(),
+                exp_recs.len()
+            );
+        }
         assert!(
             !exp_recs.iter().any(|r| {
                 r.op == 0x30
@@ -5010,6 +5026,9 @@ mod tests {
             s3_recs_from_flat_seed_with_argc(S3_EXPAND_CTRL_FLAT, S3_SEED_ARGC_BYTES)
         );
         assert_eq!(S3_SEED_ARGC_BYTES.len() as u32, 0x1E0 - S3_EXPAND_ARGC);
+        // S3.265: ONE-flat expand assembler stays 312 (job poke + argc seed + 41).
+        let (exp_pin, _) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_ONE_FLAT);
+        assert_eq!(parse_tyb(&exp_pin).unwrap().records.len(), 312);
         let one = s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_ONE_FLAT);
         assert_eq!(one, s3_recs_from_flat_seed(S3_SHAPE_FILL_ONE_FLAT));
         // S3.263/S3.264: sole host wire→records bridge; expand layout pinned;
@@ -7034,6 +7053,7 @@ mod tests {
     }
 
     /// S3.164/S3.234: OnceLock of in-DLL three-lea A1 prologue from the shared 37B.
+    /// (S3.265: one-stream A1 pack changes TYB framing — golden stays three chunks.)
     fn s3_in_dll_lea_prologue_recs() -> &'static [(u8, u8, [u8; 6])] {
         use std::sync::OnceLock;
         static PROLOGUE: OnceLock<Vec<(u8, u8, [u8; 6])>> = OnceLock::new();
