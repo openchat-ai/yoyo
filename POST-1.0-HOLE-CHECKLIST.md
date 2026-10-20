@@ -84,137 +84,27 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 ### S3 进度索引
 
+明细 / 单刀正文 → `git log`。下表只留波段 tip pin。
 
-| 波段              | pin       | 一句话                                |
-| --------------- | --------- | ---------------------------------- |
-| **S3.1–29** ✅   | `d310710` | RAW_BYTES + 固定模板 10 op host 表      |
-| **S3.30–52** ✅  | `673297e` | bake 表 + multi bake                |
-| **S3.53–76** ✅  | `290679b` | JMP/CALL/JCC + ALU/MEM/平台 stub     |
-| **S3.77–98** ✅  | `6b6756e` | any-slot + LOAD/WRITE→slim IAT     |
-| **S3.99–108** ✅ | `a10c20d` | host+in-DLL 真 I/O e2e              |
-| **S3.109** ✅    | `3e3dec9` | 近端合同 + 剩余 op meta-emit             |
-| **S3.110** ✅    | `7dcaa8d` | `s3_subset_fixed10_meta_emit_parity` 10 op 字节对拍 |
-| **S3.111** ✅    | `0fa5d9e` | fixed10 证明去掉 `pack_meta_emit`；mini=YOYO 表 |
-| **S3.112** ✅    | `0d593d3` | 删宿主固件三段 RAW `0xA1` 序言（sim 本就跳过） |
-| **S3.113–115** ✅ | `05c8eba` | 打包 / 行模板 / SET body 收成一份；in-DLL RAW 留给 PE |
-| **S3.116–117** ✅ | `40de19f` | 一套 prog-loop sim + 一份循环指令尾 |
-| **S3.118–119** ✅ | `53cd9d8` | scan/compose/fulltext 走同一 sim；host 直调 |
-| **S3.120–122** ✅ | `1f3b4f9` | 共用 DATA 前缀；模板体改由 `emit_x86` 生成 |
-| **S3.123** ✅    | `8fa5693` | RET/NOP 单字节改走 `emit_x86` |
-| **S3.124–128** ✅ | `fcb497e` | fixed10 一份；`lea` 由 disp/slot 生成；SET/ADD 记录一份 |
-| **S3.129–130** ✅ | `432040f` | `s3_fixed_rec` 对拍；10 例由同一张表拼出 |
-| **S3.131–132** ✅ | `c3ad6e4` | 短 `lea` 共用；compose→`append_scan_memcpy`；in-DLL 仍有 A1 |
-| **S3.133–134** ✅ | `3f1e2a7` | IR 记录一份；scan→`append_scan_byte_out` |
-| **S3.135** ✅    | `e431341` | 剩余 Rust 面清单（DATA `0x10` / 短 `lea` / in-DLL A1） |
-| **S3.136** ✅    | `60052d6` | YOYO 表 DATA 统一走 `s3_pack_data`（仍 Rust） |
-| **S3.137–140** ✅ | `3596c40` | pack↔unpack；body OnceLock；host 最后一英里；111 例穷尽对拍 |
-| **S3.141** ✅    | `6010384` | `S3_PACK_CHUNK=3` 规格 + 记录数门禁 |
-| **S3.142** ✅    | `c4a4ff0` | YOYO IR pack 原型（unroll SET/ADD/MEMCPY）对拍 wire |
-| **S3.143–144** ✅ | `91b4dcd` | loop pack + via_ir records == `s3_pack_data` |
-| **S3.145–146** ✅ | `3ff56ce` | 动态布局；host 固件 DATA 改走 via_ir |
-| **S3.147–148** ✅ | `a85b062` | 表路径 via_ir；`s3_pack_data` 仅参照；scratch=`host_pack_bytes` |
-| **S3.149** ✅    | `e6a48db` | scratch 仅 const+payload；sim MEMCPY 增长 outbuf |
-| **S3.150** ✅    | `85aa57f` | `s3_append_raw_a1`；in-DLL 三 lea 种子共用 |
-| **S3.151–152** ✅ | `8186680` | scratch 前缀 OnceLock；pack 后剩余 Rust 面清单 |
-| **S3.153** ✅    | `a9135cd` | bootstrap scratch bytewise；chunk-3 仅 IR 输出 |
-| **S3.154–155** ✅ | `7b58cb5` | sim STB (0x81)；LDB→STB pack 对拍 wire |
-| **S3.156** ✅    | `8d85ec2` | STB 进 emit_x86 + mini 校验 |
-| **S3.157** ✅    | `a0d224f` | loop STB pack IR 1..=64 wire 对拍 |
-| **S3.158** ✅    | `25eae12` | via_ir 改走 loop STB（host/表 DATA） |
-| **S3.159** ✅    | `54e4023` | STB copy slim PE e2e（Windows） |
-| **S3.160** ✅    | `f2fae2c` | pack+STB 后剩余 Rust 面再钉 |
-| **S3.161** ✅    | `37aa36d` | via_ir 路径强制 STB loop 门禁 |
-| **S3.162** ✅    | `7687072` | bootstrap bytewise = 地板（无 YOYO 写 TYB 记录前不可消） |
-| **S3.163** ✅    | `cce0b51` | IR 自举地图门禁（done/floor/cliff） |
-| **S3.164** ✅    | `d5a9008` | in-DLL 三 lea A1 prologue OnceLock |
-| **S3.165** ✅    | `45ec7aa` | scan/compose/fulltext lea A1 OnceLock |
-| **S3.166–167** ✅ | `b3e06ba` | STB 发射 TYB 记录 + 完整文件（magic+cnt+recs） |
-| **S3.168** ✅    | `e188dd9` | fixed10 经 STB 发射 TYB 对拍 emit_x86 |
-| **S3.169–170** ✅ | `ce0fead` | 发射 TYB→mini PE；自举地图含 TYB 发射已做 |
-| **S3.171** ✅    | `81e2c28` | 循环 STB 复制 Rust 预置 flat（对照路径） |
-| **S3.172** ✅    | `9980879` | 默认发射：flat 由 IR SET+STB 写出（无 Rust 预置） |
-| **S3.173** ✅    | `b7d6060` | 自举地图钉发射器 cliff（Rust 仍拼 SET+STB） |
-| **S3.174** ✅    | `ce60263` | SET+STB×byte 展开 = 发射器地板（门禁） |
-| **S3.175** ✅    | `c46db00` | loop-staged 发射 IR 大小与 flat 无关 |
-| **S3.176** ✅    | `7d9e782` | 真自举近端清单（两地板 + O(1) 旁路） |
-| **S3.177** ✅    | `8d003f2` | 混合发射：小 flat 展开 / 大 flat loop-staged |
-| **S3.178** ✅    | `aa98a27` | 两阶段发射起步；sim composed 只计 outbuf |
-| **S3.179** ✅    | `0523dc5` | 两阶段改 O(1) loop 拷贝（flat 仍在 scratch） |
-| **S3.180** ✅    | `803ffda` | 大 flat 默认回 loop-staged；composed 计全部写入 |
-| **S3.181** ✅    | `df2af8b` | 大发射 IR 两阶段写 staging；DATA 全零；composed 只计 outbuf |
-| **S3.182** ✅    | `13509d9` | phase2 单次 MEMCPY staging→outbuf；无 loop |
-| **S3.183** ✅    | `17e4742` | phase1 相同字节折叠为 SUB/JE 循环；单字节仍 SET |
-| **S3.184** ✅    | `21db3dc` | 大发射无 DATA 记录；STB 自己撑开缓冲 |
-| **S3.185** ✅    | `96cc167` | 展开 / 记录发射也无 0x20 零填充 |
-| **S3.186** ✅    | `5401868` | pack 前缀只留 5 个常量；去掉未读的 0x20 零洞 |
-| **S3.187** ✅    | `994f665` | 展开 pack scratch 只留常量+payload；outbuf 由写入撑开 |
-| **S3.188** ✅    | `b8abc18` | 短 chunk 会读 payload 后 2 个零；这 2 字节不砍 |
-| **S3.189** ✅    | `ad917c5` | loop-staged 对照的 flat 从 0 开始；去掉未读 0x10 前缀 |
-| **S3.190** ✅    | `7b5e80b` | via_ir scratch 只剩 payload+2；op/argc/零垫从 slot 写 |
-| **S3.191** ✅    | `99f89f7` | 展开 STB pack 的 scratch 只剩 payload |
-| **S3.192** ✅    | `67b62db` | via_ir 的 +2 零垫由 IR 先 STB；DATA 只剩 payload |
-| **S3.193** ✅    | `869e24b` | 互不相同的字节仍是一字节一次 SET；无 SHR，不发明指令 |
-| **S3.194** ✅    | `e31f834` | MEMCPY 循环的 5 常量由 IR 写到 payload+2 之后 |
-| **S3.195** ✅    | `0ceedea` | 展开 MEMCPY pack 的常量改由 IR 写到地址 16 |
-| **S3.196** ✅    | `2a472df` | via_ir pack 无 DATA；payload 由 IR 写入，重复字节折叠 |
-| **S3.197** ✅    | `15cc210` | MEMCPY 循环的 payload 和零垫也由 IR 写；DATA 为空 |
-| **S3.198** ✅    | `f992398` | 两条展开 pack 的 payload 也由 IR 写；DATA 为空 |
-| **S3.199** ✅    | `363acb3` | loop-staged 对照仍把 Rust flat 放在 DATA，用来保持 O(1) IR |
-| **S3.200** ✅    | `444ef88` | 小文件 / 记录发射也走 run 折叠；与大文件 phase1 同一条路 |
-| **S3.201** ✅    | `01663ed` | 删掉未用的逐字节 append 助手 |
-| **S3.202** ✅    | `fe9eae0` | loop-staged 对照也 IR 写 flat + MEMCPY；DATA 为空 |
-| **S3.203** ✅    | `6ff580b` | 生产 pack/emit 路径无 bytewise DATA；助手只留测试 |
-| **S3.204** ✅    | `c41fc06` | 宿主 / in-DLL 固件 DATA 仍是 via_ir(payload) |
-| **S3.205** ✅    | `532f08c` | 宿主固件 IR 写表，无 DATA；in-DLL 因代码帽仍留 via_ir |
-| **S3.206** ✅    | `3f07394` | in-DLL IR 写表+短 lea 会超 512B mini 帽；via_ir DATA 留下 |
-| **S3.207** ✅    | `7a68ca7` | 宿主 IR 写表跳过 [0..TABLE) 零垫；写完复位 outbuf 槽 |
-| **S3.208** ✅    | `dae6242` | 512 帽绑死 DATA@0x800；抬帽要改 pe_dll_link 布局 |
-| **S3.209** ✅    | `20bd36f` | 表 IR seed 改 poke-only（~1.3KiB→~517）；仍超 512 |
-| **S3.210** ✅    | `04e77a4` | STB oo imm8 + BASE；3 行种子 ~473 入帽；+lea 仍爆 |
-| **S3.211** ✅    | `b5f971c` | 钉住 poke 种子可 mini；+短 lea 仍是 in-DLL 悬崖 |
-| **S3.212** ✅    | `3a83b86` | 钉住 seed+prog 已超帽；lea A1 仅 ~38B 非大头 |
-| **S3.213** ✅    | `14f204b` | 钉住 ADD imm8/prog 改写均撞 golden；via_ir 留下 |
-| **S3.214** ✅    | `ef16de4` | 宿主 prog loop 单独瘦身；in-DLL golden 不动 |
-| **S3.215** ✅    | `590cbc9` | 长 seed 分 ≤127 窗，STB oo 全走 imm8 |
-| **S3.216** ✅    | `5f876d1` | 全局 distinct 一次 SET；跨窗只切 BASE |
-| **S3.217** ✅    | `14ab76f` | 短窗全局 distinct（入帽）；长窗地址序压 BASE |
-| **S3.218** ✅    | `451d212` | 钉住 poke+lea+prog~800 需 1024 帽；DATA→0xA00 配方 |
-| **S3.219** ✅    | `4ea0565` | MAX=1024；DATA@0xA00；pe_dll 栈 0x3200；poke+lea 可 mini |
-| **S3.220** ✅    | `ed43a4a` | empty-DATA IR-seed 孪生路径；golden via_ir 不动 |
-| **S3.221** ✅    | `7033793` | 默认 in-DLL 切 empty-DATA；via_ir 仅保 golden |
-| **S3.222** ✅    | `29eaf8e` | short seed + in-DLL 共用 global-distinct poke |
-| **S3.223** ✅    | `2b24667` | 钉短 lea 37B RAW 地板；empty-DATA+STB 已入库存 |
-| **S3.224** ✅    | `fde8ba3` | 四 shape 收 s3_rec_*；真自举 cliff 更清楚 |
-| **S3.225** ✅    | `11a01f8` | record/file emit 共用 s3_yoyo_emit_flat_via_stb |
-| **S3.226** ✅    | `78a0db8` | two-phase/loop-staged phase1 共用 append_stb_flat_at |
-| **S3.227** ✅    | `897aea8` | 钉 in-DLL .text 以 37B short-lea RAW 开头 |
-| **S3.228** ✅    | `e47cc4a` | op→shape 表钉 15 builder op（4 shape） |
-| **S3.229** ✅    | `2d43150` | op→shape 表作 STB flat 载荷并对拍 |
-| **S3.230** ✅    | `fe58b8e` | op→shape 表走 shared global-distinct poke |
-| **S3.231** ✅    | `08d4ebe` | op→shape poke+MEMCPY sim 读回 |
-| **S3.232** ✅    | `a9b1536` | 短 lea 37B 作 STB/poke 载荷；A1 仍进 .text |
-| **S3.233** ✅    | `96847f8` | 钉 A1 是 lea→.text 唯一路径（STB/poke 不行） |
-| **S3.234** ✅    | `a632ef5` | 短 lea 37B 单一来源切片喂 A1 prologue |
-| **S3.235** ✅    | `3fb2b4c` | s3_rec_* 经 s3_rec_from_shape 查表分发 |
-| **S3.236** ✅    | `a3e59c9` | YOYO IR 扫 op→shape 表并写出 8 字节记录 |
-| **S3.237** ✅    | `5b3c73a` | argc 索引表 + 参数 poke 循环，去掉四路展开 |
-| **S3.238** ✅    | `485f57f` | 扫表控制 IR 与 op/参数无关，job 只在 poke |
-| **S3.239** ✅    | `e149697` | 一条 fill body 按计数填多条 job |
-| **S3.240** ✅    | `3a3d29b` | many-fill 回写自身控制记录；RET 仍在表外 |
-| **S3.241** ✅    | `128fe7d` | 51 行控制模板收成字节种子；展开仍 Rust |
-| **S3.242** ✅    | `1ab7b7d` | 展开只拷贝线格式并查 argc |
-| **S3.243** ✅    | `1ab7b7d` | RET 走 argc=0，无单独分支 |
-| **S3.244** ✅    | `1ab7b7d` | 控制种子压成 357B flat blob |
-| **S3.245** ✅    | `1ab7b7d` | flat 控制种子 STB 发射并对拍 |
-| **S3.246** ✅    | `a98ddad` | one-ctrl 收成单一 flat，不再拼三段 |
-| **S3.247** ✅    | `a98ddad` | one-flat 亦可 STB 对拍 |
-| **S3.248** ✅    | `a98ddad` | argc 种子 = shape 表 + RET→0 |
-| **S3.249** ✅    | `a98ddad` | e2e I/O 离 cwd（pe_dll_link + s1 slim） |
-| **S3.250** ✅    | `a98ddad` | argc 种子收成 flat 字节并可 STB |
-| **S3.251** ✅    | `a98ddad` | argc 查表与 STB 同读一份 flat |
-| **S3.252** ✅    | `a98ddad` | argc 冻结为常量 flat 种子 |
-| **S3.253** ✅    | `a98ddad` | 展开只扫 argc flat，不查 shape 表 |
-| **S3.254** ⏳    | —         | 真自举：仍需 Rust 循环展开 · **本步** |
+
+| 波段                 | pin         | 一句话                                              |
+| ------------------ | ----------- | ------------------------------------------------ |
+| **S3.1–29** ✅      | `d310710`   | RAW_BYTES + 固定模板 10 op host 表                    |
+| **S3.30–52** ✅     | `673297e`   | bake 表 + multi bake                              |
+| **S3.53–76** ✅     | `290679b`   | JMP/CALL/JCC + ALU/MEM/平台 stub                   |
+| **S3.77–98** ✅     | `6b6756e`   | any-slot + LOAD/WRITE→slim IAT                   |
+| **S3.99–108** ✅    | `a10c20d`   | host+in-DLL 真 I/O e2e                            |
+| **S3.109–111** ✅   | `0fa5d9e`   | 近端合同 + fixed10 对拍；证明去掉 `pack_meta_emit`         |
+| **S3.112–135** ✅   | `e431341`   | RAW/lea/pack 宿主面收拢；剩余 Rust 面清单                   |
+| **S3.136–152** ✅   | `8186680`   | pack via_ir / OnceLock / scratch 地板              |
+| **S3.153–163** ✅   | `cce0b51`   | STB pack + 自举地图门禁（done/floor/cliff）             |
+| **S3.164–176** ✅   | `7d9e782`   | A1 OnceLock + TYB STB 发射 + 真自举近端清单               |
+| **S3.177–203** ✅   | `6ff580b`   | 混合/两阶段/run 折叠；生产路径无 bytewise DATA              |
+| **S3.204–223** ✅   | `2b24667`   | empty-DATA in-DLL；1024 帽；short-lea 37B 地板        |
+| **S3.224–241** ✅   | `128fe7d`   | op→shape + scan-fill；控制模板收成字节种子                  |
+| **S3.242–253** ✅   | `a98ddad`   | one/argc flat 冻结；展开只扫 argc；e2e I/O 离 cwd        |
+| **S3.254** ⏳       | —           | 真自举：仍需 Rust 循环展开 flat→记录 · **本步**              |
+
 
 
 **缺口**：lea→.text 仍唯一靠 A1 · flat 控制种子仍靠 Rust 展开成记录 · 真自举。逐步正文 → `git log`。
