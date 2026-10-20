@@ -8900,9 +8900,14 @@ mod tests {
         }
 
         let work = temp_work("in-dll-s3-load-e2e");
-        let payload_dir = std::env::current_dir()
-            .unwrap_or_else(|_| std::env::temp_dir())
-            .join(format!("yoyo-s3105-load-{}", std::process::id()));
+        let payload_dir = std::env::temp_dir().join(format!(
+            "ys105-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
         std::fs::create_dir_all(&payload_dir).expect("mkdir payload");
         let path = payload_dir.join("payload.bin");
         let payload = [0x10u8, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80];
@@ -9005,9 +9010,14 @@ mod tests {
         }
 
         let work = temp_work("in-dll-s3-write-e2e");
-        let out_dir = std::env::current_dir()
-            .unwrap_or_else(|_| std::env::temp_dir())
-            .join(format!("yoyo-s3106-write-{}", std::process::id()));
+        let out_dir = std::env::temp_dir().join(format!(
+            "ys106-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
         std::fs::create_dir_all(&out_dir).expect("mkdir");
         let path = out_dir.join("out.bin");
         let _ = std::fs::remove_file(&path);
@@ -9121,9 +9131,14 @@ mod tests {
         }
 
         let work = temp_work("in-dll-s3-rw-roundtrip");
-        let io_dir = std::env::current_dir()
-            .unwrap_or_else(|_| std::env::temp_dir())
-            .join(format!("yoyo-s3107-rw-{}", std::process::id()));
+        let io_dir = std::env::temp_dir().join(format!(
+            "ys107-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
         std::fs::create_dir_all(&io_dir).expect("mkdir");
         let src = io_dir.join("src.bin");
         let dst = io_dir.join("dst.bin");

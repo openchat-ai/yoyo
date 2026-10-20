@@ -2419,34 +2419,61 @@ const S3_SHAPE_ARGC: u32 = 0x60;
 const S3_SHAPE_JOB: u32 = 0x68;
 const S3_SHAPE_OUT: u32 = 0x80;
 
-/// S3.242: seed rows already hold final wire args. Expander only looks up argc.
-/// S3.243: RET (0xFF) is argc 0 via the same path (not a special branch).
+/// S3.252: argc seed is a frozen flat blob (shape-derived + RET→0). Not rebuilt at call.
+const S3_SEED_ARGC_BYTES: &[u8] = &[
+    48, 2, 97, 2, 98, 2, 64, 1, 112, 1, 113, 1, 115, 1, 116, 1,
+    100, 2, 101, 2, 104, 2, 106, 2, 128, 3, 129, 3, 132, 3, 255, 0,
+];
+
+fn s3_seed_argc_bytes() -> Vec<u8> {
+    S3_SEED_ARGC_BYTES.to_vec()
+}
+
+fn s3_seed_argc_flat() -> Vec<(u8, u8)> {
+    s3_seed_argc_bytes()
+        .chunks_exact(2)
+        .map(|c| (c[0], c[1]))
+        .collect()
+}
+
 fn s3_seed_argc(op: u8) -> u8 {
-    if op == 0xFF {
-        return 0;
-    }
-    match s3_rec_shape_of(op).expect("shape-fill seed op") {
-        S3RecShape::SlotImm | S3RecShape::SlotSlot => 2,
-        S3RecShape::U32 => 1,
-        S3RecShape::Slot3 => 3,
-    }
+    s3_seed_argc_from(S3_SEED_ARGC_BYTES, op)
+}
+
+fn s3_seed_argc_from(argc_flat: &[u8], op: u8) -> u8 {
+    argc_flat
+        .chunks_exact(2)
+        .find(|c| c[0] == op)
+        .map(|c| c[1])
+        .expect("shape-fill seed op")
 }
 
 fn s3_rec_from_wire_seed(row: &[u8; 7]) -> (u8, u8, [u8; 6]) {
+    s3_rec_from_wire_seed_with_argc(row, S3_SEED_ARGC_BYTES)
+}
+
+fn s3_rec_from_wire_seed_with_argc(row: &[u8; 7], argc_flat: &[u8]) -> (u8, u8, [u8; 6]) {
     (
         row[0],
-        s3_seed_argc(row[0]),
+        s3_seed_argc_from(argc_flat, row[0]),
         [row[1], row[2], row[3], row[4], row[5], row[6]],
     )
 }
 
-/// S3.244: expand a flat 7×N seed blob into records.
+/// S3.244/S3.253: expand flat 7×N via argc flat scan only (no shape-table match).
 fn s3_recs_from_flat_seed(flat: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
+    s3_recs_from_flat_seed_with_argc(flat, S3_SEED_ARGC_BYTES)
+}
+
+fn s3_recs_from_flat_seed_with_argc(
+    flat: &[u8],
+    argc_flat: &[u8],
+) -> Vec<(u8, u8, [u8; 6])> {
     assert_eq!(flat.len() % 7, 0);
     flat.chunks_exact(7)
         .map(|c| {
             let row = [c[0], c[1], c[2], c[3], c[4], c[5], c[6]];
-            s3_rec_from_wire_seed(&row)
+            s3_rec_from_wire_seed_with_argc(&row, argc_flat)
         })
         .collect()
 }
@@ -2491,19 +2518,34 @@ fn s3_yoyo_shape_fill_one() -> Vec<(u8, u8, [u8; 6])> {
     s3_recs_from_flat_seed(&S3_SHAPE_FILL_MANY_FLAT[start..end])
 }
 
-/// One-job prefix: SET JOB, SET DST. RET is the last many-seed row.
-const S3_SHAPE_FILL_ONE_PREFIX: &[u8] = &[
-    0x30, 1, 0, 0x68, 0, 0, 0, 0x30, 9, 0, 0x80, 0, 0, 0,
+const S3_SHAPE_FILL_ONE_FLAT: &[u8] = &[
+    48, 1, 0, 104, 0, 0, 0, 48, 9, 0, 128, 0, 0, 0,
+    128, 7, 0, 1, 0, 0, 0, 48, 4, 0, 64, 0, 0, 0,
+    48, 5, 0, 94, 0, 0, 0, 48, 6, 0, 255, 0, 0, 0,
+    64, 1, 0, 0, 0, 0, 0, 101, 4, 0, 5, 0, 0, 0,
+    113, 3, 0, 0, 0, 0, 0, 128, 11, 0, 4, 0, 0, 0,
+    101, 11, 0, 7, 0, 0, 0, 113, 2, 0, 0, 0, 0, 0,
+    98, 4, 0, 2, 0, 0, 0, 112, 1, 0, 0, 0, 0, 0,
+    64, 2, 0, 0, 0, 0, 0, 128, 6, 0, 4, 0, 1, 0,
+    64, 3, 0, 0, 0, 0, 0, 100, 12, 0, 7, 0, 0, 0,
+    129, 12, 0, 9, 0, 0, 0, 98, 9, 0, 1, 0, 0, 0,
+    48, 4, 0, 96, 0, 0, 0, 104, 4, 0, 6, 0, 0, 0,
+    128, 12, 0, 4, 0, 0, 0, 129, 12, 0, 9, 0, 0, 0,
+    98, 9, 0, 1, 0, 0, 0, 100, 8, 0, 1, 0, 0, 0,
+    98, 8, 0, 1, 0, 0, 0, 48, 10, 0, 6, 0, 0, 0,
+    48, 13, 0, 0, 0, 0, 0, 64, 4, 0, 0, 0, 0, 0,
+    101, 10, 0, 13, 0, 0, 0, 113, 5, 0, 0, 0, 0, 0,
+    128, 12, 0, 8, 0, 0, 0, 129, 12, 0, 9, 0, 0, 0,
+    98, 9, 0, 1, 0, 0, 0, 98, 8, 0, 1, 0, 0, 0,
+    97, 10, 0, 1, 0, 0, 0, 112, 4, 0, 0, 0, 0, 0,
+    64, 5, 0, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, 0,
 ];
 
-/// S3.238/S3.244: one-job control is prefix flat + one-body + RET from many flat.
+const S3_SHAPE_FILL_ONE_ROWS: usize = 40;
+
+/// S3.246: one-job control is a single flat seed (no prefix/body/RET splice).
 fn s3_yoyo_shape_fill_ctrl() -> Vec<(u8, u8, [u8; 6])> {
-    let mut recs = s3_recs_from_flat_seed(S3_SHAPE_FILL_ONE_PREFIX);
-    recs.extend(s3_yoyo_shape_fill_one());
-    recs.extend(s3_recs_from_flat_seed(
-        &S3_SHAPE_FILL_MANY_FLAT[S3_SHAPE_FILL_MANY_FLAT.len() - 7..],
-    ));
-    recs
+    s3_recs_from_flat_seed(S3_SHAPE_FILL_ONE_FLAT)
 }
 
 /// S3.239/S3.244: many-ctrl expands from the flat seed blob.
@@ -4627,15 +4669,50 @@ mod tests {
         assert_eq!(s3_seed_argc(0x30), 2);
         assert_eq!(s3_seed_argc(0x40), 1);
         assert_eq!(s3_seed_argc(0x81), 3);
+        let argc_seed = s3_seed_argc_flat();
+        assert!(argc_seed.iter().any(|&(o, n)| o == 0xFF && n == 0));
+        assert_eq!(argc_seed.len(), S3_REC_OP_SHAPE.len() + 1);
+        for &(op, n) in &argc_seed {
+            assert_eq!(s3_seed_argc(op), n);
+        }
+        // Frozen blob stays in lockstep with the shape table + RET.
+        let mut derived = Vec::new();
+        for &(op, shape) in S3_REC_OP_SHAPE {
+            let n = match shape {
+                S3RecShape::SlotImm | S3RecShape::SlotSlot => 2,
+                S3RecShape::U32 => 1,
+                S3RecShape::Slot3 => 3,
+            };
+            derived.push(op);
+            derived.push(n);
+        }
+        derived.extend_from_slice(&[0xFF, 0]);
+        assert_eq!(S3_SEED_ARGC_BYTES, derived.as_slice());
         // Expander does not re-encode through s3_rec_from_shape.
         let row = [0x30u8, 2, 0, 104, 0, 0, 0];
         assert_eq!(
             s3_rec_from_wire_seed(&row),
             (0x30, 2, [2, 0, 104, 0, 0, 0])
         );
+        // S3.246: one-ctrl is one flat expand; equals prefix||body||RET of many.
+        assert_eq!(S3_SHAPE_FILL_ONE_FLAT.len(), S3_SHAPE_FILL_ONE_ROWS * 7);
+        let ctrl = s3_yoyo_shape_fill_ctrl();
+        assert_eq!(ctrl.len(), S3_SHAPE_FILL_ONE_ROWS);
+        assert_eq!(ctrl, s3_recs_from_flat_seed(S3_SHAPE_FILL_ONE_FLAT));
+        let mut rebuilt = Vec::new();
+        rebuilt.extend_from_slice(&S3_SHAPE_FILL_ONE_FLAT[..14]);
+        let start = S3_SHAPE_FILL_ONE_AT * 7;
+        let end = start + S3_SHAPE_FILL_ONE_LEN * 7;
+        rebuilt.extend_from_slice(&S3_SHAPE_FILL_MANY_FLAT[start..end]);
+        rebuilt.extend_from_slice(&S3_SHAPE_FILL_MANY_FLAT[S3_SHAPE_FILL_MANY_FLAT.len() - 7..]);
+        assert_eq!(rebuilt.as_slice(), S3_SHAPE_FILL_ONE_FLAT);
+        assert_eq!(
+            s3_recs_from_flat_seed_with_argc(S3_SHAPE_FILL_MANY_FLAT, S3_SEED_ARGC_BYTES),
+            s3_yoyo_shape_fill_many_ctrl()
+        );
     }
 
-    /// S3.245: control flat seed is STB-emittable empty-DATA payload.
+    /// S3.245/S3.247: control flat seeds are STB-emittable empty-DATA payloads.
     #[test]
     fn s3_shape_fill_flat_stb_payload() {
         let (tyb, off) = s3_yoyo_emit_flat_via_stb(S3_SHAPE_FILL_MANY_FLAT, 0x20);
@@ -4648,6 +4725,23 @@ mod tests {
             s3_recs_from_flat_seed(S3_SHAPE_FILL_MANY_FLAT),
             s3_yoyo_shape_fill_many_ctrl()
         );
+        let (tyb1, off1) = s3_yoyo_emit_flat_via_stb(S3_SHAPE_FILL_ONE_FLAT, 0x20);
+        assert!(s3_unpack_data_tyb(&tyb1).is_empty());
+        assert_eq!(
+            s3_sim_prog_loop(&tyb1, 0, off1, 0).unwrap(),
+            S3_SHAPE_FILL_ONE_FLAT
+        );
+        assert_eq!(
+            s3_recs_from_flat_seed(S3_SHAPE_FILL_ONE_FLAT),
+            s3_yoyo_shape_fill_ctrl()
+        );
+        // S3.250: argc seed blob STB-emits and round-trips.
+        let argc_bytes = s3_seed_argc_bytes();
+        assert_eq!(argc_bytes.len(), (S3_REC_OP_SHAPE.len() + 1) * 2);
+        assert_eq!(argc_bytes[argc_bytes.len() - 2..], [0xFF, 0]);
+        let (tyb_a, off_a) = s3_yoyo_emit_flat_via_stb(&argc_bytes, 0x20);
+        assert!(s3_unpack_data_tyb(&tyb_a).is_empty());
+        assert_eq!(s3_sim_prog_loop(&tyb_a, 0, off_a, 0).unwrap(), argc_bytes);
     }
 
     /// S3.240: many-fill re-encodes its own control records. RET is not in the
@@ -6327,10 +6421,15 @@ mod tests {
             }
         }
 
-        // ASCII-only path under cwd (CreateFileA); avoid non-ANSI temp paths.
-        let dir = std::env::current_dir()
-            .unwrap_or_else(|_| std::env::temp_dir())
-            .join(format!("yoyo-s3100-load-{}", std::process::id()));
+        // ASCII path under temp_dir (not cwd; cwd is process-global under parallel tests).
+        let dir = std::env::temp_dir().join(format!(
+            "ys100l-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
         std::fs::create_dir_all(&dir).expect("mkdir");
         let path = dir.join("payload.bin");
         let payload = [0xDEu8, 0xAD, 0xBE, 0xEF, 0x01, 0x02, 0x03, 0x04];
@@ -6466,9 +6565,15 @@ mod tests {
             }
         }
 
-        let dir = std::env::current_dir()
-            .unwrap_or_else(|_| std::env::temp_dir())
-            .join(format!("yoyo-s3101-write-{}", std::process::id()));
+        // ASCII path under temp_dir (not cwd; cwd is process-global under parallel tests).
+        let dir = std::env::temp_dir().join(format!(
+            "ys101w-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
         std::fs::create_dir_all(&dir).expect("mkdir");
         let path = dir.join("out.bin");
         // File must not exist yet; WRITE creates it.
@@ -6604,9 +6709,15 @@ mod tests {
             }
         }
 
-        let dir = std::env::current_dir()
-            .unwrap_or_else(|_| std::env::temp_dir())
-            .join(format!("yoyo-s3102-rw-{}", std::process::id()));
+        // ASCII path under temp_dir (not cwd; cwd is process-global under parallel tests).
+        let dir = std::env::temp_dir().join(format!(
+            "ys102rw-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
         std::fs::create_dir_all(&dir).expect("mkdir");
         let src = dir.join("src.bin");
         let dst = dir.join("dst.bin");
