@@ -2583,41 +2583,16 @@ fn s3_recs_from_flat_seed_via_yoyo(flat: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
         .collect()
 }
 
-const S3_SHAPE_FILL_ONE_AT: usize = 7;
+const S3_SHAPE_FILL_ONE_AT: usize = 6;
 const S3_SHAPE_FILL_ONE_LEN: usize = 20;
-const S3_SHAPE_FILL_MANY_ROWS: usize = 33;
+const S3_SHAPE_FILL_MANY_ROWS: usize = 32;
 
 /// S3.241/S3.244: shape-fill many-ctrl seed as a flat 7×N blob. RET is 0xFF.
-/// S3.286: scan `(op,argc)` pairs; STB argc direct (no shape-tag lookup).
+/// S3.286: `(op,argc)` scan. S3.287: drop SET out — sim preloads slot9 = outbuf.
 const S3_SHAPE_FILL_MANY_FLAT: &[u8] = &[
     48, 2, 0, 104, 0, 0, 0, 128, 3, 0, 2, 0, 0, 0,
-    98, 2, 0, 1, 0, 0, 0, 48, 9, 0, 0, 3, 0, 0,
-    64, 7, 0, 0, 0, 0, 0, 101, 3, 0, 13, 0, 0, 0,
-    113, 6, 0, 0, 0, 0, 0, 128, 7, 0, 2, 0, 0, 0,
-    48, 4, 0, 64, 0, 0, 0, 48, 5, 0, 96, 0, 0, 0,
-    64, 1, 0, 0, 0, 0, 0, 101, 4, 0, 5, 0, 0, 0,
-    113, 6, 0, 0, 0, 0, 0, 128, 11, 0, 4, 0, 0, 0,
-    101, 11, 0, 7, 0, 0, 0, 113, 2, 0, 0, 0, 0, 0,
-    98, 4, 0, 2, 0, 0, 0, 112, 1, 0, 0, 0, 0, 0,
-    64, 2, 0, 0, 0, 0, 0, 128, 6, 0, 4, 0, 1, 0,
-    129, 7, 0, 9, 0, 0, 0, 98, 9, 0, 1, 0, 0, 0,
-    129, 6, 0, 9, 0, 0, 0, 98, 9, 0, 1, 0, 0, 0,
-    98, 2, 0, 1, 0, 0, 0, 48, 10, 0, 6, 0, 0, 0,
-    132, 9, 0, 2, 0, 10, 0, 104, 9, 0, 10, 0, 0, 0,
-    98, 2, 0, 6, 0, 0, 0, 97, 3, 0, 1, 0, 0, 0,
-    112, 7, 0, 0, 0, 0, 0, 64, 6, 0, 0, 0, 0, 0,
-    255, 0, 0, 0, 0, 0, 0,
-];
-
-fn s3_yoyo_shape_fill_one() -> Vec<(u8, u8, [u8; 6])> {
-    let start = S3_SHAPE_FILL_ONE_AT * 7;
-    let end = start + S3_SHAPE_FILL_ONE_LEN * 7;
-    s3_recs_from_flat_seed_via_yoyo(&S3_SHAPE_FILL_MANY_FLAT[start..end])
-}
-
-const S3_SHAPE_FILL_ONE_FLAT: &[u8] = &[
-    // S3.286: `(op,argc)` scan; STB argc direct; miss → LABEL 6.
-    48, 2, 0, 104, 0, 0, 0, 48, 9, 0, 128, 0, 0, 0,
+    98, 2, 0, 1, 0, 0, 0, 64, 7, 0, 0, 0, 0, 0,
+    101, 3, 0, 13, 0, 0, 0, 113, 6, 0, 0, 0, 0, 0,
     128, 7, 0, 2, 0, 0, 0, 48, 4, 0, 64, 0, 0, 0,
     48, 5, 0, 96, 0, 0, 0, 64, 1, 0, 0, 0, 0, 0,
     101, 4, 0, 5, 0, 0, 0, 113, 6, 0, 0, 0, 0, 0,
@@ -2628,10 +2603,34 @@ const S3_SHAPE_FILL_ONE_FLAT: &[u8] = &[
     98, 9, 0, 1, 0, 0, 0, 129, 6, 0, 9, 0, 0, 0,
     98, 9, 0, 1, 0, 0, 0, 98, 2, 0, 1, 0, 0, 0,
     48, 10, 0, 6, 0, 0, 0, 132, 9, 0, 2, 0, 10, 0,
+    104, 9, 0, 10, 0, 0, 0, 98, 2, 0, 6, 0, 0, 0,
+    97, 3, 0, 1, 0, 0, 0, 112, 7, 0, 0, 0, 0, 0,
     64, 6, 0, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, 0,
 ];
 
-const S3_SHAPE_FILL_ONE_ROWS: usize = 24;
+fn s3_yoyo_shape_fill_one() -> Vec<(u8, u8, [u8; 6])> {
+    let start = S3_SHAPE_FILL_ONE_AT * 7;
+    let end = start + S3_SHAPE_FILL_ONE_LEN * 7;
+    s3_recs_from_flat_seed_via_yoyo(&S3_SHAPE_FILL_MANY_FLAT[start..end])
+}
+
+const S3_SHAPE_FILL_ONE_FLAT: &[u8] = &[
+    // S3.287: only job ptr SET; out = sim outbuf preload on slot9.
+    48, 2, 0, 104, 0, 0, 0, 128, 7, 0, 2, 0, 0, 0,
+    48, 4, 0, 64, 0, 0, 0, 48, 5, 0, 96, 0, 0, 0,
+    64, 1, 0, 0, 0, 0, 0, 101, 4, 0, 5, 0, 0, 0,
+    113, 6, 0, 0, 0, 0, 0, 128, 11, 0, 4, 0, 0, 0,
+    101, 11, 0, 7, 0, 0, 0, 113, 2, 0, 0, 0, 0, 0,
+    98, 4, 0, 2, 0, 0, 0, 112, 1, 0, 0, 0, 0, 0,
+    64, 2, 0, 0, 0, 0, 0, 128, 6, 0, 4, 0, 1, 0,
+    129, 7, 0, 9, 0, 0, 0, 98, 9, 0, 1, 0, 0, 0,
+    129, 6, 0, 9, 0, 0, 0, 98, 9, 0, 1, 0, 0, 0,
+    98, 2, 0, 1, 0, 0, 0, 48, 10, 0, 6, 0, 0, 0,
+    132, 9, 0, 2, 0, 10, 0, 64, 6, 0, 0, 0, 0, 0,
+    255, 0, 0, 0, 0, 0, 0,
+];
+
+const S3_SHAPE_FILL_ONE_ROWS: usize = 23;
 
 /// S3.246/S3.255: one-job control expands via YOYO IR (not a Rust chunk loop).
 fn s3_yoyo_shape_fill_ctrl() -> Vec<(u8, u8, [u8; 6])> {
@@ -4787,13 +4786,13 @@ mod tests {
             s3_rec_from_wire_seed(&row),
             (0x30, 2, [2, 0, 104, 0, 0, 0])
         );
-        // S3.246/S3.284: one-ctrl = prefix||body||LABEL6||RET of many (miss shares done label).
+        // S3.246/S3.287: one-ctrl = prefix(1)||body||LABEL6||RET of many.
         assert_eq!(S3_SHAPE_FILL_ONE_FLAT.len(), S3_SHAPE_FILL_ONE_ROWS * 7);
         let ctrl = s3_yoyo_shape_fill_ctrl();
         assert_eq!(ctrl.len(), S3_SHAPE_FILL_ONE_ROWS);
         assert_eq!(ctrl, s3_recs_from_flat_seed(S3_SHAPE_FILL_ONE_FLAT));
         let mut rebuilt = Vec::new();
-        rebuilt.extend_from_slice(&S3_SHAPE_FILL_ONE_FLAT[..14]);
+        rebuilt.extend_from_slice(&S3_SHAPE_FILL_ONE_FLAT[..7]);
         let start = S3_SHAPE_FILL_ONE_AT * 7;
         let end = start + S3_SHAPE_FILL_ONE_LEN * 7;
         rebuilt.extend_from_slice(&S3_SHAPE_FILL_MANY_FLAT[start..end]);
@@ -4843,7 +4842,7 @@ mod tests {
         assert!(s3_unpack_data_tyb(&exp).is_empty());
         let exp_recs = parse_tyb(&exp).unwrap().records;
         // S3.283: pin ONE-flat assembler size (in-place seed ptr; no MOVRR s8).
-        assert_eq!(exp_recs.len(), 227);
+        assert_eq!(exp_recs.len(), 222);
         assert_eq!(S3_EXPAND_ASM_ROWS, 34);
         assert_eq!(S3_EXPAND_INIT_ROWS, 4);
         assert_eq!(
@@ -5048,7 +5047,7 @@ mod tests {
         assert_eq!(S3_EXPAND_CTRL_ROWS, 30, "S3.283: in-place seed ptr advance");
         assert_eq!(S3_EXPAND_INIT_ROWS, 4, "S3.277: drop zero INIT SETs");
         assert_eq!(S3_SHAPE_TABLE_END, 0x60, "S3.286: (op,argc) table is 32B");
-        assert_eq!(S3_SHAPE_FILL_ONE_ROWS, 24, "S3.286: drop shape-tag argc lookup");
+        assert_eq!(S3_SHAPE_FILL_ONE_ROWS, 23, "S3.287: drop SET out (slot9=outbuf)");
         // S3.276: ctrl-only expand is plain flat_seed (no named bootstrap).
         assert_eq!(
             s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT),
@@ -5059,9 +5058,9 @@ mod tests {
             s3_recs_from_flat_seed_with_argc(&s3_expand_asm_flat(), S3_SEED_ARGC_BYTES)
         );
         assert_eq!(S3_SEED_ARGC_BYTES.len() as u32, 0x1E0 - S3_EXPAND_ARGC);
-        // S3.286: ONE-flat expand assembler size (227; `(op,argc)` scan).
+        // S3.287: ONE-flat expand assembler size (222; drop SET out).
         let (exp_pin, _) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_ONE_FLAT);
-        assert_eq!(parse_tyb(&exp_pin).unwrap().records.len(), 227);
+        assert_eq!(parse_tyb(&exp_pin).unwrap().records.len(), 222);
         let one = s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_ONE_FLAT);
         assert_eq!(one, s3_recs_from_flat_seed(S3_SHAPE_FILL_ONE_FLAT));
         // S3.269: pack wire-section wrap; expand already emits TYB (no wrap).
