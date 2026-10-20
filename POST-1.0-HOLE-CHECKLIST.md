@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** `继续` **= S3.254**（246–253 one/argc flat；展开扫 argc；仍 Rust 循环；**不**假 CLOSED）。
+**默认** `继续` **= S3.263**（260–262 展开种子/many-job128/命名 bootstrap；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -104,12 +104,13 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.224–241** ✅   | `128fe7d`   | op→shape + scan-fill；控制模板收成字节种子                  |
 | **S3.242–253** ✅   | `a98ddad`   | one/argc flat 冻结；展开只扫 argc；e2e I/O 离 cwd        |
 | **S3.254–255** ✅   | `20bd92d`   | YOYO IR 展开 flat→wire；生产 one/many ctrl 走 via_yoyo     |
-| **S3.256–259** ✅   | pending     | 展开 ctrl flat/哨兵/自再编码；剩余 Rust 面钉死（bootstrap/A1） |
-| **S3.260** ⏳       | —           | 继续缩 bootstrap / wire-parse 宿主面 · **本步**              |
+| **S3.256–259** ✅   | `791936a`   | 展开 ctrl flat/哨兵/自再编码；剩余 Rust 面钉死（bootstrap/A1） |
+| **S3.260–262** ✅   | pending     | argc-poke 并入展开种子；many-job 128；命名 bootstrap 唯一生产点 |
+| **S3.263** ⏳       | —           | 继续缩 wire-parse / A1 宿主面 · **本步**                   |
 
 
 
-**缺口**：lea→.text 仍唯一靠 A1 · flat 控制种子仍靠 Rust 展开成记录 · 真自举。逐步正文 → `git log`。
+**缺口**：lea→.text 仍唯一靠 A1 · 展开种子仍靠 Rust bootstrap · wire→records 仍 Rust · 真自举。逐步正文 → `git log`。
 
 ---
 
@@ -145,7 +146,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.254**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.263**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -153,4 +154,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-20**：argc/one flat 冻结 · 展开扫 argc · 默认 **S3.254** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-20**：展开种子+bootstrap 命名 · 默认 **S3.263** · StubPlatform stub · OW-RT **CUT** · `closed=0 cut=7` · 无假 CLOSED · 无 tag · 长文已折（git）
