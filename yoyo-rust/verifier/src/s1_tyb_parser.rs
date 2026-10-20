@@ -1584,7 +1584,8 @@ fn s3_rec_wire(op: u8, argc: u8, a: [u8; 6]) -> [u8; 8] {
     [op, argc, a[0], a[1], a[2], a[3], a[4], a[5]]
 }
 
-/// S3.226: append SET DST + SET ZERO + run-folded STB of `flat` at `out_off`.
+/// S3.226/S3.279: append SET DST + run-folded STB of `flat` at `out_off`.
+/// S3.279: drop SET ZERO — sim state starts zeroed (slot13); runs CMP against it.
 /// Shared by one-shot emit and two-phase / loop-staged phase1. Returns next label id.
 fn s3_append_stb_flat_at(
     recs: &mut Vec<(u8, u8, [u8; 6])>,
@@ -1593,7 +1594,6 @@ fn s3_append_stb_flat_at(
     label_id: u32,
 ) -> u32 {
     recs.push(s3_rec_set(S3_PACK_PROTO_DST, out_off));
-    recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
     s3_append_stb_runs(recs, flat, label_id)
 }
 
@@ -1941,8 +1941,7 @@ fn s3_pack_proto_record(recs: &mut Vec<(u8, u8, [u8; 6])>, base: u32, n: u8) {
 fn s3_yoyo_pack_proto_ir(payload: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     let payload_len = payload.len();
     let mut recs = Vec::new();
-    // S3.198: payload at 0, consts at 16. Both below the fixed outbuf. No DATA.
-    recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
+    // S3.198/S3.279: payload at 0, consts at 16. Slot13 stays image-zero.
     recs.push(s3_rec_set(S3_PACK_PROTO_DST, 0));
     s3_append_stb_runs(&mut recs, payload, 10);
     recs.push(s3_rec_set(S3_PACK_PROTO_DST, 16));
@@ -1990,7 +1989,7 @@ fn s3_pack_proto_record_stb(recs: &mut Vec<(u8, u8, [u8; 6])>, base: u32, n: u8)
 fn s3_yoyo_pack_stb_ir(payload: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     let payload_len = payload.len();
     let mut recs = Vec::new();
-    recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
+    // S3.279: slot13 image-zero; no SET ZERO prologue.
     recs.push(s3_rec_set(S3_PACK_PROTO_DST, 0));
     s3_append_stb_runs(&mut recs, payload, 10);
     recs.push(s3_rec_set(S3_PACK_PROTO_DST, S3_PACK_PROTO_OUT));
@@ -2031,8 +2030,7 @@ fn s3_yoyo_pack_loop_ir(
 ) -> Vec<(u8, u8, [u8; 6])> {
     let payload_len = payload.len() as u32;
     let mut r = Vec::new();
-    // S3.197: payload and the two overread zeros are stores. Labels start at 10.
-    r.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
+    // S3.197/S3.279: payload + overread zeros are stores; slot13 stays image-zero.
     r.push(s3_rec_set(S3_PACK_PROTO_DST, pay_off));
     s3_append_stb_runs(&mut r, payload, 10);
     r.push(s3_rec_stb(S3_PACK_STB_ZERO, S3_PACK_PROTO_DST, 0));
@@ -2117,7 +2115,7 @@ fn s3_pack_loop_putc_from_slot(recs: &mut Vec<(u8, u8, [u8; 6])>, src_slot: u16)
 fn s3_yoyo_pack_loop_stb_ir(pay_off: u32, out_off: u32, payload: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     let payload_len = payload.len() as u32;
     let mut r = Vec::new();
-    r.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
+    // S3.279: slot13 image-zero; no SET ZERO prologue.
     r.push(s3_rec_set(S3_PACK_LOOP_THREE, S3_PACK_CHUNK as u32));
     // S3.196: payload itself is IR stores. Repeated bytes share one SET.
     r.push(s3_rec_set(S3_PACK_PROTO_DST, pay_off));
@@ -4545,13 +4543,11 @@ mod tests {
         assert_eq!(file_off, 0x20);
         let recs_ir = parse_tyb(&recs_tyb).unwrap();
         let file_ir = parse_tyb(&file_tyb).unwrap();
-        // Same prologue shape: SET DST, SET ZERO, then STB runs, RET.
+        // S3.279: prologue is SET DST then STB runs (slot13 image-zero; no SET ZERO).
         assert_eq!(recs_ir.records[0].op, 0x30);
-        assert_eq!(recs_ir.records[1].op, 0x30);
         assert!(recs_ir.records.iter().any(|r| r.op == 0x81));
         assert_eq!(recs_ir.records.last().unwrap().op, 0xFF);
         assert_eq!(file_ir.records[0].op, 0x30);
-        assert_eq!(file_ir.records[1].op, 0x30);
         assert!(file_ir.records.iter().any(|r| r.op == 0x81));
         assert_eq!(file_ir.records.last().unwrap().op, 0xFF);
         assert!(s3_unpack_data_tyb(&recs_tyb).is_empty());
@@ -4564,7 +4560,7 @@ mod tests {
             s3_sim_prog_loop(&via, 0, off, 0).unwrap(),
             flat.to_vec()
         );
-        // S3.226: two-phase / loop-staged open with the same DST+ZERO prefix.
+        // S3.226/S3.279: two-phase / loop-staged open with SET DST (no SET ZERO).
         let mut big = vec![s3_fixed_rec(0x00); 16];
         big.push(s3_fixed_rec(0xFF));
         let (fw2, _) = s3_yoyo_emit_tyb_file_two_phase(&big);
@@ -4572,7 +4568,6 @@ mod tests {
         for (name, tyb) in [("two_phase", &fw2), ("loop_staged", &fwl)] {
             let ir = parse_tyb(tyb).unwrap();
             assert_eq!(ir.records[0].op, 0x30, "{name} DST");
-            assert_eq!(ir.records[1].op, 0x30, "{name} ZERO");
             assert!(ir.records.iter().any(|r| r.op == 0x81), "{name} STB");
             assert!(ir.records.iter().any(|r| r.op == 0x84), "{name} MEMCPY");
             assert!(s3_unpack_data_tyb(tyb).is_empty(), "{name} empty DATA");
@@ -5355,7 +5350,7 @@ mod tests {
             .text
             .len();
         let mut run_recs = Vec::new();
-        run_recs.push(s3_rec_set(S3_PACK_STB_ZERO, 0));
+        // S3.279: run-fold compare also skips SET ZERO (image-zero floor).
         run_recs.push(s3_rec_set(S3_PACK_PROTO_DST, 0x80));
         s3_append_stb_runs(&mut run_recs, slice, 10);
         let run_code = emit_x86(&parse_tyb(&tyb_from_records(&run_recs)).unwrap())
