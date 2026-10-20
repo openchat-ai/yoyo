@@ -130,7 +130,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.284** ✅       | 6af6038   | argc-miss 退出；drop SET255+LABEL3；many 36；one 28；assembler 251 |
 | **S3.285** ✅       | 90e26f6   | ADDV s9 仅 many；one 27；assembler 245 |
 | **S3.286** ✅       | 8430c9b   | shape-fill 扫 (op,argc)；去 shape 间接；many 33；one 24；assembler 227 |
-| **S3.287** ✅       | —           | 去 SET out（slot9=outbuf）；many 32；one 23；assembler 222 |
+| **S3.287** ✅       | 57273e3   | 去 SET out（slot9=outbuf）；many 32；one 23；assembler 222 |
 | **S3.288** ⏳       | —           | 继续缩 bootstrap / A1 宿主面 · **本步**                   |
 
 
