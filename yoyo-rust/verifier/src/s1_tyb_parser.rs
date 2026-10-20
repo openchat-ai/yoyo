@@ -2502,8 +2502,8 @@ const S3_EXPAND_OUT: u32 = 0x200;
 /// Bootstrap still Rust-expands the ctrl body (cannot via_yoyo itself).
 const S3_EXPAND_SENTINEL: u8 = 0xFE;
 const S3_EXPAND_CTRL_ROWS: usize = 47;
-/// TYB header template: magic + reserved + zero rec_cnt (body patches count).
-const S3_EXPAND_TYB_HDR: &[u8] = b"TYB\0\0\0\0\0";
+/// S3.270: only magic must be IR-seeded; reserved/count stay zero until body patches cnt.
+const S3_EXPAND_TYB_MAGIC: &[u8] = b"TYB";
 /// Expand ctrl: job loop + argc scan + record emit + rec_cnt patch. RET last.
 const S3_EXPAND_CTRL_FLAT: &[u8] = &[
     48, 4, 0, 64, 0, 0, 0, 48, 5, 0, 254, 0, 0, 0,
@@ -2543,16 +2543,15 @@ fn s3_yoyo_expand_flat_tyb(flat: &[u8]) -> (Vec<u8>, u32) {
     assert!(flat.len() + 1 <= (S3_EXPAND_ARGC - S3_EXPAND_SEED) as usize);
     // Body SETs argc end = 0x1E0; blob must fill [0x1C0, 0x1E0).
     assert_eq!(S3_SEED_ARGC_BYTES.len() as u32, 0x1E0 - S3_EXPAND_ARGC);
-    assert_eq!(S3_EXPAND_TYB_HDR.len(), HEADER_SIZE);
+    assert_eq!(S3_EXPAND_TYB_MAGIC, &TYB_MAGIC[..3]);
     let mut job = Vec::with_capacity(flat.len() + 1);
     job.extend_from_slice(flat);
     job.push(S3_EXPAND_SENTINEL);
     let mut recs = Vec::new();
     s3_ir_seed_at(&mut recs, S3_EXPAND_SEED, &job, 30);
     s3_ir_seed_at(&mut recs, S3_EXPAND_ARGC, S3_SEED_ARGC_BYTES, 31);
-    // Dense header seed (zeros must land) so magic sits at OUT before body runs.
-    recs.push(s3_rec_set(S3_PACK_PROTO_DST, S3_EXPAND_OUT));
-    s3_append_stb_runs(&mut recs, S3_EXPAND_TYB_HDR, 32);
+    // Sparse poke of magic only; high-water composed + zero DATA cover the rest.
+    s3_ir_seed_at(&mut recs, S3_EXPAND_OUT, S3_EXPAND_TYB_MAGIC, 32);
     recs.extend(s3_bootstrap_expand_ctrl());
     (s3_host_tyb_from_records(&recs), S3_EXPAND_OUT)
 }
@@ -4847,9 +4846,9 @@ mod tests {
         let (exp, off) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_ONE_FLAT);
         assert!(s3_unpack_data_tyb(&exp).is_empty());
         let exp_recs = parse_tyb(&exp).unwrap().records;
-        // S3.268: pin ONE-flat assembler size (header seed + 47 body).
-        assert_eq!(exp_recs.len(), 338);
-        assert_eq!(S3_EXPAND_TYB_HDR, b"TYB\0\0\0\0\0");
+        // S3.270: pin ONE-flat assembler size (magic poke + 47 body).
+        assert_eq!(exp_recs.len(), 325);
+        assert_eq!(S3_EXPAND_TYB_MAGIC, b"TYB");
         // Sentinel termination lives in the ctrl body (slot 5 = 0xFE), not a length SET.
         assert!(
             !s3_bootstrap_expand_ctrl().iter().any(|r| {
@@ -5035,9 +5034,9 @@ mod tests {
             s3_recs_from_flat_seed_with_argc(S3_EXPAND_CTRL_FLAT, S3_SEED_ARGC_BYTES)
         );
         assert_eq!(S3_SEED_ARGC_BYTES.len() as u32, 0x1E0 - S3_EXPAND_ARGC);
-        // S3.268: ONE-flat expand assembler (job+argc+header seed + 47 body).
+        // S3.270: ONE-flat expand assembler (job+argc+magic poke + 47 body).
         let (exp_pin, _) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_ONE_FLAT);
-        assert_eq!(parse_tyb(&exp_pin).unwrap().records.len(), 338);
+        assert_eq!(parse_tyb(&exp_pin).unwrap().records.len(), 325);
         let one = s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_ONE_FLAT);
         assert_eq!(one, s3_recs_from_flat_seed(S3_SHAPE_FILL_ONE_FLAT));
         // S3.269: pack wire-section wrap; expand already emits TYB (no wrap).

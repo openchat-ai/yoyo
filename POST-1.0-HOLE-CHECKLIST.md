@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.270**（269 pack-only wire wrap rename；**不**假 CLOSED）。
+**默认** 继续 **= S3.271**（270 expand magic-only poke；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -112,8 +112,9 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.266** ✅       | `a8ddd93`   | host wire→records = parse_tyb header wrap（无第二解析器）     |
 | **S3.267** ✅       | `c7ccad6`   | expand 发射完整 TYB；via_yoyo 直 parse_tyb；ctrl 41→57        |
 | **S3.268** ✅       | 73409da   | TYB header IR-seed；ctrl 57→47；sim composed high-water        |
-| **S3.269** ✅       | pending     | pack-only wire→TYB wrap rename；expand 无 wrap                    |
-| **S3.270** ⏳       | —           | 继续缩 wire-parse / A1 宿主面 · **本步**                   |
+| **S3.269** ✅       | b5686c   | pack-only wire→TYB wrap rename；expand 无 wrap                    |
+| **S3.270** ✅       | pending     | expand magic-only poke；assembler 338→325；zeros 靠 high-water           |
+| **S3.271** ⏳       | —           | 继续缩 wire-parse / A1 宿主面 · **本步**                   |
 
 
 
@@ -161,4 +162,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-20**：pack-only wrap · 默认 **S3.270** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-20**：magic-only poke · 默认 **S3.271** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
