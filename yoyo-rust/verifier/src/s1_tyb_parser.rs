@@ -2512,13 +2512,13 @@ const S3_EXPAND_SENTINEL: u8 = 0xFE;
 const S3_EXPAND_CTRL_ROWS: usize = 39;
 /// S3.270: only magic must be IR-seeded; reserved/count stay zero until body patches cnt.
 const S3_EXPAND_TYB_MAGIC: &[u8] = b"TYB";
-/// S3.274: assembler init SETs as a flat seed (same expand path as ctrl body).
-const S3_EXPAND_INIT_ROWS: usize = 6;
+/// S3.274/S3.277: assembler init SETs as a flat seed (same expand path as ctrl).
+/// S3.277: drop SET slot13=0 / slot1=0 — sim state starts zeroed.
+const S3_EXPAND_INIT_ROWS: usize = 4;
 const S3_EXPAND_INIT_FLAT: &[u8] = &[
-    // SET 0 = OUT, SET 4 = SEED, SET 5 = sentinel, SET 9 = OUT+hdr, SET 13 = 0, SET 1 = 0
+    // SET 0 = OUT, SET 4 = SEED, SET 5 = sentinel, SET 9 = OUT+hdr
     48, 0, 0, 0, 2, 0, 0, 48, 4, 0, 64, 0, 0, 0,
     48, 5, 0, 254, 0, 0, 0, 48, 9, 0, 8, 2, 0, 0,
-    48, 13, 0, 0, 0, 0, 0, 48, 1, 0, 0, 0, 0, 0,
 ];
 /// S3.275: assembler body rows = init + ctrl (joined once in `s3_expand_asm_flat`).
 const S3_EXPAND_ASM_ROWS: usize = S3_EXPAND_INIT_ROWS + S3_EXPAND_CTRL_ROWS;
@@ -4865,10 +4865,10 @@ mod tests {
         let (exp, off) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_ONE_FLAT);
         assert!(s3_unpack_data_tyb(&exp).is_empty());
         let exp_recs = parse_tyb(&exp).unwrap().records;
-        // S3.275: pin ONE-flat assembler size (magic + 45 asm = 6 init + 39 body).
-        assert_eq!(exp_recs.len(), 323);
-        assert_eq!(S3_EXPAND_ASM_ROWS, 45);
-        assert_eq!(S3_EXPAND_INIT_ROWS, 6);
+        // S3.277: pin ONE-flat assembler size (magic + 43 asm = 4 init + 39 body).
+        assert_eq!(exp_recs.len(), 321);
+        assert_eq!(S3_EXPAND_ASM_ROWS, 43);
+        assert_eq!(S3_EXPAND_INIT_ROWS, 4);
         assert_eq!(
             s3_recs_from_flat_seed(S3_EXPAND_INIT_FLAT),
             vec![
@@ -4876,8 +4876,6 @@ mod tests {
                 s3_rec_set(4, S3_EXPAND_SEED),
                 s3_rec_set(5, S3_EXPAND_SENTINEL as u32),
                 s3_rec_set(9, S3_EXPAND_OUT + HEADER_SIZE as u32),
-                s3_rec_set(13, 0),
-                s3_rec_set(1, 0),
             ]
         );
         assert_eq!(
@@ -5068,10 +5066,10 @@ mod tests {
         assert_eq!(S3_LEA_PTR, &[0x49, 0x8D, 0x07, 0x49, 0x89, 0x47, 0x78]);
         // S3.275: assembler body is one flat seed (init prefix + ctrl); still Rust.
         assert_eq!(s3_expand_asm_flat().len(), S3_EXPAND_ASM_ROWS * 7);
-        assert_eq!(S3_EXPAND_ASM_ROWS, 45, "S3.275: init+ctrl one assembler flat");
+        assert_eq!(S3_EXPAND_ASM_ROWS, 43, "S3.277: init 4 + ctrl 39");
         assert_eq!(S3_EXPAND_CTRL_FLAT.len(), S3_EXPAND_CTRL_ROWS * 7);
         assert_eq!(S3_EXPAND_CTRL_ROWS, 39, "S3.273: init SETs hoisted to assembler");
-        assert_eq!(S3_EXPAND_INIT_ROWS, 6, "S3.274: init is a 6-row flat seed");
+        assert_eq!(S3_EXPAND_INIT_ROWS, 4, "S3.277: drop zero INIT SETs");
         // S3.276: ctrl-only expand is plain flat_seed (no named bootstrap).
         assert_eq!(
             s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT),
@@ -5082,9 +5080,9 @@ mod tests {
             s3_recs_from_flat_seed_with_argc(&s3_expand_asm_flat(), S3_SEED_ARGC_BYTES)
         );
         assert_eq!(S3_SEED_ARGC_BYTES.len() as u32, 0x1E0 - S3_EXPAND_ARGC);
-        // S3.275: ONE-flat expand assembler size unchanged (45 asm records).
+        // S3.277: ONE-flat expand assembler size (43 asm records).
         let (exp_pin, _) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_ONE_FLAT);
-        assert_eq!(parse_tyb(&exp_pin).unwrap().records.len(), 323);
+        assert_eq!(parse_tyb(&exp_pin).unwrap().records.len(), 321);
         let one = s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_ONE_FLAT);
         assert_eq!(one, s3_recs_from_flat_seed(S3_SHAPE_FILL_ONE_FLAT));
         // S3.269: pack wire-section wrap; expand already emits TYB (no wrap).
