@@ -128,7 +128,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.282** ✅       | dc0bc63   | 去死 ADDV s8；ctrl 31；asm 35；many 39；one 30；assembler 264 |
 | **S3.283** ✅       | 5a559f7   | 就地推进 seed 指针；ctrl 30；asm 34；many 38；one 29；assembler 257 |
 | **S3.284** ✅       | 6af6038   | argc-miss 退出；drop SET255+LABEL3；many 36；one 28；assembler 251 |
-| **S3.285** ✅       | —           | ADDV s9 仅 many；one 27；assembler 245 |
+| **S3.285** ✅       | 90e26f6   | ADDV s9 仅 many；one 27；assembler 245 |
 | **S3.286** ⏳       | —           | 继续缩 bootstrap / A1 宿主面 · **本步**                   |
 
 
