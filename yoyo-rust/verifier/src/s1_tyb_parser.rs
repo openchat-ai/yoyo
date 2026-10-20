@@ -1843,16 +1843,22 @@ fn s3_pack_data_wire(bytes: &[u8]) -> Vec<u8> {
     out
 }
 
-/// S3.144/S3.263: sole host bridge — parse 8B×N wire back into records.
-/// YOYO expand/pack emit wires; Rust reifies them for `host_tyb_from_records`.
+/// S3.144/S3.263/S3.266: sole host bridge — 8B×N wire → records via `parse_tyb`.
+/// Wire bytes are a TYB record section; header is synthesized here (no 2nd parser).
 fn s3_host_wire_to_records(wire: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
-    assert_eq!(wire.len() % 8, 0, "pack wire must be 8-byte records");
-    wire.chunks_exact(8)
-        .map(|c| {
-            let mut a = [0u8; 6];
-            a.copy_from_slice(&c[2..8]);
-            (c[0], c[1], a)
-        })
+    assert_eq!(wire.len() % RECORD_SIZE, 0, "pack wire must be 8-byte records");
+    let n = wire.len() / RECORD_SIZE;
+    assert!(n <= u16::MAX as usize, "wire rec_cnt fits u16");
+    let mut tyb = Vec::with_capacity(HEADER_SIZE + wire.len());
+    tyb.extend_from_slice(&TYB_MAGIC);
+    tyb.extend_from_slice(&[0, 0]);
+    tyb.extend_from_slice(&(n as u16).to_le_bytes());
+    tyb.extend_from_slice(wire);
+    parse_tyb(&tyb)
+        .expect("s3_host_wire_to_records: parse_tyb")
+        .records
+        .into_iter()
+        .map(|r| (r.op, r.argc, r.args_raw))
         .collect()
 }
 
@@ -4432,7 +4438,7 @@ mod tests {
     /// payload but do not inject `.text`) (2) one SET per distinct emit byte
     /// (no SHR; shared `s3_append_stb_poke_global_distinct`).
     /// Cliff: expand ctrl body is flat (S3.264); argc IR-seeded; Rust still
-    /// bootstraps body + host-parses wire→records (S3.263). A1 floor unchanged.
+    /// bootstraps body; wire→records is parse_tyb header wrap (S3.266). A1 floor.
     #[test]
     fn s3_ir_selfhost_roadmap() {
         // Done: DATA pack algorithm runs as YOYO IR (STB loop) via via_ir.
@@ -5013,7 +5019,7 @@ mod tests {
     /// S3.135/S3.160/S3.223/S3.259: remaining Rust sidecar after pack+STB+expand.
     /// Still Rust: short lea A1 (in-DLL PE seed), `emit_x86` body OnceLock,
     /// expand-ctrl bootstrap (`s3_bootstrap_expand_ctrl`), host wire→records
-    /// (`s3_host_wire_to_records`), IR builders / run folders. Not CLOSED.
+    /// via `parse_tyb` header wrap (S3.266), IR builders / run folders. Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
         assert_eq!(S3_LEA_PTR.len(), 7, "short lea must stay 7B (not disp32)");
@@ -5031,11 +5037,19 @@ mod tests {
         assert_eq!(parse_tyb(&exp_pin).unwrap().records.len(), 312);
         let one = s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_ONE_FLAT);
         assert_eq!(one, s3_recs_from_flat_seed(S3_SHAPE_FILL_ONE_FLAT));
-        // S3.263/S3.264: sole host wire→records bridge; expand layout pinned;
-        // argc IR-seeded (no poke rows in ctrl flat).
+        // S3.263/S3.266: sole host wire→records via parse_tyb; expand layout pinned.
         for r in &one {
             let w = s3_rec_wire(r.0, r.1, r.2);
             assert_eq!(s3_host_wire_to_records(&w), vec![*r]);
+            // Header wrap round-trips through the one structural parser.
+            let mut tyb = Vec::new();
+            tyb.extend_from_slice(&TYB_MAGIC);
+            tyb.extend_from_slice(&[0, 0]);
+            tyb.extend_from_slice(&1u16.to_le_bytes());
+            tyb.extend_from_slice(&w);
+            let p = parse_tyb(&tyb).unwrap();
+            assert_eq!(p.rec_cnt, 1);
+            assert_eq!((p.records[0].op, p.records[0].argc, p.records[0].args_raw), *r);
         }
         assert_eq!(S3_EXPAND_SEED, 0x40);
         assert_eq!(S3_EXPAND_ARGC, 0x1C0);
