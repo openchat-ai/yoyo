@@ -1843,9 +1843,9 @@ fn s3_pack_data_wire(bytes: &[u8]) -> Vec<u8> {
     out
 }
 
-/// S3.144/S3.263/S3.266: sole host bridge — 8B×N wire → records via `parse_tyb`.
-/// Wire bytes are a TYB record section; header is synthesized here (no 2nd parser).
-fn s3_host_wire_to_records(wire: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
+/// S3.144/S3.266/S3.269: pack-only — wrap a raw 8B×N record section as TYB + parse.
+/// Expand path emits a full TYB itself (S3.267); this wrap remains for pack wire.
+fn s3_pack_wire_section_to_recs(wire: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     assert_eq!(wire.len() % RECORD_SIZE, 0, "pack wire must be 8-byte records");
     let n = wire.len() / RECORD_SIZE;
     assert!(n <= u16::MAX as usize, "wire rec_cnt fits u16");
@@ -1855,7 +1855,7 @@ fn s3_host_wire_to_records(wire: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     tyb.extend_from_slice(&(n as u16).to_le_bytes());
     tyb.extend_from_slice(wire);
     parse_tyb(&tyb)
-        .expect("s3_host_wire_to_records: parse_tyb")
+        .expect("s3_pack_wire_section_to_recs: parse_tyb")
         .records
         .into_iter()
         .map(|r| (r.op, r.argc, r.args_raw))
@@ -1869,7 +1869,7 @@ fn s3_pack_data_via_ir(bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     }
     let (tyb, out_off) = s3_yoyo_pack_loop_stb_tyb(bytes);
     let wire = s3_sim_prog_loop(&tyb, 0, out_off, 0).expect("s3_pack_data_via_ir: sim pack");
-    s3_host_wire_to_records(&wire)
+    s3_pack_wire_section_to_recs(&wire)
 }
 
 /// S3.142/S3.145 pack-proto DATA layout (no STB — write via 1-byte MEMCPY from consts/payload).
@@ -4457,8 +4457,8 @@ mod tests {
     /// Floors: (1) short lea → `.text` only via A1 (STB/poke can hold the 37B
     /// payload but do not inject `.text`) (2) one SET per distinct emit byte
     /// (no SHR; shared `s3_append_stb_poke_global_distinct`).
-    /// Cliff: expand ctrl body is flat (S3.267 TYB out); argc IR-seeded; Rust
-    /// bootstraps body; pack wire still host-wraps parse_tyb (S3.266). A1 floor.
+    /// Cliff: expand ctrl body is flat (S3.268); argc+header IR-seeded; Rust
+    /// bootstraps body; pack still wraps wire→TYB (S3.269). A1 floor.
     #[test]
     fn s3_ir_selfhost_roadmap() {
         // Done: DATA pack algorithm runs as YOYO IR (STB loop) via via_ir.
@@ -5021,8 +5021,8 @@ mod tests {
 
     /// S3.135/S3.160/S3.223/S3.259: remaining Rust sidecar after pack+STB+expand.
     /// Still Rust: short lea A1 (in-DLL PE seed), `emit_x86` body OnceLock,
-    /// expand-ctrl bootstrap (`s3_bootstrap_expand_ctrl`), host wire→records
-    /// via `parse_tyb` header wrap (S3.266), IR builders / run folders. Not CLOSED.
+    /// expand-ctrl bootstrap (`s3_bootstrap_expand_ctrl`), pack wire section wrap
+    /// (`s3_pack_wire_section_to_recs`, S3.269), IR builders / run folders. Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
         assert_eq!(S3_LEA_PTR.len(), 7, "short lea must stay 7B (not disp32)");
@@ -5040,19 +5040,10 @@ mod tests {
         assert_eq!(parse_tyb(&exp_pin).unwrap().records.len(), 338);
         let one = s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_ONE_FLAT);
         assert_eq!(one, s3_recs_from_flat_seed(S3_SHAPE_FILL_ONE_FLAT));
-        // S3.263/S3.266: sole host wire→records via parse_tyb; expand layout pinned.
+        // S3.269: pack wire-section wrap; expand already emits TYB (no wrap).
         for r in &one {
             let w = s3_rec_wire(r.0, r.1, r.2);
-            assert_eq!(s3_host_wire_to_records(&w), vec![*r]);
-            // Header wrap round-trips through the one structural parser.
-            let mut tyb = Vec::new();
-            tyb.extend_from_slice(&TYB_MAGIC);
-            tyb.extend_from_slice(&[0, 0]);
-            tyb.extend_from_slice(&1u16.to_le_bytes());
-            tyb.extend_from_slice(&w);
-            let p = parse_tyb(&tyb).unwrap();
-            assert_eq!(p.rec_cnt, 1);
-            assert_eq!((p.records[0].op, p.records[0].argc, p.records[0].args_raw), *r);
+            assert_eq!(s3_pack_wire_section_to_recs(&w), vec![*r]);
         }
         assert_eq!(S3_EXPAND_SEED, 0x40);
         assert_eq!(S3_EXPAND_ARGC, 0x1C0);
@@ -5751,7 +5742,7 @@ mod tests {
         let got = s3_sim_prog_loop(&tyb, 0, out_off, 0).expect("emit recs");
         assert_eq!(got, expect);
         // Round-trip: wire → records → matches inputs.
-        assert_eq!(s3_host_wire_to_records(&got), vec![ret, set]);
+        assert_eq!(s3_pack_wire_section_to_recs(&got), vec![ret, set]);
     }
 
     /// S3.167/S3.171/S3.172: YOYO STB-emits a full TYB file (== hand bytes).
