@@ -2467,19 +2467,15 @@ fn s3_rec_from_wire_seed_with_argc(row: &[u8; 7], argc_flat: &[u8]) -> (u8, u8, 
     )
 }
 
-/// S3.244/S3.253/S3.262: Rust expand (bootstrap + test parity). Production fill
-/// ctrl uses via_yoyo; the sole production call is expand-ctrl bootstrap below.
+/// S3.244/S3.253/S3.262/S3.276: Rust expand (bootstrap + test parity). Production
+/// fill ctrl uses via_yoyo; sole production bootstrap is `s3_bootstrap_expand_asm`.
 fn s3_recs_from_flat_seed(flat: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     s3_recs_from_flat_seed_with_argc(flat, S3_SEED_ARGC_BYTES)
 }
 
-/// S3.262/S3.264: named bootstrap — expand ctrl body flat without via_yoyo.
+/// S3.275/S3.276: sole named bootstrap — init+ctrl asm flat without via_yoyo.
 /// Argc table is IR-seeded separately (`s3_yoyo_expand_flat_tyb`).
-fn s3_bootstrap_expand_ctrl() -> Vec<(u8, u8, [u8; 6])> {
-    s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT)
-}
-
-/// S3.275: one Rust expand for assembler body (init prefix + ctrl).
+/// S3.276: dropped `s3_bootstrap_expand_ctrl`; ctrl-only uses `s3_recs_from_flat_seed`.
 fn s3_expand_asm_flat() -> Vec<u8> {
     let mut flat = Vec::with_capacity(S3_EXPAND_ASM_ROWS * 7);
     flat.extend_from_slice(S3_EXPAND_INIT_FLAT);
@@ -4888,14 +4884,14 @@ mod tests {
             s3_bootstrap_expand_asm(),
             [
                 s3_recs_from_flat_seed(S3_EXPAND_INIT_FLAT),
-                s3_bootstrap_expand_ctrl()
+                s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT)
             ]
             .concat()
         );
         assert_eq!(S3_EXPAND_TYB_MAGIC, b"TYB");
         // Sentinel termination lives in the ctrl body (slot 5 = 0xFE), not a length SET.
         assert!(
-            !s3_bootstrap_expand_ctrl().iter().any(|r| {
+            !s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT).iter().any(|r| {
                 r.0 == 0x30
                     && u16::from_le_bytes([r.2[0], r.2[1]]) == 5
                     && u32::from_le_bytes([r.2[2], r.2[3], r.2[4], r.2[5]])
@@ -5064,7 +5060,7 @@ mod tests {
 
     /// S3.135/S3.160/S3.223/S3.259: remaining Rust sidecar after pack+STB+expand.
     /// Still Rust: short lea A1 (in-DLL PE seed), `emit_x86` body OnceLock,
-    /// expand-asm bootstrap (`s3_bootstrap_expand_asm`, S3.275), pack wire section wrap
+    /// expand-asm bootstrap (`s3_bootstrap_expand_asm`, S3.275/276), pack wire section wrap
     /// (`s3_pack_wire_section_to_recs`, S3.269), IR builders / run folders. Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
@@ -5076,8 +5072,9 @@ mod tests {
         assert_eq!(S3_EXPAND_CTRL_FLAT.len(), S3_EXPAND_CTRL_ROWS * 7);
         assert_eq!(S3_EXPAND_CTRL_ROWS, 39, "S3.273: init SETs hoisted to assembler");
         assert_eq!(S3_EXPAND_INIT_ROWS, 6, "S3.274: init is a 6-row flat seed");
+        // S3.276: ctrl-only expand is plain flat_seed (no named bootstrap).
         assert_eq!(
-            s3_bootstrap_expand_ctrl(),
+            s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT),
             s3_recs_from_flat_seed_with_argc(S3_EXPAND_CTRL_FLAT, S3_SEED_ARGC_BYTES)
         );
         assert_eq!(
