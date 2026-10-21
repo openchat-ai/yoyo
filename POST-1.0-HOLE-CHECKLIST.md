@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.290**（289 JNE 直通匹配；+JNE 入表；ctrl 29→27；asm 31；many 31→29；one 22→20；assembler 217→210；**不**假 CLOSED）。
+**默认** 继续 **= S3.291**（290 预置 TYB count；去 ADD/STB 补丁与 SET OUT；ctrl 27→25；init 4→3；asm 28；assembler 210→209；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -133,7 +133,8 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.287** ✅       | 57273e3   | 去 SET out（slot9=outbuf）；many 32；one 23；assembler 222 |
 | **S3.288** ✅       | aa3f1c7   | STB oo 折两 ADD+=1；ctrl 29；asm 33；many 31；one 22；assembler 217 |
 | **S3.289** ✅       | 3434244   | JNE 直通匹配；argc+JNE；ctrl 27；asm 31；many 29；one 20；assembler 210 |
-| **S3.290** ⏳       | —           | 继续缩 bootstrap / A1 宿主面 · **本步**                   |
+| **S3.290** ✅       | 2ba51fb   | 预置 TYB count；去补丁；ctrl 25；init 3；asm 28；assembler 209 |
+| **S3.291** ⏳       | —           | 继续缩 bootstrap / A1 宿主面 · **本步**                   |
 
 
 
@@ -181,4 +182,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-21**：ctrl 27 · asm 31 · assembler 210 · many 29 · one 20 · 默认 **S3.290** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-21**：ctrl 25 · asm 28 · assembler 209 · many 29 · one 20 · 默认 **S3.291** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
