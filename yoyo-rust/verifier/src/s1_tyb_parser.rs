@@ -2535,8 +2535,8 @@ fn s3_rec_from_wire_seed_with_argc(row: &[u8; 7], argc_flat: &[u8]) -> (u8, u8, 
     )
 }
 
-/// S3.244/S3.253/S3.262/S3.276: Rust expand (bootstrap + test parity). Production
-/// fill ctrl uses via_yoyo; sole production bootstrap is `s3_bootstrap_expand_asm`.
+/// S3.244/S3.253/S3.262/S3.276/S3.321: Rust expand bootstrap + test parity.
+/// Production fill ctrl ≡ bootstrap (via_yoyo kept as test proof only).
 fn s3_recs_from_flat_seed(flat: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     s3_recs_from_flat_seed_with_argc(flat, &S3_SEED_ARGC_BYTES)
 }
@@ -2678,16 +2678,18 @@ const S3_SHAPE_FILL_ONE_FLAT: &[u8] = S3_SHAPE_FILL_MANY_FLAT;
 
 const S3_SHAPE_FILL_ONE_ROWS: usize = 2;
 
-/// S3.246/S3.255: one-job control expands via YOYO IR (not a Rust chunk loop).
+/// S3.246/S3.255/S3.321: one-job ctrl = sole bootstrap (MEMCPY+RET).
+/// via_yoyo ≡ bootstrap (pinned in tests); production no longer re-expands.
 fn s3_yoyo_shape_fill_ctrl() -> Vec<(u8, u8, [u8; 6])> {
-    s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_ONE_FLAT)
+    s3_bootstrap_expand_asm()
 }
 
 /// S3.304: many out past wire-job blob (no 256B argc table in-stream).
 const S3_SHAPE_MANY_OUT: u32 = 0x300;
 
+/// S3.321: many ctrl shares bootstrap (ONE≡MANY flat).
 fn s3_yoyo_shape_fill_many_ctrl() -> Vec<(u8, u8, [u8; 6])> {
-    s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_MANY_FLAT)
+    s3_bootstrap_expand_asm()
 }
 
 /// S3.304: bake op|argc|args wire rows (shared with expand job seed).
@@ -4546,22 +4548,6 @@ mod tests {
         );
     }
 
-    /// S3.163/S3.176/S3.222/S3.224/S3.315: IR self-host near-end inventory (not a schedule).
-    /// Floors: (1) short lea → `.text` only via A1 (2) one SET per distinct poke byte
-    /// (no SHR; shared global-distinct; pack+emit-flat poke S3.313–314).
-    /// Cliff: expand assembler=22 (S3.308 sub10); A1 densify −6 reject (S3.311);
-    /// Rust bootstrap MEMCPY+RET + emit OnceLock. All pack paths full TYB.
-
-    /// S3.316: pack const scratch [0x10,1,2,3,0] via poke flat (−7×2 sites).
-    /// S3.317: reject const-embedding `emit_x86` bodies to drop OnceLock.
-    /// Freezing ~95B host goldens grows sidecar trust; true path is YOYO-emit bodies.
-    /// Assembler 22 / A1×13 / boot=2 remain the hard numeric floors (S3.315).
-    #[test]
-    /// S3.318: STB run-fold is test-only; production pack/emit stay poke (no SUB).
-    #[test]
-    /// S3.319: fixed10 body bytes reach `.text` only via emit_x86 (or A1 of those
-    /// bytes). STB/poke of a body payload does not open `.text` — same floor as lea.
-    #[test]
     /// S3.320: expand bootstrap is named MEMCPY+RET (≡ MANY flat; no flat_seed decode).
     #[test]
     fn s3_bootstrap_named_memcpy_ret_pin() {
@@ -4577,6 +4563,7 @@ mod tests {
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
     }
 
+    #[test]
     fn s3_fixed_body_text_only_via_emit_or_a1_floor() {
         let body = s3_fixed_row(0x30);
         assert_eq!(body.len(), 14);
@@ -4612,6 +4599,7 @@ mod tests {
         );
     }
 
+    #[test]
     fn s3_stb_runs_test_only_production_poke() {
         let lea = s3_short_lea_raw_bytes();
         let (pack, _) = s3_yoyo_pack_loop_stb_tyb(&lea);
@@ -4631,6 +4619,7 @@ mod tests {
         assert!(runs.iter().any(|r| r.0 == 0x61));
     }
 
+    #[test]
     fn s3_emit_body_const_embed_reject() {
         let total: usize = S3_FIXED10_OPS.iter().map(|o| s3_fixed_row(*o).len()).sum();
         assert_eq!(total, 95, "fixed10 body bytes stay emit_x86-baked");
@@ -4644,6 +4633,7 @@ mod tests {
     }
 
 
+    #[test]
     fn s3_pack_const_scratch_poke_pin() {
         let proto = s3_yoyo_pack_proto_tyb(&[0xAA, 0xBB]);
         let n = parse_tyb(&proto).unwrap().records.len();
@@ -4661,6 +4651,7 @@ mod tests {
         assert_eq!(s3_pack_data_via_ir(&[1, 2, 3, 4, 5]), s3_pack_data(&[1, 2, 3, 4, 5]));
     }
 
+    #[test]
     fn s3_ir_selfhost_roadmap() {
         // Done: DATA pack algorithm runs as YOYO IR (STB loop) via via_ir.
         let (probe, _) = s3_yoyo_pack_loop_stb_tyb(&[1, 2, 3, 4]);
@@ -4723,6 +4714,23 @@ mod tests {
         );
         assert_eq!(s3_bootstrap_expand_asm().len(), 2, "Rust bootstrap MEMCPY+RET");
         assert_eq!(s3_fixed_row(0xFF), s3_compute_fixed_body(0xFF));
+    }
+
+    /// S3.321: shape-fill ctrl ≡ bootstrap; via_yoyo stays test-only proof.
+    #[test]
+    fn s3_shape_fill_ctrl_shares_bootstrap_pin() {
+        assert_eq!(s3_yoyo_shape_fill_ctrl(), s3_bootstrap_expand_asm());
+        assert_eq!(s3_yoyo_shape_fill_many_ctrl(), s3_bootstrap_expand_asm());
+        assert_eq!(
+            s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_ONE_FLAT),
+            s3_bootstrap_expand_asm(),
+            "via_yoyo still ≡ bootstrap (proof retained)"
+        );
+        assert_eq!(
+            s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_MANY_FLAT),
+            s3_bootstrap_expand_asm()
+        );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
     }
 
     /// S3.225/S3.226: unrolled + two-phase + loop-staged share STB-flat phase1 prefix.
@@ -5292,9 +5300,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–320: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–321: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor),
-    /// expand bootstrap named MEMCPY+RET (=2, S3.320), IR builders. Host 171.
+    /// sole bootstrap MEMCPY+RET (=2; fill ctrl shares it S3.321). Host 171.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
