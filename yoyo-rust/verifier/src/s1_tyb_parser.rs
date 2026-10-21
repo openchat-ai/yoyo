@@ -1664,9 +1664,9 @@ fn s3_yoyo_emit_tyb_file_loop_staged(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>,
     (s3_host_tyb_from_records(&recs), out_off)
 }
 
-/// S3.183: STB `bytes` at DST. Identical bytes of length >= 2 share one SET and a
-/// SUB/JE loop. Singletons stay SET+STB+ADD. Returns the next free label id.
-/// Rust still chooses the immediates; they are not copied into DATA.
+/// S3.183/S3.318: STB run-fold — **test/compare only** after poke era (S3.313–314).
+/// Production pack/emit use `s3_ir_seed_at` / `s3_append_stb_flat_at` (poke).
+#[cfg(test)]
 fn s3_append_stb_runs(
     recs: &mut Vec<(u8, u8, [u8; 6])>,
     bytes: &[u8],
@@ -4556,6 +4556,27 @@ mod tests {
     /// Freezing ~95B host goldens grows sidecar trust; true path is YOYO-emit bodies.
     /// Assembler 22 / A1×13 / boot=2 remain the hard numeric floors (S3.315).
     #[test]
+    /// S3.318: STB run-fold is test-only; production pack/emit stay poke (no SUB).
+    #[test]
+    fn s3_stb_runs_test_only_production_poke() {
+        let lea = s3_short_lea_raw_bytes();
+        let (pack, _) = s3_yoyo_pack_loop_stb_tyb(&lea);
+        assert!(
+            !parse_tyb(&pack).unwrap().records.iter().any(|r| r.op == 0x61),
+            "pack loop must not SUB-fold"
+        );
+        let (emit, _) = s3_yoyo_emit_flat_via_stb(S3_SHAPE_FILL_MANY_FLAT, 0x20);
+        assert!(
+            !parse_tyb(&emit).unwrap().records.iter().any(|r| r.op == 0x61),
+            "emit-flat must not SUB-fold"
+        );
+        // Compare helper still exists under cfg(test).
+        let mut runs = Vec::new();
+        runs.push(s3_rec_set(S3_PACK_PROTO_DST, 0));
+        s3_append_stb_runs(&mut runs, &[0xAA, 0xAA], 1);
+        assert!(runs.iter().any(|r| r.0 == 0x61));
+    }
+
     fn s3_emit_body_const_embed_reject() {
         let total: usize = S3_FIXED10_OPS.iter().map(|o| s3_fixed_row(*o).len()).sum();
         assert_eq!(total, 95, "fixed10 body bytes stay emit_x86-baked");
@@ -5217,9 +5238,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–317: remaining Rust sidecar.
-    /// Still Rust: short lea A1, `emit_x86` OnceLock (const-embed reject S3.317),
-    /// expand-asm bootstrap (=2), IR builders. Host 171; pack/emit poke era.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–318: remaining Rust sidecar.
+    /// Still Rust: short lea A1, `emit_x86` OnceLock (const-embed reject),
+    /// expand-asm bootstrap (=2), IR builders. Host 171; runs test-only (S3.318).
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
