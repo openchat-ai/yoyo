@@ -2529,7 +2529,7 @@ const S3_EXPAND_ARGC: u32 = 0x1C0;
 /// S3.299: OUT sits past 256B argc index table at ARGC.
 const S3_EXPAND_OUT: u32 = 0x2C0;
 /// ONE-flat expand assembler record count (job+argc+hdr seeds + bootstrap).
-const S3_EXPAND_ASM_PIN: usize = 98;
+const S3_EXPAND_ASM_PIN: usize = 93;
 
 /// S3.257/S3.291: trailing 0 sentinel ends the job blob — no job-side SET END.
 /// S3.291: CMP against slot13 (image-zero); no INIT SET of sentinel imm.
@@ -2624,9 +2624,9 @@ fn s3_recs_from_flat_seed_via_yoyo(flat: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
         .collect()
 }
 
-/// S3.299: one-slice starts at job LDB; includes job-end CMP/JE + indexed argc load.
+/// S3.300: one-slice starts at job LDB; includes job-end CMP/JE + SET14 argc reset.
 const S3_SHAPE_FILL_ONE_AT: usize = 1;
-/// Many-slice length including job-end CMP/JE + indexed argc (ONE drops job-end CMP/JE).
+/// Many-slice length; ONE drops job-end CMP/JE + SET14, adds LABEL6/RET.
 const S3_SHAPE_FILL_ONE_LEN: usize = 11;
 const S3_SHAPE_FILL_MANY_ROWS: usize = 17;
 
@@ -2636,13 +2636,14 @@ const S3_SHAPE_FILL_MANY_ROWS: usize = 17;
 /// S3.295: table base = sim table_off (slot15).
 /// S3.298: zero-terminated job stream (drop count LDB/ADD/SUB); job op==0 ends.
 /// S3.299: argc = table[op] (indexed); drop pair scan.
+/// S3.300: SET 14 resets slot15=table_off (S3.118); ADDV 15+=op (drop MOVRR temp).
 const S3_SHAPE_FILL_MANY_FLAT: &[u8] = &[
     // S3.298: job op==0 (slot13) ends — was count-prefixed LDB/ADD/CMP/SUB.
     64, 7, 0, 0, 0, 0, 0, 128, 7, 0, 2, 0, 0, 0,
     101, 7, 0, 13, 0, 0, 0, 113, 6, 0, 0, 0, 0, 0,
-    // S3.299: argc = *[table_off + op] (RET argc 0 is valid).
-    100, 4, 0, 15, 0, 0, 0, 104, 4, 0, 7, 0, 0, 0,
-    128, 6, 0, 4, 0, 0, 0,
+    // S3.300: SET14 → resync slot15; argc = *[15 + op].
+    48, 14, 0, 0, 0, 0, 0, 104, 15, 0, 7, 0, 0, 0,
+    128, 6, 0, 15, 0, 0, 0,
     129, 7, 0, 9, 0, 0, 0,
     // S3.288/S3.296: STB op/argc; slot10=6 preload (no SET); ADDV job+=6.
     129, 6, 0, 9, 0, 1, 0, 98, 9, 0, 2, 0, 0, 0,
@@ -2659,17 +2660,17 @@ fn s3_yoyo_shape_fill_one() -> Vec<(u8, u8, [u8; 6])> {
 }
 
 const S3_SHAPE_FILL_ONE_FLAT: &[u8] = &[
-    // S3.294/S3.299: job=prog_ptr; argc=table[op]; out=slot9.
-    128, 7, 0, 2, 0, 0, 0, 100, 4, 0, 15, 0, 0, 0,
-    104, 4, 0, 7, 0, 0, 0, 128, 6, 0, 4, 0, 0, 0,
-    129, 7, 0, 9, 0, 0, 0, 129, 6, 0, 9, 0, 1, 0,
+    // S3.300: job=prog_ptr; ADDV table+=op in-place (single job; no SET14).
+    128, 7, 0, 2, 0, 0, 0, 104, 15, 0, 7, 0, 0, 0,
+    128, 6, 0, 15, 0, 0, 0, 129, 7, 0, 9, 0, 0, 0,
+    129, 6, 0, 9, 0, 1, 0,
     // S3.296: slot10=6 preload — no SET 10.
     98, 9, 0, 2, 0, 0, 0, 98, 2, 0, 1, 0, 0, 0,
     132, 9, 0, 2, 0, 10, 0, 64, 6, 0, 0, 0, 0, 0,
     255, 0, 0, 0, 0, 0, 0,
 ];
 
-const S3_SHAPE_FILL_ONE_ROWS: usize = 11;
+const S3_SHAPE_FILL_ONE_ROWS: usize = 10;
 
 /// S3.246/S3.255: one-job control expands via YOYO IR (not a Rust chunk loop).
 fn s3_yoyo_shape_fill_ctrl() -> Vec<(u8, u8, [u8; 6])> {
@@ -4859,12 +4860,12 @@ mod tests {
             s3_rec_from_wire_seed(&row),
             (0x30, 2, [2, 0, 104, 0, 0, 0])
         );
-        // S3.246/S3.299: ONE = many one-job slice − job-end CMP/JE + LABEL6/RET.
+        // S3.300: ONE = many slice − job-end CMP/JE − SET14 + LABEL6/RET.
         assert_eq!(S3_SHAPE_FILL_ONE_FLAT.len(), S3_SHAPE_FILL_ONE_ROWS * 7);
         let ctrl = s3_yoyo_shape_fill_ctrl();
         assert_eq!(ctrl.len(), S3_SHAPE_FILL_ONE_ROWS);
         assert_eq!(ctrl, s3_recs_from_flat_seed(S3_SHAPE_FILL_ONE_FLAT));
-        assert_eq!(S3_SHAPE_FILL_ONE_ROWS, S3_SHAPE_FILL_ONE_LEN);
+        assert_eq!(S3_SHAPE_FILL_ONE_ROWS + 1, S3_SHAPE_FILL_ONE_LEN);
         assert_eq!(
             s3_recs_from_flat_seed_with_argc(S3_SHAPE_FILL_MANY_FLAT, &S3_SEED_ARGC_BYTES),
             s3_yoyo_shape_fill_many_ctrl()
@@ -5114,8 +5115,8 @@ mod tests {
         assert_eq!(S3_EXPAND_CTRL_ROWS, 17, "S3.299: argc=table[op]");
         assert_eq!(S3_EXPAND_INIT_ROWS, 0, "S3.297: slot9 = OUT+hdr preload");
         assert_eq!(S3_SHAPE_TABLE_END, 0x140, "S3.299: 256B argc index");
-        assert_eq!(S3_SHAPE_FILL_MANY_ROWS, 17, "S3.299: indexed argc");
-        assert_eq!(S3_SHAPE_FILL_ONE_ROWS, 11, "S3.299: indexed argc");
+        assert_eq!(S3_SHAPE_FILL_MANY_ROWS, 17, "S3.300: SET14 argc resync");
+        assert_eq!(S3_SHAPE_FILL_ONE_ROWS, 10, "S3.300: drop MOVRR (ADDV in-place)");
         assert!(
             !s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT)
                 .iter()
