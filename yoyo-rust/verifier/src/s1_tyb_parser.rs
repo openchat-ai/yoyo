@@ -2538,32 +2538,23 @@ const S3_EXPAND_ASM_PIN: usize = 32; // S3.304: ONE MEMCPY+RET wire expand
 /// Bootstrap still Rust-expands the ctrl body (cannot via_yoyo itself).
 /// S3.303: expand job seed is 8B wire (argc baked); ctrl MEMCPY record rows.
 const S3_EXPAND_SENTINEL: u8 = 0;
-const S3_EXPAND_CTRL_ROWS: usize = 10;
+/// S3.305: expand ctrl ≡ shape-fill many (wire-job MEMCPY on slot2).
+const S3_EXPAND_CTRL_ROWS: usize = S3_SHAPE_FILL_MANY_ROWS;
 /// S3.270: only magic must be IR-seeded; reserved/count stay zero until body patches cnt.
 const S3_EXPAND_TYB_MAGIC: &[u8] = b"TYB";
 /// S3.274/S3.277: assembler init SETs as a flat seed (same expand path as ctrl).
 /// S3.277: drop SET slot13=0 / slot1=0 — sim state starts zeroed.
 /// S3.290: drop SET OUT base — count is IR-seeded; no STB patch.
 /// S3.291: drop SET sentinel — job end is 0 vs slot13 image-zero.
-/// S3.293: drop SET SEED — sim table_off preloads slot15 = job cursor.
 /// S3.297: drop SET out+hdr — sim slot9 starts at OUT+HEADER_SIZE.
-/// S3.298: drop SET argc base — sim slot8 = S3_EXPAND_ARGC (shape-fill / legacy).
+/// S3.305: job cursor = prog_ptr (slot2); same flat as shape-fill many.
 const S3_EXPAND_INIT_ROWS: usize = 0;
 const S3_EXPAND_INIT_FLAT: &[u8] = &[];
 /// S3.275: assembler body rows = init + ctrl (joined once in `s3_expand_asm_flat`).
 const S3_EXPAND_ASM_ROWS: usize = S3_EXPAND_INIT_ROWS + S3_EXPAND_CTRL_ROWS;
 
-/// Expand ctrl: walk wire-job seed, MEMCPY each RECORD_SIZE row to OUT.
-/// S3.303: argc baked in job seed — no table scan / STB op/argc / arg MEMCPY.
-const S3_EXPAND_CTRL_FLAT: &[u8] = &[
-    64, 20, 0, 0, 0, 0, 0, 128, 7, 0, 15, 0, 0, 0,
-    // S3.291: job op==0 (slot13) ends.
-    101, 7, 0, 13, 0, 0, 0, 113, 21, 0, 0, 0, 0, 0,
-    // S3.303: copy full wire record (slot12=RECORD_SIZE); advance dst/job by 8.
-    132, 9, 0, 15, 0, 12, 0, 98, 9, 0, 8, 0, 0, 0,
-    98, 15, 0, 8, 0, 0, 0, 112, 20, 0, 0, 0, 0, 0,
-    64, 21, 0, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, 0,
-];
+/// S3.305: sole wire-job loop seed (expand bootstrap + shape-fill many).
+const S3_EXPAND_CTRL_FLAT: &[u8] = S3_SHAPE_FILL_MANY_FLAT;
 
 /// S3.254/S3.260/S3.264/S3.268: YOYO IR expands a 7×N flat seed into a TYB file.
 /// Assembler: wire-job poke + argc IR-seed + TYB header seed + bootstrap body.
@@ -2605,12 +2596,12 @@ fn s3_yoyo_expand_flat_tyb(flat: &[u8]) -> (Vec<u8>, u32) {
 /// S3.254/S3.255/S3.263/S3.267: expand flat via YOYO sim → full TYB → parse_tyb.
 fn s3_recs_from_flat_seed_via_yoyo(flat: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     let (asm, out) = s3_yoyo_expand_flat_tyb(flat);
-    // S3.293: table_off → slot15 = job. S3.297: slot9 = OUT+hdr (composed from OUT).
+    // S3.305: prog_ptr → slot2 = job (shared many flat). S3.297: slot9 = OUT+hdr.
     let emitted = s3_sim_prog_loop_cursor(
         &asm,
-        S3_EXPAND_SEED as u64,
-        out,
         0,
+        out,
+        S3_EXPAND_SEED as u64,
         out as u64 + HEADER_SIZE as u64,
     )
     .expect("expand flat via yoyo");
@@ -4930,9 +4921,9 @@ mod tests {
         assert_eq!(
             s3_sim_prog_loop_cursor(
                 &exp,
-                S3_EXPAND_SEED as u64,
-                off,
                 0,
+                off,
+                S3_EXPAND_SEED as u64,
                 off as u64 + HEADER_SIZE as u64,
             )
             .unwrap(),
@@ -5099,9 +5090,10 @@ mod tests {
         assert_eq!(S3_LEA_PTR, &[0x49, 0x8D, 0x07, 0x49, 0x89, 0x47, 0x78]);
         // S3.275: assembler body is one flat seed (init prefix + ctrl); still Rust.
         assert_eq!(s3_expand_asm_flat().len(), S3_EXPAND_ASM_ROWS * 7);
-        assert_eq!(S3_EXPAND_ASM_ROWS, 10, "S3.303: wire-job MEMCPY emit");
+        assert_eq!(S3_EXPAND_ASM_ROWS, 10, "S3.305: expand≡many wire loop");
         assert_eq!(S3_EXPAND_CTRL_FLAT.len(), S3_EXPAND_CTRL_ROWS * 7);
-        assert_eq!(S3_EXPAND_CTRL_ROWS, 10, "S3.303: drop argc scan/STB/arg copy");
+        assert_eq!(S3_EXPAND_CTRL_ROWS, 10, "S3.305: shared many flat");
+        assert_eq!(S3_EXPAND_CTRL_FLAT, S3_SHAPE_FILL_MANY_FLAT);
         assert_eq!(S3_EXPAND_INIT_ROWS, 0, "S3.297: slot9 = OUT+hdr preload");
         assert_eq!(S3_SHAPE_TABLE_END, 0x140, "S3.299: 256B argc index");
         assert_eq!(S3_SHAPE_FILL_MANY_ROWS, 10, "S3.304: wire-job MEMCPY loop");
@@ -5146,9 +5138,9 @@ mod tests {
         let (exp, off) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_ONE_FLAT);
         let emitted = s3_sim_prog_loop_cursor(
             &exp,
-            S3_EXPAND_SEED as u64,
-            off,
             0,
+            off,
+            S3_EXPAND_SEED as u64,
             off as u64 + HEADER_SIZE as u64,
         )
         .unwrap();
