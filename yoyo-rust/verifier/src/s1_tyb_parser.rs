@@ -2519,11 +2519,9 @@ const S3_EXPAND_TYB_MAGIC: &[u8] = b"TYB";
 /// S3.290: drop SET OUT base — count is IR-seeded; no STB patch.
 /// S3.291: drop SET sentinel — job end is 0 vs slot13 image-zero.
 /// S3.293: drop SET SEED — sim table_off preloads slot15 = job cursor.
-const S3_EXPAND_INIT_ROWS: usize = 1;
-const S3_EXPAND_INIT_FLAT: &[u8] = &[
-    // SET 9 = OUT+hdr
-    48, 9, 0, 8, 2, 0, 0,
-];
+/// S3.297: drop SET out+hdr — sim slot9 starts at OUT+HEADER_SIZE.
+const S3_EXPAND_INIT_ROWS: usize = 0;
+const S3_EXPAND_INIT_FLAT: &[u8] = &[];
 /// S3.275: assembler body rows = init + ctrl (joined once in `s3_expand_asm_flat`).
 const S3_EXPAND_ASM_ROWS: usize = S3_EXPAND_INIT_ROWS + S3_EXPAND_CTRL_ROWS;
 
@@ -2587,9 +2585,15 @@ fn s3_yoyo_expand_flat_tyb(flat: &[u8]) -> (Vec<u8>, u32) {
 /// S3.254/S3.255/S3.263/S3.267: expand flat via YOYO sim → full TYB → parse_tyb.
 fn s3_recs_from_flat_seed_via_yoyo(flat: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     let (asm, out) = s3_yoyo_expand_flat_tyb(flat);
-    // S3.293: table_off preloads slot15 = job seed base (no INIT SET).
-    let emitted = s3_sim_prog_loop(&asm, S3_EXPAND_SEED as u64, out, 0)
-        .expect("expand flat via yoyo");
+    // S3.293: table_off → slot15 = job. S3.297: slot9 = OUT+hdr (composed from OUT).
+    let emitted = s3_sim_prog_loop_cursor(
+        &asm,
+        S3_EXPAND_SEED as u64,
+        out,
+        0,
+        out as u64 + HEADER_SIZE as u64,
+    )
+    .expect("expand flat via yoyo");
     parse_tyb(&emitted)
         .expect("expand emits TYB")
         .records
@@ -2869,6 +2873,17 @@ fn s3_prog_loop_code_host(ops_len: u32, nrows: u32) -> Vec<(u8, u8, [u8; 6])> {
 /// S3.116: one prog-loop sim. Host (10-row, outbuf 0x160) and in-DLL
 /// (3-row, outbuf 0xC8) only differ by these seeds. RAW `0xA1` is skipped.
 fn s3_sim_prog_loop(tyb: &[u8], table_off: u64, outbuf: u32, prog_ptr: u64) -> Result<Vec<u8>, u8> {
+    s3_sim_prog_loop_cursor(tyb, table_off, outbuf, prog_ptr, outbuf as u64)
+}
+
+/// S3.297: `slot9_init` may differ from composed `outbuf` (expand body @ OUT+hdr).
+fn s3_sim_prog_loop_cursor(
+    tyb: &[u8],
+    table_off: u64,
+    outbuf: u32,
+    prog_ptr: u64,
+    slot9_init: u64,
+) -> Result<Vec<u8>, u8> {
     let prog = parse_tyb(tyb).map_err(|_| 0xFDu8)?;
     // S3.145: size DATA to packed image (host-sized pack IR needs >512).
     let mut data = Vec::new();
@@ -2883,7 +2898,7 @@ fn s3_sim_prog_loop(tyb: &[u8], table_off: u64, outbuf: u32, prog_ptr: u64) -> R
     let mut state = [0u64; 16];
     state[3] = table_off;
     state[15] = table_off;
-    state[9] = outbuf as u64;
+    state[9] = slot9_init;
     // S3.296: args payload width = RECORD_SIZE-2 (op,argc|6 args); MEMCPY len slot.
     state[10] = (RECORD_SIZE as u64) - 2;
     state[2] = prog_ptr;
@@ -4882,13 +4897,10 @@ mod tests {
         assert!(s3_unpack_data_tyb(&exp).is_empty());
         let exp_recs = parse_tyb(&exp).unwrap().records;
         // S3.283: pin ONE-flat assembler size (in-place seed ptr; no MOVRR s8).
-        assert_eq!(exp_recs.len(), 151);
-        assert_eq!(S3_EXPAND_ASM_ROWS, 24);
-        assert_eq!(S3_EXPAND_INIT_ROWS, 1);
-        assert_eq!(
-            s3_recs_from_flat_seed(S3_EXPAND_INIT_FLAT),
-            vec![s3_rec_set(9, S3_EXPAND_OUT + HEADER_SIZE as u32)]
-        );
+        assert_eq!(exp_recs.len(), 150);
+        assert_eq!(S3_EXPAND_ASM_ROWS, 23);
+        assert_eq!(S3_EXPAND_INIT_ROWS, 0);
+        assert!(S3_EXPAND_INIT_FLAT.is_empty(), "S3.297: no INIT SETs");
         assert_eq!(
             s3_bootstrap_expand_asm(),
             [
@@ -4914,7 +4926,14 @@ mod tests {
             expect_tyb.extend_from_slice(&s3_rec_wire(r.0, r.1, r.2));
         }
         assert_eq!(
-            s3_sim_prog_loop(&exp, S3_EXPAND_SEED as u64, off, 0).unwrap(),
+            s3_sim_prog_loop_cursor(
+                &exp,
+                S3_EXPAND_SEED as u64,
+                off,
+                0,
+                off as u64 + HEADER_SIZE as u64,
+            )
+            .unwrap(),
             expect_tyb
         );
         assert_eq!(
@@ -5077,10 +5096,10 @@ mod tests {
         assert_eq!(S3_LEA_PTR, &[0x49, 0x8D, 0x07, 0x49, 0x89, 0x47, 0x78]);
         // S3.275: assembler body is one flat seed (init prefix + ctrl); still Rust.
         assert_eq!(s3_expand_asm_flat().len(), S3_EXPAND_ASM_ROWS * 7);
-        assert_eq!(S3_EXPAND_ASM_ROWS, 24, "S3.296: init 1 + ctrl 23");
+        assert_eq!(S3_EXPAND_ASM_ROWS, 23, "S3.297: init 0 + ctrl 23");
         assert_eq!(S3_EXPAND_CTRL_FLAT.len(), S3_EXPAND_CTRL_ROWS * 7);
         assert_eq!(S3_EXPAND_CTRL_ROWS, 23, "S3.296: drop SET 10 (slot10=6)");
-        assert_eq!(S3_EXPAND_INIT_ROWS, 1, "S3.293: job cursor = table_off");
+        assert_eq!(S3_EXPAND_INIT_ROWS, 0, "S3.297: slot9 = OUT+hdr preload");
         assert_eq!(S3_SHAPE_TABLE_END, 0x64, "S3.292: (op,argc) table is 36B");
         assert_eq!(S3_SHAPE_FILL_ONE_ROWS, 16, "S3.296: drop SET 10");
         // S3.276: ctrl-only expand is plain flat_seed (no named bootstrap).
@@ -5093,9 +5112,9 @@ mod tests {
             s3_recs_from_flat_seed_with_argc(&s3_expand_asm_flat(), S3_SEED_ARGC_BYTES)
         );
         assert_eq!(S3_SEED_ARGC_BYTES.len() as u32, 0x1E4 - S3_EXPAND_ARGC);
-        // S3.296: ONE-flat expand assembler size (slot10=6 preload).
+        // S3.297: ONE-flat expand assembler size (empty INIT).
         let (exp_pin, _) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_ONE_FLAT);
-        assert_eq!(parse_tyb(&exp_pin).unwrap().records.len(), 151);
+        assert_eq!(parse_tyb(&exp_pin).unwrap().records.len(), 150);
         let one = s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_ONE_FLAT);
         assert_eq!(one, s3_recs_from_flat_seed(S3_SHAPE_FILL_ONE_FLAT));
         // S3.269: pack wire-section wrap; expand already emits TYB (no wrap).
@@ -5109,7 +5128,14 @@ mod tests {
         assert_eq!(S3_EXPAND_SENTINEL, 0);
         assert_eq!(S3_EXPAND_ARGC - S3_EXPAND_SEED, 0x180);
         let (exp, off) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_ONE_FLAT);
-        let emitted = s3_sim_prog_loop(&exp, S3_EXPAND_SEED as u64, off, 0).unwrap();
+        let emitted = s3_sim_prog_loop_cursor(
+            &exp,
+            S3_EXPAND_SEED as u64,
+            off,
+            0,
+            off as u64 + HEADER_SIZE as u64,
+        )
+        .unwrap();
         let parsed = parse_tyb(&emitted).unwrap();
         assert_eq!(
             parsed
