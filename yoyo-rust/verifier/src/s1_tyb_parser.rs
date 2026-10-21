@@ -4558,7 +4558,7 @@ mod tests {
     /// payload but do not inject `.text`) (2) one SET per distinct emit byte
     /// (no SHR; shared `s3_append_stb_poke_global_distinct`).
     /// Cliff: expand asm is one flat (MEMCPY+RET, S3.306); Rust bootstraps asm;
-    /// pack via_ir emits full TYB (S3.307; wrap helper test-only). A1 floor.
+    /// all pack paths emit full TYB (S3.307–309; wrap helper test-only). A1 floor.
     #[test]
     fn s3_ir_selfhost_roadmap() {
         // Done: DATA pack algorithm runs as YOYO IR (STB loop) via via_ir.
