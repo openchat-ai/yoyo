@@ -2423,12 +2423,12 @@ fn s3_shape_argc_bytes() -> [u8; 4] {
 /// S3.252: argc seed is a frozen flat blob (shape-derived + RET→0). Not rebuilt at call.
 const S3_SEED_ARGC_BYTES: &[u8] = &[
     48, 2, 97, 2, 98, 2, 64, 1, 112, 1, 113, 1, 114, 1, 115, 1, 116, 1,
-    100, 2, 101, 2, 104, 2, 106, 2, 128, 3, 129, 3, 132, 3, 255, 0,
+    100, 2, 101, 2, 104, 2, 106, 2, 128, 3, 129, 3, 132, 3, 255, 0, 0, 0,
 ];
 /// S3.286: shape-fill scans `(op,argc)` pairs (same blob as expand), not op→shape.
-/// S3.289: +JNE → 34B table (was 32B).
+/// S3.289: +JNE → 34B. S3.292: +zero terminator → 36B (scan ends on op==0).
 const S3_SHAPE_TABLE: u32 = 0x40;
-const S3_SHAPE_TABLE_END: u32 = S3_SHAPE_TABLE + S3_SEED_ARGC_BYTES.len() as u32; // 0x62
+const S3_SHAPE_TABLE_END: u32 = S3_SHAPE_TABLE + S3_SEED_ARGC_BYTES.len() as u32; // 0x64
 /// One job: op byte then 6 arg bytes. Control IR never SETs these.
 const S3_SHAPE_JOB: u32 = 0x68;
 const S3_SHAPE_OUT: u32 = 0x80;
@@ -2511,7 +2511,7 @@ const S3_EXPAND_OUT: u32 = 0x200;
 /// S3.267/S3.268/S3.290: expand emits full TYB; header magic+count IR-seeded.
 /// Bootstrap still Rust-expands the ctrl body (cannot via_yoyo itself).
 const S3_EXPAND_SENTINEL: u8 = 0;
-const S3_EXPAND_CTRL_ROWS: usize = 25;
+const S3_EXPAND_CTRL_ROWS: usize = 24;
 /// S3.270: only magic must be IR-seeded; reserved/count stay zero until body patches cnt.
 const S3_EXPAND_TYB_MAGIC: &[u8] = b"TYB";
 /// S3.274/S3.277: assembler init SETs as a flat seed (same expand path as ctrl).
@@ -2532,9 +2532,10 @@ const S3_EXPAND_CTRL_FLAT: &[u8] = &[
     64, 20, 0, 0, 0, 0, 0, 128, 7, 0, 4, 0, 0, 0,
     // S3.291: CMP op, slot13 (image-zero) — job sentinel is 0.
     101, 7, 0, 13, 0, 0, 0, 113, 21, 0, 0, 0, 0, 0,
-    48, 2, 0, 192, 1, 0, 0, 48, 3, 0, 226, 1, 0, 0,
-    64, 22, 0, 0, 0, 0, 0, 101, 2, 0, 3, 0, 0, 0,
-    113, 21, 0, 0, 0, 0, 0, 128, 11, 0, 2, 0, 0, 0,
+    48, 2, 0, 192, 1, 0, 0,
+    // S3.292: zero-terminated argc scan (no end ptr / SET 3).
+    64, 22, 0, 0, 0, 0, 0, 128, 11, 0, 2, 0, 0, 0,
+    101, 11, 0, 13, 0, 0, 0, 113, 21, 0, 0, 0, 0, 0,
     // S3.289: speculative argc load + ADD ptr+=2 + JNE scan (drop LABEL/JMP).
     128, 6, 0, 2, 0, 1, 0, 98, 2, 0, 2, 0, 0, 0,
     101, 11, 0, 7, 0, 0, 0, 114, 22, 0, 0, 0, 0, 0,
@@ -2558,8 +2559,8 @@ fn s3_yoyo_expand_flat_tyb(flat: &[u8]) -> (Vec<u8>, u32) {
         "flat op collides with expand sentinel"
     );
     assert!(flat.len() + 1 <= (S3_EXPAND_ARGC - S3_EXPAND_SEED) as usize);
-    // Body SETs argc end = 0x1E2; blob must fill [0x1C0, 0x1E2).
-    assert_eq!(S3_SEED_ARGC_BYTES.len() as u32, 0x1E2 - S3_EXPAND_ARGC);
+    // Body SETs argc base; zero-terminated blob fills [0x1C0, 0x1E4).
+    assert_eq!(S3_SEED_ARGC_BYTES.len() as u32, 0x1E4 - S3_EXPAND_ARGC);
     assert_eq!(S3_EXPAND_TYB_MAGIC, &TYB_MAGIC[..3]);
     let mut job = Vec::with_capacity(flat.len() + 1);
     job.extend_from_slice(flat);
@@ -2594,19 +2595,20 @@ fn s3_recs_from_flat_seed_via_yoyo(flat: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
 }
 
 const S3_SHAPE_FILL_ONE_AT: usize = 6;
-const S3_SHAPE_FILL_ONE_LEN: usize = 17;
-const S3_SHAPE_FILL_MANY_ROWS: usize = 29;
+const S3_SHAPE_FILL_ONE_LEN: usize = 16;
+const S3_SHAPE_FILL_MANY_ROWS: usize = 28;
 
 /// S3.241/S3.244: shape-fill many-ctrl seed as a flat 7×N blob. RET is 0xFF.
 /// S3.286: `(op,argc)` scan. S3.287: drop SET out — sim preloads slot9 = outbuf.
+/// S3.292: zero-terminated argc table (no SET end / CMP ptr).
 const S3_SHAPE_FILL_MANY_FLAT: &[u8] = &[
     48, 2, 0, 104, 0, 0, 0, 128, 3, 0, 2, 0, 0, 0,
     98, 2, 0, 1, 0, 0, 0, 64, 7, 0, 0, 0, 0, 0,
     101, 3, 0, 13, 0, 0, 0, 113, 6, 0, 0, 0, 0, 0,
     128, 7, 0, 2, 0, 0, 0, 48, 4, 0, 64, 0, 0, 0,
-    48, 5, 0, 98, 0, 0, 0, 64, 1, 0, 0, 0, 0, 0,
-    101, 4, 0, 5, 0, 0, 0, 113, 6, 0, 0, 0, 0, 0,
-    128, 11, 0, 4, 0, 0, 0,
+    64, 1, 0, 0, 0, 0, 0, 128, 11, 0, 4, 0, 0, 0,
+    // S3.292: op==0 (slot13) ends the argc table.
+    101, 11, 0, 13, 0, 0, 0, 113, 6, 0, 0, 0, 0, 0,
     // S3.289: speculative argc + ADD+=2 + JNE scan (drop match LABEL/JMP).
     128, 6, 0, 4, 0, 1, 0, 98, 4, 0, 2, 0, 0, 0,
     101, 11, 0, 7, 0, 0, 0, 114, 1, 0, 0, 0, 0, 0,
@@ -2629,9 +2631,9 @@ fn s3_yoyo_shape_fill_one() -> Vec<(u8, u8, [u8; 6])> {
 const S3_SHAPE_FILL_ONE_FLAT: &[u8] = &[
     // S3.287: only job ptr SET; out = sim outbuf preload on slot9.
     48, 2, 0, 104, 0, 0, 0, 128, 7, 0, 2, 0, 0, 0,
-    48, 4, 0, 64, 0, 0, 0, 48, 5, 0, 98, 0, 0, 0,
-    64, 1, 0, 0, 0, 0, 0, 101, 4, 0, 5, 0, 0, 0,
-    113, 6, 0, 0, 0, 0, 0, 128, 11, 0, 4, 0, 0, 0,
+    48, 4, 0, 64, 0, 0, 0, 64, 1, 0, 0, 0, 0, 0,
+    128, 11, 0, 4, 0, 0, 0, 101, 11, 0, 13, 0, 0, 0,
+    113, 6, 0, 0, 0, 0, 0,
     // S3.289: speculative argc + ADD+=2 + JNE scan.
     128, 6, 0, 4, 0, 1, 0, 98, 4, 0, 2, 0, 0, 0,
     101, 11, 0, 7, 0, 0, 0, 114, 1, 0, 0, 0, 0, 0,
@@ -2641,7 +2643,7 @@ const S3_SHAPE_FILL_ONE_FLAT: &[u8] = &[
     64, 6, 0, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, 0,
 ];
 
-const S3_SHAPE_FILL_ONE_ROWS: usize = 20;
+const S3_SHAPE_FILL_ONE_ROWS: usize = 19;
 
 /// S3.246/S3.255: one-job control expands via YOYO IR (not a Rust chunk loop).
 fn s3_yoyo_shape_fill_ctrl() -> Vec<(u8, u8, [u8; 6])> {
@@ -4788,11 +4790,15 @@ mod tests {
         assert_eq!(s3_seed_argc(0x81), 3);
         let argc_seed = s3_seed_argc_flat();
         assert!(argc_seed.iter().any(|&(o, n)| o == 0xFF && n == 0));
-        assert_eq!(argc_seed.len(), S3_REC_OP_SHAPE.len() + 1);
+        assert_eq!(argc_seed.len(), S3_REC_OP_SHAPE.len() + 2);
         for &(op, n) in &argc_seed {
+            if op == 0 {
+                assert_eq!(n, 0, "zero terminator");
+                continue;
+            }
             assert_eq!(s3_seed_argc(op), n);
         }
-        // Frozen blob stays in lockstep with the shape table + RET.
+        // Frozen blob stays in lockstep with the shape table + RET + zero term.
         let mut derived = Vec::new();
         for &(op, shape) in S3_REC_OP_SHAPE {
             let n = match shape {
@@ -4803,7 +4809,7 @@ mod tests {
             derived.push(op);
             derived.push(n);
         }
-        derived.extend_from_slice(&[0xFF, 0]);
+        derived.extend_from_slice(&[0xFF, 0, 0, 0]);
         assert_eq!(S3_SEED_ARGC_BYTES, derived.as_slice());
         // Expander does not re-encode through s3_rec_from_shape.
         let row = [0x30u8, 2, 0, 104, 0, 0, 0];
@@ -4867,8 +4873,8 @@ mod tests {
         assert!(s3_unpack_data_tyb(&exp).is_empty());
         let exp_recs = parse_tyb(&exp).unwrap().records;
         // S3.283: pin ONE-flat assembler size (in-place seed ptr; no MOVRR s8).
-        assert_eq!(exp_recs.len(), 206);
-        assert_eq!(S3_EXPAND_ASM_ROWS, 27);
+        assert_eq!(exp_recs.len(), 197);
+        assert_eq!(S3_EXPAND_ASM_ROWS, 26);
         assert_eq!(S3_EXPAND_INIT_ROWS, 2);
         assert_eq!(
             s3_recs_from_flat_seed(S3_EXPAND_INIT_FLAT),
@@ -4908,8 +4914,8 @@ mod tests {
         );
         // S3.250: argc seed blob STB-emits and round-trips.
         let argc_bytes = s3_seed_argc_bytes();
-        assert_eq!(argc_bytes.len(), (S3_REC_OP_SHAPE.len() + 1) * 2);
-        assert_eq!(argc_bytes[argc_bytes.len() - 2..], [0xFF, 0]);
+        assert_eq!(argc_bytes.len(), (S3_REC_OP_SHAPE.len() + 2) * 2);
+        assert_eq!(argc_bytes[argc_bytes.len() - 4..], [0xFF, 0, 0, 0]);
         let (tyb_a, off_a) = s3_yoyo_emit_flat_via_stb(&argc_bytes, 0x20);
         assert!(s3_unpack_data_tyb(&tyb_a).is_empty());
         assert_eq!(s3_sim_prog_loop(&tyb_a, 0, off_a, 0).unwrap(), argc_bytes);
@@ -4920,7 +4926,7 @@ mod tests {
     #[test]
     fn s3_yoyo_expand_ctrl_reencodes_via_shape_fill() {
         assert_eq!(S3_EXPAND_CTRL_FLAT.len(), S3_EXPAND_CTRL_ROWS * 7);
-        assert_eq!(S3_EXPAND_CTRL_ROWS, 25);
+        assert_eq!(S3_EXPAND_CTRL_ROWS, 24);
         let ctrl = s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT);
         assert_eq!(ctrl.len(), S3_EXPAND_CTRL_ROWS);
         assert_eq!(ctrl.last().unwrap().0, 0xFF);
@@ -5062,12 +5068,12 @@ mod tests {
         assert_eq!(S3_LEA_PTR, &[0x49, 0x8D, 0x07, 0x49, 0x89, 0x47, 0x78]);
         // S3.275: assembler body is one flat seed (init prefix + ctrl); still Rust.
         assert_eq!(s3_expand_asm_flat().len(), S3_EXPAND_ASM_ROWS * 7);
-        assert_eq!(S3_EXPAND_ASM_ROWS, 27, "S3.291: init 2 + ctrl 25");
+        assert_eq!(S3_EXPAND_ASM_ROWS, 26, "S3.292: init 2 + ctrl 24");
         assert_eq!(S3_EXPAND_CTRL_FLAT.len(), S3_EXPAND_CTRL_ROWS * 7);
-        assert_eq!(S3_EXPAND_CTRL_ROWS, 25, "S3.290: IR-seeded TYB count");
+        assert_eq!(S3_EXPAND_CTRL_ROWS, 24, "S3.292: zero-term argc scan");
         assert_eq!(S3_EXPAND_INIT_ROWS, 2, "S3.291: drop SET sentinel");
-        assert_eq!(S3_SHAPE_TABLE_END, 0x62, "S3.289: (op,argc) table is 34B");
-        assert_eq!(S3_SHAPE_FILL_ONE_ROWS, 20, "S3.289: JNE fall-through");
+        assert_eq!(S3_SHAPE_TABLE_END, 0x64, "S3.292: (op,argc) table is 36B");
+        assert_eq!(S3_SHAPE_FILL_ONE_ROWS, 19, "S3.292: drop SET end");
         // S3.276: ctrl-only expand is plain flat_seed (no named bootstrap).
         assert_eq!(
             s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT),
@@ -5077,10 +5083,10 @@ mod tests {
             s3_bootstrap_expand_asm(),
             s3_recs_from_flat_seed_with_argc(&s3_expand_asm_flat(), S3_SEED_ARGC_BYTES)
         );
-        assert_eq!(S3_SEED_ARGC_BYTES.len() as u32, 0x1E2 - S3_EXPAND_ARGC);
-        // S3.291: ONE-flat expand assembler size (zero sentinel vs slot13).
+        assert_eq!(S3_SEED_ARGC_BYTES.len() as u32, 0x1E4 - S3_EXPAND_ARGC);
+        // S3.292: ONE-flat expand assembler size (zero-term argc).
         let (exp_pin, _) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_ONE_FLAT);
-        assert_eq!(parse_tyb(&exp_pin).unwrap().records.len(), 206);
+        assert_eq!(parse_tyb(&exp_pin).unwrap().records.len(), 197);
         let one = s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_ONE_FLAT);
         assert_eq!(one, s3_recs_from_flat_seed(S3_SHAPE_FILL_ONE_FLAT));
         // S3.269: pack wire-section wrap; expand already emits TYB (no wrap).
