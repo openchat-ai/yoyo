@@ -4553,12 +4553,11 @@ mod tests {
         );
     }
 
-    /// S3.163/S3.176/S3.222/S3.224: IR self-host near-end inventory (not a schedule).
-    /// Floors: (1) short lea → `.text` only via A1 (STB/poke can hold the 37B
-    /// payload but do not inject `.text`) (2) one SET per distinct emit byte
-    /// (no SHR; shared `s3_append_stb_poke_global_distinct`).
-    /// Cliff: expand asm is one flat (MEMCPY+RET, S3.306); Rust bootstraps asm;
-    /// all pack paths emit full TYB (S3.307–309; wrap helper test-only). A1 floor.
+    /// S3.163/S3.176/S3.222/S3.224/S3.315: IR self-host near-end inventory (not a schedule).
+    /// Floors: (1) short lea → `.text` only via A1 (2) one SET per distinct poke byte
+    /// (no SHR; shared global-distinct; pack+emit-flat poke S3.313–314).
+    /// Cliff: expand assembler=22 (S3.308 sub10); A1 densify −6 reject (S3.311);
+    /// Rust bootstrap MEMCPY+RET + emit OnceLock. All pack paths full TYB.
     #[test]
     fn s3_ir_selfhost_roadmap() {
         // Done: DATA pack algorithm runs as YOYO IR (STB loop) via via_ir.
@@ -4595,7 +4594,7 @@ mod tests {
         let one = [s3_fixed_rec(0xFF)];
         let (fw_u, _) = s3_yoyo_emit_tyb_file_unrolled(&one);
         assert!(s3_unpack_data_tyb(&fw_u).is_empty());
-        // S3.200: runs fold; STB IR count is below flat_len when zeros repeat.
+        // S3.200/S3.314: poke skips zeros; STB count stays below flat_len.
         let stb_u = parse_tyb(&fw_u)
             .unwrap()
             .records
@@ -4612,8 +4611,15 @@ mod tests {
         let (fw_2, _) = s3_yoyo_emit_tyb_file(&big);
         assert!(parse_tyb(&fw_2).unwrap().records.iter().any(|r| r.op == 0x84));
         assert!(s3_unpack_data_tyb(&fw_2).is_empty());
-        // Cliff: `s3_append_stb_runs` / shape fillers remain Rust (S3.224: 4 shapes).
-        let _ = s3_rec_stb(0, 1, 0);
+        // S3.315: remaining hard pins (numeric).
+        assert_eq!(S3_EXPAND_ASM_PIN, 22, "expand assembler cliff");
+        assert_eq!(s3_in_dll_lea_prologue_recs().len(), 13, "A1 13×37B cliff");
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF])).unwrap().records.len(),
+            171,
+            "host seed pin"
+        );
+        assert_eq!(s3_bootstrap_expand_asm().len(), 2, "Rust bootstrap MEMCPY+RET");
         assert_eq!(s3_fixed_row(0xFF), s3_compute_fixed_body(0xFF));
     }
 
@@ -5184,9 +5190,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–314: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–315: remaining Rust sidecar.
     /// Still Rust: short lea A1 (densify −6 reject), `emit_x86` body OnceLock,
-    /// expand-asm bootstrap, IR builders. Host 171; pack+emit-flat poke (S3.313–314).
+    /// expand-asm bootstrap (=2), IR builders. Host 171; pack+emit-flat poke.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
