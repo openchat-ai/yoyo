@@ -2541,14 +2541,10 @@ fn s3_recs_from_flat_seed(flat: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     s3_recs_from_flat_seed_with_argc(flat, &S3_SEED_ARGC_BYTES)
 }
 
-/// S3.275/S3.276: sole named bootstrap — init+ctrl asm flat without via_yoyo.
+/// S3.275/S3.276/S3.322: expand asm flat ≡ MANY ctrl (INIT dropped S3.297).
 /// Argc table is IR-seeded separately (`s3_yoyo_expand_flat_tyb`).
-/// S3.276: dropped `s3_bootstrap_expand_ctrl`; ctrl-only uses `s3_recs_from_flat_seed`.
 fn s3_expand_asm_flat() -> Vec<u8> {
-    let mut flat = Vec::with_capacity(S3_EXPAND_ASM_ROWS * 7);
-    flat.extend_from_slice(S3_EXPAND_INIT_FLAT);
-    flat.extend_from_slice(S3_EXPAND_CTRL_FLAT);
-    flat
+    S3_EXPAND_CTRL_FLAT.to_vec()
 }
 
 fn s3_bootstrap_expand_asm() -> Vec<(u8, u8, [u8; 6])> {
@@ -2590,10 +2586,8 @@ const S3_EXPAND_CTRL_ROWS: usize = S3_SHAPE_FILL_MANY_ROWS;
 /// S3.291: drop SET sentinel — job end is 0 vs slot13 image-zero.
 /// S3.297: drop SET out+hdr — sim slot9 starts at OUT+HEADER_SIZE.
 /// S3.305: job cursor = prog_ptr (slot2); same flat as shape-fill many.
-const S3_EXPAND_INIT_ROWS: usize = 0;
-const S3_EXPAND_INIT_FLAT: &[u8] = &[];
-/// S3.275: assembler body rows = init + ctrl (joined once in `s3_expand_asm_flat`).
-const S3_EXPAND_ASM_ROWS: usize = S3_EXPAND_INIT_ROWS + S3_EXPAND_CTRL_ROWS;
+/// S3.275/S3.322: assembler body rows = ctrl only (INIT empty since S3.297).
+const S3_EXPAND_ASM_ROWS: usize = S3_EXPAND_CTRL_ROWS;
 
 /// S3.305/S3.306: sole wire-copy seed (expand bootstrap + shape-fill many/one).
 const S3_EXPAND_CTRL_FLAT: &[u8] = S3_SHAPE_FILL_MANY_FLAT;
@@ -2627,7 +2621,6 @@ fn s3_yoyo_expand_flat_tyb(flat: &[u8]) -> (Vec<u8>, u32) {
     let mut recs = Vec::new();
     s3_ir_seed_at(&mut recs, S3_EXPAND_SEED, &job, 30);
     // S3.275: init+ctrl are one assembler flat seed (single Rust expand).
-    assert_eq!(S3_EXPAND_INIT_FLAT.len(), S3_EXPAND_INIT_ROWS * 7);
     assert_eq!(S3_EXPAND_CTRL_FLAT.len(), S3_EXPAND_CTRL_ROWS * 7);
     assert_eq!(s3_expand_asm_flat().len(), S3_EXPAND_ASM_ROWS * 7);
     recs.extend(s3_bootstrap_expand_asm());
@@ -5105,15 +5098,10 @@ mod tests {
         // S3.283: pin ONE-flat assembler size (in-place seed ptr; no MOVRR s8).
         assert_eq!(exp_recs.len(), S3_EXPAND_ASM_PIN);
         assert_eq!(S3_EXPAND_ASM_ROWS, 2);
-        assert_eq!(S3_EXPAND_INIT_ROWS, 0);
-        assert!(S3_EXPAND_INIT_FLAT.is_empty(), "S3.297: no INIT SETs");
+        // S3.322: INIT scaffolding removed; bootstrap ≡ ctrl flat only.
         assert_eq!(
             s3_bootstrap_expand_asm(),
-            [
-                s3_recs_from_flat_seed(S3_EXPAND_INIT_FLAT),
-                s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT)
-            ]
-            .concat()
+            s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT)
         );
         assert_eq!(&TYB_MAGIC[..3], b"TYB");
         // S3.291: job-end is 0 vs slot13; ctrl must not SET a sentinel imm.
@@ -5300,9 +5288,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–321: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–322: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor),
-    /// sole bootstrap MEMCPY+RET (=2; fill ctrl shares it S3.321). Host 171.
+    /// sole bootstrap MEMCPY+RET (=2; fill shares it; INIT scaffolding gone). Host 171.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
@@ -5315,7 +5303,7 @@ mod tests {
         assert_eq!(S3_EXPAND_CTRL_ROWS, 2, "S3.306: shared MEMCPY+RET");
         assert_eq!(S3_EXPAND_CTRL_FLAT, S3_SHAPE_FILL_MANY_FLAT);
         assert_eq!(S3_SHAPE_FILL_ONE_FLAT, S3_SHAPE_FILL_MANY_FLAT);
-        assert_eq!(S3_EXPAND_INIT_ROWS, 0, "S3.297: slot9 = OUT+hdr preload");
+        assert_eq!(S3_EXPAND_ASM_ROWS, S3_EXPAND_CTRL_ROWS, "S3.322: no INIT rows");
         assert_eq!(S3_SHAPE_TABLE_END, 0x140, "S3.299: 256B argc index");
         assert_eq!(S3_SHAPE_FILL_MANY_ROWS, 2, "S3.306: bulk wire MEMCPY");
         assert_eq!(S3_SHAPE_FILL_ONE_ROWS, 2, "S3.304: MEMCPY+RET");
