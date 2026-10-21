@@ -1587,14 +1587,28 @@ fn s3_rec_wire(op: u8, argc: u8, a: [u8; 6]) -> [u8; 8] {
 /// S3.226/S3.279: append SET DST + run-folded STB of `flat` at `out_off`.
 /// S3.279: drop SET ZERO — sim state starts zeroed (slot13); runs CMP against it.
 /// Shared by one-shot emit and two-phase / loop-staged phase1. Returns next label id.
+/// S3.314: poke (global-distinct) beats run-fold for emit flats (−24 on many).
+/// Trailing zeros are poke-skipped — pin high-water with one STB ZERO at last oo.
 fn s3_append_stb_flat_at(
     recs: &mut Vec<(u8, u8, [u8; 6])>,
     flat: &[u8],
     out_off: u32,
     label_id: u32,
 ) -> u32 {
-    recs.push(s3_rec_set(S3_PACK_PROTO_DST, out_off));
-    s3_append_stb_runs(recs, flat, label_id)
+    let lid = s3_ir_seed_at(recs, out_off, flat, label_id);
+    if let Some(last) = flat.len().checked_sub(1) {
+        if flat[last] == 0 {
+            const WIN: usize = 127;
+            let win = last / WIN;
+            let oo = (last % WIN) as u16;
+            recs.push(s3_rec_set(
+                S3_PACK_STB_BASE,
+                out_off + (win * WIN) as u32,
+            ));
+            recs.push(s3_rec_stb(S3_PACK_STB_ZERO, S3_PACK_STB_BASE, oo));
+        }
+    }
+    lid
 }
 
 /// S3.225/S3.226: shared empty-DATA STB emit — write `flat` at `out_off`, then RET.
@@ -5170,9 +5184,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–313: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–314: remaining Rust sidecar.
     /// Still Rust: short lea A1 (densify −6 reject), `emit_x86` body OnceLock,
-    /// expand-asm bootstrap, IR builders / run folders. Host 171; pack poke (S3.313).
+    /// expand-asm bootstrap, IR builders. Host 171; pack+emit-flat poke (S3.313–314).
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
@@ -5343,6 +5357,32 @@ mod tests {
         s3_append_raw_a1(&mut a1, &S3_LEA_PROG);
         assert_eq!(a1.as_slice(), s3_in_dll_lea_prologue_recs());
     }
+
+    /// S3.314: emit-flat via poke — many ctrl 35→11 (−24); sim readback unchanged.
+    #[test]
+    fn s3_emit_flat_poke_beats_runs_pin() {
+        let (tyb, off) = s3_yoyo_emit_flat_via_stb(S3_SHAPE_FILL_MANY_FLAT, 0x20);
+        let n = parse_tyb(&tyb).unwrap().records.len();
+        // poke seed + RET
+        assert_eq!(n, 14, "emit many flat IR pin (was 36; poke+tail-pin+RET)");
+        assert_eq!(
+            s3_sim_prog_loop(&tyb, 0, off, 0).unwrap(),
+            S3_SHAPE_FILL_MANY_FLAT
+        );
+        let (tyb1, off1) = s3_yoyo_emit_flat_via_stb(S3_SHAPE_FILL_ONE_FLAT, 0x20);
+        assert_eq!(
+            s3_sim_prog_loop(&tyb1, 0, off1, 0).unwrap(),
+            S3_SHAPE_FILL_ONE_FLAT
+        );
+        assert_eq!(
+            parse_tyb(&s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_ONE_FLAT).0)
+                .unwrap()
+                .records
+                .len(),
+            S3_EXPAND_ASM_PIN
+        );
+    }
+
 
     /// S3.312: host long-seed uses per-window global-distinct — 220→171 (−49).
     /// Address-order long path saved 0 vs dual-window; bar ≥10 cleared.
@@ -5906,16 +5946,20 @@ mod tests {
         );
     }
 
-    /// S3.174/S3.200: distinct bytes still need one SET each; repeated zeros fold.
+    /// S3.174/S3.200/S3.314: distinct bytes still need one SET each; zeros skipped
+    /// by poke (no SUB run-fold). Trailing-zero high-water pin keeps composed len.
     #[test]
     fn s3_emit_set_stb_expansion_floor() {
         let body = [(0xFFu8, 0u8, [0u8; 6])];
         let flat_len = HEADER_SIZE + RECORD_SIZE;
         let (fw, off) = s3_yoyo_emit_tyb_file_unrolled(&body);
         let ir = parse_tyb(&fw).unwrap();
-        assert!(ir.records.iter().any(|r| r.op == 0x61), "zero runs use SUB");
+        assert!(
+            !ir.records.iter().any(|r| r.op == 0x61),
+            "S3.314: emit-flat poke has no SUB run-fold"
+        );
         let sets = ir.records.iter().filter(|r| r.op == 0x30).count();
-        assert!(sets < flat_len + 2, "S3.200: runs collapse SET-per-byte");
+        assert!(sets < flat_len + 2, "S3.200/S3.314: poke collapses SET-per-byte");
         assert_eq!(
             s3_sim_prog_loop(&fw, 0, off, 0).unwrap(),
             s3_host_tyb_from_records(&body)
@@ -5966,12 +6010,15 @@ mod tests {
         let (fw, out_off) = s3_yoyo_emit_tyb_file_two_phase(&big);
         let ir = parse_tyb(&fw).unwrap();
         assert!(ir.records.iter().any(|r| r.op == 0x84));
-        assert!(ir.records.iter().any(|r| r.op == 0x61), "zero run uses SUB");
+        assert!(
+            !ir.records.iter().any(|r| r.op == 0x61),
+            "S3.314: two-phase poke has no SUB run-fold"
+        );
         let sets = ir.records.iter().filter(|r| r.op == 0x30).count();
         let flat_len = HEADER_SIZE + big.len() * RECORD_SIZE;
         assert!(
             sets * 4 < flat_len,
-            "S3.183 runs collapse SET-per-byte: sets={sets} flat={flat_len}"
+            "S3.183/S3.314 poke collapses SET-per-byte: sets={sets} flat={flat_len}"
         );
         assert!(s3_unpack_data_tyb(&fw).is_empty(), "S3.184: no zero DATA pad");
         let got = s3_sim_prog_loop(&fw, 0, out_off, 0).expect("two-phase");
