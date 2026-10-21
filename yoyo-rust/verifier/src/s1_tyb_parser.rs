@@ -2442,12 +2442,12 @@ const S3_SEED_ARGC_BYTES: [u8; 256] = {
     t[0x84] = 3; // MEMCPY
     t
 };
-/// S3.286/S3.299: shape-fill argc table (indexed); expand shares the same blob.
+/// S3.286/S3.299: argc index table (tests / seed_argc); S3.304 shape-fill no longer loads it.
 const S3_SHAPE_TABLE: u32 = 0x40;
 const S3_SHAPE_TABLE_END: u32 = S3_SHAPE_TABLE + S3_SEED_ARGC_BYTES.len() as u32; // 0x140
-/// One job: op byte then 6 arg bytes. Control IR never SETs these.
-const S3_SHAPE_JOB: u32 = 0x140;
-const S3_SHAPE_OUT: u32 = 0x200;
+/// S3.304: wire-job blob at low DATA (argc baked; no live table walk).
+const S3_SHAPE_JOB: u32 = 0x40;
+const S3_SHAPE_OUT: u32 = 0x100;
 
 fn s3_seed_argc_bytes() -> Vec<u8> {
     S3_SEED_ARGC_BYTES.to_vec()
@@ -2529,7 +2529,7 @@ const S3_EXPAND_ARGC: u32 = 0x1C0;
 /// S3.299: OUT sits past 256B argc index table at ARGC.
 const S3_EXPAND_OUT: u32 = 0x2C0;
 /// ONE-flat expand assembler record count (job+argc+hdr seeds + bootstrap).
-const S3_EXPAND_ASM_PIN: usize = 69; // S3.303: wire-job emit; no argc seed
+const S3_EXPAND_ASM_PIN: usize = 32; // S3.304: ONE MEMCPY+RET wire expand
 
 /// S3.257/S3.291: trailing 0 sentinel ends the job blob — no job-side SET END.
 /// S3.291: CMP against slot13 (image-zero); no INIT SET of sentinel imm.
@@ -2622,32 +2622,19 @@ fn s3_recs_from_flat_seed_via_yoyo(flat: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
         .collect()
 }
 
-/// S3.302: one-slice starts at job LDB; includes job-end CMP/JE (LABEL7 resyncs table).
-const S3_SHAPE_FILL_ONE_AT: usize = 1;
-/// Many-slice length; ONE drops job-end CMP/JE + RET only.
-const S3_SHAPE_FILL_ONE_LEN: usize = 10;
-const S3_SHAPE_FILL_MANY_ROWS: usize = 16;
+/// S3.304: one-slice is the MEMCPY row inside many.
+const S3_SHAPE_FILL_ONE_AT: usize = 4;
+const S3_SHAPE_FILL_ONE_LEN: usize = 1;
+const S3_SHAPE_FILL_MANY_ROWS: usize = 10;
 
-/// S3.241/S3.244: shape-fill many-ctrl seed as a flat 7×N blob. RET is 0xFF.
-/// S3.287: drop SET out — sim preloads slot9 = outbuf.
-/// S3.294: job cursor = sim prog_ptr (slot2); no SET job base.
-/// S3.295: table base = sim table_off (slot15).
-/// S3.298: zero-terminated job stream (drop count LDB/ADD/SUB); job op==0 ends.
-/// S3.299: argc = table[op] (indexed); drop pair scan.
-/// S3.302: LABEL 7 resyncs slot15=table_off; ADDV 15+=op (drop SET14/MOVRR).
+/// S3.304: shape-fill many = expand-style wire-job MEMCPY loop (argc baked in job seed).
 const S3_SHAPE_FILL_MANY_FLAT: &[u8] = &[
-    // S3.298/S3.302: LABEL 7 also resyncs table cursor; job op==0 ends.
     64, 7, 0, 0, 0, 0, 0, 128, 7, 0, 2, 0, 0, 0,
     101, 7, 0, 13, 0, 0, 0, 113, 6, 0, 0, 0, 0, 0,
-    // S3.299/S3.302: argc = *[15 + op] (slot15 fresh each LABEL 7).
-    104, 15, 0, 7, 0, 0, 0, 128, 6, 0, 15, 0, 0, 0,
-    129, 7, 0, 9, 0, 0, 0,
-    // S3.288/S3.296: STB op/argc; slot10=6 preload (no SET); ADDV job+=6.
-    129, 6, 0, 9, 0, 1, 0, 98, 9, 0, 2, 0, 0, 0,
-    98, 2, 0, 1, 0, 0, 0, 132, 9, 0, 2, 0, 10, 0,
-    104, 9, 0, 10, 0, 0, 0, 104, 2, 0, 10, 0, 0, 0,
-    112, 7, 0, 0, 0, 0, 0, 64, 6, 0, 0, 0, 0, 0,
-    255, 0, 0, 0, 0, 0, 0,
+    // slot12=RECORD_SIZE preload; copy wire row; advance out/job by 8.
+    132, 9, 0, 2, 0, 12, 0, 98, 9, 0, 8, 0, 0, 0,
+    98, 2, 0, 8, 0, 0, 0, 112, 7, 0, 0, 0, 0, 0,
+    64, 6, 0, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, 0,
 ];
 
 fn s3_yoyo_shape_fill_one() -> Vec<(u8, u8, [u8; 6])> {
@@ -2657,60 +2644,59 @@ fn s3_yoyo_shape_fill_one() -> Vec<(u8, u8, [u8; 6])> {
 }
 
 const S3_SHAPE_FILL_ONE_FLAT: &[u8] = &[
-    // S3.300/S3.301: ADDV table+=op; no SET14; no LABEL6 (nothing JE/JMP here).
-    128, 7, 0, 2, 0, 0, 0, 104, 15, 0, 7, 0, 0, 0,
-    128, 6, 0, 15, 0, 0, 0, 129, 7, 0, 9, 0, 0, 0,
-    129, 6, 0, 9, 0, 1, 0,
-    // S3.296: slot10=6 preload — no SET 10.
-    98, 9, 0, 2, 0, 0, 0, 98, 2, 0, 1, 0, 0, 0,
-    132, 9, 0, 2, 0, 10, 0, 255, 0, 0, 0, 0, 0, 0,
+    // S3.304: single wire-job MEMCPY + RET.
+    132, 9, 0, 2, 0, 12, 0, 255, 0, 0, 0, 0, 0, 0,
 ];
 
-const S3_SHAPE_FILL_ONE_ROWS: usize = 9;
+const S3_SHAPE_FILL_ONE_ROWS: usize = 2;
 
 /// S3.246/S3.255: one-job control expands via YOYO IR (not a Rust chunk loop).
 fn s3_yoyo_shape_fill_ctrl() -> Vec<(u8, u8, [u8; 6])> {
     s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_ONE_FLAT)
 }
 
-/// S3.239/S3.255/S3.299: many-ctrl out past 256B table + max job blob.
-const S3_SHAPE_MANY_OUT: u32 = 0x500;
+/// S3.304: many out past wire-job blob (no 256B argc table in-stream).
+const S3_SHAPE_MANY_OUT: u32 = 0x300;
 
 fn s3_yoyo_shape_fill_many_ctrl() -> Vec<(u8, u8, [u8; 6])> {
     s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_MANY_FLAT)
 }
 
-fn s3_yoyo_shape_fill_many_tyb(jobs: &[(u8, [u8; 6])]) -> (Vec<u8>, u32) {
-    // S3.261: 64→128 (pre-264 argc-poke‖ctrl fit). S3.264 body-only is <<128.
-    // S3.298: zero-terminated job stream (no count prefix); op 0 reserved as sentinel.
-    assert!(!jobs.is_empty() && jobs.len() <= 128);
-    assert!(jobs.iter().all(|&(op, _)| op != 0), "job op 0 is stream sentinel");
-    let mut blob = Vec::with_capacity(jobs.len() * 7 + 1);
+/// S3.304: bake op|argc|args wire rows (shared with expand job seed).
+fn s3_shape_wire_job_blob(jobs: &[(u8, [u8; 6])], term: bool) -> Vec<u8> {
+    let mut blob = Vec::with_capacity(jobs.len() * RECORD_SIZE + usize::from(term));
     for &(op, args) in jobs {
         blob.push(op);
+        blob.push(s3_seed_argc(op));
         blob.extend_from_slice(&args);
     }
-    blob.push(0);
+    if term {
+        blob.push(0);
+    }
+    blob
+}
+
+fn s3_yoyo_shape_fill_many_tyb(jobs: &[(u8, [u8; 6])]) -> (Vec<u8>, u32) {
+    // S3.298: zero-terminated job stream; op 0 reserved as sentinel.
+    // S3.304: wire rows; no argc table seed in the TYB.
+    assert!(!jobs.is_empty() && jobs.len() <= 128);
+    assert!(jobs.iter().all(|&(op, _)| op != 0), "job op 0 is stream sentinel");
+    let blob = s3_shape_wire_job_blob(jobs, true);
     let mut recs = Vec::new();
-    // S3.286: one `(op,argc)` seed (shared with expand); no op→shape + shape→argc.
-    s3_ir_seed_at(&mut recs, S3_SHAPE_TABLE, &S3_SEED_ARGC_BYTES, 20);
     s3_ir_seed_at(&mut recs, S3_SHAPE_JOB, &blob, 21);
     recs.extend(s3_yoyo_shape_fill_many_ctrl());
     (s3_host_tyb_from_records(&recs), S3_SHAPE_MANY_OUT)
 }
 
-/// S3.294/S3.295: shape-fill sim — slot2 = job (prog_ptr), slot15 = table, slot9 = out.
+/// S3.304: shape-fill sim — slot2 = job (prog_ptr), slot9 = out (no live argc table).
 fn s3_sim_shape_fill(tyb: &[u8], out: u32) -> Result<Vec<u8>, u8> {
-    s3_sim_prog_loop(tyb, S3_SHAPE_TABLE as u64, out, S3_SHAPE_JOB as u64)
+    s3_sim_prog_loop(tyb, 0, out, S3_SHAPE_JOB as u64)
 }
 
-/// S3.236/S3.238/S3.286: poke `(op,argc)` table + one job, then the fixed control stream.
+/// S3.236/S3.304: one wire-job + fixed one-ctrl (argc baked; no table seed).
 fn s3_yoyo_shape_fill_tyb(op: u8, args: [u8; 6]) -> (Vec<u8>, u32) {
-    let mut job = Vec::with_capacity(7);
-    job.push(op);
-    job.extend_from_slice(&args);
+    let job = s3_shape_wire_job_blob(&[(op, args)], false);
     let mut recs = Vec::new();
-    s3_ir_seed_at(&mut recs, S3_SHAPE_TABLE, &S3_SEED_ARGC_BYTES, 20);
     s3_ir_seed_at(&mut recs, S3_SHAPE_JOB, &job, 21);
     recs.extend(s3_yoyo_shape_fill_ctrl());
     (s3_host_tyb_from_records(&recs), S3_SHAPE_OUT)
@@ -2944,15 +2930,7 @@ fn s3_sim_prog_loop_cursor(
         }
         let rec = code[pc];
         match rec.op {
-            0x40 => {
-                // S3.302: LABEL 7 resyncs shape-fill table cursor (slot15←table_off).
-                if let Some(id) = arg_u32(rec) {
-                    if id == 7 {
-                        state[15] = table_off;
-                    }
-                }
-                pc += 1;
-            }
+            0x40 => pc += 1,
             0x30 => {
                 let (s, imm) = arg_slot_imm(rec).ok_or(0xFB)?;
                 state[s as usize] = imm as u64;
@@ -4721,7 +4699,11 @@ mod tests {
             let (tyb, out) = s3_yoyo_shape_fill_tyb(op, args);
             assert!(s3_unpack_data_tyb(&tyb).is_empty(), "op {op:#x} empty DATA");
             let ir = parse_tyb(&tyb).unwrap();
-            assert!(ir.records.iter().any(|r| r.op == 0x80), "op {op:#x} scans via LDB");
+            // S3.304: wire-job MEMCPY (no argc LDB scan).
+            assert!(
+                ir.records.iter().any(|r| r.op == 0x84),
+                "op {op:#x} emits via MEMCPY"
+            );
             assert!(
                 ir.records.iter().all(|r| r.op != 0x10),
                 "op {op:#x} no DATA"
@@ -4757,10 +4739,11 @@ mod tests {
                 .count();
             assert_eq!(needle_sets, 0, "op {op:#x} needle is a load");
             assert_eq!(byte_sets, 0, "op {op:#x} wire bytes are loads");
-            // S3.286: argc from matched `(op,argc)` pair via STB (no shape-tag ADDV).
+            // S3.304: one-ctrl is MEMCPY+RET (job poke may still STB seed bytes).
+            let ctrl_start = ir.records.len() - S3_SHAPE_FILL_ONE_ROWS;
             assert!(
-                ir.records.iter().any(|r| r.op == 0x81),
-                "op {op:#x} emits STB for op/argc"
+                ir.records[ctrl_start..].iter().all(|r| r.op != 0x81),
+                "op {op:#x} one-ctrl has no STB"
             );
         }
         assert_eq!(s3_shape_argc_bytes(), [2, 2, 1, 3]);
@@ -4804,7 +4787,7 @@ mod tests {
         let ir = parse_tyb(&tyb).unwrap();
         let one = s3_yoyo_shape_fill_one();
         let bodies = ir.records.iter().filter(|r| r.op == 0x40).count();
-        // S3.299: indexed argc has no scan LABEL; many outer adds LABEL 7 + LABEL 6.
+        // S3.304: one-slice is MEMCPY only; many outer adds LABEL 7 + LABEL 6.
         assert_eq!(bodies, one.iter().filter(|r| r.0 == 0x40).count() + 2);
         let ctrl = s3_yoyo_shape_fill_many_ctrl();
         let (other, _) = s3_yoyo_shape_fill_many_tyb(&jobs[..1]);
@@ -4866,12 +4849,12 @@ mod tests {
             s3_rec_from_wire_seed(&row),
             (0x30, 2, [2, 0, 104, 0, 0, 0])
         );
-        // S3.302: ONE = many slice − job-end CMP/JE + RET.
+        // S3.304: ONE = many MEMCPY slice + RET.
         assert_eq!(S3_SHAPE_FILL_ONE_FLAT.len(), S3_SHAPE_FILL_ONE_ROWS * 7);
         let ctrl = s3_yoyo_shape_fill_ctrl();
         assert_eq!(ctrl.len(), S3_SHAPE_FILL_ONE_ROWS);
         assert_eq!(ctrl, s3_recs_from_flat_seed(S3_SHAPE_FILL_ONE_FLAT));
-        assert_eq!(S3_SHAPE_FILL_ONE_ROWS + 1, S3_SHAPE_FILL_ONE_LEN);
+        assert_eq!(S3_SHAPE_FILL_ONE_ROWS, S3_SHAPE_FILL_ONE_LEN + 1);
         assert_eq!(
             s3_recs_from_flat_seed_with_argc(S3_SHAPE_FILL_MANY_FLAT, &S3_SEED_ARGC_BYTES),
             s3_yoyo_shape_fill_many_ctrl()
@@ -5121,8 +5104,8 @@ mod tests {
         assert_eq!(S3_EXPAND_CTRL_ROWS, 10, "S3.303: drop argc scan/STB/arg copy");
         assert_eq!(S3_EXPAND_INIT_ROWS, 0, "S3.297: slot9 = OUT+hdr preload");
         assert_eq!(S3_SHAPE_TABLE_END, 0x140, "S3.299: 256B argc index");
-        assert_eq!(S3_SHAPE_FILL_MANY_ROWS, 16, "S3.302: LABEL7 table resync");
-        assert_eq!(S3_SHAPE_FILL_ONE_ROWS, 9, "S3.301: drop dead LABEL6");
+        assert_eq!(S3_SHAPE_FILL_MANY_ROWS, 10, "S3.304: wire-job MEMCPY loop");
+        assert_eq!(S3_SHAPE_FILL_ONE_ROWS, 2, "S3.304: MEMCPY+RET");
         assert!(
             !s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT)
                 .iter()
@@ -5132,8 +5115,8 @@ mod tests {
         assert!(
             !s3_recs_from_flat_seed(S3_SHAPE_FILL_MANY_FLAT)
                 .iter()
-                .any(|r| r.0 == 0x30 && u16::from_le_bytes([r.2[0], r.2[1]]) == 14),
-            "many ctrl must not SET14; LABEL7 resyncs slot15"
+                .any(|r| r.0 == 0x80 && u16::from_le_bytes([r.2[2], r.2[3]]) == 15),
+            "many ctrl must not LDB from slot15; wire-job uses slot2"
         );
         // S3.276: ctrl-only expand is plain flat_seed (no named bootstrap).
         assert_eq!(
