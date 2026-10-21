@@ -5190,8 +5190,8 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309: remaining Rust sidecar after pack+STB+expand.
-    /// Still Rust: short lea A1 (in-DLL PE seed; 13×A1/37B cliff S3.310),
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311: remaining Rust sidecar after pack+STB+expand.
+    /// Still Rust: short lea A1 (in-DLL PE seed; 13×A1/37B; densify −6 reject S3.311),
     /// `emit_x86` body OnceLock, expand-asm bootstrap, IR builders / run folders.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
@@ -5364,8 +5364,9 @@ mod tests {
         assert_eq!(a1.as_slice(), s3_in_dll_lea_prologue_recs());
     }
 
-    /// S3.310: A1 prologue density cliff — argc≤3 → 13 recs for 37B; one-stream same.
-    /// Denser pack needs argc>3 contract (parse/pe_dll) — reject without that change.
+    /// S3.310/S3.311: A1 prologue density cliff — argc≤3 → 13 recs for 37B.
+    /// S3.311: argc=6 consecutive hypothetic is 7 recs (−6 < 10 bar) and needs
+    /// pe_dll RAW_BYTES rewrite + parse argc>3 — reject densify without that.
     #[test]
     fn s3_a1_prologue_density_cliff() {
         let lea = s3_short_lea_raw_bytes();
@@ -5379,7 +5380,16 @@ mod tests {
         assert_eq!(one.len(), 13, "one-stream A1 count == 3-chunk (no framing win)");
         // Framing differs (15|11|11 vs contiguous 3B) but argc≤3 density is identical.
         assert_ne!(one.as_slice(), prologue, "S3.265: three-chunk framing stays distinct");
+        // S3.311: denser pack ceiling under fixed 6B args (consecutive) still <10 save.
+        let argc6 = (lea.len() + 5) / 6;
+        assert_eq!(argc6, 7, "argc=6 consecutive → 7 A1 for 37B");
+        assert!(
+            13usize.saturating_sub(argc6) < 10,
+            "A1 densify save {} < 10 bar (pe_dll argc≤3 contract)",
+            13 - argc6
+        );
     }
+
 
     /// S3.233: STB-flat / poke can materialize lea bytes, but only A1 injects them
     /// into `.text`. Shaped emit alone does not open `.text` with the lea prefix.
