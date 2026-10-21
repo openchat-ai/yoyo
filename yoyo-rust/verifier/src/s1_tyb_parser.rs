@@ -1690,10 +1690,19 @@ fn s3_append_stb_runs(
 }
 
 /// S3.222: one SET per distinct nonzero; STB `oo` relative to already-live BASE.
-/// Caller owns BASE (SET absolute, or MOVRR from lea slot15). No SHR.
+/// Caller owns BASE (SET absolute, or live lea slot15 via `_base`). No SHR.
 fn s3_append_stb_poke_global_distinct(
     recs: &mut Vec<(u8, u8, [u8; 6])>,
     bytes: &[u8],
+) {
+    s3_append_stb_poke_global_distinct_base(recs, bytes, S3_PACK_STB_BASE)
+}
+
+/// S3.310: poke through a live base slot (in-DLL: slot15 = lea table VA).
+fn s3_append_stb_poke_global_distinct_base(
+    recs: &mut Vec<(u8, u8, [u8; 6])>,
+    bytes: &[u8],
+    base_slot: u16,
 ) {
     let mut by_val: Vec<(u8, Vec<u16>)> = Vec::new();
     for (i, &b) in bytes.iter().enumerate() {
@@ -1708,7 +1717,7 @@ fn s3_append_stb_poke_global_distinct(
     for (b, offs) in by_val {
         recs.push(s3_rec_set(S3_PACK_STB_TMP, b as u32));
         for oo in offs {
-            recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_STB_BASE, oo));
+            recs.push(s3_rec_stb(S3_PACK_STB_TMP, base_slot, oo));
         }
     }
 }
@@ -2588,7 +2597,6 @@ const S3_EXPAND_SENTINEL: u8 = 0;
 /// S3.305/S3.306: expand ctrl ≡ shape-fill many ≡ one (bulk wire MEMCPY).
 const S3_EXPAND_CTRL_ROWS: usize = S3_SHAPE_FILL_MANY_ROWS;
 /// S3.270: only magic must be IR-seeded; reserved/count stay zero until body patches cnt.
-const S3_EXPAND_TYB_MAGIC: &[u8] = b"TYB";
 /// S3.274/S3.277: assembler init SETs as a flat seed (same expand path as ctrl).
 /// S3.277: drop SET slot13=0 / slot1=0 — sim state starts zeroed.
 /// S3.290: drop SET OUT base — count is IR-seeded; no STB patch.
@@ -2615,7 +2623,6 @@ fn s3_yoyo_expand_flat_tyb(flat: &[u8]) -> (Vec<u8>, u32) {
     // S3.303: job rows are RECORD_SIZE wire bytes (+ trailing sentinel).
     assert!(nrecs * RECORD_SIZE + 1 + HEADER_SIZE <= 0x200);
     assert_eq!(S3_SEED_ARGC_BYTES.len(), 256);
-    assert_eq!(S3_EXPAND_TYB_MAGIC, &TYB_MAGIC[..3]);
     let mut job = Vec::with_capacity(nrecs * RECORD_SIZE + 1 + HEADER_SIZE);
     for chunk in flat.chunks_exact(7) {
         let op = chunk[0];
@@ -2629,7 +2636,6 @@ fn s3_yoyo_expand_flat_tyb(flat: &[u8]) -> (Vec<u8>, u32) {
     let mut hdr = [0u8; HEADER_SIZE];
     hdr[..4].copy_from_slice(&TYB_MAGIC);
     hdr[6..8].copy_from_slice(&(nrecs as u16).to_le_bytes());
-    assert_eq!(&hdr[..3], S3_EXPAND_TYB_MAGIC);
     job.extend_from_slice(&hdr);
     let mut recs = Vec::new();
     s3_ir_seed_at(&mut recs, S3_EXPAND_SEED, &job, 30);
@@ -4999,7 +5005,7 @@ mod tests {
             ]
             .concat()
         );
-        assert_eq!(S3_EXPAND_TYB_MAGIC, b"TYB");
+        assert_eq!(&TYB_MAGIC[..3], b"TYB");
         // S3.291: job-end is 0 vs slot13; ctrl must not SET a sentinel imm.
         assert!(
             !s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT)
@@ -5185,9 +5191,9 @@ mod tests {
     }
 
     /// S3.135/S3.160/S3.223/S3.259/S3.309: remaining Rust sidecar after pack+STB+expand.
-    /// Still Rust: short lea A1 (in-DLL PE seed), `emit_x86` body OnceLock,
-    /// expand-asm bootstrap (`s3_bootstrap_expand_asm`, S3.275/276), IR builders /
-    /// run folders. All pack paths emit full TYB (S3.307–309). Not CLOSED.
+    /// Still Rust: short lea A1 (in-DLL PE seed; 13×A1/37B cliff S3.310),
+    /// `emit_x86` body OnceLock, expand-asm bootstrap, IR builders / run folders.
+    /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
         assert_eq!(S3_LEA_PTR.len(), 7, "short lea must stay 7B (not disp32)");
@@ -5356,6 +5362,23 @@ mod tests {
         s3_append_raw_a1(&mut a1, &S3_LEA_DST);
         s3_append_raw_a1(&mut a1, &S3_LEA_PROG);
         assert_eq!(a1.as_slice(), s3_in_dll_lea_prologue_recs());
+    }
+
+    /// S3.310: A1 prologue density cliff — argc≤3 → 13 recs for 37B; one-stream same.
+    /// Denser pack needs argc>3 contract (parse/pe_dll) — reject without that change.
+    #[test]
+    fn s3_a1_prologue_density_cliff() {
+        let lea = s3_short_lea_raw_bytes();
+        assert_eq!(lea.len(), 37);
+        let prologue = s3_in_dll_lea_prologue_recs();
+        assert_eq!(prologue.len(), 13, "3-chunk A1 pack of 37B");
+        let a1_bytes: usize = prologue.iter().map(|r| r.1 as usize).sum();
+        assert_eq!(a1_bytes, 37);
+        let mut one = Vec::new();
+        s3_append_raw_a1(&mut one, &lea);
+        assert_eq!(one.len(), 13, "one-stream A1 count == 3-chunk (no framing win)");
+        // Framing differs (15|11|11 vs contiguous 3B) but argc≤3 density is identical.
+        assert_ne!(one.as_slice(), prologue, "S3.265: three-chunk framing stays distinct");
     }
 
     /// S3.233: STB-flat / poke can materialize lea bytes, but only A1 injects them
@@ -5757,8 +5780,8 @@ mod tests {
         assert!(recs.iter().all(|r| r.0 != 0x61 && r.0 != 0x70));
     }
 
-    /// S3.222: short seed + in-DLL empty-DATA share one global-distinct poke helper.
-    /// BASE is caller-owned (SET absolute vs MOVRR from lea). Still one SET/distinct; no SHR.
+    /// S3.222/S3.310: short seed + in-DLL empty-DATA share one global-distinct poke helper.
+    /// BASE is caller-owned (SET absolute, or lea slot15). Still one SET/distinct; no SHR.
     #[test]
     fn s3_shared_global_distinct_poke_floor() {
         let payload = s3_fixed_payload(&S3_FIXED10_OPS[..3], &[0x30, 0xFF], S3_OUTBUF_OFF as usize);
@@ -5787,6 +5810,8 @@ mod tests {
         assert_eq!(tmp_sets, distinct.len(), "shared poke: one SET TMP per distinct");
         assert!(poke_only.iter().all(|r| r.0 != 0x61 && r.0 != 0x70));
 
+        let mut poke_slot15 = Vec::new();
+        s3_append_stb_poke_global_distinct_base(&mut poke_slot15, slice, 15);
         let dll = parse_tyb(&s3_table_prog_loop_tyb_ir_seed(&[0x30, 0xFF])).unwrap();
         let base_sets = dll
             .records
@@ -5796,30 +5821,29 @@ mod tests {
                     && u16::from_le_bytes([r.args_raw[0], r.args_raw[1]]) == S3_PACK_STB_BASE
             })
             .count();
-        assert_eq!(base_sets, 0, "in-DLL uses MOVRR BASE←15, not SET BASE");
-        assert!(dll.records.iter().any(|r| {
-            r.op == 0x64
-                && u16::from_le_bytes([r.args_raw[0], r.args_raw[1]]) == S3_PACK_STB_BASE
-                && u16::from_le_bytes([r.args_raw[2], r.args_raw[3]]) == 15
-        }));
-        // Shared poke records appear contiguously after MOVRR BASE←15.
+        assert_eq!(base_sets, 0, "in-DLL has no SET BASE (lea owns table VA)");
+        assert!(
+            !dll.records.iter().any(|r| {
+                r.op == 0x64
+                    && u16::from_le_bytes([r.args_raw[0], r.args_raw[1]]) == S3_PACK_STB_BASE
+            }),
+            "S3.310: no MOVRR BASE←15"
+        );
+        // Shared poke (base=15) appears contiguously after A1 prologue.
         let dll_tuples: Vec<_> = dll
             .records
             .iter()
             .map(|r| (r.op, r.argc, r.args_raw))
             .collect();
-        let mov = dll_tuples
+        let a1_end = dll_tuples
             .iter()
-            .position(|r| {
-                r.0 == 0x64
-                    && u16::from_le_bytes([r.2[0], r.2[1]]) == S3_PACK_STB_BASE
-                    && u16::from_le_bytes([r.2[2], r.2[3]]) == 15
-            })
-            .expect("MOVRR BASE←15");
+            .rposition(|r| r.0 == 0xA1)
+            .expect("A1 prologue")
+            + 1;
         assert_eq!(
-            &dll_tuples[mov + 1..mov + 1 + poke_only.len()],
-            poke_only.as_slice(),
-            "in-DLL seed poke is the shared helper stream"
+            &dll_tuples[a1_end..a1_end + poke_slot15.len()],
+            poke_slot15.as_slice(),
+            "in-DLL seed poke is shared helper with base=slot15"
         );
     }
 
@@ -7462,8 +7486,8 @@ mod tests {
         tyb_from_records(&recs)
     }
 
-    /// S3.220/S3.222: empty-DATA in-DLL — lea first (slot15 = table VA / sim table_off),
-    /// MOVRR BASE←15, then shared global-distinct poke, then prog. Golden unchanged.
+    /// S3.220/S3.222/S3.310: empty-DATA in-DLL — lea first (slot15 = table VA),
+    /// poke through slot15 (no MOVRR BASE←15), then prog. via_ir golden unchanged.
     fn s3_table_prog_loop_tyb_ir_seed(ops: &[u8]) -> Vec<u8> {
         assert!(!ops.is_empty() && ops.len() <= 8);
         let payload = s3_fixed_payload(&S3_FIXED10_OPS[..3], ops, S3_OUTBUF_OFF as usize);
@@ -7474,9 +7498,8 @@ mod tests {
         let mut recs = Vec::new();
         // PE: lea writes table VA into slot 15. Sim skips A1 but seeds state[15]=table_off.
         recs.extend_from_slice(s3_in_dll_lea_prologue_recs());
-        recs.push(s3_rec_movrr(S3_PACK_STB_BASE, 15));
-        // Shared SET×distinct poke; BASE already live (no absolute SET).
-        s3_append_stb_poke_global_distinct(&mut recs, slice);
+        // S3.310: STB base = slot15 directly (drop MOVRR into slot14).
+        s3_append_stb_poke_global_distinct_base(&mut recs, slice, 15);
         recs.extend(s3_prog_loop_code(ops.len() as u32, 3));
         tyb_from_records(&recs)
     }
