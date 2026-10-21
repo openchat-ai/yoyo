@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.311**（310 in-DLL poke@slot15；A1 13×37B cliff；assembler 22；**不**假 CLOSED）。
+**默认** 继续 **= S3.312**（311 A1 densify −6/argc≤3 否决；assembler 22；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -154,11 +154,12 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.308** ✅       | 7adfc9a   | expand ONE seed cliff 否决（<10）；MEMCPY pack 全 TYB；hdr helper |
 | **S3.309** ✅       | 2ea39cf   | pack 全家全 TYB；去 expand ARGC/slot8 遗留；assembler 22 |
 | **S3.310** ✅       | e24c5cd   | in-DLL poke@slot15（去 MOVRR）；A1 13×37B density cliff |
-| **S3.311** ⏳       | —           | 继续缩 bootstrap / A1 宿主面 · **本步**                   |
+| **S3.311** ✅       | 82a698b   | A1 densify 否决（13→7=−6 <10；pe_dll argc≤3）           |
+| **S3.312** ⏳       | —           | 继续缩 bootstrap / emit OnceLock · **本步**              |
 
 
 
-**缺口**：lea→.text 仍唯一靠 A1 · expand ctrl 种子仍靠 Rust bootstrap · 真自举。逐步正文 → `git log`。
+**缺口**：lea→.text 仍唯一靠 A1（densify 已否决）· expand bootstrap + emit OnceLock · 真自举。逐步正文 → `git log`。
 
 ---
 
@@ -194,7 +195,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.311**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.312**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -202,4 +203,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-21**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · 默认 **S3.311** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-21**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · 默认 **S3.312** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
