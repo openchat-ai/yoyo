@@ -2166,17 +2166,27 @@ fn s3_yoyo_pack_loop_stb_ir(pay_off: u32, out_off: u32, payload: &[u8]) -> Vec<(
     r
 }
 
+/// S3.307/S3.308: IR-seed an 8B TYB header (magic + rec_cnt) at `base`.
+fn s3_ir_seed_tyb_hdr(
+    recs: &mut Vec<(u8, u8, [u8; 6])>,
+    base: u32,
+    nrecs: usize,
+    label_id: u32,
+) -> u32 {
+    let mut hdr = [0u8; HEADER_SIZE];
+    hdr[..4].copy_from_slice(&TYB_MAGIC);
+    hdr[6..8].copy_from_slice(&(nrecs as u16).to_le_bytes());
+    s3_ir_seed_at(recs, base, &hdr, label_id)
+}
+
 fn s3_yoyo_pack_loop_stb_tyb(payload: &[u8]) -> (Vec<u8>, u32) {
     assert!(!payload.is_empty());
     // S3.196: no DATA records. IR writes the payload, then the two overread zeros.
     // S3.307: IR-seed TYB header at out; pack loop writes records at out+hdr.
     let out_off = payload.len() as u32 + 2;
     let nrecs = (payload.len() + S3_PACK_CHUNK - 1) / S3_PACK_CHUNK;
-    let mut hdr = [0u8; HEADER_SIZE];
-    hdr[..4].copy_from_slice(&TYB_MAGIC);
-    hdr[6..8].copy_from_slice(&(nrecs as u16).to_le_bytes());
     let mut recs = Vec::new();
-    s3_ir_seed_at(&mut recs, out_off, &hdr, 40);
+    s3_ir_seed_tyb_hdr(&mut recs, out_off, nrecs, 40);
     recs.extend(s3_yoyo_pack_loop_stb_ir(
         0,
         out_off + HEADER_SIZE as u32,
@@ -2185,12 +2195,21 @@ fn s3_yoyo_pack_loop_stb_tyb(payload: &[u8]) -> (Vec<u8>, u32) {
     (s3_host_tyb_from_records(&recs), out_off)
 }
 
-/// S3.143–S3.194: MEMCPY loop pack. DATA is payload+2; five consts are IR stores past that.
+/// S3.143–S3.194/S3.308: MEMCPY loop pack. DATA empty; five consts IR-stored.
+/// S3.308: IR-seed TYB header; records at out+hdr (same shape as STB pack).
 fn s3_yoyo_pack_loop_tyb(payload: &[u8]) -> (Vec<u8>, u32) {
     assert!(!payload.is_empty());
     let const_base = payload.len() as u32 + 2;
     let out_off = const_base + 5;
-    let recs = s3_yoyo_pack_loop_ir(0, out_off, payload, const_base);
+    let nrecs = (payload.len() + S3_PACK_CHUNK - 1) / S3_PACK_CHUNK;
+    let mut recs = Vec::new();
+    s3_ir_seed_tyb_hdr(&mut recs, out_off, nrecs, 40);
+    recs.extend(s3_yoyo_pack_loop_ir(
+        0,
+        out_off + HEADER_SIZE as u32,
+        payload,
+        const_base,
+    ));
     (s3_host_tyb_from_records(&recs), out_off)
 }
 
@@ -2597,8 +2616,9 @@ fn s3_yoyo_expand_flat_tyb(flat: &[u8]) -> (Vec<u8>, u32) {
     // S3.306: hdr tight after job; OUT = SEED + job_len (single poke window).
     let out = S3_EXPAND_SEED + job.len() as u32;
     let mut hdr = [0u8; HEADER_SIZE];
-    hdr[..3].copy_from_slice(S3_EXPAND_TYB_MAGIC);
+    hdr[..4].copy_from_slice(&TYB_MAGIC);
     hdr[6..8].copy_from_slice(&(nrecs as u16).to_le_bytes());
+    assert_eq!(&hdr[..3], S3_EXPAND_TYB_MAGIC);
     job.extend_from_slice(&hdr);
     let mut recs = Vec::new();
     s3_ir_seed_at(&mut recs, S3_EXPAND_SEED, &job, 30);
@@ -4881,6 +4901,44 @@ mod tests {
         );
     }
 
+    /// S3.308: ONE expand assembler is poke-bound (22 = job|hdr + MEMCPY+RET).
+    /// Measured alts (join already on; magic-only / runs / split) save <10 — reject.
+    #[test]
+    fn s3_expand_one_seed_cliff_sub10_reject() {
+        let flat = S3_SHAPE_FILL_ONE_FLAT;
+        let nrecs = flat.len() / 7;
+        let mut job = Vec::new();
+        for chunk in flat.chunks_exact(7) {
+            job.push(chunk[0]);
+            job.push(s3_seed_argc(chunk[0]));
+            job.extend_from_slice(&chunk[1..7]);
+        }
+        job.push(0);
+        let mut hdr = [0u8; HEADER_SIZE];
+        hdr[..4].copy_from_slice(&TYB_MAGIC);
+        hdr[6..8].copy_from_slice(&(nrecs as u16).to_le_bytes());
+        let poke = |b: &[u8]| {
+            let mut r = Vec::new();
+            s3_ir_seed_at(&mut r, 0x40, b, 1);
+            r.len()
+        };
+        let joined = poke(&[job.as_slice(), hdr.as_slice()].concat());
+        let boot = S3_EXPAND_ASM_ROWS;
+        assert_eq!(joined + boot, S3_EXPAND_ASM_PIN);
+        let magic_only = {
+            let mut m = [0u8; HEADER_SIZE];
+            m[..4].copy_from_slice(&TYB_MAGIC);
+            poke(&[job.as_slice(), m.as_slice()].concat()) + boot
+        };
+        assert!(
+            S3_EXPAND_ASM_PIN.saturating_sub(magic_only) < 10,
+            "magic-only save {} < 10 bar",
+            S3_EXPAND_ASM_PIN - magic_only
+        );
+        let (exp, _) = s3_yoyo_expand_flat_tyb(flat);
+        assert_eq!(parse_tyb(&exp).unwrap().records.len(), S3_EXPAND_ASM_PIN);
+    }
+
     /// S3.245/S3.247: control flat seeds are STB-emittable empty-DATA payloads.
     #[test]
     fn s3_shape_fill_flat_stb_payload() {
@@ -5652,12 +5710,17 @@ mod tests {
         }
     }
 
-    /// S3.143: looped YOYO IR pack (SUBV/CMP/JL) == `s3_pack_data` wire for lens 1..=64.
+    /// S3.143/S3.308: looped MEMCPY pack emits full TYB (== header + wire).
     #[test]
     fn s3_yoyo_ir_pack_loop_parity() {
         for n in 1usize..=64 {
             let bytes: Vec<u8> = (0..n).map(|i| (i * 17 + 3) as u8).collect();
-            let expect = s3_pack_data_wire(&bytes);
+            let wire = s3_pack_data_wire(&bytes);
+            let mut expect = Vec::with_capacity(HEADER_SIZE + wire.len());
+            expect.extend_from_slice(&TYB_MAGIC);
+            expect.extend_from_slice(&[0, 0]);
+            expect.extend_from_slice(&((wire.len() / RECORD_SIZE) as u16).to_le_bytes());
+            expect.extend_from_slice(&wire);
             let (tyb, out_off) = s3_yoyo_pack_loop_tyb(&bytes);
             let prog = parse_tyb(&tyb).expect("pack loop tyb");
             assert!(
@@ -5670,7 +5733,7 @@ mod tests {
             );
             let got = s3_sim_prog_loop(&tyb, 0, out_off, 0)
                 .unwrap_or_else(|e| panic!("sim loop pack len {n}: {e:#x}"));
-            assert_eq!(got, expect, "loop IR pack != s3_pack_data wire, len {n}");
+            assert_eq!(got, expect, "loop IR pack != TYB, len {n}");
         }
     }
 
