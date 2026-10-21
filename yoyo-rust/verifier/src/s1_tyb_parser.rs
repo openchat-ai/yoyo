@@ -1722,10 +1722,10 @@ fn s3_append_stb_poke_global_distinct_base(
     }
 }
 
-/// S3.209–S3.217: IR-seed sparse bytes — poke only nonzero offsets via STB `oo`.
-/// Gaps stay zero from empty-image / STB resize. Short spans (≤127) use one SET
-/// per distinct nonzero (keeps in-DLL seed under 512). Longer host seeds walk
-/// address order so BASE switches once per live window (S3.217). No SHR.
+/// S3.209–S3.217/S3.312: IR-seed sparse bytes — poke only nonzero offsets via STB `oo`.
+/// Gaps stay zero from empty-image / STB resize. Each ≤127 window uses one SET BASE
+/// + global-distinct TMP SETs (imm8 `oo`). S3.312: long host seeds use the same
+/// per-window global-distinct (was address-order; −49 host IR). No SHR.
 fn s3_append_stb_zero_then_poke(
     recs: &mut Vec<(u8, u8, [u8; 6])>,
     base: u32,
@@ -1733,33 +1733,15 @@ fn s3_append_stb_zero_then_poke(
     label_id: u32,
 ) -> u32 {
     const WIN: usize = 127;
-    if bytes.len() <= WIN {
-        // Global distinct: fewest TMP SETs; single BASE window.
-        if bytes.iter().any(|&b| b != 0) {
-            recs.push(s3_rec_set(S3_PACK_STB_BASE, base));
-            s3_append_stb_poke_global_distinct(recs, bytes);
+    let mut off = 0usize;
+    while off < bytes.len() {
+        let take = (bytes.len() - off).min(WIN);
+        let win = &bytes[off..off + take];
+        if win.iter().any(|&b| b != 0) {
+            recs.push(s3_rec_set(S3_PACK_STB_BASE, base + off as u32));
+            s3_append_stb_poke_global_distinct(recs, win);
         }
-        return label_id;
-    }
-    // Long span: address order → BASE once per live window.
-    let mut cur_win: Option<usize> = None;
-    let mut cur_val: Option<u8> = None;
-    for (i, &b) in bytes.iter().enumerate() {
-        if b == 0 {
-            continue;
-        }
-        let win = i / WIN;
-        if cur_win != Some(win) {
-            let win_base = base + (win * WIN) as u32;
-            recs.push(s3_rec_set(S3_PACK_STB_BASE, win_base));
-            cur_win = Some(win);
-        }
-        if cur_val != Some(b) {
-            recs.push(s3_rec_set(S3_PACK_STB_TMP, b as u32));
-            cur_val = Some(b);
-        }
-        let oo = (i % WIN) as u16;
-        recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_STB_BASE, oo));
+        off += take;
     }
     label_id
 }
@@ -5190,9 +5172,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311: remaining Rust sidecar after pack+STB+expand.
-    /// Still Rust: short lea A1 (in-DLL PE seed; 13×A1/37B; densify −6 reject S3.311),
-    /// `emit_x86` body OnceLock, expand-asm bootstrap, IR builders / run folders.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311/S3.312: remaining Rust sidecar.
+    /// Still Rust: short lea A1 (densify −6 reject), `emit_x86` body OnceLock,
+    /// expand-asm bootstrap, IR builders / run folders. Host seed 220→171 (S3.312).
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
@@ -5364,6 +5346,48 @@ mod tests {
         assert_eq!(a1.as_slice(), s3_in_dll_lea_prologue_recs());
     }
 
+    /// S3.312: host long-seed uses per-window global-distinct — 220→171 (−49).
+    /// Address-order long path saved 0 vs dual-window; bar ≥10 cleared.
+    #[test]
+    fn s3_host_seed_window_global_distinct_pin() {
+        const HOST_PIN: usize = 171; // was 220 (address-order long path)
+        let tyb = s3_host_prog_loop_tyb(&[0xFF]);
+        let n = parse_tyb(&tyb).unwrap().records.len();
+        assert_eq!(n, HOST_PIN, "host IR seed pin");
+        assert!(s3_unpack_data_tyb(&tyb).is_empty());
+        assert_eq!(
+            s3_sim_prog_loop(
+                &tyb,
+                S3_HOST_TABLE_OFF as u64,
+                S3_HOST_OUTBUF_OFF,
+                (S3_HOST_PROG_OFF + 1) as u64,
+            )
+            .unwrap(),
+            s3_compute_fixed_body(0xFF),
+            "host sim still emits RET after window-global seed"
+        );
+        // Seed alone is −49 vs legacy address-order (190→141); assembler untouched.
+        let payload = s3_fixed_payload(&S3_FIXED10_OPS, &[0xFF], S3_HOST_OUTBUF_OFF as usize);
+        let start = S3_HOST_TABLE_OFF as usize;
+        let end = S3_HOST_PROG_OFF as usize + 2;
+        let slice = &payload[start..end];
+        assert!(slice.len() > 127);
+        let mut seed = Vec::new();
+        s3_ir_seed_at(&mut seed, S3_HOST_TABLE_OFF, slice, 10);
+        assert_eq!(seed.len(), 141, "host table|prog seed IR");
+        assert_eq!(
+            parse_tyb(&s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_ONE_FLAT).0)
+                .unwrap()
+                .records
+                .len(),
+            S3_EXPAND_ASM_PIN,
+            "expand assembler pin stays 22"
+        );
+    }
+
+
+
+
     /// S3.310/S3.311: A1 prologue density cliff — argc≤3 → 13 recs for 37B.
     /// S3.311: argc=6 consecutive hypothetic is 7 recs (−6 < 10 bar) and needs
     /// pe_dll RAW_BYTES rewrite + parse argc>3 — reject densify without that.
@@ -5483,7 +5507,7 @@ mod tests {
             .into_iter()
             .filter(|r| r.op == 0x30)
             .collect();
-        // S3.217 long-path: BASE first, one per live window; all STB oo imm8.
+        // S3.217/S3.312 long-path: BASE first per live window (global-distinct); oo imm8.
         assert!(!sets.is_empty());
         let slot0 = u16::from_le_bytes([sets[0].args_raw[0], sets[0].args_raw[1]]);
         let imm0 = u32::from_le_bytes([
