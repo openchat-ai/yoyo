@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.317**（316 pack const poke；proto 57→52；**不**假 CLOSED）。
+**默认** 继续 **= S3.318**（317 emit-body const-embed 否决；asm22/A1×13；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -160,11 +160,12 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.314** ✅       | 0a8b687   | emit-flat poke+尾零钉；many 36→14（−22）                  |
 | **S3.315** ✅       | f6bc8cf   | 自举近端钉（asm22·A1×13·host171·boot2）；poke 时代地板   |
 | **S3.316** ✅       | eb134c2   | pack const scratch poke flat；proto 57→52（−5×2）        |
-| **S3.317** ⏳       | —           | 继续缩 bootstrap / emit OnceLock / A1 · **本步**         |
+| **S3.317** ✅       | 06ac488   | emit-body const-embed 否决（~95B 宿主金冻结，方向错）   |
+| **S3.318** ⏳       | —           | 继续缩 bootstrap / A1 / 真自举近端 · **本步**            |
 
 
 
-**缺口**：lea→.text 仍唯一靠 A1 · expand bootstrap + emit OnceLock · 真自举。逐步正文 → `git log`。
+**缺口**：lea→.text 仍唯一靠 A1 · expand bootstrap + emit OnceLock（const-embed 已否决）· 真自举。逐步正文 → `git log`。
 
 ---
 
@@ -200,7 +201,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.317**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.318**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -208,4 +209,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-21**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 171 · 默认 **S3.317** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-21**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 171 · 默认 **S3.318** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
