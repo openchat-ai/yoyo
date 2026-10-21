@@ -2552,7 +2552,8 @@ fn s3_expand_asm_flat() -> Vec<u8> {
 }
 
 fn s3_bootstrap_expand_asm() -> Vec<(u8, u8, [u8; 6])> {
-    s3_recs_from_flat_seed(&s3_expand_asm_flat())
+    // S3.320: named IR (MEMCPY+RET) — not flat_seed decode. Still Rust; ≡ MANY flat.
+    vec![s3_rec_memcpy(9, 2, 12), s3_fixed_rec(0xFF)]
 }
 
 fn s3_recs_from_flat_seed_with_argc(
@@ -4561,6 +4562,21 @@ mod tests {
     /// S3.319: fixed10 body bytes reach `.text` only via emit_x86 (or A1 of those
     /// bytes). STB/poke of a body payload does not open `.text` — same floor as lea.
     #[test]
+    /// S3.320: expand bootstrap is named MEMCPY+RET (≡ MANY flat; no flat_seed decode).
+    #[test]
+    fn s3_bootstrap_named_memcpy_ret_pin() {
+        assert_eq!(
+            s3_bootstrap_expand_asm(),
+            vec![s3_rec_memcpy(9, 2, 12), s3_fixed_rec(0xFF)]
+        );
+        assert_eq!(
+            s3_bootstrap_expand_asm(),
+            s3_recs_from_flat_seed(S3_SHAPE_FILL_MANY_FLAT)
+        );
+        assert_eq!(s3_bootstrap_expand_asm().len(), S3_EXPAND_ASM_ROWS);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+    }
+
     fn s3_fixed_body_text_only_via_emit_or_a1_floor() {
         let body = s3_fixed_row(0x30);
         assert_eq!(body.len(), 14);
@@ -5276,9 +5292,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–319: remaining Rust sidecar.
-    /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor S3.319),
-    /// expand-asm bootstrap (=2), IR builders. Host 171; runs test-only.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–320: remaining Rust sidecar.
+    /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor),
+    /// expand bootstrap named MEMCPY+RET (=2, S3.320), IR builders. Host 171.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
