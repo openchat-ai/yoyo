@@ -1957,7 +1957,10 @@ fn s3_yoyo_pack_proto_ir(payload: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
         recs.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
     }
     recs.push(s3_rec_set(S3_PACK_PROTO_ONE, 1));
-    recs.push(s3_rec_set(S3_PACK_PROTO_DST, S3_PACK_PROTO_OUT));
+    recs.push(s3_rec_set(
+        S3_PACK_PROTO_DST,
+        S3_PACK_PROTO_OUT + HEADER_SIZE as u32,
+    ));
     let mut i = 0usize;
     while i < payload_len {
         let n = (payload_len - i).min(S3_PACK_CHUNK) as u8;
@@ -1968,11 +1971,15 @@ fn s3_yoyo_pack_proto_ir(payload: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     recs
 }
 
-/// S3.142/S3.195: firmware = payload DATA + unrolled pack IR.
+/// S3.142/S3.195/S3.309: firmware = unrolled pack IR + TYB header seed.
 fn s3_yoyo_pack_proto_tyb(payload: &[u8]) -> Vec<u8> {
     assert!(!payload.is_empty() && payload.len() <= 6);
     // S3.153: bootstrap scratch is bytewise (not chunk-3).
-    let recs = s3_yoyo_pack_proto_ir(payload);
+    // S3.309: IR-seed TYB header; proto writes records at OUT+hdr.
+    let nrecs = (payload.len() + S3_PACK_CHUNK - 1) / S3_PACK_CHUNK;
+    let mut recs = Vec::new();
+    s3_ir_seed_tyb_hdr(&mut recs, S3_PACK_PROTO_OUT, nrecs, 40);
+    recs.extend(s3_yoyo_pack_proto_ir(payload));
     s3_host_tyb_from_records(&recs)
 }
 
@@ -1991,14 +1998,17 @@ fn s3_pack_proto_record_stb(recs: &mut Vec<(u8, u8, [u8; 6])>, base: u32, n: u8)
     }
 }
 
-/// S3.155: unrolled pack IR using LDB→STB (sim-only).
+/// S3.155/S3.309: unrolled pack IR using LDB→STB (sim-only); records @ OUT+hdr.
 fn s3_yoyo_pack_stb_ir(payload: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     let payload_len = payload.len();
     let mut recs = Vec::new();
     // S3.279: slot13 image-zero; SET DST overrides sim outbuf preload on slot9.
     recs.push(s3_rec_set(S3_PACK_PROTO_DST, 0));
     s3_append_stb_runs(&mut recs, payload, 10);
-    recs.push(s3_rec_set(S3_PACK_PROTO_DST, S3_PACK_PROTO_OUT));
+    recs.push(s3_rec_set(
+        S3_PACK_PROTO_DST,
+        S3_PACK_PROTO_OUT + HEADER_SIZE as u32,
+    ));
     let mut i = 0usize;
     while i < payload_len {
         let n = (payload_len - i).min(S3_PACK_CHUNK) as u8;
@@ -2011,7 +2021,11 @@ fn s3_yoyo_pack_stb_ir(payload: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
 
 fn s3_yoyo_pack_stb_tyb(payload: &[u8]) -> Vec<u8> {
     assert!(!payload.is_empty() && payload.len() <= 6);
-    let recs = s3_yoyo_pack_stb_ir(payload);
+    // S3.309: IR-seed TYB header; unrolled STB writes records at OUT+hdr.
+    let nrecs = (payload.len() + S3_PACK_CHUNK - 1) / S3_PACK_CHUNK;
+    let mut recs = Vec::new();
+    s3_ir_seed_tyb_hdr(&mut recs, S3_PACK_PROTO_OUT, nrecs, 40);
+    recs.extend(s3_yoyo_pack_stb_ir(payload));
     s3_host_tyb_from_records(&recs)
 }
 
@@ -2560,9 +2574,6 @@ fn s3_recs_from_flat_seed_with_argc(
 }
 
 const S3_EXPAND_SEED: u32 = 0x40;
-const S3_EXPAND_ARGC: u32 = 0x1C0;
-/// S3.299: legacy argc-table gap marker (expand no longer fixes OUT here).
-const S3_EXPAND_OUT_LEGACY: u32 = 0x2C0;
 /// ONE-flat expand assembler record count (job|hdr seed + bulk MEMCPY+RET).
 const S3_EXPAND_ASM_PIN: usize = 22; // S3.306: bulk wire MEMCPY (−10)
 
@@ -2603,7 +2614,7 @@ fn s3_yoyo_expand_flat_tyb(flat: &[u8]) -> (Vec<u8>, u32) {
     let nrecs = flat.len() / 7;
     // S3.303: job rows are RECORD_SIZE wire bytes (+ trailing sentinel).
     assert!(nrecs * RECORD_SIZE + 1 + HEADER_SIZE <= 0x200);
-    assert_eq!(S3_SEED_ARGC_BYTES.len() as u32, S3_EXPAND_OUT_LEGACY - S3_EXPAND_ARGC);
+    assert_eq!(S3_SEED_ARGC_BYTES.len(), 256);
     assert_eq!(S3_EXPAND_TYB_MAGIC, &TYB_MAGIC[..3]);
     let mut job = Vec::with_capacity(nrecs * RECORD_SIZE + 1 + HEADER_SIZE);
     for chunk in flat.chunks_exact(7) {
@@ -2937,8 +2948,7 @@ fn s3_sim_prog_loop_cursor(
     state[9] = slot9_init;
     // S3.296: args payload width = RECORD_SIZE-2 (op,argc|6 args); MEMCPY len slot.
     state[10] = (RECORD_SIZE as u64) - 2;
-    // S3.298: expand argc table base (legacy); shape-fill ignores slot8.
-    state[8] = S3_EXPAND_ARGC as u64;
+    // S3.309: drop slot8 ARGC-base preload (wire-job era; no live argc table walk).
     // S3.303/S3.306: MEMCPY length slot (row=8 or bulk nrecs×8).
     state[12] = slot12_init;
     state[2] = prog_ptr;
@@ -5174,10 +5184,10 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.307: remaining Rust sidecar after pack+STB+expand.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309: remaining Rust sidecar after pack+STB+expand.
     /// Still Rust: short lea A1 (in-DLL PE seed), `emit_x86` body OnceLock,
     /// expand-asm bootstrap (`s3_bootstrap_expand_asm`, S3.275/276), IR builders /
-    /// run folders. Pack via_ir emits TYB (wrap helper is test-only). Not CLOSED.
+    /// run folders. All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
         assert_eq!(S3_LEA_PTR.len(), 7, "short lea must stay 7B (not disp32)");
@@ -5214,10 +5224,7 @@ mod tests {
             s3_bootstrap_expand_asm(),
             s3_recs_from_flat_seed_with_argc(&s3_expand_asm_flat(), &S3_SEED_ARGC_BYTES)
         );
-        assert_eq!(
-            S3_SEED_ARGC_BYTES.len() as u32,
-            S3_EXPAND_OUT_LEGACY - S3_EXPAND_ARGC
-        );
+        assert_eq!(S3_SEED_ARGC_BYTES.len(), 256, "S3.309: argc index stays 256B");
         // S3.306: ONE-flat expand assembler size (bulk + job|hdr join).
         let (exp_pin, _) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_ONE_FLAT);
         assert_eq!(parse_tyb(&exp_pin).unwrap().records.len(), S3_EXPAND_ASM_PIN);
@@ -5234,10 +5241,7 @@ mod tests {
             "via_ir pack records == reference (full-TYB path)"
         );
         assert_eq!(S3_EXPAND_SEED, 0x40);
-        assert_eq!(S3_EXPAND_ARGC, 0x1C0);
-        assert_eq!(S3_EXPAND_OUT_LEGACY, 0x2C0);
         assert_eq!(S3_EXPAND_SENTINEL, 0);
-        assert_eq!(S3_EXPAND_ARGC - S3_EXPAND_SEED, 0x180);
         let (exp, off) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_ONE_FLAT);
         let emitted = s3_sim_prog_loop_cursor(
             &exp,
@@ -5688,8 +5692,13 @@ mod tests {
         assert!(s3_pack_data_wire(&[]).is_empty());
         for n in 1usize..=6 {
             let bytes: Vec<u8> = (0..n).map(|i| (i * 17 + 3) as u8).collect();
-            let expect = s3_pack_data_wire(&bytes);
-            assert_eq!(expect.len(), ((n + S3_PACK_CHUNK - 1) / S3_PACK_CHUNK) * 8);
+            let wire = s3_pack_data_wire(&bytes);
+            assert_eq!(wire.len(), ((n + S3_PACK_CHUNK - 1) / S3_PACK_CHUNK) * 8);
+            let mut expect = Vec::with_capacity(HEADER_SIZE + wire.len());
+            expect.extend_from_slice(&TYB_MAGIC);
+            expect.extend_from_slice(&[0, 0]);
+            expect.extend_from_slice(&((wire.len() / RECORD_SIZE) as u16).to_le_bytes());
+            expect.extend_from_slice(&wire);
             let tyb = s3_yoyo_pack_proto_tyb(&bytes);
             assert!(
                 s3_unpack_data_tyb(&tyb).is_empty(),
@@ -5706,7 +5715,7 @@ mod tests {
             );
             let got = s3_sim_prog_loop(&tyb, 0, S3_PACK_PROTO_OUT, 0)
                 .unwrap_or_else(|e| panic!("sim pack len {n}: {e:#x}"));
-            assert_eq!(got, expect, "YOYO IR pack != s3_pack_data wire, len {n}");
+            assert_eq!(got, expect, "YOYO IR pack != TYB, len {n}");
         }
     }
 
@@ -6071,12 +6080,17 @@ mod tests {
         assert!(!text.iter().all(|&b| b == 0x90 || b == 0xC3));
     }
 
-    /// S3.155: unrolled STB pack IR == `s3_pack_data` wire (lens 1..=6).
+    /// S3.155/S3.309: unrolled STB pack emits full TYB (== header + wire).
     #[test]
     fn s3_yoyo_ir_pack_stb_parity() {
         for n in 1usize..=6 {
             let bytes: Vec<u8> = (0..n).map(|i| (i * 17 + 3) as u8).collect();
-            let expect = s3_pack_data_wire(&bytes);
+            let wire = s3_pack_data_wire(&bytes);
+            let mut expect = Vec::with_capacity(HEADER_SIZE + wire.len());
+            expect.extend_from_slice(&TYB_MAGIC);
+            expect.extend_from_slice(&[0, 0]);
+            expect.extend_from_slice(&((wire.len() / RECORD_SIZE) as u16).to_le_bytes());
+            expect.extend_from_slice(&wire);
             let tyb = s3_yoyo_pack_stb_tyb(&bytes);
             assert!(
                 s3_unpack_data_tyb(&tyb).is_empty(),
@@ -6088,7 +6102,7 @@ mod tests {
             );
             let got = s3_sim_prog_loop(&tyb, 0, S3_PACK_PROTO_OUT, 0)
                 .unwrap_or_else(|e| panic!("stb pack len {n}: {e:#x}"));
-            assert_eq!(got, expect, "STB IR pack != wire, len {n}");
+            assert_eq!(got, expect, "STB IR pack != TYB, len {n}");
         }
     }
 
