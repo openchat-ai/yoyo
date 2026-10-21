@@ -4558,6 +4558,44 @@ mod tests {
     #[test]
     /// S3.318: STB run-fold is test-only; production pack/emit stay poke (no SUB).
     #[test]
+    /// S3.319: fixed10 body bytes reach `.text` only via emit_x86 (or A1 of those
+    /// bytes). STB/poke of a body payload does not open `.text` — same floor as lea.
+    #[test]
+    fn s3_fixed_body_text_only_via_emit_or_a1_floor() {
+        let body = s3_fixed_row(0x30);
+        assert_eq!(body.len(), 14);
+        let (flat_tyb, _) = s3_yoyo_emit_flat_via_stb(&body, 0x20);
+        let flat_text = emit_x86(&parse_tyb(&flat_tyb).unwrap()).text;
+        assert!(
+            !flat_text.starts_with(&body),
+            "STB-flat of SET body must not become .text head"
+        );
+        let mut poke = Vec::new();
+        s3_ir_seed_at(&mut poke, 0x80, &body, 10);
+        poke.push((0xFF, 0, [0; 6]));
+        let poke_text = emit_x86(&parse_tyb(&s3_host_tyb_from_records(&poke)).unwrap()).text;
+        assert!(
+            !poke_text.starts_with(&body),
+            "poke-seed of SET body must not become .text head"
+        );
+        let mut a1 = Vec::new();
+        s3_append_raw_a1(&mut a1, &body);
+        let a1_text = emit_x86(&parse_tyb(&tyb_from_records(&a1)).unwrap()).text;
+        assert!(a1_text.starts_with(&body), "A1 of body opens .text");
+        assert_eq!(
+            emit_x86(
+                &parse_tyb(&s3_host_tyb_from_records(&[
+                    s3_fixed_rec(0x30),
+                    s3_fixed_rec(0xFF),
+                ]))
+                .unwrap()
+            )
+            .text[..body.len()],
+            body[..],
+            "emit_x86(SET+RET) body prefix matches OnceLock bake"
+        );
+    }
+
     fn s3_stb_runs_test_only_production_poke() {
         let lea = s3_short_lea_raw_bytes();
         let (pack, _) = s3_yoyo_pack_loop_stb_tyb(&lea);
@@ -5238,9 +5276,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–318: remaining Rust sidecar.
-    /// Still Rust: short lea A1, `emit_x86` OnceLock (const-embed reject),
-    /// expand-asm bootstrap (=2), IR builders. Host 171; runs test-only (S3.318).
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–319: remaining Rust sidecar.
+    /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor S3.319),
+    /// expand-asm bootstrap (=2), IR builders. Host 171; runs test-only.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
