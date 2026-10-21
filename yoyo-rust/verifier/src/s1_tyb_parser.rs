@@ -1937,10 +1937,9 @@ fn s3_pack_proto_record(recs: &mut Vec<(u8, u8, [u8; 6])>, base: u32, n: u8) {
 fn s3_yoyo_pack_proto_ir(payload: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     let payload_len = payload.len();
     let mut recs = Vec::new();
-    // S3.198/S3.279: payload at 0, consts at 16. Slot13 image-zero; slot9 needs SET
-    // (sim preloads slot9 = outbuf).
-    recs.push(s3_rec_set(S3_PACK_PROTO_DST, 0));
-    s3_append_stb_runs(&mut recs, payload, 10);
+    // S3.198/S3.279/S3.313: payload at 0 via poke (not runs); consts at 16.
+    // Slot13 image-zero; slot9 needs SET (sim preloads slot9 = outbuf).
+    s3_ir_seed_at(&mut recs, 0, payload, 10);
     recs.push(s3_rec_set(S3_PACK_PROTO_DST, 16));
     for b in [0x10u8, 1, 2, 3, 0] {
         recs.push(s3_rec_set(S3_PACK_STB_TMP, b as u32));
@@ -1993,9 +1992,8 @@ fn s3_pack_proto_record_stb(recs: &mut Vec<(u8, u8, [u8; 6])>, base: u32, n: u8)
 fn s3_yoyo_pack_stb_ir(payload: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     let payload_len = payload.len();
     let mut recs = Vec::new();
-    // S3.279: slot13 image-zero; SET DST overrides sim outbuf preload on slot9.
-    recs.push(s3_rec_set(S3_PACK_PROTO_DST, 0));
-    s3_append_stb_runs(&mut recs, payload, 10);
+    // S3.279/S3.313: slot13 image-zero; payload poke at 0 (not runs).
+    s3_ir_seed_at(&mut recs, 0, payload, 10);
     recs.push(s3_rec_set(
         S3_PACK_PROTO_DST,
         S3_PACK_PROTO_OUT + HEADER_SIZE as u32,
@@ -2041,9 +2039,9 @@ fn s3_yoyo_pack_loop_ir(
 ) -> Vec<(u8, u8, [u8; 6])> {
     let payload_len = payload.len() as u32;
     let mut r = Vec::new();
-    // S3.197/S3.279: payload + overread zeros are stores; slot13 stays image-zero.
-    r.push(s3_rec_set(S3_PACK_PROTO_DST, pay_off));
-    s3_append_stb_runs(&mut r, payload, 10);
+    // S3.197/S3.279/S3.313: payload poke (not runs) + overread zero stores.
+    s3_ir_seed_at(&mut r, pay_off, payload, 10);
+    r.push(s3_rec_set(S3_PACK_PROTO_DST, pay_off + payload_len));
     r.push(s3_rec_stb(S3_PACK_STB_ZERO, S3_PACK_PROTO_DST, 0));
     r.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
     r.push(s3_rec_stb(S3_PACK_STB_ZERO, S3_PACK_PROTO_DST, 0));
@@ -2128,9 +2126,9 @@ fn s3_yoyo_pack_loop_stb_ir(pay_off: u32, out_off: u32, payload: &[u8]) -> Vec<(
     let mut r = Vec::new();
     // S3.279: slot13 image-zero; no SET ZERO prologue.
     r.push(s3_rec_set(S3_PACK_LOOP_THREE, S3_PACK_CHUNK as u32));
-    // S3.196: payload itself is IR stores. Repeated bytes share one SET.
-    r.push(s3_rec_set(S3_PACK_PROTO_DST, pay_off));
-    s3_append_stb_runs(&mut r, payload, 10);
+    // S3.196/S3.313: payload poke (global-distinct) — beats STB runs (≥10).
+    s3_ir_seed_at(&mut r, pay_off, payload, 10);
+    r.push(s3_rec_set(S3_PACK_PROTO_DST, pay_off + payload_len));
     r.push(s3_rec_stb(S3_PACK_STB_ZERO, S3_PACK_PROTO_DST, 0));
     r.push(s3_rec_add(S3_PACK_PROTO_DST, 1));
     r.push(s3_rec_stb(S3_PACK_STB_ZERO, S3_PACK_PROTO_DST, 0));
@@ -5172,9 +5170,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311/S3.312: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–313: remaining Rust sidecar.
     /// Still Rust: short lea A1 (densify −6 reject), `emit_x86` body OnceLock,
-    /// expand-asm bootstrap, IR builders / run folders. Host seed 220→171 (S3.312).
+    /// expand-asm bootstrap, IR builders / run folders. Host 171; pack poke (S3.313).
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
@@ -5348,7 +5346,34 @@ mod tests {
 
     /// S3.312: host long-seed uses per-window global-distinct — 220→171 (−49).
     /// Address-order long path saved 0 vs dual-window; bar ≥10 cleared.
+    /// S3.313: pack payload seed uses poke (not STB runs). lea sample 172→99 (−73).
     #[test]
+    fn s3_pack_payload_poke_beats_runs_pin() {
+        let lea = s3_short_lea_raw_bytes();
+        let (tyb, _) = s3_yoyo_pack_loop_stb_tyb(&lea);
+        let n = parse_tyb(&tyb).unwrap().records.len();
+        assert_eq!(n, 99, "pack loop STB IR pin after poke seed (was 172)");
+        assert_eq!(
+            s3_pack_data_via_ir(&lea),
+            s3_pack_data(&lea),
+            "via_ir pack records still match reference"
+        );
+        // Small payloads also shrink; keep parity.
+        for n in 1usize..=16 {
+            let bytes: Vec<u8> = (0..n).map(|i| (i * 19 + 7) as u8).collect();
+            assert_eq!(s3_pack_data_via_ir(&bytes), s3_pack_data(&bytes));
+        }
+        assert_eq!(
+            parse_tyb(&s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_ONE_FLAT).0)
+                .unwrap()
+                .records
+                .len(),
+            S3_EXPAND_ASM_PIN
+        );
+    }
+
+
+
     fn s3_host_seed_window_global_distinct_pin() {
         const HOST_PIN: usize = 171; // was 220 (address-order long path)
         let tyb = s3_host_prog_loop_tyb(&[0xFF]);
