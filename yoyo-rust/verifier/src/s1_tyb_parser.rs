@@ -2505,22 +2505,23 @@ const S3_EXPAND_SEED: u32 = 0x40;
 const S3_EXPAND_ARGC: u32 = 0x1C0;
 const S3_EXPAND_OUT: u32 = 0x200;
 
-/// S3.257: trailing 0xFE sentinel ends the job blob — no job-side SET END.
+/// S3.257/S3.291: trailing 0 sentinel ends the job blob — no job-side SET END.
+/// S3.291: CMP against slot13 (image-zero); no INIT SET of sentinel imm.
 /// S3.264: argc table is IR-seeded from `S3_SEED_ARGC_BYTES` (not 51 poke rows).
-/// S3.267/S3.268: expand emits full TYB; header template IR-seeded; body patches cnt.
+/// S3.267/S3.268/S3.290: expand emits full TYB; header magic+count IR-seeded.
 /// Bootstrap still Rust-expands the ctrl body (cannot via_yoyo itself).
-const S3_EXPAND_SENTINEL: u8 = 0xFE;
+const S3_EXPAND_SENTINEL: u8 = 0;
 const S3_EXPAND_CTRL_ROWS: usize = 25;
 /// S3.270: only magic must be IR-seeded; reserved/count stay zero until body patches cnt.
 const S3_EXPAND_TYB_MAGIC: &[u8] = b"TYB";
 /// S3.274/S3.277: assembler init SETs as a flat seed (same expand path as ctrl).
 /// S3.277: drop SET slot13=0 / slot1=0 — sim state starts zeroed.
 /// S3.290: drop SET OUT base — count is IR-seeded; no STB patch.
-const S3_EXPAND_INIT_ROWS: usize = 3;
+/// S3.291: drop SET sentinel — job end is 0 vs slot13 image-zero.
+const S3_EXPAND_INIT_ROWS: usize = 2;
 const S3_EXPAND_INIT_FLAT: &[u8] = &[
-    // SET 4 = SEED, SET 5 = sentinel, SET 9 = OUT+hdr
-    48, 4, 0, 64, 0, 0, 0, 48, 5, 0, 254, 0, 0, 0,
-    48, 9, 0, 8, 2, 0, 0,
+    // SET 4 = SEED, SET 9 = OUT+hdr
+    48, 4, 0, 64, 0, 0, 0, 48, 9, 0, 8, 2, 0, 0,
 ];
 /// S3.275: assembler body rows = init + ctrl (joined once in `s3_expand_asm_flat`).
 const S3_EXPAND_ASM_ROWS: usize = S3_EXPAND_INIT_ROWS + S3_EXPAND_CTRL_ROWS;
@@ -2529,7 +2530,8 @@ const S3_EXPAND_ASM_ROWS: usize = S3_EXPAND_INIT_ROWS + S3_EXPAND_CTRL_ROWS;
 /// S3.280/S3.282: 6-byte arg copy is MEMCPY+ADDV dst (was LDB/STB loop; no src ADDV).
 const S3_EXPAND_CTRL_FLAT: &[u8] = &[
     64, 20, 0, 0, 0, 0, 0, 128, 7, 0, 4, 0, 0, 0,
-    101, 7, 0, 5, 0, 0, 0, 113, 21, 0, 0, 0, 0, 0,
+    // S3.291: CMP op, slot13 (image-zero) — job sentinel is 0.
+    101, 7, 0, 13, 0, 0, 0, 113, 21, 0, 0, 0, 0, 0,
     48, 2, 0, 192, 1, 0, 0, 48, 3, 0, 226, 1, 0, 0,
     64, 22, 0, 0, 0, 0, 0, 101, 2, 0, 3, 0, 0, 0,
     113, 21, 0, 0, 0, 0, 0, 128, 11, 0, 2, 0, 0, 0,
@@ -4865,14 +4867,13 @@ mod tests {
         assert!(s3_unpack_data_tyb(&exp).is_empty());
         let exp_recs = parse_tyb(&exp).unwrap().records;
         // S3.283: pin ONE-flat assembler size (in-place seed ptr; no MOVRR s8).
-        assert_eq!(exp_recs.len(), 209);
-        assert_eq!(S3_EXPAND_ASM_ROWS, 28);
-        assert_eq!(S3_EXPAND_INIT_ROWS, 3);
+        assert_eq!(exp_recs.len(), 206);
+        assert_eq!(S3_EXPAND_ASM_ROWS, 27);
+        assert_eq!(S3_EXPAND_INIT_ROWS, 2);
         assert_eq!(
             s3_recs_from_flat_seed(S3_EXPAND_INIT_FLAT),
             vec![
                 s3_rec_set(4, S3_EXPAND_SEED),
-                s3_rec_set(5, S3_EXPAND_SENTINEL as u32),
                 s3_rec_set(9, S3_EXPAND_OUT + HEADER_SIZE as u32),
             ]
         );
@@ -4885,15 +4886,12 @@ mod tests {
             .concat()
         );
         assert_eq!(S3_EXPAND_TYB_MAGIC, b"TYB");
-        // Sentinel termination lives in the ctrl body (slot 5 = 0xFE), not a length SET.
+        // S3.291: job-end is 0 vs slot13; ctrl must not SET a sentinel imm.
         assert!(
-            !s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT).iter().any(|r| {
-                r.0 == 0x30
-                    && u16::from_le_bytes([r.2[0], r.2[1]]) == 5
-                    && u32::from_le_bytes([r.2[2], r.2[3], r.2[4], r.2[5]])
-                        != S3_EXPAND_SENTINEL as u32
-            }),
-            "expand ctrl must not SET slot5 to a length; sentinel owns termination"
+            !s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT)
+                .iter()
+                .any(|r| r.0 == 0x30 && u16::from_le_bytes([r.2[0], r.2[1]]) == 5),
+            "expand ctrl must not SET slot5; slot13 image-zero owns job-end"
         );
         let mut expect_tyb = Vec::new();
         expect_tyb.extend_from_slice(&TYB_MAGIC);
@@ -5064,10 +5062,10 @@ mod tests {
         assert_eq!(S3_LEA_PTR, &[0x49, 0x8D, 0x07, 0x49, 0x89, 0x47, 0x78]);
         // S3.275: assembler body is one flat seed (init prefix + ctrl); still Rust.
         assert_eq!(s3_expand_asm_flat().len(), S3_EXPAND_ASM_ROWS * 7);
-        assert_eq!(S3_EXPAND_ASM_ROWS, 28, "S3.290: init 3 + ctrl 25");
+        assert_eq!(S3_EXPAND_ASM_ROWS, 27, "S3.291: init 2 + ctrl 25");
         assert_eq!(S3_EXPAND_CTRL_FLAT.len(), S3_EXPAND_CTRL_ROWS * 7);
         assert_eq!(S3_EXPAND_CTRL_ROWS, 25, "S3.290: IR-seeded TYB count");
-        assert_eq!(S3_EXPAND_INIT_ROWS, 3, "S3.290: drop SET OUT base");
+        assert_eq!(S3_EXPAND_INIT_ROWS, 2, "S3.291: drop SET sentinel");
         assert_eq!(S3_SHAPE_TABLE_END, 0x62, "S3.289: (op,argc) table is 34B");
         assert_eq!(S3_SHAPE_FILL_ONE_ROWS, 20, "S3.289: JNE fall-through");
         // S3.276: ctrl-only expand is plain flat_seed (no named bootstrap).
@@ -5080,9 +5078,9 @@ mod tests {
             s3_recs_from_flat_seed_with_argc(&s3_expand_asm_flat(), S3_SEED_ARGC_BYTES)
         );
         assert_eq!(S3_SEED_ARGC_BYTES.len() as u32, 0x1E2 - S3_EXPAND_ARGC);
-        // S3.290: ONE-flat expand assembler size (measure; count IR-seeded).
+        // S3.291: ONE-flat expand assembler size (zero sentinel vs slot13).
         let (exp_pin, _) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_ONE_FLAT);
-        assert_eq!(parse_tyb(&exp_pin).unwrap().records.len(), 209);
+        assert_eq!(parse_tyb(&exp_pin).unwrap().records.len(), 206);
         let one = s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_ONE_FLAT);
         assert_eq!(one, s3_recs_from_flat_seed(S3_SHAPE_FILL_ONE_FLAT));
         // S3.269: pack wire-section wrap; expand already emits TYB (no wrap).
@@ -5093,7 +5091,7 @@ mod tests {
         assert_eq!(S3_EXPAND_SEED, 0x40);
         assert_eq!(S3_EXPAND_ARGC, 0x1C0);
         assert_eq!(S3_EXPAND_OUT, 0x200);
-        assert_eq!(S3_EXPAND_SENTINEL, 0xFE);
+        assert_eq!(S3_EXPAND_SENTINEL, 0);
         assert_eq!(S3_EXPAND_ARGC - S3_EXPAND_SEED, 0x180);
         let (exp, off) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_ONE_FLAT);
         let emitted = s3_sim_prog_loop(&exp, 0, off, 0).unwrap();
