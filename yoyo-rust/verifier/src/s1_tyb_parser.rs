@@ -4552,7 +4552,23 @@ mod tests {
     /// Rust bootstrap MEMCPY+RET + emit OnceLock. All pack paths full TYB.
 
     /// S3.316: pack const scratch [0x10,1,2,3,0] via poke flat (−7×2 sites).
+    /// S3.317: reject const-embedding `emit_x86` bodies to drop OnceLock.
+    /// Freezing ~95B host goldens grows sidecar trust; true path is YOYO-emit bodies.
+    /// Assembler 22 / A1×13 / boot=2 remain the hard numeric floors (S3.315).
     #[test]
+    fn s3_emit_body_const_embed_reject() {
+        let total: usize = S3_FIXED10_OPS.iter().map(|o| s3_fixed_row(*o).len()).sum();
+        assert_eq!(total, 95, "fixed10 body bytes stay emit_x86-baked");
+        // OnceLock still equals fresh bake — do not replace with const tables.
+        for op in S3_FIXED10_OPS {
+            assert_eq!(s3_fixed_row(op), s3_compute_fixed_body(op));
+        }
+        assert_eq!(s3_bootstrap_expand_asm().len(), 2);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(s3_in_dll_lea_prologue_recs().len(), 13);
+    }
+
+
     fn s3_pack_const_scratch_poke_pin() {
         let proto = s3_yoyo_pack_proto_tyb(&[0xAA, 0xBB]);
         let n = parse_tyb(&proto).unwrap().records.len();
@@ -5201,8 +5217,8 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–316: remaining Rust sidecar.
-    /// Still Rust: short lea A1 (densify −6 reject), `emit_x86` body OnceLock,
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–317: remaining Rust sidecar.
+    /// Still Rust: short lea A1, `emit_x86` OnceLock (const-embed reject S3.317),
     /// expand-asm bootstrap (=2), IR builders. Host 171; pack/emit poke era.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
