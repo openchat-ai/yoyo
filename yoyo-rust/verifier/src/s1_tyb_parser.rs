@@ -2610,9 +2610,14 @@ fn s3_seed_argc_from(argc_flat: &[u8], op: u8) -> u8 {
         .expect("argc index table")
 }
 
+/// S3.320/S3.356: sole bootstrap body — const MEMCPY+RET (≡ MANY flat under test).
+const S3_BOOTSTRAP_EXPAND_ASM: [(u8, u8, [u8; 6]); 2] = [
+    (0x84, 3, [9, 0, 2, 0, 12, 0]), // MEMCPY dst=9 src=2 len=slot12
+    (0xFF, 0, [0; 6]),              // RET
+];
+
 fn s3_bootstrap_expand_asm() -> Vec<(u8, u8, [u8; 6])> {
-    // S3.320: named IR (MEMCPY+RET) — not flat_seed decode. Still Rust; ≡ MANY flat.
-    vec![s3_rec_memcpy(9, 2, 12), s3_fixed_rec(0xFF)]
+    S3_BOOTSTRAP_EXPAND_ASM.to_vec()
 }
 
 /// S3.329: flat→records decode is test parity only (production uses named bootstrap).
@@ -2696,7 +2701,7 @@ fn s3_expand_job_recs_tyb(job_recs: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
     job.extend_from_slice(&hdr);
     let mut recs = Vec::new();
     s3_append_stb_zero_then_poke(&mut recs, S3_EXPAND_SEED, &job, 30);
-    recs.extend(s3_bootstrap_expand_asm());
+    recs.extend_from_slice(&S3_BOOTSTRAP_EXPAND_ASM);
     (s3_host_tyb_from_records(&recs), out)
 }
 
@@ -2714,9 +2719,9 @@ fn s3_yoyo_expand_flat_tyb(flat: &[u8]) -> (Vec<u8>, u32) {
     s3_expand_job_recs_tyb(&job_recs)
 }
 
-/// S3.341/S3.343/S3.344/S3.353/S3.354/S3.355: production expand — job≡bootstrap.
+/// S3.341/S3.343/S3.344/S3.353/S3.354/S3.355/S3.356: production expand — job≡bootstrap.
 pub fn s3_expand_many_flat_tyb() -> (Vec<u8>, u32) {
-    s3_expand_job_recs_tyb(&s3_bootstrap_expand_asm())
+    s3_expand_job_recs_tyb(&S3_BOOTSTRAP_EXPAND_ASM)
 }
 
 /// S3.254/S3.255/S3.263/S3.267/S3.329: expand flat via YOYO sim — test proof only.
@@ -4832,16 +4837,20 @@ mod tests {
         assert_eq!(S3_PACK_PROTO_DST, 9, "host outbuf slot stays live");
     }
 
-    /// S3.353–355: no sentinel; job≡bootstrap; shared `s3_expand_job_recs_tyb`.
-    /// Assembler pin stays 22 (0 IR). Prod ≡ generic flat expand.
+    /// S3.353–356: no sentinel; job≡const bootstrap; shared `expand_job_recs`.
+    /// Const table ≡ `s3_rec_memcpy`+RET builders. Assembler pin 22 (0 IR).
     #[test]
     fn s3_expand_job_from_bootstrap_pin() {
+        assert_eq!(
+            S3_BOOTSTRAP_EXPAND_ASM,
+            [s3_rec_memcpy(9, 2, 12), s3_fixed_rec(0xFF)]
+        );
         let boot = s3_bootstrap_expand_asm();
-        assert_eq!(boot.len(), 2);
+        assert_eq!(boot.as_slice(), &S3_BOOTSTRAP_EXPAND_ASM);
         assert_eq!(boot, s3_recs_from_flat_seed(S3_SHAPE_FILL_MANY_FLAT));
         let (prod, poff) = s3_expand_many_flat_tyb();
         let (gen, goff) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_MANY_FLAT);
-        let (shared, soff) = s3_expand_job_recs_tyb(&boot);
+        let (shared, soff) = s3_expand_job_recs_tyb(&S3_BOOTSTRAP_EXPAND_ASM);
         assert_eq!((prod.clone(), poff), (gen, goff));
         assert_eq!((prod.clone(), poff), (shared, soff));
         assert_eq!(poff, S3_EXPAND_SEED + 16, "OUT = SEED + nrecs×8 (no sentinel gap)");
@@ -4852,11 +4861,14 @@ mod tests {
             poff,
             S3_EXPAND_SEED as u64,
             poff as u64 + HEADER_SIZE as u64,
-            (boot.len() * RECORD_SIZE) as u64,
+            (S3_BOOTSTRAP_EXPAND_ASM.len() * RECORD_SIZE) as u64,
         )
         .unwrap();
         assert_eq!(&emitted[..4], &TYB_MAGIC);
-        assert_eq!(parse_tyb(&emitted).unwrap().records.len(), boot.len());
+        assert_eq!(
+            parse_tyb(&emitted).unwrap().records.len(),
+            S3_BOOTSTRAP_EXPAND_ASM.len()
+        );
     }
 
     /// S3.352: post-scaffolding cliff map — all hard floors in one pin after
@@ -5846,9 +5858,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–355: remaining Rust sidecar.
-    /// Still Rust: short lea A1, `emit_x86` OnceLock, bootstrap-derived expand,
-    /// host poke seed + prog-loop + cursor sim. S3.355: shared expand_job_recs.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–356: remaining Rust sidecar.
+    /// Still Rust: short lea A1, `emit_x86` OnceLock, const bootstrap expand,
+    /// host poke seed + prog-loop + cursor sim. S3.356: bootstrap is const table.
     /// Host 171 · ASM 22. Scaffolding/wrappers cfg(test). Not CLOSED.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
