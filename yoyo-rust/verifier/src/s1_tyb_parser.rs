@@ -5363,10 +5363,14 @@ mod tests {
         );
     }
 
-    /// S3.358–366: 真自举能力图 — 缺的能力用自己的指令做出来（不译 emit_x86）。
-    /// 已会：poke/pack、TYB 发射、表合成→.text、expand、body/lea 种子、
-    /// host 种子链、**RET+SET/RET 整段 TYB 种子**(S3.368–369)。
-    /// 剩：其它非 RET host assemble — S3.370 组合悬崖，不逐组合堆 TYB。
+    /// S3.358–371: 真自举能力图 — 缺的能力用自己的指令做出来（不译 emit_x86）。
+    /// 已会：poke/pack、TYB 发射、表合成→.text、expand、body/lea/win 种子、
+    /// RET+SET/RET 整段 TYB、组合悬崖(S3.370)。
+    /// **下一缺口**（S3.371 地图）：
+    ///   (A) try_emit = Rust sim host，不是 PE 上跑 YOYO；
+    ///   (B) 非 RET host assemble（组合悬崖，需别的 arch，不堆 TYB）；
+    ///   (C) in-DLL 超 A1 种子的路径仍偏 Rust。
+    /// 不挤 IR 羊粪。
     #[test]
     fn s3_true_selfhost_capability_map_pin() {
         // —— 已会（自己的指令）——
@@ -5477,6 +5481,60 @@ mod tests {
             s3_host_prog_loop_tyb(&[0x30, 0xFF]).as_slice(),
             S3_HOST_SET_RET_TYB_SEED
         );
+        // —— S3.371: next-gap map (not CLOSED) ——
+        // (A) try_emit is Rust sim of host TYB, not PE execution.
+        let via_sim = try_emit_text_via_yoyo_table(&[0xFF]).unwrap();
+        assert_eq!(via_sim, s3_fixed_row(0xFF));
+        // (B) non-RET assemble still live for unseeded combos (cliff holds).
+        assert_ne!(
+            s3_host_prog_loop_tyb(&[0x66, 0xFF]).as_slice(),
+            S3_HOST_RET_TYB_SEED
+        );
+        // (C) A1 lea seed stays 13×37; broader in-DLL still Rust-side.
+        assert_eq!(s3_in_dll_lea_prologue_recs().len(), 13);
+        assert_eq!(s3_short_lea_raw_bytes().len(), 37);
+    }
+
+    /// S3.371: post-host-seed-chain gap map. Next ≥10 = (A) try_emit via PE/YOYO
+    /// run, not more TYB seeds. (B)(C) documented; not CLOSED.
+    #[test]
+    fn s3_true_selfhost_next_gap_map_pin() {
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+        // Seeded host paths cover capability-map ops; others assemble.
+        assert_eq!(
+            s3_host_prog_loop_tyb(&[0xFF]).as_slice(),
+            S3_HOST_RET_TYB_SEED
+        );
+        assert_eq!(
+            s3_host_prog_loop_tyb(&[0x30, 0xFF]).as_slice(),
+            S3_HOST_SET_RET_TYB_SEED
+        );
+        let assembled = s3_host_prog_loop_tyb(&[0x62, 0xFF]);
+        assert!(assembled.len() >= 1392);
+        assert_ne!(assembled.as_slice(), S3_HOST_RET_TYB_SEED);
+        // Gap A witness: try_emit ≡ sim cursor on host TYB (Rust), floors hold.
+        assert_eq!(
+            try_emit_text_via_yoyo_table(&[0xFF]).unwrap(),
+            s3_sim_prog_loop_cursor(
+                S3_HOST_RET_TYB_SEED,
+                S3_HOST_TABLE_OFF as u64,
+                S3_HOST_OUTBUF_OFF,
+                (S3_HOST_PROG_OFF + 1) as u64,
+                S3_HOST_OUTBUF_OFF as u64,
+                RECORD_SIZE as u64,
+            )
+            .unwrap()
+        );
+        // Gap C witness: A1 seed closed; denser in-DLL not this knife.
+        assert_eq!(S3_IN_DLL_LEA_A1_SEED.len(), 13);
+        assert_eq!(s3_bootstrap_expand_asm().len(), 2);
     }
 
     /// S3.366: win0 poke seed ≡ live zero_then_poke(table[..127]). Floor now 173 (S3.367).
