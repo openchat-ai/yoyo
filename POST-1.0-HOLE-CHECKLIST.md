@@ -170,7 +170,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.324** ✅       | c3d4848   | 去掉 EXPAND_CTRL_* 别名；MANY_FLAT 即 expand body        |
 | **S3.325** ✅       | `b1d2a91`   | fill_one 具名 MEMCPY；many_ctrl→ctrl；via_yoyo 仅测试 |
 | **S3.326** ✅       | `9bd5c67`   | 去 ONE_FLAT/many_ctrl；ONE_ROWS≡MANY_ROWS               |
-| **S3.327** ✅       | ǫ99c4\   | 去 fill_ctrl/ONE_ROWS；生产直 extend bootstrap          |
+| **S3.327** ✅       | `75399c4`   | 去 fill_ctrl/ONE_ROWS；生产直 extend bootstrap          |
 | **S3.328** ⏳       | —           | 继续缩 bootstrap / A1 / 真自举近端 · **本步**            |
 
 
@@ -211,7 +211,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.327**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.328**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
