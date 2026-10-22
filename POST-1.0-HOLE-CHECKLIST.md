@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.370**（369 SET+RET TYB 种子；下一刀=非RET 组合悬崖；**不**假 CLOSED）。
+**默认** 继续 **= S3.371**（370 组合悬崖；下一刀=真自举下一缺口图；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -213,7 +213,8 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.367** ✅       | 1f472cd   | host table win1 poke=自有 SET/STB 种子（58；地板171→173） |
 | **S3.368** ✅       | b07dbe3   | host RET=整段 TYB 目标码种子（1392B；无 live assemble） |
 | **S3.369** ✅       | 3c0fc9b   | host SET+RET=整段 TYB 目标码种子（1408B） |
-| **S3.370** ⏳       | —           | 非 RET 逐组合 TYB 种子悬崖 · **本步** |
+| **S3.370** ✅       | 96cb4f4   | 非 RET 逐组合 TYB 种子悬崖（组合爆炸；保 assemble） |
+| **S3.371** ⏳       | —           | 真自举下一缺口图（host 种子链后） · **本步** |
 
 
 
@@ -261,4 +262,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-22**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.370** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-22**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.371** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
