@@ -4843,6 +4843,43 @@ mod tests {
         assert_eq!(S3_PACK_PROTO_DST, 9, "host outbuf slot stays live");
     }
 
+    /// S3.351: thin-wrapper scaffolding sheep reject. S3.348–350 moved body_of /
+    /// fixed_payload / sim_prog_loop to cfg(test) — **0** IR delta (ASM 22 / host
+    /// 171). Further one-liner collapses (tmpl_row / fixed_row alias / …) stay
+    /// below the ≥10 bar; next wins need A1 / OnceLock / asm22 / 真自举 arch.
+    #[test]
+    fn s3_thin_wrapper_sheep_reject() {
+        assert_eq!(S3_EXPAND_ASM_PIN, 22, "wrapper purge did not touch assembler");
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            171,
+            "wrapper purge did not touch host IR"
+        );
+        assert_eq!(s3_bootstrap_expand_asm().len(), 2);
+        assert_eq!(s3_in_dll_lea_prologue_recs().len(), 13);
+        // Remaining production one-liners are load-bearing (OnceLock index,
+        // tmpl row layout, poke windows) — not free −1 sheep.
+        assert_eq!(s3_fixed_row(0xFF), vec![0xC3]);
+        assert_eq!(
+            s3_host_tmpl_row(0xFF, &[0xC3])[0..2],
+            [0xFF, 1]
+        );
+        assert!(
+            0 < 10,
+            "documented: further wrapper-only saves are 0 IR < 10 bar"
+        );
+        assert_eq!(
+            parse_tyb(&s3_expand_many_flat_tyb().0)
+                .unwrap()
+                .records
+                .len(),
+            S3_EXPAND_ASM_PIN
+        );
+    }
+
     /// S3.350: `s3_sim_prog_loop` is cfg(test); pub try_emit calls cursor with
     /// default slot9=outbuf / slot12=RECORD_SIZE (≡ old wrapper).
     #[test]
@@ -5758,9 +5795,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–350: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–351: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock, bootstrap+hardcoded expand,
-    /// host poke seed + prog-loop + cursor sim. S3.347–350: inventory + wrappers test-only.
+    /// host poke seed + prog-loop + cursor sim. S3.351: thin-wrapper sheep reject.
     /// Host 171 · ASM 22. Scaffolding (pack/argc/flat/ir_seed/helpers) cfg(test).
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
