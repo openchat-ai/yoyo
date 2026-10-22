@@ -2735,6 +2735,24 @@ const S3_EXPAND_POKE_SEED: [(u8, u8, [u8; 6]); 20] = [
 /// S3.361: OUT = SEED + boot wire bytes (MEMCPY writes OUT+hdr).
 const S3_EXPAND_OUT: u32 = S3_EXPAND_SEED + (S3_BOOTSTRAP_EXPAND_ASM.len() * RECORD_SIZE) as u32;
 
+/// S3.362: production expand firmware = full TYB object-code seed (hdr|22 records).
+/// No live poke / no host_tyb_from_records on the prod expand path.
+/// Verified ≡ poke-seed+bootstrap assemble in `s3_expand_tyb_seed_pin`.
+const S3_EXPAND_TYB_SEED: &[u8] = &[
+    0x54, 0x59, 0x42, 0x00, 0x00, 0x00, 0x16, 0x00, 0x30, 0x02, 0x0e, 0x00, 0x40, 0x00, 0x00, 0x00,
+    0x30, 0x02, 0x0b, 0x00, 0x84, 0x00, 0x00, 0x00, 0x81, 0x03, 0x0b, 0x00, 0x0e, 0x00, 0x00, 0x00,
+    0x30, 0x02, 0x0b, 0x00, 0x03, 0x00, 0x00, 0x00, 0x81, 0x03, 0x0b, 0x00, 0x0e, 0x00, 0x01, 0x00,
+    0x30, 0x02, 0x0b, 0x00, 0x09, 0x00, 0x00, 0x00, 0x81, 0x03, 0x0b, 0x00, 0x0e, 0x00, 0x02, 0x00,
+    0x30, 0x02, 0x0b, 0x00, 0x02, 0x00, 0x00, 0x00, 0x81, 0x03, 0x0b, 0x00, 0x0e, 0x00, 0x04, 0x00,
+    0x81, 0x03, 0x0b, 0x00, 0x0e, 0x00, 0x16, 0x00, 0x30, 0x02, 0x0b, 0x00, 0x0c, 0x00, 0x00, 0x00,
+    0x81, 0x03, 0x0b, 0x00, 0x0e, 0x00, 0x06, 0x00, 0x30, 0x02, 0x0b, 0x00, 0xff, 0x00, 0x00, 0x00,
+    0x81, 0x03, 0x0b, 0x00, 0x0e, 0x00, 0x08, 0x00, 0x30, 0x02, 0x0b, 0x00, 0x54, 0x00, 0x00, 0x00,
+    0x81, 0x03, 0x0b, 0x00, 0x0e, 0x00, 0x10, 0x00, 0x30, 0x02, 0x0b, 0x00, 0x59, 0x00, 0x00, 0x00,
+    0x81, 0x03, 0x0b, 0x00, 0x0e, 0x00, 0x11, 0x00, 0x30, 0x02, 0x0b, 0x00, 0x42, 0x00, 0x00, 0x00,
+    0x81, 0x03, 0x0b, 0x00, 0x0e, 0x00, 0x12, 0x00, 0x84, 0x03, 0x09, 0x00, 0x02, 0x00, 0x0c, 0x00,
+    0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+
 /// S3.355/S3.361: shared expand assemble — live poke `job_recs` wire|hdr at SEED.
 /// Layout: records | hdr；OUT = SEED+nrecs×8（MEMCPY 写 OUT+hdr）。
 /// Production path uses [`S3_EXPAND_POKE_SEED`]; this stays for generic/test.
@@ -2773,14 +2791,16 @@ fn s3_yoyo_expand_flat_tyb(flat: &[u8]) -> (Vec<u8>, u32) {
     s3_expand_job_recs_tyb(&job_recs)
 }
 
-/// S3.341/S3.343/S3.344/S3.353/S3.354/S3.355/S3.356/S3.361: production expand —
-/// poke shell = const seed; body = bootstrap MEMCPY+RET. No live zero_then_poke.
+/// S3.341/S3.343/S3.344/S3.353/S3.354/S3.355/S3.356/S3.361/S3.362: production expand —
+/// full TYB object-code seed. Poke-seed+bootstrap remain the record-level truth
+/// (oracle / docs); prod path does not assemble records or call host_tyb_from_records.
 pub fn s3_expand_many_flat_tyb() -> (Vec<u8>, u32) {
-    let mut recs = Vec::with_capacity(S3_EXPAND_ASM_PIN);
-    recs.extend_from_slice(&S3_EXPAND_POKE_SEED);
-    recs.extend_from_slice(&S3_BOOTSTRAP_EXPAND_ASM);
-    debug_assert_eq!(recs.len(), S3_EXPAND_ASM_PIN);
-    (s3_host_tyb_from_records(&recs), S3_EXPAND_OUT)
+    debug_assert_eq!(S3_EXPAND_TYB_SEED.len(), HEADER_SIZE + S3_EXPAND_ASM_PIN * RECORD_SIZE);
+    debug_assert_eq!(
+        S3_EXPAND_POKE_SEED.len() + S3_BOOTSTRAP_EXPAND_ASM.len(),
+        S3_EXPAND_ASM_PIN
+    );
+    (S3_EXPAND_TYB_SEED.to_vec(), S3_EXPAND_OUT)
 }
 
 /// S3.254/S3.255/S3.263/S3.267/S3.329: expand flat via YOYO sim — test proof only.
@@ -4984,10 +5004,10 @@ mod tests {
         );
     }
 
-    /// S3.358–361: 真自举能力图 — 缺的能力用自己的指令做出来（不译 emit_x86）。
+    /// S3.358–362: 真自举能力图 — 缺的能力用自己的指令做出来（不译 emit_x86）。
     /// 已会：poke/pack、TYB 发射、表合成→.text、expand=MEMCPY+RET、
-    /// body 种子(S3.359)、lea A1 种子(S3.360)、**expand poke 种子**(S3.361)。
-    /// 三缺口已关；剩余 = 宿主装载薄壳（host_tyb_from_records / OnceLock）。不挤 IR 羊粪。
+    /// body/lea/expand-poke 种子、**expand 整段 TYB 种子**(S3.362)。
+    /// 剩：host 表|prog 仍 live poke（按 ops 变长）+ OnceLock 装 body。不挤 IR 羊粪。
     #[test]
     fn s3_true_selfhost_capability_map_pin() {
         // —— 已会（自己的指令）——
@@ -5040,7 +5060,8 @@ mod tests {
         );
         let (prod, poff) = s3_expand_many_flat_tyb();
         let (live, loff) = s3_expand_job_recs_tyb(&S3_BOOTSTRAP_EXPAND_ASM);
-        assert_eq!(prod, live, "prod expand seed ≡ live poke oracle");
+        assert_eq!(prod, live, "prod expand TYB seed ≡ live poke oracle");
+        assert_eq!(prod.as_slice(), S3_EXPAND_TYB_SEED);
         assert_eq!(poff, loff);
         assert_eq!(poff, S3_EXPAND_OUT);
         assert_eq!(
@@ -5049,7 +5070,7 @@ mod tests {
                 .records
                 .len(),
             171,
-            "host floor holds after capability gaps closed"
+            "host floor: still live poke (next thin-shell target)"
         );
     }
 
@@ -5071,7 +5092,23 @@ mod tests {
         job.extend_from_slice(&hdr);
         s3_append_stb_zero_then_poke(&mut live_poke, S3_EXPAND_SEED, &job, 30);
         assert_eq!(live_poke.as_slice(), S3_EXPAND_POKE_SEED.as_slice());
-        let (prod, _) = s3_expand_many_flat_tyb();
+    }
+
+    /// S3.362: expand full TYB seed ≡ poke-seed+bootstrap via host_tyb_from_records.
+    #[test]
+    fn s3_expand_tyb_seed_pin() {
+        assert_eq!(
+            S3_EXPAND_TYB_SEED.len(),
+            HEADER_SIZE + S3_EXPAND_ASM_PIN * RECORD_SIZE
+        );
+        let mut recs = Vec::with_capacity(S3_EXPAND_ASM_PIN);
+        recs.extend_from_slice(&S3_EXPAND_POKE_SEED);
+        recs.extend_from_slice(&S3_BOOTSTRAP_EXPAND_ASM);
+        let assembled = s3_host_tyb_from_records(&recs);
+        assert_eq!(assembled.as_slice(), S3_EXPAND_TYB_SEED);
+        let (prod, off) = s3_expand_many_flat_tyb();
+        assert_eq!(prod.as_slice(), S3_EXPAND_TYB_SEED);
+        assert_eq!(off, S3_EXPAND_OUT);
         assert_eq!(parse_tyb(&prod).unwrap().records.len(), S3_EXPAND_ASM_PIN);
     }
 
@@ -6062,8 +6099,8 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–361: remaining Rust sidecar.
-    /// S3.359–361: gap1/2/3 seeds closed. Remaining = host load thin shell.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–362: remaining Rust sidecar.
+    /// S3.359–362: gaps + expand TYB seed closed. Remaining = host live poke.
     /// Host 171 · ASM 22. Scaffolding/wrappers cfg(test). Not CLOSED.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
