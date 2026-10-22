@@ -2283,6 +2283,8 @@ fn s3_host_body_of(op: u8) -> Vec<u8> {
     s3_host_body(o, argc, args)
 }
 
+/// S3.337: test-only helper.
+#[cfg(test)]
 fn s3_host_set_body() -> Vec<u8> {
     s3_host_body_of(0x30)
 }
@@ -2307,6 +2309,8 @@ const S3_FIXED10_OPS: [u8; 10] = [
     0xFF, 0x00, 0x30, 0x60, 0x66, 0x62, 0x67, 0x61, 0x64, 0x65,
 ];
 
+/// S3.337: test-only helper.
+#[cfg(test)]
 fn s3_fixed10_named_cases() -> Vec<(&'static str, Vec<(u8, u8, [u8; 6])>)> {
     const NAMES: [&str; 10] = [
         "RET", "NOP+RET", "SET+RET", "GET+RET", "INC+RET", "ADD+RET", "DEC+RET", "SUB+RET",
@@ -2349,6 +2353,8 @@ fn s3_fixed_row(op: u8) -> Vec<u8> {
     s3_fixed_bodies()[idx].clone()
 }
 
+/// S3.337: test-only helper.
+#[cfg(test)]
 fn s3_fixed_table(ops: &[u8]) -> Vec<u8> {
     let mut table = Vec::with_capacity(ops.len() * 20);
     for op in ops {
@@ -2450,6 +2456,7 @@ fn s3_rec_shape_of(op: u8) -> Option<S3RecShape> {
 }
 
 /// S3.229: op→shape table as a flat byte payload (op, shape_tag)×N — YOYO-readable.
+#[cfg(test)]
 fn s3_rec_op_shape_bytes() -> Vec<u8> {
     let mut out = Vec::with_capacity(S3_REC_OP_SHAPE.len() * 2);
     for &(op, shape) in S3_REC_OP_SHAPE {
@@ -2460,6 +2467,7 @@ fn s3_rec_op_shape_bytes() -> Vec<u8> {
 }
 
 /// S3.237: shape tag → argc. Indexed by the tag YOYO loaded (0..3).
+#[cfg(test)]
 fn s3_shape_argc_bytes() -> [u8; 4] {
     let mut argc = [0u8; 4];
     for &(_, shape) in S3_REC_OP_SHAPE {
@@ -2511,10 +2519,14 @@ const S3_SHAPE_JOB: u32 = 0x40;
 #[cfg(test)]
 const S3_SHAPE_OUT: u32 = 0x100;
 
+/// S3.337: test-only helper.
+#[cfg(test)]
 fn s3_seed_argc_bytes() -> Vec<u8> {
     S3_SEED_ARGC_BYTES.to_vec()
 }
 
+/// S3.337: test-only helper.
+#[cfg(test)]
 fn s3_seed_argc_flat() -> Vec<(u8, u8)> {
     let mut v: Vec<(u8, u8)> = S3_REC_OP_SHAPE
         .iter()
@@ -2790,6 +2802,8 @@ fn s3_rec_movrr(dst: u16, src: u16) -> (u8, u8, [u8; 6]) {
 fn s3_rec_je(id: u32) -> (u8, u8, [u8; 6]) {
     s3_rec_from_shape(0x71, id, 0, 0)
 }
+/// S3.337: test-only helper.
+#[cfg(test)]
 fn s3_rec_jne(id: u32) -> (u8, u8, [u8; 6]) {
     s3_rec_from_shape(0x72, id, 0, 0)
 }
@@ -4729,6 +4743,19 @@ mod tests {
         );
     }
 
+    /// S3.337: fixed_table / host_set_body / seed helpers / jne are cfg(test).
+    #[test]
+    fn s3_misc_helpers_test_only_pin() {
+        assert!(!s3_fixed_table(&[0xFF]).is_empty());
+        assert!(!s3_host_set_body().is_empty());
+        assert!(!s3_fixed10_named_cases().is_empty());
+        assert_eq!(s3_shape_argc_bytes().len(), 4);
+        assert_eq!(s3_seed_argc_bytes().len(), 256);
+        assert!(!s3_seed_argc_flat().is_empty());
+        assert!(!s3_rec_op_shape_bytes().is_empty());
+        let _ = s3_rec_jne(1);
+    }
+
     /// S3.336: alt pack TYB (proto/stb/memcpy-loop) cfg(test); loop_stb via_ir stays.
     #[test]
     fn s3_alt_pack_tyb_test_only_pin() {
@@ -5399,9 +5426,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–336: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–337: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor),
-    /// sole bootstrap MEMCPY+RET (=2; alt pack TYB cfg(test)). Host 171.
+    /// sole bootstrap MEMCPY+RET (=2; more test-only helpers gated). Host 171.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
