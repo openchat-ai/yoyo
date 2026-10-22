@@ -2706,8 +2706,38 @@ const S3_EXPAND_SENTINEL: u8 = 0;
 /// S3.275/S3.322: assembler body rows = ctrl only (INIT empty since S3.297).
 
 
-/// S3.355: shared expand assemble — poke `job_recs` wire|hdr at SEED, append bootstrap.
+/// S3.361: production expand poke shell = own-ISA SET/STB record seed.
+/// Live [`s3_append_stb_zero_then_poke`] stays as cfg(test)/generic oracle.
+/// Blob = boot wire (2×8) | hdr(8) at SEED=0x40 → 20 poke rows (global-distinct).
+const S3_EXPAND_POKE_SEED: [(u8, u8, [u8; 6]); 20] = [
+    (0x30, 2, [14, 0, 64, 0, 0, 0]),  // SET BASE=SEED
+    (0x30, 2, [11, 0, 132, 0, 0, 0]), // SET TMP=0x84 (MEMCPY)
+    (0x81, 3, [11, 0, 14, 0, 0, 0]),
+    (0x30, 2, [11, 0, 3, 0, 0, 0]),
+    (0x81, 3, [11, 0, 14, 0, 1, 0]),
+    (0x30, 2, [11, 0, 9, 0, 0, 0]),
+    (0x81, 3, [11, 0, 14, 0, 2, 0]),
+    (0x30, 2, [11, 0, 2, 0, 0, 0]),
+    (0x81, 3, [11, 0, 14, 0, 4, 0]),
+    (0x81, 3, [11, 0, 14, 0, 22, 0]),
+    (0x30, 2, [11, 0, 12, 0, 0, 0]),
+    (0x81, 3, [11, 0, 14, 0, 6, 0]),
+    (0x30, 2, [11, 0, 255, 0, 0, 0]), // SET TMP=0xFF (RET)
+    (0x81, 3, [11, 0, 14, 0, 8, 0]),
+    (0x30, 2, [11, 0, 84, 0, 0, 0]),  // TYB magic 'T'
+    (0x81, 3, [11, 0, 14, 0, 16, 0]),
+    (0x30, 2, [11, 0, 89, 0, 0, 0]),  // 'Y'
+    (0x81, 3, [11, 0, 14, 0, 17, 0]),
+    (0x30, 2, [11, 0, 66, 0, 0, 0]),  // 'B'
+    (0x81, 3, [11, 0, 14, 0, 18, 0]),
+];
+
+/// S3.361: OUT = SEED + boot wire bytes (MEMCPY writes OUT+hdr).
+const S3_EXPAND_OUT: u32 = S3_EXPAND_SEED + (S3_BOOTSTRAP_EXPAND_ASM.len() * RECORD_SIZE) as u32;
+
+/// S3.355/S3.361: shared expand assemble — live poke `job_recs` wire|hdr at SEED.
 /// Layout: records | hdr；OUT = SEED+nrecs×8（MEMCPY 写 OUT+hdr）。
+/// Production path uses [`S3_EXPAND_POKE_SEED`]; this stays for generic/test.
 fn s3_expand_job_recs_tyb(job_recs: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
     assert!(!job_recs.is_empty());
     let nrecs = job_recs.len();
@@ -2743,9 +2773,14 @@ fn s3_yoyo_expand_flat_tyb(flat: &[u8]) -> (Vec<u8>, u32) {
     s3_expand_job_recs_tyb(&job_recs)
 }
 
-/// S3.341/S3.343/S3.344/S3.353/S3.354/S3.355/S3.356: production expand — job≡bootstrap.
+/// S3.341/S3.343/S3.344/S3.353/S3.354/S3.355/S3.356/S3.361: production expand —
+/// poke shell = const seed; body = bootstrap MEMCPY+RET. No live zero_then_poke.
 pub fn s3_expand_many_flat_tyb() -> (Vec<u8>, u32) {
-    s3_expand_job_recs_tyb(&S3_BOOTSTRAP_EXPAND_ASM)
+    let mut recs = Vec::with_capacity(S3_EXPAND_ASM_PIN);
+    recs.extend_from_slice(&S3_EXPAND_POKE_SEED);
+    recs.extend_from_slice(&S3_BOOTSTRAP_EXPAND_ASM);
+    debug_assert_eq!(recs.len(), S3_EXPAND_ASM_PIN);
+    (s3_host_tyb_from_records(&recs), S3_EXPAND_OUT)
 }
 
 /// S3.254/S3.255/S3.263/S3.267/S3.329: expand flat via YOYO sim — test proof only.
@@ -4949,10 +4984,10 @@ mod tests {
         );
     }
 
-    /// S3.358–360: 真自举能力图 — 缺的能力用自己的指令做出来（不译 emit_x86）。
+    /// S3.358–361: 真自举能力图 — 缺的能力用自己的指令做出来（不译 emit_x86）。
     /// 已会：poke/pack、TYB 发射、表合成→.text、expand=MEMCPY+RET、
-    /// body 种子(S3.359)、**lea A1 种子**(S3.360；A1=自有 RAW_BYTES)。仍缺：
-    /// (3) expand 外壳=Rust 组 poke。不挤 IR 羊粪。
+    /// body 种子(S3.359)、lea A1 种子(S3.360)、**expand poke 种子**(S3.361)。
+    /// 三缺口已关；剩余 = 宿主装载薄壳（host_tyb_from_records / OnceLock）。不挤 IR 羊粪。
     #[test]
     fn s3_true_selfhost_capability_map_pin() {
         // —— 已会（自己的指令）——
@@ -4982,7 +5017,7 @@ mod tests {
             [s3_rec_memcpy(9, 2, 12), s3_fixed_rec(0xFF)],
             "expand body = own MEMCPY+RET"
         );
-        // —— 仍缺（能力种子，不是翻译器）——
+        // —— 三缺口关闭（能力种子，不是翻译器）——
         assert_eq!(
             s3_fixed_row(0x30),
             S3_FIXED10_BODY_SEED[2],
@@ -4999,21 +5034,45 @@ mod tests {
             "gap2 closed: lea→.text = A1 record seed (own RAW_BYTES)"
         );
         assert_eq!(
-            parse_tyb(&s3_expand_many_flat_tyb().0)
-                .unwrap()
-                .records
-                .len(),
+            S3_EXPAND_POKE_SEED.len() + S3_BOOTSTRAP_EXPAND_ASM.len(),
             S3_EXPAND_ASM_PIN,
-            "gap3: expand outer assembler still Rust poke shell (22)"
+            "gap3 closed: expand poke shell = own-ISA SET/STB seed"
         );
+        let (prod, poff) = s3_expand_many_flat_tyb();
+        let (live, loff) = s3_expand_job_recs_tyb(&S3_BOOTSTRAP_EXPAND_ASM);
+        assert_eq!(prod, live, "prod expand seed ≡ live poke oracle");
+        assert_eq!(poff, loff);
+        assert_eq!(poff, S3_EXPAND_OUT);
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
                 .unwrap()
                 .records
                 .len(),
             171,
-            "host floor holds while capability gaps remain"
+            "host floor holds after capability gaps closed"
         );
+    }
+
+    /// S3.361: expand poke seed ≡ live zero_then_poke(boot wire|hdr).
+    #[test]
+    fn s3_expand_poke_seed_pin() {
+        assert_eq!(S3_EXPAND_POKE_SEED.len(), 20);
+        assert_eq!(S3_EXPAND_OUT, 0x50);
+        let mut live_poke = Vec::new();
+        let mut job = Vec::new();
+        for &(op, argc, args) in &S3_BOOTSTRAP_EXPAND_ASM {
+            job.push(op);
+            job.push(argc);
+            job.extend_from_slice(&args);
+        }
+        let mut hdr = [0u8; HEADER_SIZE];
+        hdr[..4].copy_from_slice(&TYB_MAGIC);
+        hdr[6..8].copy_from_slice(&(S3_BOOTSTRAP_EXPAND_ASM.len() as u16).to_le_bytes());
+        job.extend_from_slice(&hdr);
+        s3_append_stb_zero_then_poke(&mut live_poke, S3_EXPAND_SEED, &job, 30);
+        assert_eq!(live_poke.as_slice(), S3_EXPAND_POKE_SEED.as_slice());
+        let (prod, _) = s3_expand_many_flat_tyb();
+        assert_eq!(parse_tyb(&prod).unwrap().records.len(), S3_EXPAND_ASM_PIN);
     }
 
     /// S3.352: post-scaffolding cliff map — all hard floors in one pin after
@@ -6003,8 +6062,8 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–360: remaining Rust sidecar.
-    /// S3.359–360: gap1 body seed + gap2 lea A1 seed. Still: expand 外壳=Rust poke.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–361: remaining Rust sidecar.
+    /// S3.359–361: gap1/2/3 seeds closed. Remaining = host load thin shell.
     /// Host 171 · ASM 22. Scaffolding/wrappers cfg(test). Not CLOSED.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
