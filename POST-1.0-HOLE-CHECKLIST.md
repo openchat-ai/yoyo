@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.327**（326 去 ONE_FLAT/many_ctrl；ONE≡MANY rows；**不**假 CLOSED）。
+**默认** 继续 **= S3.328**（327 去 fill_ctrl/ONE_ROWS；生产直 bootstrap；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -170,7 +170,8 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.324** ✅       | c3d4848   | 去掉 EXPAND_CTRL_* 别名；MANY_FLAT 即 expand body        |
 | **S3.325** ✅       | `b1d2a91`   | fill_one 具名 MEMCPY；many_ctrl→ctrl；via_yoyo 仅测试 |
 | **S3.326** ✅       | `9bd5c67`   | 去 ONE_FLAT/many_ctrl；ONE_ROWS≡MANY_ROWS               |
-| **S3.327** ⏳       | —           | 继续缩 bootstrap / A1 / 真自举近端 · **本步**            |
+| **S3.327** ✅       | ǫ99c4\   | 去 fill_ctrl/ONE_ROWS；生产直 extend bootstrap          |
+| **S3.328** ⏳       | —           | 继续缩 bootstrap / A1 / 真自举近端 · **本步**            |
 
 
 
@@ -218,4 +219,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-22**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 171 · 默认 **S3.327** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-22**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 171 · 默认 **S3.328** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
