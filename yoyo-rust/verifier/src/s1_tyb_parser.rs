@@ -3028,44 +3028,47 @@ fn s3_prog_loop_code(ops_len: u32, nrows: u32) -> Vec<(u8, u8, [u8; 6])> {
     ]
 }
 
-/// S3.214: host prog loop — drop redundant `SET i=0` (fresh state) and
-/// reset the scan index with MOVRR from an untouched zero slot.
-/// S3.331: this is the sole production prog-loop body (in-DLL golden is cfg(test)).
+/// S3.214/S3.331/S3.363: host prog-loop body = own-ISA record seed.
+/// Only live patch: SET slot1 = `ops_len`. `nrows` frozen at [`S3_HOST_NROWS`].
+/// Seed baked at ops_len=1; verified in `s3_host_prog_loop_seed_pin`.
+const S3_HOST_PROG_LOOP_SEED: [(u8, u8, [u8; 6]); 29] = [
+    (0x30, 2, [1, 0, 1, 0, 0, 0]), // SET slot1=ops_len (patched live)
+    (0x40, 1, [5, 0, 0, 0, 0, 0]),
+    (0x65, 2, [0, 0, 1, 0, 0, 0]),
+    (0x74, 1, [6, 0, 0, 0, 0, 0]),
+    (0x80, 3, [14, 0, 2, 0, 0, 0]),
+    (0x64, 2, [15, 0, 3, 0, 0, 0]),
+    (0x64, 2, [11, 0, 4, 0, 0, 0]),
+    (0x30, 2, [10, 0, 10, 0, 0, 0]), // SET slot10=NROWS
+    (0x40, 1, [1, 0, 0, 0, 0, 0]),
+    (0x80, 3, [13, 0, 15, 0, 0, 0]),
+    (0x65, 2, [13, 0, 14, 0, 0, 0]),
+    (0x71, 1, [2, 0, 0, 0, 0, 0]),
+    (0x62, 2, [15, 0, 20, 0, 0, 0]),
+    (0x62, 2, [11, 0, 1, 0, 0, 0]),
+    (0x65, 2, [11, 0, 10, 0, 0, 0]),
+    (0x73, 1, [1, 0, 0, 0, 0, 0]),
+    (0x30, 2, [12, 0, 254, 0, 0, 0]),
+    (0xff, 0, [0, 0, 0, 0, 0, 0]),
+    (0x40, 1, [2, 0, 0, 0, 0, 0]),
+    (0x80, 3, [12, 0, 15, 0, 1, 0]),
+    (0x64, 2, [8, 0, 15, 0, 0, 0]),
+    (0x62, 2, [8, 0, 4, 0, 0, 0]),
+    (0x84, 3, [9, 0, 8, 0, 12, 0]),
+    (0x68, 2, [9, 0, 12, 0, 0, 0]),
+    (0x62, 2, [2, 0, 1, 0, 0, 0]),
+    (0x62, 2, [0, 0, 1, 0, 0, 0]),
+    (0x70, 1, [5, 0, 0, 0, 0, 0]),
+    (0x40, 1, [6, 0, 0, 0, 0, 0]),
+    (0xff, 0, [0, 0, 0, 0, 0, 0]),
+];
+
+/// S3.214/S3.331/S3.363: sole production prog-loop — seed + patch ops_len.
 fn s3_prog_loop_code_host(ops_len: u32, nrows: u32) -> Vec<(u8, u8, [u8; 6])> {
-    let set = s3_rec_set;
-    let add = s3_rec_add;
-    const ZERO_SLOT: u16 = 4;
-    vec![
-        set(1, ops_len),
-        s3_rec_label(5),
-        s3_rec_cmp(0, 1),
-        s3_rec_jz(6),
-        s3_rec_ldb(14, 2, 0),
-        s3_rec_movrr(15, 3),
-        s3_rec_movrr(11, ZERO_SLOT),
-        set(10, nrows),
-        s3_rec_label(1),
-        s3_rec_ldb(13, 15, 0),
-        s3_rec_cmp(13, 14),
-        s3_rec_je(2),
-        add(15, 20),
-        add(11, 1),
-        s3_rec_cmp(11, 10),
-        s3_rec_jl(1),
-        set(12, 0xFE),
-        s3_fixed_rec(0xFF),
-        s3_rec_label(2),
-        s3_rec_ldb(12, 15, 1),
-        s3_rec_movrr(8, 15),
-        add(8, 4),
-        s3_rec_memcpy(9, 8, 12),
-        s3_rec_addv(9, 12),
-        add(2, 1),
-        add(0, 1),
-        s3_rec_jmp(5),
-        s3_rec_label(6),
-        s3_fixed_rec(0xFF),
-    ]
+    assert_eq!(nrows, S3_HOST_NROWS, "host prog-loop seed freezes nrows");
+    let mut recs = S3_HOST_PROG_LOOP_SEED.to_vec();
+    recs[0] = s3_rec_set(1, ops_len);
+    recs
 }
 
 /// S3.116/S3.350: default-seed prog-loop sim — test/proof helper.
@@ -5004,10 +5007,10 @@ mod tests {
         );
     }
 
-    /// S3.358–362: 真自举能力图 — 缺的能力用自己的指令做出来（不译 emit_x86）。
+    /// S3.358–363: 真自举能力图 — 缺的能力用自己的指令做出来（不译 emit_x86）。
     /// 已会：poke/pack、TYB 发射、表合成→.text、expand=MEMCPY+RET、
-    /// body/lea/expand-poke 种子、**expand 整段 TYB 种子**(S3.362)。
-    /// 剩：host 表|prog 仍 live poke（按 ops 变长）+ OnceLock 装 body。不挤 IR 羊粪。
+    /// body/lea/expand 种子、**host prog-loop 种子**(S3.363；仅补丁 ops_len)。
+    /// 剩：host 表|prog live poke（141@RET）+ OnceLock 装 body。不挤 IR 羊粪。
     #[test]
     fn s3_true_selfhost_capability_map_pin() {
         // —— 已会（自己的指令）——
@@ -5065,13 +5068,36 @@ mod tests {
         assert_eq!(poff, loff);
         assert_eq!(poff, S3_EXPAND_OUT);
         assert_eq!(
+            S3_HOST_PROG_LOOP_SEED.len(),
+            29,
+            "host prog-loop = own-ISA seed (ops_len patched)"
+        );
+        assert_eq!(
+            s3_prog_loop_code_host(1, S3_HOST_NROWS).as_slice(),
+            S3_HOST_PROG_LOOP_SEED.as_slice()
+        );
+        assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
                 .unwrap()
                 .records
                 .len(),
             171,
-            "host floor: still live poke (next thin-shell target)"
+            "host floor: poke shell still live (141@RET + SET DST + loop29)"
         );
+    }
+
+    /// S3.363: host prog-loop seed ≡ live builder for ops_len∈1..=8; nrows frozen.
+    #[test]
+    fn s3_host_prog_loop_seed_pin() {
+        assert_eq!(S3_HOST_PROG_LOOP_SEED.len(), 29);
+        assert_eq!(S3_HOST_PROG_LOOP_SEED[0], s3_rec_set(1, 1));
+        assert_eq!(S3_HOST_PROG_LOOP_SEED[7], s3_rec_set(10, S3_HOST_NROWS));
+        for n in 1u32..=8 {
+            let got = s3_prog_loop_code_host(n, S3_HOST_NROWS);
+            assert_eq!(got.len(), 29);
+            assert_eq!(got[0], s3_rec_set(1, n));
+            assert_eq!(&got[1..], &S3_HOST_PROG_LOOP_SEED[1..]);
+        }
     }
 
     /// S3.361: expand poke seed ≡ live zero_then_poke(boot wire|hdr).
@@ -6099,8 +6125,8 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–362: remaining Rust sidecar.
-    /// S3.359–362: gaps + expand TYB seed closed. Remaining = host live poke.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–363: remaining Rust sidecar.
+    /// S3.359–363: gaps + expand TYB + host prog-loop seed. Remaining = host poke.
     /// Host 171 · ASM 22. Scaffolding/wrappers cfg(test). Not CLOSED.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
