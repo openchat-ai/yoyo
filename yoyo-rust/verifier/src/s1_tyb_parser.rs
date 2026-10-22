@@ -2463,33 +2463,46 @@ fn s3_ir_seed_at(
     s3_append_stb_zero_then_poke(recs, base, bytes, label_id)
 }
 
+/// S3.364: fixed10 host table = own object-code seed (10×20B tmpl rows).
+/// Bodies come from [`S3_FIXED10_BODY_SEED`]; prod host no longer live-composes
+/// via OnceLock for every emit. Verified in `s3_host_table_seed_pin`.
+const S3_HOST_TABLE_SEED: [u8; 200] = [
+    0xff, 0x01, 0x00, 0x00, 0xc3, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x90, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x30, 0x0e, 0x00, 0x00, 0x48, 0xb8, 0xef, 0xbe,
+    0xad, 0xde, 0x00, 0x00, 0x00, 0x00, 0x49, 0x89, 0x47, 0x00, 0x00, 0x00, 0x60, 0x08, 0x00, 0x00,
+    0x49, 0x8b, 0x47, 0x08, 0x49, 0x89, 0x47, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x66, 0x0b, 0x00, 0x00, 0x49, 0x8b, 0x47, 0x00, 0x48, 0xff, 0xc0, 0x49, 0x89, 0x47, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x62, 0x0f, 0x00, 0x00, 0x49, 0x8b, 0x47, 0x00, 0x48, 0x81, 0xc0, 0x05,
+    0x00, 0x00, 0x00, 0x49, 0x89, 0x47, 0x00, 0x00, 0x67, 0x0b, 0x00, 0x00, 0x49, 0x8b, 0x47, 0x00,
+    0x48, 0xff, 0xc8, 0x49, 0x89, 0x47, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x61, 0x0f, 0x00, 0x00,
+    0x49, 0x8b, 0x47, 0x00, 0x48, 0x81, 0xe8, 0x05, 0x00, 0x00, 0x00, 0x49, 0x89, 0x47, 0x00, 0x00,
+    0x64, 0x08, 0x00, 0x00, 0x49, 0x8b, 0x47, 0x00, 0x49, 0x89, 0x47, 0x08, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x65, 0x0b, 0x00, 0x00, 0x49, 0x8b, 0x47, 0x00, 0x49, 0x8b, 0x4f, 0x08,
+    0x48, 0x39, 0xc8, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+
 /// Build program-loop firmware TYB for `ops`.
+/// S3.364: table = [`S3_HOST_TABLE_SEED`]; only prog suffix + poke stay live.
 fn s3_host_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
-    // S3.349: inline fixed10 payload (s3_fixed_payload is cfg(test)).
-    let owned: Vec<(u8, Vec<u8>)> = S3_FIXED10_OPS
-        .iter()
-        .map(|op| (*op, s3_fixed_row(*op)))
-        .collect();
-    let rows: Vec<(u8, &[u8])> = owned.iter().map(|(op, b)| (*op, b.as_slice())).collect();
-    let payload = s3_prog_data_payload(&rows, ops, S3_HOST_OUTBUF_OFF as usize);
     debug_assert_eq!(
-        S3_HOST_TABLE_OFF as usize + 10 * 20,
+        S3_HOST_TABLE_OFF as usize + S3_HOST_TABLE_SEED.len(),
         S3_HOST_PROG_OFF as usize
     );
+    let mut slice = Vec::with_capacity(S3_HOST_TABLE_SEED.len() + 1 + ops.len());
+    slice.extend_from_slice(&S3_HOST_TABLE_SEED);
+    slice.push(ops.len() as u8);
+    slice.extend_from_slice(ops);
     assert!(
-        payload.len() <= S1_MINI_DATA_MAX,
-        "host table DATA {} > {}",
-        payload.len(),
+        S3_HOST_TABLE_OFF as usize + slice.len() <= S1_MINI_DATA_MAX,
+        "host table|prog DATA {} > {}",
+        S3_HOST_TABLE_OFF as usize + slice.len(),
         S1_MINI_DATA_MAX
     );
-    // S3.112: host sim seeds table/outbuf/op cursor and skips 0xA1.
-    // S3.207: IR-write table+prog only; [0..TABLE) stays zero. Slot 9 is the
-    // outbuf cursor — restore it after the seed so the prog loop lands right.
-    let start = S3_HOST_TABLE_OFF as usize;
-    let end = S3_HOST_PROG_OFF as usize + 1 + ops.len();
+    // S3.112/S3.207/S3.346: IR-write table+prog only; poke stays live (window
+    // spans table|prog — cannot split poke seed without changing bases).
     let mut recs = Vec::new();
-    // S3.346: production seed = poke directly (ir_seed_at alias is cfg(test)).
-    s3_append_stb_zero_then_poke(&mut recs, S3_HOST_TABLE_OFF, &payload[start..end], 10);
+    s3_append_stb_zero_then_poke(&mut recs, S3_HOST_TABLE_OFF, &slice, 10);
     recs.push(s3_rec_set(S3_PACK_PROTO_DST, S3_HOST_OUTBUF_OFF));
     recs.extend(s3_prog_loop_code_host(ops.len() as u32, S3_HOST_NROWS));
     s3_host_tyb_from_records(&recs)
@@ -5007,10 +5020,10 @@ mod tests {
         );
     }
 
-    /// S3.358–363: 真自举能力图 — 缺的能力用自己的指令做出来（不译 emit_x86）。
-    /// 已会：poke/pack、TYB 发射、表合成→.text、expand=MEMCPY+RET、
-    /// body/lea/expand 种子、**host prog-loop 种子**(S3.363；仅补丁 ops_len)。
-    /// 剩：host 表|prog live poke（141@RET）+ OnceLock 装 body。不挤 IR 羊粪。
+    /// S3.358–364: 真自举能力图 — 缺的能力用自己的指令做出来（不译 emit_x86）。
+    /// 已会：poke/pack、TYB 发射、表合成→.text、expand、body/lea 种子、
+    /// host prog-loop 种子、**host 表 200B 种子**(S3.364)。
+    /// 剩：host table|prog live poke（窗口跨界）+ OnceLock 装 body。不挤 IR 羊粪。
     #[test]
     fn s3_true_selfhost_capability_map_pin() {
         // —— 已会（自己的指令）——
@@ -5077,12 +5090,17 @@ mod tests {
             S3_HOST_PROG_LOOP_SEED.as_slice()
         );
         assert_eq!(
+            S3_HOST_TABLE_SEED.len(),
+            200,
+            "host table = own object-code seed (10×20)"
+        );
+        assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
                 .unwrap()
                 .records
                 .len(),
             171,
-            "host floor: poke shell still live (141@RET + SET DST + loop29)"
+            "host floor: poke shell still live (window spans table|prog)"
         );
     }
 
@@ -5098,6 +5116,34 @@ mod tests {
             assert_eq!(got[0], s3_rec_set(1, n));
             assert_eq!(&got[1..], &S3_HOST_PROG_LOOP_SEED[1..]);
         }
+    }
+
+    /// S3.364: host table seed ≡ composed tmpl rows from body seeds.
+    #[test]
+    fn s3_host_table_seed_pin() {
+        assert_eq!(S3_HOST_TABLE_SEED.len(), 200);
+        let mut composed = Vec::with_capacity(200);
+        for &op in &S3_FIXED10_OPS {
+            composed.extend_from_slice(&s3_host_tmpl_row(op, &s3_fixed_row(op)));
+        }
+        assert_eq!(composed.as_slice(), S3_HOST_TABLE_SEED.as_slice());
+        // Prod host TYB still matches live compose+poke path for RET.
+        let owned: Vec<(u8, Vec<u8>)> = S3_FIXED10_OPS
+            .iter()
+            .map(|op| (*op, s3_fixed_row(*op)))
+            .collect();
+        let rows: Vec<(u8, &[u8])> = owned.iter().map(|(op, b)| (*op, b.as_slice())).collect();
+        let payload = s3_prog_data_payload(&rows, &[0xFF], S3_HOST_OUTBUF_OFF as usize);
+        let start = S3_HOST_TABLE_OFF as usize;
+        let end = S3_HOST_PROG_OFF as usize + 2;
+        let mut live = Vec::new();
+        s3_append_stb_zero_then_poke(&mut live, S3_HOST_TABLE_OFF, &payload[start..end], 10);
+        live.push(s3_rec_set(S3_PACK_PROTO_DST, S3_HOST_OUTBUF_OFF));
+        live.extend(s3_prog_loop_code_host(1, S3_HOST_NROWS));
+        assert_eq!(
+            s3_host_prog_loop_tyb(&[0xFF]),
+            s3_host_tyb_from_records(&live)
+        );
     }
 
     /// S3.361: expand poke seed ≡ live zero_then_poke(boot wire|hdr).
@@ -6125,8 +6171,8 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–363: remaining Rust sidecar.
-    /// S3.359–363: gaps + expand TYB + host prog-loop seed. Remaining = host poke.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–364: remaining Rust sidecar.
+    /// S3.359–364: gaps + expand/host-loop/table seeds. Remaining = host poke.
     /// Host 171 · ASM 22. Scaffolding/wrappers cfg(test). Not CLOSED.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
