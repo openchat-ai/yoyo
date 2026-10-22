@@ -2308,6 +2308,8 @@ fn s3_fixed_rec(op: u8) -> (u8, u8, [u8; 6]) {
     }
 }
 
+/// S3.348: strip-RET body helper — test pin; production bakes via OnceLock.
+#[cfg(test)]
 fn s3_host_body_of(op: u8) -> Vec<u8> {
     let (o, argc, args) = s3_fixed_rec(op);
     s3_host_body(o, argc, args)
@@ -2316,7 +2318,7 @@ fn s3_host_body_of(op: u8) -> Vec<u8> {
 /// S3.337: test-only helper.
 #[cfg(test)]
 fn s3_host_set_body() -> Vec<u8> {
-    s3_host_body_of(0x30)
+    s3_fixed_row(0x30)
 }
 /// S3.123/S3.345: RET body helper — test pin; production bakes via OnceLock path.
 #[cfg(test)]
@@ -2354,8 +2356,8 @@ fn s3_fixed10_named_cases() -> Vec<(&'static str, Vec<(u8, u8, [u8; 6])>)> {
         .collect()
 }
 
-/// S3.138/S3.345: one emit_x86 bake per fixed10 op; reused for every firmware build.
-/// RET/NOP special cases inlined (helpers are cfg(test) pins only).
+/// S3.138/S3.345/S3.348: one emit_x86 bake per fixed10 op; reused for every firmware build.
+/// RET/NOP/strip-RET path inlined (`s3_host_body_of` is cfg(test) only).
 fn s3_compute_fixed_body(op: u8) -> Vec<u8> {
     match op {
         0xFF => {
@@ -2369,11 +2371,15 @@ fn s3_compute_fixed_body(op: u8) -> Vec<u8> {
         }
         0x00 => {
             // NOP emit is `90 C3`; drop the trailing RET via host_body.
-            let b = s3_host_body_of(0x00);
+            let (o, argc, args) = s3_fixed_rec(0x00);
+            let b = s3_host_body(o, argc, args);
             assert_eq!(b, vec![0x90]);
             b
         }
-        o if S3_FIXED10_OPS.contains(&o) => s3_host_body_of(o),
+        o if S3_FIXED10_OPS.contains(&o) => {
+            let (op, argc, args) = s3_fixed_rec(o);
+            s3_host_body(op, argc, args)
+        }
         _ => panic!("s3_compute_fixed_body: opcode {op:#x} is outside fixed10"),
     }
 }
@@ -4826,6 +4832,32 @@ mod tests {
         assert_eq!(S3_PACK_PROTO_DST, 9, "host outbuf slot stays live");
     }
 
+    /// S3.348: `s3_host_body_of` is cfg(test); OnceLock bakes strip-RET via
+    /// `s3_fixed_rec` + `s3_host_body` inline. Helper ≡ fixed_row for fixed10.
+    #[test]
+    fn s3_host_body_of_test_only_pin() {
+        for &op in &S3_FIXED10_OPS {
+            if op == 0xFF {
+                continue; // RET is whole emit; body_of strips trailing C3
+            }
+            assert_eq!(
+                s3_host_body_of(op),
+                s3_fixed_row(op),
+                "body_of ≡ fixed_row for {op:#x}"
+            );
+        }
+        // RET: body_of would strip the only C3 — fixed_row keeps it.
+        assert_eq!(s3_fixed_row(0xFF), vec![0xC3]);
+        assert_eq!(s3_host_set_body(), s3_fixed_row(0x30));
+        assert_eq!(
+            parse_tyb(&s3_expand_many_flat_tyb().0)
+                .unwrap()
+                .records
+                .len(),
+            S3_EXPAND_ASM_PIN
+        );
+    }
+
     /// S3.347: production S3 surface after scaffolding purge (S3.325–346).
     /// Five live clusters — everything else is `#[cfg(test)]`:
     ///   host compose (payload/prog_loop/tyb) · poke seed · bootstrap+hardcoded
@@ -5650,9 +5682,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–347: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–348: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock, bootstrap+hardcoded expand,
-    /// host poke seed + prog-loop + sim. S3.347 inventory: five production clusters.
+    /// host poke seed + prog-loop + sim. S3.347–348: inventory + body_of test-only.
     /// Host 171 · ASM 22. Scaffolding (pack/argc/flat/ir_seed/helpers) cfg(test).
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
