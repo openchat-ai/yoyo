@@ -5501,9 +5501,10 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–341: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–342: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor),
     /// sole bootstrap+expand via pub entry; pack consts cfg(test). Host 171.
+    /// S3.342: host prog-loop densify reject (sheep <10; 256B index unfit).
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
@@ -5726,6 +5727,63 @@ mod tests {
     }
 
 
+
+    /// S3.342: host prog-loop densify reject. Body is 29; sheep cuts (nrows SET +
+    /// miss `SET 12=0xFE`+RET) = 3 < 10. A 256B op→row index (argc-style) needs
+    /// ≥256B free in host DATA — low pad 0x80 + tail-to-outbuf for 1-op prog is
+    /// 150 < 256 (layout cliff; raising outbuf / rewriting scan = new arch).
+    #[test]
+    fn s3_host_prog_loop_densify_reject() {
+        let loop_recs = s3_prog_loop_code_host(1, S3_HOST_NROWS);
+        assert_eq!(loop_recs.len(), 29, "host prog-loop body pin");
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            171,
+            "host total pin (seed 141 + SET out + loop 29)"
+        );
+        // Sheep inventory inside the 29: set(10,nrows), miss set(12,0xFE), miss RET.
+        let nrows_sets = loop_recs
+            .iter()
+            .filter(|r| r.0 == 0x30 && r.2[0] == 10 && r.2[1] == 0)
+            .count();
+        let miss_fe = loop_recs
+            .iter()
+            .filter(|r| r.0 == 0x30 && r.2[0] == 12 && r.2[1] == 0 && r.2[2] == 0xFE)
+            .count();
+        let rets = loop_recs.iter().filter(|r| r.0 == 0xFF).count();
+        assert_eq!(nrows_sets, 1, "one nrows SET per loop body");
+        assert_eq!(miss_fe, 1, "one miss FE marker");
+        assert_eq!(rets, 2, "miss RET + end RET");
+        let sheep = nrows_sets + miss_fe + 1; // +1 = miss RET (keep end RET)
+        assert_eq!(sheep, 3);
+        assert!(
+            sheep < 10,
+            "host loop sheep save {} < 10 bar — keep scan body",
+            sheep
+        );
+        // 256B op→row index cannot fit without layout rewrite.
+        let free_low = S3_HOST_TABLE_OFF as usize;
+        let prog_end = S3_HOST_PROG_OFF as usize + 1 + 1; // 1-op prog
+        let free_hi = (S3_HOST_OUTBUF_OFF as usize).saturating_sub(prog_end);
+        assert_eq!(free_low, 0x80);
+        assert_eq!(free_hi, 0x160 - 0x14A);
+        assert!(
+            free_low + free_hi < 256,
+            "op→row index {}B free < 256 — layout cliff",
+            free_low + free_hi
+        );
+        assert_eq!(
+            parse_tyb(&s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_MANY_FLAT).0)
+                .unwrap()
+                .records
+                .len(),
+            S3_EXPAND_ASM_PIN,
+            "expand assembler pin stays 22"
+        );
+    }
 
     /// S3.330: drop host SET out after seed is −1 (sim preloads slot9). Sheep bar —
     /// keep SET so emit_x86/raw PE host TYB still lands outbuf (not sim-only).
