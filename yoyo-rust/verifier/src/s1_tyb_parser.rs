@@ -1614,8 +1614,8 @@ fn s3_append_stb_flat_at(
     lid
 }
 
-/// S3.225/S3.226: shared empty-DATA STB emit — write `flat` at `out_off`, then RET.
-/// YOYO-target: one emit primitive; Rust still builds the run-folded IR today.
+/// S3.225/S3.226/S3.335: shared empty-DATA STB emit — test emit-TYB cluster.
+#[cfg(test)]
 fn s3_yoyo_emit_flat_via_stb(flat: &[u8], out_off: u32) -> (Vec<u8>, u32) {
     let mut recs = Vec::new();
     s3_append_stb_flat_at(&mut recs, flat, out_off, 1);
@@ -1623,7 +1623,8 @@ fn s3_yoyo_emit_flat_via_stb(flat: &[u8], out_off: u32) -> (Vec<u8>, u32) {
     (s3_host_tyb_from_records(&recs), out_off)
 }
 
-/// S3.166/S3.200/S3.225: firmware that STB-emits given records to outbuf (empty DATA).
+/// S3.166/S3.200/S3.225/S3.335: STB-emit records — test emit-TYB cluster.
+#[cfg(test)]
 fn s3_yoyo_emit_recs_tyb(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
     let out_off = 0x20u32;
     let mut flat = Vec::with_capacity(records.len() * RECORD_SIZE);
@@ -1633,7 +1634,8 @@ fn s3_yoyo_emit_recs_tyb(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
     s3_yoyo_emit_flat_via_stb(&flat, out_off)
 }
 
-/// S3.167/S3.200/S3.225: STB-emit full TYB file via run-folded wire.
+/// S3.167/S3.200/S3.225/S3.335: STB-emit full TYB unrolled — test emit-TYB cluster.
+#[cfg(test)]
 fn s3_yoyo_emit_tyb_file_unrolled(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
     assert!(records.len() <= 255, "S3.167 prototype: rec_cnt fits u8 path");
     let out_off = 0x20u32;
@@ -1647,8 +1649,8 @@ fn s3_yoyo_emit_tyb_file_unrolled(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u3
     s3_yoyo_emit_flat_via_stb(&flat, out_off)
 }
 
-/// S3.171/S3.202/S3.226: comparison path. Flat is IR-written at 0 (run-folded), then
-/// one MEMCPY to outbuf. Phase1 shares `s3_append_stb_flat_at`.
+/// S3.171/S3.202/S3.226/S3.335: loop-staged emit — test emit-TYB cluster.
+#[cfg(test)]
 fn s3_yoyo_emit_tyb_file_loop_staged(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
     let flat = s3_host_tyb_from_records(records);
     let pay = 0u32;
@@ -1763,8 +1765,8 @@ fn s3_append_stb_zero_then_poke(
     label_id
 }
 
-/// S3.181/S3.184: IR writes staging (runs, not SET per byte), then one MEMCPY
-/// to outbuf. No DATA records — STB grows the image. No Rust flat preimage.
+/// S3.181/S3.184/S3.335: two-phase emit — test emit-TYB cluster.
+#[cfg(test)]
 fn s3_yoyo_emit_tyb_file_two_phase(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
     assert!(records.len() <= 255);
     let pay = 0x10u32;
@@ -1794,9 +1796,11 @@ fn s3_yoyo_emit_tyb_file_two_phase(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u
     (s3_host_tyb_from_records(&recs), out_off)
 }
 
-/// S3.177/S3.181: small → unrolled; large → two-phase (IR staging, zero DATA image).
+/// S3.177/S3.181/S3.335: emit picker — test emit-TYB cluster.
+#[cfg(test)]
 const S3_EMIT_UNROLL_MAX_FLAT: usize = 64;
 
+#[cfg(test)]
 fn s3_yoyo_emit_tyb_file(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
     let flat_len = HEADER_SIZE + records.len() * RECORD_SIZE;
     if flat_len <= S3_EMIT_UNROLL_MAX_FLAT {
@@ -1829,6 +1833,8 @@ fn s3_unpack_data(recs: &[(u8, u8, [u8; 6])]) -> Vec<u8> {
     out
 }
 
+/// S3.335: unpack DATA op 0x10 from TYB — test empty-DATA pins.
+#[cfg(test)]
 fn s3_unpack_data_tyb(tyb: &[u8]) -> Vec<u8> {
     let prog = parse_tyb(tyb).expect("unpack tyb");
     let mut out = Vec::new();
@@ -4719,6 +4725,19 @@ mod tests {
         );
     }
 
+    /// S3.335: emit-TYB file cluster + unpack_data_tyb are cfg(test).
+    #[test]
+    fn s3_emit_tyb_cluster_test_only_pin() {
+        let body = [s3_fixed_rec(0xFF)];
+        let (fw, off) = s3_yoyo_emit_tyb_file(&body);
+        assert!(s3_unpack_data_tyb(&fw).is_empty());
+        assert_eq!(s3_sim_prog_loop(&fw, 0, off, 0).unwrap(), s3_host_tyb_from_records(&body));
+        let (u, _) = s3_yoyo_emit_tyb_file_unrolled(&body);
+        let (l, _) = s3_yoyo_emit_tyb_file_loop_staged(&body);
+        assert!(s3_unpack_data_tyb(&u).is_empty());
+        assert!(s3_unpack_data_tyb(&l).is_empty());
+    }
+
     /// S3.334: reference Rust pack_data cluster is cfg(test); via_ir is IR pack path.
     #[test]
     fn s3_reference_pack_data_test_only_pin() {
@@ -5363,9 +5382,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–334: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–335: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor),
-    /// sole bootstrap MEMCPY+RET (=2; reference pack_data cfg(test)). Host 171.
+    /// sole bootstrap MEMCPY+RET (=2; emit-TYB cluster cfg(test)). Host 171.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
