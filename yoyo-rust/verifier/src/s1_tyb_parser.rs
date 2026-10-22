@@ -2657,15 +2657,6 @@ fn s3_yoyo_shape_fill_one() -> Vec<(u8, u8, [u8; 6])> {
     vec![s3_rec_memcpy(9, 2, 12)]
 }
 
-/// S3.326: one flat ≡ many flat (MEMCPY+RET); rows shared.
-const S3_SHAPE_FILL_ONE_ROWS: usize = S3_SHAPE_FILL_MANY_ROWS;
-
-/// S3.246/S3.255/S3.321: one-job ctrl = sole bootstrap (MEMCPY+RET).
-/// via_yoyo ≡ bootstrap (pinned in tests); production no longer re-expands.
-fn s3_yoyo_shape_fill_ctrl() -> Vec<(u8, u8, [u8; 6])> {
-    s3_bootstrap_expand_asm()
-}
-
 /// S3.304: many out past wire-job blob (no 256B argc table in-stream).
 const S3_SHAPE_MANY_OUT: u32 = 0x300;
 
@@ -2691,7 +2682,7 @@ fn s3_yoyo_shape_fill_many_tyb(jobs: &[(u8, [u8; 6])]) -> (Vec<u8>, u32) {
     let blob = s3_shape_wire_job_blob(jobs, true);
     let mut recs = Vec::new();
     s3_ir_seed_at(&mut recs, S3_SHAPE_JOB, &blob, 21);
-    recs.extend(s3_yoyo_shape_fill_ctrl());
+    recs.extend(s3_bootstrap_expand_asm());
     (s3_host_tyb_from_records(&recs), S3_SHAPE_MANY_OUT)
 }
 
@@ -2709,7 +2700,7 @@ fn s3_yoyo_shape_fill_tyb(op: u8, args: [u8; 6]) -> (Vec<u8>, u32) {
     let job = s3_shape_wire_job_blob(&[(op, args)], false);
     let mut recs = Vec::new();
     s3_ir_seed_at(&mut recs, S3_SHAPE_JOB, &job, 21);
-    recs.extend(s3_yoyo_shape_fill_ctrl());
+    recs.extend(s3_bootstrap_expand_asm());
     (s3_host_tyb_from_records(&recs), S3_SHAPE_OUT)
 }
 
@@ -4693,10 +4684,9 @@ mod tests {
         assert_eq!(s3_fixed_row(0xFF), s3_compute_fixed_body(0xFF));
     }
 
-    /// S3.321: shape-fill ctrl ≡ bootstrap; via_yoyo stays test-only proof.
+    /// S3.321/S3.327: via_yoyo of MANY_FLAT ≡ bootstrap (proof; production uses named).
     #[test]
     fn s3_shape_fill_ctrl_shares_bootstrap_pin() {
-        assert_eq!(s3_yoyo_shape_fill_ctrl(), s3_bootstrap_expand_asm());
         assert_eq!(
             s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_MANY_FLAT),
             s3_bootstrap_expand_asm(),
@@ -4716,15 +4706,23 @@ mod tests {
         );
     }
 
-    /// S3.326: no ONE_FLAT / many_ctrl — MANY_FLAT + shape_fill_ctrl are the names.
+    /// S3.327: fill ctrl gone — production extends bootstrap; ONE_ROWS gone.
     #[test]
-    fn s3_one_flat_alias_gone_pin() {
-        assert_eq!(S3_SHAPE_FILL_ONE_ROWS, S3_SHAPE_FILL_MANY_ROWS);
-        assert_eq!(s3_yoyo_shape_fill_ctrl(), s3_bootstrap_expand_asm());
+    fn s3_fill_ctrl_is_bootstrap_pin() {
+        assert_eq!(S3_EXPAND_ASM_ROWS, S3_SHAPE_FILL_MANY_ROWS);
+        assert_eq!(
+            s3_bootstrap_expand_asm(),
+            s3_recs_from_flat_seed(S3_SHAPE_FILL_MANY_FLAT)
+        );
         assert_eq!(
             s3_yoyo_shape_fill_one(),
             vec![s3_rec_memcpy(9, 2, 12)],
             "one remains MEMCPY-only named"
+        );
+        assert_eq!(
+            s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_MANY_FLAT),
+            s3_bootstrap_expand_asm(),
+            "via_yoyo still ≡ bootstrap (proof retained)"
         );
     }
 
@@ -4916,7 +4914,7 @@ mod tests {
             assert_eq!(needle_sets, 0, "op {op:#x} needle is a load");
             assert_eq!(byte_sets, 0, "op {op:#x} wire bytes are loads");
             // S3.304: one-ctrl is MEMCPY+RET (job poke may still STB seed bytes).
-            let ctrl_start = ir.records.len() - S3_SHAPE_FILL_ONE_ROWS;
+            let ctrl_start = ir.records.len() - S3_SHAPE_FILL_MANY_ROWS;
             assert!(
                 ir.records[ctrl_start..].iter().all(|r| r.op != 0x81),
                 "op {op:#x} one-ctrl has no STB"
@@ -4925,7 +4923,7 @@ mod tests {
         assert_eq!(s3_shape_argc_bytes(), [2, 2, 1, 3]);
         let (a, _) = s3_yoyo_shape_fill_tyb(0x30, [3, 0, 0x11, 0, 0, 0]);
         let (b, _) = s3_yoyo_shape_fill_tyb(0x81, [11, 0, 14, 0, 5, 0]);
-        let ctrl = s3_yoyo_shape_fill_ctrl();
+        let ctrl = s3_bootstrap_expand_asm();
         let tail = |tyb: &[u8]| {
             let recs = parse_tyb(tyb).unwrap().records;
             let start = recs.len() - ctrl.len();
@@ -4968,7 +4966,7 @@ mod tests {
         let bodies = ir.records.iter().filter(|r| r.op == 0x40).count();
         // S3.306: many ≡ one flat (MEMCPY+RET); no LABEL scaffold.
         assert_eq!(bodies, one.iter().filter(|r| r.0 == 0x40).count());
-        let ctrl = s3_yoyo_shape_fill_ctrl();
+        let ctrl = s3_bootstrap_expand_asm();
         let (other, _) = s3_yoyo_shape_fill_many_tyb(&jobs[..1]);
         let tail = |tyb: &[u8]| {
             let recs = parse_tyb(tyb).unwrap().records;
@@ -4986,7 +4984,7 @@ mod tests {
     #[test]
     fn s3_shape_fill_seed_roundtrip() {
         assert_eq!(S3_SHAPE_FILL_MANY_FLAT.len(), S3_SHAPE_FILL_MANY_ROWS * 7);
-        let many = s3_yoyo_shape_fill_ctrl();
+        let many = s3_bootstrap_expand_asm();
         assert_eq!(many.len(), S3_SHAPE_FILL_MANY_ROWS);
         for (i, rec) in many.iter().enumerate() {
             let row = &S3_SHAPE_FILL_MANY_FLAT[i * 7..i * 7 + 7];
@@ -5029,14 +5027,14 @@ mod tests {
             (0x30, 2, [2, 0, 104, 0, 0, 0])
         );
         // S3.304: ONE = many MEMCPY slice + RET.
-        assert_eq!(S3_SHAPE_FILL_MANY_FLAT.len(), S3_SHAPE_FILL_ONE_ROWS * 7);
-        let ctrl = s3_yoyo_shape_fill_ctrl();
-        assert_eq!(ctrl.len(), S3_SHAPE_FILL_ONE_ROWS);
+        assert_eq!(S3_SHAPE_FILL_MANY_FLAT.len(), S3_SHAPE_FILL_MANY_ROWS * 7);
+        let ctrl = s3_bootstrap_expand_asm();
+        assert_eq!(ctrl.len(), S3_SHAPE_FILL_MANY_ROWS);
         assert_eq!(ctrl, s3_recs_from_flat_seed(S3_SHAPE_FILL_MANY_FLAT));
-        assert_eq!(S3_SHAPE_FILL_ONE_ROWS, S3_SHAPE_FILL_ONE_LEN + 1);
+        assert_eq!(S3_SHAPE_FILL_MANY_ROWS, S3_SHAPE_FILL_ONE_LEN + 1);
         assert_eq!(
             s3_recs_from_flat_seed_with_argc(S3_SHAPE_FILL_MANY_FLAT, &S3_SEED_ARGC_BYTES),
-            s3_yoyo_shape_fill_ctrl()
+            s3_bootstrap_expand_asm()
         );
     }
 
@@ -5089,7 +5087,7 @@ mod tests {
         );
         assert_eq!(
             s3_recs_from_flat_seed(S3_SHAPE_FILL_MANY_FLAT),
-            s3_yoyo_shape_fill_ctrl()
+            s3_bootstrap_expand_asm()
         );
         let (tyb1, off1) = s3_yoyo_emit_flat_via_stb(S3_SHAPE_FILL_MANY_FLAT, 0x20);
         assert!(s3_unpack_data_tyb(&tyb1).is_empty());
@@ -5099,7 +5097,7 @@ mod tests {
         );
         assert_eq!(
             s3_recs_from_flat_seed(S3_SHAPE_FILL_MANY_FLAT),
-            s3_yoyo_shape_fill_ctrl()
+            s3_bootstrap_expand_asm()
         );
         // S3.256/S3.257: expand ctrl flat seed; job ends with 0xFE sentinel (no SET END).
         assert_eq!(S3_SHAPE_FILL_MANY_FLAT.len(), S3_SHAPE_FILL_MANY_ROWS * 7);
@@ -5201,7 +5199,7 @@ mod tests {
     /// shape table, so it stays outside the job blob.
     #[test]
     fn s3_yoyo_shape_fill_reencodes_own_ctrl() {
-        let ctrl = s3_yoyo_shape_fill_ctrl();
+        let ctrl = s3_bootstrap_expand_asm();
         assert!(ctrl.iter().any(|r| r.0 == 0xFF));
         let jobs: Vec<(u8, [u8; 6])> = ctrl
             .iter()
@@ -5308,9 +5306,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–326: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–327: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor),
-    /// sole bootstrap MEMCPY+RET (=2; ONE≡MANY flat). Host 171.
+    /// sole bootstrap MEMCPY+RET (=2; fill ctrl collapsed). Host 171.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
@@ -5321,11 +5319,9 @@ mod tests {
         assert_eq!(S3_EXPAND_ASM_ROWS, 2, "S3.306: expand≡many≡one bulk MEMCPY");
         assert_eq!(S3_SHAPE_FILL_MANY_FLAT.len(), S3_SHAPE_FILL_MANY_ROWS * 7);
         assert_eq!(S3_SHAPE_FILL_MANY_ROWS, 2, "S3.306: shared MEMCPY+RET");
-        assert_eq!(S3_SHAPE_FILL_ONE_ROWS, S3_SHAPE_FILL_MANY_ROWS, "S3.326: one≡many rows");
-        assert_eq!(S3_EXPAND_ASM_ROWS, S3_SHAPE_FILL_MANY_ROWS, "S3.322: no INIT rows");
+        assert_eq!(S3_EXPAND_ASM_ROWS, S3_SHAPE_FILL_MANY_ROWS, "S3.327: asm rows ≡ many");
         assert_eq!(S3_SHAPE_TABLE_END, 0x140, "S3.299: 256B argc index");
-        assert_eq!(S3_SHAPE_FILL_MANY_ROWS, 2, "S3.306: bulk wire MEMCPY");
-        assert_eq!(S3_SHAPE_FILL_ONE_ROWS, 2, "S3.304: MEMCPY+RET");
+        assert_eq!(S3_SHAPE_FILL_MANY_ROWS, 2, "S3.306: bulk wire MEMCPY+RET");
         assert!(
             !s3_recs_from_flat_seed(S3_SHAPE_FILL_MANY_FLAT)
                 .iter()
