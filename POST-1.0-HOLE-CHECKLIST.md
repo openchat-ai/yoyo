@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.326**（325 fill_one 具名 MEMCPY；many_ctrl→ctrl；**不**假 CLOSED）。
+**默认** 继续 **= S3.327**（326 去 ONE_FLAT/many_ctrl；ONE≡MANY rows；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -169,7 +169,8 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.323** ✅       | 0253e46   | 删除 `s3_expand_asm_flat`；CTRL_FLAT 即 asm body         |
 | **S3.324** ✅       | c3d4848   | 去掉 EXPAND_CTRL_* 别名；MANY_FLAT 即 expand body        |
 | **S3.325** ✅       | `b1d2a91`   | fill_one 具名 MEMCPY；many_ctrl→ctrl；via_yoyo 仅测试 |
-| **S3.326** ⏳       | —           | 继续缩 bootstrap / A1 / 真自举近端 · **本步**            |
+| **S3.326** ✅       | `9bd5c67`   | 去 ONE_FLAT/many_ctrl；ONE_ROWS≡MANY_ROWS               |
+| **S3.327** ⏳       | —           | 继续缩 bootstrap / A1 / 真自举近端 · **本步**            |
 
 
 
@@ -209,7 +210,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.326**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.327**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -217,4 +218,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-22**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 171 · 默认 **S3.326** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-22**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 171 · 默认 **S3.327** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
