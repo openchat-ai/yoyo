@@ -2476,27 +2476,117 @@ const S3_HOST_TABLE_SEED: [u8; 200] = [
     0x48, 0x39, 0xc8, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 
-/// Build program-loop firmware TYB for `ops`.
-/// S3.364: table = [`S3_HOST_TABLE_SEED`]; only prog suffix + poke stay live.
+/// S3.366: host table win0 poke shell = own-ISA SET/STB seed (first 127B at TABLE_OFF).
+/// Tail (table[127..]|ops_len|ops) still live-poked at TABLE_OFF+127 — keeps host floor 171.
+/// Live full-slice poke stays as oracle in pins. Verified in s3_host_table_win0_poke_seed_pin.
+const S3_HOST_TABLE_WIN0_POKE_SEED: [(u8, u8, [u8; 6]); 80] = [
+    /*  0*/ (0x30, 2, [14, 0, 128, 0, 0, 0]),
+    /*  1*/ (0x30, 2, [11, 0, 255, 0, 0, 0]),
+    /*  2*/ (0x81, 3, [11, 0, 14, 0, 0, 0]),
+    /*  3*/ (0x81, 3, [11, 0, 14, 0, 89, 0]),
+    /*  4*/ (0x30, 2, [11, 0, 1, 0, 0, 0]),
+    /*  5*/ (0x81, 3, [11, 0, 14, 0, 1, 0]),
+    /*  6*/ (0x81, 3, [11, 0, 14, 0, 21, 0]),
+    /*  7*/ (0x30, 2, [11, 0, 195, 0, 0, 0]),
+    /*  8*/ (0x81, 3, [11, 0, 14, 0, 4, 0]),
+    /*  9*/ (0x30, 2, [11, 0, 144, 0, 0, 0]),
+    /* 10*/ (0x81, 3, [11, 0, 14, 0, 24, 0]),
+    /* 11*/ (0x30, 2, [11, 0, 48, 0, 0, 0]),
+    /* 12*/ (0x81, 3, [11, 0, 14, 0, 40, 0]),
+    /* 13*/ (0x30, 2, [11, 0, 14, 0, 0, 0]),
+    /* 14*/ (0x81, 3, [11, 0, 14, 0, 41, 0]),
+    /* 15*/ (0x30, 2, [11, 0, 72, 0, 0, 0]),
+    /* 16*/ (0x81, 3, [11, 0, 14, 0, 44, 0]),
+    /* 17*/ (0x81, 3, [11, 0, 14, 0, 88, 0]),
+    /* 18*/ (0x81, 3, [11, 0, 14, 0, 108, 0]),
+    /* 19*/ (0x30, 2, [11, 0, 184, 0, 0, 0]),
+    /* 20*/ (0x81, 3, [11, 0, 14, 0, 45, 0]),
+    /* 21*/ (0x30, 2, [11, 0, 239, 0, 0, 0]),
+    /* 22*/ (0x81, 3, [11, 0, 14, 0, 46, 0]),
+    /* 23*/ (0x30, 2, [11, 0, 190, 0, 0, 0]),
+    /* 24*/ (0x81, 3, [11, 0, 14, 0, 47, 0]),
+    /* 25*/ (0x30, 2, [11, 0, 173, 0, 0, 0]),
+    /* 26*/ (0x81, 3, [11, 0, 14, 0, 48, 0]),
+    /* 27*/ (0x30, 2, [11, 0, 222, 0, 0, 0]),
+    /* 28*/ (0x81, 3, [11, 0, 14, 0, 49, 0]),
+    /* 29*/ (0x30, 2, [11, 0, 73, 0, 0, 0]),
+    /* 30*/ (0x81, 3, [11, 0, 14, 0, 54, 0]),
+    /* 31*/ (0x81, 3, [11, 0, 14, 0, 64, 0]),
+    /* 32*/ (0x81, 3, [11, 0, 14, 0, 68, 0]),
+    /* 33*/ (0x81, 3, [11, 0, 14, 0, 84, 0]),
+    /* 34*/ (0x81, 3, [11, 0, 14, 0, 91, 0]),
+    /* 35*/ (0x81, 3, [11, 0, 14, 0, 104, 0]),
+    /* 36*/ (0x81, 3, [11, 0, 14, 0, 115, 0]),
+    /* 37*/ (0x81, 3, [11, 0, 14, 0, 124, 0]),
+    /* 38*/ (0x30, 2, [11, 0, 137, 0, 0, 0]),
+    /* 39*/ (0x81, 3, [11, 0, 14, 0, 55, 0]),
+    /* 40*/ (0x81, 3, [11, 0, 14, 0, 69, 0]),
+    /* 41*/ (0x81, 3, [11, 0, 14, 0, 92, 0]),
+    /* 42*/ (0x81, 3, [11, 0, 14, 0, 116, 0]),
+    /* 43*/ (0x30, 2, [11, 0, 71, 0, 0, 0]),
+    /* 44*/ (0x81, 3, [11, 0, 14, 0, 56, 0]),
+    /* 45*/ (0x81, 3, [11, 0, 14, 0, 66, 0]),
+    /* 46*/ (0x81, 3, [11, 0, 14, 0, 70, 0]),
+    /* 47*/ (0x81, 3, [11, 0, 14, 0, 86, 0]),
+    /* 48*/ (0x81, 3, [11, 0, 14, 0, 93, 0]),
+    /* 49*/ (0x81, 3, [11, 0, 14, 0, 106, 0]),
+    /* 50*/ (0x81, 3, [11, 0, 14, 0, 117, 0]),
+    /* 51*/ (0x81, 3, [11, 0, 14, 0, 126, 0]),
+    /* 52*/ (0x30, 2, [11, 0, 96, 0, 0, 0]),
+    /* 53*/ (0x81, 3, [11, 0, 14, 0, 60, 0]),
+    /* 54*/ (0x30, 2, [11, 0, 8, 0, 0, 0]),
+    /* 55*/ (0x81, 3, [11, 0, 14, 0, 61, 0]),
+    /* 56*/ (0x81, 3, [11, 0, 14, 0, 67, 0]),
+    /* 57*/ (0x30, 2, [11, 0, 139, 0, 0, 0]),
+    /* 58*/ (0x81, 3, [11, 0, 14, 0, 65, 0]),
+    /* 59*/ (0x81, 3, [11, 0, 14, 0, 85, 0]),
+    /* 60*/ (0x81, 3, [11, 0, 14, 0, 105, 0]),
+    /* 61*/ (0x81, 3, [11, 0, 14, 0, 125, 0]),
+    /* 62*/ (0x30, 2, [11, 0, 102, 0, 0, 0]),
+    /* 63*/ (0x81, 3, [11, 0, 14, 0, 80, 0]),
+    /* 64*/ (0x30, 2, [11, 0, 11, 0, 0, 0]),
+    /* 65*/ (0x81, 3, [11, 0, 14, 0, 81, 0]),
+    /* 66*/ (0x81, 3, [11, 0, 14, 0, 121, 0]),
+    /* 67*/ (0x30, 2, [11, 0, 192, 0, 0, 0]),
+    /* 68*/ (0x81, 3, [11, 0, 14, 0, 90, 0]),
+    /* 69*/ (0x81, 3, [11, 0, 14, 0, 110, 0]),
+    /* 70*/ (0x30, 2, [11, 0, 98, 0, 0, 0]),
+    /* 71*/ (0x81, 3, [11, 0, 14, 0, 100, 0]),
+    /* 72*/ (0x30, 2, [11, 0, 15, 0, 0, 0]),
+    /* 73*/ (0x81, 3, [11, 0, 14, 0, 101, 0]),
+    /* 74*/ (0x30, 2, [11, 0, 129, 0, 0, 0]),
+    /* 75*/ (0x81, 3, [11, 0, 14, 0, 109, 0]),
+    /* 76*/ (0x30, 2, [11, 0, 5, 0, 0, 0]),
+    /* 77*/ (0x81, 3, [11, 0, 14, 0, 111, 0]),
+    /* 78*/ (0x30, 2, [11, 0, 103, 0, 0, 0]),
+    /* 79*/ (0x81, 3, [11, 0, 14, 0, 120, 0]),
+];
+
+
+/// Build program-loop firmware TYB for ops.
+/// S3.364/S3.366: table bytes = [S3_HOST_TABLE_SEED]; win0 poke = seed;
+/// only tail (table[127..]|ops_len|ops) stays live-poked (floor 171).
 fn s3_host_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
+    const WIN: usize = 127;
     debug_assert_eq!(
         S3_HOST_TABLE_OFF as usize + S3_HOST_TABLE_SEED.len(),
         S3_HOST_PROG_OFF as usize
     );
-    let mut slice = Vec::with_capacity(S3_HOST_TABLE_SEED.len() + 1 + ops.len());
-    slice.extend_from_slice(&S3_HOST_TABLE_SEED);
-    slice.push(ops.len() as u8);
-    slice.extend_from_slice(ops);
+    debug_assert_eq!(S3_HOST_TABLE_SEED.len(), 200);
     assert!(
-        S3_HOST_TABLE_OFF as usize + slice.len() <= S1_MINI_DATA_MAX,
+        S3_HOST_TABLE_OFF as usize + S3_HOST_TABLE_SEED.len() + 1 + ops.len()
+            <= S1_MINI_DATA_MAX,
         "host table|prog DATA {} > {}",
-        S3_HOST_TABLE_OFF as usize + slice.len(),
+        S3_HOST_TABLE_OFF as usize + S3_HOST_TABLE_SEED.len() + 1 + ops.len(),
         S1_MINI_DATA_MAX
     );
-    // S3.112/S3.207/S3.346: IR-write table+prog only; poke stays live (window
-    // spans table|prog — cannot split poke seed without changing bases).
     let mut recs = Vec::new();
-    s3_append_stb_zero_then_poke(&mut recs, S3_HOST_TABLE_OFF, &slice, 10);
+    recs.extend_from_slice(&S3_HOST_TABLE_WIN0_POKE_SEED);
+    let mut tail = Vec::with_capacity(S3_HOST_TABLE_SEED.len() - WIN + 1 + ops.len());
+    tail.extend_from_slice(&S3_HOST_TABLE_SEED[WIN..]);
+    tail.push(ops.len() as u8);
+    tail.extend_from_slice(ops);
+    s3_append_stb_zero_then_poke(&mut recs, S3_HOST_TABLE_OFF + WIN as u32, &tail, 10);
     recs.push(s3_rec_set(S3_PACK_PROTO_DST, S3_HOST_OUTBUF_OFF));
     recs.extend(s3_prog_loop_code_host(ops.len() as u32, S3_HOST_NROWS));
     s3_host_tyb_from_records(&recs)
@@ -5014,10 +5104,10 @@ mod tests {
         );
     }
 
-    /// S3.358–365: 真自举能力图 — 缺的能力用自己的指令做出来（不译 emit_x86）。
+    /// S3.358–366: 真自举能力图 — 缺的能力用自己的指令做出来（不译 emit_x86）。
     /// 已会：poke/pack、TYB 发射、表合成→.text、expand、body/lea 种子、
-    /// host loop/table 种子、**body 直读种子无 OnceLock**(S3.365)。
-    /// 剩：host table|prog live poke（窗口跨界）。不挤 IR 羊粪。
+    /// host loop/table 种子、body 直读无 OnceLock、**host win0 poke 种子**(S3.366)。
+    /// 剩：host tail|prog live poke（table[127..]+ops）。不挤 IR 羊粪。
     #[test]
     fn s3_true_selfhost_capability_map_pin() {
         // —— 已会（自己的指令）——
@@ -5101,7 +5191,65 @@ mod tests {
                 .records
                 .len(),
             171,
-            "host floor: poke shell still live (window spans table|prog)"
+            "host floor 171: win0 poke seeded; tail|prog still live"
+        );
+        assert_eq!(
+            S3_HOST_TABLE_WIN0_POKE_SEED.len(),
+            80,
+            "S3.366: win0 poke seed = 80 SET/STB rows"
+        );
+    }
+
+    /// S3.366: win0 poke seed ≡ live zero_then_poke(table[..127]); prod keeps floor 171.
+    #[test]
+    fn s3_host_table_win0_poke_seed_pin() {
+        const WIN: usize = 127;
+        assert_eq!(S3_HOST_TABLE_WIN0_POKE_SEED.len(), 80);
+        let mut live = Vec::new();
+        s3_append_stb_zero_then_poke(
+            &mut live,
+            S3_HOST_TABLE_OFF,
+            &S3_HOST_TABLE_SEED[..WIN],
+            10,
+        );
+        assert_eq!(live.as_slice(), S3_HOST_TABLE_WIN0_POKE_SEED.as_slice());
+        // Prod path ≡ continuous full-slice poke oracle (same IR count + composed .text).
+        let cases: &[&[u8]] = &[&[0xFF], &[0x30, 0xFF], &[0x30, 0x66, 0xFF]];
+        for &ops in cases {
+            let mut slice = Vec::with_capacity(S3_HOST_TABLE_SEED.len() + 1 + ops.len());
+            slice.extend_from_slice(&S3_HOST_TABLE_SEED);
+            slice.push(ops.len() as u8);
+            slice.extend_from_slice(ops);
+            let mut oracle = Vec::new();
+            s3_append_stb_zero_then_poke(&mut oracle, S3_HOST_TABLE_OFF, &slice, 10);
+            oracle.push(s3_rec_set(S3_PACK_PROTO_DST, S3_HOST_OUTBUF_OFF));
+            oracle.extend(s3_prog_loop_code_host(ops.len() as u32, S3_HOST_NROWS));
+            let oracle_tyb = s3_host_tyb_from_records(&oracle);
+            let prod = s3_host_prog_loop_tyb(ops);
+            assert_eq!(
+                parse_tyb(&prod).unwrap().records.len(),
+                parse_tyb(&oracle_tyb).unwrap().records.len(),
+                "S3.366: win0 seed keeps host IR count"
+            );
+            let run = |tyb: &[u8]| {
+                s3_sim_prog_loop_cursor(
+                    tyb,
+                    S3_HOST_TABLE_OFF as u64,
+                    S3_HOST_OUTBUF_OFF,
+                    (S3_HOST_PROG_OFF + 1) as u64,
+                    S3_HOST_OUTBUF_OFF as u64,
+                    RECORD_SIZE as u64,
+                )
+                .unwrap()
+            };
+            assert_eq!(run(&prod), run(&oracle_tyb), "S3.366: composed .text ≡ oracle");
+        }
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            171
         );
     }
 
@@ -6170,8 +6318,8 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–365: remaining Rust sidecar.
-    /// S3.359–365: gaps + expand/host seeds + no OnceLock. Remaining = host poke.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–366: remaining Rust sidecar.
+    /// S3.359–366: gaps + expand/host seeds + win0 poke seed. Remaining = host tail poke.
     /// Host 171 · ASM 22. Scaffolding/wrappers cfg(test). Not CLOSED.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
