@@ -2655,13 +2655,16 @@ const S3_EXPAND_SEED: u32 = 0x40;
 /// S3.341: pub so the self-host cliff stays visible on the lib surface.
 pub const S3_EXPAND_ASM_PIN: usize = 22; // S3.306: bulk wire MEMCPY (−10)
 
-/// S3.257/S3.291: trailing 0 sentinel ends the job blob — no job-side SET END.
+/// S3.257/S3.291: trailing 0 sentinel ended the job blob — no job-side SET END.
 /// S3.291: CMP against slot13 (image-zero); no INIT SET of sentinel imm.
+/// S3.353: production expand drops the vestigial sentinel (bulk MEMCPY is
+/// length-preload; no job scan). Kept for cfg(test) generic expand_flat parity.
 /// S3.264: argc table is IR-seeded from `S3_SEED_ARGC_BYTES` (not 51 poke rows).
 /// S3.267/S3.268/S3.290: expand emits full TYB; header magic+count IR-seeded.
 /// Bootstrap still Rust-expands the ctrl body (cannot via_yoyo itself).
 /// S3.303: expand job seed is 8B wire (argc baked); ctrl MEMCPY record rows.
 /// S3.306: ctrl = bulk MEMCPY+RET; slot12 = nrecs×8 (sim preload); job|hdr join.
+#[cfg(test)]
 const S3_EXPAND_SENTINEL: u8 = 0;
 /// S3.305/S3.306/S3.324: expand ctrl ≡ shape-fill many ≡ one (bulk wire MEMCPY).
 /// S3.270: only magic must be IR-seeded; reserved/count stay zero until body patches cnt.
@@ -2674,28 +2677,28 @@ const S3_EXPAND_SENTINEL: u8 = 0;
 /// S3.275/S3.322: assembler body rows = ctrl only (INIT empty since S3.297).
 
 
-/// S3.254/S3.260/S3.264/S3.268/S3.343: generic 7×N flat→TYB via 256B argc index.
+/// S3.254/S3.260/S3.264/S3.268/S3.343/S3.353: generic 7×N flat→TYB via 256B argc index.
 /// Test/proof only — production uses [`s3_expand_many_flat_tyb`] (hardcoded wire).
+/// S3.353: no job sentinel (records|hdr；OUT = SEED+nrecs×8).
 #[cfg(test)]
 fn s3_yoyo_expand_flat_tyb(flat: &[u8]) -> (Vec<u8>, u32) {
     assert!(!flat.is_empty() && flat.len() % 7 == 0);
     assert!(
         flat.chunks_exact(7).all(|r| r[0] != S3_EXPAND_SENTINEL),
-        "flat op collides with expand sentinel"
+        "flat op collides with expand sentinel tag"
     );
     let nrecs = flat.len() / 7;
-    // S3.303: job rows are RECORD_SIZE wire bytes (+ trailing sentinel).
-    assert!(nrecs * RECORD_SIZE + 1 + HEADER_SIZE <= 0x200);
+    // S3.303/S3.353: job rows are RECORD_SIZE wire bytes (no trailing sentinel).
+    assert!(nrecs * RECORD_SIZE + HEADER_SIZE <= 0x200);
     assert_eq!(S3_SEED_ARGC_BYTES.len(), 256);
-    let mut job = Vec::with_capacity(nrecs * RECORD_SIZE + 1 + HEADER_SIZE);
+    let mut job = Vec::with_capacity(nrecs * RECORD_SIZE + HEADER_SIZE);
     for chunk in flat.chunks_exact(7) {
         let op = chunk[0];
         job.push(op);
         job.push(s3_seed_argc(op));
         job.extend_from_slice(&chunk[1..7]);
     }
-    job.push(S3_EXPAND_SENTINEL);
-    // S3.306: hdr tight after job; OUT = SEED + job_len (single poke window).
+    // S3.353: hdr tight after records; OUT = SEED + wire_len (single poke window).
     let out = S3_EXPAND_SEED + job.len() as u32;
     let mut hdr = [0u8; HEADER_SIZE];
     hdr[..4].copy_from_slice(&TYB_MAGIC);
@@ -2709,15 +2712,16 @@ fn s3_yoyo_expand_flat_tyb(flat: &[u8]) -> (Vec<u8>, u32) {
     (s3_host_tyb_from_records(&recs), out)
 }
 
-/// S3.341/S3.343/S3.344: production expand — MEMCPY+RET wire hardcoded (no flat seed /
-/// argc index in the non-test lib). Parity vs `S3_SHAPE_FILL_MANY_FLAT` is test-only.
+/// S3.341/S3.343/S3.344/S3.353: production expand — MEMCPY+RET wire hardcoded
+/// (no flat seed / argc index / job sentinel in the non-test lib).
+/// Layout: records | hdr；OUT = SEED+nrecs×8（hdr 紧贴 records；MEMCPY 写 OUT+hdr）。
 pub fn s3_expand_many_flat_tyb() -> (Vec<u8>, u32) {
     const NRECS: usize = 2;
-    let mut job = Vec::with_capacity(NRECS * RECORD_SIZE + 1 + HEADER_SIZE);
+    let mut job = Vec::with_capacity(NRECS * RECORD_SIZE + HEADER_SIZE);
     // MEMCPY dst=9 src=2 len=slot12 (argc 3) + RET (argc 0) — ≡ MANY_FLAT wire.
     job.extend_from_slice(&[0x84, 3, 9, 0, 2, 0, 12, 0]);
     job.extend_from_slice(&[0xFF, 0, 0, 0, 0, 0, 0, 0]);
-    job.push(S3_EXPAND_SENTINEL);
+    // S3.353: drop vestigial 0 sentinel — OUT sits at hdr (was SEED+17 with gap).
     let out = S3_EXPAND_SEED + job.len() as u32;
     let mut hdr = [0u8; HEADER_SIZE];
     hdr[..4].copy_from_slice(&TYB_MAGIC);
@@ -4843,6 +4847,32 @@ mod tests {
         assert_eq!(S3_PACK_PROTO_DST, 9, "host outbuf slot stays live");
     }
 
+    /// S3.353: drop vestigial expand job sentinel (records|hdr；OUT=SEED+wire).
+    /// Poke already skipped the zero — assembler pin stays 22 (0 IR). Cleanliness.
+    #[test]
+    fn s3_expand_job_sentinel_drop_pin() {
+        let (prod, poff) = s3_expand_many_flat_tyb();
+        let (gen, goff) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_MANY_FLAT);
+        assert_eq!((prod.clone(), poff), (gen, goff));
+        assert_eq!(poff, S3_EXPAND_SEED + 16, "OUT = SEED + nrecs×8 (no sentinel gap)");
+        assert_eq!(parse_tyb(&prod).unwrap().records.len(), S3_EXPAND_ASM_PIN);
+        // Emitted TYB still round-trips via cursor.
+        let emitted = s3_sim_prog_loop_cursor(
+            &prod,
+            0,
+            poff,
+            S3_EXPAND_SEED as u64,
+            poff as u64 + HEADER_SIZE as u64,
+            16,
+        )
+        .unwrap();
+        assert_eq!(&emitted[..4], &TYB_MAGIC);
+        assert_eq!(
+            parse_tyb(&emitted).unwrap().records.len(),
+            S3_SHAPE_FILL_MANY_ROWS
+        );
+    }
+
     /// S3.352: post-scaffolding cliff map — all hard floors in one pin after
     /// S3.342–351 (host densify reject · argc/flat/ir_seed/wrappers cfg(test) ·
     /// thin-wrapper sheep). Next ≥10 needs A1 / OnceLock / asm22 / 真自举 arch.
@@ -5562,8 +5592,9 @@ mod tests {
         );
     }
 
-    /// S3.308: ONE expand assembler is poke-bound (22 = job|hdr + MEMCPY+RET).
+    /// S3.308/S3.353: ONE expand assembler is poke-bound (22 = records|hdr + MEMCPY+RET).
     /// Measured alts (join already on; magic-only / runs / split) save <10 — reject.
+    /// S3.353: vestigial job sentinel dropped (0 IR; poke skipped the zero anyway).
     #[test]
     fn s3_expand_one_seed_cliff_sub10_reject() {
         let flat = S3_SHAPE_FILL_MANY_FLAT;
@@ -5574,7 +5605,6 @@ mod tests {
             job.push(s3_seed_argc(chunk[0]));
             job.extend_from_slice(&chunk[1..7]);
         }
-        job.push(0);
         let mut hdr = [0u8; HEADER_SIZE];
         hdr[..4].copy_from_slice(&TYB_MAGIC);
         hdr[6..8].copy_from_slice(&(nrecs as u16).to_le_bytes());
@@ -5830,9 +5860,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–352: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–353: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock, bootstrap+hardcoded expand,
-    /// host poke seed + prog-loop + cursor sim. S3.352: post-scaffold cliff map.
+    /// host poke seed + prog-loop + cursor sim. S3.353: job sentinel dropped.
     /// Host 171 · ASM 22. Scaffolding/wrappers cfg(test). Not CLOSED.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
