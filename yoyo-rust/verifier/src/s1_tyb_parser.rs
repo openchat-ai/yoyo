@@ -4826,6 +4826,48 @@ mod tests {
         assert_eq!(S3_PACK_PROTO_DST, 9, "host outbuf slot stays live");
     }
 
+    /// S3.347: production S3 surface after scaffolding purge (S3.325–346).
+    /// Five live clusters — everything else is `#[cfg(test)]`:
+    ///   host compose (payload/prog_loop/tyb) · poke seed · bootstrap+hardcoded
+    ///   expand · rec shape builders · prog-loop sim (+ pub try_emit/A1/OnceLock).
+    /// Floors: ASM 22 · host 171 · A1 13×37 · bootstrap 2. Not CLOSED.
+    #[test]
+    fn s3_production_surface_inventory_pin() {
+        assert_eq!(s3_bootstrap_expand_asm().len(), 2, "sole bootstrap MEMCPY+RET");
+        assert_eq!(
+            s3_bootstrap_expand_asm(),
+            vec![s3_rec_memcpy(9, 2, 12), s3_fixed_rec(0xFF)]
+        );
+        assert_eq!(
+            parse_tyb(&s3_expand_many_flat_tyb().0)
+                .unwrap()
+                .records
+                .len(),
+            S3_EXPAND_ASM_PIN
+        );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            171
+        );
+        assert_eq!(s3_prog_loop_code_host(1, S3_HOST_NROWS).len(), 29);
+        assert_eq!(s3_in_dll_lea_prologue_recs().len(), 13);
+        assert_eq!(s3_short_lea_raw_bytes().len(), 37);
+        assert_eq!(s3_fixed_row(0xFF), vec![0xC3]);
+        assert_eq!(S3_PACK_PROTO_DST, 9);
+        assert_eq!(S3_PACK_STB_BASE, 14);
+        // Test-only scaffolding still reachable under cfg(test).
+        assert_eq!(S3_SEED_ARGC_BYTES.len(), 256);
+        assert_eq!(S3_SHAPE_FILL_MANY_ROWS, 2);
+        assert_eq!(
+            s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_MANY_FLAT),
+            s3_expand_many_flat_tyb()
+        );
+    }
+
     /// S3.346: `s3_ir_seed_at` is cfg(test) alias; production host/expand call
     /// `s3_append_stb_zero_then_poke` directly. Floor pins unchanged.
     #[test]
@@ -5608,10 +5650,10 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–346: remaining Rust sidecar.
-    /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor),
-    /// sole bootstrap+hardcoded-wire expand; pack/argc/flat/ir_seed alias cfg(test).
-    /// Host 171. S3.342–346: densify reject + seed/helper scaffolding test-only.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–347: remaining Rust sidecar.
+    /// Still Rust: short lea A1, `emit_x86` OnceLock, bootstrap+hardcoded expand,
+    /// host poke seed + prog-loop + sim. S3.347 inventory: five production clusters.
+    /// Host 171 · ASM 22. Scaffolding (pack/argc/flat/ir_seed/helpers) cfg(test).
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
