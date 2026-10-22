@@ -2274,7 +2274,8 @@ fn s3_host_tmpl_row(op: u8, payload: &[u8]) -> [u8; 20] {
     r
 }
 
-/// S3.122: template body is `emit_x86(op + RET)` without the trailing `C3`.
+/// S3.122/S3.359: live `emit_x86(op+RET)` strip — test verify vs body seed only.
+#[cfg(test)]
 fn s3_host_body(op: u8, argc: u8, args: [u8; 6]) -> Vec<u8> {
     let text = emit_x86(
         &parse_tyb(&s3_host_tyb_from_records(&[
@@ -2356,12 +2357,33 @@ fn s3_fixed10_named_cases() -> Vec<(&'static str, Vec<(u8, u8, [u8; 6])>)> {
         .collect()
 }
 
-/// S3.138/S3.345/S3.348: one emit_x86 bake per fixed10 op; reused for every firmware build.
-/// RET/NOP/strip-RET path inlined (`s3_host_body_of` is cfg(test) only).
+/// S3.359: fixed10 template bodies = **object code of our own ops** (trust-root seed).
+/// Not an emit_x86 translator — YOYO table-compose copies these encodings.
+/// Order ≡ `S3_FIXED10_OPS`. Verified ≡ live emit_x86 in `s3_fixed10_body_seed_pin`.
+const S3_FIXED10_BODY_SEED: [&[u8]; 10] = [
+    /* 0xff RET */ &[0xc3],
+    /* 0x00 NOP */ &[0x90],
+    /* 0x30 SET */ &[
+        0x48, 0xb8, 0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00, 0x49, 0x89, 0x47, 0x00,
+    ],
+    /* 0x60 GET */ &[0x49, 0x8b, 0x47, 0x08, 0x49, 0x89, 0x47, 0x00],
+    /* 0x66 INC */ &[0x49, 0x8b, 0x47, 0x00, 0x48, 0xff, 0xc0, 0x49, 0x89, 0x47, 0x00],
+    /* 0x62 ADD */ &[
+        0x49, 0x8b, 0x47, 0x00, 0x48, 0x81, 0xc0, 0x05, 0x00, 0x00, 0x00, 0x49, 0x89, 0x47, 0x00,
+    ],
+    /* 0x67 DEC */ &[0x49, 0x8b, 0x47, 0x00, 0x48, 0xff, 0xc8, 0x49, 0x89, 0x47, 0x00],
+    /* 0x61 SUB */ &[
+        0x49, 0x8b, 0x47, 0x00, 0x48, 0x81, 0xe8, 0x05, 0x00, 0x00, 0x00, 0x49, 0x89, 0x47, 0x00,
+    ],
+    /* 0x64 MOVRR */ &[0x49, 0x8b, 0x47, 0x00, 0x49, 0x89, 0x47, 0x08],
+    /* 0x65 CMP */ &[0x49, 0x8b, 0x47, 0x00, 0x49, 0x8b, 0x4f, 0x08, 0x48, 0x39, 0xc8],
+];
+
+/// S3.138/S3.359: live emit_x86 bake — test oracle only (prod uses body seed).
+#[cfg(test)]
 fn s3_compute_fixed_body(op: u8) -> Vec<u8> {
     match op {
         0xFF => {
-            // RET is the whole emit (do not strip the only `C3`).
             let text = emit_x86(
                 &parse_tyb(&s3_host_tyb_from_records(&[s3_fixed_rec(0xFF)])).expect("ret tyb"),
             )
@@ -2370,7 +2392,6 @@ fn s3_compute_fixed_body(op: u8) -> Vec<u8> {
             text
         }
         0x00 => {
-            // NOP emit is `90 C3`; drop the trailing RET via host_body.
             let (o, argc, args) = s3_fixed_rec(0x00);
             let b = s3_host_body(o, argc, args);
             assert_eq!(b, vec![0x90]);
@@ -2387,7 +2408,8 @@ fn s3_compute_fixed_body(op: u8) -> Vec<u8> {
 fn s3_fixed_bodies() -> &'static [Vec<u8>; 10] {
     use std::sync::OnceLock;
     static BODIES: OnceLock<[Vec<u8>; 10]> = OnceLock::new();
-    BODIES.get_or_init(|| S3_FIXED10_OPS.map(s3_compute_fixed_body))
+    // S3.359: load own-ISA object-code seed (no live emit_x86 on prod path).
+    BODIES.get_or_init(|| S3_FIXED10_BODY_SEED.map(|s| s.to_vec()))
 }
 
 fn s3_fixed_row(op: u8) -> Vec<u8> {
@@ -4713,9 +4735,10 @@ mod tests {
 
     #[test]
     fn s3_emit_body_const_embed_reject() {
+        // S3.317: rejected const-embed as *host-IR densify*. S3.359: seed is
+        // allowed as 真自举 gap1 (own-ISA object code), still ≡ emit_x86 oracle.
         let total: usize = S3_FIXED10_OPS.iter().map(|o| s3_fixed_row(*o).len()).sum();
-        assert_eq!(total, 95, "fixed10 body bytes stay emit_x86-baked");
-        // OnceLock still equals fresh bake — do not replace with const tables.
+        assert_eq!(total, 95, "fixed10 body bytes stay 95");
         for op in S3_FIXED10_OPS {
             assert_eq!(s3_fixed_row(op), s3_compute_fixed_body(op));
         }
@@ -4839,6 +4862,34 @@ mod tests {
         assert_eq!(S3_PACK_PROTO_DST, 9, "host outbuf slot stays live");
     }
 
+    /// S3.359: gap1 — template body seed = own-ISA object code; ≡ live emit_x86.
+    /// Prod OnceLock no longer calls emit_x86; seed is the trust root YOYO copies.
+    #[test]
+    fn s3_fixed10_body_seed_pin() {
+        assert_eq!(S3_FIXED10_BODY_SEED.len(), S3_FIXED10_OPS.len());
+        let total: usize = S3_FIXED10_BODY_SEED.iter().map(|s| s.len()).sum();
+        assert_eq!(total, 95, "fixed10 body bytes stay 95");
+        for (i, &op) in S3_FIXED10_OPS.iter().enumerate() {
+            assert_eq!(
+                S3_FIXED10_BODY_SEED[i],
+                s3_compute_fixed_body(op).as_slice(),
+                "seed ≡ emit_x86 for {op:#x}"
+            );
+            assert_eq!(s3_fixed_row(op), s3_compute_fixed_body(op));
+        }
+        assert_eq!(
+            try_emit_text_via_yoyo_table(&[0xFF]).unwrap(),
+            S3_FIXED10_BODY_SEED[0]
+        );
+        assert_eq!(
+            parse_tyb(&s3_expand_many_flat_tyb().0)
+                .unwrap()
+                .records
+                .len(),
+            S3_EXPAND_ASM_PIN
+        );
+    }
+
     /// S3.353–357: no sentinel; job≡const bootstrap; Vec wrapper cfg(test).
     /// Const table ≡ `s3_rec_memcpy`+RET builders. Assembler pin 22 (0 IR).
     #[test]
@@ -4874,11 +4925,10 @@ mod tests {
         );
     }
 
-    /// S3.358: 真自举能力图 — 不是「把 emit_x86 译成 YOYO」，而是「缺的能力
-    /// 用自己的指令做出来」。YOYO 已会：DATA poke/pack、TYB 自举发射、
-    /// fixed10 表合成→.text（try_emit）、expand=MEMCPY+RET。仍靠 Rust 的只有
-    /// 三件能力种子：(1) 模板 body 字节仍 emit_x86 OnceLock；(2) lea→.text 靠 A1；
-    /// (3) expand 外壳仍 Rust 组 poke。下一刀优先补能力，不挤 IR 羊粪。
+    /// S3.358/S3.359: 真自举能力图 — 不是「把 emit_x86 译成 YOYO」，而是「缺的
+    /// 能力用自己的指令做出来」。已会：poke/pack、TYB 发射、表合成→.text、
+    /// expand=MEMCPY+RET、**模板 body=自有指令目标码种子**(S3.359)。仍缺：
+    /// (2) lea→.text=A1；(3) expand 外壳=Rust poke。不挤 IR 羊粪。
     #[test]
     fn s3_true_selfhost_capability_map_pin() {
         // —— 已会（自己的指令）——
@@ -4911,8 +4961,13 @@ mod tests {
         // —— 仍缺（能力种子，不是翻译器）——
         assert_eq!(
             s3_fixed_row(0x30),
+            S3_FIXED10_BODY_SEED[2],
+            "gap1 closed: template body = own-ISA object-code seed"
+        );
+        assert_eq!(
+            s3_fixed_row(0x30),
             s3_compute_fixed_body(0x30),
-            "gap1: template body still emit_x86 OnceLock bake"
+            "seed still ≡ emit_x86 oracle"
         );
         assert_eq!(
             s3_in_dll_lea_prologue_recs().len(),
@@ -5924,8 +5979,8 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–358: remaining Rust sidecar.
-    /// S3.358 真自举能力图：补 body 种子 / lea→.text / expand 外壳 — 不译 emit_x86。
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–359: remaining Rust sidecar.
+    /// S3.359: gap1 closed (body=own-ISA seed). Still: lea→.text=A1 · expand 外壳.
     /// Host 171 · ASM 22. Scaffolding/wrappers cfg(test). Not CLOSED.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
