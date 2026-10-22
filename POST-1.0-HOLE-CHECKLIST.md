@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.352**（351 thin-wrapper sheep reject；**不**假 CLOSED）。
+**默认** 继续 **= S3.353**（352 post-scaffold cliff map；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -195,7 +195,8 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.349** ✅       | `2375244`   | fixed_payload `cfg(test)`；prod host 内联 fixed_row→payload |
 | **S3.350** ✅       | `d3cbb35`   | sim_prog_loop `cfg(test)`；try_emit 直调 cursor           |
 | **S3.351** ✅       | `f0e1539`   | thin-wrapper 脚手架羊粪否决（0 IR；地板 22/171 不动）   |
-| **S3.352** ⏳       | —           | 继续缩 bootstrap / A1 / 真自举近端 · **本步**            |
+| **S3.352** ✅       | `7a5ef61`   | post-scaffold cliff map（ASM22/host171/A1×13/OnceLock） |
+| **S3.353** ⏳       | —           | 继续缩 bootstrap / A1 / 真自举近端 · **本步**            |
 
 
 
@@ -235,7 +236,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.352**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.353**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -243,4 +244,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-22**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 171 · 默认 **S3.352** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-22**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 171 · 默认 **S3.353** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
