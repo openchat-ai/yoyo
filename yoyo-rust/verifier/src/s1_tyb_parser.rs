@@ -2319,7 +2319,7 @@ fn s3_host_body_of(op: u8) -> Vec<u8> {
 /// S3.337: test-only helper.
 #[cfg(test)]
 fn s3_host_set_body() -> Vec<u8> {
-    s3_fixed_row(0x30)
+    s3_fixed_row(0x30).to_vec()
 }
 /// S3.123/S3.345: RET body helper — test pin; production bakes via OnceLock path.
 #[cfg(test)]
@@ -2357,10 +2357,11 @@ fn s3_fixed10_named_cases() -> Vec<(&'static str, Vec<(u8, u8, [u8; 6])>)> {
         .collect()
 }
 
-/// S3.359: fixed10 template bodies = **object code of our own ops** (trust-root seed).
+/// S3.359/S3.365: fixed10 template bodies = **object code of our own ops** (trust-root seed).
 /// Not an emit_x86 translator — YOYO table-compose copies these encodings.
 /// Order ≡ `S3_FIXED10_OPS`. Verified ≡ live emit_x86 in `s3_fixed10_body_seed_pin`.
-const S3_FIXED10_BODY_SEED: [&[u8]; 10] = [
+/// `static` (not `const`): `s3_fixed_row` must alias one storage — const re-promotes per use.
+static S3_FIXED10_BODY_SEED: [&[u8]; 10] = [
     /* 0xff RET */ &[0xc3],
     /* 0x00 NOP */ &[0x90],
     /* 0x30 SET */ &[
@@ -2405,19 +2406,13 @@ fn s3_compute_fixed_body(op: u8) -> Vec<u8> {
     }
 }
 
-fn s3_fixed_bodies() -> &'static [Vec<u8>; 10] {
-    use std::sync::OnceLock;
-    static BODIES: OnceLock<[Vec<u8>; 10]> = OnceLock::new();
-    // S3.359: load own-ISA object-code seed (no live emit_x86 on prod path).
-    BODIES.get_or_init(|| S3_FIXED10_BODY_SEED.map(|s| s.to_vec()))
-}
-
-fn s3_fixed_row(op: u8) -> Vec<u8> {
+/// S3.359/S3.365: body row = direct seed slice (no OnceLock / no Vec cache).
+fn s3_fixed_row(op: u8) -> &'static [u8] {
     let idx = S3_FIXED10_OPS
         .iter()
         .position(|&o| o == op)
         .unwrap_or_else(|| panic!("s3_fixed_row: opcode {op:#x} is outside fixed10"));
-    s3_fixed_bodies()[idx].clone()
+    S3_FIXED10_BODY_SEED[idx]
 }
 
 /// S3.337: test-only helper.
@@ -2433,8 +2428,7 @@ fn s3_fixed_table(ops: &[u8]) -> Vec<u8> {
 /// S3.120/S3.349: fixed10 payload helper — test/proof; production host inlines.
 #[cfg(test)]
 fn s3_fixed_payload(row_ops: &[u8], prog: &[u8], outbuf: usize) -> Vec<u8> {
-    let owned: Vec<(u8, Vec<u8>)> = row_ops.iter().map(|op| (*op, s3_fixed_row(*op))).collect();
-    let rows: Vec<(u8, &[u8])> = owned.iter().map(|(op, b)| (*op, b.as_slice())).collect();
+    let rows: Vec<(u8, &[u8])> = row_ops.iter().map(|op| (*op, s3_fixed_row(*op))).collect();
     s3_prog_data_payload(&rows, prog, outbuf)
 }
 
@@ -4811,7 +4805,7 @@ mod tests {
         let total: usize = S3_FIXED10_OPS.iter().map(|o| s3_fixed_row(*o).len()).sum();
         assert_eq!(total, 95, "fixed10 body bytes stay 95");
         for op in S3_FIXED10_OPS {
-            assert_eq!(s3_fixed_row(op), s3_compute_fixed_body(op));
+            assert_eq!(s3_fixed_row(op), s3_compute_fixed_body(op).as_slice());
         }
         assert_eq!(s3_bootstrap_expand_asm().len(), 2);
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
@@ -4899,7 +4893,7 @@ mod tests {
             "host seed pin"
         );
         assert_eq!(s3_bootstrap_expand_asm().len(), 2, "Rust bootstrap MEMCPY+RET");
-        assert_eq!(s3_fixed_row(0xFF), s3_compute_fixed_body(0xFF));
+        assert_eq!(s3_fixed_row(0xFF), s3_compute_fixed_body(0xFF).as_slice());
     }
 
     /// S3.321/S3.327: via_yoyo of MANY_FLAT ≡ bootstrap (proof; production uses named).
@@ -4970,7 +4964,7 @@ mod tests {
                 s3_compute_fixed_body(op).as_slice(),
                 "seed ≡ emit_x86 for {op:#x}"
             );
-            assert_eq!(s3_fixed_row(op), s3_compute_fixed_body(op));
+            assert_eq!(s3_fixed_row(op), s3_compute_fixed_body(op).as_slice());
         }
         assert_eq!(
             try_emit_text_via_yoyo_table(&[0xFF]).unwrap(),
@@ -5020,10 +5014,10 @@ mod tests {
         );
     }
 
-    /// S3.358–364: 真自举能力图 — 缺的能力用自己的指令做出来（不译 emit_x86）。
+    /// S3.358–365: 真自举能力图 — 缺的能力用自己的指令做出来（不译 emit_x86）。
     /// 已会：poke/pack、TYB 发射、表合成→.text、expand、body/lea 种子、
-    /// host prog-loop 种子、**host 表 200B 种子**(S3.364)。
-    /// 剩：host table|prog live poke（窗口跨界）+ OnceLock 装 body。不挤 IR 羊粪。
+    /// host loop/table 种子、**body 直读种子无 OnceLock**(S3.365)。
+    /// 剩：host table|prog live poke（窗口跨界）。不挤 IR 羊粪。
     #[test]
     fn s3_true_selfhost_capability_map_pin() {
         // —— 已会（自己的指令）——
@@ -5061,8 +5055,15 @@ mod tests {
         );
         assert_eq!(
             s3_fixed_row(0x30),
-            s3_compute_fixed_body(0x30),
+            s3_compute_fixed_body(0x30).as_slice(),
             "seed still ≡ emit_x86 oracle"
+        );
+        // S3.365: fixed_row returns &'static seed (same bytes; no OnceLock Vec clone).
+        assert_eq!(s3_fixed_row(0xFF), S3_FIXED10_BODY_SEED[0]);
+        assert_eq!(
+            s3_fixed_row(0xFF).as_ptr(),
+            S3_FIXED10_BODY_SEED[0].as_ptr(),
+            "S3.365: fixed_row aliases seed storage (no Vec cache)"
         );
         assert_eq!(
             s3_in_dll_lea_prologue_recs(),
@@ -5128,11 +5129,10 @@ mod tests {
         }
         assert_eq!(composed.as_slice(), S3_HOST_TABLE_SEED.as_slice());
         // Prod host TYB still matches live compose+poke path for RET.
-        let owned: Vec<(u8, Vec<u8>)> = S3_FIXED10_OPS
+        let rows: Vec<(u8, &[u8])> = S3_FIXED10_OPS
             .iter()
             .map(|op| (*op, s3_fixed_row(*op)))
             .collect();
-        let rows: Vec<(u8, &[u8])> = owned.iter().map(|(op, b)| (*op, b.as_slice())).collect();
         let payload = s3_prog_data_payload(&rows, &[0xFF], S3_HOST_OUTBUF_OFF as usize);
         let start = S3_HOST_TABLE_OFF as usize;
         let end = S3_HOST_PROG_OFF as usize + 2;
@@ -5211,8 +5211,8 @@ mod tests {
         assert_eq!(s3_short_lea_raw_bytes().len(), 37);
         assert_eq!(S3_LEA_PTR.len(), 7, "short lea not disp32");
         // OnceLock bake still equals fresh emit_x86 (const-embed reject holds).
-        assert_eq!(s3_fixed_row(0xFF), s3_compute_fixed_body(0xFF));
-        assert_eq!(s3_fixed_row(0x30), s3_compute_fixed_body(0x30));
+        assert_eq!(s3_fixed_row(0xFF), s3_compute_fixed_body(0xFF).as_slice());
+        assert_eq!(s3_fixed_row(0x30), s3_compute_fixed_body(0x30).as_slice());
         assert_eq!(
             try_emit_text_via_yoyo_table(&[0xFF]).unwrap(),
             s3_fixed_row(0xFF)
@@ -5238,7 +5238,7 @@ mod tests {
         assert_eq!(s3_in_dll_lea_prologue_recs().len(), 13);
         // Remaining production one-liners are load-bearing (OnceLock index,
         // tmpl row layout, poke windows) — not free −1 sheep.
-        assert_eq!(s3_fixed_row(0xFF), vec![0xC3]);
+        assert_eq!(s3_fixed_row(0xFF), [0xC3].as_slice());
         assert_eq!(
             s3_host_tmpl_row(0xFF, &[0xC3])[0..2],
             [0xFF, 1]
@@ -5297,11 +5297,10 @@ mod tests {
     #[test]
     fn s3_fixed_payload_test_only_pin() {
         let via = s3_fixed_payload(&S3_FIXED10_OPS, &[0xFF], S3_HOST_OUTBUF_OFF as usize);
-        let owned: Vec<(u8, Vec<u8>)> = S3_FIXED10_OPS
+        let rows: Vec<(u8, &[u8])> = S3_FIXED10_OPS
             .iter()
             .map(|op| (*op, s3_fixed_row(*op)))
             .collect();
-        let rows: Vec<(u8, &[u8])> = owned.iter().map(|(op, b)| (*op, b.as_slice())).collect();
         let inline = s3_prog_data_payload(&rows, &[0xFF], S3_HOST_OUTBUF_OFF as usize);
         assert_eq!(via, inline);
         assert_eq!(via.len(), S3_HOST_OUTBUF_OFF as usize);
@@ -5336,7 +5335,7 @@ mod tests {
             );
         }
         // RET: body_of would strip the only C3 — fixed_row keeps it.
-        assert_eq!(s3_fixed_row(0xFF), vec![0xC3]);
+        assert_eq!(s3_fixed_row(0xFF), [0xC3].as_slice());
         assert_eq!(s3_host_set_body(), s3_fixed_row(0x30));
         assert_eq!(
             parse_tyb(&s3_expand_many_flat_tyb().0)
@@ -5377,7 +5376,7 @@ mod tests {
         assert_eq!(s3_prog_loop_code_host(1, S3_HOST_NROWS).len(), 29);
         assert_eq!(s3_in_dll_lea_prologue_recs().len(), 13);
         assert_eq!(s3_short_lea_raw_bytes().len(), 37);
-        assert_eq!(s3_fixed_row(0xFF), vec![0xC3]);
+        assert_eq!(s3_fixed_row(0xFF), [0xC3].as_slice());
         assert_eq!(S3_PACK_PROTO_DST, 9);
         assert_eq!(S3_PACK_STB_BASE, 14);
         // Test-only scaffolding still reachable under cfg(test).
@@ -5430,8 +5429,8 @@ mod tests {
         assert_eq!(via, base, "default-BASE wrapper ≡ _base(STB_BASE)");
         assert_eq!(s3_host_ret_body(), s3_compute_fixed_body(0xFF));
         assert_eq!(s3_host_nop_body(), s3_compute_fixed_body(0x00));
-        assert_eq!(s3_fixed_row(0xFF), vec![0xC3]);
-        assert_eq!(s3_fixed_row(0x00), vec![0x90]);
+        assert_eq!(s3_fixed_row(0xFF), [0xC3].as_slice());
+        assert_eq!(s3_fixed_row(0x00), [0x90].as_slice());
         assert_eq!(
             parse_tyb(&s3_expand_many_flat_tyb().0)
                 .unwrap()
@@ -6171,8 +6170,8 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–364: remaining Rust sidecar.
-    /// S3.359–364: gaps + expand/host-loop/table seeds. Remaining = host poke.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–365: remaining Rust sidecar.
+    /// S3.359–365: gaps + expand/host seeds + no OnceLock. Remaining = host poke.
     /// Host 171 · ASM 22. Scaffolding/wrappers cfg(test). Not CLOSED.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
@@ -7507,9 +7506,9 @@ mod tests {
             );
         }
         // Second call hits OnceLock; still matches.
-        assert_eq!(s3_fixed_row(0x30), s3_host_set_body());
-        assert_eq!(s3_fixed_row(0xFF), s3_host_ret_body());
-        assert_eq!(s3_fixed_row(0x00), s3_host_nop_body());
+        assert_eq!(s3_fixed_row(0x30), s3_host_set_body().as_slice());
+        assert_eq!(s3_fixed_row(0xFF), s3_host_ret_body().as_slice());
+        assert_eq!(s3_fixed_row(0x00), s3_host_nop_body().as_slice());
     }
 
     /// S3.139/S3.205: host firmware is IR-only (table seed + loop). No DATA / A1.
