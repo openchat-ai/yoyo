@@ -2408,7 +2408,8 @@ fn s3_fixed_table(ops: &[u8]) -> Vec<u8> {
     table
 }
 
-/// S3.120: pad to table base, append template rows, then `[n][ops…]`, pad to `outbuf`.
+/// S3.120/S3.349: fixed10 payload helper — test/proof; production host inlines.
+#[cfg(test)]
 fn s3_fixed_payload(row_ops: &[u8], prog: &[u8], outbuf: usize) -> Vec<u8> {
     let owned: Vec<(u8, Vec<u8>)> = row_ops.iter().map(|op| (*op, s3_fixed_row(*op))).collect();
     let rows: Vec<(u8, &[u8])> = owned.iter().map(|(op, b)| (*op, b.as_slice())).collect();
@@ -2442,7 +2443,13 @@ fn s3_ir_seed_at(
 
 /// Build program-loop firmware TYB for `ops`.
 fn s3_host_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
-    let payload = s3_fixed_payload(&S3_FIXED10_OPS, ops, S3_HOST_OUTBUF_OFF as usize);
+    // S3.349: inline fixed10 payload (s3_fixed_payload is cfg(test)).
+    let owned: Vec<(u8, Vec<u8>)> = S3_FIXED10_OPS
+        .iter()
+        .map(|op| (*op, s3_fixed_row(*op)))
+        .collect();
+    let rows: Vec<(u8, &[u8])> = owned.iter().map(|(op, b)| (*op, b.as_slice())).collect();
+    let payload = s3_prog_data_payload(&rows, ops, S3_HOST_OUTBUF_OFF as usize);
     debug_assert_eq!(
         S3_HOST_TABLE_OFF as usize + 10 * 20,
         S3_HOST_PROG_OFF as usize
@@ -4832,6 +4839,35 @@ mod tests {
         assert_eq!(S3_PACK_PROTO_DST, 9, "host outbuf slot stays live");
     }
 
+    /// S3.349: `s3_fixed_payload` is cfg(test); production host inlines
+    /// fixed_row → prog_data_payload. Helper still ≡ host seed payload.
+    #[test]
+    fn s3_fixed_payload_test_only_pin() {
+        let via = s3_fixed_payload(&S3_FIXED10_OPS, &[0xFF], S3_HOST_OUTBUF_OFF as usize);
+        let owned: Vec<(u8, Vec<u8>)> = S3_FIXED10_OPS
+            .iter()
+            .map(|op| (*op, s3_fixed_row(*op)))
+            .collect();
+        let rows: Vec<(u8, &[u8])> = owned.iter().map(|(op, b)| (*op, b.as_slice())).collect();
+        let inline = s3_prog_data_payload(&rows, &[0xFF], S3_HOST_OUTBUF_OFF as usize);
+        assert_eq!(via, inline);
+        assert_eq!(via.len(), S3_HOST_OUTBUF_OFF as usize);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            171
+        );
+        assert_eq!(
+            parse_tyb(&s3_expand_many_flat_tyb().0)
+                .unwrap()
+                .records
+                .len(),
+            S3_EXPAND_ASM_PIN
+        );
+    }
+
     /// S3.348: `s3_host_body_of` is cfg(test); OnceLock bakes strip-RET via
     /// `s3_fixed_rec` + `s3_host_body` inline. Helper ≡ fixed_row for fixed10.
     #[test]
@@ -5682,9 +5718,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–348: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–349: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock, bootstrap+hardcoded expand,
-    /// host poke seed + prog-loop + sim. S3.347–348: inventory + body_of test-only.
+    /// host poke seed + prog-loop + sim. S3.347–349: inventory + body/payload test-only.
     /// Host 171 · ASM 22. Scaffolding (pack/argc/flat/ir_seed/helpers) cfg(test).
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
