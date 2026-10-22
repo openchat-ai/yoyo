@@ -1583,6 +1583,7 @@ fn s3_pack_data_bytewise(bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
 }
 
 /// S3.166: flatten one TYB record to 8 wire bytes (op+argc+args).
+#[cfg(test)]
 fn s3_rec_wire(op: u8, argc: u8, a: [u8; 6]) -> [u8; 8] {
     [op, argc, a[0], a[1], a[2], a[3], a[4], a[5]]
 }
@@ -1907,6 +1908,7 @@ fn s3_pack_proto_out_off(payload_len: usize) -> u32 {
 }
 
 /// S3.142: emit one byte from DATA[`src_off`] to *DST, then DST += 1 (MEMCPY).
+#[cfg(test)]
 fn s3_pack_proto_putc(recs: &mut Vec<(u8, u8, [u8; 6])>, src_off: u32) {
     recs.push(s3_rec_set(S3_PACK_PROTO_SRC, src_off));
     recs.push(s3_rec_memcpy(
@@ -1923,6 +1925,7 @@ const S3_PACK_STB_ZERO: u16 = 13;
 const S3_PACK_STB_BASE: u16 = 14;
 
 /// S3.191: store an immediate byte (op, argc, or zero pad) — not a DATA const.
+#[cfg(test)]
 fn s3_pack_proto_putc_imm(recs: &mut Vec<(u8, u8, [u8; 6])>, byte: u8) {
     recs.push(s3_rec_set(S3_PACK_STB_TMP, byte as u32));
     recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_PROTO_DST, 0));
@@ -1930,6 +1933,7 @@ fn s3_pack_proto_putc_imm(recs: &mut Vec<(u8, u8, [u8; 6])>, byte: u8) {
 }
 
 /// S3.155: emit one byte via LDB→STB (sim-only STB); DST += 1.
+#[cfg(test)]
 fn s3_pack_proto_putc_stb(recs: &mut Vec<(u8, u8, [u8; 6])>, src_off: u32) {
     recs.push(s3_rec_ldb(
         S3_PACK_STB_TMP,
@@ -1941,6 +1945,7 @@ fn s3_pack_proto_putc_stb(recs: &mut Vec<(u8, u8, [u8; 6])>, src_off: u32) {
 }
 
 /// S3.142: one DATA `0x10` record (8 wire bytes) from payload at `base`, argc=`n`.
+#[cfg(test)]
 fn s3_pack_proto_record(recs: &mut Vec<(u8, u8, [u8; 6])>, base: u32, n: u8) {
     debug_assert!((1..=S3_PACK_CHUNK as u8).contains(&n));
     const BASE: u32 = 16;
@@ -1995,6 +2000,7 @@ fn s3_yoyo_pack_proto_tyb(payload: &[u8]) -> Vec<u8> {
 }
 
 /// S3.155: one DATA record via LDB→STB putc.
+#[cfg(test)]
 fn s3_pack_proto_record_stb(recs: &mut Vec<(u8, u8, [u8; 6])>, base: u32, n: u8) {
     debug_assert!((1..=S3_PACK_CHUNK as u8).contains(&n));
     s3_pack_proto_putc_imm(recs, 0x10);
@@ -2780,6 +2786,7 @@ fn s3_rec_set(slot: u16, imm: u32) -> (u8, u8, [u8; 6]) {
 fn s3_rec_add(slot: u16, imm: u32) -> (u8, u8, [u8; 6]) {
     s3_rec_from_shape(0x62, slot as u32, imm, 0)
 }
+#[cfg(test)]
 fn s3_rec_sub(slot: u16, imm: u32) -> (u8, u8, [u8; 6]) {
     s3_rec_from_shape(0x61, slot as u32, imm, 0)
 }
@@ -4743,6 +4750,20 @@ mod tests {
         );
     }
 
+    /// S3.338: rec_wire + proto putc/record + rec_sub cfg(test); expand stays live.
+    #[test]
+    fn s3_rec_wire_proto_putc_test_only_pin() {
+        let w = s3_rec_wire(0xFF, 0, [0; 6]);
+        assert_eq!(w[0], 0xFF);
+        let mut recs = Vec::new();
+        s3_pack_proto_putc_imm(&mut recs, 0x10);
+        assert_eq!(recs[0].0, 0x30);
+        assert_eq!(s3_rec_sub(3, 5), s3_rec_slot_imm(0x61, 3, 5));
+        // expand remains callable (self-host near-end; not cfg(test)).
+        let (exp, _) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_MANY_FLAT);
+        assert_eq!(parse_tyb(&exp).unwrap().records.len(), S3_EXPAND_ASM_PIN);
+    }
+
     /// S3.337: fixed_table / host_set_body / seed helpers / jne are cfg(test).
     #[test]
     fn s3_misc_helpers_test_only_pin() {
@@ -5426,9 +5447,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–337: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–338: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor),
-    /// sole bootstrap MEMCPY+RET (=2; more test-only helpers gated). Host 171.
+    /// sole bootstrap+expand (wire helpers cfg(test)). Host 171.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
