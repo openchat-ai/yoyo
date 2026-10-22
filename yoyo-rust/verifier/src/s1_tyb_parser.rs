@@ -1710,8 +1710,9 @@ fn s3_append_stb_runs(
     label_id
 }
 
-/// S3.222: one SET per distinct nonzero; STB `oo` relative to already-live BASE.
-/// Caller owns BASE (SET absolute, or live lea slot15 via `_base`). No SHR.
+/// S3.222/S3.345: one SET per distinct nonzero via default BASE — test helper.
+/// Production seed uses [`s3_append_stb_poke_global_distinct_base`] directly.
+#[cfg(test)]
 fn s3_append_stb_poke_global_distinct(
     recs: &mut Vec<(u8, u8, [u8; 6])>,
     bytes: &[u8],
@@ -1760,7 +1761,8 @@ fn s3_append_stb_zero_then_poke(
         let win = &bytes[off..off + take];
         if win.iter().any(|&b| b != 0) {
             recs.push(s3_rec_set(S3_PACK_STB_BASE, base + off as u32));
-            s3_append_stb_poke_global_distinct(recs, win);
+            // S3.345: call base poke directly (default-BASE wrapper is cfg(test)).
+            s3_append_stb_poke_global_distinct_base(recs, win, S3_PACK_STB_BASE);
         }
         off += take;
     }
@@ -2316,20 +2318,15 @@ fn s3_host_body_of(op: u8) -> Vec<u8> {
 fn s3_host_set_body() -> Vec<u8> {
     s3_host_body_of(0x30)
 }
-/// S3.123: RET is the whole emit (do not strip the only `C3`).
+/// S3.123/S3.345: RET body helper — test pin; production bakes via OnceLock path.
+#[cfg(test)]
 fn s3_host_ret_body() -> Vec<u8> {
-    let text = emit_x86(
-        &parse_tyb(&s3_host_tyb_from_records(&[s3_fixed_rec(0xFF)])).expect("ret tyb"),
-    )
-    .text;
-    assert_eq!(text, vec![0xC3]);
-    text
+    s3_compute_fixed_body(0xFF)
 }
-/// S3.123: NOP emit is `90 C3`; drop the trailing RET.
+/// S3.123/S3.345: NOP body helper — test pin; production bakes via OnceLock path.
+#[cfg(test)]
 fn s3_host_nop_body() -> Vec<u8> {
-    let b = s3_host_body_of(0x00);
-    assert_eq!(b, vec![0x90]);
-    b
+    s3_compute_fixed_body(0x00)
 }
 
 /// S3.124: one body per fixed-subset opcode (host table order).
@@ -2357,11 +2354,25 @@ fn s3_fixed10_named_cases() -> Vec<(&'static str, Vec<(u8, u8, [u8; 6])>)> {
         .collect()
 }
 
-/// S3.138: one emit_x86 bake per fixed10 op; reused for every firmware build.
+/// S3.138/S3.345: one emit_x86 bake per fixed10 op; reused for every firmware build.
+/// RET/NOP special cases inlined (helpers are cfg(test) pins only).
 fn s3_compute_fixed_body(op: u8) -> Vec<u8> {
     match op {
-        0xFF => s3_host_ret_body(),
-        0x00 => s3_host_nop_body(),
+        0xFF => {
+            // RET is the whole emit (do not strip the only `C3`).
+            let text = emit_x86(
+                &parse_tyb(&s3_host_tyb_from_records(&[s3_fixed_rec(0xFF)])).expect("ret tyb"),
+            )
+            .text;
+            assert_eq!(text, vec![0xC3]);
+            text
+        }
+        0x00 => {
+            // NOP emit is `90 C3`; drop the trailing RET via host_body.
+            let b = s3_host_body_of(0x00);
+            assert_eq!(b, vec![0x90]);
+            b
+        }
         o if S3_FIXED10_OPS.contains(&o) => s3_host_body_of(o),
         _ => panic!("s3_compute_fixed_body: opcode {op:#x} is outside fixed10"),
     }
@@ -4813,6 +4824,28 @@ mod tests {
         assert_eq!(S3_PACK_PROTO_DST, 9, "host outbuf slot stays live");
     }
 
+    /// S3.345: default-BASE poke wrapper + ret/nop body helpers are cfg(test);
+    /// production seed calls `_base` poke; OnceLock bakes RET/NOP inline.
+    #[test]
+    fn s3_poke_ret_nop_helpers_test_only_pin() {
+        let mut via = Vec::new();
+        s3_append_stb_poke_global_distinct(&mut via, &[0xAA, 0, 0xAA]);
+        let mut base = Vec::new();
+        s3_append_stb_poke_global_distinct_base(&mut base, &[0xAA, 0, 0xAA], S3_PACK_STB_BASE);
+        assert_eq!(via, base, "default-BASE wrapper ≡ _base(STB_BASE)");
+        assert_eq!(s3_host_ret_body(), s3_compute_fixed_body(0xFF));
+        assert_eq!(s3_host_nop_body(), s3_compute_fixed_body(0x00));
+        assert_eq!(s3_fixed_row(0xFF), vec![0xC3]);
+        assert_eq!(s3_fixed_row(0x00), vec![0x90]);
+        assert_eq!(
+            parse_tyb(&s3_expand_many_flat_tyb().0)
+                .unwrap()
+                .records
+                .len(),
+            S3_EXPAND_ASM_PIN
+        );
+    }
+
     /// S3.343/S3.344: 256B argc index + MANY_FLAT + generic expand are cfg(test);
     /// production expand hardcodes MEMCPY+RET wire (still ≡ generic/flat path).
     #[test]
@@ -5543,10 +5576,10 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–344: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–345: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor),
-    /// sole bootstrap+hardcoded-wire expand; pack/argc/MANY_FLAT cfg(test). Host 171.
-    /// S3.342–344: host-loop densify reject; argc+flat seeds test-only.
+    /// sole bootstrap+hardcoded-wire expand; pack/argc/flat/poke-wrap cfg(test).
+    /// Host 171. S3.342–345: densify reject + seed/helper scaffolding test-only.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
