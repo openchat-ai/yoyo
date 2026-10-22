@@ -1956,8 +1956,8 @@ fn s3_pack_proto_record(recs: &mut Vec<(u8, u8, [u8; 6])>, base: u32, n: u8) {
     }
 }
 
-/// S3.142: unrolled YOYO IR pack (SET/ADD/MEMCPY/RET) matching `s3_pack_data` wire.
-/// Builder is still Rust; the *executed* algorithm is YOYO ops (no STB — 1-byte MEMCPY).
+/// S3.142/S3.336: unrolled proto pack IR — test alt path (production = loop_stb via_ir).
+#[cfg(test)]
 fn s3_yoyo_pack_proto_ir(payload: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     let payload_len = payload.len();
     let mut recs = Vec::new();
@@ -1981,7 +1981,8 @@ fn s3_yoyo_pack_proto_ir(payload: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     recs
 }
 
-/// S3.142/S3.195/S3.309: firmware = unrolled pack IR + TYB header seed.
+/// S3.142/S3.195/S3.309/S3.336: proto pack TYB — test alt path.
+#[cfg(test)]
 fn s3_yoyo_pack_proto_tyb(payload: &[u8]) -> Vec<u8> {
     assert!(!payload.is_empty() && payload.len() <= 6);
     // S3.153: bootstrap scratch is bytewise (not chunk-3).
@@ -2008,7 +2009,8 @@ fn s3_pack_proto_record_stb(recs: &mut Vec<(u8, u8, [u8; 6])>, base: u32, n: u8)
     }
 }
 
-/// S3.155/S3.309: unrolled pack IR using LDB→STB (sim-only); records @ OUT+hdr.
+/// S3.155/S3.309/S3.336: unrolled STB pack IR — test alt path.
+#[cfg(test)]
 fn s3_yoyo_pack_stb_ir(payload: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     let payload_len = payload.len();
     let mut recs = Vec::new();
@@ -2028,6 +2030,8 @@ fn s3_yoyo_pack_stb_ir(payload: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     recs
 }
 
+/// S3.336: unrolled STB pack TYB — test alt path.
+#[cfg(test)]
 fn s3_yoyo_pack_stb_tyb(payload: &[u8]) -> Vec<u8> {
     assert!(!payload.is_empty() && payload.len() <= 6);
     // S3.309: IR-seed TYB header; unrolled STB writes records at OUT+hdr.
@@ -2049,8 +2053,8 @@ const S3_PACK_LOOP_L_USE_REM: u32 = 2;
 const S3_PACK_LOOP_L_PACK: u32 = 3;
 const S3_PACK_LOOP_L_DONE: u32 = 4;
 
-/// S3.143/S3.145: looped YOYO IR pack (CMP/JL/SUBV/ADDV/MEMCPY). Payload must be
-/// zero-padded 2B past `payload_len` so chunk=1/2 can still read 3 arg lows.
+/// S3.143/S3.145/S3.336: MEMCPY loop pack IR — test alt path.
+#[cfg(test)]
 fn s3_yoyo_pack_loop_ir(
     pay_off: u32,
     out_off: u32,
@@ -2214,8 +2218,8 @@ fn s3_yoyo_pack_loop_stb_tyb(payload: &[u8]) -> (Vec<u8>, u32) {
     (s3_host_tyb_from_records(&recs), out_off)
 }
 
-/// S3.143–S3.194/S3.308: MEMCPY loop pack. DATA empty; five consts IR-stored.
-/// S3.308: IR-seed TYB header; records at out+hdr (same shape as STB pack).
+/// S3.143–S3.194/S3.308/S3.336: MEMCPY loop pack TYB — test alt (prod = loop_stb).
+#[cfg(test)]
 fn s3_yoyo_pack_loop_tyb(payload: &[u8]) -> (Vec<u8>, u32) {
     assert!(!payload.is_empty());
     let const_base = payload.len() as u32 + 2;
@@ -4725,6 +4729,19 @@ mod tests {
         );
     }
 
+    /// S3.336: alt pack TYB (proto/stb/memcpy-loop) cfg(test); loop_stb via_ir stays.
+    #[test]
+    fn s3_alt_pack_tyb_test_only_pin() {
+        let bytes = [0x11u8, 0x22, 0x33];
+        assert_eq!(s3_pack_data_via_ir(&bytes), s3_pack_data(&bytes));
+        let proto = s3_yoyo_pack_proto_tyb(&bytes);
+        let stb = s3_yoyo_pack_stb_tyb(&bytes);
+        let (loop_m, _) = s3_yoyo_pack_loop_tyb(&bytes);
+        assert!(s3_unpack_data_tyb(&proto).is_empty());
+        assert!(s3_unpack_data_tyb(&stb).is_empty());
+        assert!(s3_unpack_data_tyb(&loop_m).is_empty());
+    }
+
     /// S3.335: emit-TYB file cluster + unpack_data_tyb are cfg(test).
     #[test]
     fn s3_emit_tyb_cluster_test_only_pin() {
@@ -5382,9 +5399,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–335: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–336: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor),
-    /// sole bootstrap MEMCPY+RET (=2; emit-TYB cluster cfg(test)). Host 171.
+    /// sole bootstrap MEMCPY+RET (=2; alt pack TYB cfg(test)). Host 171.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
