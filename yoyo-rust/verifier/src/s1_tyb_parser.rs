@@ -2422,9 +2422,9 @@ fn s3_prog_data_payload(rows: &[(u8, &[u8])], ops: &[u8], outbuf: usize) -> Vec<
     payload
 }
 
-/// S3.207/S3.209: IR-write `bytes` at `base`. Bytes before `base` stay zero from
-/// the empty image — do not spend IR on the leading pad. Table-shaped payloads
-/// are sparse zeros; poke-only (one SET per distinct nonzero) beats run-fold.
+/// S3.207/S3.209/S3.346: IR-write alias — test/proof call sites.
+/// Production host/expand call [`s3_append_stb_zero_then_poke`] directly.
+#[cfg(test)]
 fn s3_ir_seed_at(
     recs: &mut Vec<(u8, u8, [u8; 6])>,
     base: u32,
@@ -2453,7 +2453,8 @@ fn s3_host_prog_loop_tyb(ops: &[u8]) -> Vec<u8> {
     let start = S3_HOST_TABLE_OFF as usize;
     let end = S3_HOST_PROG_OFF as usize + 1 + ops.len();
     let mut recs = Vec::new();
-    s3_ir_seed_at(&mut recs, S3_HOST_TABLE_OFF, &payload[start..end], 10);
+    // S3.346: production seed = poke directly (ir_seed_at alias is cfg(test)).
+    s3_append_stb_zero_then_poke(&mut recs, S3_HOST_TABLE_OFF, &payload[start..end], 10);
     recs.push(s3_rec_set(S3_PACK_PROTO_DST, S3_HOST_OUTBUF_OFF));
     recs.extend(s3_prog_loop_code_host(ops.len() as u32, S3_HOST_NROWS));
     s3_host_tyb_from_records(&recs)
@@ -2710,7 +2711,8 @@ pub fn s3_expand_many_flat_tyb() -> (Vec<u8>, u32) {
     hdr[6..8].copy_from_slice(&(NRECS as u16).to_le_bytes());
     job.extend_from_slice(&hdr);
     let mut recs = Vec::new();
-    s3_ir_seed_at(&mut recs, S3_EXPAND_SEED, &job, 30);
+    // S3.346: production seed = poke directly (ir_seed_at alias is cfg(test)).
+    s3_append_stb_zero_then_poke(&mut recs, S3_EXPAND_SEED, &job, 30);
     recs.extend(s3_bootstrap_expand_asm());
     (s3_host_tyb_from_records(&recs), out)
 }
@@ -4824,6 +4826,36 @@ mod tests {
         assert_eq!(S3_PACK_PROTO_DST, 9, "host outbuf slot stays live");
     }
 
+    /// S3.346: `s3_ir_seed_at` is cfg(test) alias; production host/expand call
+    /// `s3_append_stb_zero_then_poke` directly. Floor pins unchanged.
+    #[test]
+    fn s3_ir_seed_at_test_only_pin() {
+        let payload = s3_fixed_payload(&S3_FIXED10_OPS, &[0xFF], S3_HOST_OUTBUF_OFF as usize);
+        let start = S3_HOST_TABLE_OFF as usize;
+        let end = S3_HOST_PROG_OFF as usize + 2;
+        let slice = &payload[start..end];
+        let mut via_alias = Vec::new();
+        s3_ir_seed_at(&mut via_alias, S3_HOST_TABLE_OFF, slice, 10);
+        let mut via_poke = Vec::new();
+        s3_append_stb_zero_then_poke(&mut via_poke, S3_HOST_TABLE_OFF, slice, 10);
+        assert_eq!(via_alias, via_poke, "ir_seed_at ≡ zero_then_poke");
+        assert_eq!(via_alias.len(), 141, "host seed IR pin");
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            171
+        );
+        assert_eq!(
+            parse_tyb(&s3_expand_many_flat_tyb().0)
+                .unwrap()
+                .records
+                .len(),
+            S3_EXPAND_ASM_PIN
+        );
+    }
+
     /// S3.345: default-BASE poke wrapper + ret/nop body helpers are cfg(test);
     /// production seed calls `_base` poke; OnceLock bakes RET/NOP inline.
     #[test]
@@ -5576,10 +5608,10 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–345: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–346: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor),
-    /// sole bootstrap+hardcoded-wire expand; pack/argc/flat/poke-wrap cfg(test).
-    /// Host 171. S3.342–345: densify reject + seed/helper scaffolding test-only.
+    /// sole bootstrap+hardcoded-wire expand; pack/argc/flat/ir_seed alias cfg(test).
+    /// Host 171. S3.342–346: densify reject + seed/helper scaffolding test-only.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
