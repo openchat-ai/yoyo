@@ -4843,6 +4843,41 @@ mod tests {
         assert_eq!(S3_PACK_PROTO_DST, 9, "host outbuf slot stays live");
     }
 
+    /// S3.352: post-scaffolding cliff map — all hard floors in one pin after
+    /// S3.342–351 (host densify reject · argc/flat/ir_seed/wrappers cfg(test) ·
+    /// thin-wrapper sheep). Next ≥10 needs A1 / OnceLock / asm22 / 真自举 arch.
+    #[test]
+    fn s3_post_scaffold_cliff_map_pin() {
+        assert_eq!(S3_EXPAND_ASM_PIN, 22, "assembler poke floor");
+        assert_eq!(
+            parse_tyb(&s3_expand_many_flat_tyb().0)
+                .unwrap()
+                .records
+                .len(),
+            22
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            171,
+            "host IR floor"
+        );
+        assert_eq!(s3_prog_loop_code_host(1, S3_HOST_NROWS).len(), 29);
+        assert_eq!(s3_bootstrap_expand_asm().len(), 2);
+        assert_eq!(s3_in_dll_lea_prologue_recs().len(), 13, "A1 density floor");
+        assert_eq!(s3_short_lea_raw_bytes().len(), 37);
+        assert_eq!(S3_LEA_PTR.len(), 7, "short lea not disp32");
+        // OnceLock bake still equals fresh emit_x86 (const-embed reject holds).
+        assert_eq!(s3_fixed_row(0xFF), s3_compute_fixed_body(0xFF));
+        assert_eq!(s3_fixed_row(0x30), s3_compute_fixed_body(0x30));
+        assert_eq!(
+            try_emit_text_via_yoyo_table(&[0xFF]).unwrap(),
+            s3_fixed_row(0xFF)
+        );
+    }
+
     /// S3.351: thin-wrapper scaffolding sheep reject. S3.348–350 moved body_of /
     /// fixed_payload / sim_prog_loop to cfg(test) — **0** IR delta (ASM 22 / host
     /// 171). Further one-liner collapses (tmpl_row / fixed_row alias / …) stay
@@ -5795,10 +5830,10 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–351: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–352: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock, bootstrap+hardcoded expand,
-    /// host poke seed + prog-loop + cursor sim. S3.351: thin-wrapper sheep reject.
-    /// Host 171 · ASM 22. Scaffolding (pack/argc/flat/ir_seed/helpers) cfg(test).
+    /// host poke seed + prog-loop + cursor sim. S3.352: post-scaffold cliff map.
+    /// Host 171 · ASM 22. Scaffolding/wrappers cfg(test). Not CLOSED.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
