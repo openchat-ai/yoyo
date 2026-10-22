@@ -5366,7 +5366,7 @@ mod tests {
     /// S3.358–366: 真自举能力图 — 缺的能力用自己的指令做出来（不译 emit_x86）。
     /// 已会：poke/pack、TYB 发射、表合成→.text、expand、body/lea 种子、
     /// host 种子链、**RET+SET/RET 整段 TYB 种子**(S3.368–369)。
-    /// 剩：其它非 RET host 仍 live assemble。不挤 IR 羊粪。
+    /// 剩：其它非 RET host assemble — S3.370 组合悬崖，不逐组合堆 TYB。
     #[test]
     fn s3_true_selfhost_capability_map_pin() {
         // —— 已会（自己的指令）——
@@ -5655,6 +5655,60 @@ mod tests {
         assert_ne!(
             s3_host_prog_loop_tyb(&[0x62, 0xFF]).as_slice(),
             S3_HOST_SET_RET_TYB_SEED
+        );
+    }
+
+    /// S3.370: per-ops host full-TYB seed cliff. Fixed10 programs of len 1..=8 are
+    /// combinatorial (10+10²+… ≫ 10); RET + SET+RET already cover capability-map
+    /// paths (S3.368–369). More seeds = sheep volume, not new capability. Keep
+    /// assemble for other ops; next ≥10 needs a different 真自举 arch cut.
+    #[test]
+    fn s3_host_per_ops_tyb_seed_cliff_reject() {
+        // Lower bound: just length-2 programs ending in RET over fixed10.
+        let mut len2_ret = 0usize;
+        for &op in &S3_FIXED10_OPS {
+            if op == 0xFF {
+                continue;
+            }
+            len2_ret += 1;
+            let tyb = s3_host_prog_loop_tyb(&[op, 0xFF]);
+            assert!(
+                tyb.len() >= 1392,
+                "each host TYB seed would be ≥RET size ({op:#x}+RET)"
+            );
+        }
+        assert_eq!(len2_ret, 9, "9 non-RET first ops × RET");
+        // Already seeded: RET + SET+RET. Remaining len2 alone = 8 more ≥1.3KB seeds.
+        let seeded = 2usize; // S3.368 RET + S3.369 SET+RET
+        let remaining_len2 = len2_ret - 1; // SET already seeded
+        assert_eq!(remaining_len2, 8);
+        // Volume without new ISA capability — reject continuing per-ops TYB seeds.
+        assert!(
+            remaining_len2 * 1392 > 10_000,
+            "per-ops TYB seeds: {} more len2 alone (≥{}KB) — combinatorial cliff",
+            remaining_len2,
+            remaining_len2 * 1392 / 1024
+        );
+        // Seeded paths stay short-circuit; a third combo still assembles.
+        assert_eq!(
+            s3_host_prog_loop_tyb(&[0xFF]).as_slice(),
+            S3_HOST_RET_TYB_SEED
+        );
+        assert_eq!(
+            s3_host_prog_loop_tyb(&[0x30, 0xFF]).as_slice(),
+            S3_HOST_SET_RET_TYB_SEED
+        );
+        let other = s3_host_prog_loop_tyb(&[0x66, 0xFF]);
+        assert_ne!(other.as_slice(), S3_HOST_RET_TYB_SEED);
+        assert_ne!(other.as_slice(), S3_HOST_SET_RET_TYB_SEED);
+        assert_eq!(seeded, 2);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173,
+            "floors untouched by cliff"
         );
     }
 
@@ -6738,7 +6792,7 @@ mod tests {
     }
 
     /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–366: remaining Rust sidecar.
-    /// S3.359–369: gaps + seeds + host RET/SET+RET TYB. Remaining = other non-RET assemble.
+    /// S3.359–370: gaps + seeds + RET/SET+RET TYB; per-ops TYB cliff. Remaining = other assemble.
     /// Host 173 · ASM 22. Scaffolding/wrappers cfg(test). Not CLOSED.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
