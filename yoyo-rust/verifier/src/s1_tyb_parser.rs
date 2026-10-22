@@ -3708,6 +3708,135 @@ pub fn fixed_template_ops(prog: &TybProgram) -> Option<Vec<u8>> {
     }
 }
 
+/// S3.372: host-offset lea A1 seed — table@0x80→slots3/15; dst@0x160→9; prog@0x149→2.
+/// Empty-DATA host firmware is 2279B > slim 1024; PE path uses DATA|lea|host-loop (~308B).
+const S3_HOST_LEA_A1_SEED: [(u8, u8, [u8; 6]); 13] = [
+    (0xa1, 3, [0x49, 0x00, 0x8d, 0x00, 0x87, 0x00]),
+    (0xa1, 3, [0x80, 0x00, 0x00, 0x00, 0x00, 0x00]),
+    (0xa1, 3, [0x00, 0x00, 0x49, 0x00, 0x89, 0x00]),
+    (0xa1, 3, [0x47, 0x00, 0x18, 0x00, 0x49, 0x00]),
+    (0xa1, 3, [0x89, 0x00, 0x47, 0x00, 0x78, 0x00]),
+    (0xa1, 3, [0x49, 0x00, 0x8d, 0x00, 0x87, 0x00]),
+    (0xa1, 3, [0x60, 0x00, 0x01, 0x00, 0x00, 0x00]),
+    (0xa1, 3, [0x00, 0x00, 0x49, 0x00, 0x89, 0x00]),
+    (0xa1, 3, [0x47, 0x00, 0x48, 0x00, 0x49, 0x00]),
+    (0xa1, 3, [0x8d, 0x00, 0x87, 0x00, 0x49, 0x00]),
+    (0xa1, 3, [0x01, 0x00, 0x00, 0x00, 0x00, 0x00]),
+    (0xa1, 3, [0x49, 0x00, 0x89, 0x00, 0x47, 0x00]),
+    (0xa1, 1, [0x10, 0x00, 0x00, 0x00, 0x00, 0x00]),
+];
+
+/// S3.372: pack bytes as DATA `0x10` argc≤3 records (PE compose image).
+fn s3_pack_data_records(bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
+    let mut recs = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        let n = (bytes.len() - i).min(3);
+        let mut a = [0u8; 6];
+        for k in 0..n {
+            a[k * 2] = bytes[i + k];
+        }
+        recs.push((0x10, n as u8, a));
+        i += n;
+    }
+    recs
+}
+
+/// S3.372: PE-capable host compose TYB — DATA(table|prog)|lea A1|host prog-loop.
+/// Bypasses empty-DATA poke cliff (2279 > [`S1_SLIM_MAX_CODE`]). Do **not** feed
+/// through [`compile_tyb_to_pe_mini`] (would recurse via try_emit); use emit+wrap.
+fn s3_host_compose_tyb_pe(ops: &[u8]) -> Vec<u8> {
+    debug_assert!(!ops.is_empty() && ops.len() <= 8);
+    let mut payload = vec![0u8; S3_HOST_TABLE_OFF as usize];
+    payload.extend_from_slice(&S3_HOST_TABLE_SEED);
+    payload.push(ops.len() as u8);
+    payload.extend_from_slice(ops);
+    while payload.len() < S3_HOST_OUTBUF_OFF as usize {
+        payload.push(0);
+    }
+    assert!(
+        payload.len() <= S1_MINI_DATA_MAX,
+        "S3.372 PE compose DATA {} > {}",
+        payload.len(),
+        S1_MINI_DATA_MAX
+    );
+    let mut recs = s3_pack_data_records(&payload);
+    recs.extend_from_slice(&S3_HOST_LEA_A1_SEED);
+    recs.extend(s3_prog_loop_code_host(ops.len() as u32, S3_HOST_NROWS));
+    s3_host_tyb_from_records(&recs)
+}
+
+/// S3.372: slim PE → run entry → read `out_off` bytes (Windows). Direct emit+wrap
+/// (no [`compile_tyb_to_pe_mini`] / try_emit cycle).
+#[cfg(windows)]
+fn s3_run_slim_pe_outbuf_at(pe: &[u8], out_off: u32, len: usize) -> Vec<u8> {
+    use crate::pe_manual_map::{map_pe_sections, parse_pe64_headers};
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn VirtualAlloc(
+            lpAddress: *mut std::ffi::c_void,
+            dwSize: usize,
+            flAllocationType: u32,
+            flProtect: u32,
+        ) -> *mut std::ffi::c_void;
+        fn VirtualFree(lpAddress: *mut std::ffi::c_void, dwSize: usize, dwFreeType: u32) -> i32;
+    }
+    const MEM_COMMIT: u32 = 0x1000;
+    const MEM_RESERVE: u32 = 0x2000;
+    const MEM_RELEASE: u32 = 0x8000;
+    const PAGE_EXECUTE_READWRITE: u32 = 0x40;
+
+    let headers = parse_pe64_headers(pe).expect("S3.372 pe headers");
+    let staging = map_pe_sections(pe, &headers).expect("S3.372 map");
+    let pe_off = u32::from_le_bytes(pe[0x3C..0x40].try_into().unwrap()) as usize;
+    let num_sec = u16::from_le_bytes(pe[pe_off + 6..pe_off + 8].try_into().unwrap()) as usize;
+    let opt_size = u16::from_le_bytes(pe[pe_off + 20..pe_off + 22].try_into().unwrap()) as usize;
+    let mut data_rva = 0u32;
+    for i in 0..num_sec {
+        let sh = pe_off + 24 + opt_size + i * 40;
+        if &pe[sh..sh + 5] == b".data" {
+            data_rva = u32::from_le_bytes(pe[sh + 12..sh + 16].try_into().unwrap());
+            break;
+        }
+    }
+    assert_ne!(data_rva, 0, "S3.372 .data section");
+    let size = headers.size_of_image as usize;
+    let base = unsafe {
+        VirtualAlloc(
+            std::ptr::null_mut(),
+            size,
+            MEM_COMMIT | MEM_RESERVE,
+            PAGE_EXECUTE_READWRITE,
+        )
+    };
+    assert!(!base.is_null(), "S3.372 VirtualAlloc");
+    unsafe {
+        std::ptr::copy_nonoverlapping(staging.as_ptr(), base as *mut u8, staging.len().min(size));
+        let entry = (base as usize + headers.entry_rva as usize) as *const ();
+        let f: extern "C" fn() = std::mem::transmute(entry);
+        f();
+        let out = std::slice::from_raw_parts(
+            (base as *const u8).add(data_rva as usize + out_off as usize),
+            len,
+        )
+        .to_vec();
+        VirtualFree(base, 0, MEM_RELEASE);
+        out
+    }
+}
+
+/// S3.372: try_emit via PE-run YOYO compose (not Rust sim cursor).
+#[cfg(windows)]
+fn s3_try_emit_via_pe(ops: &[u8]) -> Option<Vec<u8>> {
+    let tyb = s3_host_compose_tyb_pe(ops);
+    let prog = parse_tyb(&tyb).ok()?;
+    validate_tyb_mini(&prog).ok()?;
+    // Direct wrap — avoid compile_tyb_to_pe_mini ↔ try_emit recursion.
+    let pe = wrap_pe_slim(&emit_x86(&prog)).ok()?;
+    let len: usize = ops.iter().map(|o| s3_fixed_row(*o).len()).sum();
+    Some(s3_run_slim_pe_outbuf_at(&pe.bytes, S3_HOST_OUTBUF_OFF, len))
+}
+
 /// Host-side YOYO table compose → `.text` bytes.
 /// `None` if `ops` outside the fixed template subset.
 /// S3.350: call cursor directly (default-seed `s3_sim_prog_loop` is cfg(test)).
@@ -3718,15 +3847,23 @@ pub fn try_emit_text_via_yoyo_table(ops: &[u8]) -> Option<Vec<u8>> {
     if !ops.iter().all(|o| S3_FIXED10_OPS.contains(o)) {
         return None;
     }
-    s3_sim_prog_loop_cursor(
-        &s3_host_prog_loop_tyb(ops),
-        S3_HOST_TABLE_OFF as u64,
-        S3_HOST_OUTBUF_OFF,
-        (S3_HOST_PROG_OFF + 1) as u64,
-        S3_HOST_OUTBUF_OFF as u64,
-        RECORD_SIZE as u64,
-    )
-    .ok()
+    // S3.372: Windows = PE-run YOYO compose; elsewhere keep host sim cursor.
+    #[cfg(windows)]
+    {
+        return s3_try_emit_via_pe(ops);
+    }
+    #[cfg(not(windows))]
+    {
+        s3_sim_prog_loop_cursor(
+            &s3_host_prog_loop_tyb(ops),
+            S3_HOST_TABLE_OFF as u64,
+            S3_HOST_OUTBUF_OFF,
+            (S3_HOST_PROG_OFF + 1) as u64,
+            S3_HOST_OUTBUF_OFF as u64,
+            RECORD_SIZE as u64,
+        )
+        .ok()
+    }
 }
 
 /// Host PE path: fixed-template TYB → slim PE via YOYO table compose (not `emit_x86`).
@@ -5495,8 +5632,7 @@ mod tests {
         assert_eq!(s3_short_lea_raw_bytes().len(), 37);
     }
 
-    /// S3.371: post-host-seed-chain gap map. Next ≥10 = (A) try_emit via PE/YOYO
-    /// run, not more TYB seeds. (B)(C) documented; not CLOSED.
+    /// S3.371: post-host-seed-chain gap map (historical pin).
     #[test]
     fn s3_true_selfhost_next_gap_map_pin() {
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
@@ -5507,7 +5643,6 @@ mod tests {
                 .len(),
             173
         );
-        // Seeded host paths cover capability-map ops; others assemble.
         assert_eq!(
             s3_host_prog_loop_tyb(&[0xFF]).as_slice(),
             S3_HOST_RET_TYB_SEED
@@ -5519,9 +5654,8 @@ mod tests {
         let assembled = s3_host_prog_loop_tyb(&[0x62, 0xFF]);
         assert!(assembled.len() >= 1392);
         assert_ne!(assembled.as_slice(), S3_HOST_RET_TYB_SEED);
-        // Gap A witness: try_emit ≡ sim cursor on host TYB (Rust), floors hold.
+        // Empty-DATA host still ≡ sim (oracle); try_emit itself is PE on Windows (S3.372).
         assert_eq!(
-            try_emit_text_via_yoyo_table(&[0xFF]).unwrap(),
             s3_sim_prog_loop_cursor(
                 S3_HOST_RET_TYB_SEED,
                 S3_HOST_TABLE_OFF as u64,
@@ -5530,11 +5664,66 @@ mod tests {
                 S3_HOST_OUTBUF_OFF as u64,
                 RECORD_SIZE as u64,
             )
-            .unwrap()
+            .unwrap(),
+            vec![0xC3]
         );
-        // Gap C witness: A1 seed closed; denser in-DLL not this knife.
         assert_eq!(S3_IN_DLL_LEA_A1_SEED.len(), 13);
         assert_eq!(s3_bootstrap_expand_asm().len(), 2);
+    }
+
+    /// S3.372: gap A — try_emit via PE/YOYO run (not Rust sim). Empty-DATA host
+    /// TYB stays 2279 > slim 1024; PE path = DATA|host-lea|host-loop (~308B).
+    #[test]
+    #[cfg(windows)]
+    fn s3_try_emit_via_pe_pin() {
+        assert_eq!(S3_HOST_LEA_A1_SEED.len(), 13);
+        let a1_bytes: usize = S3_HOST_LEA_A1_SEED.iter().map(|r| r.1 as usize).sum();
+        assert_eq!(a1_bytes, 37);
+        let pe_tyb = s3_host_compose_tyb_pe(&[0xFF]);
+        let pe_code = emit_x86(&parse_tyb(&pe_tyb).unwrap()).text.len();
+        assert!(pe_code <= S1_SLIM_MAX_CODE, "PE compose code {pe_code}");
+        assert!(pe_code < 400, "PE compose stays lean {pe_code}");
+        let host_code = emit_x86(&parse_tyb(S3_HOST_RET_TYB_SEED).unwrap()).text.len();
+        assert!(host_code > S1_SLIM_MAX_CODE, "empty-DATA host cliff {host_code}");
+        // Direct wrap (no mini/try_emit cycle) runs ≡ try_emit for all fixed10.
+        let cases: &[&[u8]] = &[
+            &[0xFF],
+            &[0x00, 0xFF],
+            &[0x30, 0xFF],
+            &[0x60, 0xFF],
+            &[0x66, 0xFF],
+            &[0x62, 0xFF],
+            &[0x67, 0xFF],
+            &[0x61, 0xFF],
+            &[0x64, 0xFF],
+            &[0x65, 0xFF],
+        ];
+        assert_eq!(cases.len(), 10);
+        for &ops in cases {
+            let via = try_emit_text_via_yoyo_table(ops).unwrap_or_else(|| panic!("try_emit {ops:?}"));
+            let sim = s3_sim_prog_loop_cursor(
+                &s3_host_prog_loop_tyb(ops),
+                S3_HOST_TABLE_OFF as u64,
+                S3_HOST_OUTBUF_OFF,
+                (S3_HOST_PROG_OFF + 1) as u64,
+                S3_HOST_OUTBUF_OFF as u64,
+                RECORD_SIZE as u64,
+            )
+            .unwrap();
+            assert_eq!(via, sim, "S3.372 PE try_emit ≡ host sim ops={ops:?}");
+            let tyb = s3_host_compose_tyb_pe(ops);
+            let pe = wrap_pe_slim(&emit_x86(&parse_tyb(&tyb).unwrap())).expect("wrap");
+            let got = s3_run_slim_pe_outbuf_at(&pe.bytes, S3_HOST_OUTBUF_OFF, via.len());
+            assert_eq!(got, via, "S3.372 PE outbuf ops={ops:?}");
+        }
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
     }
 
     /// S3.366: win0 poke seed ≡ live zero_then_poke(table[..127]). Floor now 173 (S3.367).
@@ -8527,65 +8716,10 @@ mod tests {
         assert_eq!(s3_sim_table_compose(&golden).unwrap(), vec![0xC3]);
     }
 
-    /// Map slim PE RWX, call entry, read composed outbuf (Windows).
+    /// Map slim PE RWX, call entry, read in-DLL outbuf (Windows).
     #[cfg(windows)]
     fn s3_run_slim_pe_outbuf(pe: &[u8], len: usize) -> Vec<u8> {
-        use crate::pe_manual_map::{map_pe_sections, parse_pe64_headers};
-        #[link(name = "kernel32")]
-        extern "system" {
-            fn VirtualAlloc(
-                lpAddress: *mut std::ffi::c_void,
-                dwSize: usize,
-                flAllocationType: u32,
-                flProtect: u32,
-            ) -> *mut std::ffi::c_void;
-            fn VirtualFree(lpAddress: *mut std::ffi::c_void, dwSize: usize, dwFreeType: u32)
-                -> i32;
-        }
-        const MEM_COMMIT: u32 = 0x1000;
-        const MEM_RESERVE: u32 = 0x2000;
-        const MEM_RELEASE: u32 = 0x8000;
-        const PAGE_EXECUTE_READWRITE: u32 = 0x40;
-
-        let headers = parse_pe64_headers(pe).expect("headers");
-        let staging = map_pe_sections(pe, &headers).expect("map");
-        // data RVA = .data VirtualAddress
-        let pe_off = u32::from_le_bytes(pe[0x3C..0x40].try_into().unwrap()) as usize;
-        let num_sec = u16::from_le_bytes(pe[pe_off + 6..pe_off + 8].try_into().unwrap()) as usize;
-        let opt_size = u16::from_le_bytes(pe[pe_off + 20..pe_off + 22].try_into().unwrap()) as usize;
-        let mut data_rva = 0u32;
-        for i in 0..num_sec {
-            let sh = pe_off + 24 + opt_size + i * 40;
-            if &pe[sh..sh + 5] == b".data" {
-                data_rva = u32::from_le_bytes(pe[sh + 12..sh + 16].try_into().unwrap());
-                break;
-            }
-        }
-        assert_ne!(data_rva, 0, ".data section");
-
-        let size = headers.size_of_image as usize;
-        let base = unsafe {
-            VirtualAlloc(
-                std::ptr::null_mut(),
-                size,
-                MEM_COMMIT | MEM_RESERVE,
-                PAGE_EXECUTE_READWRITE,
-            )
-        };
-        assert!(!base.is_null(), "VirtualAlloc");
-        unsafe {
-            std::ptr::copy_nonoverlapping(staging.as_ptr(), base as *mut u8, staging.len().min(size));
-            let entry = (base as usize + headers.entry_rva as usize) as *const ();
-            let f: extern "C" fn() = std::mem::transmute(entry);
-            f();
-            let out = std::slice::from_raw_parts(
-                (base as *const u8).add(data_rva as usize + S3_OUTBUF_OFF as usize),
-                len,
-            )
-            .to_vec();
-            VirtualFree(base, 0, MEM_RELEASE);
-            out
-        }
+        s3_run_slim_pe_outbuf_at(pe, S3_OUTBUF_OFF, len)
     }
 
     #[test]
