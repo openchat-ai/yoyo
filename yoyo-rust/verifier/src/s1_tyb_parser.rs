@@ -2652,10 +2652,9 @@ const S3_SHAPE_FILL_MANY_FLAT: &[u8] = &[
     132, 9, 0, 2, 0, 12, 0, 255, 0, 0, 0, 0, 0, 0,
 ];
 
+/// S3.325: MEMCPY-only slice — named IR (no via_yoyo re-expand).
 fn s3_yoyo_shape_fill_one() -> Vec<(u8, u8, [u8; 6])> {
-    let start = S3_SHAPE_FILL_ONE_AT * 7;
-    let end = start + S3_SHAPE_FILL_ONE_LEN * 7;
-    s3_recs_from_flat_seed_via_yoyo(&S3_SHAPE_FILL_MANY_FLAT[start..end])
+    vec![s3_rec_memcpy(9, 2, 12)]
 }
 
 const S3_SHAPE_FILL_ONE_FLAT: &[u8] = S3_SHAPE_FILL_MANY_FLAT;
@@ -2671,9 +2670,9 @@ fn s3_yoyo_shape_fill_ctrl() -> Vec<(u8, u8, [u8; 6])> {
 /// S3.304: many out past wire-job blob (no 256B argc table in-stream).
 const S3_SHAPE_MANY_OUT: u32 = 0x300;
 
-/// S3.321: many ctrl shares bootstrap (ONE≡MANY flat).
+/// S3.321/S3.325: many ctrl ≡ one ctrl ≡ bootstrap.
 fn s3_yoyo_shape_fill_many_ctrl() -> Vec<(u8, u8, [u8; 6])> {
-    s3_bootstrap_expand_asm()
+    s3_yoyo_shape_fill_ctrl()
 }
 
 /// S3.304: bake op|argc|args wire rows (shared with expand job seed).
@@ -4702,18 +4701,6 @@ mod tests {
 
     /// S3.321: shape-fill ctrl ≡ bootstrap; via_yoyo stays test-only proof.
     #[test]
-    /// S3.323/S3.324: no expand_asm_flat / CTRL alias — MANY_FLAT is asm body.
-    #[test]
-    fn s3_expand_ctrl_flat_is_asm_body_pin() {
-        assert_eq!(S3_SHAPE_FILL_MANY_FLAT.len(), S3_EXPAND_ASM_ROWS * 7);
-        assert_eq!(S3_EXPAND_ASM_ROWS, S3_SHAPE_FILL_MANY_ROWS);
-        assert_eq!(
-            s3_bootstrap_expand_asm(),
-            s3_recs_from_flat_seed(S3_SHAPE_FILL_MANY_FLAT)
-        );
-    }
-
-    #[test]
     fn s3_shape_fill_ctrl_shares_bootstrap_pin() {
         assert_eq!(s3_yoyo_shape_fill_ctrl(), s3_bootstrap_expand_asm());
         assert_eq!(s3_yoyo_shape_fill_many_ctrl(), s3_bootstrap_expand_asm());
@@ -4727,6 +4714,36 @@ mod tests {
             s3_bootstrap_expand_asm()
         );
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
+    }
+
+    /// S3.323/S3.324: no expand_asm_flat / CTRL alias — MANY_FLAT is asm body.
+    #[test]
+    fn s3_expand_ctrl_flat_is_asm_body_pin() {
+        assert_eq!(S3_SHAPE_FILL_MANY_FLAT.len(), S3_EXPAND_ASM_ROWS * 7);
+        assert_eq!(S3_EXPAND_ASM_ROWS, S3_SHAPE_FILL_MANY_ROWS);
+        assert_eq!(
+            s3_bootstrap_expand_asm(),
+            s3_recs_from_flat_seed(S3_SHAPE_FILL_MANY_FLAT)
+        );
+    }
+
+    /// S3.325: shape_fill_one is named MEMCPY; via_yoyo only for expand proof tests.
+    #[test]
+    fn s3_shape_fill_one_named_memcpy_pin() {
+        assert_eq!(s3_yoyo_shape_fill_one(), vec![s3_rec_memcpy(9, 2, 12)]);
+        assert_eq!(
+            s3_yoyo_shape_fill_one(),
+            s3_bootstrap_expand_asm()[..S3_SHAPE_FILL_ONE_LEN].to_vec()
+        );
+        assert_eq!(
+            s3_recs_from_flat_seed_via_yoyo(
+                &S3_SHAPE_FILL_MANY_FLAT[S3_SHAPE_FILL_ONE_AT * 7
+                    ..(S3_SHAPE_FILL_ONE_AT + S3_SHAPE_FILL_ONE_LEN) * 7]
+            ),
+            s3_yoyo_shape_fill_one(),
+            "via_yoyo of MEMCPY slice still ≡ named"
+        );
+        assert_eq!(s3_yoyo_shape_fill_many_ctrl(), s3_yoyo_shape_fill_ctrl());
     }
 
     /// S3.225/S3.226: unrolled + two-phase + loop-staged share STB-flat phase1 prefix.
@@ -5291,9 +5308,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–324: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–325: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor),
-    /// sole bootstrap MEMCPY+RET (=2; MANY_FLAT is asm body). Host 171.
+    /// sole bootstrap MEMCPY+RET (=2; fill one/many named). Host 171.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
