@@ -2995,8 +2995,9 @@ fn s3_prog_loop_code_host(ops_len: u32, nrows: u32) -> Vec<(u8, u8, [u8; 6])> {
     ]
 }
 
-/// S3.116: one prog-loop sim. Host (10-row, outbuf 0x160) and in-DLL
-/// (3-row, outbuf 0xC8) only differ by these seeds. RAW `0xA1` is skipped.
+/// S3.116/S3.350: default-seed prog-loop sim — test/proof helper.
+/// Production [`try_emit_text_via_yoyo_table`] calls cursor directly.
+#[cfg(test)]
 fn s3_sim_prog_loop(tyb: &[u8], table_off: u64, outbuf: u32, prog_ptr: u64) -> Result<Vec<u8>, u8> {
     s3_sim_prog_loop_cursor(
         tyb,
@@ -3277,6 +3278,7 @@ pub fn fixed_template_ops(prog: &TybProgram) -> Option<Vec<u8>> {
 
 /// Host-side YOYO table compose → `.text` bytes.
 /// `None` if `ops` outside the fixed template subset.
+/// S3.350: call cursor directly (default-seed `s3_sim_prog_loop` is cfg(test)).
 pub fn try_emit_text_via_yoyo_table(ops: &[u8]) -> Option<Vec<u8>> {
     if ops.is_empty() || ops.len() > 8 {
         return None;
@@ -3284,11 +3286,13 @@ pub fn try_emit_text_via_yoyo_table(ops: &[u8]) -> Option<Vec<u8>> {
     if !ops.iter().all(|o| S3_FIXED10_OPS.contains(o)) {
         return None;
     }
-    s3_sim_prog_loop(
+    s3_sim_prog_loop_cursor(
         &s3_host_prog_loop_tyb(ops),
         S3_HOST_TABLE_OFF as u64,
         S3_HOST_OUTBUF_OFF,
         (S3_HOST_PROG_OFF + 1) as u64,
+        S3_HOST_OUTBUF_OFF as u64,
+        RECORD_SIZE as u64,
     )
     .ok()
 }
@@ -4839,6 +4843,42 @@ mod tests {
         assert_eq!(S3_PACK_PROTO_DST, 9, "host outbuf slot stays live");
     }
 
+    /// S3.350: `s3_sim_prog_loop` is cfg(test); pub try_emit calls cursor with
+    /// default slot9=outbuf / slot12=RECORD_SIZE (≡ old wrapper).
+    #[test]
+    fn s3_sim_prog_loop_test_only_pin() {
+        let tyb = s3_host_prog_loop_tyb(&[0xFF]);
+        let via = s3_sim_prog_loop(
+            &tyb,
+            S3_HOST_TABLE_OFF as u64,
+            S3_HOST_OUTBUF_OFF,
+            (S3_HOST_PROG_OFF + 1) as u64,
+        )
+        .unwrap();
+        let cur = s3_sim_prog_loop_cursor(
+            &tyb,
+            S3_HOST_TABLE_OFF as u64,
+            S3_HOST_OUTBUF_OFF,
+            (S3_HOST_PROG_OFF + 1) as u64,
+            S3_HOST_OUTBUF_OFF as u64,
+            RECORD_SIZE as u64,
+        )
+        .unwrap();
+        assert_eq!(via, cur);
+        assert_eq!(via, s3_compute_fixed_body(0xFF));
+        assert_eq!(
+            try_emit_text_via_yoyo_table(&[0xFF]).as_deref(),
+            Some(via.as_slice())
+        );
+        assert_eq!(
+            parse_tyb(&s3_expand_many_flat_tyb().0)
+                .unwrap()
+                .records
+                .len(),
+            S3_EXPAND_ASM_PIN
+        );
+    }
+
     /// S3.349: `s3_fixed_payload` is cfg(test); production host inlines
     /// fixed_row → prog_data_payload. Helper still ≡ host seed payload.
     #[test]
@@ -5718,9 +5758,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–349: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–350: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock, bootstrap+hardcoded expand,
-    /// host poke seed + prog-loop + sim. S3.347–349: inventory + body/payload test-only.
+    /// host poke seed + prog-loop + cursor sim. S3.347–350: inventory + wrappers test-only.
     /// Host 171 · ASM 22. Scaffolding (pack/argc/flat/ir_seed/helpers) cfg(test).
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
