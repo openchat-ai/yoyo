@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.359**（358 真自举能力图；补能力不译 emit_x86；**不**假 CLOSED）。
+**默认** 继续 **= S3.360**（359 gap1 body=自有目标码种子；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -202,11 +202,12 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.356** ✅       | `d4adfd7`   | bootstrap expand body 改 const 表（MEMCPY+RET；0 IR）   |
 | **S3.357** ✅       | `909bf09`   | bootstrap Vec wrapper `cfg(test)`；prod 只用 const 表   |
 | **S3.358** ✅       | `34436b5`   | 真自举能力图（已会 vs 三缺口；不译 emit_x86）            |
-| **S3.359** ⏳       | —           | 补 gap1：模板 body=自有指令目标码种子 · **本步**         |
+| **S3.359** ✅       | `4115f57`   | gap1 关闭：fixed10 body=自有 ISA 目标码种子（prod 不再 live emit_x86） |
+| **S3.360** ⏳       | —           | 补 gap2：lea→.text 不用 A1 · **本步**                    |
 
 
 
-**缺口**：真自举三能力种子 — (1) 模板 body 仍 emit_x86 (2) lea→.text=A1 (3) expand 外壳=Rust poke。不搞翻译器。逐步正文 → `git log`。
+**缺口**：真自举 — gap1✅ body 种子；(2) lea→.text=A1；(3) expand 外壳=Rust poke。不搞翻译器。逐步正文 → `git log`。
 
 ---
 
@@ -242,7 +243,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.359**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.360**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -250,4 +251,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-22**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 171 · 默认 **S3.359** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-22**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 171 · 默认 **S3.360** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
