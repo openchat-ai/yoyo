@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.371**（370 组合悬崖；下一刀=真自举下一缺口图；**不**假 CLOSED）。
+**默认** 继续 **= S3.373**（372 try_emit→PE；下一刀=gap B 非RET / C in-DLL；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -214,11 +214,13 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.368** ✅       | b07dbe3   | host RET=整段 TYB 目标码种子（1392B；无 live assemble） |
 | **S3.369** ✅       | 3c0fc9b   | host SET+RET=整段 TYB 目标码种子（1408B） |
 | **S3.370** ✅       | 96cb4f4   | 非 RET 逐组合 TYB 种子悬崖（组合爆炸；保 assemble） |
-| **S3.371** ⏳       | —           | 真自举下一缺口图（host 种子链后） · **本步** |
+| **S3.371** ✅       | `d97c589`   | 真自举下一缺口图（A try_emit-PE / B 非RET / C in-DLL） |
+| **S3.372** ✅       | `3f4e154`   | gap A：try_emit=PE 跑 YOYO（DATA|lea|loop；非 sim） |
+| **S3.373** ⏳       | —           | gap B/C：非RET assemble / in-DLL 密度 · **本步** |
 
 
 
-**缺口**：真自举三缺口✅ · expand/host-loop/table✅；剩 host live poke + OnceLock。不搞翻译器。逐步正文 → `git log`。
+**缺口**：真自举 — gap A 已关（try_emit=PE）；下一刀 B 非RET assemble / C in-DLL。不搞翻译器。逐步正文 → `git log`。
 
 ---
 
@@ -254,7 +256,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.366**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.373**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -262,4 +264,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-22**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.371** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-23**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.373** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
