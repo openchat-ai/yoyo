@@ -4862,6 +4862,30 @@ mod tests {
         assert_eq!(S3_PACK_PROTO_DST, 9, "host outbuf slot stays live");
     }
 
+    /// S3.360: gap2 — lea→.text A1 prologue = const seed (own ISA RAW_BYTES).
+    /// A1 stays the inject op; Rust no longer live-packs. ≡ via_pack oracle.
+    #[test]
+    fn s3_in_dll_lea_a1_seed_pin() {
+        assert_eq!(S3_IN_DLL_LEA_A1_SEED.len(), 13);
+        let via = s3_in_dll_lea_prologue_recs_via_pack();
+        assert_eq!(S3_IN_DLL_LEA_A1_SEED.as_slice(), via.as_slice());
+        assert_eq!(s3_in_dll_lea_prologue_recs(), S3_IN_DLL_LEA_A1_SEED.as_slice());
+        let a1_bytes: usize = S3_IN_DLL_LEA_A1_SEED.iter().map(|r| r.1 as usize).sum();
+        assert_eq!(a1_bytes, 37);
+        assert_eq!(s3_short_lea_raw_bytes().len(), 37);
+        // Still injects via A1 (own op) — poke alone does not open .text.
+        let a1_tyb = tyb_from_records(s3_in_dll_lea_prologue_recs());
+        let a1_text = emit_x86(&parse_tyb(&a1_tyb).unwrap()).text;
+        assert!(a1_text.starts_with(&s3_short_lea_raw_bytes()));
+        assert_eq!(
+            parse_tyb(&s3_expand_many_flat_tyb().0)
+                .unwrap()
+                .records
+                .len(),
+            S3_EXPAND_ASM_PIN
+        );
+    }
+
     /// S3.359: gap1 — template body seed = own-ISA object code; ≡ live emit_x86.
     /// Prod OnceLock no longer calls emit_x86; seed is the trust root YOYO copies.
     #[test]
@@ -4925,10 +4949,10 @@ mod tests {
         );
     }
 
-    /// S3.358/S3.359: 真自举能力图 — 不是「把 emit_x86 译成 YOYO」，而是「缺的
-    /// 能力用自己的指令做出来」。已会：poke/pack、TYB 发射、表合成→.text、
-    /// expand=MEMCPY+RET、**模板 body=自有指令目标码种子**(S3.359)。仍缺：
-    /// (2) lea→.text=A1；(3) expand 外壳=Rust poke。不挤 IR 羊粪。
+    /// S3.358–360: 真自举能力图 — 缺的能力用自己的指令做出来（不译 emit_x86）。
+    /// 已会：poke/pack、TYB 发射、表合成→.text、expand=MEMCPY+RET、
+    /// body 种子(S3.359)、**lea A1 种子**(S3.360；A1=自有 RAW_BYTES)。仍缺：
+    /// (3) expand 外壳=Rust 组 poke。不挤 IR 羊粪。
     #[test]
     fn s3_true_selfhost_capability_map_pin() {
         // —— 已会（自己的指令）——
@@ -4970,9 +4994,9 @@ mod tests {
             "seed still ≡ emit_x86 oracle"
         );
         assert_eq!(
-            s3_in_dll_lea_prologue_recs().len(),
-            13,
-            "gap2: lea→.text still A1 (13×37B)"
+            s3_in_dll_lea_prologue_recs(),
+            S3_IN_DLL_LEA_A1_SEED.as_slice(),
+            "gap2 closed: lea→.text = A1 record seed (own RAW_BYTES)"
         );
         assert_eq!(
             parse_tyb(&s3_expand_many_flat_tyb().0)
@@ -5979,8 +6003,8 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–359: remaining Rust sidecar.
-    /// S3.359: gap1 closed (body=own-ISA seed). Still: lea→.text=A1 · expand 外壳.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–360: remaining Rust sidecar.
+    /// S3.359–360: gap1 body seed + gap2 lea A1 seed. Still: expand 外壳=Rust poke.
     /// Host 171 · ASM 22. Scaffolding/wrappers cfg(test). Not CLOSED.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
@@ -8313,22 +8337,40 @@ mod tests {
         lea
     }
 
-    /// S3.164/S3.234: OnceLock of in-DLL three-lea A1 prologue from the shared 37B.
-    /// (S3.265: one-stream A1 pack changes TYB framing — golden stays three chunks.)
+    /// S3.360: test oracle — live three-chunk A1 pack of lea bytes.
+    #[cfg(test)]
+    fn s3_in_dll_lea_prologue_recs_via_pack() -> Vec<(u8, u8, [u8; 6])> {
+        let lea = s3_short_lea_raw_bytes();
+        assert_eq!(lea.len(), 37);
+        let mut r = Vec::new();
+        s3_append_raw_a1(&mut r, &lea[..15]); // TABLE
+        s3_append_raw_a1(&mut r, &lea[15..26]); // DST
+        s3_append_raw_a1(&mut r, &lea[26..37]); // PROG
+        r
+    }
+
+    /// S3.360: in-DLL lea→.text = **A1 record seed** (own ISA RAW_BYTES op).
+    /// A1 stays the inject channel; Rust no longer live-packs at OnceLock init.
+    /// Three-chunk framing (S3.265 golden). ≡ `s3_in_dll_lea_prologue_recs_via_pack`.
+    const S3_IN_DLL_LEA_A1_SEED: [(u8, u8, [u8; 6]); 13] = [
+        (0xa1, 3, [0x49, 0x00, 0x8d, 0x00, 0x87, 0x00]),
+        (0xa1, 3, [0x80, 0x00, 0x00, 0x00, 0x00, 0x00]),
+        (0xa1, 3, [0x00, 0x00, 0x49, 0x00, 0x89, 0x00]),
+        (0xa1, 3, [0x47, 0x00, 0x18, 0x00, 0x49, 0x00]),
+        (0xa1, 3, [0x89, 0x00, 0x47, 0x00, 0x78, 0x00]),
+        (0xa1, 3, [0x49, 0x00, 0x8d, 0x00, 0x87, 0x00]),
+        (0xa1, 3, [0xc8, 0x00, 0x00, 0x00, 0x00, 0x00]),
+        (0xa1, 3, [0x00, 0x00, 0x49, 0x00, 0x89, 0x00]),
+        (0xa1, 2, [0x47, 0x00, 0x48, 0x00, 0x00, 0x00]),
+        (0xa1, 3, [0x49, 0x00, 0x8d, 0x00, 0x87, 0x00]),
+        (0xa1, 3, [0xbd, 0x00, 0x00, 0x00, 0x00, 0x00]),
+        (0xa1, 3, [0x00, 0x00, 0x49, 0x00, 0x89, 0x00]),
+        (0xa1, 2, [0x47, 0x00, 0x10, 0x00, 0x00, 0x00]),
+    ];
+
+    /// S3.164/S3.234/S3.360: in-DLL short-lea A1 prologue (const seed).
     fn s3_in_dll_lea_prologue_recs() -> &'static [(u8, u8, [u8; 6])] {
-        use std::sync::OnceLock;
-        static PROLOGUE: OnceLock<Vec<(u8, u8, [u8; 6])>> = OnceLock::new();
-        PROLOGUE
-            .get_or_init(|| {
-                let lea = s3_short_lea_raw_bytes();
-                assert_eq!(lea.len(), 37);
-                let mut r = Vec::new();
-                s3_append_raw_a1(&mut r, &lea[..15]); // TABLE
-                s3_append_raw_a1(&mut r, &lea[15..26]); // DST
-                s3_append_raw_a1(&mut r, &lea[26..37]); // PROG
-                r
-            })
-            .as_slice()
+        &S3_IN_DLL_LEA_A1_SEED
     }
 
     /// S3.165: cached A1 pack of short `lea rax,[r15]` seed.
