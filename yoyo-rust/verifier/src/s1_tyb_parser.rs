@@ -4874,6 +4874,69 @@ mod tests {
         );
     }
 
+    /// S3.358: 真自举能力图 — 不是「把 emit_x86 译成 YOYO」，而是「缺的能力
+    /// 用自己的指令做出来」。YOYO 已会：DATA poke/pack、TYB 自举发射、
+    /// fixed10 表合成→.text（try_emit）、expand=MEMCPY+RET。仍靠 Rust 的只有
+    /// 三件能力种子：(1) 模板 body 字节仍 emit_x86 OnceLock；(2) lea→.text 靠 A1；
+    /// (3) expand 外壳仍 Rust 组 poke。下一刀优先补能力，不挤 IR 羊粪。
+    #[test]
+    fn s3_true_selfhost_capability_map_pin() {
+        // —— 已会（自己的指令）——
+        assert!(
+            s3_unpack_data_tyb(&s3_yoyo_pack_loop_stb_tyb(&[1, 2, 3]).0).is_empty(),
+            "pack = YOYO STB/poke IR"
+        );
+        let (emit_tyb, eoff) = s3_yoyo_emit_tyb_file(&[s3_fixed_rec(0xFF)]);
+        assert!(s3_unpack_data_tyb(&emit_tyb).is_empty());
+        assert_eq!(
+            s3_sim_prog_loop(&emit_tyb, 0, eoff, 0).unwrap(),
+            s3_host_tyb_from_records(&[s3_fixed_rec(0xFF)]),
+            "emit TYB file = YOYO IR"
+        );
+        let yoyo_text = try_emit_text_via_yoyo_table(&[0x30, 0xFF]).unwrap();
+        let rust_text = emit_x86(
+            &parse_tyb(&s3_host_tyb_from_records(&[
+                s3_fixed_rec(0x30),
+                s3_fixed_rec(0xFF),
+            ]))
+            .unwrap(),
+        )
+        .text;
+        assert_eq!(yoyo_text, rust_text, "fixed10 .text: YOYO table ≡ emit_x86");
+        assert_eq!(
+            S3_BOOTSTRAP_EXPAND_ASM,
+            [s3_rec_memcpy(9, 2, 12), s3_fixed_rec(0xFF)],
+            "expand body = own MEMCPY+RET"
+        );
+        // —— 仍缺（能力种子，不是翻译器）——
+        assert_eq!(
+            s3_fixed_row(0x30),
+            s3_compute_fixed_body(0x30),
+            "gap1: template body still emit_x86 OnceLock bake"
+        );
+        assert_eq!(
+            s3_in_dll_lea_prologue_recs().len(),
+            13,
+            "gap2: lea→.text still A1 (13×37B)"
+        );
+        assert_eq!(
+            parse_tyb(&s3_expand_many_flat_tyb().0)
+                .unwrap()
+                .records
+                .len(),
+            S3_EXPAND_ASM_PIN,
+            "gap3: expand outer assembler still Rust poke shell (22)"
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            171,
+            "host floor holds while capability gaps remain"
+        );
+    }
+
     /// S3.352: post-scaffolding cliff map — all hard floors in one pin after
     /// S3.342–351 (host densify reject · argc/flat/ir_seed/wrappers cfg(test) ·
     /// thin-wrapper sheep). Next ≥10 needs A1 / OnceLock / asm22 / 真自举 arch.
@@ -5861,9 +5924,8 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–357: remaining Rust sidecar.
-    /// Still Rust: short lea A1, `emit_x86` OnceLock, const bootstrap expand,
-    /// host poke seed + prog-loop + cursor sim. S3.357: bootstrap Vec wrapper test-only.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–358: remaining Rust sidecar.
+    /// S3.358 真自举能力图：补 body 种子 / lea→.text / expand 外壳 — 不译 emit_x86。
     /// Host 171 · ASM 22. Scaffolding/wrappers cfg(test). Not CLOSED.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
