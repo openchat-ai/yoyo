@@ -2541,12 +2541,6 @@ fn s3_recs_from_flat_seed(flat: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     s3_recs_from_flat_seed_with_argc(flat, &S3_SEED_ARGC_BYTES)
 }
 
-/// S3.275/S3.276/S3.322: expand asm flat ≡ MANY ctrl (INIT dropped S3.297).
-/// Argc table is IR-seeded separately (`s3_yoyo_expand_flat_tyb`).
-fn s3_expand_asm_flat() -> Vec<u8> {
-    S3_EXPAND_CTRL_FLAT.to_vec()
-}
-
 fn s3_bootstrap_expand_asm() -> Vec<(u8, u8, [u8; 6])> {
     // S3.320: named IR (MEMCPY+RET) — not flat_seed decode. Still Rust; ≡ MANY flat.
     vec![s3_rec_memcpy(9, 2, 12), s3_fixed_rec(0xFF)]
@@ -2622,7 +2616,7 @@ fn s3_yoyo_expand_flat_tyb(flat: &[u8]) -> (Vec<u8>, u32) {
     s3_ir_seed_at(&mut recs, S3_EXPAND_SEED, &job, 30);
     // S3.275: init+ctrl are one assembler flat seed (single Rust expand).
     assert_eq!(S3_EXPAND_CTRL_FLAT.len(), S3_EXPAND_CTRL_ROWS * 7);
-    assert_eq!(s3_expand_asm_flat().len(), S3_EXPAND_ASM_ROWS * 7);
+    assert_eq!(S3_EXPAND_CTRL_FLAT.len(), S3_EXPAND_ASM_ROWS * 7);
     recs.extend(s3_bootstrap_expand_asm());
     (s3_host_tyb_from_records(&recs), out)
 }
@@ -4711,6 +4705,17 @@ mod tests {
 
     /// S3.321: shape-fill ctrl ≡ bootstrap; via_yoyo stays test-only proof.
     #[test]
+    /// S3.323: expand_asm_flat removed — CTRL_FLAT is the sole expand body seed.
+    #[test]
+    fn s3_expand_ctrl_flat_is_asm_body_pin() {
+        assert_eq!(S3_EXPAND_CTRL_FLAT, S3_SHAPE_FILL_MANY_FLAT);
+        assert_eq!(S3_EXPAND_CTRL_FLAT.len(), S3_EXPAND_ASM_ROWS * 7);
+        assert_eq!(
+            s3_bootstrap_expand_asm(),
+            s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT)
+        );
+    }
+
     fn s3_shape_fill_ctrl_shares_bootstrap_pin() {
         assert_eq!(s3_yoyo_shape_fill_ctrl(), s3_bootstrap_expand_asm());
         assert_eq!(s3_yoyo_shape_fill_many_ctrl(), s3_bootstrap_expand_asm());
@@ -5288,16 +5293,16 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–322: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–323: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor),
-    /// sole bootstrap MEMCPY+RET (=2; fill shares it; INIT scaffolding gone). Host 171.
+    /// sole bootstrap MEMCPY+RET (=2; fill shares it; no expand_asm_flat). Host 171.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
         assert_eq!(S3_LEA_PTR.len(), 7, "short lea must stay 7B (not disp32)");
         assert_eq!(S3_LEA_PTR, &[0x49, 0x8D, 0x07, 0x49, 0x89, 0x47, 0x78]);
         // S3.275: assembler body is one flat seed (init prefix + ctrl); still Rust.
-        assert_eq!(s3_expand_asm_flat().len(), S3_EXPAND_ASM_ROWS * 7);
+        assert_eq!(S3_EXPAND_CTRL_FLAT.len(), S3_EXPAND_ASM_ROWS * 7);
         assert_eq!(S3_EXPAND_ASM_ROWS, 2, "S3.306: expand≡many≡one bulk MEMCPY");
         assert_eq!(S3_EXPAND_CTRL_FLAT.len(), S3_EXPAND_CTRL_ROWS * 7);
         assert_eq!(S3_EXPAND_CTRL_ROWS, 2, "S3.306: shared MEMCPY+RET");
@@ -5326,7 +5331,7 @@ mod tests {
         );
         assert_eq!(
             s3_bootstrap_expand_asm(),
-            s3_recs_from_flat_seed_with_argc(&s3_expand_asm_flat(), &S3_SEED_ARGC_BYTES)
+            s3_recs_from_flat_seed_with_argc(S3_EXPAND_CTRL_FLAT, &S3_SEED_ARGC_BYTES)
         );
         assert_eq!(S3_SEED_ARGC_BYTES.len(), 256, "S3.309: argc index stays 256B");
         // S3.306: ONE-flat expand assembler size (bulk + job|hdr join).
