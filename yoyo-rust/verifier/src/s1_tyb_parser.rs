@@ -2684,31 +2684,19 @@ fn s3_yoyo_expand_flat_tyb(flat: &[u8]) -> (Vec<u8>, u32) {
     (s3_host_tyb_from_records(&recs), out)
 }
 
-/// S3.341/S3.343: production expand entry — sole MANY flat (MEMCPY+RET) → assembler TYB.
-/// Wire argc is hardcoded (3/0); no 256B argc index in the non-test lib.
+/// S3.341/S3.343/S3.344: production expand — MEMCPY+RET wire hardcoded (no flat seed /
+/// argc index in the non-test lib). Parity vs `S3_SHAPE_FILL_MANY_FLAT` is test-only.
 pub fn s3_expand_many_flat_tyb() -> (Vec<u8>, u32) {
-    let flat = S3_SHAPE_FILL_MANY_FLAT;
-    assert_eq!(flat.len(), S3_SHAPE_FILL_MANY_ROWS * 7);
-    assert_eq!(S3_SHAPE_FILL_MANY_ROWS, 2);
-    let nrecs = 2usize;
-    let mut job = Vec::with_capacity(nrecs * RECORD_SIZE + 1 + HEADER_SIZE);
-    // MEMCPY dst=9 src=2 len=slot12 — argc 3.
-    let mem = &flat[0..7];
-    assert_eq!(mem[0], 0x84);
-    job.push(0x84);
-    job.push(3);
-    job.extend_from_slice(&mem[1..7]);
-    // RET — argc 0.
-    let ret = &flat[7..14];
-    assert_eq!(ret[0], 0xFF);
-    job.push(0xFF);
-    job.push(0);
-    job.extend_from_slice(&ret[1..7]);
+    const NRECS: usize = 2;
+    let mut job = Vec::with_capacity(NRECS * RECORD_SIZE + 1 + HEADER_SIZE);
+    // MEMCPY dst=9 src=2 len=slot12 (argc 3) + RET (argc 0) — ≡ MANY_FLAT wire.
+    job.extend_from_slice(&[0x84, 3, 9, 0, 2, 0, 12, 0]);
+    job.extend_from_slice(&[0xFF, 0, 0, 0, 0, 0, 0, 0]);
     job.push(S3_EXPAND_SENTINEL);
     let out = S3_EXPAND_SEED + job.len() as u32;
     let mut hdr = [0u8; HEADER_SIZE];
     hdr[..4].copy_from_slice(&TYB_MAGIC);
-    hdr[6..8].copy_from_slice(&(nrecs as u16).to_le_bytes());
+    hdr[6..8].copy_from_slice(&(NRECS as u16).to_le_bytes());
     job.extend_from_slice(&hdr);
     let mut recs = Vec::new();
     s3_ir_seed_at(&mut recs, S3_EXPAND_SEED, &job, 30);
@@ -2742,9 +2730,12 @@ fn s3_recs_from_flat_seed_via_yoyo(flat: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
 
 /// S3.306: shape-fill many = bulk wire MEMCPY + RET (slot12 = nbytes preload).
 /// S3.328: ONE_AT/LEN/shape_fill_one gone — leading MEMCPY is bootstrap[0].
+/// S3.344: test/proof seed only — production expand hardcodes the same wire.
+#[cfg(test)]
 const S3_SHAPE_FILL_MANY_ROWS: usize = 2;
 
-/// S3.341: expand body seed (pub `s3_expand_many_flat_tyb`).
+/// S3.341/S3.344: expand body seed — test parity vs pub hardcoded wire expand.
+#[cfg(test)]
 const S3_SHAPE_FILL_MANY_FLAT: &[u8] = &[
     // MEMCPY dst=9 src=2 len=slot12; RET.
     132, 9, 0, 2, 0, 12, 0, 255, 0, 0, 0, 0, 0, 0,
@@ -4822,17 +4813,24 @@ mod tests {
         assert_eq!(S3_PACK_PROTO_DST, 9, "host outbuf slot stays live");
     }
 
-    /// S3.343: 256B argc index + generic flat expand are cfg(test); production
-    /// expand hardcodes MEMCPY+RET wire argc (still ≡ generic path).
+    /// S3.343/S3.344: 256B argc index + MANY_FLAT + generic expand are cfg(test);
+    /// production expand hardcodes MEMCPY+RET wire (still ≡ generic/flat path).
     #[test]
     fn s3_argc_index_test_only_pin() {
         assert_eq!(S3_SEED_ARGC_BYTES.len(), 256);
         assert_eq!(s3_seed_argc(0x84), 3);
         assert_eq!(s3_seed_argc(0xFF), 0);
+        assert_eq!(S3_SHAPE_FILL_MANY_FLAT.len(), S3_SHAPE_FILL_MANY_ROWS * 7);
+        assert_eq!(S3_SHAPE_FILL_MANY_ROWS, 2);
         let (prod, poff) = s3_expand_many_flat_tyb();
         let (gen, goff) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_MANY_FLAT);
         assert_eq!((prod.clone(), poff), (gen, goff));
         assert_eq!(parse_tyb(&prod).unwrap().records.len(), S3_EXPAND_ASM_PIN);
+        assert_eq!(
+            s3_bootstrap_expand_asm(),
+            s3_recs_from_flat_seed(S3_SHAPE_FILL_MANY_FLAT),
+            "named bootstrap still ≡ MANY_FLAT"
+        );
     }
 
     /// S3.339: pack via_ir + loop_stb (+ flat_at/hdr helpers) cfg(test); expand stays live.
@@ -5545,10 +5543,10 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–343: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–344: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor),
-    /// sole bootstrap+expand via pub entry; pack/argc index cfg(test). Host 171.
-    /// S3.342: host prog-loop densify reject. S3.343: argc index test-only.
+    /// sole bootstrap+hardcoded-wire expand; pack/argc/MANY_FLAT cfg(test). Host 171.
+    /// S3.342–344: host-loop densify reject; argc+flat seeds test-only.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
