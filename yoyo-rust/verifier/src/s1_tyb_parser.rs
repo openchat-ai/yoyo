@@ -1565,13 +1565,14 @@ fn s3_host_pack_bytes(op: u8, bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     recs
 }
 
-/// S3.150: RAW `0xA1` pack helper (short lea / PE seeds — still Rust chunk pack).
+/// S3.150/S3.333: RAW `0xA1` pack helper — test A1 OnceLock / density pins only.
+#[cfg(test)]
 fn s3_append_raw_a1(recs: &mut Vec<(u8, u8, [u8; 6])>, bytes: &[u8]) {
     recs.extend(s3_host_pack_bytes(0xA1, bytes));
 }
 
-/// S3.153/S3.203: argc=1 per byte. Production pack/emit paths no longer call this;
-/// only a couple of unit tests still seed DATA this way.
+/// S3.153/S3.203/S3.333: argc=1 per byte — test-only (production pack is via_ir/poke).
+#[cfg(test)]
 fn s3_pack_data_bytewise(bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     bytes
         .iter()
@@ -4715,6 +4716,16 @@ mod tests {
         );
     }
 
+    /// S3.333: A1 append + bytewise DATA pack are cfg(test).
+    #[test]
+    fn s3_a1_append_bytewise_test_only_pin() {
+        let mut a1 = Vec::new();
+        s3_append_raw_a1(&mut a1, S3_LEA_PTR);
+        assert_eq!(a1, s3_host_pack_bytes(0xA1, S3_LEA_PTR));
+        assert_eq!(s3_pack_data_bytewise(&[1, 2, 3]).len(), 3);
+        assert_eq!(s3_in_dll_lea_prologue_recs().len(), 13);
+    }
+
     /// S3.332: shape-fill TYB builders are cfg(test); expand owns production wire→TYB.
     #[test]
     fn s3_shape_fill_tyb_test_only_pin() {
@@ -5337,9 +5348,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–332: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–333: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor),
-    /// sole bootstrap MEMCPY+RET (=2; shape-fill TYB cfg(test)). Host 171.
+    /// sole bootstrap MEMCPY+RET (=2; A1 append/bytewise pack cfg(test)). Host 171.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
