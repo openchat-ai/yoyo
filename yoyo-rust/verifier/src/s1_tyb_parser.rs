@@ -2790,6 +2790,9 @@ fn s3_rec_subv(dst: u16, src: u16) -> (u8, u8, [u8; 6]) {
 /// S3.117: shared scan/compose tail. `nrows` is 10 (host) or 3 (in-DLL).
 /// Record stream is golden-pinned for in-DLL — do not edit. Host uses
 /// [`s3_prog_loop_code_host`].
+/// S3.331: in-DLL golden prog loop — test builders only (PE path uses host compose
+/// or ir-seed+A1 builders under `#[cfg(test)]`).
+#[cfg(test)]
 fn s3_prog_loop_code(ops_len: u32, nrows: u32) -> Vec<(u8, u8, [u8; 6])> {
     let set = s3_rec_set;
     let add = s3_rec_add;
@@ -2827,9 +2830,9 @@ fn s3_prog_loop_code(ops_len: u32, nrows: u32) -> Vec<(u8, u8, [u8; 6])> {
     ]
 }
 
-/// S3.214: host-only prog loop — drop redundant `SET i=0` (fresh state) and
-/// reset the scan index with MOVRR from an untouched zero slot. Same semantics
-/// as [`s3_prog_loop_code`]; in-DLL golden keeps the older record stream.
+/// S3.214: host prog loop — drop redundant `SET i=0` (fresh state) and
+/// reset the scan index with MOVRR from an untouched zero slot.
+/// S3.331: this is the sole production prog-loop body (in-DLL golden is cfg(test)).
 fn s3_prog_loop_code_host(ops_len: u32, nrows: u32) -> Vec<(u8, u8, [u8; 6])> {
     let set = s3_rec_set;
     let add = s3_rec_add;
@@ -4701,6 +4704,16 @@ mod tests {
         );
     }
 
+    /// S3.331: in-DLL golden `s3_prog_loop_code` is cfg(test); host loop is production.
+    #[test]
+    fn s3_dll_prog_loop_test_only_pin() {
+        let dll = s3_prog_loop_code(1, 3);
+        let host = s3_prog_loop_code_host(1, S3_HOST_NROWS);
+        assert!(host.len() < dll.len(), "host stays thinner than dll golden");
+        assert_eq!(dll[1].0, 0x30, "dll golden still has SET i=0");
+        assert_ne!(host[1].0, 0x30, "host skipped SET i=0");
+    }
+
     /// S3.329: flat→recs helpers are cfg(test); production expand uses named bootstrap.
     #[test]
     fn s3_flat_seed_decode_test_only_pin() {
@@ -5299,9 +5312,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–330: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–331: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor),
-    /// sole bootstrap MEMCPY+RET (=2; host SET-out −1 sheep reject). Host 171.
+    /// sole bootstrap MEMCPY+RET (=2; dll prog-loop cfg(test)). Host 171.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
