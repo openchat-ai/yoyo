@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.339**（338 rec_wire/proto putc `cfg(test)`；expand 留；**不**假 CLOSED）。
+**默认** 继续 **= S3.340**（339 pack via_ir/loop_stb `cfg(test)`；expand 留；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -182,7 +182,8 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.336** ✅       | `0d49690`   | alt pack TYB (proto/stb/memcpy-loop) `cfg(test)`；via_ir 留 |
 | **S3.337** ✅       | `a95cd28`   | gate misc test-only helpers (fixed_table/host_set/seed/jne) |
 | **S3.338** ✅       | `735393b`   | rec_wire+proto putc/record+rec_sub `cfg(test)`；expand 留 |
-| **S3.339** ⏳       | —           | 继续缩 bootstrap / A1 / 真自举近端 · **本步**            |
+| **S3.339** ✅       | `277349f`   | pack via_ir/loop_stb+flat_at/hdr `cfg(test)`；expand 留 |
+| **S3.340** ⏳       | —           | 继续缩 bootstrap / A1 / 真自举近端 · **本步**            |
 
 
 
@@ -222,7 +223,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.339**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.340**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -230,4 +231,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-22**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 171 · 默认 **S3.339** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-22**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 171 · 默认 **S3.340** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
