@@ -1593,6 +1593,7 @@ fn s3_rec_wire(op: u8, argc: u8, a: [u8; 6]) -> [u8; 8] {
 /// Shared by one-shot emit and two-phase / loop-staged phase1. Returns next label id.
 /// S3.314: poke (global-distinct) beats run-fold for emit flats (−24 on many).
 /// Trailing zeros are poke-skipped — pin high-water with one STB ZERO at last oo.
+#[cfg(test)]
 fn s3_append_stb_flat_at(
     recs: &mut Vec<(u8, u8, [u8; 6])>,
     flat: &[u8],
@@ -1671,7 +1672,7 @@ fn s3_yoyo_emit_tyb_file_loop_staged(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>,
 }
 
 /// S3.183/S3.318: STB run-fold — **test/compare only** after poke era (S3.313–314).
-/// Production pack/emit use `s3_ir_seed_at` / `s3_append_stb_flat_at` (poke).
+/// S3.339: STB runs stay test-only; production poke is `s3_ir_seed_at` (host/expand).
 #[cfg(test)]
 fn s3_append_stb_runs(
     recs: &mut Vec<(u8, u8, [u8; 6])>,
@@ -1879,6 +1880,7 @@ fn s3_pack_wire_section_to_recs(wire: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
 }
 
 /// S3.144/S3.158/S3.307: pack via YOYO loop STB IR → full TYB → parse_tyb.
+#[cfg(test)]
 fn s3_pack_data_via_ir(bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     if bytes.is_empty() {
         return Vec::new();
@@ -1903,6 +1905,7 @@ const S3_PACK_PROTO_DST: u16 = 9;
 const S3_PACK_PROTO_ONE: u16 = 12;
 
 /// S3.145: outbuf sits just past payload + 2B zero pad (host-sized payloads fit).
+#[cfg(test)]
 fn s3_pack_proto_out_off(payload_len: usize) -> u32 {
     S3_PACK_PROTO_PAY + payload_len as u32 + 2
 }
@@ -2140,6 +2143,7 @@ fn s3_yoyo_pack_loop_ir(
 }
 
 /// S3.157: putc from address in `src_slot` via LDB→STB.
+#[cfg(test)]
 fn s3_pack_loop_putc_from_slot(recs: &mut Vec<(u8, u8, [u8; 6])>, src_slot: u16) {
     recs.push(s3_rec_ldb(S3_PACK_STB_TMP, src_slot, 0));
     recs.push(s3_rec_stb(S3_PACK_STB_TMP, S3_PACK_PROTO_DST, 0));
@@ -2147,6 +2151,7 @@ fn s3_pack_loop_putc_from_slot(recs: &mut Vec<(u8, u8, [u8; 6])>, src_slot: u16)
 }
 
 /// S3.157: looped pack IR using LDB→STB instead of MEMCPY.
+#[cfg(test)]
 fn s3_yoyo_pack_loop_stb_ir(pay_off: u32, out_off: u32, payload: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     let payload_len = payload.len() as u32;
     let mut r = Vec::new();
@@ -2196,6 +2201,7 @@ fn s3_yoyo_pack_loop_stb_ir(pay_off: u32, out_off: u32, payload: &[u8]) -> Vec<(
 }
 
 /// S3.307/S3.308: IR-seed an 8B TYB header (magic + rec_cnt) at `base`.
+#[cfg(test)]
 fn s3_ir_seed_tyb_hdr(
     recs: &mut Vec<(u8, u8, [u8; 6])>,
     base: u32,
@@ -2208,6 +2214,7 @@ fn s3_ir_seed_tyb_hdr(
     s3_ir_seed_at(recs, base, &hdr, label_id)
 }
 
+#[cfg(test)]
 fn s3_yoyo_pack_loop_stb_tyb(payload: &[u8]) -> (Vec<u8>, u32) {
     assert!(!payload.is_empty());
     // S3.196: no DATA records. IR writes the payload, then the two overread zeros.
@@ -4750,6 +4757,19 @@ mod tests {
         );
     }
 
+    /// S3.339: pack via_ir + loop_stb (+ flat_at/hdr helpers) cfg(test); expand stays live.
+    #[test]
+    fn s3_pack_via_ir_loop_stb_test_only_pin() {
+        let bytes = [1u8, 2, 3, 4];
+        assert_eq!(s3_pack_data_via_ir(&bytes), s3_pack_data(&bytes));
+        let (tyb, off) = s3_yoyo_pack_loop_stb_tyb(&bytes);
+        assert!(s3_unpack_data_tyb(&tyb).is_empty());
+        assert_eq!(off, bytes.len() as u32 + 2);
+        // expand remains non-cfg (self-host near-end).
+        let (exp, _) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_MANY_FLAT);
+        assert_eq!(parse_tyb(&exp).unwrap().records.len(), S3_EXPAND_ASM_PIN);
+    }
+
     /// S3.338: rec_wire + proto putc/record + rec_sub cfg(test); expand stays live.
     #[test]
     fn s3_rec_wire_proto_putc_test_only_pin() {
@@ -5447,9 +5467,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–338: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–339: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor),
-    /// sole bootstrap+expand (wire helpers cfg(test)). Host 171.
+    /// sole bootstrap+expand; pack via_ir/loop_stb cfg(test). Host 171.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
