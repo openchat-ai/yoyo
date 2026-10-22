@@ -2486,11 +2486,15 @@ const S3_SEED_ARGC_BYTES: [u8; 256] = {
     t[0x84] = 3; // MEMCPY
     t
 };
-/// S3.286/S3.299: argc index table (tests / seed_argc); S3.304 shape-fill no longer loads it.
+/// S3.286/S3.299/S3.332: argc index layout pins + shape-fill addrs — test-only.
+#[cfg(test)]
 const S3_SHAPE_TABLE: u32 = 0x40;
+#[cfg(test)]
 const S3_SHAPE_TABLE_END: u32 = S3_SHAPE_TABLE + S3_SEED_ARGC_BYTES.len() as u32; // 0x140
 /// S3.304: wire-job blob at low DATA (argc baked; no live table walk).
+#[cfg(test)]
 const S3_SHAPE_JOB: u32 = 0x40;
+#[cfg(test)]
 const S3_SHAPE_OUT: u32 = 0x100;
 
 fn s3_seed_argc_bytes() -> Vec<u8> {
@@ -2654,9 +2658,12 @@ const S3_SHAPE_FILL_MANY_FLAT: &[u8] = &[
 ];
 
 /// S3.304: many out past wire-job blob (no 256B argc table in-stream).
+/// S3.332: shape-fill TYB builders are proof-only (production expand owns wire→TYB).
+#[cfg(test)]
 const S3_SHAPE_MANY_OUT: u32 = 0x300;
 
-/// S3.304: bake op|argc|args wire rows (shared with expand job seed).
+/// S3.304/S3.332: bake op|argc|args wire rows — test shape-fill builders only.
+#[cfg(test)]
 fn s3_shape_wire_job_blob(jobs: &[(u8, [u8; 6])], term: bool) -> Vec<u8> {
     let mut blob = Vec::with_capacity(jobs.len() * RECORD_SIZE + usize::from(term));
     for &(op, args) in jobs {
@@ -2670,6 +2677,7 @@ fn s3_shape_wire_job_blob(jobs: &[(u8, [u8; 6])], term: bool) -> Vec<u8> {
     blob
 }
 
+#[cfg(test)]
 fn s3_yoyo_shape_fill_many_tyb(jobs: &[(u8, [u8; 6])]) -> (Vec<u8>, u32) {
     // S3.298: zero-terminated job stream; op 0 reserved as sentinel.
     // S3.304: wire rows; no argc table seed in the TYB.
@@ -2682,16 +2690,19 @@ fn s3_yoyo_shape_fill_many_tyb(jobs: &[(u8, [u8; 6])]) -> (Vec<u8>, u32) {
     (s3_host_tyb_from_records(&recs), S3_SHAPE_MANY_OUT)
 }
 
-/// S3.304/S3.306: shape-fill sim — slot2 = job, slot9 = out, slot12 = wire nbytes.
+/// S3.304/S3.306/S3.332: shape-fill sim — test proof only.
+#[cfg(test)]
 fn s3_sim_shape_fill(tyb: &[u8], out: u32) -> Result<Vec<u8>, u8> {
     s3_sim_shape_fill_n(tyb, out, RECORD_SIZE as u64)
 }
 
+#[cfg(test)]
 fn s3_sim_shape_fill_n(tyb: &[u8], out: u32, nbytes: u64) -> Result<Vec<u8>, u8> {
     s3_sim_prog_loop_cursor(tyb, 0, out, S3_SHAPE_JOB as u64, out as u64, nbytes)
 }
 
-/// S3.236/S3.304: one wire-job + fixed one-ctrl (argc baked; no table seed).
+/// S3.236/S3.304/S3.332: one wire-job + bootstrap ctrl — test proof only.
+#[cfg(test)]
 fn s3_yoyo_shape_fill_tyb(op: u8, args: [u8; 6]) -> (Vec<u8>, u32) {
     let job = s3_shape_wire_job_blob(&[(op, args)], false);
     let mut recs = Vec::new();
@@ -4704,6 +4715,20 @@ mod tests {
         );
     }
 
+    /// S3.332: shape-fill TYB builders are cfg(test); expand owns production wire→TYB.
+    #[test]
+    fn s3_shape_fill_tyb_test_only_pin() {
+        let (tyb, out) = s3_yoyo_shape_fill_tyb(0xFF, [0; 6]);
+        assert_eq!(out, S3_SHAPE_OUT);
+        assert_eq!(
+            s3_sim_shape_fill(&tyb, out).unwrap(),
+            s3_rec_wire(0xFF, 0, [0; 6])
+        );
+        let (many, mout) = s3_yoyo_shape_fill_many_tyb(&[(0xFF, [0; 6])]);
+        assert_eq!(mout, S3_SHAPE_MANY_OUT);
+        assert!(s3_unpack_data_tyb(&many).is_empty());
+    }
+
     /// S3.331: in-DLL golden `s3_prog_loop_code` is cfg(test); host loop is production.
     #[test]
     fn s3_dll_prog_loop_test_only_pin() {
@@ -5312,9 +5337,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–331: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–332: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor),
-    /// sole bootstrap MEMCPY+RET (=2; dll prog-loop cfg(test)). Host 171.
+    /// sole bootstrap MEMCPY+RET (=2; shape-fill TYB cfg(test)). Host 171.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
