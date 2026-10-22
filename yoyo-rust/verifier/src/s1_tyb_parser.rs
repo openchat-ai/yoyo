@@ -2516,6 +2516,8 @@ fn s3_shape_argc_bytes() -> [u8; 4] {
 
 /// S3.299: argc seed is a 256B index table — `argc = table[op]` (0 = miss / RET).
 /// Sparse poke beats the old packed `(op,argc)` scan seed for assembler size.
+/// S3.343: test/proof only — production expand hardcodes MEMCPY+RET wire argc.
+#[cfg(test)]
 const S3_SEED_ARGC_BYTES: [u8; 256] = {
     let mut t = [0u8; 256];
     t[0x30] = 2; // SET
@@ -2571,10 +2573,12 @@ fn s3_seed_argc_flat() -> Vec<(u8, u8)> {
     v
 }
 
+#[cfg(test)]
 fn s3_seed_argc(op: u8) -> u8 {
     s3_seed_argc_from(&S3_SEED_ARGC_BYTES, op)
 }
 
+#[cfg(test)]
 fn s3_seed_argc_from(argc_flat: &[u8], op: u8) -> u8 {
     *argc_flat
         .get(op as usize)
@@ -2645,8 +2649,9 @@ const S3_EXPAND_SENTINEL: u8 = 0;
 /// S3.275/S3.322: assembler body rows = ctrl only (INIT empty since S3.297).
 
 
-/// S3.254/S3.260/S3.264/S3.268: YOYO IR expands a 7×N flat seed into a TYB file.
-/// Assembler: wire-job|hdr poke + bulk MEMCPY bootstrap body.
+/// S3.254/S3.260/S3.264/S3.268/S3.343: generic 7×N flat→TYB via 256B argc index.
+/// Test/proof only — production uses [`s3_expand_many_flat_tyb`] (hardcoded wire).
+#[cfg(test)]
 fn s3_yoyo_expand_flat_tyb(flat: &[u8]) -> (Vec<u8>, u32) {
     assert!(!flat.is_empty() && flat.len() % 7 == 0);
     assert!(
@@ -2679,10 +2684,36 @@ fn s3_yoyo_expand_flat_tyb(flat: &[u8]) -> (Vec<u8>, u32) {
     (s3_host_tyb_from_records(&recs), out)
 }
 
-/// S3.341: production expand entry — sole MANY flat (MEMCPY+RET) → assembler TYB.
-/// Keeps bootstrap / seed_argc / MANY_FLAT reachable in the non-test lib (self-host near-end).
+/// S3.341/S3.343: production expand entry — sole MANY flat (MEMCPY+RET) → assembler TYB.
+/// Wire argc is hardcoded (3/0); no 256B argc index in the non-test lib.
 pub fn s3_expand_many_flat_tyb() -> (Vec<u8>, u32) {
-    s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_MANY_FLAT)
+    let flat = S3_SHAPE_FILL_MANY_FLAT;
+    assert_eq!(flat.len(), S3_SHAPE_FILL_MANY_ROWS * 7);
+    assert_eq!(S3_SHAPE_FILL_MANY_ROWS, 2);
+    let nrecs = 2usize;
+    let mut job = Vec::with_capacity(nrecs * RECORD_SIZE + 1 + HEADER_SIZE);
+    // MEMCPY dst=9 src=2 len=slot12 — argc 3.
+    let mem = &flat[0..7];
+    assert_eq!(mem[0], 0x84);
+    job.push(0x84);
+    job.push(3);
+    job.extend_from_slice(&mem[1..7]);
+    // RET — argc 0.
+    let ret = &flat[7..14];
+    assert_eq!(ret[0], 0xFF);
+    job.push(0xFF);
+    job.push(0);
+    job.extend_from_slice(&ret[1..7]);
+    job.push(S3_EXPAND_SENTINEL);
+    let out = S3_EXPAND_SEED + job.len() as u32;
+    let mut hdr = [0u8; HEADER_SIZE];
+    hdr[..4].copy_from_slice(&TYB_MAGIC);
+    hdr[6..8].copy_from_slice(&(nrecs as u16).to_le_bytes());
+    job.extend_from_slice(&hdr);
+    let mut recs = Vec::new();
+    s3_ir_seed_at(&mut recs, S3_EXPAND_SEED, &job, 30);
+    recs.extend(s3_bootstrap_expand_asm());
+    (s3_host_tyb_from_records(&recs), out)
 }
 
 /// S3.254/S3.255/S3.263/S3.267/S3.329: expand flat via YOYO sim — test proof only.
@@ -4781,7 +4812,7 @@ mod tests {
         );
     }
 
-    /// S3.340/S3.341: pack consts cfg(test); expand reachable via pub entry (not cfg(test)).
+    /// S3.340/S3.341/S3.343: pack consts + argc index cfg(test); pub expand stays live.
     #[test]
     fn s3_expand_stays_in_lib_pin() {
         assert_eq!(s3_bootstrap_expand_asm().len(), S3_SHAPE_FILL_MANY_ROWS);
@@ -4789,6 +4820,19 @@ mod tests {
         assert_eq!((exp.clone(), off), s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_MANY_FLAT));
         assert_eq!(parse_tyb(&exp).unwrap().records.len(), S3_EXPAND_ASM_PIN);
         assert_eq!(S3_PACK_PROTO_DST, 9, "host outbuf slot stays live");
+    }
+
+    /// S3.343: 256B argc index + generic flat expand are cfg(test); production
+    /// expand hardcodes MEMCPY+RET wire argc (still ≡ generic path).
+    #[test]
+    fn s3_argc_index_test_only_pin() {
+        assert_eq!(S3_SEED_ARGC_BYTES.len(), 256);
+        assert_eq!(s3_seed_argc(0x84), 3);
+        assert_eq!(s3_seed_argc(0xFF), 0);
+        let (prod, poff) = s3_expand_many_flat_tyb();
+        let (gen, goff) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_MANY_FLAT);
+        assert_eq!((prod.clone(), poff), (gen, goff));
+        assert_eq!(parse_tyb(&prod).unwrap().records.len(), S3_EXPAND_ASM_PIN);
     }
 
     /// S3.339: pack via_ir + loop_stb (+ flat_at/hdr helpers) cfg(test); expand stays live.
@@ -5501,10 +5545,10 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–342: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–343: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor),
-    /// sole bootstrap+expand via pub entry; pack consts cfg(test). Host 171.
-    /// S3.342: host prog-loop densify reject (sheep <10; 256B index unfit).
+    /// sole bootstrap+expand via pub entry; pack/argc index cfg(test). Host 171.
+    /// S3.342: host prog-loop densify reject. S3.343: argc index test-only.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
