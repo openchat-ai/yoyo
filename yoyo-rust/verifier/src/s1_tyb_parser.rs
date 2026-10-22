@@ -2523,10 +2523,18 @@ fn s3_seed_argc_from(argc_flat: &[u8], op: u8) -> u8 {
         .expect("argc index table")
 }
 
+fn s3_bootstrap_expand_asm() -> Vec<(u8, u8, [u8; 6])> {
+    // S3.320: named IR (MEMCPY+RET) — not flat_seed decode. Still Rust; ≡ MANY flat.
+    vec![s3_rec_memcpy(9, 2, 12), s3_fixed_rec(0xFF)]
+}
+
+/// S3.329: flat→records decode is test parity only (production uses named bootstrap).
+#[cfg(test)]
 fn s3_rec_from_wire_seed(row: &[u8; 7]) -> (u8, u8, [u8; 6]) {
     s3_rec_from_wire_seed_with_argc(row, &S3_SEED_ARGC_BYTES)
 }
 
+#[cfg(test)]
 fn s3_rec_from_wire_seed_with_argc(row: &[u8; 7], argc_flat: &[u8]) -> (u8, u8, [u8; 6]) {
     (
         row[0],
@@ -2535,17 +2543,13 @@ fn s3_rec_from_wire_seed_with_argc(row: &[u8; 7], argc_flat: &[u8]) -> (u8, u8, 
     )
 }
 
-/// S3.244/S3.253/S3.262/S3.276/S3.321: Rust expand bootstrap + test parity.
-/// Production fill ctrl ≡ bootstrap (via_yoyo kept as test proof only).
+/// S3.244/S3.253/S3.262/S3.276/S3.321/S3.329: test parity vs named bootstrap.
+#[cfg(test)]
 fn s3_recs_from_flat_seed(flat: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     s3_recs_from_flat_seed_with_argc(flat, &S3_SEED_ARGC_BYTES)
 }
 
-fn s3_bootstrap_expand_asm() -> Vec<(u8, u8, [u8; 6])> {
-    // S3.320: named IR (MEMCPY+RET) — not flat_seed decode. Still Rust; ≡ MANY flat.
-    vec![s3_rec_memcpy(9, 2, 12), s3_fixed_rec(0xFF)]
-}
-
+#[cfg(test)]
 fn s3_recs_from_flat_seed_with_argc(
     flat: &[u8],
     argc_flat: &[u8],
@@ -2610,14 +2614,14 @@ fn s3_yoyo_expand_flat_tyb(flat: &[u8]) -> (Vec<u8>, u32) {
     job.extend_from_slice(&hdr);
     let mut recs = Vec::new();
     s3_ir_seed_at(&mut recs, S3_EXPAND_SEED, &job, 30);
-    // S3.275: init+ctrl are one assembler flat seed (single Rust expand).
-    assert_eq!(S3_SHAPE_FILL_MANY_FLAT.len(), S3_SHAPE_FILL_MANY_ROWS * 7);
+    // S3.275: assembler body = named bootstrap (single Rust expand).
     assert_eq!(S3_SHAPE_FILL_MANY_FLAT.len(), S3_SHAPE_FILL_MANY_ROWS * 7);
     recs.extend(s3_bootstrap_expand_asm());
     (s3_host_tyb_from_records(&recs), out)
 }
 
-/// S3.254/S3.255/S3.263/S3.267: expand flat via YOYO sim → full TYB → parse_tyb.
+/// S3.254/S3.255/S3.263/S3.267/S3.329: expand flat via YOYO sim — test proof only.
+#[cfg(test)]
 fn s3_recs_from_flat_seed_via_yoyo(flat: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     let (asm, out) = s3_yoyo_expand_flat_tyb(flat);
     let nrecs = flat.len() / 7;
@@ -4697,6 +4701,19 @@ mod tests {
         );
     }
 
+    /// S3.329: flat→recs helpers are cfg(test); production expand uses named bootstrap.
+    #[test]
+    fn s3_flat_seed_decode_test_only_pin() {
+        assert_eq!(
+            s3_recs_from_flat_seed(S3_SHAPE_FILL_MANY_FLAT),
+            s3_bootstrap_expand_asm()
+        );
+        assert_eq!(
+            s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_MANY_FLAT),
+            s3_bootstrap_expand_asm()
+        );
+    }
+
     /// S3.327/S3.328: no fill_ctrl / ONE_* / EXPAND_ASM_ROWS — bootstrap + MANY_*.
     #[test]
     fn s3_fill_ctrl_is_bootstrap_pin() {
@@ -5282,9 +5299,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–328: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–329: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor),
-    /// sole bootstrap MEMCPY+RET (=2; ONE/fill aliases gone). Host 171.
+    /// sole bootstrap MEMCPY+RET (=2; flat→recs decode test-only). Host 171.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
