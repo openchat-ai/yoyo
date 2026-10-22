@@ -2616,6 +2616,8 @@ const S3_BOOTSTRAP_EXPAND_ASM: [(u8, u8, [u8; 6]); 2] = [
     (0xFF, 0, [0; 6]),              // RET
 ];
 
+/// S3.357: Vec wrapper — test convenience; production uses the const table.
+#[cfg(test)]
 fn s3_bootstrap_expand_asm() -> Vec<(u8, u8, [u8; 6])> {
     S3_BOOTSTRAP_EXPAND_ASM.to_vec()
 }
@@ -2790,7 +2792,7 @@ fn s3_yoyo_shape_fill_many_tyb(jobs: &[(u8, [u8; 6])]) -> (Vec<u8>, u32) {
     let blob = s3_shape_wire_job_blob(jobs, true);
     let mut recs = Vec::new();
     s3_ir_seed_at(&mut recs, S3_SHAPE_JOB, &blob, 21);
-    recs.extend(s3_bootstrap_expand_asm());
+    recs.extend_from_slice(&S3_BOOTSTRAP_EXPAND_ASM);
     (s3_host_tyb_from_records(&recs), S3_SHAPE_MANY_OUT)
 }
 
@@ -2811,7 +2813,7 @@ fn s3_yoyo_shape_fill_tyb(op: u8, args: [u8; 6]) -> (Vec<u8>, u32) {
     let job = s3_shape_wire_job_blob(&[(op, args)], false);
     let mut recs = Vec::new();
     s3_ir_seed_at(&mut recs, S3_SHAPE_JOB, &job, 21);
-    recs.extend(s3_bootstrap_expand_asm());
+    recs.extend_from_slice(&S3_BOOTSTRAP_EXPAND_ASM);
     (s3_host_tyb_from_records(&recs), S3_SHAPE_OUT)
 }
 
@@ -4837,7 +4839,7 @@ mod tests {
         assert_eq!(S3_PACK_PROTO_DST, 9, "host outbuf slot stays live");
     }
 
-    /// S3.353–356: no sentinel; job≡const bootstrap; shared `expand_job_recs`.
+    /// S3.353–357: no sentinel; job≡const bootstrap; Vec wrapper cfg(test).
     /// Const table ≡ `s3_rec_memcpy`+RET builders. Assembler pin 22 (0 IR).
     #[test]
     fn s3_expand_job_from_bootstrap_pin() {
@@ -4847,6 +4849,7 @@ mod tests {
         );
         let boot = s3_bootstrap_expand_asm();
         assert_eq!(boot.as_slice(), &S3_BOOTSTRAP_EXPAND_ASM);
+        assert_eq!(S3_BOOTSTRAP_EXPAND_ASM.len(), 2);
         assert_eq!(boot, s3_recs_from_flat_seed(S3_SHAPE_FILL_MANY_FLAT));
         let (prod, poff) = s3_expand_many_flat_tyb();
         let (gen, goff) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_MANY_FLAT);
@@ -5858,9 +5861,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–356: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–357: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock, const bootstrap expand,
-    /// host poke seed + prog-loop + cursor sim. S3.356: bootstrap is const table.
+    /// host poke seed + prog-loop + cursor sim. S3.357: bootstrap Vec wrapper test-only.
     /// Host 171 · ASM 22. Scaffolding/wrappers cfg(test). Not CLOSED.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
