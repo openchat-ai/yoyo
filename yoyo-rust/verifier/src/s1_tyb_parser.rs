@@ -2571,8 +2571,7 @@ const S3_EXPAND_ASM_PIN: usize = 22; // S3.306: bulk wire MEMCPY (−10)
 /// S3.303: expand job seed is 8B wire (argc baked); ctrl MEMCPY record rows.
 /// S3.306: ctrl = bulk MEMCPY+RET; slot12 = nrecs×8 (sim preload); job|hdr join.
 const S3_EXPAND_SENTINEL: u8 = 0;
-/// S3.305/S3.306: expand ctrl ≡ shape-fill many ≡ one (bulk wire MEMCPY).
-const S3_EXPAND_CTRL_ROWS: usize = S3_SHAPE_FILL_MANY_ROWS;
+/// S3.305/S3.306/S3.324: expand ctrl ≡ shape-fill many ≡ one (bulk wire MEMCPY).
 /// S3.270: only magic must be IR-seeded; reserved/count stay zero until body patches cnt.
 /// S3.274/S3.277: assembler init SETs as a flat seed (same expand path as ctrl).
 /// S3.277: drop SET slot13=0 / slot1=0 — sim state starts zeroed.
@@ -2581,10 +2580,8 @@ const S3_EXPAND_CTRL_ROWS: usize = S3_SHAPE_FILL_MANY_ROWS;
 /// S3.297: drop SET out+hdr — sim slot9 starts at OUT+HEADER_SIZE.
 /// S3.305: job cursor = prog_ptr (slot2); same flat as shape-fill many.
 /// S3.275/S3.322: assembler body rows = ctrl only (INIT empty since S3.297).
-const S3_EXPAND_ASM_ROWS: usize = S3_EXPAND_CTRL_ROWS;
+const S3_EXPAND_ASM_ROWS: usize = S3_SHAPE_FILL_MANY_ROWS;
 
-/// S3.305/S3.306: sole wire-copy seed (expand bootstrap + shape-fill many/one).
-const S3_EXPAND_CTRL_FLAT: &[u8] = S3_SHAPE_FILL_MANY_FLAT;
 
 /// S3.254/S3.260/S3.264/S3.268: YOYO IR expands a 7×N flat seed into a TYB file.
 /// Assembler: wire-job|hdr poke + bulk MEMCPY bootstrap body.
@@ -2615,8 +2612,8 @@ fn s3_yoyo_expand_flat_tyb(flat: &[u8]) -> (Vec<u8>, u32) {
     let mut recs = Vec::new();
     s3_ir_seed_at(&mut recs, S3_EXPAND_SEED, &job, 30);
     // S3.275: init+ctrl are one assembler flat seed (single Rust expand).
-    assert_eq!(S3_EXPAND_CTRL_FLAT.len(), S3_EXPAND_CTRL_ROWS * 7);
-    assert_eq!(S3_EXPAND_CTRL_FLAT.len(), S3_EXPAND_ASM_ROWS * 7);
+    assert_eq!(S3_SHAPE_FILL_MANY_FLAT.len(), S3_SHAPE_FILL_MANY_ROWS * 7);
+    assert_eq!(S3_SHAPE_FILL_MANY_FLAT.len(), S3_EXPAND_ASM_ROWS * 7);
     recs.extend(s3_bootstrap_expand_asm());
     (s3_host_tyb_from_records(&recs), out)
 }
@@ -4705,17 +4702,18 @@ mod tests {
 
     /// S3.321: shape-fill ctrl ≡ bootstrap; via_yoyo stays test-only proof.
     #[test]
-    /// S3.323: expand_asm_flat removed — CTRL_FLAT is the sole expand body seed.
+    /// S3.323/S3.324: no expand_asm_flat / CTRL alias — MANY_FLAT is asm body.
     #[test]
     fn s3_expand_ctrl_flat_is_asm_body_pin() {
-        assert_eq!(S3_EXPAND_CTRL_FLAT, S3_SHAPE_FILL_MANY_FLAT);
-        assert_eq!(S3_EXPAND_CTRL_FLAT.len(), S3_EXPAND_ASM_ROWS * 7);
+        assert_eq!(S3_SHAPE_FILL_MANY_FLAT.len(), S3_EXPAND_ASM_ROWS * 7);
+        assert_eq!(S3_EXPAND_ASM_ROWS, S3_SHAPE_FILL_MANY_ROWS);
         assert_eq!(
             s3_bootstrap_expand_asm(),
-            s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT)
+            s3_recs_from_flat_seed(S3_SHAPE_FILL_MANY_FLAT)
         );
     }
 
+    #[test]
     fn s3_shape_fill_ctrl_shares_bootstrap_pin() {
         assert_eq!(s3_yoyo_shape_fill_ctrl(), s3_bootstrap_expand_asm());
         assert_eq!(s3_yoyo_shape_fill_many_ctrl(), s3_bootstrap_expand_asm());
@@ -5087,14 +5085,14 @@ mod tests {
             s3_yoyo_shape_fill_ctrl()
         );
         // S3.256/S3.257: expand ctrl flat seed; job ends with 0xFE sentinel (no SET END).
-        assert_eq!(S3_EXPAND_CTRL_FLAT.len(), S3_EXPAND_CTRL_ROWS * 7);
-        assert_eq!(s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT).len(), S3_EXPAND_CTRL_ROWS);
-        assert_eq!(s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT).last().unwrap().0, 0xFF);
-        let (exp_stb, exp_off) = s3_yoyo_emit_flat_via_stb(S3_EXPAND_CTRL_FLAT, 0x20);
+        assert_eq!(S3_SHAPE_FILL_MANY_FLAT.len(), S3_SHAPE_FILL_MANY_ROWS * 7);
+        assert_eq!(s3_recs_from_flat_seed(S3_SHAPE_FILL_MANY_FLAT).len(), S3_SHAPE_FILL_MANY_ROWS);
+        assert_eq!(s3_recs_from_flat_seed(S3_SHAPE_FILL_MANY_FLAT).last().unwrap().0, 0xFF);
+        let (exp_stb, exp_off) = s3_yoyo_emit_flat_via_stb(S3_SHAPE_FILL_MANY_FLAT, 0x20);
         assert!(s3_unpack_data_tyb(&exp_stb).is_empty());
         assert_eq!(
             s3_sim_prog_loop(&exp_stb, 0, exp_off, 0).unwrap(),
-            S3_EXPAND_CTRL_FLAT
+            S3_SHAPE_FILL_MANY_FLAT
         );
         // S3.254/S3.259/S3.264: YOYO expand matches Rust; no job SET END; size floor.
         let (exp, off) = s3_yoyo_expand_flat_tyb(S3_SHAPE_FILL_ONE_FLAT);
@@ -5106,12 +5104,12 @@ mod tests {
         // S3.322: INIT scaffolding removed; bootstrap ≡ ctrl flat only.
         assert_eq!(
             s3_bootstrap_expand_asm(),
-            s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT)
+            s3_recs_from_flat_seed(S3_SHAPE_FILL_MANY_FLAT)
         );
         assert_eq!(&TYB_MAGIC[..3], b"TYB");
         // S3.291: job-end is 0 vs slot13; ctrl must not SET a sentinel imm.
         assert!(
-            !s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT)
+            !s3_recs_from_flat_seed(S3_SHAPE_FILL_MANY_FLAT)
                 .iter()
                 .any(|r| r.0 == 0x30 && u16::from_le_bytes([r.2[0], r.2[1]]) == 5),
             "expand ctrl must not SET slot5; slot13 image-zero owns job-end"
@@ -5154,17 +5152,17 @@ mod tests {
     /// S3.264 dropped argc-poke rows; body-only jobs fit well under the 128 cap.
     #[test]
     fn s3_yoyo_expand_ctrl_reencodes_via_shape_fill() {
-        assert_eq!(S3_EXPAND_CTRL_FLAT.len(), S3_EXPAND_CTRL_ROWS * 7);
-        assert_eq!(S3_EXPAND_CTRL_ROWS, 2);
-        let ctrl = s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT);
-        assert_eq!(ctrl.len(), S3_EXPAND_CTRL_ROWS);
+        assert_eq!(S3_SHAPE_FILL_MANY_FLAT.len(), S3_SHAPE_FILL_MANY_ROWS * 7);
+        assert_eq!(S3_SHAPE_FILL_MANY_ROWS, 2);
+        let ctrl = s3_recs_from_flat_seed(S3_SHAPE_FILL_MANY_FLAT);
+        assert_eq!(ctrl.len(), S3_SHAPE_FILL_MANY_ROWS);
         assert_eq!(ctrl.last().unwrap().0, 0xFF);
         let jobs: Vec<(u8, [u8; 6])> = ctrl
             .iter()
             .filter(|r| r.0 != 0xFF)
             .map(|r| (r.0, r.2))
             .collect();
-        assert_eq!(jobs.len(), S3_EXPAND_CTRL_ROWS - 1);
+        assert_eq!(jobs.len(), S3_SHAPE_FILL_MANY_ROWS - 1);
         assert!(jobs.len() < 64 && jobs.len() <= 128);
         let (tyb, out) = s3_yoyo_shape_fill_many_tyb(&jobs);
         let mut expect = Vec::new();
@@ -5293,27 +5291,27 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–323: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–324: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor),
-    /// sole bootstrap MEMCPY+RET (=2; fill shares it; no expand_asm_flat). Host 171.
+    /// sole bootstrap MEMCPY+RET (=2; MANY_FLAT is asm body). Host 171.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
         assert_eq!(S3_LEA_PTR.len(), 7, "short lea must stay 7B (not disp32)");
         assert_eq!(S3_LEA_PTR, &[0x49, 0x8D, 0x07, 0x49, 0x89, 0x47, 0x78]);
         // S3.275: assembler body is one flat seed (init prefix + ctrl); still Rust.
-        assert_eq!(S3_EXPAND_CTRL_FLAT.len(), S3_EXPAND_ASM_ROWS * 7);
+        assert_eq!(S3_SHAPE_FILL_MANY_FLAT.len(), S3_EXPAND_ASM_ROWS * 7);
         assert_eq!(S3_EXPAND_ASM_ROWS, 2, "S3.306: expand≡many≡one bulk MEMCPY");
-        assert_eq!(S3_EXPAND_CTRL_FLAT.len(), S3_EXPAND_CTRL_ROWS * 7);
-        assert_eq!(S3_EXPAND_CTRL_ROWS, 2, "S3.306: shared MEMCPY+RET");
-        assert_eq!(S3_EXPAND_CTRL_FLAT, S3_SHAPE_FILL_MANY_FLAT);
+        assert_eq!(S3_SHAPE_FILL_MANY_FLAT.len(), S3_SHAPE_FILL_MANY_ROWS * 7);
+        assert_eq!(S3_SHAPE_FILL_MANY_ROWS, 2, "S3.306: shared MEMCPY+RET");
+        assert_eq!(S3_SHAPE_FILL_MANY_FLAT, S3_SHAPE_FILL_MANY_FLAT);
         assert_eq!(S3_SHAPE_FILL_ONE_FLAT, S3_SHAPE_FILL_MANY_FLAT);
-        assert_eq!(S3_EXPAND_ASM_ROWS, S3_EXPAND_CTRL_ROWS, "S3.322: no INIT rows");
+        assert_eq!(S3_EXPAND_ASM_ROWS, S3_SHAPE_FILL_MANY_ROWS, "S3.322: no INIT rows");
         assert_eq!(S3_SHAPE_TABLE_END, 0x140, "S3.299: 256B argc index");
         assert_eq!(S3_SHAPE_FILL_MANY_ROWS, 2, "S3.306: bulk wire MEMCPY");
         assert_eq!(S3_SHAPE_FILL_ONE_ROWS, 2, "S3.304: MEMCPY+RET");
         assert!(
-            !s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT)
+            !s3_recs_from_flat_seed(S3_SHAPE_FILL_MANY_FLAT)
                 .iter()
                 .any(|r| r.0 == 0x81),
             "expand ctrl must not STB; wire-job MEMCPY owns emit"
@@ -5326,12 +5324,12 @@ mod tests {
         );
         // S3.276: ctrl-only expand is plain flat_seed (no named bootstrap).
         assert_eq!(
-            s3_recs_from_flat_seed(S3_EXPAND_CTRL_FLAT),
-            s3_recs_from_flat_seed_with_argc(S3_EXPAND_CTRL_FLAT, &S3_SEED_ARGC_BYTES)
+            s3_recs_from_flat_seed(S3_SHAPE_FILL_MANY_FLAT),
+            s3_recs_from_flat_seed_with_argc(S3_SHAPE_FILL_MANY_FLAT, &S3_SEED_ARGC_BYTES)
         );
         assert_eq!(
             s3_bootstrap_expand_asm(),
-            s3_recs_from_flat_seed_with_argc(S3_EXPAND_CTRL_FLAT, &S3_SEED_ARGC_BYTES)
+            s3_recs_from_flat_seed_with_argc(S3_SHAPE_FILL_MANY_FLAT, &S3_SEED_ARGC_BYTES)
         );
         assert_eq!(S3_SEED_ARGC_BYTES.len(), 256, "S3.309: argc index stays 256B");
         // S3.306: ONE-flat expand assembler size (bulk + job|hdr join).
