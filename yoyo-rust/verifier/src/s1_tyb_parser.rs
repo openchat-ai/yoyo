@@ -1550,6 +1550,8 @@ fn s3_host_tyb_from_records(recs: &[(u8, u8, [u8; 6])]) -> Vec<u8> {
     v
 }
 
+/// S3.334: chunk pack helper — test-only (feeds reference pack + A1 append).
+#[cfg(test)]
 fn s3_host_pack_bytes(op: u8, bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     let mut recs = Vec::new();
     let mut i = 0;
@@ -1807,15 +1809,15 @@ fn s3_yoyo_emit_tyb_file(records: &[(u8, u8, [u8; 6])]) -> (Vec<u8>, u32) {
 /// S3.141: YOYO-target chunk size for DATA `0x10` pack (still Rust today).
 const S3_PACK_CHUNK: usize = 3;
 
-/// S3.136/S3.141: YOYO-table firmware DATA pack is always op `0x10` (still Rust).
-/// Algorithm (portable to YOYO IR later): walk `bytes` in chunks of `S3_PACK_CHUNK`,
-/// each record argc=chunk_len, low bytes at args[0], args[2], args[4].
+/// S3.136/S3.141/S3.334: reference Rust DATA `0x10` pack — test parity vs via_ir.
+#[cfg(test)]
 fn s3_pack_data(bytes: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     debug_assert_eq!(S3_PACK_CHUNK, 3);
     s3_host_pack_bytes(0x10, bytes)
 }
 
-/// S3.137: inverse of `s3_pack_data` — recover flat payload from DATA `0x10` records.
+/// S3.137/S3.334: inverse of `s3_pack_data` — test parity only.
+#[cfg(test)]
 fn s3_unpack_data(recs: &[(u8, u8, [u8; 6])]) -> Vec<u8> {
     let mut out = Vec::new();
     for &(op, argc, a) in recs {
@@ -1838,7 +1840,8 @@ fn s3_unpack_data_tyb(tyb: &[u8]) -> Vec<u8> {
     out
 }
 
-/// S3.142: flatten `s3_pack_data` records to wire bytes (op+argc+6 args each).
+/// S3.142/S3.334: flatten reference pack to wire — test parity only.
+#[cfg(test)]
 fn s3_pack_data_wire(bytes: &[u8]) -> Vec<u8> {
     let mut out = Vec::new();
     for (op, argc, a) in s3_pack_data(bytes) {
@@ -1849,8 +1852,8 @@ fn s3_pack_data_wire(bytes: &[u8]) -> Vec<u8> {
     out
 }
 
-/// S3.144/S3.266/S3.269: pack-wire helper — wrap a raw 8B×N section as TYB + parse.
-/// S3.307: production `s3_pack_data_via_ir` no longer uses this (pack emits full TYB).
+/// S3.144/S3.266/S3.269/S3.334: pack-wire→recs helper — test-only (via_ir emits full TYB).
+#[cfg(test)]
 fn s3_pack_wire_section_to_recs(wire: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
     assert_eq!(wire.len() % RECORD_SIZE, 0, "pack wire must be 8-byte records");
     let n = wire.len() / RECORD_SIZE;
@@ -4716,6 +4719,18 @@ mod tests {
         );
     }
 
+    /// S3.334: reference Rust pack_data cluster is cfg(test); via_ir is IR pack path.
+    #[test]
+    fn s3_reference_pack_data_test_only_pin() {
+        let bytes = [0xAAu8, 0xBB, 0xCC, 0xDD];
+        assert_eq!(s3_pack_data_via_ir(&bytes), s3_pack_data(&bytes));
+        assert_eq!(s3_unpack_data(&s3_pack_data(&bytes)), bytes.to_vec());
+        assert_eq!(
+            s3_pack_wire_section_to_recs(&s3_pack_data_wire(&bytes)),
+            s3_pack_data(&bytes)
+        );
+    }
+
     /// S3.333: A1 append + bytewise DATA pack are cfg(test).
     #[test]
     fn s3_a1_append_bytewise_test_only_pin() {
@@ -5348,9 +5363,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–333: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–334: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor),
-    /// sole bootstrap MEMCPY+RET (=2; A1 append/bytewise pack cfg(test)). Host 171.
+    /// sole bootstrap MEMCPY+RET (=2; reference pack_data cfg(test)). Host 171.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
