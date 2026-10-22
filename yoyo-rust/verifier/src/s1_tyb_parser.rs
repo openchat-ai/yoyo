@@ -5299,9 +5299,9 @@ mod tests {
         assert_eq!(s3_sim_prog_loop(&tyb, 0, out, 0).unwrap(), bytes);
     }
 
-    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–329: remaining Rust sidecar.
+    /// S3.135/S3.160/S3.223/S3.259/S3.309/S3.311–330: remaining Rust sidecar.
     /// Still Rust: short lea A1, `emit_x86` OnceLock (body→.text floor),
-    /// sole bootstrap MEMCPY+RET (=2; flat→recs decode test-only). Host 171.
+    /// sole bootstrap MEMCPY+RET (=2; host SET-out −1 sheep reject). Host 171.
     /// All pack paths emit full TYB (S3.307–309). Not CLOSED.
     #[test]
     fn s3_fixed10_fold_remaining_rust_surface() {
@@ -5525,6 +5525,49 @@ mod tests {
 
 
 
+    /// S3.330: drop host SET out after seed is −1 (sim preloads slot9). Sheep bar —
+    /// keep SET so emit_x86/raw PE host TYB still lands outbuf (not sim-only).
+    #[test]
+    fn s3_host_set_out_sheep_reject() {
+        let payload = s3_fixed_payload(&S3_FIXED10_OPS, &[0xFF], S3_HOST_OUTBUF_OFF as usize);
+        let start = S3_HOST_TABLE_OFF as usize;
+        let end = S3_HOST_PROG_OFF as usize + 1 + 1;
+        let mut with = Vec::new();
+        s3_ir_seed_at(&mut with, S3_HOST_TABLE_OFF, &payload[start..end], 10);
+        with.push(s3_rec_set(S3_PACK_PROTO_DST, S3_HOST_OUTBUF_OFF));
+        with.extend(s3_prog_loop_code_host(1, S3_HOST_NROWS));
+        let mut without = Vec::new();
+        s3_ir_seed_at(&mut without, S3_HOST_TABLE_OFF, &payload[start..end], 10);
+        without.extend(s3_prog_loop_code_host(1, S3_HOST_NROWS));
+        assert_eq!(with.len(), 171, "host pin stays 171");
+        assert_eq!(with.len() - without.len(), 1, "SET out alone is −1");
+        assert!(
+            with.len() - without.len() < 10,
+            "host SET-out save {} < 10 sheep bar — keep for PE/emit_x86",
+            with.len() - without.len()
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF])).unwrap().records.len(),
+            with.len(),
+            "production host matches with-SET rebuild"
+        );
+        // Sim still works without SET (slot9 preload) — proves the −1 is real but rejected.
+        let tyb = s3_host_tyb_from_records(&without);
+        assert_eq!(
+            s3_sim_prog_loop(
+                &tyb,
+                S3_HOST_TABLE_OFF as u64,
+                S3_HOST_OUTBUF_OFF,
+                (S3_HOST_PROG_OFF + 1) as u64,
+            )
+            .unwrap(),
+            s3_compute_fixed_body(0xFF),
+            "sim preload makes SET redundant — still do not take −1"
+        );
+    }
+
+    /// S3.312: host long-seed pin (global-distinct).
+    #[test]
     fn s3_host_seed_window_global_distinct_pin() {
         const HOST_PIN: usize = 171; // was 220 (address-order long path)
         let tyb = s3_host_prog_loop_tyb(&[0xFF]);
