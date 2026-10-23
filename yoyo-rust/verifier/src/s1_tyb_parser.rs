@@ -10089,6 +10089,46 @@ mod tests {
         );
     }
 
+    /// S3.380: per-ops PE *image* seed cliff (gap E residual). RET+SET/RET images
+    /// already seeded (S3.379); 8 more len2 × 6656B ≫ volume. Keep emit+wrap for
+    /// other ops; next ≥10 = gap F in-DLL image / non-emit arch.
+    #[test]
+    #[cfg(windows)]
+    fn s3_pe_per_ops_image_seed_cliff_reject() {
+        let mut len2 = 0usize;
+        for &op in &S3_FIXED10_OPS {
+            if op == 0xFF {
+                continue;
+            }
+            len2 += 1;
+            let tyb = s3_host_compose_tyb_pe(&[op, 0xFF]);
+            let pe = wrap_pe_slim(&emit_x86(&parse_tyb(&tyb).unwrap())).unwrap();
+            assert_eq!(pe.bytes.len(), 6656, "slim PE size stable ({op:#x})");
+        }
+        assert_eq!(len2, 9);
+        let remaining = 8usize; // SET already seeded
+        assert!(
+            remaining * 6656 > 50_000,
+            "per-ops PE images: {} more (≥{}KB) — combinatorial cliff",
+            remaining,
+            remaining * 6656 / 1024
+        );
+        assert_eq!(S3_HOST_PE_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(S3_HOST_PE_SET_RET_IMAGE_SEED.len(), 6656);
+        // Seeded paths skip emit; a third combo still live-wraps.
+        assert_eq!(try_emit_text_via_yoyo_table(&[0xFF]).unwrap(), vec![0xC3]);
+        let other = try_emit_text_via_yoyo_table(&[0x66, 0xFF]).unwrap();
+        assert_ne!(other, vec![0xC3]);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.366: win0 poke seed ≡ live zero_then_poke(table[..127]). Floor now 173 (S3.367).
     #[test]
     fn s3_host_table_win0_poke_seed_pin() {
