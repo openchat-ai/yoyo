@@ -10794,8 +10794,9 @@ mod tests {
     }
 
 
-    /// S3.396: post-Q true-selfhost gap map (pin body shares post_n asserts).
-    /// Next ≥10 = (R) try_compile wrap bypass for RET/SET+RET. Not CLOSED.
+    /// S3.396/S3.399: post-Q/R gap map. Closed + R. Cliffs: H wrap residual ·
+    /// I/K/L · N pe_dll mini (OW-RT) · R residual (non-RET compile still wrap).
+    /// Next ≥10 ≠ more compile-image sheep; N long pole. Not CLOSED.
     #[test]
     #[cfg(windows)]
     fn s3_true_selfhost_post_q_gap_map_pin() {
@@ -10866,6 +10867,43 @@ mod tests {
         let pe_a = try_compile_tyb_via_yoyo_table(&add).unwrap();
         assert_ne!(pe_a.bytes.as_slice(), S3_COMPILE_PE_RET_IMAGE_SEED);
         assert_eq!(&pe_a.bytes[..2], b"MZ");
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.398: gap R residual reject — per-ops try_compile PE image seeds.
+    /// RET+SET/RET already seeded (S3.397); 8 more fixed10 × 6656B ≫ volume
+    /// (mirror S3.380). Keep wrap for other ops; next ≠ sheep compile images.
+    #[test]
+    #[cfg(windows)]
+    fn s3_try_compile_per_ops_image_seed_cliff_reject() {
+        let mut n = 0usize;
+        for &op in &S3_FIXED10_OPS {
+            if op == 0xFF {
+                continue;
+            }
+            n += 1;
+            let tyb = tyb_from_records(&[s3_fixed_rec(op), (0xFF, 0, [0; 6])]);
+            let pe = try_compile_tyb_via_yoyo_table(&tyb).unwrap();
+            assert_eq!(pe.bytes.len(), 6656, "slim compile PE stable ({op:#x})");
+            if op != 0x30 {
+                assert_ne!(
+                    pe.bytes.as_slice(),
+                    S3_COMPILE_PE_SET_RET_IMAGE_SEED,
+                    "non-SET must not hit SET seed"
+                );
+            }
+        }
+        assert_eq!(n, 9);
+        let remaining = 8usize; // SET already seeded
+        assert!(remaining * 6656 > 50_000);
+        assert_eq!(S3_COMPILE_PE_RET_IMAGE_SEED.len(), 6656);
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
