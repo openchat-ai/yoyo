@@ -257,7 +257,7 @@ ded3d5   | STB/pack 去 SET ZERO；slot13 image-zero floor |
 | **S3.409** ✅       | `3335018`   | 后OW-RT切片图；in-DLL RET/SET+RET≡compile种子 |
 | **S3.410** ✅       | `4712eb1`   | in-DLL fixed10+RET ≡ host compile（共享模板） |
 | **S3.411** ✅       | `0301121`   | 后parity图；全fixed10+RET in-DLL≡host |
-| **S3.412** ✅       | `6ff415d`   | 后parity库存：下一≥10=mini→YOYO（禁奇偶羊） |
+| **S3.412** ✅       | `407cd53`   | 后parity库存：下一≥10=mini→YOYO（禁奇偶羊） |
 | **S3.413** ⏳       | —           | OW-RT mini→YOYO 首切片 · **本步** |
 
 
