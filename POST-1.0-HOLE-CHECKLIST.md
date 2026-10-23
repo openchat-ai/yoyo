@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.396**（395 Q拒；下一刀=后Q真自举图；**不**假 CLOSED）。
+**默认** 继续 **= S3.398**（397 try_compile种子；下一刀=R残/下一能力；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -241,11 +241,13 @@ ded3d5   | STB/pack 去 SET ZERO；slot13 image-zero floor |
 | **S3.393** ✅       | `7c6093e`   | gap O：bootstrap via_yoyo expand=PE（非sim） |
 | **S3.394** ✅       | `0f0b5a9`   | gap P：bootstrap前缀 via_yoyo→PE slice |
 | **S3.395** ✅       | `9ce7e8b`   | gap Q拒：非prefix flat=proof-sim（产无flat） |
-| **S3.396** ⏳       | —           | 后Q真自举缺口图 · **本步** |
+| **S3.396** ✅       | `8fc23d8`   | 后Q真自举缺口图（下一刀=R try_compile种子） |
+| **S3.397** ✅       | `8fc23d8`   | gap R：try_compile RET/SET+RET=PE image种子 |
+| **S3.398** ⏳       | —           | R残拒 / 下一真自举能力 · **本步** |
 
 
 
-**缺口**：真自举 — O/P/Q 已关；下一刀后Q图。N=OW-RT长杆。不搞翻译器。逐步正文 → git log。
+**缺口**：真自举 — O/P/Q/R 已关；下一刀 R残或下一能力。N=OW-RT长杆。不搞翻译器。逐步正文 → git log。
 
 ---
 
@@ -281,7 +283,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.396**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.398**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -289,4 +291,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-23**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.396** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-23**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.398** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
