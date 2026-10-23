@@ -10662,11 +10662,10 @@ mod tests {
         );
     }
 
-    /// S3.392/S3.394: post-N gap map. Closed: try_emit PE · expand PE · bake=host
-    /// · O via_yoyo→PE · P bootstrap-prefix via_yoyo→PE. Cliffs: H wrap · I
-    /// empty-DATA · K runner · L non-win · N pe_dll mini (OW-RT) · Q non-prefix
-    /// flat still sim. Next ≥10: (Q) reject/document non-prefix; or prod expand→PE.
-    /// Not CLOSED.
+    /// S3.392/S3.395: post-N gap map. Closed: try_emit PE · expand PE · bake=host
+    /// · O via_yoyo→PE · P prefix→PE · Q non-prefix flat = proof-sim residual.
+    /// Cliffs: H wrap · I empty-DATA · K runner · L non-win · N pe_dll mini
+    /// (OW-RT). Next ≥10 ≠ more flat-sim sheep; N remains long pole. Not CLOSED.
     #[test]
     #[cfg(windows)]
     fn s3_true_selfhost_post_n_gap_map_pin() {
@@ -10727,6 +10726,41 @@ mod tests {
             s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_MANY_FLAT).as_slice(),
             &S3_BOOTSTRAP_EXPAND_ASM
         );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.395: gap Q reject — non-prefix flat via_yoyo stays sim (proof only).
+    /// Prod expand is named bootstrap / PE image (no flat decode). Seeding PE
+    /// per arbitrary flat = combinatorial sheep (mirror H/S3.380). Keep sim;
+    /// true-selfhost expand surface = bootstrap(+prefix) only.
+    #[test]
+    #[cfg(windows)]
+    fn s3_expand_via_yoyo_non_prefix_sim_residual_reject() {
+        // RET-only suffix is a valid flat but NOT a MANY_FLAT prefix → sim path.
+        let ret_flat = &S3_SHAPE_FILL_MANY_FLAT[7..];
+        assert_eq!(ret_flat.len(), 7);
+        assert!(!S3_SHAPE_FILL_MANY_FLAT.starts_with(ret_flat));
+        let via = s3_recs_from_flat_seed_via_yoyo(ret_flat);
+        assert_eq!(via, vec![S3_BOOTSTRAP_EXPAND_ASM[1]]);
+        // Prefix + full still PE (O/P hold).
+        assert_eq!(
+            s3_recs_from_flat_seed_via_yoyo(&S3_SHAPE_FILL_MANY_FLAT[..7]),
+            vec![S3_BOOTSTRAP_EXPAND_ASM[0]]
+        );
+        assert_eq!(
+            s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_MANY_FLAT).as_slice(),
+            &S3_BOOTSTRAP_EXPAND_ASM
+        );
+        // Prod has no flat arg — TYB seed + PE image only.
+        assert_eq!(s3_expand_many_flat_tyb().0.as_slice(), S3_EXPAND_TYB_SEED);
+        assert_eq!(s3_expand_many_via_pe().unwrap().len(), 24);
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
