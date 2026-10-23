@@ -10861,6 +10861,33 @@ mod tests {
         );
     }
 
+    /// S3.413/S3.414: OW-RT mini→YOYO map. Landed: (3) RET exact TYB skips mini
+    /// (memcpy compile seed → write). Next: SET+RET same; then s1_finish/s1_loop.
+    /// Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_ret_skips_mini_slice_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.414"));
+        assert!(pe_dll.contains("exact RET TYB"));
+        assert_eq!(S3_COMPILE_PE_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(
+            compile_tyb_to_pe(&s3_fixed10_ret_tyb(0xFF))
+                .unwrap()
+                .bytes
+                .as_slice(),
+            S3_COMPILE_PE_RET_IMAGE_SEED
+        );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.413: OW-RT mini→YOYO first-slice map. Candidates (each must be ≥10
     /// assembler or documented reject): (1) s1_finish memcpy/patch sequence →
     /// YOYO IR seed; (2) s1_loop op dispatch → table-driven YOYO; (3) drop
