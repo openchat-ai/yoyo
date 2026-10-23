@@ -3215,14 +3215,21 @@ pub fn s3_expand_many_via_pe() -> Option<Vec<u8>> {
 /// S3.254/S3.255/S3.263/S3.267/S3.329: expand flat via YOYO sim — test proof only.
 #[cfg(test)]
 fn s3_recs_from_flat_seed_via_yoyo(flat: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
-    // S3.393: bootstrap MANY_FLAT → PE expand (gap O); other flats keep sim.
+    // S3.393/S3.394: bootstrap MANY_FLAT + 7-aligned prefixes → PE (gap O/P);
+    // non-prefix flats keep sim (residual Q).
     #[cfg(windows)]
-    if flat == S3_SHAPE_FILL_MANY_FLAT {
-        let emitted = s3_expand_many_via_pe().expect("S3.393: expand via PE");
+    if !flat.is_empty()
+        && flat.len() % 7 == 0
+        && flat.len() <= S3_SHAPE_FILL_MANY_FLAT.len()
+        && S3_SHAPE_FILL_MANY_FLAT.starts_with(flat)
+    {
+        let n = flat.len() / 7;
+        let emitted = s3_expand_many_via_pe().expect("S3.394: expand via PE");
         return parse_tyb(&emitted)
             .expect("expand PE emits TYB")
             .records
             .into_iter()
+            .take(n)
             .map(|r| (r.op, r.argc, r.args_raw))
             .collect();
     }
@@ -10655,9 +10662,10 @@ mod tests {
         );
     }
 
-    /// S3.392: post-N gap map. Closed stack: try_emit PE · expand PE · bake=host
-    /// seed. Cliffs: H wrap · I empty-DATA · K runner · L non-win · N pe_dll mini
-    /// (OW-RT). Next ≥10: (O) via_yoyo expand → PE; (P) non-bootstrap flats.
+    /// S3.392/S3.394: post-N gap map. Closed: try_emit PE · expand PE · bake=host
+    /// · O via_yoyo→PE · P bootstrap-prefix via_yoyo→PE. Cliffs: H wrap · I
+    /// empty-DATA · K runner · L non-win · N pe_dll mini (OW-RT) · Q non-prefix
+    /// flat still sim. Next ≥10: (Q) reject/document non-prefix; or prod expand→PE.
     /// Not CLOSED.
     #[test]
     #[cfg(windows)]
@@ -10695,6 +10703,30 @@ mod tests {
             .collect();
         assert_eq!(via, pe_recs);
         assert_eq!(S3_SHAPE_FILL_MANY_FLAT.len(), S3_SHAPE_FILL_MANY_ROWS * 7);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.394: gap P — bootstrap-prefix flat (MEMCPY 7B) via_yoyo uses PE slice.
+    #[test]
+    #[cfg(windows)]
+    fn s3_expand_via_yoyo_prefix_uses_pe_pin() {
+        let memcpy = s3_rec_memcpy(9, 2, 12);
+        let via = s3_recs_from_flat_seed_via_yoyo(&S3_SHAPE_FILL_MANY_FLAT[..7]);
+        assert_eq!(via, vec![memcpy]);
+        let pe_tyb = s3_expand_many_via_pe().unwrap();
+        let pe0 = &parse_tyb(&pe_tyb).unwrap().records[0];
+        assert_eq!((pe0.op, pe0.argc, pe0.args_raw), memcpy);
+        assert_eq!(
+            s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_MANY_FLAT).as_slice(),
+            &S3_BOOTSTRAP_EXPAND_ASM
+        );
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
