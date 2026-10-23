@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.400**（399 try_emit patch；下一刀=S残/compile patch；**不**假 CLOSED）。
+**默认** 继续 **= S3.401**（400 try_compile patch；下一刀=后T图/N；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -245,11 +245,12 @@ ded3d5   | STB/pack 去 SET ZERO；slot13 image-zero floor |
 | **S3.397** ✅       | `8fc23d8`   | gap R：try_compile RET/SET+RET=PE image种子 |
 | **S3.398** ✅       | `7fc2566`   | gap R残拒：非RET try_compile仍wrap（禁种子羊） |
 | **S3.399** ✅       | `e65c840`   | gap S：try_emit text-by-len=PE模板patch（去wrap） |
-| **S3.400** ⏳       | —           | S残 / try_compile 亦 patch · **本步** |
+| **S3.400** ✅       | `c3483e6`   | gap T：try_compile非RET=PE模板text patch |
+| **S3.401** ⏳       | —           | 后T真自举图 / N长杆切片 · **本步** |
 
 
 
-**缺口**：真自举 — O/P/Q/R/S 已关；下一刀 try_compile patch 或 N。不搞翻译器。逐步正文 → git log。
+**缺口**：真自举 — O/P/Q/R/S/T 已关；host Windows fixed10 emit/compile 去wrap。下一刀后T图或 N。逐步正文 → git log。
 
 ---
 
@@ -285,7 +286,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.400**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.401**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -293,4 +294,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-23**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.400** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-23**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.401** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
