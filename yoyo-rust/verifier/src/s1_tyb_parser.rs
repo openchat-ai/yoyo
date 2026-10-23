@@ -10170,6 +10170,42 @@ mod tests {
         );
     }
 
+    /// S3.382: post-E/F-image-seed gap map. Next ≥10 ≠ more PE image seeds.
+    /// Remaining: (G) non-RET try_emit still live emit_x86+wrap; (H) wrap_pe_slim
+    /// itself is Rust (image seeds bypass for RET/SET+RET only); (I) empty-DATA
+    /// host slim cliff stands (S3.378). Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_true_selfhost_post_image_gap_map_pin() {
+        // Seeded image paths hold.
+        assert_eq!(S3_HOST_PE_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(S3_IN_DLL_PE_RET_IMAGE_SEED.len(), 6656);
+        assert_ne!(S3_HOST_PE_RET_IMAGE_SEED, S3_IN_DLL_PE_RET_IMAGE_SEED);
+        assert_eq!(try_emit_text_via_yoyo_table(&[0xFF]).unwrap(), vec![0xC3]);
+        assert_eq!(
+            s3_run_slim_pe_outbuf(S3_IN_DLL_PE_RET_IMAGE_SEED, 1),
+            vec![0xC3]
+        );
+        // (G) non-RET still needs live wrap path (no image seed).
+        let add_tyb = s3_host_compose_tyb_pe(&[0x62, 0xFF]);
+        let add_pe = wrap_pe_slim(&emit_x86(&parse_tyb(&add_tyb).unwrap())).unwrap();
+        assert_eq!(add_pe.bytes.len(), 6656);
+        assert_ne!(add_pe.bytes.as_slice(), S3_HOST_PE_RET_IMAGE_SEED);
+        // (I) empty-DATA cliff still.
+        let host_code = emit_x86(&parse_tyb(S3_HOST_RET_TYB_SEED).unwrap()).text.len();
+        assert!(host_code > S1_SLIM_MAX_CODE);
+        assert_eq!(S3_HOST_PE_DATA_PREFIX_SEED.len(), 110);
+        assert_eq!(S3_IN_DLL_LEA_A1_SEED.len(), 13);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.366: win0 poke seed ≡ live zero_then_poke(table[..127]). Floor now 173 (S3.367).
     #[test]
     fn s3_host_table_win0_poke_seed_pin() {
