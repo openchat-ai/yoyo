@@ -10801,8 +10801,10 @@ mod tests {
     }
 
 
-    /// S3.409/S3.411: post-parity map — in-DLL all fixed10+RET ≡ host compile
-    /// (pe_dll pin). Mini dispatcher still OW-RT residual. Not CLOSED.
+    /// S3.409/S3.411/S3.412: post-parity inventory. Host O–U wrap-free; in-DLL
+    /// PE template=compile seed; all fixed10+RET in-DLL ≡ host compile. Remaining
+    /// ≥10 = rewrite in-DLL mini dispatcher in YOYO (OW-RT long pole). Next ≠
+    /// more parity sheep. Not CLOSED.
     #[test]
     #[cfg(windows)]
     fn s3_true_selfhost_post_ow_rt_slice_map_pin() {
@@ -10812,6 +10814,11 @@ mod tests {
         }
         assert_eq!(S3_COMPILE_PE_RET_IMAGE_SEED.len(), 6656);
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S1 mini TYB codegen"));
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**")
+        );
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
                 .unwrap()
