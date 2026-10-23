@@ -8569,6 +8569,57 @@ mod tests {
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
     }
 
+    /// S3.375: per-ops PE full-TYB seed cliff (mirror S3.370). RET+SET/RET already
+    /// seeded (S3.374); remaining len2 alone = 8 × ≥1288B — volume not capability.
+    /// Keep assemble for other ops; next ≥10 = gap C in-DLL / empty-DATA shrink.
+    #[test]
+    fn s3_pe_per_ops_tyb_seed_cliff_reject() {
+        let mut len2_ret = 0usize;
+        for &op in &S3_FIXED10_OPS {
+            if op == 0xFF {
+                continue;
+            }
+            len2_ret += 1;
+            let tyb = s3_host_compose_tyb_pe(&[op, 0xFF]);
+            assert!(
+                tyb.len() >= 1288,
+                "each PE TYB seed would be ≥RET size ({op:#x}+RET)"
+            );
+        }
+        assert_eq!(len2_ret, 9);
+        let seeded = 2usize; // S3.374 RET + SET+RET
+        let remaining_len2 = len2_ret - 1; // SET already seeded
+        assert_eq!(remaining_len2, 8);
+        assert!(
+            remaining_len2 * 1288 > 10_000,
+            "per-ops PE TYB seeds: {} more len2 alone (≥{}KB) — combinatorial cliff",
+            remaining_len2,
+            remaining_len2 * 1288 / 1024
+        );
+        assert_eq!(
+            s3_host_compose_tyb_pe(&[0xFF]).as_slice(),
+            S3_HOST_PE_RET_TYB_SEED
+        );
+        assert_eq!(
+            s3_host_compose_tyb_pe(&[0x30, 0xFF]).as_slice(),
+            S3_HOST_PE_SET_RET_TYB_SEED
+        );
+        let other = s3_host_compose_tyb_pe(&[0x66, 0xFF]);
+        assert_ne!(other.as_slice(), S3_HOST_PE_RET_TYB_SEED);
+        assert_ne!(other.as_slice(), S3_HOST_PE_SET_RET_TYB_SEED);
+        assert_eq!(seeded, 2);
+        assert_eq!(S3_HOST_PE_DATA_PREFIX_SEED.len(), 110);
+        assert_eq!(S3_HOST_LEA_A1_SEED.len(), 13);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+    }
+
     /// S3.366: win0 poke seed ≡ live zero_then_poke(table[..127]). Floor now 173 (S3.367).
     #[test]
     fn s3_host_table_win0_poke_seed_pin() {
