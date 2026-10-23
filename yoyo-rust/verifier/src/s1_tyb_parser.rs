@@ -10288,6 +10288,42 @@ mod tests {
         );
     }
 
+    /// S3.384: gap H reject — wrap_pe_slim is PE container packaging (headers /
+    /// sections / IAT), not YOYO ISA. RET/SET+RET already bypass via image seeds
+    /// (S3.379); text-by-len path still needs a host packer. Porting wrap into YOYO
+    /// = new surface, not this knife. Keep wrap; next ≠ sheep PE-header seeds.
+    #[test]
+    #[cfg(windows)]
+    fn s3_wrap_pe_slim_host_packer_cliff_reject() {
+        // Image seeds bypass wrap for two programs.
+        assert_eq!(S3_HOST_PE_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(S3_HOST_PE_SET_RET_IMAGE_SEED.len(), 6656);
+        // text-by-len still goes through wrap (witness: live wrap ≡ try_emit path).
+        let text = S3_HOST_PE_TEXT_BY_LEN[1];
+        let data = s3_host_pe_data_payload(&[0x62, 0xFF]);
+        let pe = wrap_pe_slim(&CodegenOutput {
+            text: text.to_vec(),
+            data: data.clone(),
+        })
+        .unwrap();
+        assert_eq!(pe.bytes.len(), 6656);
+        assert_eq!(&pe.bytes[..2], b"MZ");
+        let via = try_emit_text_via_yoyo_table(&[0x62, 0xFF]).unwrap();
+        let got = s3_run_slim_pe_outbuf_at(&pe.bytes, S3_HOST_OUTBUF_OFF, via.len());
+        assert_eq!(got, via);
+        // Raising to seed every wrap output = same combinatorial cliff as S3.380.
+        assert!(8 * 6656 > 50_000);
+        assert_eq!(S3_HOST_PE_TEXT_BY_LEN.len(), 8);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.366: win0 poke seed ≡ live zero_then_poke(table[..127]). Floor now 173 (S3.367).
     #[test]
     fn s3_host_table_win0_poke_seed_pin() {
