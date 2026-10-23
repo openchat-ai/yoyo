@@ -10729,6 +10729,35 @@ mod tests {
         );
     }
 
+    /// S3.403: gap N no-further-slice reject — after bake=host seed (S3.390) there
+    /// is no pe_dll ≥10 knife that is not rewriting the mini codegen dispatcher
+    /// (OW-RT long pole / SCOPE-CUT). Host Windows fixed10 emit/compile already
+    /// seed+patch complete (O–T + S3.402). Next ≠ sheep pe_dll hex; next real
+    /// work = OW-RT mini→YOYO. Not CLOSED.
+    #[test]
+    fn s3_in_dll_n_no_further_slice_reject() {
+        // Bake slice remains the only N ≥10 that landed (≡ host table seed).
+        assert_eq!(S3_HOST_TABLE_SEED.len(), 200);
+        assert_eq!(S3_HOST_TABLE_SEED.len(), S3_HOST_NROWS as usize * 20);
+        // Host path floors.
+        assert_eq!(S3_HOST_PE_TEXT_BY_LEN.len(), 8);
+        assert_eq!(S3_HOST_PE_DATA_PREFIX_BYTES.len(), 328);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("gap N slice"));
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT marker"
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.392/S3.396: post-Q gap map. Closed: try_emit PE · expand PE · bake=host
     /// · O/P via_yoyo→PE · Q non-prefix sim residual. Cliffs: H wrap · I
     /// empty-DATA · K runner · L non-win · N pe_dll mini (OW-RT). Next ≥10:
