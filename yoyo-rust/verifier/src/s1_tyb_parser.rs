@@ -10886,6 +10886,50 @@ mod tests {
         );
     }
 
+    /// S3.418: s1_loop densify reject. Sequential cmp/je dispatch (~30 arms) is
+    /// hand-hex (S3.408 residual). Compressing hex = sheep 0 capability; 256B
+    /// op→handler jump table needs pe_dll rdata layout rewrite (mirror S3.342
+    /// host-loop cliff). True close = replace mini dispatcher with YOYO (OW-RT
+    /// long pole). Next ≥10 = s1_finish memcpy/patch → YOYO IR seed (413 map#1).
+    /// Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_s1_loop_densify_reject() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("let s1_loop = export_code.len()"));
+        assert!(pe_dll.contains("op dispatch (near jcc"));
+        // Named handler entry pins (subset of arms — densify ≠ delete these).
+        let arms = [
+            "s1_je_set",
+            "s1_je_ret",
+            "s1_je_get",
+            "s1_je_add",
+            "s1_je_inc",
+            "s1_je_ldb",
+            "s1_je_jmp",
+            "s1_je_call",
+            "s1_je_data",
+            "s1_je_alloc",
+        ];
+        for a in arms {
+            assert!(pe_dll.contains(a), "missing arm {a}");
+        }
+        assert!(arms.len() >= 10, "dispatch surface ≥10 — not a sheep cut");
+        // Jump-table densify still needs full rewrite, not −1 hex.
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.413–S3.416: post-skip-mini map. Landed: RET + SET+RET exact TYB skip
     /// mini (memcpy compile seeds). Next ≥10: more exact-TYB skips (ADD+RET…)
     /// or s1_loop→YOYO. Not CLOSED.
