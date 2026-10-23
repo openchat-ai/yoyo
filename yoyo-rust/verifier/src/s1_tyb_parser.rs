@@ -2460,7 +2460,7 @@ fn s3_ir_seed_at(
 /// S3.364: fixed10 host table = own object-code seed (10×20B tmpl rows).
 /// Bodies come from [`S3_FIXED10_BODY_SEED`]; prod host no longer live-composes
 /// via OnceLock for every emit. Verified in `s3_host_table_seed_pin`.
-const S3_HOST_TABLE_SEED: [u8; 200] = [
+pub const S3_HOST_TABLE_SEED: [u8; 200] = [
     0xff, 0x01, 0x00, 0x00, 0xc3, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x90, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x30, 0x0e, 0x00, 0x00, 0x48, 0xb8, 0xef, 0xbe,
@@ -10578,6 +10578,31 @@ mod tests {
         // Floors
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(s3_expand_many_flat_tyb().0.as_slice(), S3_EXPAND_TYB_SEED);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.390: gap N slice — in-DLL 10-row bake = host table object-code seed.
+    /// Full pe_dll mini codegen dispatcher remains Rust (OW-RT CUT); this knife
+    /// only collapses the duplicate fixed-template bake. Not CLOSED.
+    #[test]
+    fn s3_in_dll_bake_uses_host_table_seed_pin() {
+        assert_eq!(S3_HOST_TABLE_SEED.len(), 200);
+        assert_eq!(S3_HOST_TABLE_SEED.len(), S3_HOST_NROWS as usize * 20);
+        // Seed rows match fixed10 bodies (object-code, not pe_dll hand-hex).
+        for (i, &op) in S3_FIXED10_OPS.iter().enumerate() {
+            let row = &S3_HOST_TABLE_SEED[i * 20..(i + 1) * 20];
+            assert_eq!(row[0], op, "op row {i}");
+            let body = s3_fixed_row(op);
+            assert_eq!(row[1] as usize, body.len());
+            assert_eq!(&row[4..4 + body.len()], body);
+        }
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
                 .unwrap()

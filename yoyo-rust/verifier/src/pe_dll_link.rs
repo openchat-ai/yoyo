@@ -857,48 +857,10 @@ const IN_DLL_S1_STACK: u32 = 0x3200;
 const _: () = assert!(IN_DLL_S1_CODE_CAP == 1024);
 
 /// S3.37: one host-compatible template row (`op`, `len`, pad, payload@+4) = 20B.
-fn s3_in_dll_bake_tmpl_row(op: u8, payload: &[u8]) -> [u8; 20] {
-    assert!(payload.len() <= 16);
-    let mut r = [0u8; 20];
-    r[0] = op;
-    r[1] = payload.len() as u8;
-    r[4..4 + payload.len()].copy_from_slice(payload);
-    r
-}
-
-/// S3.43: 10-row bake ≡ host `S3_HOST_NROWS` fixed-template subset.
+/// S3.43/S3.390: 10-row bake ≡ host [`crate::s1_tyb_parser::S3_HOST_TABLE_SEED`].
+/// gap N slice: drop duplicate hand-hex bodies — one object-code seed for host+DLL.
 fn s3_in_dll_bake_table() -> Vec<u8> {
-    let set_body: [u8; 14] = [
-        0x48, 0xB8, 0xEF, 0xBE, 0xAD, 0xDE, 0, 0, 0, 0, 0x49, 0x89, 0x47, 0x00,
-    ];
-    let get_body: [u8; 8] = [0x49, 0x8B, 0x47, 0x08, 0x49, 0x89, 0x47, 0x00];
-    let inc_body: [u8; 11] = [
-        0x49, 0x8B, 0x47, 0x00, 0x48, 0xFF, 0xC0, 0x49, 0x89, 0x47, 0x00,
-    ];
-    let add5_body: [u8; 15] = [
-        0x49, 0x8B, 0x47, 0x00, 0x48, 0x81, 0xC0, 0x05, 0, 0, 0, 0x49, 0x89, 0x47, 0x00,
-    ];
-    let dec_body: [u8; 11] = [
-        0x49, 0x8B, 0x47, 0x00, 0x48, 0xFF, 0xC8, 0x49, 0x89, 0x47, 0x00,
-    ];
-    let sub5_body: [u8; 15] = [
-        0x49, 0x8B, 0x47, 0x00, 0x48, 0x81, 0xE8, 0x05, 0, 0, 0, 0x49, 0x89, 0x47, 0x00,
-    ];
-    let movrr_body: [u8; 8] = [0x49, 0x8B, 0x47, 0x00, 0x49, 0x89, 0x47, 0x08];
-    let cmp_body: [u8; 11] = [
-        0x49, 0x8B, 0x47, 0x00, 0x49, 0x8B, 0x4F, 0x08, 0x48, 0x39, 0xC8,
-    ];
-    let mut v = Vec::with_capacity(10 * 20);
-    v.extend_from_slice(&s3_in_dll_bake_tmpl_row(0xFF, &[0xC3]));
-    v.extend_from_slice(&s3_in_dll_bake_tmpl_row(0x00, &[0x90]));
-    v.extend_from_slice(&s3_in_dll_bake_tmpl_row(0x30, &set_body));
-    v.extend_from_slice(&s3_in_dll_bake_tmpl_row(0x60, &get_body));
-    v.extend_from_slice(&s3_in_dll_bake_tmpl_row(0x66, &inc_body));
-    v.extend_from_slice(&s3_in_dll_bake_tmpl_row(0x62, &add5_body));
-    v.extend_from_slice(&s3_in_dll_bake_tmpl_row(0x67, &dec_body));
-    v.extend_from_slice(&s3_in_dll_bake_tmpl_row(0x61, &sub5_body));
-    v.extend_from_slice(&s3_in_dll_bake_tmpl_row(0x64, &movrr_body));
-    v.extend_from_slice(&s3_in_dll_bake_tmpl_row(0x65, &cmp_body));
+    let v = crate::s1_tyb_parser::S3_HOST_TABLE_SEED.to_vec();
     debug_assert_eq!(v.len(), 10 * 20);
     v
 }
@@ -7219,8 +7181,9 @@ mod tests {
             ascii.contains("yoyo_in_dll_s3_table_bake"),
             "S3.37 template-table bake marker must be in .rdata"
         );
-        // S3.43: 10×20B rows ≡ host (RET/NOP/SET/GET/INC/ADD/DEC/SUB/MOVRR/CMP).
+        // S3.43/S3.390: 10×20B bake ≡ host table object-code seed (no hand-hex).
         let bake = s3_in_dll_bake_table();
+        assert_eq!(bake.as_slice(), crate::s1_tyb_parser::S3_HOST_TABLE_SEED.as_slice());
         assert_eq!(bake.len(), 200);
         assert_eq!(bake[0], 0xFF);
         assert_eq!(bake[20], 0x00);
