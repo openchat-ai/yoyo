@@ -1463,9 +1463,8 @@ pub fn validate_tyb_mini(prog: &TybProgram) -> crate::types::IsaResult<()> {
 
 /// S1.5 — host-side TYB → slim PE (parse + emit_x86 + wrap_pe_slim).
 ///
-/// S3.402: fixed-template subset prefers [`try_compile_tyb_via_yoyo_table`]
-/// (same as mini / gap T). Else full `emit_x86` (unknown→NOP). Prefer
-/// [`compile_tyb_to_pe_mini`] when matching in-DLL fail-closed.
+/// S3.402/S3.405: fixed-template → try_compile; else emit_x86 + Windows PE
+/// template patch (gap U — no wrap). Prefer mini for fail-closed.
 pub fn compile_tyb_to_pe(tyb: &[u8]) -> crate::types::IsaResult<crate::pe_link::PeImage> {
     if let Some(pe) = try_compile_tyb_via_yoyo_table(tyb) {
         return Ok(pe);
@@ -1475,7 +1474,17 @@ pub fn compile_tyb_to_pe(tyb: &[u8]) -> crate::types::IsaResult<crate::pe_link::
         msg: format!("s1 compile_tyb_to_pe: {e}"),
     })?;
     let out = emit_x86(&prog);
-    wrap_pe_slim(&out)
+    // S3.405: Windows — patch emit text/data into compile PE template (no wrap).
+    #[cfg(windows)]
+    {
+        return Ok(crate::pe_link::PeImage {
+            bytes: s3_compile_pe_patch_text_data(&out.text, &out.data),
+        });
+    }
+    #[cfg(not(windows))]
+    {
+        wrap_pe_slim(&out)
+    }
 }
 
 /// S1.6 — host path aligned with in-DLL mini-ISA (fail closed on other ops).
@@ -1495,7 +1504,16 @@ pub fn compile_tyb_to_pe_mini(tyb: &[u8]) -> crate::types::IsaResult<crate::pe_l
     })?;
     validate_tyb_mini(&prog)?;
     let out = emit_x86(&prog);
-    wrap_pe_slim(&out)
+    #[cfg(windows)]
+    {
+        return Ok(crate::pe_link::PeImage {
+            bytes: s3_compile_pe_patch_text_data(&out.text, &out.data),
+        });
+    }
+    #[cfg(not(windows))]
+    {
+        wrap_pe_slim(&out)
+    }
 }
 
 /// Extract user `.text` (post-startup) of length `text_len` from a slim PE.
@@ -8007,10 +8025,16 @@ const S3_COMPILE_PE_RET_IMAGE_SEED: &[u8] =
 const S3_COMPILE_PE_SET_RET_IMAGE_SEED: &[u8] =
     include_bytes!("../blobs/s3_compile_pe_setret.pe");
 
-/// S3.400: patch user `.text` into compile PE template (empty DATA; IAT kept).
+/// S3.400/S3.405: patch user `.text`/`.data` into compile PE template (IAT kept).
 #[cfg(windows)]
 fn s3_compile_pe_patch_text(text: &[u8]) -> Vec<u8> {
+    s3_compile_pe_patch_text_data(text, &[])
+}
+
+#[cfg(windows)]
+fn s3_compile_pe_patch_text_data(text: &[u8], data: &[u8]) -> Vec<u8> {
     debug_assert!(text.len() <= S1_SLIM_MAX_CODE);
+    debug_assert!(data.len() <= S1_SLIM_IAT_BASE as usize);
     let mut pe = S3_COMPILE_PE_RET_IMAGE_SEED.to_vec();
     let t0 = S1_SLIM_TEXT_PAYLOAD_OFF;
     let t_end = t0 + S1_SLIM_MAX_CODE;
@@ -8018,6 +8042,14 @@ fn s3_compile_pe_patch_text(text: &[u8]) -> Vec<u8> {
         *b = 0;
     }
     pe[t0..t0 + text.len()].copy_from_slice(text);
+    let d0 = S1_SLIM_DATA_PAYLOAD_OFF;
+    let d_end = d0 + S1_SLIM_IAT_BASE as usize;
+    for b in &mut pe[d0..d_end] {
+        *b = 0;
+    }
+    if !data.is_empty() {
+        pe[d0..d0 + data.len()].copy_from_slice(data);
+    }
     pe
 }
 
@@ -10735,11 +10767,12 @@ mod tests {
     /// seed+patch complete (O–T + S3.402). Next ≠ sheep pe_dll hex; next real
     /// work = OW-RT mini→YOYO. Not CLOSED.
     #[test]
+    #[cfg(windows)]
     fn s3_in_dll_n_no_further_slice_reject() {
         // Bake slice remains the only N ≥10 that landed (≡ host table seed).
         assert_eq!(S3_HOST_TABLE_SEED.len(), 200);
         assert_eq!(S3_HOST_TABLE_SEED.len(), S3_HOST_NROWS as usize * 20);
-        // Host path floors.
+        // Host path floors (Win PE seeds).
         assert_eq!(S3_HOST_PE_TEXT_BY_LEN.len(), 8);
         assert_eq!(S3_HOST_PE_DATA_PREFIX_BYTES.len(), 328);
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
@@ -10868,10 +10901,10 @@ mod tests {
     }
 
 
-    /// S3.396/S3.401: post-T gap map. Closed: O/P/Q/R + S/T PE template patch
-    /// (Windows try_emit + try_compile 去 wrap). Cliffs: I/K/L · N pe_dll mini
-    /// (OW-RT) · H wrap = non-win / oracle only. Next ≥10 = N long pole.
-    /// Not CLOSED.
+    /// S3.396/S3.404: post-host-complete map. Closed: O–T + S3.402/405 host
+    /// compile wrap-free on Windows (fixed10 + emit fallback). Cliffs: I/K/L ·
+    /// N pe_dll mini (OW-RT, no further ≥10 slice). H wrap = non-win/oracle.
+    /// Next ≥10 = OW-RT mini→YOYO only. Not CLOSED.
     #[test]
     #[cfg(windows)]
     fn s3_true_selfhost_post_q_gap_map_pin() {
@@ -10912,6 +10945,62 @@ mod tests {
                 .as_slice(),
             s3_compile_pe_patch_text(&try_emit_text_via_yoyo_table(&add_ops).unwrap())
                 .as_slice()
+        );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+
+    /// S3.404: post-host-complete gap map — Win fixed10 emit/compile + full
+    /// compile_tyb_to_pe patch path. N = OW-RT only. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_true_selfhost_post_host_complete_map_pin() {
+        assert_eq!(try_emit_text_via_yoyo_table(&[0xFF]).unwrap(), vec![0xC3]);
+        assert_eq!(s3_expand_many_via_pe().unwrap().len(), 24);
+        let ret = tyb_from_records(&[(0xFF, 0, [0; 6])]);
+        assert_eq!(
+            compile_tyb_to_pe(&ret).unwrap().bytes.as_slice(),
+            S3_COMPILE_PE_RET_IMAGE_SEED
+        );
+        assert_eq!(S3_HOST_TABLE_SEED.len(), 200);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.405: gap U — non-fixed10 `compile_tyb_to_pe` uses compile PE template
+    /// patch (emit_x86 text/data; no wrap on Windows).
+    #[test]
+    #[cfg(windows)]
+    fn s3_compile_tyb_to_pe_emit_fallback_patch_pin() {
+        let imul = tyb_from_records(&[
+            (0x63, 2, [1, 0, 2, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        assert!(try_compile_tyb_via_yoyo_table(&imul).is_none());
+        let pe = compile_tyb_to_pe(&imul).unwrap();
+        let out = emit_x86(&parse_tyb(&imul).unwrap());
+        let patched = s3_compile_pe_patch_text_data(&out.text, &out.data);
+        assert_eq!(pe.bytes.as_slice(), patched.as_slice());
+        assert_eq!(&pe.bytes[..2], b"MZ");
+        // Oracle: text payload ≡ live wrap.
+        let live = wrap_pe_slim(&out).unwrap();
+        let t0 = S1_SLIM_TEXT_PAYLOAD_OFF;
+        assert_eq!(
+            &pe.bytes[t0..t0 + out.text.len()],
+            &live.bytes[t0..t0 + out.text.len()]
         );
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
