@@ -9967,6 +9967,45 @@ mod tests {
         );
     }
 
+    /// S3.378: gap D reject — empty-DATA host cannot fit slim PE. win0 poke alone
+    /// emits 1117 > [S1_SLIM_MAX_CODE] 1024; full RET=2279. Keep DATA|lea PE path
+    /// (S3.372+). Raising slim / dropping empty-DATA = different arch cut, not this knife.
+    #[test]
+    fn s3_empty_data_host_slim_cliff_reject() {
+        let win0 = emit_x86(
+            &parse_tyb(&s3_host_tyb_from_records(&S3_HOST_TABLE_WIN0_POKE_SEED.to_vec())).unwrap(),
+        )
+        .text
+        .len();
+        let win1 = emit_x86(
+            &parse_tyb(&s3_host_tyb_from_records(&S3_HOST_TABLE_WIN1_POKE_SEED.to_vec())).unwrap(),
+        )
+        .text
+        .len();
+        let full = emit_x86(&parse_tyb(S3_HOST_RET_TYB_SEED).unwrap()).text.len();
+        let pe = emit_x86(&parse_tyb(S3_HOST_PE_RET_TYB_SEED).unwrap()).text.len();
+        assert!(win0 > S1_SLIM_MAX_CODE, "win0 alone {win0} must exceed slim");
+        assert!(full > S1_SLIM_MAX_CODE, "full host {full}");
+        assert!(pe <= S1_SLIM_MAX_CODE, "PE DATA path stays under slim {pe}");
+        assert_eq!(S1_SLIM_MAX_CODE, 1024);
+        // Floors unchanged; PE try_emit path remains the compose route.
+        assert_eq!(S3_HOST_TABLE_WIN0_POKE_SEED.len(), 80);
+        assert_eq!(S3_HOST_TABLE_WIN1_POKE_SEED.len(), 58);
+        assert!(win1 < win0);
+        assert_eq!(
+            s3_host_compose_tyb_pe(&[0xFF]).as_slice(),
+            S3_HOST_PE_RET_TYB_SEED
+        );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.366: win0 poke seed ≡ live zero_then_poke(table[..127]). Floor now 173 (S3.367).
     #[test]
     fn s3_host_table_win0_poke_seed_pin() {
