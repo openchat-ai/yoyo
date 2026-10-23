@@ -10439,6 +10439,50 @@ mod tests {
         assert_eq!(S3_HOST_PE_RET_IMAGE_SEED.len(), 6656);
     }
 
+    /// S3.388: post-K/L gap map. try_emit Windows path is seed-driven (image /
+    /// text-by-len / data-prefix) + host wrap + host PE runner. Next ≥10 should
+    /// leave try_emit alone unless a new ISA surface appears. Remaining cliffs
+    /// already pinned: H wrap, I empty-DATA slim, K runner, L non-win sim.
+    /// Candidates: (M) expand/bootstrap still denser Rust; (N) in-DLL dispatcher.
+    /// Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_true_selfhost_post_kl_gap_map_pin() {
+        // try_emit stack holds without emit_x86 on fixed10.
+        for &ops in &[
+            &[0xFFu8][..],
+            &[0x30, 0xFF][..],
+            &[0x62, 0xFF][..],
+            &[0x00, 0x66, 0xFF][..],
+        ] {
+            let via = try_emit_text_via_yoyo_table(ops).unwrap();
+            let sim = s3_sim_prog_loop_cursor(
+                &s3_host_prog_loop_tyb(ops),
+                S3_HOST_TABLE_OFF as u64,
+                S3_HOST_OUTBUF_OFF,
+                (S3_HOST_PROG_OFF + 1) as u64,
+                S3_HOST_OUTBUF_OFF as u64,
+                RECORD_SIZE as u64,
+            )
+            .unwrap();
+            assert_eq!(via, sim, "ops={ops:?}");
+        }
+        assert_eq!(S3_HOST_PE_DATA_PREFIX_BYTES.len(), 328);
+        assert_eq!(S3_HOST_PE_TEXT_BY_LEN.len(), 8);
+        assert_eq!(S3_HOST_PE_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(S3_IN_DLL_PE_RET_IMAGE_SEED.len(), 6656);
+        // Expand floor still live bootstrap.
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(s3_bootstrap_expand_asm().len(), 2);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.366: win0 poke seed ≡ live zero_then_poke(table[..127]). Floor now 173 (S3.367).
     #[test]
     fn s3_host_table_win0_poke_seed_pin() {
