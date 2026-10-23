@@ -2311,6 +2311,15 @@ fn s3_host_body(op: u8, argc: u8, args: [u8; 6]) -> Vec<u8> {
     text[..text.len() - 1].to_vec()
 }
 
+/// S3.411: TYB for one fixed10 op (+RET unless op is RET). Used by pe_dll parity.
+pub fn s3_fixed10_ret_tyb(op: u8) -> Vec<u8> {
+    if op == 0xFF {
+        s3_host_tyb_from_records(&[s3_fixed_rec(0xFF)])
+    } else {
+        s3_host_tyb_from_records(&[s3_fixed_rec(op), s3_fixed_rec(0xFF)])
+    }
+}
+
 /// S3.129: canonical argc/args for one fixed10 opcode. Does not tighten `fixed_template_ops`.
 fn s3_fixed_rec(op: u8) -> (u8, u8, [u8; 6]) {
     let pack = |slot: u16, imm: u32| {
@@ -10792,12 +10801,32 @@ mod tests {
     }
 
 
+    /// S3.409/S3.411: post-parity map — in-DLL all fixed10+RET ≡ host compile
+    /// (pe_dll pin). Mini dispatcher still OW-RT residual. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_true_selfhost_post_ow_rt_slice_map_pin() {
+        for &op in &[0xFFu8, 0x00, 0x30, 0x60, 0x66, 0x62, 0x67, 0x61, 0x64, 0x65] {
+            let tyb = s3_fixed10_ret_tyb(op);
+            assert!(compile_tyb_to_pe(&tyb).is_ok(), "op={op:#x}");
+        }
+        assert_eq!(S3_COMPILE_PE_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.409: post-OW-RT-slice — in-DLL RET/SET+RET PE ≡ host compile seeds
     /// (proven in pe_dll_link ret/set_ret fast_path pins). Mini loop remains.
     /// Not CLOSED.
     #[test]
     #[cfg(windows)]
-    fn s3_true_selfhost_post_ow_rt_slice_map_pin() {
+    fn s3_true_selfhost_post_ow_rt_slice_map_pin_seeds() {
         assert_eq!(S3_COMPILE_PE_RET_IMAGE_SEED.len(), 6656);
         assert_eq!(S3_COMPILE_PE_SET_RET_IMAGE_SEED.len(), 6656);
         assert_eq!(

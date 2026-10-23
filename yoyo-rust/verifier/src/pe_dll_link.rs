@@ -7285,39 +7285,17 @@ mod tests {
     }
 
 
-    /// S3.410: in-DLL fixed10+RET fast-paths ≡ host `compile_tyb_to_pe` (shared
+    /// S3.410/S3.411: in-DLL all fixed10+RET ≡ host `compile_tyb_to_pe` (shared
     /// PE template seed S3.407). Mini still emits; not OW-RT CLOSED.
     #[test]
     #[cfg(windows)]
     fn yoyo_sidecar_in_dll_fixed10_ret_matches_host_compile_pin() {
-        let cases: &[(u8, u8, [u8; 6])] = &[
-            (0xFF, 0, [0; 6]),
-            (0x00, 0, [0; 6]),
-            (0x30, 2, [0x00, 0x00, 0xEF, 0xBE, 0xAD, 0xDE]),
-            (0x62, 2, [0x00, 0x00, 0x05, 0x00, 0x00, 0x00]),
-            (0x61, 2, [0x00, 0x00, 0x05, 0x00, 0x00, 0x00]),
-            (0x66, 1, [0; 6]),
-            (0x67, 1, [0; 6]),
+        let ops = [
+            0xFFu8, 0x00, 0x30, 0x60, 0x66, 0x62, 0x67, 0x61, 0x64, 0x65,
         ];
-        for &(op, argc, args) in cases {
-            let dir = temp_work(&format!("in-dll-s410-{op:02x}"));
-            let mut tyb = Vec::new();
-            tyb.extend_from_slice(b"TYB\0");
-            tyb.extend_from_slice(&[0, 0]);
-            if op == 0xFF {
-                tyb.extend_from_slice(&1u16.to_le_bytes());
-                tyb.push(0xFF);
-                tyb.push(0);
-                tyb.extend_from_slice(&[0u8; 6]);
-            } else {
-                tyb.extend_from_slice(&2u16.to_le_bytes());
-                tyb.push(op);
-                tyb.push(argc);
-                tyb.extend_from_slice(&args);
-                tyb.push(0xFF);
-                tyb.push(0);
-                tyb.extend_from_slice(&[0u8; 6]);
-            }
+        for &op in &ops {
+            let dir = temp_work(&format!("in-dll-s411-{op:02x}"));
+            let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
             std::fs::write(dir.join("input.tyb"), &tyb).expect("write");
             assert_eq!(
                 yoyo_sidecar_in_dll_recompile(&dir),
@@ -7329,7 +7307,7 @@ mod tests {
             assert_eq!(
                 out.as_slice(),
                 host.bytes.as_slice(),
-                "S3.410 in-DLL ≡ host compile op={op:#x}"
+                "S3.411 in-DLL ≡ host compile op={op:#x}"
             );
             let _ = std::fs::remove_dir_all(&dir);
         }
