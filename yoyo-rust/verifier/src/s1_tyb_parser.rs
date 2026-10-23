@@ -10901,10 +10901,10 @@ mod tests {
     }
 
 
-    /// S3.396/S3.404: post-host-complete map. Closed: O–T + S3.402/405 host
-    /// compile wrap-free on Windows (fixed10 + emit fallback). Cliffs: I/K/L ·
-    /// N pe_dll mini (OW-RT, no further ≥10 slice). H wrap = non-win/oracle.
-    /// Next ≥10 = OW-RT mini→YOYO only. Not CLOSED.
+    /// S3.396/S3.406: post-U map. Closed: O–U host Windows PE path wrap-free
+    /// (try_emit / try_compile / compile_tyb_to_pe / expand / via_yoyo). Cliffs:
+    /// I/K/L · N pe_dll mini (OW-RT). Next ≥10 = OW-RT in-DLL RET/SET+RET
+    /// fast-path bake (not full mini rewrite). Not CLOSED.
     #[test]
     #[cfg(windows)]
     fn s3_true_selfhost_post_q_gap_map_pin() {
@@ -10957,8 +10957,8 @@ mod tests {
     }
 
 
-    /// S3.404: post-host-complete gap map — Win fixed10 emit/compile + full
-    /// compile_tyb_to_pe patch path. N = OW-RT only. Not CLOSED.
+    /// S3.404/S3.406: post-host-complete / post-U gap map — Win PE path wrap-free
+    /// through compile_tyb_to_pe. Next = OW-RT in-DLL fast-path. Not CLOSED.
     #[test]
     #[cfg(windows)]
     fn s3_true_selfhost_post_host_complete_map_pin() {
@@ -10968,6 +10968,17 @@ mod tests {
         assert_eq!(
             compile_tyb_to_pe(&ret).unwrap().bytes.as_slice(),
             S3_COMPILE_PE_RET_IMAGE_SEED
+        );
+        // U: non-fixed10 also patch (no wrap).
+        let imul = tyb_from_records(&[
+            (0x63, 2, [1, 0, 2, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let pe_i = compile_tyb_to_pe(&imul).unwrap();
+        let out = emit_x86(&parse_tyb(&imul).unwrap());
+        assert_eq!(
+            pe_i.bytes.as_slice(),
+            s3_compile_pe_patch_text_data(&out.text, &out.data).as_slice()
         );
         assert_eq!(S3_HOST_TABLE_SEED.len(), 200);
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
@@ -11013,7 +11024,7 @@ mod tests {
     }
 
     /// S3.402: host `compile_tyb_to_pe` prefers YOYO try_compile (≡ mini entry).
-    /// Outside fixed-template still emit+wrap. Not OW-RT CLOSED.
+    /// Outside fixed-template → S3.405 emit+patch (Win). Not OW-RT CLOSED.
     #[test]
     #[cfg(windows)]
     fn s3_compile_tyb_to_pe_prefers_yoyo_pin() {
