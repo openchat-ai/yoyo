@@ -7809,8 +7809,35 @@ const S3_IN_DLL_PE_SET_RET_IMAGE_SEED: &[u8] =
     include_bytes!("../blobs/s3_in_dll_pe_setret.pe");
 
 
-/// S3.372/S3.379: try_emit via PE-run YOYO compose (not Rust sim cursor).
-/// RET/SET+RET use PE image seeds; other ops still emit_x86+wrap (E residual).
+/// S3.383: PE compose .text seeds keyed by ops_len (1..=8). Same len ⇒ same text
+/// (only SET ops_len in prog-loop differs). gap G: non-RET try_emit skips emit_x86.
+#[cfg(windows)]
+const S3_HOST_PE_TEXT_BY_LEN: [&[u8]; 8] = [
+    include_bytes!("../blobs/s3_host_pe_text_len1.txb"),
+    include_bytes!("../blobs/s3_host_pe_text_len2.txb"),
+    include_bytes!("../blobs/s3_host_pe_text_len3.txb"),
+    include_bytes!("../blobs/s3_host_pe_text_len4.txb"),
+    include_bytes!("../blobs/s3_host_pe_text_len5.txb"),
+    include_bytes!("../blobs/s3_host_pe_text_len6.txb"),
+    include_bytes!("../blobs/s3_host_pe_text_len7.txb"),
+    include_bytes!("../blobs/s3_host_pe_text_len8.txb"),
+];
+
+/// S3.383: DATA payload for PE compose (pad‖table‖prog) — byte image, no emit_x86.
+fn s3_host_pe_data_payload(ops: &[u8]) -> Vec<u8> {
+    let mut payload = vec![0u8; S3_HOST_TABLE_OFF as usize];
+    payload.extend_from_slice(&S3_HOST_TABLE_SEED);
+    payload.push(ops.len() as u8);
+    payload.extend_from_slice(ops);
+    while payload.len() < S3_HOST_OUTBUF_OFF as usize {
+        payload.push(0);
+    }
+    payload
+}
+
+/// S3.372/S3.379/S3.383: try_emit via PE-run YOYO compose (not Rust sim cursor).
+/// RET/SET+RET = full PE image seeds; other ops = text-by-len seed + data payload + wrap
+/// (no emit_x86). wrap_pe_slim remains Rust (gap H).
 #[cfg(windows)]
 fn s3_try_emit_via_pe(ops: &[u8]) -> Option<Vec<u8>> {
     let len: usize = ops.iter().map(|o| s3_fixed_row(*o).len()).sum();
@@ -7828,11 +7855,18 @@ fn s3_try_emit_via_pe(ops: &[u8]) -> Option<Vec<u8>> {
             len,
         ));
     }
-    let tyb = s3_host_compose_tyb_pe(ops);
-    let prog = parse_tyb(&tyb).ok()?;
-    validate_tyb_mini(&prog).ok()?;
-    // Direct wrap — avoid compile_tyb_to_pe_mini ↔ try_emit recursion.
-    let pe = wrap_pe_slim(&emit_x86(&prog)).ok()?;
+    let n = ops.len();
+    if !(1..=8).contains(&n) {
+        return None;
+    }
+    let text = S3_HOST_PE_TEXT_BY_LEN[n - 1];
+    debug_assert_eq!(text.len(), 308);
+    let data = s3_host_pe_data_payload(ops);
+    let pe = wrap_pe_slim(&CodegenOutput {
+        text: text.to_vec(),
+        data,
+    })
+    .ok()?;
     Some(s3_run_slim_pe_outbuf_at(&pe.bytes, S3_HOST_OUTBUF_OFF, len))
 }
 
@@ -10196,6 +10230,54 @@ mod tests {
         assert!(host_code > S1_SLIM_MAX_CODE);
         assert_eq!(S3_HOST_PE_DATA_PREFIX_SEED.len(), 110);
         assert_eq!(S3_IN_DLL_LEA_A1_SEED.len(), 13);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.383: gap G — non-RET try_emit uses text-by-len seeds + data payload (no emit_x86).
+    /// All len2 share one .text; wrap_pe_slim still Rust (H).
+    #[test]
+    #[cfg(windows)]
+    fn s3_host_pe_text_by_len_seeds_pin() {
+        for (i, seed) in S3_HOST_PE_TEXT_BY_LEN.iter().enumerate() {
+            assert_eq!(seed.len(), 308, "len{}", i + 1);
+        }
+        // len2: ADD+RET text ≡ SET+RET live emit text
+        let live2 = emit_x86(&parse_tyb(&s3_host_compose_tyb_pe(&[0x62, 0xFF])).unwrap()).text;
+        assert_eq!(S3_HOST_PE_TEXT_BY_LEN[1], live2.as_slice());
+        let live_set = emit_x86(&parse_tyb(S3_HOST_PE_SET_RET_TYB_SEED).unwrap()).text;
+        assert_eq!(S3_HOST_PE_TEXT_BY_LEN[1], live_set.as_slice());
+        // len1 ≡ RET compose text
+        let live1 = emit_x86(&parse_tyb(S3_HOST_PE_RET_TYB_SEED).unwrap()).text;
+        assert_eq!(S3_HOST_PE_TEXT_BY_LEN[0], live1.as_slice());
+        // try_emit all fixed10 len2 ≡ sim (no emit_x86 on path for non-SET image).
+        for &op in &S3_FIXED10_OPS {
+            if op == 0xFF || op == 0x30 {
+                continue;
+            }
+            let ops = [op, 0xFF];
+            let via = try_emit_text_via_yoyo_table(&ops).unwrap();
+            let sim = s3_sim_prog_loop_cursor(
+                &s3_host_prog_loop_tyb(&ops),
+                S3_HOST_TABLE_OFF as u64,
+                S3_HOST_OUTBUF_OFF,
+                (S3_HOST_PROG_OFF + 1) as u64,
+                S3_HOST_OUTBUF_OFF as u64,
+                RECORD_SIZE as u64,
+            )
+            .unwrap();
+            assert_eq!(via, sim, "G: try_emit≡sim {op:#x}");
+        }
+        // data payload ≡ emit data
+        let data = s3_host_pe_data_payload(&[0x62, 0xFF]);
+        let live_d = emit_x86(&parse_tyb(&s3_host_compose_tyb_pe(&[0x62, 0xFF])).unwrap()).data;
+        assert_eq!(data, live_d);
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
