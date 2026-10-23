@@ -7800,6 +7800,14 @@ const S3_HOST_PE_RET_IMAGE_SEED: &[u8] =
 #[cfg(windows)]
 const S3_HOST_PE_SET_RET_IMAGE_SEED: &[u8] =
     include_bytes!("../blobs/s3_host_pe_setret.pe");
+/// S3.381: in-DLL slim PE image seeds for RET / SET+RET (gap F — no live emit_x86).
+#[cfg(windows)]
+const S3_IN_DLL_PE_RET_IMAGE_SEED: &[u8] =
+    include_bytes!("../blobs/s3_in_dll_pe_ret.pe");
+#[cfg(windows)]
+const S3_IN_DLL_PE_SET_RET_IMAGE_SEED: &[u8] =
+    include_bytes!("../blobs/s3_in_dll_pe_setret.pe");
+
 
 /// S3.372/S3.379: try_emit via PE-run YOYO compose (not Rust sim cursor).
 /// RET/SET+RET use PE image seeds; other ops still emit_x86+wrap (E residual).
@@ -10119,6 +10127,39 @@ mod tests {
         assert_eq!(try_emit_text_via_yoyo_table(&[0xFF]).unwrap(), vec![0xC3]);
         let other = try_emit_text_via_yoyo_table(&[0x66, 0xFF]).unwrap();
         assert_ne!(other, vec![0xC3]);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.381: gap F — in-DLL RET/SET+RET = slim PE image seeds (no live emit_x86).
+    #[test]
+    #[cfg(windows)]
+    fn s3_in_dll_pe_image_seeds_pin() {
+        assert_eq!(S3_IN_DLL_PE_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(S3_IN_DLL_PE_SET_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(&S3_IN_DLL_PE_RET_IMAGE_SEED[..2], b"MZ");
+        let live = |ops: &[u8]| {
+            let tyb = s3_table_prog_loop_tyb(ops);
+            wrap_pe_slim(&emit_x86(&parse_tyb(&tyb).unwrap()))
+                .unwrap()
+                .bytes
+        };
+        assert_eq!(S3_IN_DLL_PE_RET_IMAGE_SEED, live(&[0xFF]).as_slice());
+        assert_eq!(S3_IN_DLL_PE_SET_RET_IMAGE_SEED, live(&[0x30, 0xFF]).as_slice());
+        assert_eq!(
+            s3_run_slim_pe_outbuf(S3_IN_DLL_PE_RET_IMAGE_SEED, 1),
+            vec![0xC3]
+        );
+        // Distinct from host PE image (different firmware / outbuf).
+        assert_ne!(S3_IN_DLL_PE_RET_IMAGE_SEED, S3_HOST_PE_RET_IMAGE_SEED);
+        assert_eq!(S3_IN_DLL_RET_TYB_SEED.len(), 616);
+        assert_eq!(S3_IN_DLL_LEA_A1_SEED.len(), 13);
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
@@ -14023,8 +14064,11 @@ mod tests {
     #[test]
     #[cfg(windows)]
     fn s3_yoyo_table_prog_loop_ir_seed_runs_on_pe() {
-        let tyb = s3_table_prog_loop_tyb_ir_seed(&[0x30, 0xFF]);
-        let pe = compile_tyb_to_pe_mini(&tyb).expect("mini ir-seed");
+        // S3.381: ir-seed RET/SET+RET TYB ≡ image seed path (TYB seed → same outbuf).
+        assert_eq!(
+            s3_table_prog_loop_tyb_ir_seed(&[0x30, 0xFF]).as_slice(),
+            S3_IN_DLL_SET_RET_TYB_SEED
+        );
         let expect = emit_x86(
             &parse_tyb(&tyb_from_records(&[
                 (0x30, 2, [0, 0, 0xEF, 0xBE, 0xAD, 0xDE]),
@@ -14033,15 +14077,15 @@ mod tests {
             .unwrap(),
         )
         .text;
-        let got = s3_run_slim_pe_outbuf(&pe.bytes, expect.len());
+        let got = s3_run_slim_pe_outbuf(S3_IN_DLL_PE_SET_RET_IMAGE_SEED, expect.len());
         assert_eq!(got, expect);
     }
 
     #[test]
     #[cfg(windows)]
     fn s3_yoyo_table_prog_loop_runs_on_pe() {
-        let tyb = s3_table_prog_loop_tyb(&[0x30, 0xFF]);
-        let pe = compile_tyb_to_pe_mini(&tyb).expect("mini");
+        // S3.381: SET+RET uses in-DLL PE image seed (no live emit_x86 for image).
+        let pe = S3_IN_DLL_PE_SET_RET_IMAGE_SEED;
         let expect = emit_x86(
             &parse_tyb(&tyb_from_records(&[
                 (0x30, 2, [0, 0, 0xEF, 0xBE, 0xAD, 0xDE]),
@@ -14050,8 +14094,11 @@ mod tests {
             .unwrap(),
         )
         .text;
-        let got = s3_run_slim_pe_outbuf(&pe.bytes, expect.len());
+        let got = s3_run_slim_pe_outbuf(pe, expect.len());
         assert_eq!(got, expect);
+        // RET seed also runs.
+        let got_ret = s3_run_slim_pe_outbuf(S3_IN_DLL_PE_RET_IMAGE_SEED, 1);
+        assert_eq!(got_ret, vec![0xC3]);
     }
 
     // ============= S3.20: host emit path via YOYO table =============
