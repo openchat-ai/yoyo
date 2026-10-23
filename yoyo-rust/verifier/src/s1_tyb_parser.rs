@@ -7796,10 +7796,10 @@ fn s3_run_slim_pe_outbuf_at(pe: &[u8], out_off: u32, len: usize) -> Vec<u8> {
 /// Verified ≡ wrap_pe_slim(emit_x86(tyb)) in s3_host_pe_image_seeds_pin.
 #[cfg(windows)]
 const S3_HOST_PE_RET_IMAGE_SEED: &[u8] =
-    include_bytes!("../blobs/s3_host_pe_ret.bin");
+    include_bytes!("../blobs/s3_host_pe_ret.pe");
 #[cfg(windows)]
 const S3_HOST_PE_SET_RET_IMAGE_SEED: &[u8] =
-    include_bytes!("../blobs/s3_host_pe_setret.bin");
+    include_bytes!("../blobs/s3_host_pe_setret.pe");
 
 /// S3.372/S3.379: try_emit via PE-run YOYO compose (not Rust sim cursor).
 /// RET/SET+RET use PE image seeds; other ops still emit_x86+wrap (E residual).
