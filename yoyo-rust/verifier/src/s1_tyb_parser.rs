@@ -1463,9 +1463,13 @@ pub fn validate_tyb_mini(prog: &TybProgram) -> crate::types::IsaResult<()> {
 
 /// S1.5 — host-side TYB → slim PE (parse + emit_x86 + wrap_pe_slim).
 ///
-/// Full `emit_x86` (unknown→NOP). Prefer [`compile_tyb_to_pe_mini`] when
-/// matching the in-DLL S1.5.b path (unsupported ops fail closed).
+/// S3.402: fixed-template subset prefers [`try_compile_tyb_via_yoyo_table`]
+/// (same as mini / gap T). Else full `emit_x86` (unknown→NOP). Prefer
+/// [`compile_tyb_to_pe_mini`] when matching in-DLL fail-closed.
 pub fn compile_tyb_to_pe(tyb: &[u8]) -> crate::types::IsaResult<crate::pe_link::PeImage> {
+    if let Some(pe) = try_compile_tyb_via_yoyo_table(tyb) {
+        return Ok(pe);
+    }
     let prog = parse_tyb(tyb).map_err(|e| crate::types::IsaError::ParseError {
         line: 0,
         msg: format!("s1 compile_tyb_to_pe: {e}"),
@@ -9053,10 +9057,10 @@ mod tests {
     }
 
     #[test]
-    fn compile_tyb_to_pe_mini_rejects_write_file_argc3() {
-        // Mini stub form is argc=2 only; host emit still accepts argc=3.
-        let tyb = tyb_from_records(&[(0x51, 3, [1, 0, 2, 0, 99, 0]), (0xFF, 0, [0; 6])]);
-        assert!(compile_tyb_to_pe(&tyb).is_ok());
+    fn compile_tyb_to_pe_mini_rejects_write_file_iat_path() {
+        // S3.94: mini accepts WRITE argc=3; path_off overlapping IAT still fail-closed.
+        let tyb = tyb_from_records(&[(0x51, 3, [1, 0, 0x00, 0x0F, 0, 0]), (0xFF, 0, [0; 6])]);
+        assert!((0x0F00u16 as u32) >= S1_SLIM_IAT_BASE);
         assert!(compile_tyb_to_pe_mini(&tyb).is_err());
     }
 
@@ -10880,6 +10884,52 @@ mod tests {
             s3_compile_pe_patch_text(&try_emit_text_via_yoyo_table(&add_ops).unwrap())
                 .as_slice()
         );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.402: host `compile_tyb_to_pe` prefers YOYO try_compile (≡ mini entry).
+    /// Outside fixed-template still emit+wrap. Not OW-RT CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_compile_tyb_to_pe_prefers_yoyo_pin() {
+        let ret = tyb_from_records(&[(0xFF, 0, [0; 6])]);
+        let set = tyb_from_records(&[
+            (0x30, 2, [0, 0, 0xEF, 0xBE, 0xAD, 0xDE]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let add = tyb_from_records(&[s3_fixed_rec(0x62), (0xFF, 0, [0; 6])]);
+        let pe_r = compile_tyb_to_pe(&ret).unwrap();
+        let pe_s = compile_tyb_to_pe(&set).unwrap();
+        let pe_a = compile_tyb_to_pe(&add).unwrap();
+        assert_eq!(pe_r.bytes.as_slice(), S3_COMPILE_PE_RET_IMAGE_SEED);
+        assert_eq!(pe_s.bytes.as_slice(), S3_COMPILE_PE_SET_RET_IMAGE_SEED);
+        assert_eq!(
+            pe_a.bytes.as_slice(),
+            try_compile_tyb_via_yoyo_table(&add).unwrap().bytes.as_slice()
+        );
+        assert_eq!(
+            compile_tyb_to_pe_mini(&ret).unwrap().bytes.as_slice(),
+            pe_r.bytes.as_slice()
+        );
+        assert_eq!(
+            compile_tyb_to_pe_mini(&add).unwrap().bytes.as_slice(),
+            pe_a.bytes.as_slice()
+        );
+        let imul = tyb_from_records(&[
+            (0x63, 2, [1, 0, 2, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        assert!(try_compile_tyb_via_yoyo_table(&imul).is_none());
+        let pe_i = compile_tyb_to_pe(&imul).unwrap();
+        assert_eq!(&pe_i.bytes[..2], b"MZ");
+        assert_ne!(pe_i.bytes.as_slice(), S3_COMPILE_PE_RET_IMAGE_SEED);
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
