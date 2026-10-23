@@ -10861,6 +10861,34 @@ mod tests {
         );
     }
 
+    /// S3.413: OW-RT mini→YOYO first-slice map. Candidates (each must be ≥10
+    /// assembler or documented reject): (1) s1_finish memcpy/patch sequence →
+    /// YOYO IR seed; (2) s1_loop op dispatch → table-driven YOYO; (3) drop
+    /// hand-hex for ops already in bake when pe_template seeds suffice.
+    /// Fixed10 PE parity already holds (S3.411). Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_mini_to_yoyo_first_slice_map_pin() {
+        assert_eq!(S3_COMPILE_PE_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(S3_HOST_TABLE_SEED.len(), 200);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S1 mini TYB codegen"));
+        assert!(pe_dll.contains("memcpy template"));
+        assert!(pe_dll.contains("S1_SLIM_TEXT_PAYLOAD_OFF"));
+        // Parity floor still green.
+        for &op in &[0xFFu8, 0x30, 0x62] {
+            assert!(compile_tyb_to_pe(&s3_fixed10_ret_tyb(op)).is_ok());
+        }
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.408: OW-RT residual after S3.407 — in-DLL mini codegen dispatcher
     /// (jmp_s1 / bake scan / s1_loop) remains hand-hex Rust. Template seed only
     /// unifies s1_finish PE shell. Closing = replace mini with YOYO (long pole).
