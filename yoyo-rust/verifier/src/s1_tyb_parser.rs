@@ -3215,6 +3215,17 @@ pub fn s3_expand_many_via_pe() -> Option<Vec<u8>> {
 /// S3.254/S3.255/S3.263/S3.267/S3.329: expand flat via YOYO sim — test proof only.
 #[cfg(test)]
 fn s3_recs_from_flat_seed_via_yoyo(flat: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
+    // S3.393: bootstrap MANY_FLAT → PE expand (gap O); other flats keep sim.
+    #[cfg(windows)]
+    if flat == S3_SHAPE_FILL_MANY_FLAT {
+        let emitted = s3_expand_many_via_pe().expect("S3.393: expand via PE");
+        return parse_tyb(&emitted)
+            .expect("expand PE emits TYB")
+            .records
+            .into_iter()
+            .map(|r| (r.op, r.argc, r.args_raw))
+            .collect();
+    }
     let (asm, out) = s3_yoyo_expand_flat_tyb(flat);
     let nrecs = flat.len() / 7;
     // S3.305: prog_ptr → slot2 = job. S3.297: slot9 = OUT+hdr.
@@ -10635,6 +10646,56 @@ mod tests {
             pe_dll.contains("not** OW-RT CLOSED") || pe_dll.contains("not OW-RT CLOSED"),
             "OW-RT not-CLOSED marker"
         );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.392: post-N gap map. Closed stack: try_emit PE · expand PE · bake=host
+    /// seed. Cliffs: H wrap · I empty-DATA · K runner · L non-win · N pe_dll mini
+    /// (OW-RT). Next ≥10: (O) via_yoyo expand → PE; (P) non-bootstrap flats.
+    /// Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_true_selfhost_post_n_gap_map_pin() {
+        assert_eq!(try_emit_text_via_yoyo_table(&[0xFF]).unwrap(), vec![0xC3]);
+        assert_eq!(s3_expand_many_via_pe().unwrap().len(), 24);
+        assert_eq!(S3_HOST_TABLE_SEED.len(), 200);
+        assert_eq!(S3_HOST_PE_TEXT_BY_LEN.len(), 8);
+        assert_eq!(S3_EXPAND_PE_IMAGE_SEED.len(), 6656);
+        assert_eq!(S3_IN_DLL_PE_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.393: gap O — bootstrap via_yoyo expand uses PE (not sim cursor).
+    #[test]
+    #[cfg(windows)]
+    fn s3_expand_via_yoyo_uses_pe_pin() {
+        let via = s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_MANY_FLAT);
+        assert_eq!(via.as_slice(), &S3_BOOTSTRAP_EXPAND_ASM);
+        assert_eq!(via, s3_bootstrap_expand_asm());
+        // PE path ≡ image seed outbuf parse
+        let pe_tyb = s3_expand_many_via_pe().unwrap();
+        let pe_recs: Vec<_> = parse_tyb(&pe_tyb)
+            .unwrap()
+            .records
+            .into_iter()
+            .map(|r| (r.op, r.argc, r.args_raw))
+            .collect();
+        assert_eq!(via, pe_recs);
+        assert_eq!(S3_SHAPE_FILL_MANY_FLAT.len(), S3_SHAPE_FILL_MANY_ROWS * 7);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
                 .unwrap()
