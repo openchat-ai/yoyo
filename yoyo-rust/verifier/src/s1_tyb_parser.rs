@@ -7976,10 +7976,32 @@ pub fn try_emit_text_via_yoyo_table(ops: &[u8]) -> Option<Vec<u8>> {
 
 /// Host PE path: fixed-template TYB → slim PE via YOYO table compose (not `emit_x86`).
 /// `None` if program is outside the subset (caller should use [`compile_tyb_to_pe_mini`]).
+/// S3.397: RET/SET+RET = compile PE image seeds (gap R — no live wrap).
+#[cfg(windows)]
+const S3_COMPILE_PE_RET_IMAGE_SEED: &[u8] =
+    include_bytes!("../blobs/s3_compile_pe_ret.pe");
+#[cfg(windows)]
+const S3_COMPILE_PE_SET_RET_IMAGE_SEED: &[u8] =
+    include_bytes!("../blobs/s3_compile_pe_setret.pe");
+
 pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeImage> {
     let prog = parse_tyb(tyb).ok()?;
     validate_tyb_mini(&prog).ok()?;
     let ops = fixed_template_ops(&prog)?;
+    // S3.397: Windows RET/SET+RET → compile image seeds (bypass wrap).
+    #[cfg(windows)]
+    {
+        if ops.as_slice() == [0xFF] {
+            return Some(crate::pe_link::PeImage {
+                bytes: S3_COMPILE_PE_RET_IMAGE_SEED.to_vec(),
+            });
+        }
+        if ops.as_slice() == [0x30, 0xFF] {
+            return Some(crate::pe_link::PeImage {
+                bytes: S3_COMPILE_PE_SET_RET_IMAGE_SEED.to_vec(),
+            });
+        }
+    }
     let text = try_emit_text_via_yoyo_table(&ops)?;
     wrap_pe_slim(&CodegenOutput {
         text,
@@ -10662,10 +10684,10 @@ mod tests {
         );
     }
 
-    /// S3.392/S3.395: post-N gap map. Closed: try_emit PE · expand PE · bake=host
-    /// · O via_yoyo→PE · P prefix→PE · Q non-prefix flat = proof-sim residual.
-    /// Cliffs: H wrap · I empty-DATA · K runner · L non-win · N pe_dll mini
-    /// (OW-RT). Next ≥10 ≠ more flat-sim sheep; N remains long pole. Not CLOSED.
+    /// S3.392/S3.396: post-Q gap map. Closed: try_emit PE · expand PE · bake=host
+    /// · O/P via_yoyo→PE · Q non-prefix sim residual. Cliffs: H wrap · I
+    /// empty-DATA · K runner · L non-win · N pe_dll mini (OW-RT). Next ≥10:
+    /// (R) try_compile RET/SET+RET → image seeds. Not CLOSED.
     #[test]
     #[cfg(windows)]
     fn s3_true_selfhost_post_n_gap_map_pin() {
@@ -10761,6 +10783,89 @@ mod tests {
         // Prod has no flat arg — TYB seed + PE image only.
         assert_eq!(s3_expand_many_flat_tyb().0.as_slice(), S3_EXPAND_TYB_SEED);
         assert_eq!(s3_expand_many_via_pe().unwrap().len(), 24);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+
+    /// S3.396: post-Q true-selfhost gap map (pin body shares post_n asserts).
+    /// Next ≥10 = (R) try_compile wrap bypass for RET/SET+RET. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_true_selfhost_post_q_gap_map_pin() {
+        assert_eq!(try_emit_text_via_yoyo_table(&[0xFF]).unwrap(), vec![0xC3]);
+        assert_eq!(s3_expand_many_via_pe().unwrap().len(), 24);
+        assert_eq!(
+            s3_recs_from_flat_seed_via_yoyo(S3_SHAPE_FILL_MANY_FLAT).as_slice(),
+            &S3_BOOTSTRAP_EXPAND_ASM
+        );
+        assert_eq!(
+            s3_recs_from_flat_seed_via_yoyo(&S3_SHAPE_FILL_MANY_FLAT[..7]),
+            vec![S3_BOOTSTRAP_EXPAND_ASM[0]]
+        );
+        // Q residual: non-prefix still sim-capable (≠ PE-only).
+        let ret_flat = &S3_SHAPE_FILL_MANY_FLAT[7..];
+        assert_eq!(
+            s3_recs_from_flat_seed_via_yoyo(ret_flat),
+            vec![S3_BOOTSTRAP_EXPAND_ASM[1]]
+        );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.397: gap R — try_compile RET/SET+RET uses compile PE image seeds
+    /// (no live wrap). Other fixed10 still wrap (H residual). ≠ host compose seeds.
+    #[test]
+    #[cfg(windows)]
+    fn s3_try_compile_ret_setret_image_seeds_pin() {
+        assert_eq!(S3_COMPILE_PE_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(S3_COMPILE_PE_SET_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(&S3_COMPILE_PE_RET_IMAGE_SEED[..2], b"MZ");
+        assert_eq!(&S3_COMPILE_PE_SET_RET_IMAGE_SEED[..2], b"MZ");
+        assert_ne!(S3_COMPILE_PE_RET_IMAGE_SEED, S3_HOST_PE_RET_IMAGE_SEED);
+        assert_ne!(S3_COMPILE_PE_SET_RET_IMAGE_SEED, S3_HOST_PE_SET_RET_IMAGE_SEED);
+        let ret = tyb_from_records(&[(0xFF, 0, [0; 6])]);
+        let set = tyb_from_records(&[
+            (0x30, 2, [0, 0, 0xEF, 0xBE, 0xAD, 0xDE]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let pe_r = try_compile_tyb_via_yoyo_table(&ret).unwrap();
+        let pe_s = try_compile_tyb_via_yoyo_table(&set).unwrap();
+        assert_eq!(pe_r.bytes.as_slice(), S3_COMPILE_PE_RET_IMAGE_SEED);
+        assert_eq!(pe_s.bytes.as_slice(), S3_COMPILE_PE_SET_RET_IMAGE_SEED);
+        // Oracle: seeds ≡ live wrap of yoyo text (empty DATA).
+        let live_r = wrap_pe_slim(&CodegenOutput {
+            text: try_emit_text_via_yoyo_table(&[0xFF]).unwrap(),
+            data: vec![],
+        })
+        .unwrap();
+        let live_s = wrap_pe_slim(&CodegenOutput {
+            text: try_emit_text_via_yoyo_table(&[0x30, 0xFF]).unwrap(),
+            data: vec![],
+        })
+        .unwrap();
+        assert_eq!(S3_COMPILE_PE_RET_IMAGE_SEED, live_r.bytes.as_slice());
+        assert_eq!(S3_COMPILE_PE_SET_RET_IMAGE_SEED, live_s.bytes.as_slice());
+        // Other ops still wrap path (seed ≠).
+        let add = tyb_from_records(&[
+            (0x62, 2, [0, 0, 5, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let pe_a = try_compile_tyb_via_yoyo_table(&add).unwrap();
+        assert_ne!(pe_a.bytes.as_slice(), S3_COMPILE_PE_RET_IMAGE_SEED);
+        assert_eq!(&pe_a.bytes[..2], b"MZ");
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
