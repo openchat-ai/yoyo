@@ -10861,22 +10861,32 @@ mod tests {
         );
     }
 
-    /// S3.413/S3.414: OW-RT mini→YOYO map. Landed: (3) RET exact TYB skips mini
-    /// (memcpy compile seed → write). Next: SET+RET same; then s1_finish/s1_loop.
-    /// Not CLOSED.
+    /// S3.413–S3.416: post-skip-mini map. Landed: RET + SET+RET exact TYB skip
+    /// mini (memcpy compile seeds). Next ≥10: more exact-TYB skips (ADD+RET…)
+    /// or s1_loop→YOYO. Not CLOSED.
     #[test]
     #[cfg(windows)]
     fn s3_ow_rt_ret_skips_mini_slice_pin() {
         let pe_dll = include_str!("pe_dll_link.rs");
         assert!(pe_dll.contains("S3.414"));
+        assert!(pe_dll.contains("S3.415"));
         assert!(pe_dll.contains("exact RET TYB"));
+        assert!(pe_dll.contains("exact SET+RET"));
         assert_eq!(S3_COMPILE_PE_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(S3_COMPILE_PE_SET_RET_IMAGE_SEED.len(), 6656);
         assert_eq!(
             compile_tyb_to_pe(&s3_fixed10_ret_tyb(0xFF))
                 .unwrap()
                 .bytes
                 .as_slice(),
             S3_COMPILE_PE_RET_IMAGE_SEED
+        );
+        assert_eq!(
+            compile_tyb_to_pe(&s3_fixed10_ret_tyb(0x30))
+                .unwrap()
+                .bytes
+                .as_slice(),
+            S3_COMPILE_PE_SET_RET_IMAGE_SEED
         );
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
