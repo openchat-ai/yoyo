@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.390**（389 expand PE；下一刀=N in-DLL 调度；**不**假 CLOSED）。
+**默认** 继续 **= S3.391**（390 bake=host种子；下一刀=N残/下一图；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -235,11 +235,12 @@ ded3d5   | STB/pack 去 SET ZERO；slot13 image-zero floor |
 | **S3.387** ✅       | `0a0e8c3`   | gap K/L 拒：PE runner=OS glue；非win=sim |
 | **S3.388** ✅       | `fd3986d`   | 后K/L缺口图（M expand / N in-DLL 调度） |
 | **S3.389** ✅       | `1398450`   | gap M：expand=PE（SEED@0x80；镜像种子） |
-| **S3.390** ⏳       | —           | gap N：in-DLL 调度去 Rust · **本步** |
+| **S3.390** ✅       | `586b472`   | gap N切片：in-DLL bake=host table种子（调度仍Rust） |
+| **S3.391** ⏳       | —           | N残/下一缺口图（pe_dll mini 仍OW-RT） · **本步** |
 
 
 
-**缺口**：真自举 — M expand PE 已关；下一刀 N in-DLL 调度。不搞翻译器。逐步正文 → git log。
+**缺口**：真自举 — N bake 切片已关；pe_dll mini 调度仍 OW-RT CUT。不搞翻译器。逐步正文 → git log。
 
 ---
 
@@ -275,7 +276,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.390**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.391**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -283,4 +284,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-23**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.390** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-23**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.391** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
