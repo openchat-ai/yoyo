@@ -3159,6 +3159,59 @@ pub fn s3_expand_many_flat_tyb() -> (Vec<u8>, u32) {
     (S3_EXPAND_TYB_SEED.to_vec(), S3_EXPAND_OUT)
 }
 
+/// S3.389: PE expand SEED past 16 state slots (empty-DATA @0x40 overlaps slot9 on PE).
+const S3_EXPAND_PE_SEED: u32 = 0x80;
+const S3_EXPAND_PE_OUT: u32 = S3_EXPAND_PE_SEED + (S3_BOOTSTRAP_EXPAND_ASM.len() * RECORD_SIZE) as u32;
+
+/// S3.389: PE expand DATA prefix = pad@0..0x80 ‖ boot wire ‖ hdr (152B).
+const S3_EXPAND_PE_DATA_PREFIX: &[u8] =
+    include_bytes!("../blobs/s3_expand_pe_data_prefix.dat");
+
+/// S3.389: PE expand lea A1 raw — SEED→slot2, OUT+hdr→slot9 (22B).
+const S3_EXPAND_PE_LEA_RAW: &[u8] = include_bytes!("../blobs/s3_expand_pe_lea.txb");
+
+/// S3.389: expand compose TYB for PE — DATA|lea|SET slot12|MEMCPY+RET (no poke).
+fn s3_expand_compose_tyb_pe() -> Vec<u8> {
+    debug_assert_eq!(S3_EXPAND_PE_DATA_PREFIX.len(), S3_EXPAND_PE_OUT as usize + HEADER_SIZE);
+    debug_assert_eq!(S3_EXPAND_PE_LEA_RAW.len(), 22);
+    let wire_len = S3_BOOTSTRAP_EXPAND_ASM.len() * RECORD_SIZE;
+    let mut payload = S3_EXPAND_PE_DATA_PREFIX.to_vec();
+    while payload.len() < S3_EXPAND_PE_OUT as usize + HEADER_SIZE + wire_len {
+        payload.push(0);
+    }
+    let mut recs = s3_pack_data_records(&payload);
+    // A1 lea
+    let mut i = 0;
+    while i < S3_EXPAND_PE_LEA_RAW.len() {
+        let n = (S3_EXPAND_PE_LEA_RAW.len() - i).min(3);
+        let mut a = [0u8; 6];
+        for k in 0..n {
+            a[k * 2] = S3_EXPAND_PE_LEA_RAW[i + k];
+        }
+        recs.push((0xA1, n as u8, a));
+        i += n;
+    }
+    recs.push(s3_rec_set(12, wire_len as u32));
+    recs.extend_from_slice(&S3_BOOTSTRAP_EXPAND_ASM);
+    s3_host_tyb_from_records(&recs)
+}
+
+/// S3.389: slim PE image seed for expand compose (gap M — no live emit_x86).
+#[cfg(windows)]
+const S3_EXPAND_PE_IMAGE_SEED: &[u8] = include_bytes!("../blobs/s3_expand_pe.pe");
+
+/// S3.389: run expand on PE; image seed skips emit_x86+wrap.
+#[cfg(windows)]
+pub fn s3_expand_many_via_pe() -> Option<Vec<u8>> {
+    let expect_len = HEADER_SIZE + S3_BOOTSTRAP_EXPAND_ASM.len() * RECORD_SIZE;
+    Some(s3_run_slim_pe_outbuf_at(
+        S3_EXPAND_PE_IMAGE_SEED,
+        S3_EXPAND_PE_OUT,
+        expect_len,
+    ))
+}
+
+
 /// S3.254/S3.255/S3.263/S3.267/S3.329: expand flat via YOYO sim — test proof only.
 #[cfg(test)]
 fn s3_recs_from_flat_seed_via_yoyo(flat: &[u8]) -> Vec<(u8, u8, [u8; 6])> {
@@ -10474,6 +10527,57 @@ mod tests {
         // Expand floor still live bootstrap.
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(s3_bootstrap_expand_asm().len(), 2);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.389: gap M — expand via PE (SEED@0x80 past state slots). Empty-DATA @0x40
+    /// overlaps slot9 on PE; sim path unchanged. PE ≡ sim compose outbuf.
+    #[test]
+    #[cfg(windows)]
+    fn s3_expand_via_pe_pin() {
+        assert_eq!(S3_EXPAND_PE_SEED, 0x80);
+        assert_eq!(S3_EXPAND_PE_OUT, 0x90);
+        assert_eq!(S3_EXPAND_PE_DATA_PREFIX.len(), 152);
+        assert_eq!(S3_EXPAND_PE_LEA_RAW.len(), 22);
+        assert!(S3_EXPAND_PE_SEED as usize >= 16 * 8, "past state slots");
+        assert_eq!(S3_EXPAND_PE_IMAGE_SEED.len(), 6656);
+        assert_eq!(&S3_EXPAND_PE_IMAGE_SEED[..2], b"MZ");
+        let live_pe = wrap_pe_slim(&emit_x86(&parse_tyb(&s3_expand_compose_tyb_pe()).unwrap())).unwrap();
+        assert_eq!(S3_EXPAND_PE_IMAGE_SEED, live_pe.bytes.as_slice());
+        let via = s3_expand_many_via_pe().unwrap();
+        let sim = s3_sim_prog_loop_cursor(
+            S3_EXPAND_TYB_SEED,
+            0,
+            S3_EXPAND_OUT,
+            S3_EXPAND_SEED as u64,
+            (S3_EXPAND_OUT as u64) + HEADER_SIZE as u64,
+            (S3_BOOTSTRAP_EXPAND_ASM.len() * RECORD_SIZE) as u64,
+        )
+        .unwrap();
+        assert_eq!(via, sim, "M: PE expand ≡ sim");
+        assert_eq!(&via[..4], &TYB_MAGIC);
+        assert_eq!(via.len(), 24);
+        // Prefix seed ≡ pad‖wire‖hdr
+        let mut live_prefix = vec![0u8; S3_EXPAND_PE_SEED as usize];
+        for &(op, argc, a) in &S3_BOOTSTRAP_EXPAND_ASM {
+            live_prefix.push(op);
+            live_prefix.push(argc);
+            live_prefix.extend_from_slice(&a);
+        }
+        let mut hdr = [0u8; HEADER_SIZE];
+        hdr[..4].copy_from_slice(&TYB_MAGIC);
+        hdr[6..8].copy_from_slice(&(S3_BOOTSTRAP_EXPAND_ASM.len() as u16).to_le_bytes());
+        live_prefix.extend_from_slice(&hdr);
+        assert_eq!(S3_EXPAND_PE_DATA_PREFIX, live_prefix.as_slice());
+        // Floors
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(s3_expand_many_flat_tyb().0.as_slice(), S3_EXPAND_TYB_SEED);
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
                 .unwrap()
