@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.381**（380 PE 镜像组合悬崖；下一刀=gap F in-DLL；**不**假 CLOSED）。
+**默认** 继续 **= S3.382**（381 in-DLL PE 镜像；下一刀=下一缺口图；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -224,7 +224,8 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.378** ✅       | `fbb88b1`   | gap D 拒：empty-DATA win0 1117>1024（保 DATA PE） |
 | **S3.379** ✅       | `9bcf70c`   | gap E：PE RET/SET+RET=slim 镜像种子（去 emit） |
 | **S3.380** ✅       | `fe44b95`   | 非RET 逐组合 PE 镜像种子悬崖（保 emit+wrap） |
-| **S3.381** ⏳       | —           | gap F：in-DLL PE 镜像种子 · **本步** |
+| **S3.381** ✅       | `ee64538`   | gap F：in-DLL RET/SET+RET=slim PE 镜像种子 |
+| **S3.382** ⏳       | —           | 真自举下一缺口图（E/F 种子后） · **本步** |
 
 
 
@@ -264,7 +265,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.381**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.382**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -272,4 +273,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-23**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.381** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-23**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.382** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
