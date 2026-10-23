@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.384**（383 text-by-len；下一刀=H wrap；**不**假 CLOSED）。
+**默认** 继续 **= S3.385**（384 wrap 悬崖；下一刀=下一真自举缺口；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -112,7 +112,8 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.266** ✅       | `a8ddd93`   | host wire→records = parse_tyb header wrap（无第二解析器）     |
 | **S3.267** ✅       | `c7ccad6`   | expand 发射完整 TYB；via_yoyo 直 parse_tyb；ctrl 41→57        |
 | **S3.268** ✅       | 73409da   | TYB header IR-seed；ctrl 57→47；sim composed high-water        |
-| **S3.269** ✅       | b5686c   | pack-only wire→TYB wrap rename；expand 无 wrap                    |
+| **S3.269** ✅       | 
+b5686c   | pack-only wire→TYB wrap rename；expand 无 wrap                    |
 | **S3.270** ✅       | 39b65d7   | expand magic-only poke；assembler 338→325；zeros 靠 high-water           |
 | **S3.271** ✅       | 052c91   | drop count-hi STB；ctrl 47→45；assembler 325→323              |
 | **S3.272** ✅       | `9778523`   | OUT base 外置 assembler；ctrl 45→44；bootstrap 种子再缩              |
@@ -122,7 +123,8 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.276** ✅       | `4d894de`     | drop s3_bootstrap_expand_ctrl；唯一 bootstrap=asm；仍 323           |
 | **S3.277** ✅       | 752600   | drop 零 INIT SET；init 6→4；asm 45→43；assembler 323→321 |
 | **S3.278** ✅       | 8851f1   | shape-fill 去 SET13=0；many 51→49；one 40→39；assembler 321→317 |
-| **S3.279** ✅       | ded3d5   | STB/pack 去 SET ZERO；slot13 image-zero floor |
+| **S3.279** ✅       | 
+ded3d5   | STB/pack 去 SET ZERO；slot13 image-zero floor |
 | **S3.280** ✅       | ecf0f73   | MEMCPY 代 arg 拷贝环；ctrl 39→32；asm 36；assembler 317→277 |
 | **S3.281** ✅       | 9013fea   | STB op 直写；去 MOVRR 暂存；many 40；one 31；assembler 271 |
 | **S3.282** ✅       | dc0bc63   | 去死 ADDV s8；ctrl 31；asm 35；many 39；one 30；assembler 264 |
@@ -227,11 +229,12 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.381** ✅       | `ee64538`   | gap F：in-DLL RET/SET+RET=slim PE 镜像种子 |
 | **S3.382** ✅       | `b8d284b`   | 后镜像缺口图（G非RET emit / H wrap / I） |
 | **S3.383** ✅       | `fd72b40`   | gap G：PE text-by-len 种子（非RET 去 emit_x86） |
-| **S3.384** ⏳       | —           | gap H：wrap_pe_slim 去 Rust · **本步** |
+| **S3.384** ✅       | `80da9c8`   | gap H 拒：wrap_pe_slim=PE 容器层（保 host packer） |
+| **S3.385** ⏳       | —           | 真自举下一缺口图（G/H 后） · **本步** |
 
 
 
-**缺口**：真自举 — G 已关（text-by-len）；下一刀 H（wrap_pe_slim）。不搞翻译器。逐步正文 → git log。
+**缺口**：真自举 — G 关 / H 拒；下一刀=下一缺口图。不搞翻译器。逐步正文 → git log。
 
 ---
 
@@ -267,7 +270,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.384**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.385**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -275,4 +278,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-23**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.384** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-23**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.385** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
