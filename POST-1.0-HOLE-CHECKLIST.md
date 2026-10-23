@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.374**（373 PE DATA 前缀种子；下一刀=gap B/C；**不**假 CLOSED）。
+**默认** 继续 **= S3.375**（374 PE RET/SET+RET 种子；下一刀=gap B/C 悬崖；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -217,7 +217,8 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.371** ✅       | `d97c589`   | 真自举下一缺口图（A try_emit-PE / B 非RET / C in-DLL） |
 | **S3.372** ✅       | `3f4e154`   | gap A：try_emit=PE 跑 YOYO（DATA|lea|loop；非 sim） |
 | **S3.373** ✅       | `4b1b0d5`   | PE 构图 DATA 前缀=目标码种子（110；prog live） |
-| **S3.374** ⏳       | —           | gap B/C：非RET assemble / in-DLL 密度 · **本步** |
+| **S3.374** ✅       | `f7741ba`   | PE 构图 RET/SET+RET=整段 TYB 种子（1288B） |
+| **S3.375** ⏳       | —           | gap B/C：非RET PE种子悬崖 / in-DLL · **本步** |
 
 
 
@@ -257,7 +258,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.374**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.375**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -265,4 +266,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-23**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.374** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-23**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.375** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
