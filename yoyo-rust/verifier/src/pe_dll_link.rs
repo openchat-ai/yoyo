@@ -1826,7 +1826,34 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x81, 0x3E, 0x54, 0x59, 0x42, 0x00]); // cmp dword [rsi], 'TYB\0'
     let jne_oracle = export_code.len();
     export_code.extend_from_slice(&[0x75, 0x00]); // jne oracle_scan
+    // S3.414: exact RET TYB (len=16, rec_cnt=1, op=FF) → memcpy pe_template
+    // (compile RET seed) → write_out; skip mini entirely.
+    export_code.extend_from_slice(&[0x83, 0xFF, 0x10]); // cmp edi, 16
+    let s414_jne_s1_a = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jne s1
+    export_code.extend_from_slice(&[0x66, 0x83, 0x7E, 0x06, 0x01]); // cmp word [rsi+6], 1
+    let s414_jne_s1_b = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jne s1
+    export_code.extend_from_slice(&[0x80, 0x7E, 0x08, 0xFF]); // cmp byte [rsi+8], 0xFF
+    let s414_jne_s1_c = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jne s1
+    emit_lea_rcx_rdata(&mut export_code, &mut rip_patches, template_off);
+    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24]); // lea rdi,[rsp+PE]
+    push_u32_le(&mut export_code, IN_DLL_S1_PE_OFF);
+    export_code.extend_from_slice(&[0x48, 0x89, 0xCE]); // mov rsi, rcx
+    export_code.extend_from_slice(&[0xB9]); // mov ecx, template_len
+    export_code.extend_from_slice(&template_len.to_le_bytes());
+    export_code.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x8C, 0x24]); // lea rcx,[rsp+PE]
+    push_u32_le(&mut export_code, IN_DLL_S1_PE_OFF);
+    export_code.extend_from_slice(&[0x41, 0xBC]); // mov r12d, template_len
+    export_code.extend_from_slice(&template_len.to_le_bytes());
+    let s414_jmp_write = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp write_out
     let jmp_s1 = export_code.len();
+    patch_jcc32(&mut export_code, s414_jne_s1_a, jmp_s1);
+    patch_jcc32(&mut export_code, s414_jne_s1_b, jmp_s1);
+    patch_jcc32(&mut export_code, s414_jne_s1_c, jmp_s1);
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp s1_codegen
 
     // Scan table: r13 = table ptr, rbx = entry count (loop counter below).
@@ -1914,6 +1941,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
 
     let write_out = export_code.len();
     patch_rel8(&mut export_code, jmp_write, write_out);
+    patch_rel32(&mut export_code, s414_jmp_write, write_out);
     // rcx = pe_ptr, r12d = pe_len — save pe_ptr in r13
     export_code.extend_from_slice(&[0x49, 0x89, 0xCD]); // mov r13, rcx
     // CreateFileA(output, GENERIC_WRITE, ...)
@@ -7313,7 +7341,7 @@ mod tests {
         }
     }
 
-    /// S3.30/S3.409: single-record RET → C3; full PE ≡ compile RET seed (S3.407 template).
+    /// S3.30/S3.409/S3.414: RET → skip mini, memcpy compile seed; PE ≡ seed.
     #[test]
     #[cfg(windows)]
     fn yoyo_sidecar_in_dll_s3_tyb_ret_fast_path() {
