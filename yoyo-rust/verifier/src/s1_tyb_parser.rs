@@ -10791,6 +10791,35 @@ mod tests {
         );
     }
 
+    /// S3.408: OW-RT residual after S3.407 — in-DLL mini codegen dispatcher
+    /// (jmp_s1 / bake scan / s1_loop) remains hand-hex Rust. Template seed only
+    /// unifies s1_finish PE shell. Closing = replace mini with YOYO (long pole).
+    /// Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_in_dll_mini_dispatcher_ow_rt_residual_reject() {
+        assert_eq!(S3_COMPILE_PE_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(S3_HOST_TABLE_SEED.len(), 200);
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("jmp s1_codegen") || pe_dll.contains("jmp_s1"));
+        assert!(pe_dll.contains("S1 mini TYB codegen"));
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        assert!(pe_dll.contains("production default remains Rust"));
+        // Host path still seed/patch complete.
+        assert_eq!(try_emit_text_via_yoyo_table(&[0xFF]).unwrap(), vec![0xC3]);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.403: gap N no-further-slice reject — after bake=host seed (S3.390) there
     /// is no pe_dll ≥10 knife that is not rewriting the mini codegen dispatcher
     /// (OW-RT long pole / SCOPE-CUT). Host Windows fixed10 emit/compile already
