@@ -7792,15 +7792,39 @@ fn s3_run_slim_pe_outbuf_at(pe: &[u8], out_off: u32, len: usize) -> Vec<u8> {
     }
 }
 
-/// S3.372: try_emit via PE-run YOYO compose (not Rust sim cursor).
+/// S3.379: slim PE image seeds for RET / SET+RET compose (gap E — no live emit_x86).
+/// Verified ≡ wrap_pe_slim(emit_x86(tyb)) in s3_host_pe_image_seeds_pin.
+#[cfg(windows)]
+const S3_HOST_PE_RET_IMAGE_SEED: &[u8] =
+    include_bytes!("../blobs/s3_host_pe_ret.bin");
+#[cfg(windows)]
+const S3_HOST_PE_SET_RET_IMAGE_SEED: &[u8] =
+    include_bytes!("../blobs/s3_host_pe_setret.bin");
+
+/// S3.372/S3.379: try_emit via PE-run YOYO compose (not Rust sim cursor).
+/// RET/SET+RET use PE image seeds; other ops still emit_x86+wrap (E residual).
 #[cfg(windows)]
 fn s3_try_emit_via_pe(ops: &[u8]) -> Option<Vec<u8>> {
+    let len: usize = ops.iter().map(|o| s3_fixed_row(*o).len()).sum();
+    if ops == [0xFF] {
+        return Some(s3_run_slim_pe_outbuf_at(
+            S3_HOST_PE_RET_IMAGE_SEED,
+            S3_HOST_OUTBUF_OFF,
+            len,
+        ));
+    }
+    if ops == [0x30, 0xFF] {
+        return Some(s3_run_slim_pe_outbuf_at(
+            S3_HOST_PE_SET_RET_IMAGE_SEED,
+            S3_HOST_OUTBUF_OFF,
+            len,
+        ));
+    }
     let tyb = s3_host_compose_tyb_pe(ops);
     let prog = parse_tyb(&tyb).ok()?;
     validate_tyb_mini(&prog).ok()?;
     // Direct wrap — avoid compile_tyb_to_pe_mini ↔ try_emit recursion.
     let pe = wrap_pe_slim(&emit_x86(&prog)).ok()?;
-    let len: usize = ops.iter().map(|o| s3_fixed_row(*o).len()).sum();
     Some(s3_run_slim_pe_outbuf_at(&pe.bytes, S3_HOST_OUTBUF_OFF, len))
 }
 
@@ -9996,6 +10020,65 @@ mod tests {
             s3_host_compose_tyb_pe(&[0xFF]).as_slice(),
             S3_HOST_PE_RET_TYB_SEED
         );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.379: gap E — PE compose RET/SET+RET = slim PE image seeds (no live emit_x86).
+    /// Other ops still emit+wrap; per-ops PE image seeds = combinatorial cliff (like 375).
+    #[test]
+    #[cfg(windows)]
+    fn s3_host_pe_image_seeds_pin() {
+        assert_eq!(S3_HOST_PE_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(S3_HOST_PE_SET_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(&S3_HOST_PE_RET_IMAGE_SEED[..2], b"MZ");
+        assert_eq!(&S3_HOST_PE_SET_RET_IMAGE_SEED[..2], b"MZ");
+        let live = |ops: &[u8]| {
+            let tyb = s3_host_compose_tyb_pe(ops);
+            wrap_pe_slim(&emit_x86(&parse_tyb(&tyb).unwrap()))
+                .unwrap()
+                .bytes
+        };
+        assert_eq!(S3_HOST_PE_RET_IMAGE_SEED, live(&[0xFF]).as_slice());
+        assert_eq!(S3_HOST_PE_SET_RET_IMAGE_SEED, live(&[0x30, 0xFF]).as_slice());
+        // try_emit via image seed ≡ host sim / live PE outbuf
+        assert_eq!(try_emit_text_via_yoyo_table(&[0xFF]).unwrap(), vec![0xC3]);
+        let set = try_emit_text_via_yoyo_table(&[0x30, 0xFF]).unwrap();
+        assert_eq!(
+            set,
+            s3_sim_prog_loop_cursor(
+                &s3_host_prog_loop_tyb(&[0x30, 0xFF]),
+                S3_HOST_TABLE_OFF as u64,
+                S3_HOST_OUTBUF_OFF,
+                (S3_HOST_PROG_OFF + 1) as u64,
+                S3_HOST_OUTBUF_OFF as u64,
+                RECORD_SIZE as u64,
+            )
+            .unwrap()
+        );
+        // Non-seeded op still works (live emit path).
+        let add = try_emit_text_via_yoyo_table(&[0x62, 0xFF]).unwrap();
+        assert_eq!(
+            add,
+            s3_sim_prog_loop_cursor(
+                &s3_host_prog_loop_tyb(&[0x62, 0xFF]),
+                S3_HOST_TABLE_OFF as u64,
+                S3_HOST_OUTBUF_OFF,
+                (S3_HOST_PROG_OFF + 1) as u64,
+                S3_HOST_OUTBUF_OFF as u64,
+                RECORD_SIZE as u64,
+            )
+            .unwrap()
+        );
+        // Cliff witness: 8 more len2 PE images × 6656 ≫ 10KB volume.
+        assert!(8 * 6656 > 50_000);
+        assert_eq!(S3_HOST_PE_RET_TYB_SEED.len(), 1288);
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
