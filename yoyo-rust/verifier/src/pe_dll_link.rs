@@ -988,10 +988,21 @@ pub fn resolve_recompile_input(entries: &[RecompileEntry], input: &[u8]) -> Opti
 pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<Vec<u8>> {
     let table = build_recompile_table(entries)?;
 
-    // S1.5.b: slim PE shell (NOP sled + ret) patched at call time with codegen.
-    let mut shell_text = vec![0x90u8; crate::s1_tyb_parser::S1_SLIM_MAX_CODE - 1];
-    shell_text.push(0xC3);
-    let pe_template = crate::s1_tyb_parser::wrap_pe_slim_bytes(&shell_text, &[])?;
+    // S1.5.b / S3.407: slim PE template patched at call time with codegen.
+    // Windows: compile RET image seed (≡ host s3_compile_pe_patch base).
+    // Else: NOP sled + RET wrap (non-Win / no seed).
+    #[cfg(windows)]
+    let pe_template_bytes = {
+        let s = crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED;
+        debug_assert_eq!(s.len(), 6656);
+        s.to_vec()
+    };
+    #[cfg(not(windows))]
+    let pe_template_bytes = {
+        let mut shell_text = vec![0x90u8; crate::s1_tyb_parser::S1_SLIM_MAX_CODE - 1];
+        shell_text.push(0xC3);
+        crate::s1_tyb_parser::wrap_pe_slim_bytes(&shell_text, &[])?.bytes
+    };
 
     const IMAGE_BASE: u64 = 0x0000_0001_8000_0000;
     const FILE_ALIGN: u32 = 0x200;
@@ -1306,7 +1317,7 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
     let table_off = off;
     off = align_up(table_off + table.len() as u32, 16);
     let template_off = off;
-    let template_len = pe_template.bytes.len() as u32;
+    let template_len = pe_template_bytes.len() as u32;
     let rdata_payload = template_off + template_len;
 
     let text_rva = SECTION_ALIGN;
@@ -1318,7 +1329,7 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
     //   [rsp+PE_OFF ..) = slim PE buffer (PE_SIZE)
     link_yoyo_in_dll_recompile_dll_emit(
         &table,
-        &pe_template.bytes,
+        &pe_template_bytes,
         &input_offs,
         output_off,
         k32_name_off,

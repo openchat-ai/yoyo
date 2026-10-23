@@ -8017,12 +8017,13 @@ pub fn try_emit_text_via_yoyo_table(ops: &[u8]) -> Option<Vec<u8>> {
 
 /// Host PE path: fixed-template TYB → slim PE via YOYO table compose (not `emit_x86`).
 /// `None` if program is outside the subset (caller should use [`compile_tyb_to_pe_mini`]).
-/// S3.397: RET/SET+RET = compile PE image seeds (gap R — no live wrap).
+/// S3.397/S3.407: RET/SET+RET = compile PE image seeds (gap R — no live wrap).
+/// S3.407: also the in-DLL s1_finish PE template (host↔DLL one object-code seed).
 #[cfg(windows)]
-const S3_COMPILE_PE_RET_IMAGE_SEED: &[u8] =
+pub const S3_COMPILE_PE_RET_IMAGE_SEED: &[u8] =
     include_bytes!("../blobs/s3_compile_pe_ret.pe");
 #[cfg(windows)]
-const S3_COMPILE_PE_SET_RET_IMAGE_SEED: &[u8] =
+pub const S3_COMPILE_PE_SET_RET_IMAGE_SEED: &[u8] =
     include_bytes!("../blobs/s3_compile_pe_setret.pe");
 
 /// S3.400/S3.405: patch user `.text`/`.data` into compile PE template (IAT kept).
@@ -10752,6 +10753,35 @@ mod tests {
             pe_dll.contains("not** OW-RT CLOSED") || pe_dll.contains("not OW-RT CLOSED"),
             "OW-RT not-CLOSED marker"
         );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.407: gap N/OW-RT slice — in-DLL s1_finish PE template = compile RET
+    /// image seed (pub). Host↔DLL one object-code seed; mini loop still Rust.
+    /// Not OW-RT CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_in_dll_pe_template_is_compile_ret_seed_pin() {
+        assert_eq!(S3_COMPILE_PE_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(&S3_COMPILE_PE_RET_IMAGE_SEED[..2], b"MZ");
+        // Seed ≡ empty-DATA wrap of RET text (oracle).
+        let live = wrap_pe_slim(&CodegenOutput {
+            text: try_emit_text_via_yoyo_table(&[0xFF]).unwrap(),
+            data: vec![],
+        })
+        .unwrap();
+        assert_eq!(S3_COMPILE_PE_RET_IMAGE_SEED, live.bytes.as_slice());
+        // pe_dll honesty: template comment / seed pub for in-DLL link.
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3_COMPILE_PE_RET_IMAGE_SEED"));
+        assert!(pe_dll.contains("S3.407"));
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
                 .unwrap()
