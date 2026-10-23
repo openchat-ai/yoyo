@@ -10791,6 +10791,40 @@ mod tests {
         );
     }
 
+
+    /// S3.409: post-OW-RT-slice — in-DLL RET/SET+RET PE ≡ host compile seeds
+    /// (proven in pe_dll_link ret/set_ret fast_path pins). Mini loop remains.
+    /// Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_true_selfhost_post_ow_rt_slice_map_pin() {
+        assert_eq!(S3_COMPILE_PE_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(S3_COMPILE_PE_SET_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(
+            compile_tyb_to_pe(&tyb_from_records(&[(0xFF, 0, [0; 6])]))
+                .unwrap()
+                .bytes
+                .as_slice(),
+            S3_COMPILE_PE_RET_IMAGE_SEED
+        );
+        let set = tyb_from_records(&[
+            (0x30, 2, [0, 0, 0xEF, 0xBE, 0xAD, 0xDE]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        assert_eq!(
+            compile_tyb_to_pe(&set).unwrap().bytes.as_slice(),
+            S3_COMPILE_PE_SET_RET_IMAGE_SEED
+        );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.408: OW-RT residual after S3.407 — in-DLL mini codegen dispatcher
     /// (jmp_s1 / bake scan / s1_loop) remains hand-hex Rust. Template seed only
     /// unifies s1_finish PE shell. Closing = replace mini with YOYO (long pole).
@@ -10960,10 +10994,10 @@ mod tests {
     }
 
 
-    /// S3.396/S3.406: post-U map. Closed: O–U host Windows PE path wrap-free
-    /// (try_emit / try_compile / compile_tyb_to_pe / expand / via_yoyo). Cliffs:
-    /// I/K/L · N pe_dll mini (OW-RT). Next ≥10 = OW-RT in-DLL RET/SET+RET
-    /// fast-path bake (not full mini rewrite). Not CLOSED.
+    /// S3.396/S3.409: post-OW-RT-slice map. Closed: O–U host + in-DLL PE
+    /// template=compile RET seed; RET/SET+RET in-DLL output ≡ compile seeds.
+    /// Cliffs: I/K/L · mini dispatcher still hand-hex (S3.408). Next ≥10 =
+    /// more in-DLL seed fast-paths or mini→YOYO. Not CLOSED.
     #[test]
     #[cfg(windows)]
     fn s3_true_selfhost_post_q_gap_map_pin() {

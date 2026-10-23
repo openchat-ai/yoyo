@@ -7284,7 +7284,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.30: single-record RET hits in-DLL fast-path (skip JE) → C3.
+    /// S3.30/S3.409: single-record RET → C3; full PE ≡ compile RET seed (S3.407 template).
     #[test]
     #[cfg(windows)]
     fn yoyo_sidecar_in_dll_s3_tyb_ret_fast_path() {
@@ -7301,6 +7301,11 @@ mod tests {
         let out = std::fs::read(dir.join(OUTPUT_NAME)).expect("output.exe");
         let off = crate::s1_tyb_parser::S1_SLIM_TEXT_PAYLOAD_OFF;
         assert_eq!(out[off], 0xC3, "single RET fast-path must emit C3");
+        assert_eq!(
+            out.as_slice(),
+            crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED,
+            "S3.409: in-DLL RET ≡ compile RET seed"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -7370,6 +7375,11 @@ mod tests {
             0x48u8, 0xB8, 0xEF, 0xBE, 0xAD, 0xDE, 0, 0, 0, 0, 0x49, 0x89, 0x47, 0x00, 0xC3,
         ];
         assert_eq!(&out[off..off + expect.len()], &expect, "SET+RET pilot");
+        assert_eq!(
+            out.as_slice(),
+            crate::s1_tyb_parser::S3_COMPILE_PE_SET_RET_IMAGE_SEED,
+            "S3.409: in-DLL SET+RET ≡ compile SET+RET seed",
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
