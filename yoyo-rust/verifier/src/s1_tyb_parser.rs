@@ -9922,6 +9922,51 @@ mod tests {
         );
     }
 
+    /// S3.377: post-seed-chain gap map. Next ≥10 ≠ more RET/SET+RET TYB seeds.
+    /// Remaining: (D) empty-DATA host poke ≤slim 1024 so try_emit can drop DATA;
+    /// (E) PE compose firmware itself not via Rust emit_x86; (F) in-DLL beyond
+    /// 3-row / non-seeded ops. Not CLOSED.
+    #[test]
+    fn s3_true_selfhost_post_seed_gap_map_pin() {
+        // Seeded PE + in-DLL RET/SET+RET hold.
+        assert_eq!(
+            s3_host_compose_tyb_pe(&[0xFF]).as_slice(),
+            S3_HOST_PE_RET_TYB_SEED
+        );
+        assert_eq!(
+            s3_host_compose_tyb_pe(&[0x30, 0xFF]).as_slice(),
+            S3_HOST_PE_SET_RET_TYB_SEED
+        );
+        assert_eq!(
+            s3_table_prog_loop_tyb(&[0xFF]).as_slice(),
+            S3_IN_DLL_RET_TYB_SEED
+        );
+        assert_eq!(
+            s3_table_prog_loop_tyb(&[0x30, 0xFF]).as_slice(),
+            S3_IN_DLL_SET_RET_TYB_SEED
+        );
+        // (D) empty-DATA host still over slim — DATA PE path remains.
+        let host_code = emit_x86(&parse_tyb(S3_HOST_RET_TYB_SEED).unwrap()).text.len();
+        assert!(host_code > S1_SLIM_MAX_CODE, "D: empty-DATA host {host_code}");
+        let pe_code = emit_x86(&parse_tyb(S3_HOST_PE_RET_TYB_SEED).unwrap()).text.len();
+        assert!(pe_code <= S1_SLIM_MAX_CODE, "PE compose fits {pe_code}");
+        // (E) witness: PE compose TYB still needs Rust emit_x86 to become PE bytes.
+        assert!(wrap_pe_slim(&emit_x86(&parse_tyb(S3_HOST_PE_RET_TYB_SEED).unwrap())).is_ok());
+        // (F) non-seeded in-DLL still assembles.
+        let other = s3_table_prog_loop_tyb(&[0x00, 0xFF]);
+        assert_ne!(other.as_slice(), S3_IN_DLL_RET_TYB_SEED);
+        assert_eq!(S3_IN_DLL_LEA_A1_SEED.len(), 13);
+        assert_eq!(S3_HOST_PE_DATA_PREFIX_SEED.len(), 110);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.366: win0 poke seed ≡ live zero_then_poke(table[..127]). Floor now 173 (S3.367).
     #[test]
     fn s3_host_table_win0_poke_seed_pin() {
