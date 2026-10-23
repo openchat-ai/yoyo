@@ -10612,6 +10612,38 @@ mod tests {
         );
     }
 
+    /// S3.391: gap N residual reject — pe_dll mini codegen dispatcher stays Rust
+    /// (OW-RT CUT / SCOPE-CUT). S3.390 only unified the 10-row bake seed. Closing
+    /// N fully = replace export-body emit with YOYO (multi-month long pole).
+    /// Inventory: try_emit/expand PE seeds = YOYO-run; bake table = shared seed;
+    /// pe_dll link + mini loop = host Rust. Not CLOSED.
+    #[test]
+    fn s3_in_dll_dispatcher_ow_rt_cliff_reject() {
+        // Bake slice closed.
+        assert_eq!(S3_HOST_TABLE_SEED.len(), 200);
+        // try_emit / expand PE floors still hold.
+        assert_eq!(S3_HOST_PE_DATA_PREFIX_BYTES.len(), 328);
+        assert_eq!(S3_EXPAND_PE_DATA_PREFIX.len(), 152);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        // Marker comments in pe_dll still declare production_default=RUST.
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(
+            pe_dll.contains("production default remains Rust"),
+            "OW-RT honesty marker must stay in pe_dll_link"
+        );
+        assert!(
+            pe_dll.contains("not** OW-RT CLOSED") || pe_dll.contains("not OW-RT CLOSED"),
+            "OW-RT not-CLOSED marker"
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.366: win0 poke seed ≡ live zero_then_poke(table[..127]). Floor now 173 (S3.367).
     #[test]
     fn s3_host_table_win0_poke_seed_pin() {
