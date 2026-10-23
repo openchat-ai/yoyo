@@ -7823,10 +7823,14 @@ const S3_HOST_PE_TEXT_BY_LEN: [&[u8]; 8] = [
     include_bytes!("../blobs/s3_host_pe_text_len8.txb"),
 ];
 
-/// S3.383: DATA payload for PE compose (pad‖table‖prog) — byte image, no emit_x86.
+/// S3.386: PE compose DATA prefix = pad@0..0x80 ‖ table (328B object-code seed).
+const S3_HOST_PE_DATA_PREFIX_BYTES: &[u8] =
+    include_bytes!("../blobs/s3_host_pe_data_prefix.dat");
+
+/// S3.383/S3.386: DATA payload for PE compose — prefix seed + prog tail (no emit_x86).
 fn s3_host_pe_data_payload(ops: &[u8]) -> Vec<u8> {
-    let mut payload = vec![0u8; S3_HOST_TABLE_OFF as usize];
-    payload.extend_from_slice(&S3_HOST_TABLE_SEED);
+    debug_assert_eq!(S3_HOST_PE_DATA_PREFIX_BYTES.len(), S3_HOST_PROG_OFF as usize);
+    let mut payload = S3_HOST_PE_DATA_PREFIX_BYTES.to_vec();
     payload.push(ops.len() as u8);
     payload.extend_from_slice(ops);
     while payload.len() < S3_HOST_OUTBUF_OFF as usize {
@@ -10314,6 +10318,79 @@ mod tests {
         // Raising to seed every wrap output = same combinatorial cliff as S3.380.
         assert!(8 * 6656 > 50_000);
         assert_eq!(S3_HOST_PE_TEXT_BY_LEN.len(), 8);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.385: post-G/H gap map. Next ≥10 ≠ more wrap/image sheep.
+    /// Remaining: (J) PE data payload still live-builds pad‖table; (K) PE runner
+    /// VirtualAlloc is host Rust; (L) non-Windows try_emit still sim; (I) empty-DATA
+    /// slim cliff stands. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_true_selfhost_post_gh_gap_map_pin() {
+        // G holds: text-by-len + image seeds cover try_emit without emit_x86.
+        assert_eq!(S3_HOST_PE_TEXT_BY_LEN.len(), 8);
+        assert_eq!(S3_HOST_PE_TEXT_BY_LEN[0].len(), 308);
+        assert_eq!(try_emit_text_via_yoyo_table(&[0xFF]).unwrap(), vec![0xC3]);
+        assert_eq!(
+            try_emit_text_via_yoyo_table(&[0x62, 0xFF]).unwrap(),
+            s3_sim_prog_loop_cursor(
+                &s3_host_prog_loop_tyb(&[0x62, 0xFF]),
+                S3_HOST_TABLE_OFF as u64,
+                S3_HOST_OUTBUF_OFF,
+                (S3_HOST_PROG_OFF + 1) as u64,
+                S3_HOST_OUTBUF_OFF as u64,
+                RECORD_SIZE as u64,
+            )
+            .unwrap()
+        );
+        // (J) witness: data payload still constructed in Rust from table seed.
+        let d = s3_host_pe_data_payload(&[0xFF]);
+        assert_eq!(d.len(), S3_HOST_OUTBUF_OFF as usize);
+        assert_eq!(&d[S3_HOST_TABLE_OFF as usize..][..200], &S3_HOST_TABLE_SEED);
+        // (I) empty-DATA still over slim.
+        let host_code = emit_x86(&parse_tyb(S3_HOST_RET_TYB_SEED).unwrap()).text.len();
+        assert!(host_code > S1_SLIM_MAX_CODE);
+        // H still host packer for non-image path.
+        let pe = wrap_pe_slim(&CodegenOutput {
+            text: S3_HOST_PE_TEXT_BY_LEN[0].to_vec(),
+            data: d,
+        })
+        .unwrap();
+        assert_eq!(&pe.bytes[..2], b"MZ");
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.386: gap J — PE data prefix = 328B object-code seed; prog tail live.
+    #[test]
+    fn s3_host_pe_data_prefix_bytes_pin() {
+        assert_eq!(S3_HOST_PE_DATA_PREFIX_BYTES.len(), 328);
+        assert_eq!(S3_HOST_PE_DATA_PREFIX_BYTES.len(), S3_HOST_PROG_OFF as usize);
+        let mut live = vec![0u8; S3_HOST_TABLE_OFF as usize];
+        live.extend_from_slice(&S3_HOST_TABLE_SEED);
+        assert_eq!(S3_HOST_PE_DATA_PREFIX_BYTES, live.as_slice());
+        // payload ≡ emit_x86 .data for RET / ADD+RET
+        for &ops in &[&[0xFFu8][..], &[0x62, 0xFF][..], &[0x30, 0x66, 0xFF][..]] {
+            let got = s3_host_pe_data_payload(ops);
+            let expect = emit_x86(&parse_tyb(&s3_host_compose_tyb_pe(ops)).unwrap()).data;
+            assert_eq!(got, expect, "J: data payload ops={ops:?}");
+        }
+        assert_eq!(S3_HOST_PE_DATA_PREFIX_SEED.len(), 110);
+        assert_eq!(S3_HOST_TABLE_SEED.len(), 200);
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
