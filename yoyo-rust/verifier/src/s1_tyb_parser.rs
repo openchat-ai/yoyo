@@ -7910,9 +7910,32 @@ fn s3_host_pe_data_payload(ops: &[u8]) -> Vec<u8> {
     payload
 }
 
-/// S3.372/S3.379/S3.383: try_emit via PE-run YOYO compose (not Rust sim cursor).
-/// RET/SET+RET = full PE image seeds; other ops = text-by-len seed + data payload + wrap
-/// (no emit_x86). wrap_pe_slim remains Rust (gap H).
+/// S3.399: patch text+data into a slim PE template (stable file offs).
+/// Base = RET compose image seed; IAT/headers preserved; user payload ≤ IAT base.
+#[cfg(windows)]
+fn s3_slim_pe_patch_text_data(text: &[u8], data: &[u8]) -> Vec<u8> {
+    debug_assert!(text.len() <= S1_SLIM_MAX_CODE);
+    debug_assert!(data.len() <= S1_SLIM_IAT_BASE as usize);
+    let mut pe = S3_HOST_PE_RET_IMAGE_SEED.to_vec();
+    let t0 = S1_SLIM_TEXT_PAYLOAD_OFF;
+    pe[t0..t0 + text.len()].copy_from_slice(text);
+    // Clear any leftover text bytes beyond this payload (template may be longer).
+    let t_clear = t0 + text.len();
+    let t_end = t0 + S1_SLIM_MAX_CODE;
+    if t_clear < t_end {
+        for b in &mut pe[t_clear..t_end] {
+            *b = 0;
+        }
+    }
+    let d0 = S1_SLIM_DATA_PAYLOAD_OFF;
+    let copy_n = data.len().min(S1_SLIM_IAT_BASE as usize);
+    pe[d0..d0 + copy_n].copy_from_slice(&data[..copy_n]);
+    pe
+}
+
+/// S3.372/S3.379/S3.383/S3.399: try_emit via PE-run YOYO compose (not Rust sim).
+/// RET/SET+RET = full PE image seeds; other ops = text-by-len + data payload
+/// patched into PE template (no emit_x86, no wrap — gap S).
 #[cfg(windows)]
 fn s3_try_emit_via_pe(ops: &[u8]) -> Option<Vec<u8>> {
     let len: usize = ops.iter().map(|o| s3_fixed_row(*o).len()).sum();
@@ -7937,12 +7960,8 @@ fn s3_try_emit_via_pe(ops: &[u8]) -> Option<Vec<u8>> {
     let text = S3_HOST_PE_TEXT_BY_LEN[n - 1];
     debug_assert_eq!(text.len(), 308);
     let data = s3_host_pe_data_payload(ops);
-    let pe = wrap_pe_slim(&CodegenOutput {
-        text: text.to_vec(),
-        data,
-    })
-    .ok()?;
-    Some(s3_run_slim_pe_outbuf_at(&pe.bytes, S3_HOST_OUTBUF_OFF, len))
+    let pe = s3_slim_pe_patch_text_data(text, &data);
+    Some(s3_run_slim_pe_outbuf_at(&pe, S3_HOST_OUTBUF_OFF, len))
 }
 
 /// Host-side YOYO table compose → `.text` bytes.
@@ -10794,9 +10813,9 @@ mod tests {
     }
 
 
-    /// S3.396/S3.399: post-Q/R gap map. Closed + R. Cliffs: H wrap residual ·
-    /// I/K/L · N pe_dll mini (OW-RT) · R residual (non-RET compile still wrap).
-    /// Next ≥10 ≠ more compile-image sheep; N long pole. Not CLOSED.
+    /// S3.396/S3.399: post-R gap map. Closed: O/P/Q/R + S try_emit patch.
+    /// Cliffs: H wrap (compile residual) · I/K/L · N pe_dll mini (OW-RT).
+    /// Next ≥10 ≠ more PE-image sheep; N long pole. Not CLOSED.
     #[test]
     #[cfg(windows)]
     fn s3_true_selfhost_post_q_gap_map_pin() {
@@ -10904,6 +10923,50 @@ mod tests {
         let remaining = 8usize; // SET already seeded
         assert!(remaining * 6656 > 50_000);
         assert_eq!(S3_COMPILE_PE_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+
+    /// S3.399: gap S — try_emit non-RET uses PE template text/data patch (no wrap).
+    /// Base = RET image seed; offs = S1_SLIM_*_PAYLOAD_OFF. wrap remains for
+    /// try_compile residual (R). Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_try_emit_pe_template_patch_pin() {
+        assert_eq!(S1_SLIM_TEXT_PAYLOAD_OFF, 0x400 + 13);
+        assert_eq!(S1_SLIM_DATA_PAYLOAD_OFF, 0xA00);
+        let cases: &[&[u8]] = &[
+            &[0x62, 0xFF],
+            &[0x66, 0xFF],
+            &[0x30, 0x66, 0xFF],
+            &[0x60, 0x62, 0xFF],
+        ];
+        for &ops in cases {
+            let via = try_emit_text_via_yoyo_table(ops).unwrap();
+            let n = ops.len();
+            let text = S3_HOST_PE_TEXT_BY_LEN[n - 1];
+            let data = s3_host_pe_data_payload(ops);
+            let patched = s3_slim_pe_patch_text_data(text, &data);
+            let got = s3_run_slim_pe_outbuf_at(&patched, S3_HOST_OUTBUF_OFF, via.len());
+            assert_eq!(got, via, "ops={ops:?}");
+            // Still ≡ live wrap outbuf (oracle).
+            let live = wrap_pe_slim(&CodegenOutput {
+                text: text.to_vec(),
+                data: data.clone(),
+            })
+            .unwrap();
+            let got_l = s3_run_slim_pe_outbuf_at(&live.bytes, S3_HOST_OUTBUF_OFF, via.len());
+            assert_eq!(got, got_l, "patch≡wrap outbuf ops={ops:?}");
+        }
+        // RET/SET+RET still image seeds (no patch path).
+        assert_eq!(try_emit_text_via_yoyo_table(&[0xFF]).unwrap(), vec![0xC3]);
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
