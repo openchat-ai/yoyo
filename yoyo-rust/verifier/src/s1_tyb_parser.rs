@@ -8003,11 +8003,26 @@ const S3_COMPILE_PE_RET_IMAGE_SEED: &[u8] =
 const S3_COMPILE_PE_SET_RET_IMAGE_SEED: &[u8] =
     include_bytes!("../blobs/s3_compile_pe_setret.pe");
 
+/// S3.400: patch user `.text` into compile PE template (empty DATA; IAT kept).
+#[cfg(windows)]
+fn s3_compile_pe_patch_text(text: &[u8]) -> Vec<u8> {
+    debug_assert!(text.len() <= S1_SLIM_MAX_CODE);
+    let mut pe = S3_COMPILE_PE_RET_IMAGE_SEED.to_vec();
+    let t0 = S1_SLIM_TEXT_PAYLOAD_OFF;
+    let t_end = t0 + S1_SLIM_MAX_CODE;
+    for b in &mut pe[t0..t_end] {
+        *b = 0;
+    }
+    pe[t0..t0 + text.len()].copy_from_slice(text);
+    pe
+}
+
 pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeImage> {
     let prog = parse_tyb(tyb).ok()?;
     validate_tyb_mini(&prog).ok()?;
     let ops = fixed_template_ops(&prog)?;
-    // S3.397: Windows RET/SET+RET → compile image seeds (bypass wrap).
+    // S3.397/S3.400: Windows — RET/SET+RET image seeds; else patch text into
+    // compile RET template (no wrap — gap T).
     #[cfg(windows)]
     {
         if ops.as_slice() == [0xFF] {
@@ -8020,13 +8035,20 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
                 bytes: S3_COMPILE_PE_SET_RET_IMAGE_SEED.to_vec(),
             });
         }
+        let text = try_emit_text_via_yoyo_table(&ops)?;
+        return Some(crate::pe_link::PeImage {
+            bytes: s3_compile_pe_patch_text(&text),
+        });
     }
-    let text = try_emit_text_via_yoyo_table(&ops)?;
-    wrap_pe_slim(&CodegenOutput {
-        text,
-        data: Vec::new(),
-    })
-    .ok()
+    #[cfg(not(windows))]
+    {
+        let text = try_emit_text_via_yoyo_table(&ops)?;
+        wrap_pe_slim(&CodegenOutput {
+            text,
+            data: Vec::new(),
+        })
+        .ok()
+    }
 }
 
 #[cfg(test)]
@@ -10813,9 +10835,9 @@ mod tests {
     }
 
 
-    /// S3.396/S3.399: post-R gap map. Closed: O/P/Q/R + S try_emit patch.
-    /// Cliffs: H wrap (compile residual) · I/K/L · N pe_dll mini (OW-RT).
-    /// Next ≥10 ≠ more PE-image sheep; N long pole. Not CLOSED.
+    /// S3.396/S3.400: post-S/T gap map. Closed: O/P/Q/R + S/T PE template
+    /// patch (try_emit + try_compile). Cliffs: I/K/L · N pe_dll mini (OW-RT) ·
+    /// H wrap only non-win / oracle. Next ≥10 = N long pole. Not CLOSED.
     #[test]
     #[cfg(windows)]
     fn s3_true_selfhost_post_q_gap_map_pin() {
@@ -10898,7 +10920,7 @@ mod tests {
 
     /// S3.398: gap R residual reject — per-ops try_compile PE image seeds.
     /// RET+SET/RET already seeded (S3.397); 8 more fixed10 × 6656B ≫ volume
-    /// (mirror S3.380). Keep wrap for other ops; next ≠ sheep compile images.
+    /// (mirror S3.380). S3.400: other ops use template patch (still no sheep).
     #[test]
     #[cfg(windows)]
     fn s3_try_compile_per_ops_image_seed_cliff_reject() {
@@ -10967,6 +10989,49 @@ mod tests {
         }
         // RET/SET+RET still image seeds (no patch path).
         assert_eq!(try_emit_text_via_yoyo_table(&[0xFF]).unwrap(), vec![0xC3]);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+
+    /// S3.400: gap T — try_compile non-RET patches text into compile RET PE
+    /// template (no wrap on Windows). RET/SET+RET stay image seeds.
+    #[test]
+    #[cfg(windows)]
+    fn s3_try_compile_pe_template_patch_pin() {
+        let add = tyb_from_records(&[
+            s3_fixed_rec(0x62),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let pe = try_compile_tyb_via_yoyo_table(&add).unwrap();
+        assert_eq!(pe.bytes.len(), 6656);
+        assert_eq!(&pe.bytes[..2], b"MZ");
+        let text = try_emit_text_via_yoyo_table(&[0x62, 0xFF]).unwrap();
+        let patched = s3_compile_pe_patch_text(&text);
+        assert_eq!(pe.bytes.as_slice(), patched.as_slice());
+        // Oracle: patch outbuf-equivalent region ≡ live wrap text payload.
+        let live = wrap_pe_slim(&CodegenOutput {
+            text: text.clone(),
+            data: vec![],
+        })
+        .unwrap();
+        let t0 = S1_SLIM_TEXT_PAYLOAD_OFF;
+        assert_eq!(
+            &pe.bytes[t0..t0 + text.len()],
+            &live.bytes[t0..t0 + text.len()]
+        );
+        // Seeds still preferred for RET/SET+RET.
+        let ret = tyb_from_records(&[(0xFF, 0, [0; 6])]);
+        assert_eq!(
+            try_compile_tyb_via_yoyo_table(&ret).unwrap().bytes.as_slice(),
+            S3_COMPILE_PE_RET_IMAGE_SEED
+        );
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
