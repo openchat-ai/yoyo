@@ -10861,6 +10861,31 @@ mod tests {
         );
     }
 
+    /// S3.417: skip-mini per-ops PE seed cliff. RET+SET/RET already skip (414/415);
+    /// 8 more fixed10 × 6656B ≫ volume (mirror S3.380/S3.398). Keep bake+finish
+    /// for other ops; next ≠ sheep PE seeds. Next ≥10 = s1_loop densify / YOYO.
+    /// Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_skip_mini_per_ops_seed_cliff_reject() {
+        assert_eq!(S3_COMPILE_PE_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(S3_COMPILE_PE_SET_RET_IMAGE_SEED.len(), 6656);
+        let remaining = 8usize;
+        assert!(remaining * 6656 > 50_000);
+        // Other fixed10 still go mini→finish (parity holds via S3.411).
+        let add = compile_tyb_to_pe(&s3_fixed10_ret_tyb(0x62)).unwrap();
+        assert_eq!(add.bytes.len(), 6656);
+        assert_ne!(add.bytes.as_slice(), S3_COMPILE_PE_RET_IMAGE_SEED);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.413–S3.416: post-skip-mini map. Landed: RET + SET+RET exact TYB skip
     /// mini (memcpy compile seeds). Next ≥10: more exact-TYB skips (ADD+RET…)
     /// or s1_loop→YOYO. Not CLOSED.
