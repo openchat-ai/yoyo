@@ -10835,9 +10835,10 @@ mod tests {
     }
 
 
-    /// S3.396/S3.400: post-S/T gap map. Closed: O/P/Q/R + S/T PE template
-    /// patch (try_emit + try_compile). Cliffs: I/K/L · N pe_dll mini (OW-RT) ·
-    /// H wrap only non-win / oracle. Next ≥10 = N long pole. Not CLOSED.
+    /// S3.396/S3.401: post-T gap map. Closed: O/P/Q/R + S/T PE template patch
+    /// (Windows try_emit + try_compile 去 wrap). Cliffs: I/K/L · N pe_dll mini
+    /// (OW-RT) · H wrap = non-win / oracle only. Next ≥10 = N long pole.
+    /// Not CLOSED.
     #[test]
     #[cfg(windows)]
     fn s3_true_selfhost_post_q_gap_map_pin() {
@@ -10857,6 +10858,69 @@ mod tests {
             s3_recs_from_flat_seed_via_yoyo(ret_flat),
             vec![S3_BOOTSTRAP_EXPAND_ASM[1]]
         );
+        // S/T: non-RET emit+compile do not need live wrap on Windows.
+        let add_ops = [0x62u8, 0xFF];
+        let add_tyb = tyb_from_records(&[s3_fixed_rec(0x62), (0xFF, 0, [0; 6])]);
+        assert_eq!(
+            try_emit_text_via_yoyo_table(&add_ops).unwrap(),
+            s3_run_slim_pe_outbuf_at(
+                &s3_slim_pe_patch_text_data(
+                    S3_HOST_PE_TEXT_BY_LEN[1],
+                    &s3_host_pe_data_payload(&add_ops),
+                ),
+                S3_HOST_OUTBUF_OFF,
+                try_emit_text_via_yoyo_table(&add_ops).unwrap().len(),
+            )
+        );
+        assert_eq!(
+            try_compile_tyb_via_yoyo_table(&add_tyb)
+                .unwrap()
+                .bytes
+                .as_slice(),
+            s3_compile_pe_patch_text(&try_emit_text_via_yoyo_table(&add_ops).unwrap())
+                .as_slice()
+        );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.401: post-T H status — Windows try_emit/try_compile no longer call
+    /// wrap_pe_slim (S/T). wrap remains: non-Windows compile · pin oracles ·
+    /// pe_dll/other. Not a new CLOSED; documents H shrink after S/T.
+    #[test]
+    #[cfg(windows)]
+    fn s3_wrap_pe_slim_post_st_status_pin() {
+        // try_emit ADD path ≡ template patch (no wrap in production path).
+        let ops = [0x62u8, 0xFF];
+        let via = try_emit_text_via_yoyo_table(&ops).unwrap();
+        let patched = s3_slim_pe_patch_text_data(
+            S3_HOST_PE_TEXT_BY_LEN[1],
+            &s3_host_pe_data_payload(&ops),
+        );
+        assert_eq!(
+            s3_run_slim_pe_outbuf_at(&patched, S3_HOST_OUTBUF_OFF, via.len()),
+            via
+        );
+        // try_compile ADD ≡ compile template patch.
+        let tyb = tyb_from_records(&[s3_fixed_rec(0x62), (0xFF, 0, [0; 6])]);
+        let pe = try_compile_tyb_via_yoyo_table(&tyb).unwrap();
+        assert_eq!(
+            pe.bytes.as_slice(),
+            s3_compile_pe_patch_text(&via).as_slice()
+        );
+        // wrap still available as oracle (H not deleted).
+        let live = wrap_pe_slim(&CodegenOutput {
+            text: via.clone(),
+            data: vec![],
+        })
+        .unwrap();
+        assert_eq!(&live.bytes[..2], b"MZ");
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
