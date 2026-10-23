@@ -10401,6 +10401,44 @@ mod tests {
         );
     }
 
+    /// S3.387: gap K/L reject. (K) PE runner = VirtualAlloc+call — host OS glue,
+    /// not YOYO ISA; needed to observe compose outbuf. (L) non-Windows try_emit
+    /// stays sim cursor (no PE map). Neither is a seed/volume knife. Not CLOSED.
+    #[test]
+    fn s3_pe_runner_and_nonwin_sim_cliff_reject() {
+        assert_eq!(S3_HOST_OUTBUF_OFF, 0x160);
+        let sim = s3_sim_prog_loop_cursor(
+            S3_HOST_RET_TYB_SEED,
+            S3_HOST_TABLE_OFF as u64,
+            S3_HOST_OUTBUF_OFF,
+            (S3_HOST_PROG_OFF + 1) as u64,
+            S3_HOST_OUTBUF_OFF as u64,
+            RECORD_SIZE as u64,
+        )
+        .unwrap();
+        assert_eq!(sim, vec![0xC3], "L: sim oracle holds");
+        assert_eq!(S3_HOST_PE_DATA_PREFIX_BYTES.len(), 328);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn s3_pe_runner_windows_observe_pin() {
+        // (K) runner observes image-seed compose; try_emit uses it.
+        let got = s3_run_slim_pe_outbuf_at(S3_HOST_PE_RET_IMAGE_SEED, S3_HOST_OUTBUF_OFF, 1);
+        assert_eq!(got, vec![0xC3]);
+        assert_eq!(try_emit_text_via_yoyo_table(&[0xFF]).unwrap(), vec![0xC3]);
+        assert_eq!(S3_HOST_PE_TEXT_BY_LEN.len(), 8);
+        assert_eq!(S3_HOST_PE_RET_IMAGE_SEED.len(), 6656);
+    }
+
     /// S3.366: win0 poke seed ≡ live zero_then_poke(table[..127]). Floor now 173 (S3.367).
     #[test]
     fn s3_host_table_win0_poke_seed_pin() {
