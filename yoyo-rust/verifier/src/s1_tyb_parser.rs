@@ -10962,6 +10962,47 @@ mod tests {
         );
     }
 
+    /// S3.422: SET/GET/INC handler poke-from-seed — disp8 SET + GET/MOVRR +
+    /// INC/DEC emit = bake row memcpy + field poke (imm/disp/ModRM), not
+    /// byte-C6 hand stores. Seed surface ≥10B object (14+8+11). disp32 SET
+    /// still hand. Next ≥10 = ADD/SUB/CMP seed+poke or disp32 SET seed.
+    /// Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_s1_set_get_inc_handler_seed_poke_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.422"));
+        assert!(pe_dll.contains("SET poke-from-seed"));
+        assert!(pe_dll.contains("GET/MOVRR body = bake GET seed"));
+        assert!(pe_dll.contains("INC/DEC body = bake INC seed"));
+        assert!(pe_dll.contains("s3_bake_table_off + 40 + 4")); // SET
+        assert!(pe_dll.contains("s3_bake_table_off + 60 + 4")); // GET
+        assert!(pe_dll.contains("s3_bake_table_off + 80 + 4")); // INC
+        assert_eq!(s3_fixed_row(0x30).len(), 14);
+        assert_eq!(s3_fixed_row(0x60).len(), 8);
+        assert_eq!(s3_fixed_row(0x66).len(), 11);
+        assert_eq!(S3_HOST_TABLE_SEED.len(), 200);
+        assert_eq!(S3_HOST_TABLE_SEED[40], 0x30);
+        assert_eq!(S3_HOST_TABLE_SEED[41], 14);
+        assert_eq!(S3_HOST_TABLE_SEED[60], 0x60);
+        assert_eq!(S3_HOST_TABLE_SEED[80], 0x66);
+        assert_eq!(
+            compile_tyb_to_pe(&s3_fixed10_ret_tyb(0x30))
+                .unwrap()
+                .bytes
+                .as_slice(),
+            S3_COMPILE_PE_SET_RET_IMAGE_SEED
+        );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.421: first YOYO op-handler object seed — in-DLL s1_loop RET+NOP
     /// handlers emit via bake (`S3_HOST_TABLE_SEED` / fixed10 body), not
     /// hand-imm 0xC3/0x90. Seed surface = 10-row host table (≥10). Next ≥10 =

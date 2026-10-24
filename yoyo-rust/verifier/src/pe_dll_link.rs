@@ -4602,23 +4602,27 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x3D, 0x80, 0x00, 0x00, 0x00]); // cmp eax, 0x80
     let s1_jae_set_d32 = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae disp32 path
-    // --- disp8: 10 movabs + 4 store ---
+    // --- disp8: S3.422 SET poke-from-seed (bake row2 14B + poke imm/disp) ---
     export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]); // mov rax, r12
     export_code.extend_from_slice(&[0x48, 0x83, 0xC0, 0x0E]); // add rax, 14
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]); // cmp rax, r13
     let s1_ja_set_ovf = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x48]); // [r12]=0x48
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0xB8]);
-    export_code.extend_from_slice(&[0x8B, 0x41, 0x04]); // mov eax, [rcx+4]
-    export_code.extend_from_slice(&[0x49, 0x89, 0x44, 0x24, 0x02]); // mov [r12+2], rax
-    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // movzx eax, word [rcx+2]
-    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]); // shl eax, 3
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0A, 0x49]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0B, 0x89]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0C, 0x47]);
-    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x0D]); // [r12+13]=al
+    export_code.extend_from_slice(&[0x56]); // push rsi
+    export_code.extend_from_slice(&[0x51]); // push rcx (record)
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]); // lea rsi,[rip+bake]
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 40 + 4)); // SET
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
+    export_code.extend_from_slice(&[0xB9, 0x0E, 0x00, 0x00, 0x00]); // ecx = 14
+    export_code.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
+    export_code.extend_from_slice(&[0x59]); // pop rcx
+    export_code.extend_from_slice(&[0x8B, 0x41, 0x04]); // mov eax, imm32
+    export_code.extend_from_slice(&[0x49, 0x89, 0x44, 0x24, 0x02]); // poke imm @+2
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // slot
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]); // disp
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x0D]); // poke disp @+13
     export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x0E]); // add r12, 14
+    export_code.extend_from_slice(&[0x5E]); // pop rsi
     let s1_jmp_next = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     // --- disp32: 10 movabs + 7 store ---
@@ -4849,12 +4853,14 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s1_ja_ret_ovf = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
     export_code.extend_from_slice(&[0x56]); // push rsi
+    export_code.extend_from_slice(&[0x51]); // push rcx (record; movsb clobbers)
     export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]); // lea rsi,[rip+bake]
     rip_patches.push((export_code.len() - 4, s3_bake_table_off + 4)); // row0 payload
     export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
     export_code.extend_from_slice(&[0xB9, 0x01, 0x00, 0x00, 0x00]); // ecx = 1
     export_code.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
     export_code.extend_from_slice(&[0x49, 0x89, 0xFC]); // mov r12, rdi
+    export_code.extend_from_slice(&[0x59]); // pop rcx
     export_code.extend_from_slice(&[0x5E]); // pop rsi
     let s1_jmp_next2 = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
@@ -4900,12 +4906,14 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s1_ja_nop_ovf = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
     export_code.extend_from_slice(&[0x56]); // push rsi
+    export_code.extend_from_slice(&[0x51]); // push rcx
     export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]); // lea rsi,[rip+bake]
     rip_patches.push((export_code.len() - 4, s3_bake_table_off + 20 + 4)); // row1
     export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
     export_code.extend_from_slice(&[0xB9, 0x01, 0x00, 0x00, 0x00]); // ecx = 1
     export_code.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
     export_code.extend_from_slice(&[0x49, 0x89, 0xFC]); // mov r12, rdi
+    export_code.extend_from_slice(&[0x59]); // pop rcx
     export_code.extend_from_slice(&[0x5E]); // pop rsi
     let s1_jmp_next4 = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
@@ -4990,16 +4998,18 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s1_jae_get_dst = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
     export_code.extend_from_slice(&[0x41, 0x88, 0xC2]); // mov r10b, al
-    // 49 8B 47 src_disp
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x49]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x8B]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x02, 0x47]);
-    export_code.extend_from_slice(&[0x45, 0x88, 0x4C, 0x24, 0x03]); // mov [r12+3], r9b
-    // 49 89 47 dst_disp
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x04, 0x49]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x05, 0x89]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x06, 0x47]);
-    export_code.extend_from_slice(&[0x45, 0x88, 0x54, 0x24, 0x07]); // mov [r12+7], r10b
+    // S3.422: GET/MOVRR body = bake GET seed (8B) + poke src/dst disp
+    export_code.extend_from_slice(&[0x56]); // push rsi
+    export_code.extend_from_slice(&[0x51]); // push rcx
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]); // lea rsi,[rip+bake]
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 60 + 4)); // GET
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
+    export_code.extend_from_slice(&[0xB9, 0x08, 0x00, 0x00, 0x00]); // ecx = 8
+    export_code.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
+    export_code.extend_from_slice(&[0x59]); // pop rcx
+    export_code.extend_from_slice(&[0x5E]); // pop rsi
+    export_code.extend_from_slice(&[0x45, 0x88, 0x4C, 0x24, 0x03]); // poke src @+3
+    export_code.extend_from_slice(&[0x45, 0x88, 0x54, 0x24, 0x07]); // poke dst @+7
     export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x08]); // add r12, 8
     let s1_jmp_next6 = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
@@ -5076,17 +5086,19 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s1_jae_incdec_slot = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
     export_code.extend_from_slice(&[0x41, 0x88, 0xC1]); // r9b = disp
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x49]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x8B]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x02, 0x47]);
-    export_code.extend_from_slice(&[0x45, 0x88, 0x4C, 0x24, 0x03]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x04, 0x48]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x05, 0xFF]);
-    export_code.extend_from_slice(&[0x45, 0x88, 0x44, 0x24, 0x06]); // [r12+6] = r8b
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x07, 0x49]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x08, 0x89]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x09, 0x47]);
-    export_code.extend_from_slice(&[0x45, 0x88, 0x4C, 0x24, 0x0A]);
+    // S3.422: INC/DEC body = bake INC seed (11B) + poke disp + FF ModRM (r8b)
+    export_code.extend_from_slice(&[0x56]); // push rsi
+    export_code.extend_from_slice(&[0x51]); // push rcx
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]); // lea rsi,[rip+bake]
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 80 + 4)); // INC
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
+    export_code.extend_from_slice(&[0xB9, 0x0B, 0x00, 0x00, 0x00]); // ecx = 11
+    export_code.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
+    export_code.extend_from_slice(&[0x59]); // pop rcx
+    export_code.extend_from_slice(&[0x5E]); // pop rsi
+    export_code.extend_from_slice(&[0x45, 0x88, 0x4C, 0x24, 0x03]); // poke load disp
+    export_code.extend_from_slice(&[0x45, 0x88, 0x44, 0x24, 0x06]); // poke FF ModRM
+    export_code.extend_from_slice(&[0x45, 0x88, 0x4C, 0x24, 0x0A]); // poke store disp
     export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x0B]);
     let s1_jmp_next8 = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
