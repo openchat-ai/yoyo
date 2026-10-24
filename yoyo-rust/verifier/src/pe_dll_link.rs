@@ -4836,6 +4836,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // --- RET
+    // S3.421: first YOYO op-handler object seed — emit body = bake row0
+    // payload (S3_HOST_TABLE_SEED / fixed10 RET), not hand-imm 0xC3.
     let s1_ret = export_code.len();
     patch_jcc32(&mut export_code, s1_je_ret, s1_ret);
     export_code.extend_from_slice(&[0x84, 0xD2]); // test dl, dl
@@ -4846,8 +4848,14 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
     let s1_ja_ret_ovf = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0xC3]);
-    export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]); // inc r12
+    export_code.extend_from_slice(&[0x56]); // push rsi
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]); // lea rsi,[rip+bake]
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 4)); // row0 payload
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
+    export_code.extend_from_slice(&[0xB9, 0x01, 0x00, 0x00, 0x00]); // ecx = 1
+    export_code.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
+    export_code.extend_from_slice(&[0x49, 0x89, 0xFC]); // mov r12, rdi
+    export_code.extend_from_slice(&[0x5E]); // pop rsi
     let s1_jmp_next2 = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
@@ -4880,6 +4888,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // --- NOP
+    // S3.421: emit body = bake row1 payload (fixed10 NOP 0x90), same seed bridge.
     let s1_nop = export_code.len();
     patch_jcc32(&mut export_code, s1_je_nop, s1_nop);
     export_code.extend_from_slice(&[0x84, 0xD2]);
@@ -4890,8 +4899,14 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
     let s1_ja_nop_ovf = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x90]);
-    export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]);
+    export_code.extend_from_slice(&[0x56]); // push rsi
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]); // lea rsi,[rip+bake]
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 20 + 4)); // row1
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
+    export_code.extend_from_slice(&[0xB9, 0x01, 0x00, 0x00, 0x00]); // ecx = 1
+    export_code.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
+    export_code.extend_from_slice(&[0x49, 0x89, 0xFC]); // mov r12, rdi
+    export_code.extend_from_slice(&[0x5E]); // pop rsi
     let s1_jmp_next4 = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 

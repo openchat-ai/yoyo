@@ -10962,6 +10962,49 @@ mod tests {
         );
     }
 
+    /// S3.421: first YOYO op-handler object seed — in-DLL s1_loop RET+NOP
+    /// handlers emit via bake (`S3_HOST_TABLE_SEED` / fixed10 body), not
+    /// hand-imm 0xC3/0x90. Seed surface = 10-row host table (≥10). Next ≥10 =
+    /// more argc0 handlers (GET/INC/…) or parameterized SET poke-from-seed.
+    /// Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_s1_ret_nop_handler_body_seed_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.421"));
+        assert!(pe_dll.contains("first YOYO op-handler object seed"));
+        assert!(pe_dll.contains("bake row0"));
+        assert!(pe_dll.contains("bake row1"));
+        // Bake ≡ host table seed (10×20); RET/NOP payloads at +4 / +24.
+        assert_eq!(S3_HOST_TABLE_SEED.len(), 200);
+        assert_eq!(S3_HOST_TABLE_SEED[0], 0xFF);
+        assert_eq!(S3_HOST_TABLE_SEED[1], 1);
+        assert_eq!(S3_HOST_TABLE_SEED[4], 0xC3);
+        assert_eq!(S3_HOST_TABLE_SEED[20], 0x00);
+        assert_eq!(S3_HOST_TABLE_SEED[21], 1);
+        assert_eq!(S3_HOST_TABLE_SEED[24], 0x90);
+        assert_eq!(s3_fixed_row(0xFF), &[0xC3]);
+        assert_eq!(s3_fixed_row(0x00), &[0x90]);
+        // Skip-mini RET still seed-identical; in-DLL runtime ≡ pe_dll_link suite.
+        assert_eq!(
+            compile_tyb_to_pe(&s3_fixed10_ret_tyb(0xFF))
+                .unwrap()
+                .bytes
+                .as_slice(),
+            S3_COMPILE_PE_RET_IMAGE_SEED
+        );
+        assert!(pe_dll.contains("s3_bake_table_off + 4"));
+        assert!(pe_dll.contains("s3_bake_table_off + 20 + 4"));
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.420: bake dual+RET pilots densify reject. ≥8 near-identical stubs
     /// (SET/GET/INC/DEC/ADD/SUB/MOVRR/CMP +RET) share the same emit shape —
     /// guard chain + bake memcpy + RET byte + jmp finish. Compressing hex /
