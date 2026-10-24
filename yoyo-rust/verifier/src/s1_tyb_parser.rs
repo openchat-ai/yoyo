@@ -10930,6 +10930,38 @@ mod tests {
         );
     }
 
+    /// S3.419: s1_finish→YOYO IR seed reject (413 map#1). Finish is call-time:
+    /// pass-2 + trail-C3 + 3×memcpy use DLL-local stack (`IN_DLL_S1_*`) and RIP
+    /// patches — static YOYO IR cannot absorb without new frame arch. Seedable
+    /// parts already landed: PE shell=compile seed (407); RET/SET+RET skip
+    /// finish (414/415). Next ≥10 = bake dual+RET pilots densify (≥8 near-
+    /// identical stubs) or first YOYO op-handler object seed. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_s1_finish_yoyo_ir_seed_reject() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("let s1_finish = export_code.len()"));
+        assert!(pe_dll.contains("memcpy template"));
+        assert!(pe_dll.contains("IN_DLL_S1_PE_OFF"));
+        assert!(pe_dll.contains("IN_DLL_S1_CODE_OFF"));
+        assert!(pe_dll.contains("S1_SLIM_TEXT_PAYLOAD_OFF"));
+        // Seedable shell already unified; finish body still hand-hex.
+        assert!(pe_dll.contains("S3_COMPILE_PE_RET_IMAGE_SEED"));
+        assert!(pe_dll.contains("S3.407"));
+        assert!(pe_dll.contains("S3.414"));
+        assert!(pe_dll.contains("S3.415"));
+        assert_eq!(S3_COMPILE_PE_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(S3_COMPILE_PE_SET_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.413–S3.416: post-skip-mini map. Landed: RET + SET+RET exact TYB skip
     /// mini (memcpy compile seeds). Next ≥10: more exact-TYB skips (ADD+RET…)
     /// or s1_loop→YOYO. Not CLOSED.
