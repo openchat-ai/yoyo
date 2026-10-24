@@ -10962,6 +10962,60 @@ mod tests {
         );
     }
 
+    /// S3.420: bake dual+RET pilots densify reject. ≥8 near-identical stubs
+    /// (SET/GET/INC/DEC/ADD/SUB/MOVRR/CMP +RET) share the same emit shape —
+    /// guard chain + bake memcpy + RET byte + jmp finish. Compressing hex /
+    /// factoring −1 = sheep 0 capability (mirror 417/418). True next ≥10 =
+    /// first YOYO op-handler object seed (own-ISA bytes in .text/.rdata).
+    /// Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_dual_ret_pilots_densify_reject() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        let pilots = [
+            "yoyo_in_dll_s3_set_ret_pilot",
+            "yoyo_in_dll_s3_get_ret_pilot",
+            "yoyo_in_dll_s3_inc_ret_pilot",
+            "yoyo_in_dll_s3_dec_ret_pilot",
+            "yoyo_in_dll_s3_add_ret_pilot",
+            "yoyo_in_dll_s3_sub_ret_pilot",
+            "yoyo_in_dll_s3_movrr_ret_pilot",
+            "yoyo_in_dll_s3_cmp_ret_pilot",
+        ];
+        for m in pilots {
+            assert!(pe_dll.contains(m), "missing pilot {m}");
+        }
+        assert!(pilots.len() >= 8, "dual+RET surface ≥8 — densify ≠ sheep cut");
+        // Named try stubs still distinct (densify ≠ delete these labels).
+        let tries = [
+            "let s3_try_set",
+            "let s3_try_get",
+            "let s3_try_inc",
+            "let s3_try_dec",
+            "let s3_try_add",
+            "let s3_try_sub",
+            "let s3_try_movrr",
+            "let s3_try_cmp",
+        ];
+        for t in tries {
+            assert!(pe_dll.contains(t), "missing try {t}");
+        }
+        assert!(tries.len() >= 8);
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(S3_COMPILE_PE_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.413–S3.416: post-skip-mini map. Landed: RET + SET+RET exact TYB skip
     /// mini (memcpy compile seeds). Next ≥10: more exact-TYB skips (ADD+RET…)
     /// or s1_loop→YOYO. Not CLOSED.
