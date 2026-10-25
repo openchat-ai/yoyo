@@ -10962,6 +10962,36 @@ mod tests {
         );
     }
 
+    /// S3.423: ADD/SUB/CMP handler seed+poke — bake ADD (15B) + CMP (11B)
+    /// memcpy + poke disp/ModRM/imm. Completes fixed10 ALU/CMP surface with
+    /// 421–422. Next ≥10 = disp32 SET seed, or MOVRR-only row, or remaining
+    /// non-fixed handlers (IMUL/LDB/…) still hand. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_s1_add_sub_cmp_handler_seed_poke_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.423"));
+        assert!(pe_dll.contains("ADD/SUB body = bake ADD seed"));
+        assert!(pe_dll.contains("CMP body = bake CMP seed"));
+        assert!(pe_dll.contains("s3_bake_table_off + 100 + 4")); // ADD
+        assert!(pe_dll.contains("s3_bake_table_off + 180 + 4")); // CMP
+        assert_eq!(s3_fixed_row(0x62).len(), 15);
+        assert_eq!(s3_fixed_row(0x61).len(), 15);
+        assert_eq!(s3_fixed_row(0x65).len(), 11);
+        assert_eq!(S3_HOST_TABLE_SEED[100], 0x62);
+        assert_eq!(S3_HOST_TABLE_SEED[101], 15);
+        assert_eq!(S3_HOST_TABLE_SEED[180], 0x65);
+        assert_eq!(S3_HOST_TABLE_SEED[181], 11);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.422: SET/GET/INC handler poke-from-seed — disp8 SET + GET/MOVRR +
     /// INC/DEC emit = bake row memcpy + field poke (imm/disp/ModRM), not
     /// byte-C6 hand stores. Seed surface ≥10B object (14+8+11). disp32 SET
