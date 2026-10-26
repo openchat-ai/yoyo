@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.433**（432 multi CALL/JMP/JCC seed reuse；下一刀=mt SET/ALLOC seed；**不**假 CLOSED）。
+**默认** 继续 **= S3.434**（433 mt SET/ALLOC seed；下一刀=mt GET/INC/ALU hand C6；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -278,11 +278,12 @@ ded3d5   | STB/pack 去 SET ZERO；slot13 image-zero floor |
 | **S3.430** ✅       | 5fac607 | ALLOC prefix seed+poke（bake+317） |
 | **S3.431** ✅       | f6a85b5 | ALLOC store seed+poke（bake+351/355） |
 | **S3.432** ✅       | 58701d2 | multi CALL/JMP/JCC seed reuse（301/306/311） |
-| **S3.433** ⏳       | —           | mt SET/ALLOC seed reuse · **本步** |
+| **S3.433** ✅       | f2ec117 | mt SET/ALLOC seed reuse（row2/+200/+317/+351/+355） |
+| **S3.434** ⏳       | —           | mt GET/INC/ALU hand C6 seed · **本步** |
 
 
 
-**缺口**：真自举 — multi ctrl 已接 seed；下一刀 mt SET/ALLOC。DATA/LABEL=meta cliff。无假 CLOSED。逐步正文 → git log。
+**缺口**：真自举 — mt SET/ALLOC 已接 seed；下一刀 mt GET/INC/ALU。DATA/LABEL=meta cliff。无假 CLOSED。逐步正文 → git log。
 
 ---
 
@@ -318,7 +319,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.433**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.434**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -326,4 +327,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-26**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.433** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-26**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.434** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
