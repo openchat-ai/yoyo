@@ -860,8 +860,10 @@ const _: () = assert!(IN_DLL_S1_CODE_CAP == 1024);
 /// S3.43/S3.390: 10-row bake ≡ host [`crate::s1_tyb_parser::S3_HOST_TABLE_SEED`].
 /// gap N slice: drop duplicate hand-hex bodies — one object-code seed for host+DLL.
 fn s3_in_dll_bake_table() -> Vec<u8> {
-    let v = crate::s1_tyb_parser::S3_HOST_TABLE_SEED.to_vec();
-    debug_assert_eq!(v.len(), 10 * 20);
+    // S3.424: host table (200) ‖ SET disp32 body seed (17).
+    let mut v = crate::s1_tyb_parser::S3_HOST_TABLE_SEED.to_vec();
+    v.extend_from_slice(&crate::s1_tyb_parser::S3_SET_DISP32_BODY_SEED);
+    debug_assert_eq!(v.len(), 10 * 20 + 17);
     v
 }
 const _: () = assert!(IN_DLL_S1_PE_OFF == 0x1480);
@@ -4625,7 +4627,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x5E]); // pop rsi
     let s1_jmp_next = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-    // --- disp32: 10 movabs + 7 store ---
+    // --- disp32: S3.424 SET poke-from-seed (bake+200, 17B) ---
     let s1_set_d32 = export_code.len();
     patch_jcc32(&mut export_code, s1_jae_set_d32, s1_set_d32);
     export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]); // mov rax, r12
@@ -4633,17 +4635,21 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]); // cmp rax, r13
     let s1_ja_set_ovf17 = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x48]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0xB8]);
-    export_code.extend_from_slice(&[0x8B, 0x41, 0x04]);
-    export_code.extend_from_slice(&[0x49, 0x89, 0x44, 0x24, 0x02]);
-    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]);
-    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0A, 0x49]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0B, 0x89]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0C, 0x87]); // ModRM disp32
-    export_code.extend_from_slice(&[0x41, 0x89, 0x44, 0x24, 0x0D]); // mov [r12+13], eax
+    export_code.extend_from_slice(&[0x56]); // push rsi
+    export_code.extend_from_slice(&[0x51]); // push rcx
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]); // lea rsi,[rip+seed]
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 200)); // SET disp32
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
+    export_code.extend_from_slice(&[0xB9, 0x11, 0x00, 0x00, 0x00]); // ecx = 17
+    export_code.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
+    export_code.extend_from_slice(&[0x59]); // pop rcx
+    export_code.extend_from_slice(&[0x8B, 0x41, 0x04]); // imm32
+    export_code.extend_from_slice(&[0x49, 0x89, 0x44, 0x24, 0x02]); // poke imm @+2
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // slot
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]); // disp
+    export_code.extend_from_slice(&[0x41, 0x89, 0x44, 0x24, 0x0D]); // poke disp32 @+13
     export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x11]); // add r12, 17
+    export_code.extend_from_slice(&[0x5E]); // pop rsi
     let s1_jmp_next_set_d32 = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
@@ -7300,10 +7306,14 @@ mod tests {
             ascii.contains("yoyo_in_dll_s3_table_bake"),
             "S3.37 template-table bake marker must be in .rdata"
         );
-        // S3.43/S3.390: 10×20B bake ≡ host table object-code seed (no hand-hex).
+        // S3.43/S3.390/S3.424: 10×20B host seed ‖ SET disp32 body (17B).
         let bake = s3_in_dll_bake_table();
-        assert_eq!(bake.as_slice(), crate::s1_tyb_parser::S3_HOST_TABLE_SEED.as_slice());
-        assert_eq!(bake.len(), 200);
+        assert_eq!(&bake[..200], crate::s1_tyb_parser::S3_HOST_TABLE_SEED.as_slice());
+        assert_eq!(bake.len(), 217);
+        assert_eq!(
+            &bake[200..],
+            crate::s1_tyb_parser::S3_SET_DISP32_BODY_SEED.as_slice()
+        );
         assert_eq!(bake[0], 0xFF);
         assert_eq!(bake[20], 0x00);
         assert_eq!(bake[40], 0x30);

@@ -2392,6 +2392,14 @@ fn s3_fixed10_named_cases() -> Vec<(&'static str, Vec<(u8, u8, [u8; 6])>)> {
 /// Not an emit_x86 translator — YOYO table-compose copies these encodings.
 /// Order ≡ `S3_FIXED10_OPS`. Verified ≡ live emit_x86 in `s3_fixed10_body_seed_pin`.
 /// `static` (not `const`): `s3_fixed_row` must alias one storage — const re-promotes per use.
+/// S3.424: SET slot≥16 body = own-ISA object seed (movabs + `[r15+disp32]`).
+/// Not in fixed10 host-table rows (those stay disp8). In-DLL bake appends this
+/// after `S3_HOST_TABLE_SEED` (offset +200).
+pub const S3_SET_DISP32_BODY_SEED: [u8; 17] = [
+    0x48, 0xb8, 0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00, // movabs rax,imm
+    0x49, 0x89, 0x87, 0x00, 0x00, 0x00, 0x00, // mov [r15+disp32], rax
+];
+
 static S3_FIXED10_BODY_SEED: [&[u8]; 10] = [
     /* 0xff RET */ &[0xc3],
     /* 0x00 NOP */ &[0x90],
@@ -10952,6 +10960,39 @@ mod tests {
         assert!(pe_dll.contains("S3.415"));
         assert_eq!(S3_COMPILE_PE_RET_IMAGE_SEED.len(), 6656);
         assert_eq!(S3_COMPILE_PE_SET_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.424: SET disp32 poke-from-seed — bake appends
+    /// `S3_SET_DISP32_BODY_SEED` (17B) after host table; s1_loop slot≥16 path
+    /// memcpy + poke imm/disp32. Completes SET emit surface (disp8=422,
+    /// disp32=424). Next ≥10 = non-fixed handlers (IMUL/LDB/MEMCPY…) or
+    /// remaining hand-hex densify cliffs. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_s1_set_disp32_handler_seed_poke_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.424"));
+        assert!(pe_dll.contains("SET poke-from-seed (bake+200"));
+        assert!(pe_dll.contains("s3_bake_table_off + 200"));
+        assert_eq!(S3_SET_DISP32_BODY_SEED.len(), 17);
+        assert_eq!(&S3_SET_DISP32_BODY_SEED[..2], &[0x48, 0xB8]);
+        assert_eq!(&S3_SET_DISP32_BODY_SEED[10..13], &[0x49, 0x89, 0x87]);
+        assert_eq!(S3_HOST_TABLE_SEED.len(), 200);
+        // disp8 SET seed still 14B in host table; disp32 is the append.
+        assert_eq!(s3_fixed_row(0x30).len(), 14);
+        assert_ne!(
+            S3_SET_DISP32_BODY_SEED.as_slice(),
+            s3_fixed_row(0x30),
+            "disp32 ≠ disp8 body"
+        );
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
