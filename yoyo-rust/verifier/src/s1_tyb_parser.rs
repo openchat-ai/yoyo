@@ -2442,6 +2442,13 @@ pub const S3_LDB_OO_BODY_SEED: [u8; 19] = [
     0x49, 0x89, 0x47, 0x00, // mov [r15+dd], rax
 ];
 
+/// S3.428: MEMCPY_STATE one slot pair (8B) — load src + store dst.
+/// Bake +293; loop pokes disp @+3 / @+7 then advances r12 by 8.
+pub const S3_MEMCPY_STATE_PAIR_SEED: [u8; 8] = [
+    0x49, 0x8b, 0x47, 0x00, // mov rax, [r15+src]
+    0x49, 0x89, 0x47, 0x00, // mov [r15+dst], rax
+];
+
 static S3_FIXED10_BODY_SEED: [&[u8]; 10] = [
     /* 0xff RET */ &[0xc3],
     /* 0x00 NOP */ &[0x90],
@@ -11002,6 +11009,33 @@ mod tests {
         assert!(pe_dll.contains("S3.415"));
         assert_eq!(S3_COMPILE_PE_RET_IMAGE_SEED.len(), 6656);
         assert_eq!(S3_COMPILE_PE_SET_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.428: MEMCPY_STATE pair seed+poke — bake+293 `S3_MEMCPY_STATE_PAIR_SEED`
+    /// (8B load+store); loop memcpy + poke src/dst disp. Next ≥10 =
+    /// CALL/JMP/JCC seed or DATA/RAW. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_s1_memcpy_state_pair_seed_poke_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.428"));
+        assert!(pe_dll.contains("pair seed (8B)"));
+        assert!(pe_dll.contains("s3_bake_table_off + 293"));
+        assert_eq!(S3_MEMCPY_STATE_PAIR_SEED.len(), 8);
+        assert_eq!(&S3_MEMCPY_STATE_PAIR_SEED[..4], &[0x49, 0x8b, 0x47, 0x00]);
+        assert_eq!(&S3_MEMCPY_STATE_PAIR_SEED[4..], &[0x49, 0x89, 0x47, 0x00]);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8,
+            301
+        );
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))

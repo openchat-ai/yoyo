@@ -860,8 +860,8 @@ const _: () = assert!(IN_DLL_S1_CODE_CAP == 1024);
 /// S3.43/S3.390: 10-row bake ≡ host [`crate::s1_tyb_parser::S3_HOST_TABLE_SEED`].
 /// gap N slice: drop duplicate hand-hex bodies — one object-code seed for host+DLL.
 fn s3_in_dll_bake_table() -> Vec<u8> {
-    // S3.424–427: host(200) ‖ SET d32(17) ‖ IMUL(16) ‖ ALUV(15)
-    // ‖ MCP_DATA(14) ‖ LDB_oo0(12) ‖ LDB_oo(19).
+    // S3.424–428: host(200) ‖ SET d32(17) ‖ IMUL(16) ‖ ALUV(15)
+    // ‖ MCP_DATA(14) ‖ LDB_oo0(12) ‖ LDB_oo(19) ‖ MCP_STATE pair(8).
     let mut v = crate::s1_tyb_parser::S3_HOST_TABLE_SEED.to_vec();
     v.extend_from_slice(&crate::s1_tyb_parser::S3_SET_DISP32_BODY_SEED);
     v.extend_from_slice(&crate::s1_tyb_parser::S3_IMUL_BODY_SEED);
@@ -869,7 +869,8 @@ fn s3_in_dll_bake_table() -> Vec<u8> {
     v.extend_from_slice(&crate::s1_tyb_parser::S3_MEMCPY_DATA_BODY_SEED);
     v.extend_from_slice(&crate::s1_tyb_parser::S3_LDB_OO0_BODY_SEED);
     v.extend_from_slice(&crate::s1_tyb_parser::S3_LDB_OO_BODY_SEED);
-    debug_assert_eq!(v.len(), 10 * 20 + 17 + 16 + 15 + 14 + 12 + 19);
+    v.extend_from_slice(&crate::s1_tyb_parser::S3_MEMCPY_STATE_PAIR_SEED);
+    debug_assert_eq!(v.len(), 10 * 20 + 17 + 16 + 15 + 14 + 12 + 19 + 8);
     v
 }
 const _: () = assert!(IN_DLL_S1_PE_OFF == 0x1480);
@@ -5436,21 +5437,27 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x39, 0xF7]); // cmp edi, esi
     let s1_mcps_done = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x8D, 0, 0, 0, 0]); // jge done
-    // disp_src = (r9+edi)*8 — lea r10d,[r9+rdi]
-    export_code.extend_from_slice(&[0x45, 0x8D, 0x14, 0x39]);
+    // S3.428: pair seed (8B) — save edi(i)/esi(n)/rcx; movsb clobbers them
+    export_code.extend_from_slice(&[0x57]); // push rdi (i)
+    export_code.extend_from_slice(&[0x56]); // push rsi (n)
+    export_code.extend_from_slice(&[0x51]); // push rcx (record)
+    export_code.extend_from_slice(&[0xFC]); // cld
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]); // lea rsi,[rip+pair]
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 293));
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
+    export_code.extend_from_slice(&[0xB9, 0x08, 0x00, 0x00, 0x00]); // ecx = 8
+    export_code.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
+    export_code.extend_from_slice(&[0x59]); // pop rcx
+    export_code.extend_from_slice(&[0x5E]); // pop rsi (n)
+    export_code.extend_from_slice(&[0x5F]); // pop rdi (i)
+    // poke src/dst disp from (slot+i)*8
+    export_code.extend_from_slice(&[0x45, 0x8D, 0x14, 0x39]); // lea r10d,[r9+rdi]
     export_code.extend_from_slice(&[0x41, 0xC1, 0xE2, 0x03]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x49]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x8B]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x02, 0x47]);
-    export_code.extend_from_slice(&[0x45, 0x88, 0x54, 0x24, 0x03]);
-    // disp_dst = (r8+edi)*8 — lea r10d,[r8+rdi]
-    export_code.extend_from_slice(&[0x45, 0x8D, 0x14, 0x38]);
+    export_code.extend_from_slice(&[0x45, 0x88, 0x54, 0x24, 0x03]); // poke src @+3
+    export_code.extend_from_slice(&[0x45, 0x8D, 0x14, 0x38]); // lea r10d,[r8+rdi]
     export_code.extend_from_slice(&[0x41, 0xC1, 0xE2, 0x03]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x04, 0x49]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x05, 0x89]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x06, 0x47]);
-    export_code.extend_from_slice(&[0x45, 0x88, 0x54, 0x24, 0x07]);
-    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x08]);
+    export_code.extend_from_slice(&[0x45, 0x88, 0x54, 0x24, 0x07]); // poke dst @+7
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x08]); // add r12, 8
     export_code.extend_from_slice(&[0xFF, 0xC7]); // inc edi
     let s1_mcps_loop_jmp = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
@@ -7317,10 +7324,10 @@ mod tests {
             ascii.contains("yoyo_in_dll_s3_table_bake"),
             "S3.37 template-table bake marker must be in .rdata"
         );
-        // S3.43/S3.390/S3.424–427: host ‖ SET d32 ‖ IMUL ‖ ALUV ‖ MCP ‖ LDB×2.
+        // S3.43/S3.390/S3.424–428: host ‖ … ‖ LDB×2 ‖ MCP_STATE pair.
         let bake = s3_in_dll_bake_table();
         assert_eq!(&bake[..200], crate::s1_tyb_parser::S3_HOST_TABLE_SEED.as_slice());
-        assert_eq!(bake.len(), 293);
+        assert_eq!(bake.len(), 301);
         assert_eq!(
             &bake[200..217],
             crate::s1_tyb_parser::S3_SET_DISP32_BODY_SEED.as_slice()
@@ -7342,8 +7349,12 @@ mod tests {
             crate::s1_tyb_parser::S3_LDB_OO0_BODY_SEED.as_slice()
         );
         assert_eq!(
-            &bake[274..],
+            &bake[274..293],
             crate::s1_tyb_parser::S3_LDB_OO_BODY_SEED.as_slice()
+        );
+        assert_eq!(
+            &bake[293..],
+            crate::s1_tyb_parser::S3_MEMCPY_STATE_PAIR_SEED.as_slice()
         );
         assert_eq!(bake[0], 0xFF);
         assert_eq!(bake[20], 0x00);
