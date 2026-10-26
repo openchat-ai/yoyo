@@ -2418,6 +2418,30 @@ pub const S3_ALUV_BODY_SEED: [u8; 15] = [
     0x49, 0x89, 0x47, 0x00, // mov [r15+dst], rax
 ];
 
+/// S3.427: MEMCPY_DATA body seed (14B) — load rsi/rdi/rcx + rep movsb.
+/// Bake appends after ALUV (offset +248).
+pub const S3_MEMCPY_DATA_BODY_SEED: [u8; 14] = [
+    0x49, 0x8b, 0x77, 0x00, // mov rsi, [r15+src]
+    0x49, 0x8b, 0x7f, 0x00, // mov rdi, [r15+dst]
+    0x49, 0x8b, 0x4f, 0x00, // mov rcx, [r15+n]
+    0xf3, 0xa4, // rep movsb
+];
+
+/// S3.427: LDB oo=0 body seed (12B). Bake +262.
+pub const S3_LDB_OO0_BODY_SEED: [u8; 12] = [
+    0x49, 0x8b, 0x47, 0x00, // mov rax, [r15+ss]
+    0x48, 0x0f, 0xb6, 0x00, // movzx rax, byte [rax]
+    0x49, 0x89, 0x47, 0x00, // mov [r15+dd], rax
+];
+
+/// S3.427: LDB oo≠0 body seed (19B). Bake +274; poke imm32 @+7.
+pub const S3_LDB_OO_BODY_SEED: [u8; 19] = [
+    0x49, 0x8b, 0x47, 0x00, // mov rax, [r15+ss]
+    0x48, 0x81, 0xc0, 0x01, 0x00, 0x00, 0x00, // add rax, imm32
+    0x48, 0x0f, 0xb6, 0x00, // movzx rax, byte [rax]
+    0x49, 0x89, 0x47, 0x00, // mov [r15+dd], rax
+];
+
 static S3_FIXED10_BODY_SEED: [&[u8]; 10] = [
     /* 0xff RET */ &[0xc3],
     /* 0x00 NOP */ &[0x90],
@@ -10978,6 +11002,37 @@ mod tests {
         assert!(pe_dll.contains("S3.415"));
         assert_eq!(S3_COMPILE_PE_RET_IMAGE_SEED.len(), 6656);
         assert_eq!(S3_COMPILE_PE_SET_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.427: LDB + MEMCPY_DATA handler seed+poke — bake+248 MCP(14) /
+    /// +262 LDB_oo0(12) / +274 LDB_oo(19). MEMCPY_STATE still hand (unroll
+    /// loop). Next ≥10 = MEMCPY_STATE pair seed or CALL/JMP/JCC. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_s1_ldb_memcpy_handler_seed_poke_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.427"));
+        assert!(pe_dll.contains("MEMCPY_DATA body = bake+248"));
+        assert!(pe_dll.contains("LDB body = bake seed"));
+        assert!(pe_dll.contains("s3_bake_table_off + 248"));
+        assert!(pe_dll.contains("s3_bake_table_off + 262"));
+        assert!(pe_dll.contains("s3_bake_table_off + 274"));
+        assert_eq!(S3_MEMCPY_DATA_BODY_SEED.len(), 14);
+        assert_eq!(&S3_MEMCPY_DATA_BODY_SEED[12..], &[0xf3, 0xa4]);
+        assert_eq!(S3_LDB_OO0_BODY_SEED.len(), 12);
+        assert_eq!(S3_LDB_OO_BODY_SEED.len(), 19);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19,
+            293
+        );
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
