@@ -11137,6 +11137,35 @@ mod tests {
         );
     }
 
+    /// S3.435: batch mt GET+INC+DEC disp8 → bake seeds (GET@+60, INC@+80);
+    /// DEC pokes ModRM C8. disp32/mix still hand (any-slot). ≥3 arms one knife
+    /// (anti one-op densify). Next ≥10 = mt ADD/SUB/MOVRR batch or collapse /
+    /// long-pole. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_multi_get_inc_dec_disp8_seed_batch_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.435"));
+        assert!(pe_dll.contains("batch GET+INC+DEC disp8"));
+        assert!(pe_dll.contains("mt INC disp8 = bake+80"));
+        assert!(pe_dll.contains("mt DEC disp8 = bake+80"));
+        assert!(pe_dll.contains("both slots <16 → bake+60 GET seed"));
+        assert!(pe_dll.contains("s3_bake_table_off + 80 + 4"));
+        assert!(pe_dll.contains("s3_bake_table_off + 60 + 4"));
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.434: post handler/mt-seed capability map + densify reject. s1_loop
     /// emit surface ≈ seeded (C6 residual ≤ trail/poke); mt still hosts
     /// GET/INC/DEC/ADD/SUB/MOVRR/CMP/IMUL/LDB/MCP hand-C6 (≥8 arms). Continuing
@@ -11151,7 +11180,7 @@ mod tests {
         assert!(pe_dll.contains("S3.434"));
         assert!(pe_dll.contains("post-seed-chain map"));
         assert!(pe_dll.contains("densify = sheep"));
-        assert!(pe_dll.contains("batch mt"));
+        assert!(pe_dll.contains("S3.435") || pe_dll.contains("batch GET+INC+DEC"));
         // Seeded surfaces still pinned.
         assert!(pe_dll.contains("S3.429"));
         assert!(pe_dll.contains("S3.433"));
