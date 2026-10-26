@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.434**（433 mt SET/ALLOC seed；下一刀=mt GET/INC/ALU hand C6；**不**假 CLOSED）。
+**默认** 继续 **= S3.434**（收拢后：先能力图/拒羊，勿盲目 mt C6 densify；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -84,210 +84,38 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 ### S3 进度索引
 
-明细 / 单刀正文 → `git log`。下表只留波段 tip pin。
+明细 / 单刀正文 → `git log --grep=S3.`。下表只留**波段 tip** + **近窗**（421+）。更早单刀已折。
 
+| 波段 | pin | 一句话 |
+| --- | --- | --- |
+| **S3.1–29** ✅ | `d310710` | RAW_BYTES + 固定模板 10 op host 表 |
+| **S3.30–52** ✅ | `673297e` | bake 表 + multi bake |
+| **S3.53–76** ✅ | `290679b` | JMP/CALL/JCC + ALU/MEM/平台 stub |
+| **S3.77–98** ✅ | `6b6756e` | any-slot + LOAD/WRITE→slim IAT |
+| **S3.99–108** ✅ | `a10c20d` | host+in-DLL 真 I/O e2e |
+| **S3.109–111** ✅ | `0fa5d9e` | 近端合同 + fixed10 对拍 |
+| **S3.112–223** ✅ | `2b24667` | pack/lea/空DATA/short-lea 收拢（详见 git） |
+| **S3.224–306** ✅ | `8ccdaf6` | shape-fill / expand→asm22 地板 |
+| **S3.307–358** ✅ | `34436b5` | pack/cfg(test) 收拢 + 真自举能力图 |
+| **S3.359–406** ✅ | `a39a2a2` | 目标码种子链；Win PE 去 wrap |
+| **S3.407–420** ✅ | `5b425df` | OW-RT 切片 + densify/skip-mini **拒羊** |
+| **S3.421–428** ✅ | `2bc6fbc` | s1_loop op-handler poke-from-seed |
+| **S3.429–433** ✅ | `f2ec117` | CALL/JMP/JCC + ALLOC + mt 复用 seed |
 
-| 波段                 | pin         | 一句话                                              |
-| ------------------ | ----------- | ------------------------------------------------ |
-| **S3.1–29** ✅      | `d310710`   | RAW_BYTES + 固定模板 10 op host 表                    |
-| **S3.30–52** ✅     | `673297e`   | bake 表 + multi bake                              |
-| **S3.53–76** ✅     | `290679b`   | JMP/CALL/JCC + ALU/MEM/平台 stub                   |
-| **S3.77–98** ✅     | `6b6756e`   | any-slot + LOAD/WRITE→slim IAT                   |
-| **S3.99–108** ✅    | `a10c20d`   | host+in-DLL 真 I/O e2e                            |
-| **S3.109–111** ✅   | `0fa5d9e`   | 近端合同 + fixed10 对拍；证明去掉 `pack_meta_emit`         |
-| **S3.112–135** ✅   | `e431341`   | RAW/lea/pack 宿主面收拢；剩余 Rust 面清单                   |
-| **S3.136–152** ✅   | `8186680`   | pack via_ir / OnceLock / scratch 地板              |
-| **S3.153–163** ✅   | `cce0b51`   | STB pack + 自举地图门禁（done/floor/cliff）             |
-| **S3.164–176** ✅   | `7d9e782`   | A1 OnceLock + TYB STB 发射 + 真自举近端清单               |
-| **S3.177–203** ✅   | `6ff580b`   | 混合/两阶段/run 折叠；生产路径无 bytewise DATA              |
-| **S3.204–223** ✅   | `2b24667`   | empty-DATA in-DLL；1024 帽；short-lea 37B 地板        |
-| **S3.224–241** ✅   | `128fe7d`   | op→shape + scan-fill；控制模板收成字节种子                  |
-| **S3.242–253** ✅   | `a98ddad`   | one/argc flat 冻结；展开只扫 argc；e2e I/O 离 cwd        |
-| **S3.254–255** ✅   | `20bd92d`   | YOYO IR 展开 flat→wire；生产 one/many ctrl 走 via_yoyo     |
-| **S3.256–259** ✅   | `791936a`   | 展开 ctrl flat/哨兵/自再编码；剩余 Rust 面钉死（bootstrap/A1） |
-| **S3.260–262** ✅   | `94f3e77`   | argc-poke 并入展开种子；many-job 128；命名 bootstrap 唯一生产点 |
-| **S3.263** ✅       | `e6d9362`   | sole host wire→records；expand layout 钉死                   |
-| **S3.264** ✅       | `8534834`   | expand argc IR-seed；ctrl flat 92→41；kill pack alias          |
-| **S3.265** ✅       | `c95a46c`   | expand ONE assembler=312；coalesce 劣于 two-seed；A1 三块不动 |
-| **S3.266** ✅       | `a8ddd93`   | host wire→records = parse_tyb header wrap（无第二解析器）     |
-| **S3.267** ✅       | `c7ccad6`   | expand 发射完整 TYB；via_yoyo 直 parse_tyb；ctrl 41→57        |
-| **S3.268** ✅       | 73409da   | TYB header IR-seed；ctrl 57→47；sim composed high-water        |
-| **S3.269** ✅       | 
-b5686c   | pack-only wire→TYB wrap rename；expand 无 wrap                    |
-| **S3.270** ✅       | 39b65d7   | expand magic-only poke；assembler 338→325；zeros 靠 high-water           |
-| **S3.271** ✅       | 052c91   | drop count-hi STB；ctrl 47→45；assembler 325→323              |
-| **S3.272** ✅       | `9778523`   | OUT base 外置 assembler；ctrl 45→44；bootstrap 种子再缩              |
-| **S3.273** ✅       | `6933a82`   | init SETs 外置 assembler；ctrl 44→39；assembler 仍 323               |
-| **S3.274** ✅       | `ea407c1`   | init SETs → flat seed（S3_EXPAND_INIT_FLAT）；assembler 仍 323        |
-| **S3.275** ✅       | `520ee99`   | assembler init+ctrl → 一 flat（s3_bootstrap_expand_asm）；仍 323     |
-| **S3.276** ✅       | `4d894de`     | drop s3_bootstrap_expand_ctrl；唯一 bootstrap=asm；仍 323           |
-| **S3.277** ✅       | 752600   | drop 零 INIT SET；init 6→4；asm 45→43；assembler 323→321 |
-| **S3.278** ✅       | 8851f1   | shape-fill 去 SET13=0；many 51→49；one 40→39；assembler 321→317 |
-| **S3.279** ✅       | 
-ded3d5   | STB/pack 去 SET ZERO；slot13 image-zero floor |
-| **S3.280** ✅       | ecf0f73   | MEMCPY 代 arg 拷贝环；ctrl 39→32；asm 36；assembler 317→277 |
-| **S3.281** ✅       | 9013fea   | STB op 直写；去 MOVRR 暂存；many 40；one 31；assembler 271 |
-| **S3.282** ✅       | dc0bc63   | 去死 ADDV s8；ctrl 31；asm 35；many 39；one 30；assembler 264 |
-| **S3.283** ✅       | 5a559f7   | 就地推进 seed 指针；ctrl 30；asm 34；many 38；one 29；assembler 257 |
-| **S3.284** ✅       | 6af6038   | argc-miss 退出；drop SET255+LABEL3；many 36；one 28；assembler 251 |
-| **S3.285** ✅       | 90e26f6   | ADDV s9 仅 many；one 27；assembler 245 |
-| **S3.286** ✅       | 8430c9b   | shape-fill 扫 (op,argc)；去 shape 间接；many 33；one 24；assembler 227 |
-| **S3.287** ✅       | 57273e3   | 去 SET out（slot9=outbuf）；many 32；one 23；assembler 222 |
-| **S3.288** ✅       | aa3f1c7   | STB oo 折两 ADD+=1；ctrl 29；asm 33；many 31；one 22；assembler 217 |
-| **S3.289** ✅       | 3434244   | JNE 直通匹配；argc+JNE；ctrl 27；asm 31；many 29；one 20；assembler 210 |
-| **S3.290** ✅       | 2ba51fb   | 预置 TYB count；去补丁；ctrl 25；init 3；asm 28；assembler 209 |
-| **S3.291** ✅       | 9de92c1   | 零哨兵 vs slot13；init 2；asm 27；assembler 206 |
-| **S3.292** ✅       | 8a0afbb   | argc 零终止；ctrl 24；asm 26；many 28；one 19；assembler 197 |
-| **S3.293** ✅       | 7262397   | job 游标=slot15；init 1；asm 25；assembler 196 |
-| **S3.294** ✅       | 91f303e   | job=prog_ptr；many 27；one 18；assembler 159 |
-| **S3.295** ✅       | 9dd269f   | table=table_off；ONE 去 MOVRR；one 17；assembler 156 |
-| **S3.296** ✅       | 6e2e659   | 去 SET10（slot10=6）；ctrl 23；asm 24；many 26；one 16；assembler 151 |
-| **S3.297** ✅       | 5c8dd06   | 去 INIT（slot9=OUT+hdr）；asm 23；assembler 150 |
-| **S3.298** ✅       | ba496c2 | many 零终止 26→23；expand SET argc→slot8 MOVRR；assembler 150 |
-| **S3.299** ✅       | e5647fb | argc 256B 下标；ctrl/many 17；one 11；assembler 150→98 |
-| **S3.300** ✅       | f19dd6b | ONE 去 MOVRR（ADDV in-place）；one 10；assembler 98→93；many SET14 |
-| **S3.301** ✅       | 5c90f39 | 去 ONE 死 LABEL6；one 9；assembler 93→90 |
-| **S3.302** ✅       | 311a50e | LABEL20/7 重扫；ctrl/many 16；asm 89；coalesce 量测否决 |
-| **S3.303** ✅       | 158ec34 | wire-job 8B 预烘焙 argc；ctrl 10；assembler 89→69；去 expand argc 种子 |
-| **S3.304** ✅       | eb1bf32 | shape-fill wire-job；many 10；one 2；assembler 69→32；去 argc 表种子 |
-| **S3.305** ✅       | f341d53 | expand≡many 共用 wire 循环；job=slot2；sole loop seed |
-| **S3.306** ✅       | 8ccdaf6   | bulk wire MEMCPY；many≡one；job|hdr join；assembler 32→22 |
-| **S3.307** ✅       | d2ea76f   | pack via_ir 发全 TYB；生产路径去 wire→TYB wrap            |
-| **S3.308** ✅       | 7adfc9a   | expand ONE seed cliff 否决（<10）；MEMCPY pack 全 TYB；hdr helper |
-| **S3.309** ✅       | 2ea39cf   | pack 全家全 TYB；去 expand ARGC/slot8 遗留；assembler 22 |
-| **S3.310** ✅       | e24c5cd   | in-DLL poke@slot15（去 MOVRR）；A1 13×37B density cliff |
-| **S3.311** ✅       | 82a698b   | A1 densify 否决（13→7=−6 <10；pe_dll argc≤3）           |
-| **S3.312** ✅       | 31556ea   | host long-seed 窗内 global-distinct；220→171（−49）      |
-| **S3.313** ✅       | c9d5b3a   | pack 全家 payload poke 替 runs；lea 172→99（−73）         |
-| **S3.314** ✅       | 0a8b687   | emit-flat poke+尾零钉；many 36→14（−22）                  |
-| **S3.315** ✅       | f6bc8cf   | 自举近端钉（asm22·A1×13·host171·boot2）；poke 时代地板   |
-| **S3.316** ✅       | eb134c2   | pack const scratch poke flat；proto 57→52（−5×2）        |
-| **S3.317** ✅       | 06ac488   | emit-body const-embed 否决（~95B 宿主金冻结，方向错）   |
-| **S3.318** ✅       | add04c4   | STB runs `#[cfg(test)]`；生产 pack/emit 仅 poke          |
-| **S3.319** ✅       | a913df8   | fixed body→.text 仅 emit_x86/A1（同 lea 地板）           |
-| **S3.320** ✅       | 26b8585   | expand bootstrap 具名 MEMCPY+RET（≡ flat；去 decode）   |
-| **S3.321** ✅       | 6ef04dd   | shape-fill ctrl≡bootstrap；via_yoyo 仅留测试证明         |
-| **S3.322** ✅       | 8527bdb   | 去掉 expand INIT 空脚手架；asm flat≡ctrl                 |
-| **S3.323** ✅       | 0253e46   | 删除 `s3_expand_asm_flat`；CTRL_FLAT 即 asm body         |
-| **S3.324** ✅       | c3d4848   | 去掉 EXPAND_CTRL_* 别名；MANY_FLAT 即 expand body        |
-| **S3.325** ✅       | `b1d2a91`   | fill_one 具名 MEMCPY；many_ctrl→ctrl；via_yoyo 仅测试 |
-| **S3.326** ✅       | `9bd5c67`   | 去 ONE_FLAT/many_ctrl；ONE_ROWS≡MANY_ROWS               |
-| **S3.327** ✅       | `75399c4`   | 去 fill_ctrl/ONE_ROWS；生产直 extend bootstrap          |
-| **S3.328** ✅       | `f5c072d`   | 去 shape_fill_one/ONE_*/EXPAND_ASM_ROWS；boot[0]=MEMCPY |
-| **S3.329** ✅       | `67ac494`   | flat→recs decode `cfg(test)`；生产仅 named bootstrap   |
-| **S3.330** ✅       | `f68f88d`   | host SET-out −1 sheep reject；restore host seed `#[test]` |
-| **S3.331** ✅       | `05fad99`   | dll prog_loop_code `cfg(test)`；host 唯一生产 body        |
-| **S3.332** ✅       | `3b74cc0`   | shape-fill TYB builders `cfg(test)`；expand 拥生产路径 |
-| **S3.333** ✅       | `a68a9d8`   | A1 append + bytewise DATA pack `cfg(test)`              |
-| **S3.334** ✅       | `7ab7cb8`   | reference pack_data/host_pack/wire `cfg(test)`；via_ir 留 |
-| **S3.335** ✅       | `907bca2`   | emit-TYB file cluster + unpack_data_tyb `cfg(test)`    |
-| **S3.336** ✅       | `0d49690`   | alt pack TYB (proto/stb/memcpy-loop) `cfg(test)`；via_ir 留 |
-| **S3.337** ✅       | `a95cd28`   | gate misc test-only helpers (fixed_table/host_set/seed/jne) |
-| **S3.338** ✅       | `735393b`   | rec_wire+proto putc/record+rec_sub `cfg(test)`；expand 留 |
-| **S3.339** ✅       | `277349f`   | pack via_ir/loop_stb+flat_at/hdr `cfg(test)`；expand 留 |
-| **S3.340** ✅       | `17aad49`   | pack consts `cfg(test)`；expand/bootstrap allow dead_code |
-| **S3.341** ✅       | `d5413e1`   | pub `s3_expand_many_flat_tyb` + pub ASM_PIN；去 allow dead_code |
-| **S3.342** ✅       | `30aef1f`   | host prog-loop densify 否决（sheep 3；256B index 放不下） |
-| **S3.343** ✅       | `45b28f2`   | argc index + generic expand_flat `cfg(test)`；prod 硬编码 wire |
-| **S3.344** ✅       | `c9b6de6`   | MANY_FLAT/ROWS `cfg(test)`；prod expand 硬编码 wire      |
-| **S3.345** ✅       | `40f46e3`   | poke default-BASE + ret/nop helpers `cfg(test)`；OnceLock 内联 |
-| **S3.346** ✅       | `d120fd1`   | ir_seed_at `cfg(test)`；prod host/expand 直调 zero_then_poke |
-| **S3.347** ✅       | `60bcac3`   | prod surface inventory（5 clusters；floors 22/171/13）   |
-| **S3.348** ✅       | `5558dd6`   | host_body_of `cfg(test)`；OnceLock 内联 strip-RET 烘焙   |
-| **S3.349** ✅       | `2375244`   | fixed_payload `cfg(test)`；prod host 内联 fixed_row→payload |
-| **S3.350** ✅       | `d3cbb35`   | sim_prog_loop `cfg(test)`；try_emit 直调 cursor           |
-| **S3.351** ✅       | `f0e1539`   | thin-wrapper 脚手架羊粪否决（0 IR；地板 22/171 不动）   |
-| **S3.352** ✅       | `7a5ef61`   | post-scaffold cliff map（ASM22/host171/A1×13/OnceLock） |
-| **S3.353** ✅       | `9278e2d`   | 去掉 expand job 遗留 sentinel（records|hdr；0 IR）       |
-| **S3.354** ✅       | `c95d099`   | expand job wire 由 bootstrap 派生（单一真相；0 IR）      |
-| **S3.355** ✅       | `124faff`   | 共用 `s3_expand_job_recs_tyb`（prod job≡boot；test 同路） |
-| **S3.356** ✅       | `d4adfd7`   | bootstrap expand body 改 const 表（MEMCPY+RET；0 IR）   |
-| **S3.357** ✅       | `909bf09`   | bootstrap Vec wrapper `cfg(test)`；prod 只用 const 表   |
-| **S3.358** ✅       | `34436b5`   | 真自举能力图（已会 vs 三缺口；不译 emit_x86）            |
-| **S3.359** ✅       | `4115f57`   | gap1 关闭：fixed10 body=自有 ISA 目标码种子（prod 不再 live emit_x86） |
-| **S3.360** ✅       | `8b04533`   | gap2 关闭：lea→.text=A1 记录种子（prod 不再 live pack） |
-| **S3.361** ✅       | `1a38e8c`   | gap3 关闭：expand poke=自有 SET/STB 种子（prod 不再 live poke） |
-| **S3.362** ✅       | `92af557`   | expand 装载薄壳关：prod=整段 TYB 目标码种子（184B）     |
-| **S3.363** ✅       | `9a351c3`   | host prog-loop=自有记录种子（仅补丁 ops_len；29 行）   |
-| **S3.364** ✅       | `26b3d45`   | host 表=自有目标码种子（200B；prod 不再 live 组 body） |
-| **S3.365** ✅       | `5cfb7c4`   | body 直读 static 种子（去 OnceLock Vec；fixed_row 别名） |
-| **S3.366** ✅       | 3df50e4   | host table win0 poke=自有 SET/STB 种子（80；地板171） |
-| **S3.367** ✅       | 1f472cd   | host table win1 poke=自有 SET/STB 种子（58；地板171→173） |
-| **S3.368** ✅       | b07dbe3   | host RET=整段 TYB 目标码种子（1392B；无 live assemble） |
-| **S3.369** ✅       | 3c0fc9b   | host SET+RET=整段 TYB 目标码种子（1408B） |
-| **S3.370** ✅       | 96cb4f4   | 非 RET 逐组合 TYB 种子悬崖（组合爆炸；保 assemble） |
-| **S3.371** ✅       | `d97c589`   | 真自举下一缺口图（A try_emit-PE / B 非RET / C in-DLL） |
-| **S3.372** ✅       | `3f4e154`   | gap A：try_emit=PE 跑 YOYO（DATA|lea|loop；非 sim） |
-| **S3.373** ✅       | `4b1b0d5`   | PE 构图 DATA 前缀=目标码种子（110；prog live） |
-| **S3.374** ✅       | `f7741ba`   | PE 构图 RET/SET+RET=整段 TYB 种子（1288B） |
-| **S3.375** ✅       | `c615dc0`   | 非RET 逐组合 PE TYB 种子悬崖（保 assemble） |
-| **S3.376** ✅       | `7be4b38`   | gap C：in-DLL RET/SET+RET=整段 TYB 种子 |
-| **S3.377** ✅       | `d46e00e`   | 后种子缺口图（D空DATA / E emit / F in-DLL） |
-| **S3.378** ✅       | `fbb88b1`   | gap D 拒：empty-DATA win0 1117>1024（保 DATA PE） |
-| **S3.379** ✅       | `9bcf70c`   | gap E：PE RET/SET+RET=slim 镜像种子（去 emit） |
-| **S3.380** ✅       | `fe44b95`   | 非RET 逐组合 PE 镜像种子悬崖（保 emit+wrap） |
-| **S3.381** ✅       | `ee64538`   | gap F：in-DLL RET/SET+RET=slim PE 镜像种子 |
-| **S3.382** ✅       | `b8d284b`   | 后镜像缺口图（G非RET emit / H wrap / I） |
-| **S3.383** ✅       | `fd72b40`   | gap G：PE text-by-len 种子（非RET 去 emit_x86） |
-| **S3.384** ✅       | `80da9c8`   | gap H 拒：wrap_pe_slim=PE 容器层（保 host packer） |
-| **S3.385** ✅       | `cbf4f50`   | 后G/H缺口图（J data前缀 / K runner / L非win） |
-| **S3.386** ✅       | `cbf4f50`   | gap J：PE data 前缀=328B 目标码种子 |
-| **S3.387** ✅       | `0a0e8c3`   | gap K/L 拒：PE runner=OS glue；非win=sim |
-| **S3.388** ✅       | `fd3986d`   | 后K/L缺口图（M expand / N in-DLL 调度） |
-| **S3.389** ✅       | `1398450`   | gap M：expand=PE（SEED@0x80；镜像种子） |
-| **S3.390** ✅       | `586b472`   | gap N切片：in-DLL bake=host table种子（调度仍Rust） |
-| **S3.391** ✅       | `c9d4829`   | N残拒：pe_dll mini调度=OW-RT CUT（bake已切） |
-| **S3.392** ✅       | `7c6093e`   | 后N缺口图（O via_yoyo→PE / P 非bootstrap） |
-| **S3.393** ✅       | `7c6093e`   | gap O：bootstrap via_yoyo expand=PE（非sim） |
-| **S3.394** ✅       | `0f0b5a9`   | gap P：bootstrap前缀 via_yoyo→PE slice |
-| **S3.395** ✅       | `9ce7e8b`   | gap Q拒：非prefix flat=proof-sim（产无flat） |
-| **S3.396** ✅       | `8fc23d8`   | 后Q真自举缺口图（下一刀=R try_compile种子） |
-| **S3.397** ✅       | `8fc23d8`   | gap R：try_compile RET/SET+RET=PE image种子 |
-| **S3.398** ✅       | `7fc2566`   | gap R残拒：非RET try_compile仍wrap（禁种子羊） |
-| **S3.399** ✅       | `e65c840`   | gap S：try_emit text-by-len=PE模板patch（去wrap） |
-| **S3.400** ✅       | `c3483e6`   | gap T：try_compile非RET=PE模板text patch |
-| **S3.401** ✅       | `1d6cc08`   | 后T图+H状态：Win emit/compile 去wrap |
-| **S3.402** ✅       | `d23c770`   | compile_tyb_to_pe 优先 YOYO try_compile（≡mini） |
-| **S3.403** ✅       | `ad162c3`   | N无更多≥10切片拒（mini调度=OW-RT长杆） |
-| **S3.404** ✅       | `ecbc678`   | 后host完备图（Win compile 去wrap） |
-| **S3.405** ✅       | `ecbc678`   | gap U：非fixed10 compile=PE模板patch |
-| **S3.406** ✅       | `a39a2a2`   | 后U图：host Win PE 去wrap；下一刀=OW-RT in-DLL |
-| **S3.407** ✅       | `ba2745c`   | OW-RT切片：in-DLL PE模板=compile RET种子 |
-| **S3.408** ✅       | `1dacc88`   | OW-RT残拒：in-DLL mini调度仍hand-hex |
-| **S3.409** ✅       | `3335018`   | 后OW-RT切片图；in-DLL RET/SET+RET≡compile种子 |
-| **S3.410** ✅       | `4712eb1`   | in-DLL fixed10+RET ≡ host compile（共享模板） |
-| **S3.411** ✅       | `0301121`   | 后parity图；全fixed10+RET in-DLL≡host |
-| **S3.412** ✅       | `407cd53`   | 后parity库存：下一≥10=mini→YOYO（禁奇偶羊） |
-| **S3.413** ✅       | 1395b88   | OW-RT mini→YOYO 首切片候选图 |
-| **S3.414** ✅       | 0b6ee7a   | OW-RT：exact RET TYB 跳过mini（memcpy种子） |
-| **S3.415** ✅       | 7be9d98   | OW-RT：exact SET+RET 跳过mini（memcpy种子） |
-| **S3.416** ✅       | 93cf7ca   | 后skip-mini图（RET+SET+RET已跳过） |
-| **S3.417** ✅       | 3c5676b   | skip-mini 每op PE种子崖拒（禁羊） |
-| **S3.418** ✅       | 950dfc5   | s1_loop densify 拒（禁羊；真关=YOYO） |
-| **S3.419** ✅       | 361645d   | s1_finish→YOYO IR seed 拒（call-time frame） |
-| **S3.420** ✅       | 5b425df | dual+RET pilots densify 拒（禁羊；真关=op-handler seed） |
-| **S3.421** ✅       | d2266ed | s1_loop RET/NOP emit←bake/HOST_TABLE seed |
-| **S3.422** ✅       | 756537f | SET/GET/INC handler poke-from-seed（bake+poke） |
-| **S3.423** ✅       | 3eea83e | ADD/SUB/CMP handler seed+poke |
-| **S3.424** ✅       | c9ebbdd | SET disp32 poke-from-seed（bake+200） |
-| **S3.425** ✅       | 17a3440 | IMUL handler seed+poke（bake+217） |
-| **S3.426** ✅       | 19d8ee4 | ALUV handler seed+poke（bake+233） |
-| **S3.427** ✅       | 099e804 | LDB+MEMCPY_DATA seed+poke（bake+248/262/274） |
-| **S3.428** ✅       | 2bc6fbc | MEMCPY_STATE pair seed+poke（bake+293） |
-| **S3.429** ✅       | 0b714e3 | CALL/JMP/JCC handler seed+poke（bake+301/306/311） |
-| **S3.430** ✅       | 5fac607 | ALLOC prefix seed+poke（bake+317） |
-| **S3.431** ✅       | f6a85b5 | ALLOC store seed+poke（bake+351/355） |
-| **S3.432** ✅       | 58701d2 | multi CALL/JMP/JCC seed reuse（301/306/311） |
-| **S3.433** ✅       | f2ec117 | mt SET/ALLOC seed reuse（row2/+200/+317/+351/+355） |
-| **S3.434** ⏳       | —           | mt GET/INC/ALU hand C6 seed · **本步** |
+#### 近窗（本波 · 单刀）
 
+| 刀 | pin | 一句话 |
+| --- | --- | --- |
+| **S3.429** ✅ | 0b714e3 | CALL/JMP/JCC handler seed（bake+301/306/311） |
+| **S3.430** ✅ | 5fac607 | ALLOC prefix seed（bake+317） |
+| **S3.431** ✅ | f6a85b5 | ALLOC store seed（bake+351/355） |
+| **S3.432** ✅ | 58701d2 | multi CALL/JMP/JCC seed reuse |
+| **S3.433** ✅ | f2ec117 | mt SET/ALLOC seed reuse |
+| **S3.434** ⏳ | — | **本步**：能力图/拒羊 — mt GET/INC densify？真下一刀？ |
 
-
-**缺口**：真自举 — mt SET/ALLOC 已接 seed；下一刀 mt GET/INC/ALU。DATA/LABEL=meta cliff。无假 CLOSED。逐步正文 → git log。
+**缺口**：handler/mt seed 链收益递减（剩 C6≈羊）。长杆仍 **OW-RT**（mini 调度→YOYO）。DATA/LABEL=meta cliff。无假 CLOSED。`bake=362` · `s3_=243`。
 
 ---
-
-
 
 ## 验收命令
 
@@ -319,7 +147,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.434**；做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.434**（能力图/拒羊优先；mt C6 densify 需 ≥10 真能力）。做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -327,4 +155,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-26**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.434** · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 无 tag · 长文已折（git）
+**快照 2026-10-26**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.434** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 看板已再折（波段+近窗）
