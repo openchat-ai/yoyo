@@ -2409,6 +2409,15 @@ pub const S3_IMUL_BODY_SEED: [u8; 16] = [
     0x49, 0x89, 0x47, 0x00, // mov [r15+dst], rax
 ];
 
+/// S3.426: ALUV (ADDV/ORV/SUBV) body seed — opcode byte @+9 poked to 01/09/29.
+/// Bake appends after IMUL (offset +233).
+pub const S3_ALUV_BODY_SEED: [u8; 15] = [
+    0x49, 0x8b, 0x47, 0x00, // mov rax, [r15+dst]
+    0x49, 0x8b, 0x4f, 0x08, // mov rcx, [r15+src]
+    0x48, 0x01, 0xc8, // add rax, rcx (OR=09 / SUB=29 poked)
+    0x49, 0x89, 0x47, 0x00, // mov [r15+dst], rax
+];
+
 static S3_FIXED10_BODY_SEED: [&[u8]; 10] = [
     /* 0xff RET */ &[0xc3],
     /* 0x00 NOP */ &[0x90],
@@ -10969,6 +10978,31 @@ mod tests {
         assert!(pe_dll.contains("S3.415"));
         assert_eq!(S3_COMPILE_PE_RET_IMAGE_SEED.len(), 6656);
         assert_eq!(S3_COMPILE_PE_SET_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.426: ALUV handler seed+poke — bake+233 `S3_ALUV_BODY_SEED` (15B) +
+    /// poke disp + opcode (01/09/29). Covers ADDV/ORV/SUBV. Next ≥10 =
+    /// LDB/MEMCPY seed or remaining hand cliffs. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_s1_aluv_handler_seed_poke_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.426"));
+        assert!(pe_dll.contains("ALUV body = bake+233"));
+        assert!(pe_dll.contains("s3_bake_table_off + 233"));
+        assert_eq!(S3_ALUV_BODY_SEED.len(), 15);
+        assert_eq!(S3_ALUV_BODY_SEED[8], 0x48);
+        assert_eq!(S3_ALUV_BODY_SEED[9], 0x01); // ADD template; OR/SUB poked
+        assert_eq!(S3_ALUV_BODY_SEED[10], 0xc8);
+        assert_eq!(S3_HOST_TABLE_SEED.len() + 17 + 16 + 15, 248);
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
