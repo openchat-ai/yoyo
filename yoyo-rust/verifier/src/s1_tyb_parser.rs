@@ -11225,6 +11225,37 @@ mod tests {
         );
     }
 
+    /// S3.438: batch mt LDB+MCPD+MCPS disp8 → bake seeds (LDB oo0@+262 /
+    /// oo≠0@+274, MCPD@+248, MCPS pair@+293). disp32/mix still hand. ≥3 arms
+    /// one knife. Completes mt disp8 seed surface. Next ≥10 = collapse
+    /// mt→s1 or OW-RT long-pole. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_multi_ldb_mcp_disp8_seed_batch_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.438"));
+        assert!(pe_dll.contains("batch LDB+MCPD+MCPS"));
+        assert!(pe_dll.contains("both slots <16 → bake LDB seed"));
+        assert!(pe_dll.contains("all slots <16 → bake+248 MCPD seed"));
+        assert!(pe_dll.contains("last slots <16 → pair seed @+293"));
+        assert!(pe_dll.contains("s3_bake_table_off + 262"));
+        assert!(pe_dll.contains("s3_bake_table_off + 274"));
+        assert!(pe_dll.contains("s3_bake_table_off + 248"));
+        assert!(pe_dll.contains("s3_bake_table_off + 293"));
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.434: post handler/mt-seed capability map + densify reject. s1_loop
     /// emit surface ≈ seeded (C6 residual ≤ trail/poke); mt still hosts
     /// GET/INC/DEC/ADD/SUB/MOVRR/CMP/IMUL/LDB/MCP hand-C6 (≥8 arms). Continuing
@@ -11242,6 +11273,7 @@ mod tests {
         assert!(pe_dll.contains("S3.435") || pe_dll.contains("batch GET+INC+DEC"));
         assert!(pe_dll.contains("S3.436") || pe_dll.contains("batch ADD+SUB+MOVRR"));
         assert!(pe_dll.contains("S3.437") || pe_dll.contains("batch CMP+IMUL+ALUV"));
+        assert!(pe_dll.contains("S3.438") || pe_dll.contains("batch LDB+MCPD+MCPS"));
         // Seeded surfaces still pinned.
         assert!(pe_dll.contains("S3.429"));
         assert!(pe_dll.contains("S3.433"));

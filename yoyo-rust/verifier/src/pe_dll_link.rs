@@ -3149,8 +3149,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // still hand-C6. One-op mt densify = sheep (mirror 418/420).
     // S3.435: batch GET+INC+DEC disp8→bake. S3.436: batch ADD+SUB+MOVRR
     // disp8→bake (+100/+60). S3.437: batch CMP+IMUL+ALUV disp8→bake
-    // (+180/+217/+233). Remaining mt ≈ LDB/MCP (+disp32 mix).
-    // Next ≥10 = more mt batch or collapse/long-pole. Not CLOSED.
+    // (+180/+217/+233). S3.438: batch LDB+MCPD+MCPS disp8→bake
+    // (+262/+274/+248/+293). Remaining mt ≈ disp32/mix only.
+    // Next ≥10 = collapse mt→s1 or OW-RT long-pole. Not CLOSED.
     // DATA/LABEL = meta cliff.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
@@ -4296,7 +4297,64 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s3_jae_fail_mt_ldb = export_code.len();
     let s3_jae_fail_mt_ldb19 = s3_jae_fail_mt_ldb; // unified size check
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-    // emit load ss → rax
+    // S3.438: both slots <16 → bake LDB seed (oo0@+262 / oo≠0@+274); else hand
+    export_code.extend_from_slice(&[0x66, 0x83, 0x7A, 0x02, 0x10]); // cmp dd, 16
+    let s3_jae_mt_ldb_hand = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x66, 0x83, 0x7A, 0x04, 0x10]); // cmp ss, 16
+    let s3_jae_mt_ldb_hand2 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x66, 0x83, 0x7A, 0x06, 0x00]); // oo==0?
+    let s3_jnz_mt_ldb_oo_seed = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jne oo≠0 seed
+    // --- oo=0: 12B seed @+262 ---
+    export_code.extend_from_slice(&[0x56]);
+    export_code.extend_from_slice(&[0x51]);
+    export_code.extend_from_slice(&[0xFC]);
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 262));
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]);
+    export_code.extend_from_slice(&[0xB9, 0x0C, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0xF3, 0xA4]);
+    export_code.extend_from_slice(&[0x59]);
+    export_code.extend_from_slice(&[0x5E]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x04]); // ss
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x03]); // poke ss @+3
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x02]); // dd
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x0B]); // poke dd @+11
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x0C]);
+    let s3_jmp_mt_ldb_seed_done = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    // --- oo≠0: 19B seed @+274 ---
+    let s3_mt_ldb_oo_seed = export_code.len();
+    patch_jcc32(&mut export_code, s3_jnz_mt_ldb_oo_seed, s3_mt_ldb_oo_seed);
+    export_code.extend_from_slice(&[0x56]);
+    export_code.extend_from_slice(&[0x51]);
+    export_code.extend_from_slice(&[0xFC]);
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 274));
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]);
+    export_code.extend_from_slice(&[0xB9, 0x13, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0xF3, 0xA4]);
+    export_code.extend_from_slice(&[0x59]);
+    export_code.extend_from_slice(&[0x5E]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x04]); // ss
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x03]); // poke ss @+3
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x06]); // oo → imm
+    export_code.extend_from_slice(&[0x41, 0x89, 0x44, 0x24, 0x07]); // poke imm @+7
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x02]); // dd
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x12]); // poke dd @+18
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x13]);
+    let s3_jmp_mt_ldb_seed_done2 = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let s3_mt_ldb_hand = export_code.len();
+    patch_jcc32(&mut export_code, s3_jae_mt_ldb_hand, s3_mt_ldb_hand);
+    patch_jcc32(&mut export_code, s3_jae_mt_ldb_hand2, s3_mt_ldb_hand);
+    // emit load ss → rax (hand path for any-slot mix)
     export_code.extend_from_slice(&[0x0F, 0xB7, 0x4A, 0x04]);
     export_code.extend_from_slice(&[0xC1, 0xE1, 0x03]);
     export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x49]);
@@ -4358,6 +4416,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s3_mt_ldb_done = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_ldb_done, s3_mt_ldb_done);
     export_code.extend_from_slice(&[0x4D, 0x01, 0xCC]); // add r12, r9
+    let s3_mt_ldb_advance = export_code.len();
+    patch_rel32(&mut export_code, s3_jmp_mt_ldb_seed_done, s3_mt_ldb_advance);
+    patch_rel32(&mut export_code, s3_jmp_mt_ldb_seed_done2, s3_mt_ldb_advance);
     export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]);
     export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]);
     let s3_jnz_mt_ldb = export_code.len();
@@ -4413,7 +4474,43 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
     let s3_jae_fail_mt_mcpd = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-    // emit load src → rsi
+    // S3.438: all slots <16 → bake+248 MCPD seed (14B); else hand disp32 mix
+    export_code.extend_from_slice(&[0x66, 0x83, 0x7A, 0x02, 0x10]); // cmp dst, 16
+    let s3_jae_mt_mcpd_hand = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x66, 0x83, 0x7A, 0x04, 0x10]); // cmp src, 16
+    let s3_jae_mt_mcpd_hand2 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x66, 0x83, 0x7A, 0x06, 0x10]); // cmp n, 16
+    let s3_jae_mt_mcpd_hand3 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x56]);
+    export_code.extend_from_slice(&[0x51]);
+    export_code.extend_from_slice(&[0xFC]);
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 248));
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]);
+    export_code.extend_from_slice(&[0xB9, 0x0E, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0xF3, 0xA4]);
+    export_code.extend_from_slice(&[0x59]);
+    export_code.extend_from_slice(&[0x5E]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x04]); // src
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x03]); // poke src @+3
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x02]); // dst
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x07]); // poke dst @+7
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x06]); // n
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x0B]); // poke n @+11
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x0E]);
+    let s3_jmp_mt_mcpd_seed_done = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let s3_mt_mcpd_hand = export_code.len();
+    patch_jcc32(&mut export_code, s3_jae_mt_mcpd_hand, s3_mt_mcpd_hand);
+    patch_jcc32(&mut export_code, s3_jae_mt_mcpd_hand2, s3_mt_mcpd_hand);
+    patch_jcc32(&mut export_code, s3_jae_mt_mcpd_hand3, s3_mt_mcpd_hand);
+    // emit load src → rsi (hand path for any-slot mix)
     export_code.extend_from_slice(&[0x0F, 0xB7, 0x4A, 0x04]);
     export_code.extend_from_slice(&[0xC1, 0xE1, 0x03]);
     export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x49]);
@@ -4481,6 +4578,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x41, 0xC6, 0x42, 0x01, 0xA4]);
     export_code.extend_from_slice(&[0x41, 0x83, 0xC1, 0x02]);
     export_code.extend_from_slice(&[0x4D, 0x01, 0xCC]); // add r12, r9
+    let s3_mt_mcpd_advance = export_code.len();
+    patch_rel32(&mut export_code, s3_jmp_mt_mcpd_seed_done, s3_mt_mcpd_advance);
     export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]);
     export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]);
     let s3_jnz_mt_mcpd = export_code.len();
@@ -4548,6 +4647,48 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
     let s3_jae_fail_mt_mcps = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    // S3.438: last slots <16 → pair seed @+293 loop; else hand disp32 mix
+    export_code.extend_from_slice(&[0x43, 0x8D, 0x44, 0x0A, 0xFF]); // lea eax,[r10+r9-1]
+    export_code.extend_from_slice(&[0x83, 0xF8, 0x10]); // cmp eax, 16
+    let s3_jae_mt_mcps_hand = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x43, 0x8D, 0x44, 0x0B, 0xFF]); // lea eax,[r11+r9-1]
+    export_code.extend_from_slice(&[0x83, 0xF8, 0x10]);
+    let s3_jae_mt_mcps_hand2 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x31, 0xC9]); // ecx = i = 0
+    let s3_mt_mcps_seed_loop = export_code.len();
+    export_code.extend_from_slice(&[0x44, 0x39, 0xC9]); // cmp ecx, r9d
+    let s3_jge_mt_mcps_seed_done = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x8D, 0, 0, 0, 0]); // jge advance
+    export_code.extend_from_slice(&[0x51]); // push rcx (i)
+    export_code.extend_from_slice(&[0x56]);
+    export_code.extend_from_slice(&[0xFC]);
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 293));
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]);
+    export_code.extend_from_slice(&[0xB9, 0x08, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0xF3, 0xA4]);
+    export_code.extend_from_slice(&[0x5E]);
+    export_code.extend_from_slice(&[0x59]); // pop rcx (i)
+    export_code.extend_from_slice(&[0x41, 0x8D, 0x04, 0x0B]); // lea eax,[r11+rcx] src
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x03]); // poke src @+3
+    export_code.extend_from_slice(&[0x41, 0x8D, 0x04, 0x0A]); // lea eax,[r10+rcx] dst
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x07]); // poke dst @+7
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x08]);
+    export_code.extend_from_slice(&[0xFF, 0xC1]); // inc ecx
+    let s3_jmp_mt_mcps_seed_loop = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    patch_rel32(&mut export_code, s3_jmp_mt_mcps_seed_loop, s3_mt_mcps_seed_loop);
+    let s3_mt_mcps_seed_done = export_code.len();
+    patch_jcc32(&mut export_code, s3_jge_mt_mcps_seed_done, s3_mt_mcps_seed_done);
+    let s3_jmp_mt_mcps_seed_advance = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let s3_mt_mcps_hand = export_code.len();
+    patch_jcc32(&mut export_code, s3_jae_mt_mcps_hand, s3_mt_mcps_hand);
+    patch_jcc32(&mut export_code, s3_jae_mt_mcps_hand2, s3_mt_mcps_hand);
     export_code.extend_from_slice(&[0x31, 0xC9]); // ecx = i = 0
     let s3_mt_mcps_loop = export_code.len();
     export_code.extend_from_slice(&[0x44, 0x39, 0xC9]); // cmp ecx, r9d
@@ -4611,6 +4752,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     patch_jcc32(&mut export_code, s3_mt_mcps_done, s3_mt_mcps_end);
     let s3_mt_mcps_advance = export_code.len();
     patch_jcc32(&mut export_code, s3_jz_mt_mcps_empty, s3_mt_mcps_advance);
+    patch_rel32(&mut export_code, s3_jmp_mt_mcps_seed_advance, s3_mt_mcps_advance);
     export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]); // add rdx, 8
     export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]); // dec r14d
     let s3_jnz_mt_mcps = export_code.len();
