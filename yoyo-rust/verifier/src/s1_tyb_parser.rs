@@ -2471,6 +2471,12 @@ pub const S3_ALLOC_PREFIX_SEED: [u8; 34] = [
     0x48, 0x83, 0xc4, 0x28, // add rsp, 0x28
 ];
 
+/// S3.431: `mov [r15+disp8], rax` (4B). Bake +351; poke disp @+3.
+pub const S3_STORE_RAX_DISP8_SEED: [u8; 4] = [0x49, 0x89, 0x47, 0x00];
+
+/// S3.431: `mov [r15+disp32], rax` (7B). Bake +355; poke disp @+3.
+pub const S3_STORE_RAX_DISP32_SEED: [u8; 7] = [0x49, 0x89, 0x87, 0x00, 0x00, 0x00, 0x00];
+
 static S3_FIXED10_BODY_SEED: [&[u8]; 10] = [
     /* 0xff RET */ &[0xc3],
     /* 0x00 NOP */ &[0x90],
@@ -11108,7 +11114,7 @@ mod tests {
     fn s3_ow_rt_s1_alloc_prefix_seed_poke_pin() {
         let pe_dll = include_str!("pe_dll_link.rs");
         assert!(pe_dll.contains("S3.430"));
-        assert!(pe_dll.contains("bake+317 ALLOC seed"));
+        assert!(pe_dll.contains("prefix = bake+317"));
         assert!(pe_dll.contains("s3_bake_table_off + 317"));
         assert_eq!(S3_ALLOC_PREFIX_SEED.len(), 34);
         assert_eq!(&S3_ALLOC_PREFIX_SEED[..4], &[0x48, 0x83, 0xec, 0x28]);
@@ -11120,6 +11126,38 @@ mod tests {
         assert_eq!(
             S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34,
             351
+        );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.431: ALLOC store seed+poke — bake+351 disp8(4) / +355 disp32(7);
+    /// ALLOC adds r12+=34 then memcpy store + poke disp. Completes ALLOC
+    /// emit surface (prefix=430, store=431). Next ≥10 = DATA-RAW / LABEL
+    /// or reuse store seeds elsewhere. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_s1_alloc_store_seed_poke_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.431"));
+        assert!(pe_dll.contains("store disp8 seed @ bake+351"));
+        assert!(pe_dll.contains("store disp32 seed @ bake+355"));
+        assert!(pe_dll.contains("s3_bake_table_off + 351"));
+        assert!(pe_dll.contains("s3_bake_table_off + 355"));
+        assert_eq!(S3_STORE_RAX_DISP8_SEED, [0x49, 0x89, 0x47, 0x00]);
+        assert_eq!(
+            S3_STORE_RAX_DISP32_SEED,
+            [0x49, 0x89, 0x87, 0x00, 0x00, 0x00, 0x00]
+        );
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
         );
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
