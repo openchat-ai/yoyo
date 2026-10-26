@@ -100,7 +100,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.359–406** ✅ | `a39a2a2` | 目标码种子链；Win PE 去 wrap |
 | **S3.407–420** ✅ | `5b425df` | OW-RT 切片 + densify/skip-mini **拒羊** |
 | **S3.421–428** ✅ | `2bc6fbc` | s1_loop op-handler poke-from-seed |
-| **S3.429–438** ✅ | a3f1236 | seed chain + 拒羊 + batch GET..MCP |
+| **S3.429–438** ✅ | a34856f | seed chain + 拒羊 + batch GET..MCP |
 
 #### 近窗（本波 · 单刀）
 
@@ -115,7 +115,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.435** ✅ | ac888a2 | batch mt GET+INC+DEC disp8→bake |
 | **S3.436** ✅ | 7efdd35 | batch mt ADD+SUB+MOVRR disp8→bake |
 | **S3.437** ✅ | 462bbf4 | batch mt CMP+IMUL+ALUV disp8→bake |
-| **S3.438** ✅ | a3f1236 | batch mt LDB+MCPD+MCPS disp8→bake |
+| **S3.438** ✅ | a34856f | batch mt LDB+MCPD+MCPS disp8→bake |
 | **S3.439** ⏳ | — | **本步**：collapse mt→s1 或长杆 |
 
 **缺口**：mt disp8 seed 面已收。下一刀=(A) collapse mt→s1 · (B) OW-RT mini→YOYO · (C) disp32 mix seed。DATA/LABEL=meta。无假 CLOSED。`bake=362` · `s3_=248`。
