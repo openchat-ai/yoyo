@@ -100,7 +100,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.359–406** ✅ | `a39a2a2` | 目标码种子链；Win PE 去 wrap |
 | **S3.407–420** ✅ | `5b425df` | OW-RT 切片 + densify/skip-mini **拒羊** |
 | **S3.421–428** ✅ | `2bc6fbc` | s1_loop op-handler poke-from-seed |
-| **S3.429–439** ✅ | a34856f | seed chain + batch + post-disp8 map |
+| **S3.429–439** ✅ | 90df71f | seed chain + batch + post-disp8 map |
 
 #### 近窗（本波 · 单刀）
 
@@ -116,7 +116,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.436** ✅ | 7efdd35 | batch mt ADD+SUB+MOVRR disp8→bake |
 | **S3.437** ✅ | 462bbf4 | batch mt CMP+IMUL+ALUV disp8→bake |
 | **S3.438** ✅ | a34856f | batch mt LDB+MCPD+MCPS disp8→bake |
-| **S3.439** ✅ | — | post-disp8 map + 拒 disp32 densify 羊 |
+| **S3.439** ✅ | 90df71f | post-disp8 map + 拒 disp32 densify 羊 |
 | **S3.440** ⏳ | — | **本步**：collapse mt→s1 或 OW-RT 长杆 |
 
 **缺口**：mt disp8 seed 已收。拒 one-op disp32 densify=羊。下一刀=(B) collapse mt→s1 · (C) OW-RT mini→YOYO。DATA/LABEL=meta。无假 CLOSED。`bake=362` · `s3_=249`。
