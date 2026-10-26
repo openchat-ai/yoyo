@@ -2609,7 +2609,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s3_mt_after_label = export_code.len();
     patch_jcc32(&mut export_code, s3_jne_mt_label, s3_mt_after_label);
     patch_jcc32(&mut export_code, s3_jne_mt_label_a, s3_mt_after_label);
-    // S3.54/S3.67: JMP argc=1 → E9 + queue rel32 patch; stay in multi
+    // S3.54/S3.67/S3.432: JMP argc=1 -> bake+306 JMP seed; stay in multi
     export_code.extend_from_slice(&[0x80, 0x3A, 0x70]); // cmp byte [rdx], JMP
     let s3_jne_mt_jmp = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
@@ -2621,8 +2621,16 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]); // cmp rax, r13
     let s3_jae_fail_mt_jmp = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0xE9]); // mov byte [r12], 0xE9
-    export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x01, 0, 0, 0, 0]); // [r12+1]=0
+    export_code.extend_from_slice(&[0x56]); // push rsi
+    export_code.extend_from_slice(&[0x51]); // push rcx
+    export_code.extend_from_slice(&[0xFC]); // cld
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 306));
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
+    export_code.extend_from_slice(&[0xB9, 0x05, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0xF3, 0xA4]);
+    export_code.extend_from_slice(&[0x59]);
+    export_code.extend_from_slice(&[0x5E]);
     export_code.extend_from_slice(&[0x44, 0x8B, 0x4A, 0x02]); // mov r9d, [rdx+2]
     export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24]);
     push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF);
@@ -2645,7 +2653,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s3_mt_after_jmp = export_code.len();
     patch_jcc32(&mut export_code, s3_jne_mt_jmp, s3_mt_after_jmp);
     patch_jcc32(&mut export_code, s3_jne_mt_jmp_a, s3_mt_after_jmp);
-    // S3.55/S3.67: CALL argc=1 → E8 + queue rel32 patch; stay in multi
+    // S3.55/S3.67/S3.432: CALL argc=1 -> bake+301 CALL seed; stay in multi
     export_code.extend_from_slice(&[0x80, 0x3A, 0x41]); // cmp byte [rdx], CALL
     let s3_jne_mt_call = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
@@ -2657,8 +2665,16 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]); // cmp rax, r13
     let s3_jae_fail_mt_call = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0xE8]); // mov byte [r12], 0xE8
-    export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x01, 0, 0, 0, 0]); // [r12+1]=0
+    export_code.extend_from_slice(&[0x56]); // push rsi
+    export_code.extend_from_slice(&[0x51]); // push rcx
+    export_code.extend_from_slice(&[0xFC]); // cld
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 301));
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
+    export_code.extend_from_slice(&[0xB9, 0x05, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0xF3, 0xA4]);
+    export_code.extend_from_slice(&[0x59]);
+    export_code.extend_from_slice(&[0x5E]);
     export_code.extend_from_slice(&[0x44, 0x8B, 0x4A, 0x02]); // mov r9d, [rdx+2]
     export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24]);
     push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF);
@@ -2681,7 +2697,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s3_mt_after_call = export_code.len();
     patch_jcc32(&mut export_code, s3_jne_mt_call, s3_mt_after_call);
     patch_jcc32(&mut export_code, s3_jne_mt_call_a, s3_mt_after_call);
-    // S3.56/S3.67: JE (0x71) argc=1 → 0F 84 + queue rel32 patch; stay in multi
+    // S3.56/S3.67/S3.432: JE -> bake+311 JCC seed + poke cc=0x84
     export_code.extend_from_slice(&[0x80, 0x3A, 0x71]); // cmp byte [rdx], JE
     let s3_jne_mt_je = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
@@ -2693,9 +2709,17 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]); // cmp rax, r13
     let s3_jae_fail_mt_je = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x0F]); // mov byte [r12], 0x0F
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x84]); // [r12+1]=0x84 (JE)
-    export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x02, 0, 0, 0, 0]); // [r12+2]=rel32 0
+    export_code.extend_from_slice(&[0x56]); // push rsi
+    export_code.extend_from_slice(&[0x51]); // push rcx
+    export_code.extend_from_slice(&[0xFC]); // cld
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 311));
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
+    export_code.extend_from_slice(&[0xB9, 0x06, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0xF3, 0xA4]);
+    export_code.extend_from_slice(&[0x59]);
+    export_code.extend_from_slice(&[0x5E]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x84]); // poke JE cc
     export_code.extend_from_slice(&[0x44, 0x8B, 0x4A, 0x02]); // mov r9d, [rdx+2]
     export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24]);
     push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF);
@@ -2718,7 +2742,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s3_mt_after_je = export_code.len();
     patch_jcc32(&mut export_code, s3_jne_mt_je, s3_mt_after_je);
     patch_jcc32(&mut export_code, s3_jne_mt_je_a, s3_mt_after_je);
-    // S3.57/S3.67: JNE (0x72) argc=1 → 0F 85 + queue rel32 patch; stay in multi
+    // S3.57/S3.67/S3.432: JNE -> bake+311 JCC seed + poke cc=0x85
     export_code.extend_from_slice(&[0x80, 0x3A, 0x72]); // cmp byte [rdx], JNE
     let s3_jne_mt_jne = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
@@ -2730,9 +2754,17 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]); // cmp rax, r13
     let s3_jae_fail_mt_jne = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x0F]); // mov byte [r12], 0x0F
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x85]); // [r12+1]=0x85 (JNE)
-    export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x02, 0, 0, 0, 0]); // [r12+2]=rel32 0
+    export_code.extend_from_slice(&[0x56]); // push rsi
+    export_code.extend_from_slice(&[0x51]); // push rcx
+    export_code.extend_from_slice(&[0xFC]); // cld
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 311));
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
+    export_code.extend_from_slice(&[0xB9, 0x06, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0xF3, 0xA4]);
+    export_code.extend_from_slice(&[0x59]);
+    export_code.extend_from_slice(&[0x5E]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x85]); // poke JNE cc
     export_code.extend_from_slice(&[0x44, 0x8B, 0x4A, 0x02]);
     export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24]);
     push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF);
@@ -2755,7 +2787,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s3_mt_after_jne = export_code.len();
     patch_jcc32(&mut export_code, s3_jne_mt_jne, s3_mt_after_jne);
     patch_jcc32(&mut export_code, s3_jne_mt_jne_a, s3_mt_after_jne);
-    // S3.58/S3.67: JCC 0x73..=0x7A argc=1 → 0F cc + queue rel32 patch; stay in multi
+    // S3.58/S3.67/S3.432: JCC 0x73..=0x7A -> bake+311 + poke cc from table
     export_code.extend_from_slice(&[0x0F, 0xB6, 0x02]); // movzx eax, byte [rdx]
     export_code.extend_from_slice(&[0x3C, 0x73]); // cmp al, 0x73
     let s3_jb_mt_jcc = export_code.len();
@@ -2771,14 +2803,22 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]); // cmp rax, r13
     let s3_jae_fail_mt_jcc = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
+    export_code.extend_from_slice(&[0x56]); // push rsi
+    export_code.extend_from_slice(&[0x51]); // push rcx
+    export_code.extend_from_slice(&[0xFC]); // cld
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 311));
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
+    export_code.extend_from_slice(&[0xB9, 0x06, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0xF3, 0xA4]);
+    export_code.extend_from_slice(&[0x59]);
+    export_code.extend_from_slice(&[0x5E]);
     export_code.extend_from_slice(&[0x0F, 0xB6, 0x0A]); // movzx ecx, byte [rdx]
     export_code.extend_from_slice(&[0x83, 0xE9, 0x73]); // sub ecx, 0x73
     export_code.extend_from_slice(&[0x48, 0x8D, 0x05, 0, 0, 0, 0]); // lea rax,[rip+cc]
     rip_patches.push((export_code.len() - 4, s3_jcc_rest_cc_off));
     export_code.extend_from_slice(&[0x0F, 0xB6, 0x04, 0x08]); // movzx eax, byte [rax+rcx]
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x0F]); // mov byte [r12], 0x0F
-    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x01]); // mov [r12+1], al
-    export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x02, 0, 0, 0, 0]); // [r12+2]=0
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x01]); // poke cc @+1
     export_code.extend_from_slice(&[0x44, 0x8B, 0x4A, 0x02]);
     export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24]);
     push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF);

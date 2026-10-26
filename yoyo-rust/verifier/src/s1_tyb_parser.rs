@@ -11137,6 +11137,38 @@ mod tests {
         );
     }
 
+    /// S3.432: multi-path CALL/JMP/JCC reuse bake seeds (301/306/311).
+    /// DATA/STR/RAW/LABEL = data/meta side-channel (no fixed object emit) —
+    /// documented cliff; true next ≠ invent DATA seed. Next ≥10 = mt SET/ALLOC
+    /// seed reuse or remaining hand C6. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_multi_call_jmp_jcc_seed_reuse_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.432"));
+        assert!(pe_dll.contains("bake+306 JMP seed; stay in multi"));
+        assert!(pe_dll.contains("bake+301 CALL seed; stay in multi"));
+        assert!(pe_dll.contains("bake+311 JCC seed + poke cc=0x84"));
+        assert!(pe_dll.contains("bake+311 JCC seed + poke cc=0x85"));
+        assert!(pe_dll.contains("bake+311 + poke cc from table"));
+        assert!(pe_dll.contains("s3_bake_table_off + 306"));
+        assert!(pe_dll.contains("s3_bake_table_off + 301"));
+        assert!(pe_dll.contains("s3_bake_table_off + 311"));
+        // DATA/LABEL remain non-object (handlers touch data[] / labels[], not .text seed).
+        assert!(pe_dll.contains("--- DATA/STR/RAW"));
+        assert!(pe_dll.contains("--- LABEL argc=1"));
+        assert!(pe_dll.contains("--- RAW_BYTE argc=1"));
+        assert_eq!(S3_CALL_BODY_SEED.len() + S3_JMP_BODY_SEED.len() + S3_JCC_BODY_SEED.len(), 16);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.431: ALLOC store seed+poke — bake+351 disp8(4) / +355 disp32(7);
     /// ALLOC adds r12+=34 then memcpy store + poke disp. Completes ALLOC
     /// emit surface (prefix=430, store=431). Next ≥10 = DATA-RAW / LABEL
