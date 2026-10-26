@@ -2449,6 +2449,15 @@ pub const S3_MEMCPY_STATE_PAIR_SEED: [u8; 8] = [
     0x49, 0x89, 0x47, 0x00, // mov [r15+dst], rax
 ];
 
+/// S3.429: CALL rel32 placeholder (5B). Bake +301; pass-2 patches disp.
+pub const S3_CALL_BODY_SEED: [u8; 5] = [0xe8, 0x00, 0x00, 0x00, 0x00];
+
+/// S3.429: JMP rel32 placeholder (5B). Bake +306.
+pub const S3_JMP_BODY_SEED: [u8; 5] = [0xe9, 0x00, 0x00, 0x00, 0x00];
+
+/// S3.429: JCC 0F cc rel32 placeholder (6B). Bake +311; poke cc @+1.
+pub const S3_JCC_BODY_SEED: [u8; 6] = [0x0f, 0x00, 0x00, 0x00, 0x00, 0x00];
+
 static S3_FIXED10_BODY_SEED: [&[u8]; 10] = [
     /* 0xff RET */ &[0xc3],
     /* 0x00 NOP */ &[0x90],
@@ -11035,6 +11044,37 @@ mod tests {
         assert_eq!(
             S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8,
             301
+        );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.429: CALL/JMP/JCC handler seed+poke — bake+301 CALL(5) / +306
+    /// JMP(5) / +311 JCC(6); JCC poke cc @+1. Next ≥10 = DATA/STR/RAW
+    /// or ALLOC/LOAD/WRITE seed. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_s1_call_jmp_jcc_seed_poke_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.429"));
+        assert!(pe_dll.contains("bake+301 CALL seed"));
+        assert!(pe_dll.contains("bake+306 JMP seed"));
+        assert!(pe_dll.contains("bake+311 JCC seed"));
+        assert!(pe_dll.contains("s3_bake_table_off + 301"));
+        assert!(pe_dll.contains("s3_bake_table_off + 306"));
+        assert!(pe_dll.contains("s3_bake_table_off + 311"));
+        assert_eq!(S3_CALL_BODY_SEED, [0xe8, 0x00, 0x00, 0x00, 0x00]);
+        assert_eq!(S3_JMP_BODY_SEED, [0xe9, 0x00, 0x00, 0x00, 0x00]);
+        assert_eq!(S3_JCC_BODY_SEED, [0x0f, 0x00, 0x00, 0x00, 0x00, 0x00]);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6,
+            317
         );
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(

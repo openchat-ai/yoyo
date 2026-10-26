@@ -870,7 +870,10 @@ fn s3_in_dll_bake_table() -> Vec<u8> {
     v.extend_from_slice(&crate::s1_tyb_parser::S3_LDB_OO0_BODY_SEED);
     v.extend_from_slice(&crate::s1_tyb_parser::S3_LDB_OO_BODY_SEED);
     v.extend_from_slice(&crate::s1_tyb_parser::S3_MEMCPY_STATE_PAIR_SEED);
-    debug_assert_eq!(v.len(), 10 * 20 + 17 + 16 + 15 + 14 + 12 + 19 + 8);
+    v.extend_from_slice(&crate::s1_tyb_parser::S3_CALL_BODY_SEED);
+    v.extend_from_slice(&crate::s1_tyb_parser::S3_JMP_BODY_SEED);
+    v.extend_from_slice(&crate::s1_tyb_parser::S3_JCC_BODY_SEED);
+    debug_assert_eq!(v.len(), 10 * 20 + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6);
     v
 }
 const _: () = assert!(IN_DLL_S1_PE_OFF == 0x1480);
@@ -5556,6 +5559,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     }
 
     // --- CALL argc=1: E8 rel32
+    // S3.429: body = bake+301 CALL seed (5B); pass-2 patches rel32.
     let s1_call = export_code.len();
     patch_jcc32(&mut export_code, s1_je_call, s1_call);
     export_code.extend_from_slice(&[0x80, 0xFA, 0x01]);
@@ -5566,8 +5570,16 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
     let s1_ja_call_ovf = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0xE8]);
-    export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x01, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x56]); // push rsi
+    export_code.extend_from_slice(&[0x51]); // push rcx
+    export_code.extend_from_slice(&[0xFC]); // cld
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 301));
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
+    export_code.extend_from_slice(&[0xB9, 0x05, 0x00, 0x00, 0x00]); // ecx = 5
+    export_code.extend_from_slice(&[0xF3, 0xA4]);
+    export_code.extend_from_slice(&[0x59]); // pop rcx
+    export_code.extend_from_slice(&[0x5E]); // pop rsi
     // patch_pos = r12 - code_base + 1
     export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24]);
     push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF);
@@ -5581,6 +5593,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // --- JMP argc=1: E9 rel32
+    // S3.429: body = bake+306 JMP seed (5B).
     let s1_jmp = export_code.len();
     patch_jcc32(&mut export_code, s1_je_jmp, s1_jmp);
     export_code.extend_from_slice(&[0x80, 0xFA, 0x01]);
@@ -5591,8 +5604,16 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
     let s1_ja_jmp_ovf = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0xE9]);
-    export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x01, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x56]);
+    export_code.extend_from_slice(&[0x51]);
+    export_code.extend_from_slice(&[0xFC]);
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 306));
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]);
+    export_code.extend_from_slice(&[0xB9, 0x05, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0xF3, 0xA4]);
+    export_code.extend_from_slice(&[0x59]);
+    export_code.extend_from_slice(&[0x5E]);
     export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24]);
     push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF);
     export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
@@ -5605,6 +5626,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // --- JCC argc=1: 0F cc rel32 (6B). al=op 0x71..=0x7A
+    // S3.429: body = bake+311 JCC seed (6B); poke cc @+1; pass-2 patches rel32.
     let s1_jcc = export_code.len();
     patch_rel32(&mut export_code, s1_jmp_jcc, s1_jcc);
     export_code.extend_from_slice(&[0x80, 0xFA, 0x01]);
@@ -5617,7 +5639,17 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
     // ovf check clobbered al — reload op from record; map op→cc into r8b
     export_code.extend_from_slice(&[0x0F, 0xB6, 0x01]); // movzx eax, byte [rcx]
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x0F]);
+    export_code.extend_from_slice(&[0x56]); // push rsi
+    export_code.extend_from_slice(&[0x51]); // push rcx
+    export_code.extend_from_slice(&[0xFC]); // cld
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 311));
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
+    export_code.extend_from_slice(&[0xB9, 0x06, 0x00, 0x00, 0x00]); // ecx = 6
+    export_code.extend_from_slice(&[0xF3, 0xA4]);
+    export_code.extend_from_slice(&[0x59]); // pop rcx
+    export_code.extend_from_slice(&[0x5E]); // pop rsi
+    // al still holds op (movsb does not clobber rax)
     export_code.extend_from_slice(&[0x3C, 0x71]);
     let s1_je_cc71 = export_code.len();
     export_code.extend_from_slice(&[0x74, 0x00]);
@@ -5701,8 +5733,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     ] {
         patch_rel8(&mut export_code, at, s1_cc_emit);
     }
-    export_code.extend_from_slice(&[0x45, 0x88, 0x44, 0x24, 0x01]); // mov [r12+1], r8b
-    export_code.extend_from_slice(&[0x41, 0xC7, 0x44, 0x24, 0x02, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x45, 0x88, 0x44, 0x24, 0x01]); // poke cc @+1
     // patch_pos = off+2
     export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24]);
     push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF);
@@ -7324,10 +7355,10 @@ mod tests {
             ascii.contains("yoyo_in_dll_s3_table_bake"),
             "S3.37 template-table bake marker must be in .rdata"
         );
-        // S3.43/S3.390/S3.424–428: host ‖ … ‖ LDB×2 ‖ MCP_STATE pair.
+        // S3.43/S3.390/S3.424–429: host ‖ … ‖ MCP_STATE ‖ CALL/JMP/JCC.
         let bake = s3_in_dll_bake_table();
         assert_eq!(&bake[..200], crate::s1_tyb_parser::S3_HOST_TABLE_SEED.as_slice());
-        assert_eq!(bake.len(), 301);
+        assert_eq!(bake.len(), 317);
         assert_eq!(
             &bake[200..217],
             crate::s1_tyb_parser::S3_SET_DISP32_BODY_SEED.as_slice()
@@ -7353,8 +7384,20 @@ mod tests {
             crate::s1_tyb_parser::S3_LDB_OO_BODY_SEED.as_slice()
         );
         assert_eq!(
-            &bake[293..],
+            &bake[293..301],
             crate::s1_tyb_parser::S3_MEMCPY_STATE_PAIR_SEED.as_slice()
+        );
+        assert_eq!(
+            &bake[301..306],
+            crate::s1_tyb_parser::S3_CALL_BODY_SEED.as_slice()
+        );
+        assert_eq!(
+            &bake[306..311],
+            crate::s1_tyb_parser::S3_JMP_BODY_SEED.as_slice()
+        );
+        assert_eq!(
+            &bake[311..],
+            crate::s1_tyb_parser::S3_JCC_BODY_SEED.as_slice()
         );
         assert_eq!(bake[0], 0xFF);
         assert_eq!(bake[20], 0x00);
