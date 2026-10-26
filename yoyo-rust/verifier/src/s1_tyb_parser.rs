@@ -11225,6 +11225,41 @@ mod tests {
         );
     }
 
+    /// S3.439: post mt-disp8-seed capability map + densify reject. After
+    /// 435–438 batch, mt disp8 emit ≈ poke-from-seed; residual hand = disp32/
+    /// mix (+DATA/LABEL meta). One-op disp32 densify = sheep 0 capability.
+    /// True next ≥10: (B) collapse mt→s1_loop · (C) OW-RT mini→YOYO.
+    /// Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_post_mt_disp8_seed_map_reject() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.439"));
+        assert!(pe_dll.contains("post-disp8-seed"));
+        assert!(pe_dll.contains("One-op disp32 densify = sheep"));
+        assert!(pe_dll.contains("collapse mt→s1") || pe_dll.contains("collapse mt→s1_loop"));
+        // Batch surface still pinned.
+        assert!(pe_dll.contains("S3.435"));
+        assert!(pe_dll.contains("S3.438"));
+        assert!(pe_dll.contains("batch LDB+MCPD+MCPS") || pe_dll.contains("LDB+MCPD+MCPS"));
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.438: batch mt LDB+MCPD+MCPS disp8 → bake seeds (LDB oo0@+262 /
     /// oo≠0@+274, MCPD@+248, MCPS pair@+293). disp32/mix still hand. ≥3 arms
     /// one knife. Completes mt disp8 seed surface. Next ≥10 = collapse

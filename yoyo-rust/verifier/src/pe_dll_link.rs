@@ -3147,12 +3147,12 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.62/S3.79: GET any dst/src slot≤255 (disp8|disp32) → direct emit
     // S3.434: post-seed-chain map — s1_loop handlers mostly seed+poke; mt path
     // still hand-C6. One-op mt densify = sheep (mirror 418/420).
-    // S3.435: batch GET+INC+DEC disp8→bake. S3.436: batch ADD+SUB+MOVRR
-    // disp8→bake (+100/+60). S3.437: batch CMP+IMUL+ALUV disp8→bake
-    // (+180/+217/+233). S3.438: batch LDB+MCPD+MCPS disp8→bake
-    // (+262/+274/+248/+293). Remaining mt ≈ disp32/mix only.
-    // Next ≥10 = collapse mt→s1 or OW-RT long-pole. Not CLOSED.
-    // DATA/LABEL = meta cliff.
+    // S3.435: batch GET+INC+DEC disp8. S3.436: batch ADD+SUB+MOVRR.
+    // S3.437: batch CMP+IMUL+ALUV. S3.438: batch LDB+MCPD+MCPS.
+    // S3.439: post-disp8-seed map — mt disp8 ≈ seeded; residual = disp32/
+    // mix hand + DATA/LABEL meta. One-op disp32 densify = sheep.
+    // True next ≥10 = (B) collapse mt→s1_loop · (C) OW-RT mini→YOYO.
+    // Not CLOSED.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
     patch_jcc32(&mut export_code, s3_jne_mt_set_a, s3_mt_get);
