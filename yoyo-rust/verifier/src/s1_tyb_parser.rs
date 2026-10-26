@@ -11137,6 +11137,59 @@ mod tests {
         );
     }
 
+    /// S3.434: post handler/mt-seed capability map + densify reject. s1_loop
+    /// emit surface ≈ seeded (C6 residual ≤ trail/poke); mt still hosts
+    /// GET/INC/DEC/ADD/SUB/MOVRR/CMP/IMUL/LDB/MCP hand-C6 (≥8 arms). Continuing
+    /// one-op mt densify = sheep 0 capability (mirror 418/420). True next ≥10:
+    /// (A) batch mt→bake reuse (≥GET+INC+DEC in one knife) · (B) collapse mt
+    /// into s1_loop · (C) OW-RT mini dispatcher→YOYO (long pole). DATA/LABEL
+    /// meta cliff. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_post_seed_chain_map_reject() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.434"));
+        assert!(pe_dll.contains("post-seed-chain map"));
+        assert!(pe_dll.contains("densify = sheep"));
+        assert!(pe_dll.contains("batch mt"));
+        // Seeded surfaces still pinned.
+        assert!(pe_dll.contains("S3.429"));
+        assert!(pe_dll.contains("S3.433"));
+        assert!(pe_dll.contains("s3_bake_table_off + 301"));
+        assert!(pe_dll.contains("s3_bake_table_off + 317"));
+        // Remaining mt hand surface ≥8 named arms — densify ≠ delete one.
+        let mt_arms = [
+            "let s3_mt_get",
+            "let s3_mt_inc",
+            "let s3_mt_dec",
+            "let s3_mt_add",
+            "let s3_mt_sub",
+            "let s3_mt_movrr",
+            "let s3_mt_cmp",
+            "let s3_mt_imul",
+            "let s3_mt_ldb",
+            "let s3_mt_mcpd",
+            "let s3_mt_mcps",
+        ];
+        for a in mt_arms {
+            assert!(pe_dll.contains(a), "missing mt arm {a}");
+        }
+        assert!(mt_arms.len() >= 8, "mt hand surface ≥8 — not a sheep cut");
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7, 362);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.433: mt SET/ALLOC reuse bake seeds — SET row2/+200; ALLOC
     /// +317/+351/+355. Completes multi plat emit surface with s1_loop seeds.
     /// Next ≥10 = mt GET/INC/… hand C6 or remaining cliffs. Not CLOSED.
