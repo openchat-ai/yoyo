@@ -3148,7 +3148,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.434: post-seed-chain map — s1_loop handlers mostly seed+poke; mt path
     // still hand-C6. One-op mt densify = sheep (mirror 418/420).
     // S3.435: batch GET+INC+DEC disp8→bake. S3.436: batch ADD+SUB+MOVRR
-    // disp8→bake (+100/+60). Remaining mt ≈ CMP/IMUL/LDB/MCP (+disp32 mix).
+    // disp8→bake (+100/+60). S3.437: batch CMP+IMUL+ALUV disp8→bake
+    // (+180/+217/+233). Remaining mt ≈ LDB/MCP (+disp32 mix).
     // Next ≥10 = more mt batch or collapse/long-pole. Not CLOSED.
     // DATA/LABEL = meta cliff.
     let s3_mt_get = export_code.len();
@@ -3716,7 +3717,36 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]); // cmp rax, r13
     let s3_jae_fail_mt_cmp = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
-    // emit load a → rax
+    // S3.437: both slots <16 → bake+180 CMP seed (11B); else hand disp32 mix
+    export_code.extend_from_slice(&[0x66, 0x83, 0x7A, 0x02, 0x10]); // cmp a, 16
+    let s3_jae_mt_cmp_hand = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x66, 0x83, 0x7A, 0x04, 0x10]); // cmp b, 16
+    let s3_jae_mt_cmp_hand2 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x56]);
+    export_code.extend_from_slice(&[0x51]);
+    export_code.extend_from_slice(&[0xFC]);
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 180 + 4));
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]);
+    export_code.extend_from_slice(&[0xB9, 0x0B, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0xF3, 0xA4]);
+    export_code.extend_from_slice(&[0x59]);
+    export_code.extend_from_slice(&[0x5E]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x02]); // a
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x03]); // poke a @+3
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x04]); // b
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x07]); // poke b @+7
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x0B]);
+    let s3_jmp_mt_cmp_seed_done = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let s3_mt_cmp_hand = export_code.len();
+    patch_jcc32(&mut export_code, s3_jae_mt_cmp_hand, s3_mt_cmp_hand);
+    patch_jcc32(&mut export_code, s3_jae_mt_cmp_hand2, s3_mt_cmp_hand);
+    // emit load a → rax (hand path for any-slot mix)
     export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x02]); // movzx eax, a
     export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]); // shl eax, 3
     export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x49]);
@@ -3764,6 +3794,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x41, 0xC6, 0x42, 0x02, 0xC8]);
     export_code.extend_from_slice(&[0x41, 0x83, 0xC1, 0x03]); // add r9d, 3
     export_code.extend_from_slice(&[0x4D, 0x01, 0xCC]); // add r12, r9
+    let s3_mt_cmp_advance = export_code.len();
+    patch_rel32(&mut export_code, s3_jmp_mt_cmp_seed_done, s3_mt_cmp_advance);
     export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]); // add rdx, 8
     export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]); // dec r14d
     let s3_jnz_mt_cmp = export_code.len();
@@ -3811,7 +3843,39 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]); // cmp rax, r13
     let s3_jae_fail_mt_imul = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
-    // emit load dst → rax
+    // S3.437: both slots <16 → bake+217 IMUL seed (16B); else hand disp32 mix
+    export_code.extend_from_slice(&[0x66, 0x83, 0x7A, 0x02, 0x10]); // cmp dst, 16
+    let s3_jae_mt_imul_hand = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x66, 0x83, 0x7A, 0x04, 0x10]); // cmp src, 16
+    let s3_jae_mt_imul_hand2 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x56]);
+    export_code.extend_from_slice(&[0x51]);
+    export_code.extend_from_slice(&[0xFC]);
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 217));
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]);
+    export_code.extend_from_slice(&[0xB9, 0x10, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0xF3, 0xA4]);
+    export_code.extend_from_slice(&[0x59]);
+    export_code.extend_from_slice(&[0x5E]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x02]); // dst
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x03]); // poke dst @+3
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x04]); // src
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x07]); // poke src @+7
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x02]); // dst again
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x0F]); // poke store @+15
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x10]);
+    let s3_jmp_mt_imul_seed_done = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let s3_mt_imul_hand = export_code.len();
+    patch_jcc32(&mut export_code, s3_jae_mt_imul_hand, s3_mt_imul_hand);
+    patch_jcc32(&mut export_code, s3_jae_mt_imul_hand2, s3_mt_imul_hand);
+    // emit load dst → rax (hand path for any-slot mix)
     export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x02]); // movzx eax, dst
     export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]); // shl eax, 3
     export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x49]);
@@ -3881,6 +3945,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s3_mt_imul_done = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_imul_done, s3_mt_imul_done);
     export_code.extend_from_slice(&[0x4D, 0x01, 0xCC]); // add r12, r9
+    let s3_mt_imul_advance = export_code.len();
+    patch_rel32(&mut export_code, s3_jmp_mt_imul_seed_done, s3_mt_imul_advance);
     export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]); // add rdx, 8
     export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]); // dec r14d
     let s3_jnz_mt_imul = export_code.len();
@@ -3939,7 +4005,40 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     rip_patches.push((export_code.len() - 4, s3_aluv_ops_off));
     export_code.extend_from_slice(&[0x0F, 0xB6, 0x04, 0x08]); // movzx eax, byte [rax+rcx]
     export_code.extend_from_slice(&[0x41, 0x88, 0xC3]); // mov r11b, al
-    // emit load dst → rax
+    // S3.437: both slots <16 → bake+233 ALUV seed (15B) + poke opcode; else hand
+    export_code.extend_from_slice(&[0x66, 0x83, 0x7A, 0x02, 0x10]); // cmp dst, 16
+    let s3_jae_mt_aluv_hand = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x66, 0x83, 0x7A, 0x04, 0x10]); // cmp src, 16
+    let s3_jae_mt_aluv_hand2 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x56]);
+    export_code.extend_from_slice(&[0x51]);
+    export_code.extend_from_slice(&[0xFC]);
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 233));
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]);
+    export_code.extend_from_slice(&[0xB9, 0x0F, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0xF3, 0xA4]);
+    export_code.extend_from_slice(&[0x59]);
+    export_code.extend_from_slice(&[0x5E]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x02]); // dst
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x03]); // poke dst @+3
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x04]); // src
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x07]); // poke src @+7
+    export_code.extend_from_slice(&[0x45, 0x88, 0x5C, 0x24, 0x09]); // poke 01/09/29 @+9
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x02]); // dst again
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x0E]); // poke store @+14
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x0F]);
+    let s3_jmp_mt_aluv_seed_done = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let s3_mt_aluv_hand = export_code.len();
+    patch_jcc32(&mut export_code, s3_jae_mt_aluv_hand, s3_mt_aluv_hand);
+    patch_jcc32(&mut export_code, s3_jae_mt_aluv_hand2, s3_mt_aluv_hand);
+    // emit load dst → rax (hand path for any-slot mix)
     export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x02]);
     export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
     export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x49]);
@@ -4008,6 +4107,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s3_mt_aluv_done = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_aluv_done, s3_mt_aluv_done);
     export_code.extend_from_slice(&[0x4D, 0x01, 0xCC]); // add r12, r9
+    let s3_mt_aluv_advance = export_code.len();
+    patch_rel32(&mut export_code, s3_jmp_mt_aluv_seed_done, s3_mt_aluv_advance);
     export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]);
     export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]);
     let s3_jnz_mt_aluv = export_code.len();
