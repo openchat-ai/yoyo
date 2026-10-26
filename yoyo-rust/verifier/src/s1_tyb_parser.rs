@@ -11137,6 +11137,35 @@ mod tests {
         );
     }
 
+    /// S3.433: mt SET/ALLOC reuse bake seeds — SET row2/+200; ALLOC
+    /// +317/+351/+355. Completes multi plat emit surface with s1_loop seeds.
+    /// Next ≥10 = mt GET/INC/… hand C6 or remaining cliffs. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_multi_set_alloc_seed_reuse_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.433"));
+        assert!(pe_dll.contains("mt SET poke-from-seed (bake row2 14B)"));
+        assert!(pe_dll.contains("mt SET poke-from-seed (bake+200, 17B)"));
+        assert!(pe_dll.contains("mt ALLOC"));
+        assert!(pe_dll.contains("bake+317/351/355"));
+        assert!(pe_dll.contains("s3_bake_table_off + 40 + 4"));
+        assert!(pe_dll.contains("s3_bake_table_off + 200"));
+        assert!(pe_dll.contains("s3_bake_table_off + 317"));
+        assert!(pe_dll.contains("s3_bake_table_off + 351"));
+        assert!(pe_dll.contains("s3_bake_table_off + 355"));
+        assert_eq!(S3_ALLOC_PREFIX_SEED.len(), 34);
+        assert_eq!(S3_STORE_RAX_DISP8_SEED.len() + S3_STORE_RAX_DISP32_SEED.len(), 11);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.432: multi-path CALL/JMP/JCC reuse bake seeds (301/306/311).
     /// DATA/STR/RAW/LABEL = data/meta side-channel (no fixed object emit) —
     /// documented cliff; true next ≠ invent DATA seed. Next ≥10 = mt SET/ALLOC
