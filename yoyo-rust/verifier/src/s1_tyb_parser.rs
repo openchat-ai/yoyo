@@ -2458,6 +2458,19 @@ pub const S3_JMP_BODY_SEED: [u8; 5] = [0xe9, 0x00, 0x00, 0x00, 0x00];
 /// S3.429: JCC 0F cc rel32 placeholder (6B). Bake +311; poke cc @+1.
 pub const S3_JCC_BODY_SEED: [u8; 6] = [0x0f, 0x00, 0x00, 0x00, 0x00, 0x00];
 
+/// S3.430: ALLOC VirtualAlloc prefix (34B) — through `add rsp,0x28`.
+/// Bake +317; poke size @+7; store (disp8/32) still hand after seed.
+/// IAT disp @+0x1A = [`S1_SLIM_IAT_BASE`] (VirtualAlloc slot0).
+pub const S3_ALLOC_PREFIX_SEED: [u8; 34] = [
+    0x48, 0x83, 0xec, 0x28, // sub rsp, 0x28
+    0x31, 0xc9, // xor ecx, ecx
+    0xba, 0x00, 0x00, 0x00, 0x00, // mov edx, size (poke)
+    0x41, 0xb8, 0x00, 0x30, 0x00, 0x00, // mov r8d, MEM_COMMIT|RESERVE
+    0x41, 0xb9, 0x04, 0x00, 0x00, 0x00, // mov r9d, PAGE_READWRITE
+    0x41, 0xff, 0x97, 0x00, 0x0f, 0x00, 0x00, // call [r15+0xF00]
+    0x48, 0x83, 0xc4, 0x28, // add rsp, 0x28
+];
+
 static S3_FIXED10_BODY_SEED: [&[u8]; 10] = [
     /* 0xff RET */ &[0xc3],
     /* 0x00 NOP */ &[0x90],
@@ -11075,6 +11088,38 @@ mod tests {
         assert_eq!(
             S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6,
             317
+        );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.430: ALLOC prefix seed+poke — bake+317 `S3_ALLOC_PREFIX_SEED` (34B)
+    /// through add rsp; poke size @+7; store disp8/32 still hand. LOAD/WRITE
+    /// already slim-tmpl memcpy. Next ≥10 = store seed / DATA-RAW / LABEL.
+    /// Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_s1_alloc_prefix_seed_poke_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.430"));
+        assert!(pe_dll.contains("bake+317 ALLOC seed"));
+        assert!(pe_dll.contains("s3_bake_table_off + 317"));
+        assert_eq!(S3_ALLOC_PREFIX_SEED.len(), 34);
+        assert_eq!(&S3_ALLOC_PREFIX_SEED[..4], &[0x48, 0x83, 0xec, 0x28]);
+        assert_eq!(&S3_ALLOC_PREFIX_SEED[30..], &[0x48, 0x83, 0xc4, 0x28]);
+        assert_eq!(
+            &S3_ALLOC_PREFIX_SEED[0x1A..0x1E],
+            S1_SLIM_IAT_BASE.to_le_bytes().as_slice()
+        );
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34,
+            351
         );
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
