@@ -2400,6 +2400,15 @@ pub const S3_SET_DISP32_BODY_SEED: [u8; 17] = [
     0x49, 0x89, 0x87, 0x00, 0x00, 0x00, 0x00, // mov [r15+disp32], rax
 ];
 
+/// S3.425: IMUL body = own-ISA object seed (load dst/src, imul, store). Bake
+/// appends after SET disp32 (offset +217).
+pub const S3_IMUL_BODY_SEED: [u8; 16] = [
+    0x49, 0x8b, 0x47, 0x00, // mov rax, [r15+dst]
+    0x49, 0x8b, 0x4f, 0x08, // mov rcx, [r15+src]
+    0x48, 0x0f, 0xaf, 0xc1, // imul rax, rcx
+    0x49, 0x89, 0x47, 0x00, // mov [r15+dst], rax
+];
+
 static S3_FIXED10_BODY_SEED: [&[u8]; 10] = [
     /* 0xff RET */ &[0xc3],
     /* 0x00 NOP */ &[0x90],
@@ -10960,6 +10969,30 @@ mod tests {
         assert!(pe_dll.contains("S3.415"));
         assert_eq!(S3_COMPILE_PE_RET_IMAGE_SEED.len(), 6656);
         assert_eq!(S3_COMPILE_PE_SET_RET_IMAGE_SEED.len(), 6656);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.425: IMUL handler seed+poke — bake+217 `S3_IMUL_BODY_SEED` (16B) +
+    /// poke dst/src/store disp. First non-fixed10 op-handler on own-ISA seed.
+    /// Next ≥10 = ALUV/LDB/MEMCPY seed or remaining hand cliffs. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_s1_imul_handler_seed_poke_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.425"));
+        assert!(pe_dll.contains("IMUL body = bake+217"));
+        assert!(pe_dll.contains("s3_bake_table_off + 217"));
+        assert_eq!(S3_IMUL_BODY_SEED.len(), 16);
+        assert_eq!(&S3_IMUL_BODY_SEED[8..12], &[0x48, 0x0f, 0xaf, 0xc1]);
+        assert_eq!(S3_SET_DISP32_BODY_SEED.len(), 17);
+        assert_eq!(S3_HOST_TABLE_SEED.len() + 17 + 16, 233);
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
