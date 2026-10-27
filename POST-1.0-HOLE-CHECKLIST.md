@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.455**（454 lift s1 MCPS；下一刀=post-lift map / OW-RT；**不**假 CLOSED）。
+**默认** 继续 **= S3.456**（455 post-s1-lift map；下一刀=OW-RT / shared SET / real gap；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -100,7 +100,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.359–406** ✅ | `a39a2a2` | 目标码种子链；Win PE 去 wrap |
 | **S3.407–420** ✅ | `5b425df` | OW-RT 切片 + densify/skip-mini **拒羊** |
 | **S3.421–428** ✅ | `2bc6fbc` | s1_loop op-handler poke-from-seed |
-| **S3.429–454** ✅ | a237361 | seed batch + collapse + lift s1 GET..MCPS |
+| **S3.429–455** ✅ | 30246b7 | seed+collapse+lift s1 GET..MCPS + post-lift map |
 
 #### 近窗（本波 · 单刀）
 
@@ -132,9 +132,10 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.452** ✅ | 39e680a | lift s1 IMUL+ALUV any-slot（disp8 shared + hand mix） |
 | **S3.453** ✅ | 2fab1bc | lift s1 LDB+MCPD any-slot（disp8 shared + hand mix） |
 | **S3.454** ✅ | a237361 | lift s1 MCPS any-slot（disp8 shared + hand mix） |
-| **S3.455** ⏳ | — | **本步**：post-s1-lift map / OW-RT |
+| **S3.455** ✅ | 30246b7 | post-s1-lift map（GET..MCPS shared+hand done） |
+| **S3.456** ⏳ | — | **本步**：OW-RT / shared SET / real gap |
 
-**缺口**：s1 GET..MCPS any-slot 已 lift（shared+hand）。下一刀=post-lift map · OW-RT。DATA/LABEL=meta。无假 CLOSED。`bake=362` · `s3_=264`。
+**缺口**：s1 lift GET..MCPS 已完成。下一刀=OW-RT long-pole / shared SET·ALLOC / real gap。Densify hand-disp32=羊。DATA/LABEL=meta。无假 CLOSED。`bake=362` · `s3_=265`。
 
 ---
 
@@ -168,7 +169,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.455**（post-s1-lift map / OW-RT；禁 densify）。做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.456**（OW-RT / shared SET / real gap；禁 densify）。做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
