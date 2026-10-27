@@ -2651,6 +2651,31 @@ pub const S3_DATA_APPEND_BODY_SEED: [u8; 39] = [
     0xC3, // done: ret
 ];
 
+/// S3.488: s1 LABEL table-push body = own-ISA object seed (62B). rcx=rec;
+/// records (id, code_off=r12-CODE) into labels[n++]. Live poke: N_LABELS
+/// @+3/+36/+58, CODE @+23, LABELS @+44. Live: jae fail @+10. LABEL=meta for
+/// .text emit — this is table bookkeeping (≡ push_patch class).
+pub const S3_PUSH_LABEL_BODY_SEED: [u8; 62] = [
+    0x8B, 0x84, 0x24, 0x00, 0x00, 0x00, 0x00, // mov eax,[rsp+N_LABELS] poke @3
+    0x83, 0xF8, 0x10, // cmp eax, 16
+    0x0F, 0x83, 0x00, 0x00, 0x00, 0x00, // jae fail live @10
+    0x8B, 0x51, 0x02, // mov edx, [rcx+2]
+    0x4C, 0x8D, 0x84, 0x24, 0x00, 0x00, 0x00, 0x00, // lea r8,[rsp+CODE] poke @23
+    0x4C, 0x89, 0xE0, // mov rax, r12
+    0x4C, 0x29, 0xC0, // sub rax, r8
+    0x8B, 0xB4, 0x24, 0x00, 0x00, 0x00, 0x00, // mov esi,[rsp+N_LABELS] poke @36
+    0x48, 0x8D, 0xBC, 0x24, 0x00, 0x00, 0x00, 0x00, // lea rdi,[rsp+LABELS] poke @44
+    0x89, 0x14, 0xF7, // mov [rdi+rsi*8], edx
+    0x89, 0x44, 0xF7, 0x04, // mov [rdi+rsi*8+4], eax
+    0xFF, 0x84, 0x24, 0x00, 0x00, 0x00, 0x00, // inc [rsp+N_LABELS] poke @58
+];
+pub const S3_PUSH_LABEL_N_OFF_AT: usize = 3;
+pub const S3_PUSH_LABEL_JAE_AT: usize = 10;
+pub const S3_PUSH_LABEL_CODE_OFF_AT: usize = 23;
+pub const S3_PUSH_LABEL_N_OFF_AT2: usize = 36;
+pub const S3_PUSH_LABEL_TABLE_OFF_AT: usize = 44;
+pub const S3_PUSH_LABEL_N_OFF_AT3: usize = 58;
+
 /// S3.337: test-only helper.
 #[cfg(test)]
 fn s3_fixed10_named_cases() -> Vec<(&'static str, Vec<(u8, u8, [u8; 6])>)> {
@@ -13089,6 +13114,45 @@ mod tests {
                 || pe_dll.contains("s3_shared_retnop_seed")
         );
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.488: s1 LABEL table-push = YOYO object seed (62B) + poke N/CODE/
+    /// LABELS; jae fail live. mt LABEL stays hand (ABI). LABEL=meta for .text.
+    /// Next ≥10 = post-label map / OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_push_label_body_seed_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.488"));
+        assert!(
+            pe_dll.contains("LABEL table-push")
+                || pe_dll.contains("S3_PUSH_LABEL_BODY_SEED")
+        );
+        assert!(pe_dll.contains("S3_PUSH_LABEL_BODY_SEED"));
+        assert!(pe_dll.contains("S3_PUSH_LABEL_N_OFF_AT"));
+        assert!(pe_dll.contains("S3_PUSH_LABEL_JAE_AT"));
+        assert_eq!(S3_PUSH_LABEL_BODY_SEED.len(), 62);
+        assert_eq!(S3_PUSH_LABEL_BODY_SEED[0], 0x8B);
+        assert_eq!(S3_PUSH_LABEL_BODY_SEED[10], 0x0F); // jae
+        assert_eq!(S3_PUSH_LABEL_BODY_SEED[16], 0x8B); // mov edx,[rcx+2]
+        assert_eq!(S3_PUSH_LABEL_N_OFF_AT, 3);
+        assert_eq!(S3_PUSH_LABEL_JAE_AT, 10);
+        assert_eq!(S3_PUSH_LABEL_CODE_OFF_AT, 23);
+        assert_eq!(S3_PUSH_LABEL_N_OFF_AT2, 36);
+        assert_eq!(S3_PUSH_LABEL_TABLE_OFF_AT, 44);
+        assert_eq!(S3_PUSH_LABEL_N_OFF_AT3, 58);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
                 .unwrap()

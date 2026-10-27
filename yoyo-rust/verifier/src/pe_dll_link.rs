@@ -3102,6 +3102,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // Remaining: mt dispatch (467) · RIP lea (419) · handler hex · OW-RT entry
     // (485). Densify hand-disp32 = sheep. Next ≥10 = OW-RT / mt residual.
     // Not CLOSED. OW-RT remains CUT.
+    // S3.488: s1 LABEL table-push = YOYO object seed (62B) + poke N/CODE/LABELS;
+    // jae fail live. mt LABEL stays hand (ABI). Next ≥10 = post-label map /
+    // OW-RT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -5038,30 +5041,31 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // --- LABEL argc=1: record (id, code_off) in labels[n++]
+    // S3.488: body = S3_PUSH_LABEL_BODY_SEED; poke N/CODE/LABELS; jae live.
     let s1_label = export_code.len();
     patch_rel32(&mut export_code, s1_je_label, s1_label); // S3.462 trampoline E9
     export_code.extend_from_slice(&[0x80, 0xFA, 0x01]);
     let s1_jne_label_argc = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x8B, 0x84, 0x24]);
-    push_u32_le(&mut export_code, IN_DLL_S1_N_LABELS_OFF); // eax = n_labels
-    export_code.extend_from_slice(&[0x83, 0xF8, 0x10]); // cmp eax, 16
-    let s1_jae_nlab = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-    // entry @ rsp+0x2780 + eax*8: id=dword[rcx+2], off=r12-code_base
-    export_code.extend_from_slice(&[0x8B, 0x51, 0x02]); // edx = label_id ([rcx+2])
-    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24]);
-    push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF); // lea r8,[rsp+0x1080]
-    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]); // mov rax, r12
-    export_code.extend_from_slice(&[0x4C, 0x29, 0xC0]); // sub rax, r8 → code_off
-    export_code.extend_from_slice(&[0x8B, 0xB4, 0x24]);
-    push_u32_le(&mut export_code, IN_DLL_S1_N_LABELS_OFF); // esi = n_labels
-    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24]);
-    push_u32_le(&mut export_code, IN_DLL_S1_LABELS_OFF); // lea rdi,[rsp+0x2780]
-    export_code.extend_from_slice(&[0x89, 0x14, 0xF7]); // mov [rdi+rsi*8], edx (id)
-    export_code.extend_from_slice(&[0x89, 0x44, 0xF7, 0x04]); // mov [rdi+rsi*8+4], eax (off)
-    export_code.extend_from_slice(&[0xFF, 0x84, 0x24]);
-    push_u32_le(&mut export_code, IN_DLL_S1_N_LABELS_OFF); // inc dword n_labels
+    let s1_push_label = export_code.len();
+    export_code.extend_from_slice(&crate::s1_tyb_parser::S3_PUSH_LABEL_BODY_SEED);
+    {
+        let n = IN_DLL_S1_N_LABELS_OFF.to_le_bytes();
+        let cd = IN_DLL_S1_CODE_OFF.to_le_bytes();
+        let lb = IN_DLL_S1_LABELS_OFF.to_le_bytes();
+        let b = s1_push_label;
+        let a = crate::s1_tyb_parser::S3_PUSH_LABEL_N_OFF_AT;
+        let a2 = crate::s1_tyb_parser::S3_PUSH_LABEL_CODE_OFF_AT;
+        let a3 = crate::s1_tyb_parser::S3_PUSH_LABEL_N_OFF_AT2;
+        let a4 = crate::s1_tyb_parser::S3_PUSH_LABEL_TABLE_OFF_AT;
+        let a5 = crate::s1_tyb_parser::S3_PUSH_LABEL_N_OFF_AT3;
+        export_code[b + a..b + a + 4].copy_from_slice(&n);
+        export_code[b + a2..b + a2 + 4].copy_from_slice(&cd);
+        export_code[b + a3..b + a3 + 4].copy_from_slice(&n);
+        export_code[b + a4..b + a4 + 4].copy_from_slice(&lb);
+        export_code[b + a5..b + a5 + 4].copy_from_slice(&n);
+    }
+    let s1_jae_nlab = s1_push_label + crate::s1_tyb_parser::S3_PUSH_LABEL_JAE_AT;
     let s1_jmp_next3 = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
