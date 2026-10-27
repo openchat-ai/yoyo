@@ -2565,6 +2565,26 @@ pub const S3_TRAIL_C3_BODY_SEED: [u8; 44] = [
 pub const S3_TRAIL_C3_CODE_OFF_AT: usize = 4;
 pub const S3_TRAIL_C3_JA_AT: usize = 30;
 
+/// S3.477: finish memcpy-code = own-ISA object seed (39B). Copies emitted
+/// .text into PE at `S1_SLIM_TEXT_PAYLOAD_OFF` (baked). Live poke: CODE @+4/+30,
+/// PE @+12. Template memcpy remains RIP (419 cliff).
+pub const S3_MEMCPY_CODE_BODY_SEED: [u8; 39] = [
+    0x48, 0x8D, 0xB4, 0x24, 0x00, 0x00, 0x00, 0x00, // lea rsi,[rsp+CODE] poke @4
+    0x48, 0x8D, 0xBC, 0x24, 0x00, 0x00, 0x00, 0x00, // lea rdi,[rsp+PE] poke @12
+    0x48, 0x81, 0xC7, 0x0D, 0x04, 0x00, 0x00, // add rdi, 0x40D (TEXT_PAYLOAD)
+    0x4C, 0x89, 0xE1, // mov rcx, r12
+    0x48, 0x8D, 0x84, 0x24, 0x00, 0x00, 0x00, 0x00, // lea rax,[rsp+CODE] poke @30
+    0x48, 0x29, 0xC1, // sub rcx, rax
+    0xF3, 0xA4, // rep movsb
+];
+pub const S3_MEMCPY_CODE_CODE_OFF_AT: usize = 4;
+pub const S3_MEMCPY_CODE_PE_OFF_AT: usize = 12;
+pub const S3_MEMCPY_CODE_CODE_OFF_AT2: usize = 30;
+const _: () = assert!(
+    S3_MEMCPY_CODE_BODY_SEED[19] == (S1_SLIM_TEXT_PAYLOAD_OFF as u8)
+        && S3_MEMCPY_CODE_BODY_SEED[20] == ((S1_SLIM_TEXT_PAYLOAD_OFF >> 8) as u8)
+);
+
 /// S3.337: test-only helper.
 #[cfg(test)]
 fn s3_fixed10_named_cases() -> Vec<(&'static str, Vec<(u8, u8, [u8; 6])>)> {
@@ -13003,6 +13023,48 @@ mod tests {
                 || pe_dll.contains("s3_shared_retnop_seed")
         );
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.477: finish memcpy-code = YOYO object seed (39B) + poke CODE/PE;
+    /// TEXT_PAYLOAD baked. Template RIP remains (419). Next ≥10 = memcpy-data
+    /// / OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_memcpy_code_body_seed_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.477"));
+        assert!(
+            pe_dll.contains("memcpy-code") || pe_dll.contains("S3_MEMCPY_CODE_BODY_SEED")
+        );
+        assert!(pe_dll.contains("S3_MEMCPY_CODE_BODY_SEED"));
+        assert!(pe_dll.contains("S3_MEMCPY_CODE_CODE_OFF_AT"));
+        assert!(pe_dll.contains("S3_MEMCPY_CODE_PE_OFF_AT"));
+        assert_eq!(S3_MEMCPY_CODE_BODY_SEED.len(), 39);
+        assert_eq!(S3_MEMCPY_CODE_BODY_SEED[0], 0x48); // lea rsi
+        assert_eq!(S3_MEMCPY_CODE_BODY_SEED[16], 0x48); // add rdi
+        assert_eq!(S3_MEMCPY_CODE_BODY_SEED[17], 0x81);
+        assert_eq!(S3_MEMCPY_CODE_BODY_SEED[18], 0xC7);
+        assert_eq!(
+            u32::from_le_bytes(S3_MEMCPY_CODE_BODY_SEED[19..23].try_into().unwrap()),
+            S1_SLIM_TEXT_PAYLOAD_OFF as u32
+        );
+        assert_eq!(S3_MEMCPY_CODE_BODY_SEED[37], 0xF3);
+        assert_eq!(S3_MEMCPY_CODE_BODY_SEED[38], 0xA4);
+        assert_eq!(S3_MEMCPY_CODE_CODE_OFF_AT, 4);
+        assert_eq!(S3_MEMCPY_CODE_PE_OFF_AT, 12);
+        assert_eq!(S3_MEMCPY_CODE_CODE_OFF_AT2, 30);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
                 .unwrap()
