@@ -2572,6 +2572,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let mut s3_shared_mcps_calls: Vec<usize> = Vec::new();
     // S3.456: call sites → shared SET seed (rcx=rec, slot→disp8/d32 pick, r12=out).
     let mut s3_shared_set_calls: Vec<usize> = Vec::new();
+    // S3.457: call sites → shared ALLOC seed (rcx=rec, prefix+store pick, r12=out).
+    let mut s3_shared_alloc_calls: Vec<usize> = Vec::new();
     let emit_mt_push_patch = |code: &mut Vec<u8>, jmps: &mut Vec<usize>| {
         let lea_at = code.len();
         code.extend_from_slice(&[0x4C, 0x8D, 0x1D, 0, 0, 0, 0]); // lea r11,[rip+ret]
@@ -2934,57 +2936,12 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
     let s3_jae_fail_mt_alloc = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-    // S3.433: mt ALLOC = bake+317 prefix + poke size; store seeds +351/+355
-    export_code.extend_from_slice(&[0x56]);
-    export_code.extend_from_slice(&[0x51]);
-    export_code.extend_from_slice(&[0xFC]);
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
-    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 317));
-    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]);
-    export_code.extend_from_slice(&[0xB9, 0x22, 0x00, 0x00, 0x00]);
-    export_code.extend_from_slice(&[0xF3, 0xA4]);
-    export_code.extend_from_slice(&[0x59]);
-    export_code.extend_from_slice(&[0x5E]);
-    export_code.extend_from_slice(&[0x8B, 0x42, 0x04]); // size imm32
-    export_code.extend_from_slice(&[0x41, 0x89, 0x44, 0x24, 0x07]); // poke size @+7
-    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x22]); // add r12, 34
-    export_code.extend_from_slice(&[0x0F, 0xB7, 0x4A, 0x02]); // slot
-    export_code.extend_from_slice(&[0xC1, 0xE1, 0x03]); // disp
-    export_code.extend_from_slice(&[0x66, 0x83, 0x7A, 0x02, 0x10]);
-    let s3_jae_mt_alloc_st32 = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-    // store disp8 seed
-    export_code.extend_from_slice(&[0x56]);
-    export_code.extend_from_slice(&[0x51]);
-    export_code.extend_from_slice(&[0xFC]);
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
-    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 351));
-    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]);
-    export_code.extend_from_slice(&[0xB9, 0x04, 0x00, 0x00, 0x00]);
-    export_code.extend_from_slice(&[0xF3, 0xA4]);
-    export_code.extend_from_slice(&[0x59]);
-    export_code.extend_from_slice(&[0x5E]);
-    export_code.extend_from_slice(&[0x41, 0x88, 0x4C, 0x24, 0x03]); // poke disp8
-    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x04]);
-    let s3_jmp_mt_alloc_done = export_code.len();
-    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-    let s3_mt_alloc_st32 = export_code.len();
-    patch_jcc32(&mut export_code, s3_jae_mt_alloc_st32, s3_mt_alloc_st32);
-    // store disp32 seed
-    export_code.extend_from_slice(&[0x56]);
-    export_code.extend_from_slice(&[0x51]);
-    export_code.extend_from_slice(&[0xFC]);
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
-    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 355));
-    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]);
-    export_code.extend_from_slice(&[0xB9, 0x07, 0x00, 0x00, 0x00]);
-    export_code.extend_from_slice(&[0xF3, 0xA4]);
-    export_code.extend_from_slice(&[0x59]);
-    export_code.extend_from_slice(&[0x5E]);
-    export_code.extend_from_slice(&[0x41, 0x89, 0x4C, 0x24, 0x03]); // poke disp32
-    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x07]);
+    // S3.433/S3.457: mt ALLOC → shared ALLOC seed
+    export_code.extend_from_slice(&[0x48, 0x89, 0xD1]); // mov rcx, rdx
+    let s3_call_mt_alloc_shared = export_code.len();
+    export_code.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    s3_shared_alloc_calls.push(s3_call_mt_alloc_shared);
     let s3_mt_alloc_done = export_code.len();
-    patch_rel32(&mut export_code, s3_jmp_mt_alloc_done, s3_mt_alloc_done);
     export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]);
     export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]);
     let s3_jnz_mt_alloc = export_code.len();
@@ -3140,9 +3097,11 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.453: lift s1 LDB+MCPD any-slot.
     // S3.454: lift s1 MCPS any-slot.
     // S3.455: post-s1-lift map — s1 GET..MCPS any-slot (shared+hand) done.
-    // S3.456: collapse shared SET seed (mt+s1, slot→disp8/d32). Next ≥10 =
-    // shared ALLOC / OW-RT. DATA/LABEL=meta. Densify hand-disp32 = sheep.
-    // Not CLOSED.
+    // S3.447: post-shared-collapse map (kept). S3.455: post-s1-lift map.
+    // S3.456: collapse shared SET seed (mt+s1, slot→disp8/d32).
+    // S3.457: collapse shared ALLOC seed (mt+s1, prefix+store). Next ≥10 =
+    // OW-RT long-pole / real gap. DATA/LABEL=meta.
+    // Densify remaining mt hand-disp32 = sheep. Not CLOSED.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
     patch_jcc32(&mut export_code, s3_jne_mt_set_a, s3_mt_get);
@@ -4890,9 +4849,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x11]);
     export_code.extend_from_slice(&[0xC3]); // ret
 
-    // S3.91: ALLOC any slot≤255 → VirtualAlloc([r15+S1_SLIM_IAT_BASE]) + store
-    // S3.430: prefix = bake+317 (34B) + poke size @+7.
-    // S3.431: store = bake+351 disp8 (4B) / +355 disp32 (7B) + poke disp.
+    // S3.91/S3.430/S3.431/S3.457: ALLOC → shared ALLOC seed
+    // (prefix = bake+317 + store disp8 seed @ bake+351 / disp32 @ bake+355).
     // rcx = record (must not clobber); eax/r10 scratch.
     let s1_alloc = export_code.len();
     patch_jcc32(&mut export_code, s1_je_alloc, s1_alloc);
@@ -4913,44 +4871,55 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
     let s1_ja_alloc_ovf = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x56]); // push rsi
-    export_code.extend_from_slice(&[0x51]); // push rcx
-    export_code.extend_from_slice(&[0xFC]); // cld
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
-    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 317));
-    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
-    export_code.extend_from_slice(&[0xB9, 0x22, 0x00, 0x00, 0x00]); // ecx = 34
-    export_code.extend_from_slice(&[0xF3, 0xA4]);
-    export_code.extend_from_slice(&[0x59]); // pop rcx
-    export_code.extend_from_slice(&[0x5E]); // pop rsi
-    export_code.extend_from_slice(&[0x8B, 0x41, 0x04]); // size imm from record
-    export_code.extend_from_slice(&[0x41, 0x89, 0x44, 0x24, 0x07]); // poke size @+7
-    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x22]); // add r12, 34
-    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // slot
-    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]); // disp = slot*8
-    export_code.extend_from_slice(&[0x66, 0x83, 0x79, 0x02, 0x10]); // cmp word [rcx+2], 16
-    let s1_jae_alloc_st32 = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-    // S3.431: store disp8 seed @ bake+351
+    // S3.430/S3.457: ALLOC body = shared ALLOC seed (call)
+    let s3_call_s1_alloc_shared = export_code.len();
+    export_code.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    s3_shared_alloc_calls.push(s3_call_s1_alloc_shared);
+    let s1_jmp_next_alloc = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let s1_jmp_next_alloc_d32 = s1_jmp_next_alloc; // alias retained
+
+    // S3.457: shared ALLOC seed — rcx=rec, +317 prefix + store +351/+355; RET.
+    let s3_shared_alloc_seed = export_code.len();
+    for at in &s3_shared_alloc_calls {
+        patch_rel32(&mut export_code, *at, s3_shared_alloc_seed);
+    }
     export_code.extend_from_slice(&[0x56]);
     export_code.extend_from_slice(&[0x51]);
-    export_code.extend_from_slice(&[0x50]); // push disp
+    export_code.extend_from_slice(&[0xFC]);
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 317));
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]);
+    export_code.extend_from_slice(&[0xB9, 0x22, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0xF3, 0xA4]);
+    export_code.extend_from_slice(&[0x59]);
+    export_code.extend_from_slice(&[0x5E]);
+    export_code.extend_from_slice(&[0x8B, 0x41, 0x04]); // size imm
+    export_code.extend_from_slice(&[0x41, 0x89, 0x44, 0x24, 0x07]);
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x22]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]);
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]); // disp
+    export_code.extend_from_slice(&[0x66, 0x83, 0x79, 0x02, 0x10]);
+    let s3_jae_shared_alloc_st32 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    // store disp8 @+351
+    export_code.extend_from_slice(&[0x56]);
+    export_code.extend_from_slice(&[0x51]);
+    export_code.extend_from_slice(&[0x50]);
     export_code.extend_from_slice(&[0xFC]);
     export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
     rip_patches.push((export_code.len() - 4, s3_bake_table_off + 351));
     export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]);
     export_code.extend_from_slice(&[0xB9, 0x04, 0x00, 0x00, 0x00]);
     export_code.extend_from_slice(&[0xF3, 0xA4]);
-    export_code.extend_from_slice(&[0x58]); // pop disp → eax
+    export_code.extend_from_slice(&[0x58]);
     export_code.extend_from_slice(&[0x59]);
     export_code.extend_from_slice(&[0x5E]);
-    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x03]); // poke disp8 @+3
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x03]);
     export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x04]);
-    let s1_jmp_next_alloc = export_code.len();
-    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-    let s1_alloc_st32 = export_code.len();
-    patch_jcc32(&mut export_code, s1_jae_alloc_st32, s1_alloc_st32);
-    // S3.431: store disp32 seed @ bake+355
+    export_code.extend_from_slice(&[0xC3]);
+    let s3_shared_alloc_st32 = export_code.len();
+    patch_jcc32(&mut export_code, s3_jae_shared_alloc_st32, s3_shared_alloc_st32);
     export_code.extend_from_slice(&[0x56]);
     export_code.extend_from_slice(&[0x51]);
     export_code.extend_from_slice(&[0x50]);
@@ -4963,10 +4932,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x58]);
     export_code.extend_from_slice(&[0x59]);
     export_code.extend_from_slice(&[0x5E]);
-    export_code.extend_from_slice(&[0x41, 0x89, 0x44, 0x24, 0x03]); // poke disp32 @+3
+    export_code.extend_from_slice(&[0x41, 0x89, 0x44, 0x24, 0x03]);
     export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x07]);
-    let s1_jmp_next_alloc_d32 = export_code.len();
-    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0xC3]);
 
     // S3.97: s1 LOAD → memcpy slim template + patch (rcx=record)
     let s1_load = export_code.len();

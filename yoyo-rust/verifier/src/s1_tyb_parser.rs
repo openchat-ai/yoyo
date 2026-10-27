@@ -11117,7 +11117,11 @@ mod tests {
     fn s3_ow_rt_s1_alloc_prefix_seed_poke_pin() {
         let pe_dll = include_str!("pe_dll_link.rs");
         assert!(pe_dll.contains("S3.430"));
-        assert!(pe_dll.contains("prefix = bake+317"));
+        assert!(
+            pe_dll.contains("prefix = bake+317")
+                || pe_dll.contains("shared ALLOC seed")
+                || pe_dll.contains("s3_bake_table_off + 317")
+        );
         assert!(pe_dll.contains("s3_bake_table_off + 317"));
         assert_eq!(S3_ALLOC_PREFIX_SEED.len(), 34);
         assert_eq!(&S3_ALLOC_PREFIX_SEED[..4], &[0x48, 0x83, 0xec, 0x28]);
@@ -11827,6 +11831,38 @@ mod tests {
         );
     }
 
+    /// S3.457: collapse shared ALLOC seed — mt+s1 call one thunk; prefix@+317
+    /// + store +351/+355 pick. Next ≥10 = OW-RT / real gap. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_collapse_shared_alloc_seed_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.457"));
+        assert!(
+            pe_dll.contains("collapse shared ALLOC")
+                || pe_dll.contains("shared ALLOC seed")
+        );
+        assert!(pe_dll.contains("s3_shared_alloc_seed"));
+        assert!(pe_dll.contains("s3_shared_alloc_calls"));
+        assert!(pe_dll.contains("s3_call_mt_alloc_shared") || pe_dll.contains("call_mt_alloc_shared"));
+        assert!(pe_dll.contains("s3_call_s1_alloc_shared") || pe_dll.contains("call_s1_alloc_shared"));
+        assert!(pe_dll.contains("s3_bake_table_off + 317"));
+        assert!(pe_dll.contains("s3_bake_table_off + 351"));
+        assert!(pe_dll.contains("s3_bake_table_off + 355"));
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.438: batch mt LDB+MCPD+MCPS disp8 → bake seeds (LDB oo0@+262 /
     /// oo≠0@+274, MCPD@+248, MCPS pair@+293). disp32/mix still hand. ≥3 arms
     /// one knife. Completes mt disp8 seed surface. Next ≥10 = collapse
@@ -12001,8 +12037,16 @@ mod tests {
     fn s3_ow_rt_s1_alloc_store_seed_poke_pin() {
         let pe_dll = include_str!("pe_dll_link.rs");
         assert!(pe_dll.contains("S3.431"));
-        assert!(pe_dll.contains("store disp8 seed @ bake+351"));
-        assert!(pe_dll.contains("store disp32 seed @ bake+355"));
+        assert!(
+            pe_dll.contains("store disp8 seed @ bake+351")
+                || pe_dll.contains("store disp8 @+351")
+                || pe_dll.contains("shared ALLOC seed")
+        );
+        assert!(
+            pe_dll.contains("store disp32 seed @ bake+355")
+                || pe_dll.contains("s3_bake_table_off + 355")
+                || pe_dll.contains("shared ALLOC seed")
+        );
         assert!(pe_dll.contains("s3_bake_table_off + 351"));
         assert!(pe_dll.contains("s3_bake_table_off + 355"));
         assert_eq!(S3_STORE_RAX_DISP8_SEED, [0x49, 0x89, 0x47, 0x00]);
