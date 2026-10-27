@@ -11231,8 +11231,14 @@ mod tests {
             pe_dll.contains("both slots <16 → bake+180 CMP seed")
                 || pe_dll.contains("mt CMP disp8 → shared CMP")
         );
-        assert!(pe_dll.contains("both slots <16 → bake+217 IMUL seed"));
-        assert!(pe_dll.contains("both slots <16 → bake+233 ALUV seed"));
+        assert!(
+            pe_dll.contains("both slots <16 → bake+217 IMUL seed")
+                || pe_dll.contains("mt IMUL disp8 → shared IMUL")
+        );
+        assert!(
+            pe_dll.contains("both slots <16 → bake+233 ALUV seed")
+                || pe_dll.contains("mt ALUV disp8 → shared ALUV")
+        );
         assert!(pe_dll.contains("s3_bake_table_off + 180 + 4"));
         assert!(pe_dll.contains("s3_bake_table_off + 217"));
         assert!(pe_dll.contains("s3_bake_table_off + 233"));
@@ -11398,6 +11404,40 @@ mod tests {
         let calls = pe_dll.matches("s3_shared_cmp_calls.push").count();
         assert!(calls >= 2, "shared CMP call sites ≥2, got {calls}");
         assert!(pe_dll.contains("s3_bake_table_off + 180 + 4"));
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.444: collapse — shared IMUL (bake+217) + ALUV (bake+233, r8b=
+    /// opcode). mt+s1 each → call. ≥2+2 sites. Next ≥10 = LDB/MCP shared
+    /// / lift s1 any-slot / OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_collapse_shared_imul_aluv_disp8_seed_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.444"));
+        assert!(pe_dll.contains("shared IMUL disp8"));
+        assert!(pe_dll.contains("shared ALUV disp8"));
+        assert!(pe_dll.contains("s3_shared_imul_disp8_seed"));
+        assert!(pe_dll.contains("s3_shared_aluv_disp8_seed"));
+        assert!(pe_dll.contains("mt IMUL disp8 → shared"));
+        assert!(pe_dll.contains("mt ALUV disp8 → shared"));
+        let imul = pe_dll.matches("s3_shared_imul_calls.push").count();
+        let aluv = pe_dll.matches("s3_shared_aluv_calls.push").count();
+        assert!(imul >= 2, "shared IMUL call sites ≥2, got {imul}");
+        assert!(aluv >= 2, "shared ALUV call sites ≥2, got {aluv}");
+        assert!(pe_dll.contains("s3_bake_table_off + 217"));
+        assert!(pe_dll.contains("s3_bake_table_off + 233"));
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
@@ -11631,7 +11671,10 @@ mod tests {
     fn s3_ow_rt_s1_aluv_handler_seed_poke_pin() {
         let pe_dll = include_str!("pe_dll_link.rs");
         assert!(pe_dll.contains("S3.426"));
-        assert!(pe_dll.contains("ALUV body = bake+233"));
+        assert!(
+            pe_dll.contains("ALUV body = bake+233")
+                || pe_dll.contains("ALUV body = shared ALUV")
+        );
         assert!(pe_dll.contains("s3_bake_table_off + 233"));
         assert_eq!(S3_ALUV_BODY_SEED.len(), 15);
         assert_eq!(S3_ALUV_BODY_SEED[8], 0x48);
@@ -11656,7 +11699,10 @@ mod tests {
     fn s3_ow_rt_s1_imul_handler_seed_poke_pin() {
         let pe_dll = include_str!("pe_dll_link.rs");
         assert!(pe_dll.contains("S3.425"));
-        assert!(pe_dll.contains("IMUL body = bake+217"));
+        assert!(
+            pe_dll.contains("IMUL body = bake+217")
+                || pe_dll.contains("IMUL body = shared IMUL")
+        );
         assert!(pe_dll.contains("s3_bake_table_off + 217"));
         assert_eq!(S3_IMUL_BODY_SEED.len(), 16);
         assert_eq!(&S3_IMUL_BODY_SEED[8..12], &[0x48, 0x0f, 0xaf, 0xc1]);
