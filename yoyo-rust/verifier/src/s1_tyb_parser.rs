@@ -11117,6 +11117,50 @@ mod tests {
         );
     }
 
+    /// S3.463: post-dispatch map. s1_loop op dispatch = YOYO index+trampoline
+    /// (29). Remaining Rust hex: handlers / shared seeds / s1_finish / mt path
+    /// → OW-RT remains CUT. Next ≥10 ≠ densify hand-disp32. Candidates (≥3):
+    /// shared LOAD/WRITE · YOYO-emit dispatch stub · mt→same index.
+    /// DATA/LABEL=meta. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_post_dispatch_map_reject() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.463"));
+        assert!(pe_dll.contains("post-dispatch map"));
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        assert!(
+            pe_dll.contains("shared LOAD/WRITE")
+                || pe_dll.contains("YOYO-emit dispatch stub")
+                || pe_dll.contains("mt→same index")
+        );
+        assert!(
+            pe_dll.contains("Densify") || pe_dll.contains("hand-disp32 = sheep")
+        );
+        // Full dispatch surface still pinned.
+        assert!(pe_dll.contains("s1_op_trampolines"));
+        assert!(pe_dll.contains("S3_S1_OP_DISPATCH_INDEX_SEED"));
+        assert!(pe_dll.contains("for _ in 0..29"));
+        assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0xFF], 1);
+        assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x20], 11);
+        assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x7A], 29);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.462: extend YOYO-own dispatch — full op index seed (29 trampolines);
     /// sequential cmp/je removed. ≥10 assembler (19 newly table-driven).
     /// Mini loop still Rust host emit → OW-RT CUT. Not CLOSED.

@@ -3070,7 +3070,12 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // in-DLL mini dispatcher still Rust (OW-RT remains CUT). Shared SET+ALLOC
     // + s1 lift done. S3.460: collapse shared CALL/JMP/JCC seeds (mt+s1).
     // S3.461: YOYO-own fixed10 dispatcher slice. S3.462: extend to full
-    // op index+trampoline (29 slots; sequential cmp/je gone). Not CLOSED.
+    // op index+trampoline (29 slots; sequential cmp/je gone).
+    // S3.463: post-dispatch map — s1_loop op dispatch = YOYO index seed;
+    // handlers/shared/finish/mt still Rust hex → OW-RT remains CUT.
+    // Next ≥10 ≠ densify. Densify remaining mt hand-disp32 = sheep.
+    // Candidates: shared LOAD/WRITE · YOYO-emit dispatch stub · mt→same index.
+    // DATA/LABEL=meta. Not CLOSED.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
     patch_jcc32(&mut export_code, s3_jne_mt_set_a, s3_mt_get);
