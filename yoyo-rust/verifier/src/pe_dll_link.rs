@@ -3069,8 +3069,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.458: post-SET/ALLOC-collapse map. S3.459: OW-RT entry cliff map —
     // in-DLL mini dispatcher still Rust (OW-RT remains CUT). Shared SET+ALLOC
     // + s1 lift done. S3.460: collapse shared CALL/JMP/JCC seeds (mt+s1).
-    // S3.461: YOYO-own fixed10 dispatcher slice (index seed + trampoline).
-    // Non-fixed10 sequential remains. Densify hand-disp32 = sheep. Not CLOSED.
+    // S3.461: YOYO-own fixed10 dispatcher slice. S3.462: extend to full
+    // op index+trampoline (29 slots; sequential cmp/je gone). Not CLOSED.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
     patch_jcc32(&mut export_code, s3_jne_mt_set_a, s3_mt_get);
@@ -4637,125 +4637,73 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x0F, 0xB6, 0x01]); // movzx eax, byte [rcx] ; op
     export_code.extend_from_slice(&[0x0F, 0xB6, 0x51, 0x01]); // movzx edx, byte [rcx+1] ; argc
 
-    // op dispatch (near jcc — handlers are far) + S3.461 YOYO-own fixed10
-    // slice (index seed + trampoline); non-fixed10 sequential remains.
+    // op dispatch (near jcc — handlers are far) + S3.461/S3.462 YOYO-own
+    // full op index seed + trampoline (29 slots). Sequential cmp/je gone.
     // Not OW-RT CLOSED.
-    // S3.461: lea r10 → fixed10 index seed (patched after seed bytes below)
-    let s1_lea_fixed10_disp = export_code.len();
+    let s1_lea_op_disp = export_code.len();
     export_code.extend_from_slice(&[0x4C, 0x8D, 0x15, 0, 0, 0, 0]); // lea r10,[rip+d]
-    // movzx r8d, al ; movzx r8d, byte [r10+r8]
     export_code.extend_from_slice(&[0x44, 0x0F, 0xB6, 0xC0]); // movzx r8d, al
     export_code.extend_from_slice(&[0x47, 0x0F, 0xB6, 0x04, 0x02]); // movzx r8d,[r10+r8]
     export_code.extend_from_slice(&[0x45, 0x85, 0xC0]); // test r8d, r8d
-    let s1_jz_disp_rest = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]); // jz sequential rest
-    // lea r11 → trampolines; index 1..=10 → slot (idx-1)*8
-    let s1_lea_fixed10_tramp = export_code.len();
+    let s1_jz_disp_fail = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]); // jz unsupported
+    let s1_lea_op_tramp = export_code.len();
     export_code.extend_from_slice(&[0x4C, 0x8D, 0x1D, 0, 0, 0, 0]); // lea r11,[rip+d]
     export_code.extend_from_slice(&[0x41, 0xFF, 0xC8]); // dec r8d
     export_code.extend_from_slice(&[0x41, 0xC1, 0xE0, 0x03]); // shl r8d, 3
     export_code.extend_from_slice(&[0x4D, 0x01, 0xC3]); // add r11, r8
     export_code.extend_from_slice(&[0x41, 0xFF, 0xE3]); // jmp r11
-    let s1_fixed10_trampolines = export_code.len();
-    // 10× (E9 rel32 + 3×NOP) = 8B stride; names kept for densify-reject pins
-    let s1_je_ret = s1_fixed10_trampolines + 0 * 8;
-    let s1_je_nop = s1_fixed10_trampolines + 1 * 8;
-    let s1_je_set = s1_fixed10_trampolines + 2 * 8;
-    let s1_je_get = s1_fixed10_trampolines + 3 * 8;
-    let s1_je_inc = s1_fixed10_trampolines + 4 * 8;
-    let s1_je_add = s1_fixed10_trampolines + 5 * 8;
-    let s1_je_dec = s1_fixed10_trampolines + 6 * 8;
-    let s1_je_sub = s1_fixed10_trampolines + 7 * 8;
-    let s1_je_movrr = s1_fixed10_trampolines + 8 * 8;
-    let s1_je_cmp = s1_fixed10_trampolines + 9 * 8;
-    for _ in 0..10 {
+    let s1_op_trampolines = export_code.len();
+    // S3.461 names kept; S3.462 adds 11..=29. 29×8B E9+NOP stride.
+    let s1_je_ret = s1_op_trampolines + 0 * 8;
+    let s1_je_nop = s1_op_trampolines + 1 * 8;
+    let s1_je_set = s1_op_trampolines + 2 * 8;
+    let s1_je_get = s1_op_trampolines + 3 * 8;
+    let s1_je_inc = s1_op_trampolines + 4 * 8;
+    let s1_je_add = s1_op_trampolines + 5 * 8;
+    let s1_je_dec = s1_op_trampolines + 6 * 8;
+    let s1_je_sub = s1_op_trampolines + 7 * 8;
+    let s1_je_movrr = s1_op_trampolines + 8 * 8;
+    let s1_je_cmp = s1_op_trampolines + 9 * 8;
+    let s1_je_alloc = s1_op_trampolines + 10 * 8;
+    let s1_je_loadf = s1_op_trampolines + 11 * 8;
+    let s1_je_writef = s1_op_trampolines + 12 * 8;
+    let s1_je_label = s1_op_trampolines + 13 * 8;
+    let s1_je_raw = s1_op_trampolines + 14 * 8;
+    let s1_je_raws = s1_op_trampolines + 15 * 8;
+    let s1_je_imul = s1_op_trampolines + 16 * 8;
+    let s1_je_addv = s1_op_trampolines + 17 * 8;
+    let s1_je_orv = s1_op_trampolines + 18 * 8;
+    let s1_je_subv = s1_op_trampolines + 19 * 8;
+    let s1_je_ldb = s1_op_trampolines + 20 * 8;
+    let s1_je_mcp_data = s1_op_trampolines + 21 * 8;
+    let s1_je_mcp_state = s1_op_trampolines + 22 * 8;
+    let s1_je_data = s1_op_trampolines + 23 * 8;
+    let s1_je_str = s1_op_trampolines + 24 * 8;
+    let s1_je_draw = s1_op_trampolines + 25 * 8;
+    let s1_je_call = s1_op_trampolines + 26 * 8;
+    let s1_je_jmp = s1_op_trampolines + 27 * 8;
+    let s1_jmp_jcc = s1_op_trampolines + 28 * 8;
+    // aliases for densify-reject / S3.461 pin strings
+    let s1_fixed10_trampolines = s1_op_trampolines;
+    let s1_dispatch_rest = s1_op_trampolines; // no sequential rest (S3.462)
+    for _ in 0..29 {
         export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0, 0x90, 0x90, 0x90]);
     }
-    let s1_fixed10_disp_seed_at = export_code.len();
-    export_code.extend_from_slice(&crate::s1_tyb_parser::S3_S1_FIXED10_DISPATCH_INDEX_SEED);
-    // patch lea r10 → seed; lea r11 → trampolines
+    let s1_op_disp_seed_at = export_code.len();
+    let s1_fixed10_disp_seed_at = s1_op_disp_seed_at; // S3.461 pin alias
+    export_code.extend_from_slice(&crate::s1_tyb_parser::S3_S1_OP_DISPATCH_INDEX_SEED);
     {
-        let next = s1_lea_fixed10_disp + 7;
-        let rel = s1_fixed10_disp_seed_at as i32 - next as i32;
-        export_code[s1_lea_fixed10_disp + 3..s1_lea_fixed10_disp + 7]
-            .copy_from_slice(&rel.to_le_bytes());
-        let next = s1_lea_fixed10_tramp + 7;
-        let rel = s1_fixed10_trampolines as i32 - next as i32;
-        export_code[s1_lea_fixed10_tramp + 3..s1_lea_fixed10_tramp + 7]
-            .copy_from_slice(&rel.to_le_bytes());
+        let next = s1_lea_op_disp + 7;
+        let rel = s1_op_disp_seed_at as i32 - next as i32;
+        export_code[s1_lea_op_disp + 3..s1_lea_op_disp + 7].copy_from_slice(&rel.to_le_bytes());
+        let next = s1_lea_op_tramp + 7;
+        let rel = s1_op_trampolines as i32 - next as i32;
+        export_code[s1_lea_op_tramp + 3..s1_lea_op_tramp + 7].copy_from_slice(&rel.to_le_bytes());
     }
-    // sequential rest (non-fixed10) — near jcc; handlers far
-    let s1_dispatch_rest = export_code.len();
-    patch_jcc32(&mut export_code, s1_jz_disp_rest, s1_dispatch_rest);
-    // S3.91 ALLOC / S3.97 LOAD / S3.98 WRITE → slim IAT (not SET).
-    export_code.extend_from_slice(&[0x3C, 0x20]); // ALLOC
-    let s1_je_alloc = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x3C, 0x50]); // LOAD
-    let s1_je_loadf = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x3C, 0x51]); // WRITE
-    let s1_je_writef = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x3C, 0x40]); // LABEL
-    let s1_je_label = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x3C, 0xA0]); // RAW_BYTE
-    let s1_je_raw = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x3C, 0xA1]); // RAW_BYTES
-    let s1_je_raws = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x3C, 0x63]); // IMUL
-    let s1_je_imul = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x3C, 0x68]); // ADDV
-    let s1_je_addv = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x3C, 0x69]); // ORV
-    let s1_je_orv = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x3C, 0x6A]); // SUBV
-    let s1_je_subv = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x3C, 0x80]); // LDB
-    let s1_je_ldb = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x3C, 0x84]); // MEMCPY_DATA
-    let s1_je_mcp_data = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x3C, 0x85]); // MEMCPY_STATE
-    let s1_je_mcp_state = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x3C, 0x10]); // DATA
-    let s1_je_data = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x3C, 0x12]); // STR
-    let s1_je_str = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x3C, 0x13]); // RAW (data)
-    let s1_je_draw = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x3C, 0x41]); // CALL
-    let s1_je_call = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x3C, 0x70]); // JMP
-    let s1_je_jmp = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    // JCC 0x71..=0x7A
-    export_code.extend_from_slice(&[0x3C, 0x71]);
-    let s1_jb_jcc = export_code.len();
-    export_code.extend_from_slice(&[0x72, 0x00]); // jb fail (op < 0x71)
-    export_code.extend_from_slice(&[0x3C, 0x7A]);
-    let s1_ja_jcc = export_code.len();
-    export_code.extend_from_slice(&[0x77, 0x00]); // ja fail (op > 0x7A)
-    let s1_jmp_jcc = export_code.len();
-    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp s1_jcc
     let s1_jmp_fail_op = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // unsupported → compile_fail
-    // patch jcc range fails to jmp_fail_op (rel8 — nearby)
-    patch_rel8(&mut export_code, s1_jb_jcc, s1_jmp_fail_op);
-    patch_rel8(&mut export_code, s1_ja_jcc, s1_jmp_fail_op);
+    patch_jcc32(&mut export_code, s1_jz_disp_fail, s1_jmp_fail_op);
 
     // --- SET argc must be 2: emit movabs rax,imm64 + store [r15+slot*8]
     // S3.456: collapse s1 SET → shared SET seed (slot→disp8/d32).
@@ -4841,7 +4789,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // (prefix = bake+317 + store disp8 seed @ bake+351 / disp32 @ bake+355).
     // rcx = record (must not clobber); eax/r10 scratch.
     let s1_alloc = export_code.len();
-    patch_jcc32(&mut export_code, s1_je_alloc, s1_alloc);
+    patch_rel32(&mut export_code, s1_je_alloc, s1_alloc); // S3.462 trampoline E9
     export_code.extend_from_slice(&[0x80, 0xFA, 0x02]); // argc=2
     let s1_jne_alloc_argc = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
@@ -4926,7 +4874,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
 
     // S3.97: s1 LOAD → memcpy slim template + patch (rcx=record)
     let s1_load = export_code.len();
-    patch_jcc32(&mut export_code, s1_je_loadf, s1_load);
+    patch_rel32(&mut export_code, s1_je_loadf, s1_load); // S3.462 trampoline E9
     let s1_load_len = slim_load_tmpl.len() as u32;
     let s1_load_path_poff = crate::s1_tyb_parser::slim_load_path_patch_off() as u32;
     let s1_load_slot_poff =
@@ -4971,7 +4919,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
 
     // S3.98: s1 WRITE → memcpy slim template + patch
     let s1_write = export_code.len();
-    patch_jcc32(&mut export_code, s1_je_writef, s1_write);
+    patch_rel32(&mut export_code, s1_je_writef, s1_write); // S3.462 trampoline E9
     let s1_write_len = slim_write_tmpl.len() as u32;
     let s1_write_path_poff = crate::s1_tyb_parser::slim_write_path_patch_off() as u32;
     let s1_write_slot_poff =
@@ -5080,7 +5028,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
 
     // --- LABEL argc=1: record (id, code_off) in labels[n++]
     let s1_label = export_code.len();
-    patch_jcc32(&mut export_code, s1_je_label, s1_label);
+    patch_rel32(&mut export_code, s1_je_label, s1_label); // S3.462 trampoline E9
     export_code.extend_from_slice(&[0x80, 0xFA, 0x01]);
     let s1_jne_label_argc = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
@@ -5133,7 +5081,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
 
     // --- RAW_BYTE argc=1: emit args_raw[0]
     let s1_raw = export_code.len();
-    patch_jcc32(&mut export_code, s1_je_raw, s1_raw);
+    patch_rel32(&mut export_code, s1_je_raw, s1_raw); // S3.462 trampoline E9
     export_code.extend_from_slice(&[0x80, 0xFA, 0x01]);
     let s1_jne_raw_argc = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
@@ -5150,7 +5098,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
 
     // --- RAW_BYTES argc≤3: append low-bytes to .text (same layout as DATA args)
     let s1_raws = export_code.len();
-    patch_jcc32(&mut export_code, s1_je_raws, s1_raws);
+    patch_rel32(&mut export_code, s1_je_raws, s1_raws); // S3.462 trampoline E9
     export_code.extend_from_slice(&[0x80, 0xFA, 0x03]);
     let s1_ja_raws_argc = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
@@ -5482,7 +5430,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // --- IMUL argc=2: load dst→rax, load src→rcx, imul, store (disp8=16B | any-slot)
     // S3.452: lift s1 IMUL any-slot — both <16 → shared; else hand.
     let s1_imul = export_code.len();
-    patch_jcc32(&mut export_code, s1_je_imul, s1_imul);
+    patch_rel32(&mut export_code, s1_je_imul, s1_imul); // S3.462 trampoline E9
     export_code.extend_from_slice(&[0x80, 0xFA, 0x02]);
     let s1_jne_imul_argc = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
@@ -5631,17 +5579,17 @@ fn link_yoyo_in_dll_recompile_dll_emit(
 
     // --- ADDV(0x68)/ORV(0x69)/SUBV(0x6A): load+alu+store (15B); r8b=01/09/29
     let s1_addv = export_code.len();
-    patch_jcc32(&mut export_code, s1_je_addv, s1_addv);
+    patch_rel32(&mut export_code, s1_je_addv, s1_addv); // S3.462 trampoline E9
     export_code.extend_from_slice(&[0x41, 0xB0, 0x01]); // add
     let s1_jmp_aluv = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     let s1_orv = export_code.len();
-    patch_jcc32(&mut export_code, s1_je_orv, s1_orv);
+    patch_rel32(&mut export_code, s1_je_orv, s1_orv); // S3.462 trampoline E9
     export_code.extend_from_slice(&[0x41, 0xB0, 0x09]); // or
     let s1_jmp_aluv2 = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     let s1_subv = export_code.len();
-    patch_jcc32(&mut export_code, s1_je_subv, s1_subv);
+    patch_rel32(&mut export_code, s1_je_subv, s1_subv); // S3.462 trampoline E9
     export_code.extend_from_slice(&[0x41, 0xB0, 0x29]); // sub
     let s1_aluv = export_code.len();
     patch_rel32(&mut export_code, s1_jmp_aluv, s1_aluv);
@@ -5921,7 +5869,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // --- LDB argc=3: load ss→rax; [oo!=0 → add imm32]; movzx; store dd
     // S3.453: lift s1 LDB any-slot — both <16 → shared; else hand (mirror mt).
     let s1_ldb = export_code.len();
-    patch_jcc32(&mut export_code, s1_je_ldb, s1_ldb);
+    patch_rel32(&mut export_code, s1_je_ldb, s1_ldb); // S3.462 trampoline E9
     export_code.extend_from_slice(&[0x80, 0xFA, 0x03]);
     let s1_jne_ldb_argc = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
@@ -6091,7 +6039,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // --- MEMCPY_DATA argc=3: load src→rsi, dst→rdi, n→rcx; F3 A4
     // S3.453: lift s1 MCPD any-slot — all <16 → shared; else hand (mirror mt).
     let s1_mcp_data = export_code.len();
-    patch_jcc32(&mut export_code, s1_je_mcp_data, s1_mcp_data);
+    patch_rel32(&mut export_code, s1_je_mcp_data, s1_mcp_data); // S3.462 trampoline E9
     export_code.extend_from_slice(&[0x80, 0xFA, 0x03]);
     let s1_jne_mcpd_argc = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
@@ -6251,7 +6199,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // --- MEMCPY_STATE argc=3: unroll n≤4 load/store pairs
     // S3.454: lift s1 MCPS any-slot — last <16 → shared; else hand (mirror mt).
     let s1_mcp_state = export_code.len();
-    patch_jcc32(&mut export_code, s1_je_mcp_state, s1_mcp_state);
+    patch_rel32(&mut export_code, s1_je_mcp_state, s1_mcp_state); // S3.462 trampoline E9
     export_code.extend_from_slice(&[0x80, 0xFA, 0x03]);
     let s1_jne_mcps_argc = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
@@ -6438,9 +6386,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
 
     // --- DATA/STR/RAW (0x10/0x12/0x13): append argc low-bytes to data[] (≤64)
     let s1_data = export_code.len();
-    patch_jcc32(&mut export_code, s1_je_data, s1_data);
-    patch_jcc32(&mut export_code, s1_je_str, s1_data);
-    patch_jcc32(&mut export_code, s1_je_draw, s1_data);
+    patch_rel32(&mut export_code, s1_je_data, s1_data); // S3.462 trampoline E9
+    patch_rel32(&mut export_code, s1_je_str, s1_data); // S3.462 trampoline E9
+    patch_rel32(&mut export_code, s1_je_draw, s1_data); // S3.462 trampoline E9
     export_code.extend_from_slice(&[0x80, 0xFA, 0x03]);
     let s1_ja_data_argc = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]); // argc > 3
@@ -6525,7 +6473,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // --- CALL argc=1: E8 rel32
     // S3.429/S3.460: body = shared CALL seed; pass-2 patches rel32.
     let s1_call = export_code.len();
-    patch_jcc32(&mut export_code, s1_je_call, s1_call);
+    patch_rel32(&mut export_code, s1_je_call, s1_call); // S3.462 trampoline E9
     export_code.extend_from_slice(&[0x80, 0xFA, 0x01]);
     let s1_jne_call_argc = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
@@ -6551,7 +6499,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // --- JMP argc=1: E9 rel32
     // S3.429/S3.460: body = shared JMP seed.
     let s1_jmp = export_code.len();
-    patch_jcc32(&mut export_code, s1_je_jmp, s1_jmp);
+    patch_rel32(&mut export_code, s1_je_jmp, s1_jmp); // S3.462 trampoline E9
     export_code.extend_from_slice(&[0x80, 0xFA, 0x01]);
     let s1_jne_jmp_argc = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);

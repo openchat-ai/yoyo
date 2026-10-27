@@ -2368,12 +2368,13 @@ const S3_FIXED10_OPS: [u8; 10] = [
     0xFF, 0x00, 0x30, 0x60, 0x66, 0x62, 0x67, 0x61, 0x64, 0x65,
 ];
 
-/// S3.461: YOYO-own s1_loop fixed10 dispatch index seed (256B).
-/// Nonzero = trampoline index 1..=10 (order ≡ [`S3_FIXED10_OPS`]); 0 = sequential rest.
+/// S3.461/S3.462: YOYO-own s1_loop op→trampoline index seed (256B).
+/// Nonzero = trampoline index 1..=29; 0 = unsupported → compile_fail.
+/// 1..=10 ≡ [`S3_FIXED10_OPS`]; 11..=29 = remaining mini ops (JCC range→29).
 /// Own-ISA object seed — not densify of cmp/je hex.
-pub const S3_S1_FIXED10_DISPATCH_INDEX_SEED: [u8; 256] = {
+pub const S3_S1_OP_DISPATCH_INDEX_SEED: [u8; 256] = {
     let mut t = [0u8; 256];
-    // Order ≡ S3_FIXED10_OPS: RET NOP SET GET INC ADD DEC SUB MOVRR CMP
+    // 1..=10 fixed10: RET NOP SET GET INC ADD DEC SUB MOVRR CMP
     t[0xFF] = 1;
     t[0x00] = 2;
     t[0x30] = 3;
@@ -2384,8 +2385,41 @@ pub const S3_S1_FIXED10_DISPATCH_INDEX_SEED: [u8; 256] = {
     t[0x61] = 8;
     t[0x64] = 9;
     t[0x65] = 10;
+    // 11..=29 non-fixed10
+    t[0x20] = 11; // ALLOC
+    t[0x50] = 12; // LOAD
+    t[0x51] = 13; // WRITE
+    t[0x40] = 14; // LABEL
+    t[0xA0] = 15; // RAW_BYTE
+    t[0xA1] = 16; // RAW_BYTES
+    t[0x63] = 17; // IMUL
+    t[0x68] = 18; // ADDV
+    t[0x69] = 19; // ORV
+    t[0x6A] = 20; // SUBV
+    t[0x80] = 21; // LDB
+    t[0x84] = 22; // MEMCPY_DATA
+    t[0x85] = 23; // MEMCPY_STATE
+    t[0x10] = 24; // DATA
+    t[0x12] = 25; // STR
+    t[0x13] = 26; // RAW (data)
+    t[0x41] = 27; // CALL
+    t[0x70] = 28; // JMP
+    // JCC 0x71..=0x7A → 29
+    t[0x71] = 29;
+    t[0x72] = 29;
+    t[0x73] = 29;
+    t[0x74] = 29;
+    t[0x75] = 29;
+    t[0x76] = 29;
+    t[0x77] = 29;
+    t[0x78] = 29;
+    t[0x79] = 29;
+    t[0x7A] = 29;
     t
 };
+
+/// S3.461 name kept as alias of full op-dispatch seed (S3.462).
+pub const S3_S1_FIXED10_DISPATCH_INDEX_SEED: [u8; 256] = S3_S1_OP_DISPATCH_INDEX_SEED;
 
 /// S3.337: test-only helper.
 #[cfg(test)]
@@ -11034,9 +11068,9 @@ mod tests {
         );
     }
 
-    /// S3.461: YOYO-own fixed10 dispatcher slice — 256B index seed + 10
-    /// trampolines; fixed10 ops leave sequential cmp/je. ≥10 assembler.
-    /// Non-fixed10 sequential remains. OW-RT still CUT. Not CLOSED.
+    /// S3.461: YOYO-own fixed10 dispatcher slice — 256B index seed + trampolines.
+    /// S3.462 extends seed to full op map (ALLOC..=JCC). OW-RT still CUT.
+    /// Not CLOSED.
     #[test]
     #[cfg(windows)]
     fn s3_ow_rt_yoyo_own_fixed10_dispatcher_slice_pin() {
@@ -11045,23 +11079,70 @@ mod tests {
         assert!(
             pe_dll.contains("YOYO-own fixed10")
                 || pe_dll.contains("fixed10 dispatcher slice")
+                || pe_dll.contains("S3_S1_OP_DISPATCH_INDEX_SEED")
         );
-        assert!(pe_dll.contains("S3_S1_FIXED10_DISPATCH_INDEX_SEED"));
-        assert!(pe_dll.contains("s1_fixed10_trampolines"));
-        assert!(pe_dll.contains("s1_fixed10_disp_seed_at"));
-        assert!(pe_dll.contains("s1_dispatch_rest"));
+        assert!(
+            pe_dll.contains("S3_S1_FIXED10_DISPATCH_INDEX_SEED")
+                || pe_dll.contains("S3_S1_OP_DISPATCH_INDEX_SEED")
+        );
+        assert!(
+            pe_dll.contains("s1_fixed10_trampolines") || pe_dll.contains("s1_op_trampolines")
+        );
+        assert!(
+            pe_dll.contains("s1_fixed10_disp_seed_at") || pe_dll.contains("s1_op_disp_seed_at")
+        );
+        assert!(pe_dll.contains("s1_dispatch_rest") || pe_dll.contains("s1_op_trampolines"));
         // Seed covers all fixed10 ops (1..=10).
-        assert_eq!(S3_S1_FIXED10_DISPATCH_INDEX_SEED[0xFF], 1);
-        assert_eq!(S3_S1_FIXED10_DISPATCH_INDEX_SEED[0x00], 2);
-        assert_eq!(S3_S1_FIXED10_DISPATCH_INDEX_SEED[0x30], 3);
-        assert_eq!(S3_S1_FIXED10_DISPATCH_INDEX_SEED[0x60], 4);
-        assert_eq!(S3_S1_FIXED10_DISPATCH_INDEX_SEED[0x66], 5);
-        assert_eq!(S3_S1_FIXED10_DISPATCH_INDEX_SEED[0x62], 6);
-        assert_eq!(S3_S1_FIXED10_DISPATCH_INDEX_SEED[0x67], 7);
-        assert_eq!(S3_S1_FIXED10_DISPATCH_INDEX_SEED[0x61], 8);
-        assert_eq!(S3_S1_FIXED10_DISPATCH_INDEX_SEED[0x64], 9);
-        assert_eq!(S3_S1_FIXED10_DISPATCH_INDEX_SEED[0x65], 10);
-        assert_eq!(S3_S1_FIXED10_DISPATCH_INDEX_SEED[0x20], 0); // ALLOC → rest
+        assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0xFF], 1);
+        assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x00], 2);
+        assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x30], 3);
+        assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x60], 4);
+        assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x66], 5);
+        assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x62], 6);
+        assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x67], 7);
+        assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x61], 8);
+        assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x64], 9);
+        assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x65], 10);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.462: extend YOYO-own dispatch — full op index seed (29 trampolines);
+    /// sequential cmp/je removed. ≥10 assembler (19 newly table-driven).
+    /// Mini loop still Rust host emit → OW-RT CUT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_yoyo_own_full_op_dispatcher_slice_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.462"));
+        assert!(
+            pe_dll.contains("full op index")
+                || pe_dll.contains("extend to full")
+                || pe_dll.contains("S3_S1_OP_DISPATCH_INDEX_SEED")
+        );
+        assert!(pe_dll.contains("s1_op_trampolines"));
+        assert!(pe_dll.contains("for _ in 0..29"));
+        assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x20], 11); // ALLOC
+        assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x50], 12);
+        assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x51], 13);
+        assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x40], 14);
+        assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x63], 17); // IMUL
+        assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x80], 21); // LDB
+        assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x41], 27); // CALL
+        assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x70], 28); // JMP
+        assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x71], 29); // JCC
+        assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x7A], 29);
+        assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0xFE], 0); // unsupported
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
