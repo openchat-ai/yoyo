@@ -11643,6 +11643,33 @@ mod tests {
         );
     }
 
+    /// S3.451: lift s1 CMP any-slot — both <16 → shared; mix/disp32 → hand
+    /// (mirror mt). Slots ≤255. Next ≥10 = lift IMUL/ALUV/… / OW-RT.
+    /// Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_lift_s1_cmp_any_slot_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.451"));
+        assert!(pe_dll.contains("lift s1 CMP any-slot"));
+        assert!(pe_dll.contains("s1 CMP hand any-slot"));
+        assert!(pe_dll.contains("let s1_cmp_hand"));
+        assert!(pe_dll.contains("s1_jmp_next9b"));
+        assert!(pe_dll.contains("s3_shared_cmp_disp8_seed"));
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.438: batch mt LDB+MCPD+MCPS disp8 → bake seeds (LDB oo0@+262 /
     /// oo≠0@+274, MCPD@+248, MCPS pair@+293). disp32/mix still hand. ≥3 arms
     /// one knife. Completes mt disp8 seed surface. Next ≥10 = collapse
