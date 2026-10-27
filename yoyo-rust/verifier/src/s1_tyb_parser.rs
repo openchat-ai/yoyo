@@ -11117,6 +11117,45 @@ mod tests {
         );
     }
 
+    /// S3.464: collapse shared LOAD/WRITE seeds — mt+s1 call one thunk each
+    /// (rcx=rec; WRITE also r8d=path r9d=sz). Patch registration in callers.
+    /// Next ≥10 = YOYO-emit dispatch stub / OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_collapse_shared_load_write_seed_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.464"));
+        assert!(
+            pe_dll.contains("collapse shared LOAD/WRITE")
+                || pe_dll.contains("shared LOAD/WRITE seeds")
+                || pe_dll.contains("s3_shared_load_seed")
+        );
+        assert!(pe_dll.contains("s3_shared_load_seed"));
+        assert!(pe_dll.contains("s3_shared_write_seed"));
+        assert!(pe_dll.contains("s3_shared_load_calls"));
+        assert!(pe_dll.contains("s3_shared_write_calls"));
+        assert!(
+            pe_dll.contains("mt LOAD → shared LOAD seed")
+                || pe_dll.contains("shared LOAD seed")
+        );
+        assert!(
+            pe_dll.contains("mt WRITE → shared WRITE seed")
+                || pe_dll.contains("shared WRITE seed")
+        );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.463: post-dispatch map. s1_loop op dispatch = YOYO index+trampoline
     /// (29). Remaining Rust hex: handlers / shared seeds / s1_finish / mt path
     /// → OW-RT remains CUT. Next ≥10 ≠ densify hand-disp32. Candidates (≥3):

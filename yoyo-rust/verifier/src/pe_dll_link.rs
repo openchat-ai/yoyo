@@ -2578,6 +2578,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let mut s3_shared_call_calls: Vec<usize> = Vec::new();
     let mut s3_shared_jmp_calls: Vec<usize> = Vec::new();
     let mut s3_shared_jcc_calls: Vec<usize> = Vec::new();
+    // S3.464: call sites → shared LOAD seed (rcx=rec, r12=out) / WRITE seed
+    // (rcx=rec, r8d=path, r9d=sz_slot, r12=out).
+    let mut s3_shared_load_calls: Vec<usize> = Vec::new();
+    let mut s3_shared_write_calls: Vec<usize> = Vec::new();
     let emit_mt_push_patch = |code: &mut Vec<u8>, jmps: &mut Vec<usize>| {
         let lea_at = code.len();
         code.extend_from_slice(&[0x4C, 0x8D, 0x1D, 0, 0, 0, 0]); // lea r11,[rip+ret]
@@ -2918,12 +2922,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x48, 0x8D, 0x4E, 0x08]);
     let s3_jmp_finish_mt_alloc = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-    // S3.95: multi LOAD → memcpy slim template + patch path/slot
+    // S3.95/S3.464: multi LOAD → shared LOAD seed (rcx←rdx)
     let s3_mt_load = export_code.len();
     patch_jcc32(&mut export_code, s3_je_mt_loadf, s3_mt_load);
     let load_len = slim_load_tmpl.len() as u32;
-    let load_path_poff = crate::s1_tyb_parser::slim_load_path_patch_off() as u32;
-    let load_slot_poff = crate::s1_tyb_parser::slim_load_slot_patch_off(slim_load_tmpl) as u32;
     export_code.extend_from_slice(&[0x80, 0x7A, 0x01, 0x02]); // argc=2
     let s3_jne_mt_load_a = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
@@ -2942,23 +2944,11 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
     let s3_jae_fail_mt_load = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x4D, 0x89, 0xE3]); // r11 = r12 start
-    export_code.extend_from_slice(&[0x56, 0x52]); // push rsi, rdx
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]); // lea rsi,[rip+tmpl]
-    rip_patches.push((export_code.len() - 4, slim_load_tmpl_off));
-    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // rdi = r12
-    export_code.extend_from_slice(&[0xB9]);
-    export_code.extend_from_slice(&load_len.to_le_bytes());
-    export_code.extend_from_slice(&[0xF3, 0xA4]);
-    export_code.extend_from_slice(&[0x49, 0x89, 0xFC]); // r12 = rdi
-    export_code.extend_from_slice(&[0x5A, 0x5E]); // pop rdx, rsi
-    export_code.extend_from_slice(&[0x8B, 0x42, 0x04]); // path
-    export_code.extend_from_slice(&[0x41, 0x89, 0x83]); // mov [r11+path_poff], eax
-    export_code.extend_from_slice(&load_path_poff.to_le_bytes());
-    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x02]);
-    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
-    export_code.extend_from_slice(&[0x41, 0x89, 0x83]); // mov [r11+slot_poff], eax
-    export_code.extend_from_slice(&load_slot_poff.to_le_bytes());
+    // S3.464: mt LOAD → shared LOAD seed
+    export_code.extend_from_slice(&[0x48, 0x89, 0xD1]); // mov rcx, rdx
+    let s3_call_mt_load_shared = export_code.len();
+    export_code.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    s3_shared_load_calls.push(s3_call_mt_load_shared);
     export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]);
     export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]);
     let s3_jnz_mt_load = export_code.len();
@@ -2966,16 +2956,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x48, 0x8D, 0x4E, 0x08]);
     let s3_jmp_finish_mt_load = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-    // S3.96: multi WRITE → memcpy slim template + patch path/slot/sz
+    // S3.96/S3.464: multi WRITE → shared WRITE seed (rcx←rdx; r8d=path r9d=sz)
     let s3_mt_write = export_code.len();
     patch_jcc32(&mut export_code, s3_je_mt_writef, s3_mt_write);
     let write_len = slim_write_tmpl.len() as u32;
-    let write_path_poff = crate::s1_tyb_parser::slim_write_path_patch_off() as u32;
-    let write_slot_poff =
-        crate::s1_tyb_parser::slim_write_slot_load_patch_off(slim_write_tmpl) as u32;
-    let write_sz_poff = crate::s1_tyb_parser::slim_write_sz_load_patch_off(slim_write_tmpl) as u32;
-    let write_store_poff =
-        crate::s1_tyb_parser::slim_write_store_patch_off(slim_write_tmpl) as u32;
     // argc=2|3
     export_code.extend_from_slice(&[0x0F, 0xB6, 0x4A, 0x01]); // movzx ecx, argc
     export_code.extend_from_slice(&[0x83, 0xF9, 0x02]);
@@ -3023,29 +3007,11 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
     let s3_jae_fail_mt_write = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x4D, 0x89, 0xE3]);
-    export_code.extend_from_slice(&[0x56, 0x52]);
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
-    rip_patches.push((export_code.len() - 4, slim_write_tmpl_off));
-    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]);
-    export_code.extend_from_slice(&[0xB9]);
-    export_code.extend_from_slice(&write_len.to_le_bytes());
-    export_code.extend_from_slice(&[0xF3, 0xA4]);
-    export_code.extend_from_slice(&[0x49, 0x89, 0xFC]);
-    export_code.extend_from_slice(&[0x5A, 0x5E]);
-    export_code.extend_from_slice(&[0x44, 0x89, 0xC0]); // eax = path
-    export_code.extend_from_slice(&[0x41, 0x89, 0x83]);
-    export_code.extend_from_slice(&write_path_poff.to_le_bytes());
-    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x02]);
-    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
-    export_code.extend_from_slice(&[0x41, 0x89, 0x83]); // slot disp in load rdx
-    export_code.extend_from_slice(&write_slot_poff.to_le_bytes());
-    export_code.extend_from_slice(&[0x41, 0x89, 0x83]); // same slot in final store
-    export_code.extend_from_slice(&write_store_poff.to_le_bytes());
-    export_code.extend_from_slice(&[0x44, 0x89, 0xC8]); // eax = sz_slot
-    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
-    export_code.extend_from_slice(&[0x41, 0x89, 0x83]);
-    export_code.extend_from_slice(&write_sz_poff.to_le_bytes());
+    // S3.464: mt WRITE → shared WRITE seed (r8d/r9d already set)
+    export_code.extend_from_slice(&[0x48, 0x89, 0xD1]); // mov rcx, rdx
+    let s3_call_mt_write_shared = export_code.len();
+    export_code.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    s3_shared_write_calls.push(s3_call_mt_write_shared);
     export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]);
     export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]);
     let s3_jnz_mt_write = export_code.len();
@@ -3071,11 +3037,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // + s1 lift done. S3.460: collapse shared CALL/JMP/JCC seeds (mt+s1).
     // S3.461: YOYO-own fixed10 dispatcher slice. S3.462: extend to full
     // op index+trampoline (29 slots; sequential cmp/je gone).
-    // S3.463: post-dispatch map — s1_loop op dispatch = YOYO index seed;
-    // handlers/shared/finish/mt still Rust hex → OW-RT remains CUT.
-    // Next ≥10 ≠ densify. Densify remaining mt hand-disp32 = sheep.
-    // Candidates: shared LOAD/WRITE · YOYO-emit dispatch stub · mt→same index.
-    // DATA/LABEL=meta. Not CLOSED.
+    // S3.463: post-dispatch map. S3.464: collapse shared LOAD/WRITE seeds
+    // (mt+s1). Densify remaining mt hand-disp32 = sheep. Next ≥10 =
+    // YOYO-emit dispatch stub / mt→same index / OW-RT. Not CLOSED.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
     patch_jcc32(&mut export_code, s3_jne_mt_set_a, s3_mt_get);
@@ -4877,7 +4841,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x07]);
     export_code.extend_from_slice(&[0xC3]);
 
-    // S3.97: s1 LOAD → memcpy slim template + patch (rcx=record)
+    // S3.97/S3.464: s1 LOAD → shared LOAD seed (rcx=record)
     let s1_load = export_code.len();
     patch_rel32(&mut export_code, s1_je_loadf, s1_load); // S3.462 trampoline E9
     let s1_load_len = slim_load_tmpl.len() as u32;
@@ -4902,6 +4866,18 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
     let s1_ja_load_ovf = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    // S3.464: s1 LOAD body = shared LOAD seed (call)
+    let s3_call_s1_load_shared = export_code.len();
+    export_code.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    s3_shared_load_calls.push(s3_call_s1_load_shared);
+    let s1_jmp_next_load = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+    // S3.464: shared LOAD seed — rcx=rec, memcpy slim tmpl + poke path/slot; RET.
+    let s3_shared_load_seed = export_code.len();
+    for at in &s3_shared_load_calls {
+        patch_rel32(&mut export_code, *at, s3_shared_load_seed);
+    }
     export_code.extend_from_slice(&[0x4D, 0x89, 0xE3]); // r11=r12
     export_code.extend_from_slice(&[0x51, 0x56]); // push rcx, rsi
     export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
@@ -4919,10 +4895,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
     export_code.extend_from_slice(&[0x41, 0x89, 0x83]);
     export_code.extend_from_slice(&s1_load_slot_poff.to_le_bytes());
-    let s1_jmp_next_load = export_code.len();
-    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0xC3]); // ret
 
-    // S3.98: s1 WRITE → memcpy slim template + patch
+    // S3.98/S3.464: s1 WRITE → shared WRITE seed (rcx=rec; r8d=path r9d=sz)
     let s1_write = export_code.len();
     patch_rel32(&mut export_code, s1_je_writef, s1_write); // S3.462 trampoline E9
     let s1_write_len = slim_write_tmpl.len() as u32;
@@ -4976,6 +4951,18 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
     let s1_ja_write_ovf = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    // S3.464: s1 WRITE body = shared WRITE seed (call)
+    let s3_call_s1_write_shared = export_code.len();
+    export_code.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    s3_shared_write_calls.push(s3_call_s1_write_shared);
+    let s1_jmp_next_write = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+    // S3.464: shared WRITE seed — rcx=rec, r8d=path, r9d=sz; memcpy+poke; RET.
+    let s3_shared_write_seed = export_code.len();
+    for at in &s3_shared_write_calls {
+        patch_rel32(&mut export_code, *at, s3_shared_write_seed);
+    }
     export_code.extend_from_slice(&[0x4D, 0x89, 0xE3]);
     export_code.extend_from_slice(&[0x51, 0x56]);
     export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
@@ -4999,8 +4986,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
     export_code.extend_from_slice(&[0x41, 0x89, 0x83]);
     export_code.extend_from_slice(&s1_write_sz_poff.to_le_bytes());
-    let s1_jmp_next_write = export_code.len();
-    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0xC3]); // ret
 
     // --- RET
     // S3.421: first YOYO op-handler object seed — emit body = bake row0
