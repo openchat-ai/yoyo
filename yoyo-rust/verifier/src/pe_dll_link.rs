@@ -3098,9 +3098,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.454: lift s1 MCPS any-slot.
     // S3.455: post-s1-lift map — s1 GET..MCPS any-slot (shared+hand) done.
     // S3.447: post-shared-collapse map (kept). S3.455: post-s1-lift map.
-    // S3.456: collapse shared SET seed (mt+s1, slot→disp8/d32).
-    // S3.457: collapse shared ALLOC seed (mt+s1, prefix+store). Next ≥10 =
-    // OW-RT long-pole / real gap. DATA/LABEL=meta.
+    // S3.456–457: collapse shared SET+ALLOC. S3.458: post-SET/ALLOC-collapse map.
+    // Next ≥10 = OW-RT long-pole / real gap (not densify). DATA/LABEL=meta.
     // Densify remaining mt hand-disp32 = sheep. Not CLOSED.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
