@@ -3066,6 +3066,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.477: memcpy-code = YOYO object seed (39B) + poke CODE/PE; TEXT_PAYLOAD
     // baked. Template memcpy still RIP (419 cliff). Next ≥10 = memcpy-data /
     // OW-RT.
+    // S3.478: memcpy-data = YOYO object seed (36B) + poke DATA_LEN/DATA/PE;
+    // DATA_PAYLOAD baked; jz rel8 baked. Next ≥10 = post-finish-memcpy map /
+    // template RIP / OW-RT.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
     patch_jcc32(&mut export_code, s3_jne_mt_set_a, s3_mt_get);
@@ -6855,23 +6858,22 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         export_code[b + a3..b + a3 + 4].copy_from_slice(&cd);
     }
 
-    // memcpy data → pe + S1_SLIM_DATA_PAYLOAD_OFF (S3.7: 0x800)
-    export_code.extend_from_slice(&[0x8B, 0x8C, 0x24]);
-    push_u32_le(&mut export_code, IN_DLL_S1_DATA_LEN_OFF); // ecx=data_len
-    export_code.extend_from_slice(&[0x85, 0xC9]);
-    let s1_jz_nodata = export_code.len();
-    export_code.extend_from_slice(&[0x74, 0x00]);
-    export_code.extend_from_slice(&[0x48, 0x8D, 0xB4, 0x24]);
-    push_u32_le(&mut export_code, IN_DLL_S1_DATA_OFF); // rsi=data
-    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24]);
-    push_u32_le(&mut export_code, IN_DLL_S1_PE_OFF); // rdi=pe
-    export_code.extend_from_slice(&[0x48, 0x81, 0xC7]); // add rdi, data_off
-    export_code.extend_from_slice(
-        &(crate::s1_tyb_parser::S1_SLIM_DATA_PAYLOAD_OFF as u32).to_le_bytes(),
-    );
-    export_code.extend_from_slice(&[0xF3, 0xA4]);
-    let s1_after_data = export_code.len();
-    patch_rel8(&mut export_code, s1_jz_nodata, s1_after_data);
+    // memcpy data → pe + S1_SLIM_DATA_PAYLOAD_OFF (S3.7: 0xA00)
+    // S3.478: body = S3_MEMCPY_DATA_FINISH_BODY_SEED; poke LEN/DATA/PE; jz baked.
+    let s1_mcp_data = export_code.len();
+    export_code.extend_from_slice(&crate::s1_tyb_parser::S3_MEMCPY_DATA_FINISH_BODY_SEED);
+    {
+        let dl = IN_DLL_S1_DATA_LEN_OFF.to_le_bytes();
+        let da = IN_DLL_S1_DATA_OFF.to_le_bytes();
+        let pe = IN_DLL_S1_PE_OFF.to_le_bytes();
+        let b = s1_mcp_data;
+        let a = crate::s1_tyb_parser::S3_MEMCPY_DATA_FINISH_LEN_OFF_AT;
+        let a2 = crate::s1_tyb_parser::S3_MEMCPY_DATA_FINISH_DATA_OFF_AT;
+        let a3 = crate::s1_tyb_parser::S3_MEMCPY_DATA_FINISH_PE_OFF_AT;
+        export_code[b + a..b + a + 4].copy_from_slice(&dl);
+        export_code[b + a2..b + a2 + 4].copy_from_slice(&da);
+        export_code[b + a3..b + a3 + 4].copy_from_slice(&pe);
+    }
 
     // rcx = pe_buf, r12d = template_len → write_out
     export_code.extend_from_slice(&[0x48, 0x8D, 0x8C, 0x24]);
