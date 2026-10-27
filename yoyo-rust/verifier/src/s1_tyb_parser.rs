@@ -13123,6 +13123,61 @@ mod tests {
         );
     }
 
+    /// S3.492: YOYO-built compile cliff reject. Freezing more pe_dll hand-x86
+    /// into `*_BODY_SEED` = translation densify — **YOYO ≠ other-lang
+    /// translate**. mt→same index = 467 ABI (no retry). Honest CUT surface:
+    /// in-DLL = TYB mini + finite oracle; host effect = `bootstrap_compile`;
+    /// production = Rust sidecar. YOYO-built CLOSED needs call-time YOYO
+    /// compile in sidecar. Next ≥10 = YOYO-IR compile slice / OW-RT.
+    /// Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_yoyo_built_compile_cliff_reject() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.492"));
+        assert!(
+            pe_dll.contains("YOYO-built compile cliff")
+                || pe_dll.contains("translation densify")
+        );
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        // ≥10 inventory: not a sheep −1 densify reject.
+        let pins = [
+            "yoyo_built_runtime_effect",
+            "bootstrap_compile",
+            "finite YOYO-precompiled",
+            "not an in-DLL YOYO compiler",
+            "link_yoyo_in_dll_recompile_dll",
+            "yoyo_in_dll_recompile",
+            "S1 mini TYB codegen",
+            "let s1_loop = export_code.len()",
+            "S3.467",
+            "Naive share = ABI cliff",
+            "production default remains Rust",
+        ];
+        for p in pins {
+            assert!(pe_dll.contains(p), "missing cliff pin {p}");
+        }
+        assert!(pins.len() >= 10);
+        // Seed freeze wave exists — must not be mistaken for YOYO-built.
+        assert!(pe_dll.contains("S3_PUSH_PATCH_BODY_SEED"));
+        assert!(pe_dll.contains("S3_PASS2_BODY_SEED"));
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.491: OW-RT residual after finish/table-seed wave. Seeds landed:
     /// push_patch · pass-2 · trail · memcpy-code/data · template-post-lea ·
     /// write_out · DATA append · push_label. Remaining cliffs: mini entry
