@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.463**（462 full op YOYO dispatch；下一刀=post-dispatch map / OW-RT；**不**假 CLOSED）。
+**默认** 继续 **= S3.464**（463 post-dispatch map；下一刀=shared LOAD/WRITE；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -140,9 +140,10 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.460** ✅ | c9884af | collapse shared CALL/JMP/JCC seeds（mt+s1） |
 | **S3.461** ✅ | 5ee8732 | YOYO-own fixed10 dispatcher slice（index+tramp） |
 | **S3.462** ✅ | c8ff4a6 | extend YOYO-own full op dispatch（29 tramp） |
-| **S3.463** ⏳ | — | **本步**：post-dispatch map / OW-RT |
+| **S3.463** ✅ | 9639089 | post-dispatch map（YOYO index done；OW-RT CUT） |
+| **S3.464** ⏳ | — | **本步**：shared LOAD/WRITE collapse |
 
-**缺口**：s1_loop YOYO-own full op dispatch 完成（29）。下一刀=post-dispatch map · OW-RT。Densify=羊。DATA/LABEL=meta。无假 CLOSED。ake=362 · s3_=272。
+**缺口**：s1 dispatch YOYO-own 完成。下一刀=shared LOAD/WRITE · OW-RT。Densify=羊。DATA/LABEL=meta。无假 CLOSED。ake=362 · s3_=273。
 
 ---
 
@@ -184,4 +185,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-26**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.463** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 看板已再折（波段+近窗）
+**快照 2026-10-26**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.464** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 看板已再折（波段+近窗）
