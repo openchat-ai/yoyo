@@ -2588,6 +2588,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let mut s3_shared_raw_byte_calls: Vec<usize> = Vec::new();
     // S3.471: call sites → shared RAW_BYTES emit seed (rcx=rec, r9b=argc, r12=out).
     let mut s3_shared_raw_bytes_calls: Vec<usize> = Vec::new();
+    // S3.486: call sites → shared DATA append seed (rcx=rec, r9b=argc, rdi=dest).
+    let mut s3_shared_data_append_calls: Vec<usize> = Vec::new();
     let emit_mt_push_patch = |code: &mut Vec<u8>, jmps: &mut Vec<usize>| {
         let lea_at = code.len();
         code.extend_from_slice(&[0x4C, 0x8D, 0x1D, 0, 0, 0, 0]); // lea r11,[rip+ret]
@@ -3094,6 +3096,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.485: OW-RT mini→YOYO entry cliff reject — jmp_s1 / s1 mini / try
     // pilots remain Rust (≥10). Deleting without YOYO-built compile = sheep.
     // mt ABI=467. Next ≥10 = YOYO-built compile path / mt residual.
+    // S3.486: DATA append body = YOYO object seed (39B) shared mt+s1
+    // (rcx=rec, r9b=argc, rdi=dest). Next ≥10 = post-data-append map / OW-RT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -4049,27 +4053,11 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24]);
     push_u32_le(&mut export_code, IN_DLL_S1_DATA_OFF);
     export_code.extend_from_slice(&[0x48, 0x01, 0xC7]); // rdi = data + old_len
-    export_code.extend_from_slice(&[0x45, 0x84, 0xC9]); // test r9b, r9b
-    let s3_jz_mt_data0 = export_code.len();
-    export_code.extend_from_slice(&[0x74, 0x00]);
-    export_code.extend_from_slice(&[0x8A, 0x42, 0x02]);
-    export_code.extend_from_slice(&[0x88, 0x07]);
-    export_code.extend_from_slice(&[0x48, 0xFF, 0xC7]);
-    export_code.extend_from_slice(&[0x41, 0x80, 0xF9, 0x01]);
-    let s3_jbe_mt_data1 = export_code.len();
-    export_code.extend_from_slice(&[0x76, 0x00]);
-    export_code.extend_from_slice(&[0x8A, 0x42, 0x04]);
-    export_code.extend_from_slice(&[0x88, 0x07]);
-    export_code.extend_from_slice(&[0x48, 0xFF, 0xC7]);
-    export_code.extend_from_slice(&[0x41, 0x80, 0xF9, 0x02]);
-    let s3_jbe_mt_data2 = export_code.len();
-    export_code.extend_from_slice(&[0x76, 0x00]);
-    export_code.extend_from_slice(&[0x8A, 0x42, 0x06]);
-    export_code.extend_from_slice(&[0x88, 0x07]);
-    let s3_mt_data_done = export_code.len();
-    patch_rel8(&mut export_code, s3_jz_mt_data0, s3_mt_data_done);
-    patch_rel8(&mut export_code, s3_jbe_mt_data1, s3_mt_data_done);
-    patch_rel8(&mut export_code, s3_jbe_mt_data2, s3_mt_data_done);
+    // S3.486: append = shared DATA append seed (rcx=rec, r9b=argc, rdi=dest)
+    export_code.extend_from_slice(&[0x48, 0x89, 0xD1]); // mov rcx, rdx
+    let s3_call_mt_data_append = export_code.len();
+    export_code.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    s3_shared_data_append_calls.push(s3_call_mt_data_append);
     export_code.extend_from_slice(&[0x44, 0x01, 0x8C, 0x24]);
     push_u32_le(&mut export_code, IN_DLL_S1_DATA_LEN_OFF); // data_len += argc
     export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]); // add rdx, 8
@@ -6438,33 +6426,23 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24]);
     push_u32_le(&mut export_code, IN_DLL_S1_DATA_OFF);
     export_code.extend_from_slice(&[0x48, 0x01, 0xC7]);
-    // append: for argc>=1 byte[rcx+2]; >=2 byte[rcx+4]; >=3 byte[rcx+6]
-    export_code.extend_from_slice(&[0x84, 0xD2]); // test dl,dl
-    let s1_jz_data_done = export_code.len();
-    export_code.extend_from_slice(&[0x74, 0x00]);
-    export_code.extend_from_slice(&[0x8A, 0x41, 0x02]);
-    export_code.extend_from_slice(&[0x88, 0x07]);
-    export_code.extend_from_slice(&[0x48, 0xFF, 0xC7]);
-    export_code.extend_from_slice(&[0x80, 0xFA, 0x01]);
-    let s1_jbe_data1 = export_code.len();
-    export_code.extend_from_slice(&[0x76, 0x00]); // jbe done if argc<=1
-    export_code.extend_from_slice(&[0x8A, 0x41, 0x04]);
-    export_code.extend_from_slice(&[0x88, 0x07]);
-    export_code.extend_from_slice(&[0x48, 0xFF, 0xC7]);
-    export_code.extend_from_slice(&[0x80, 0xFA, 0x02]);
-    let s1_jbe_data2 = export_code.len();
-    export_code.extend_from_slice(&[0x76, 0x00]);
-    export_code.extend_from_slice(&[0x8A, 0x41, 0x06]);
-    export_code.extend_from_slice(&[0x88, 0x07]);
-    let s1_data_done = export_code.len();
-    patch_rel8(&mut export_code, s1_jz_data_done, s1_data_done);
-    patch_rel8(&mut export_code, s1_jbe_data1, s1_data_done);
-    patch_rel8(&mut export_code, s1_jbe_data2, s1_data_done);
+    // S3.486: append = shared DATA append seed (rcx=rec, r9b=argc, rdi=dest)
+    export_code.extend_from_slice(&[0x41, 0x89, 0xD1]); // mov r9d, edx
+    let s3_call_s1_data_append = export_code.len();
+    export_code.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    s3_shared_data_append_calls.push(s3_call_s1_data_append);
     // data_len += argc (edx)
     export_code.extend_from_slice(&[0x01, 0x94, 0x24]);
     push_u32_le(&mut export_code, IN_DLL_S1_DATA_LEN_OFF);
     let s1_jmp_next18 = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+    // S3.486: shared DATA append seed ≡ S3_DATA_APPEND_BODY_SEED
+    let s3_shared_data_append_seed = export_code.len();
+    for at in &s3_shared_data_append_calls {
+        patch_rel32(&mut export_code, *at, s3_shared_data_append_seed);
+    }
+    export_code.extend_from_slice(&crate::s1_tyb_parser::S3_DATA_APPEND_BODY_SEED);
 
     // --- shared: push patch (pos=eax, id=edx) → patches[n++]; return via jmp r11
     // Must not use call/ret: RSP-relative label/patch tables assume fixed frame.

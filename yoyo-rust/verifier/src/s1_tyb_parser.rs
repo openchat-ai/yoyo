@@ -2630,6 +2630,27 @@ pub const S3_WRITE_OUT_SETUP_PE_OFF_AT: usize = 4;
 pub const S3_WRITE_OUT_SETUP_LEN_AT: usize = 10;
 pub const S3_WRITE_OUT_SETUP_JMP_AT: usize = 14;
 
+/// S3.486: DATA/STR/RAW-data append body = own-ISA object seed (39B).
+/// rcx=rec, r9b=argc≤3, rdi=dest; advances rdi for bytes 0..argc-1 (last
+/// write no-inc — caller adds argc to data_len). Shared mt+s1. Rel8s baked.
+pub const S3_DATA_APPEND_BODY_SEED: [u8; 39] = [
+    0x45, 0x84, 0xC9, // test r9b, r9b
+    0x74, 0x21, // jz done
+    0x8A, 0x41, 0x02, // mov al, [rcx+2]
+    0x88, 0x07, // mov [rdi], al
+    0x48, 0xFF, 0xC7, // inc rdi
+    0x41, 0x80, 0xF9, 0x01, // cmp r9b, 1
+    0x76, 0x13, // jbe done
+    0x8A, 0x41, 0x04,
+    0x88, 0x07,
+    0x48, 0xFF, 0xC7,
+    0x41, 0x80, 0xF9, 0x02, // cmp r9b, 2
+    0x76, 0x05, // jbe done
+    0x8A, 0x41, 0x06,
+    0x88, 0x07,
+    0xC3, // done: ret
+];
+
 /// S3.337: test-only helper.
 #[cfg(test)]
 fn s3_fixed10_named_cases() -> Vec<(&'static str, Vec<(u8, u8, [u8; 6])>)> {
@@ -13068,6 +13089,39 @@ mod tests {
                 || pe_dll.contains("s3_shared_retnop_seed")
         );
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.486: DATA append body = YOYO object seed (39B) shared mt+s1
+    /// (rcx=rec, r9b=argc, rdi=dest). Rel8s baked. Next ≥10 = post-data-append
+    /// map / OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_data_append_body_seed_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.486"));
+        assert!(
+            pe_dll.contains("DATA append") || pe_dll.contains("S3_DATA_APPEND_BODY_SEED")
+        );
+        assert!(pe_dll.contains("S3_DATA_APPEND_BODY_SEED"));
+        assert!(pe_dll.contains("s3_shared_data_append_seed"));
+        assert!(pe_dll.contains("s3_shared_data_append_calls"));
+        assert_eq!(S3_DATA_APPEND_BODY_SEED.len(), 39);
+        assert_eq!(S3_DATA_APPEND_BODY_SEED[0], 0x45); // test r9b
+        assert_eq!(S3_DATA_APPEND_BODY_SEED[3], 0x74); // jz
+        assert_eq!(S3_DATA_APPEND_BODY_SEED[4], 0x21);
+        assert_eq!(S3_DATA_APPEND_BODY_SEED[38], 0xC3);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
                 .unwrap()
