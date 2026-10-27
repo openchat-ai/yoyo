@@ -13077,6 +13077,54 @@ mod tests {
         );
     }
 
+    /// S3.483: handler argc/ovf guard densify = sheep reject. Collapsing
+    /// per-handler `jne_argc`/`ja_ovf` into one shared guard helper is −1
+    /// densify (no new YOYO capability). Surface stays ≥10 distinct sites.
+    /// Next ≥10 = mt residual / OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_handler_guard_densify_reject() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.483"));
+        assert!(
+            pe_dll.contains("guard densify") || pe_dll.contains("handler argc/ovf guard")
+        );
+        let guards = [
+            "s1_jne_set_argc",
+            "s1_ja_set_ovf",
+            "s1_jne_ret_argc",
+            "s1_ja_ret_ovf",
+            "s1_jne_get_argc",
+            "s1_ja_get_ovf",
+            "s1_jne_call_argc",
+            "s1_ja_call_ovf",
+            "s1_jne_jmp_argc",
+            "s1_ja_jmp_ovf",
+            "s1_jne_raw_argc",
+            "s1_ja_raw_ovf",
+        ];
+        for g in guards {
+            assert!(pe_dll.contains(g), "missing guard {g}");
+        }
+        assert!(guards.len() >= 10, "guard surface ≥10 — densify ≠ sheep cut");
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.482: post-s1-finish map. pass-2 · trail · memcpy-code/data ·
     /// template-post-lea · write_out = YOYO seeds. Remaining: RIP lea (419) ·
     /// handler guards · mt dispatch → OW-RT CUT. Next ≥10 ≠ densify
