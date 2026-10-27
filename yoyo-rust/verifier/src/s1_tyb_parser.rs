@@ -13123,6 +13123,58 @@ mod tests {
         );
     }
 
+    /// S3.491: OW-RT residual after finish/table-seed wave. Seeds landed:
+    /// push_patch · pass-2 · trail · memcpy-code/data · template-post-lea ·
+    /// write_out · DATA append · push_label. Remaining cliffs: mini entry
+    /// (485) · mt (467) · RIP lea (419) · handler hex → OW-RT CUT. Next ≥10 ≠
+    /// densify. Candidates: YOYO-built compile · mt index (ABI). Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_post_table_seed_wave_residual_map_reject() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.491"));
+        assert!(
+            pe_dll.contains("finish/table-seed wave")
+                || pe_dll.contains("OW-RT residual after finish")
+        );
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        let seeds = [
+            "S3_PUSH_PATCH_BODY_SEED",
+            "S3_PASS2_BODY_SEED",
+            "S3_TRAIL_C3_BODY_SEED",
+            "S3_MEMCPY_CODE_BODY_SEED",
+            "S3_MEMCPY_DATA_FINISH_BODY_SEED",
+            "S3_TEMPLATE_POST_LEA_BODY_SEED",
+            "S3_WRITE_OUT_SETUP_BODY_SEED",
+            "S3_DATA_APPEND_BODY_SEED",
+            "S3_PUSH_LABEL_BODY_SEED",
+            "S3_RAW_BYTES_EMIT_BODY_SEED",
+        ];
+        for s in seeds {
+            assert!(pe_dll.contains(s), "missing seed {s}");
+        }
+        assert!(seeds.len() >= 10);
+        assert!(
+            pe_dll.contains("Densify hand-disp32 = sheep")
+                || pe_dll.contains("hand-disp32 = sheep")
+        );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.490: mt→s1 push_label share reject. s1 has `S3_PUSH_LABEL_BODY_SEED`;
     /// mt LABEL stays hand — rdx/r9/r10 vs rcx/edx/esi (≡467 ABI cliff).
     /// Surface: mt label path ≥10 distinct sites remain. Next ≥10 = OW-RT.
