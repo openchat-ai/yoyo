@@ -3170,9 +3170,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.439: post-disp8 map + densify = sheep. collapse wedge = shared
     // call thunks. Naive jmp s1_loop mid-mt = sheep (ABI cliff).
     // S3.440–446: shared GET..MCPS pair — disp8 shared surface complete.
-    // S3.447: post-shared-collapse map. S3.448: lift s1 GET/MOVRR any-slot
-    // (disp8→shared; mix/disp32→hand). Densify mt hand-disp32 = sheep.
-    // Next ≥10 = lift more s1 ops / OW-RT. Not CLOSED.
+    // S3.447: post-shared-collapse map. S3.448: lift s1 GET/MOVRR any-slot.
+    // S3.449: lift s1 INC/DEC any-slot. Next ≥10 = lift ADD/… / OW-RT.
+    // Densify remaining mt hand-disp32 = sheep. Not CLOSED.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
     patch_jcc32(&mut export_code, s3_jne_mt_set_a, s3_mt_get);
@@ -5439,21 +5439,48 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x80, 0xFA, 0x01]);
     let s1_jne_incdec_argc = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
-    export_code.extend_from_slice(&[0x48, 0x83, 0xC0, 0x0B]); // 11 bytes
-    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
+    // S3.449: lift s1 INC/DEC any-slot — slot≤255; <16→shared; else hand 17B
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // slot
+    export_code.extend_from_slice(&[0x3D, 0x00, 0x01, 0x00, 0x00]);
+    let s1_jae_incdec_slot = export_code.len(); // >255 → fail
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // eax=slot (rcx live)
+    export_code.extend_from_slice(&[0x83, 0xF8, 0x10]); // cmp eax, 16
+    export_code.extend_from_slice(&[0xB8, 0x0B, 0x00, 0x00, 0x00]); // 11
+    export_code.extend_from_slice(&[0x41, 0xBA, 0x11, 0x00, 0x00, 0x00]); // 17
+    export_code.extend_from_slice(&[0x41, 0x0F, 0x43, 0xC2]); // cmovae eax,r10d
+    export_code.extend_from_slice(&[0x4D, 0x89, 0xE1]); // r9 = r12
+    export_code.extend_from_slice(&[0x49, 0x01, 0xC1]); // r9 += size
+    export_code.extend_from_slice(&[0x4D, 0x39, 0xE9]); // cmp r9, r13
     let s1_ja_incdec_ovf = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // slot = word [rcx+2]
-    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
-    export_code.extend_from_slice(&[0x3D, 0x80, 0x00, 0x00, 0x00]);
-    let s1_jae_incdec_slot = export_code.len();
+    export_code.extend_from_slice(&[0x66, 0x83, 0x79, 0x02, 0x10]); // slot≥16?
+    let s1_jae_incdec_hand = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
     // S3.422/S3.441: INC/DEC body = shared INC seed (r8b=ModRM)
     let s3_call_s1_incdec_shared = export_code.len();
     export_code.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
     s3_shared_incdec_calls.push(s3_call_s1_incdec_shared);
     let s1_jmp_next8 = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    // S3.449: s1 INC/DEC hand disp32 (r8b=C0/C8, rcx=rec)
+    let s1_incdec_hand = export_code.len();
+    patch_jcc32(&mut export_code, s1_jae_incdec_hand, s1_incdec_hand);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // slot
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]); // eax = disp32
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x8B]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x02, 0x87]);
+    export_code.extend_from_slice(&[0x41, 0x89, 0x44, 0x24, 0x03]); // load disp32
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x07, 0x48]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x08, 0xFF]);
+    export_code.extend_from_slice(&[0x45, 0x88, 0x44, 0x24, 0x09]); // ModRM r8b
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0A, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0B, 0x89]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x0C, 0x87]);
+    export_code.extend_from_slice(&[0x41, 0x89, 0x44, 0x24, 0x0D]); // store disp32
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x11]); // add r12, 17
+    let s1_jmp_next8b = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // S3.441: shared INC/DEC disp8 seed — rcx=rec, r8b=C0/C8, r12=out; RET.
@@ -6215,6 +6242,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         s1_jmp_next6b,
         s1_jmp_next7,
         s1_jmp_next8,
+        s1_jmp_next8b,
         s1_jmp_next9,
         s1_jmp_next10,
         s1_jmp_next11,
