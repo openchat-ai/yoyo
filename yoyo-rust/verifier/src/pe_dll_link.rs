@@ -3173,7 +3173,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.447: post-shared-collapse map. S3.448–451: lift s1 GET..CMP.
     // S3.452: lift s1 IMUL+ALUV any-slot.
     // S3.453: lift s1 LDB+MCPD any-slot.
-    // S3.454: lift s1 MCPS any-slot. Next ≥10 = post-lift map / OW-RT.
+    // S3.454: lift s1 MCPS any-slot.
+    // S3.455: post-s1-lift map — s1 GET..MCPS any-slot (shared+hand) done.
+    // Next ≥10 = OW-RT long-pole / real gap (not densify). DATA/LABEL=meta.
     // Densify remaining mt hand-disp32 = sheep. Not CLOSED.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
