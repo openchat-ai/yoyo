@@ -11055,7 +11055,10 @@ mod tests {
     fn s3_ow_rt_s1_memcpy_state_pair_seed_poke_pin() {
         let pe_dll = include_str!("pe_dll_link.rs");
         assert!(pe_dll.contains("S3.428"));
-        assert!(pe_dll.contains("pair seed (8B)"));
+        assert!(
+            pe_dll.contains("pair seed (8B)")
+                || pe_dll.contains("shared MCPS pair seed")
+        );
         assert!(pe_dll.contains("s3_bake_table_off + 293"));
         assert_eq!(S3_MEMCPY_STATE_PAIR_SEED.len(), 8);
         assert_eq!(&S3_MEMCPY_STATE_PAIR_SEED[..4], &[0x49, 0x8b, 0x47, 0x00]);
@@ -11487,6 +11490,34 @@ mod tests {
         );
     }
 
+    /// S3.446: collapse — shared MCPS pair seed (bake+293, r8b=dst_disp,
+    /// r9b=src_disp). mt+s1 loop bodies → call. ≥2 sites. Completes mt/s1
+    /// disp8 shared surface. Next ≥10 = lift s1 any-slot / OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_collapse_shared_mcps_pair_seed_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.446"));
+        assert!(pe_dll.contains("shared MCPS pair seed"));
+        assert!(pe_dll.contains("s3_shared_mcps_pair_seed"));
+        assert!(pe_dll.contains("mt MCPS pair → shared"));
+        let calls = pe_dll.matches("s3_shared_mcps_calls.push").count();
+        assert!(calls >= 2, "shared MCPS call sites ≥2, got {calls}");
+        assert!(pe_dll.contains("s3_bake_table_off + 293"));
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.438: batch mt LDB+MCPD+MCPS disp8 → bake seeds (LDB oo0@+262 /
     /// oo≠0@+274, MCPD@+248, MCPS pair@+293). disp32/mix still hand. ≥3 arms
     /// one knife. Completes mt disp8 seed surface. Next ≥10 = collapse
@@ -11505,7 +11536,10 @@ mod tests {
             pe_dll.contains("all slots <16 → bake+248 MCPD seed")
                 || pe_dll.contains("mt MCPD disp8 → shared MCPD")
         );
-        assert!(pe_dll.contains("last slots <16 → pair seed @+293"));
+        assert!(
+            pe_dll.contains("last slots <16 → pair seed @+293")
+                || pe_dll.contains("mt MCPS pair → shared")
+        );
         assert!(pe_dll.contains("s3_bake_table_off + 262"));
         assert!(pe_dll.contains("s3_bake_table_off + 274"));
         assert!(pe_dll.contains("s3_bake_table_off + 248"));
