@@ -3076,6 +3076,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // OW-RT remains CUT.
     // S3.480: template-post-lea = YOYO object seed (18B) + poke PE/len; RIP lea
     // stays hand (419). Next ≥10 = write_out setup seed / OW-RT.
+    // S3.481: write_out setup = YOYO object seed (19B) + poke PE/len; jmp live.
+    // Next ≥10 = post-s1-finish map / guards / OW-RT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -6893,12 +6895,19 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     }
 
     // rcx = pe_buf, r12d = template_len → write_out
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x8C, 0x24]);
-    push_u32_le(&mut export_code, IN_DLL_S1_PE_OFF);
-    export_code.extend_from_slice(&[0x41, 0xBC]); // mov r12d, imm32
-    export_code.extend_from_slice(&template_len.to_le_bytes());
-    let s1_jmp_write = export_code.len();
-    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    // S3.481: body = S3_WRITE_OUT_SETUP_BODY_SEED; poke PE/len; jmp live.
+    let s1_write_setup = export_code.len();
+    export_code.extend_from_slice(&crate::s1_tyb_parser::S3_WRITE_OUT_SETUP_BODY_SEED);
+    {
+        let pe = IN_DLL_S1_PE_OFF.to_le_bytes();
+        let ln = template_len.to_le_bytes();
+        let b = s1_write_setup;
+        let a = crate::s1_tyb_parser::S3_WRITE_OUT_SETUP_PE_OFF_AT;
+        let a2 = crate::s1_tyb_parser::S3_WRITE_OUT_SETUP_LEN_AT;
+        export_code[b + a..b + a + 4].copy_from_slice(&pe);
+        export_code[b + a2..b + a2 + 4].copy_from_slice(&ln);
+    }
+    let s1_jmp_write = s1_write_setup + crate::s1_tyb_parser::S3_WRITE_OUT_SETUP_JMP_AT;
 
     // collect s1 fail sites → compile_fail
     let s1_fail_sites = [

@@ -2618,6 +2618,18 @@ pub const S3_TEMPLATE_POST_LEA_BODY_SEED: [u8; 18] = [
 pub const S3_TEMPLATE_POST_LEA_PE_OFF_AT: usize = 4;
 pub const S3_TEMPLATE_POST_LEA_LEN_AT: usize = 12;
 
+/// S3.481: write_out setup = own-ISA object seed (19B). Loads pe_buf→rcx and
+/// template_len→r12d then jmp write_out. Live poke: PE @+4, len @+10. Live
+/// patch: jmp @+14.
+pub const S3_WRITE_OUT_SETUP_BODY_SEED: [u8; 19] = [
+    0x48, 0x8D, 0x8C, 0x24, 0x00, 0x00, 0x00, 0x00, // lea rcx,[rsp+PE] poke @4
+    0x41, 0xBC, 0x00, 0x00, 0x00, 0x00, // mov r12d, len poke @10
+    0xE9, 0x00, 0x00, 0x00, 0x00, // jmp write_out live @14
+];
+pub const S3_WRITE_OUT_SETUP_PE_OFF_AT: usize = 4;
+pub const S3_WRITE_OUT_SETUP_LEN_AT: usize = 10;
+pub const S3_WRITE_OUT_SETUP_JMP_AT: usize = 14;
+
 /// S3.337: test-only helper.
 #[cfg(test)]
 fn s3_fixed10_named_cases() -> Vec<(&'static str, Vec<(u8, u8, [u8; 6])>)> {
@@ -13056,6 +13068,42 @@ mod tests {
                 || pe_dll.contains("s3_shared_retnop_seed")
         );
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.481: write_out setup = YOYO object seed (19B) + poke PE/len; jmp
+    /// live. Next ≥10 = post-s1-finish map / guards / OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_write_out_setup_body_seed_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.481"));
+        assert!(
+            pe_dll.contains("write_out setup")
+                || pe_dll.contains("S3_WRITE_OUT_SETUP_BODY_SEED")
+        );
+        assert!(pe_dll.contains("S3_WRITE_OUT_SETUP_BODY_SEED"));
+        assert!(pe_dll.contains("S3_WRITE_OUT_SETUP_PE_OFF_AT"));
+        assert!(pe_dll.contains("S3_WRITE_OUT_SETUP_JMP_AT"));
+        assert_eq!(S3_WRITE_OUT_SETUP_BODY_SEED.len(), 19);
+        assert_eq!(S3_WRITE_OUT_SETUP_BODY_SEED[0], 0x48);
+        assert_eq!(S3_WRITE_OUT_SETUP_BODY_SEED[8], 0x41); // mov r12d
+        assert_eq!(S3_WRITE_OUT_SETUP_BODY_SEED[9], 0xBC);
+        assert_eq!(S3_WRITE_OUT_SETUP_BODY_SEED[14], 0xE9); // jmp
+        assert_eq!(S3_WRITE_OUT_SETUP_PE_OFF_AT, 4);
+        assert_eq!(S3_WRITE_OUT_SETUP_LEN_AT, 10);
+        assert_eq!(S3_WRITE_OUT_SETUP_JMP_AT, 14);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
                 .unwrap()
