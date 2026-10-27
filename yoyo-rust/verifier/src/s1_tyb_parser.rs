@@ -2439,6 +2439,24 @@ pub const S3_S1_OP_DISPATCH_PROBE_SEED: [u8; 45] = [
 pub const S3_S1_OP_DISPATCH_PROBE_JZ_OFF: usize = 19;
 pub const S3_S1_OP_DISPATCH_PROBE_LEA_TRAMP_AT: usize = 25;
 
+/// S3.468: YOYO-own handler trampoline table seed — 29 × (E9 rel32 + 3×NOP).
+/// Live emit patches each E9 → s1 handler. Own-ISA object seed (≥10 slots).
+pub const S3_S1_OP_DISPATCH_TRAMP_SEED: [u8; 29 * 8] = {
+    let mut t = [0x90u8; 29 * 8];
+    let mut i = 0usize;
+    while i < 29 {
+        let o = i * 8;
+        t[o] = 0xE9;
+        t[o + 1] = 0;
+        t[o + 2] = 0;
+        t[o + 3] = 0;
+        t[o + 4] = 0;
+        // +5..+7 already 0x90
+        i += 1;
+    }
+    t
+};
+
 /// S3.337: test-only helper.
 #[cfg(test)]
 fn s3_fixed10_named_cases() -> Vec<(&'static str, Vec<(u8, u8, [u8; 6])>)> {
@@ -11135,6 +11153,38 @@ mod tests {
         );
     }
 
+    /// S3.468: YOYO-own handler trampoline table seed — 29×(E9+NOP)=232B.
+    /// Replaces hand loop; live patch E9→handlers. ≥10 assembler (29 slots).
+    /// Next ≥10 = more YOYO handler body seeds / OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_yoyo_own_handler_trampoline_seed_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.468"));
+        assert!(
+            pe_dll.contains("handler trampoline table seed")
+                || pe_dll.contains("S3_S1_OP_DISPATCH_TRAMP_SEED")
+        );
+        assert!(pe_dll.contains("S3_S1_OP_DISPATCH_TRAMP_SEED"));
+        assert_eq!(S3_S1_OP_DISPATCH_TRAMP_SEED.len(), 29 * 8);
+        assert_eq!(S3_S1_OP_DISPATCH_TRAMP_SEED[0], 0xE9);
+        assert_eq!(S3_S1_OP_DISPATCH_TRAMP_SEED[5], 0x90);
+        assert_eq!(S3_S1_OP_DISPATCH_TRAMP_SEED[8], 0xE9);
+        assert_eq!(S3_S1_OP_DISPATCH_TRAMP_SEED[28 * 8], 0xE9);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.467: mt→same-index reject. s1_loop YOYO index+trampoline assumes
     /// rcx=rec → s1 handlers; mt path = rdx=rec · r14 countdown · per-op
     /// finish jmp. Sharing trampolines without adapter = ABI cliff (≥10
@@ -11326,7 +11376,10 @@ mod tests {
         // Full dispatch surface still pinned.
         assert!(pe_dll.contains("s1_op_trampolines"));
         assert!(pe_dll.contains("S3_S1_OP_DISPATCH_INDEX_SEED"));
-        assert!(pe_dll.contains("for _ in 0..29"));
+        assert!(
+            pe_dll.contains("for _ in 0..29")
+                || pe_dll.contains("S3_S1_OP_DISPATCH_TRAMP_SEED")
+        );
         assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0xFF], 1);
         assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x20], 11);
         assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x7A], 29);
@@ -11358,7 +11411,10 @@ mod tests {
                 || pe_dll.contains("S3_S1_OP_DISPATCH_INDEX_SEED")
         );
         assert!(pe_dll.contains("s1_op_trampolines"));
-        assert!(pe_dll.contains("for _ in 0..29"));
+        assert!(
+            pe_dll.contains("for _ in 0..29")
+                || pe_dll.contains("S3_S1_OP_DISPATCH_TRAMP_SEED")
+        );
         assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x20], 11); // ALLOC
         assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x50], 12);
         assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x51], 13);

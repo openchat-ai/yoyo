@@ -3037,11 +3037,13 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // + s1 lift done. S3.460: collapse shared CALL/JMP/JCC seeds (mt+s1).
     // S3.461: YOYO-own fixed10 dispatcher slice. S3.462: extend to full
     // op index+trampoline (29 slots; sequential cmp/je gone).
-    // S3.463–466: maps + YOYO dispatch probe seed. S3.467: mt→same index
-    // reject — mt uses rdx=rec / r14 loop / per-op finish; s1 index assumes
-    // rcx=rec / trampoline→s1 handlers. Naive share = ABI cliff (mirror
-    // mid-mt jmp s1_loop sheep). Densify hand-disp32 = sheep. Next ≥10 =
-    // OW-RT long-pole / more YOYO handler seeds. DATA/LABEL=meta. Not CLOSED.
+    // S3.463: post-dispatch map. S3.464: collapse shared LOAD/WRITE.
+    // S3.465: post-LOAD/WRITE-collapse map. S3.466: YOYO dispatch probe
+    // seed. S3.467: mt→same index reject — Naive share = ABI cliff
+    // (mt rdx/r14 vs s1 rcx trampolines). S3.468: YOYO-own handler
+    // trampoline table seed (29×8 E9+NOP). Densify remaining mt
+    // hand-disp32 = sheep. Next ≥10 = more YOYO handler body seeds /
+    // OW-RT. DATA/LABEL=meta. Not CLOSED. OW-RT remains CUT.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
     patch_jcc32(&mut export_code, s3_jne_mt_set_a, s3_mt_get);
@@ -4652,9 +4654,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // aliases for densify-reject / S3.461 pin strings
     let s1_fixed10_trampolines = s1_op_trampolines;
     let s1_dispatch_rest = s1_op_trampolines; // no sequential rest (S3.462)
-    for _ in 0..29 {
-        export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0, 0x90, 0x90, 0x90]);
-    }
+    // S3.468: YOYO-own handler trampoline table seed (29×8)
+    export_code.extend_from_slice(&crate::s1_tyb_parser::S3_S1_OP_DISPATCH_TRAMP_SEED);
     let s1_op_disp_seed_at = export_code.len();
     let s1_fixed10_disp_seed_at = s1_op_disp_seed_at; // S3.461 pin alias
     export_code.extend_from_slice(&crate::s1_tyb_parser::S3_S1_OP_DISPATCH_INDEX_SEED);
