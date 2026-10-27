@@ -2570,6 +2570,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let mut s3_shared_mcpd_calls: Vec<usize> = Vec::new();
     // S3.446: call sites → shared MCPS pair seed (r8b=dst_disp, r9b=src_disp, r12=out).
     let mut s3_shared_mcps_calls: Vec<usize> = Vec::new();
+    // S3.456: call sites → shared SET seed (rcx=rec, slot→disp8/d32 pick, r12=out).
+    let mut s3_shared_set_calls: Vec<usize> = Vec::new();
     let emit_mt_push_patch = |code: &mut Vec<u8>, jmps: &mut Vec<usize>| {
         let lea_at = code.len();
         code.extend_from_slice(&[0x4C, 0x8D, 0x1D, 0, 0, 0, 0]); // lea r11,[rip+ret]
@@ -2885,62 +2887,25 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x3D, 0x00, 0x01, 0x00, 0x00]); // cmp eax, 256
     let s3_jae_mt_set_s = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae after (slot>255)
-    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]); // shl eax, 3 → disp
-    export_code.extend_from_slice(&[0x3D, 0x80, 0x00, 0x00, 0x00]); // cmp eax, 0x80
-    let s3_jae_mt_set_d32 = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae disp32 path
-    // --- disp8 path: S3.433 mt SET poke-from-seed (bake row2 14B) ---
-    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]); // mov rax, r12
-    export_code.extend_from_slice(&[0x48, 0x83, 0xC0, 0x0E]); // add rax, 14
-    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]); // cmp rax, r13
+    // S3.456: mt SET → shared SET seed (slot→disp8/d32 pick inside)
+    export_code.extend_from_slice(&[0x41, 0xB8, 0x0E, 0x00, 0x00, 0x00]); // r8d=14
+    export_code.extend_from_slice(&[0x83, 0xF8, 0x10]); // cmp slot, 16 (eax still slot)
+    let s3_jb_mt_set_sz14 = export_code.len();
+    export_code.extend_from_slice(&[0x72, 0x00]);
+    export_code.extend_from_slice(&[0x41, 0xB8, 0x11, 0x00, 0x00, 0x00]); // r8d=17
+    let s3_mt_set_sz_ready = export_code.len();
+    patch_rel8(&mut export_code, s3_jb_mt_set_sz14, s3_mt_set_sz_ready);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]); // rax = r12
+    export_code.extend_from_slice(&[0x4C, 0x01, 0xC0]); // + size
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
     let s3_jae_fail_mt_set = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
-    // S3.433: mt SET disp8 = bake row2 (14B) + poke imm/disp
-    export_code.extend_from_slice(&[0x56]);
-    export_code.extend_from_slice(&[0x51]);
-    export_code.extend_from_slice(&[0xFC]);
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
-    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 40 + 4));
-    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]);
-    export_code.extend_from_slice(&[0xB9, 0x0E, 0x00, 0x00, 0x00]);
-    export_code.extend_from_slice(&[0xF3, 0xA4]);
-    export_code.extend_from_slice(&[0x59]);
-    export_code.extend_from_slice(&[0x5E]);
-    export_code.extend_from_slice(&[0x8B, 0x42, 0x04]); // imm from record
-    export_code.extend_from_slice(&[0x49, 0x89, 0x44, 0x24, 0x02]); // poke imm @+2
-    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x02]);
-    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
-    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x0D]); // poke disp @+13
-    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x0E]);
-    let s3_jmp_mt_set_cont = export_code.len();
-    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // jmp cont
-    // --- disp32 path: S3.433 mt SET poke-from-seed (bake+200, 17B) ---
-    let s3_mt_set_d32 = export_code.len();
-    patch_jcc32(&mut export_code, s3_jae_mt_set_d32, s3_mt_set_d32);
-    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]); // mov rax, r12
-    export_code.extend_from_slice(&[0x48, 0x83, 0xC0, 0x11]); // add rax, 17
-    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]); // cmp rax, r13
-    let s3_jae_fail_mt_set17 = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
-    // S3.433: mt SET disp32 = bake+200 (17B) + poke imm/disp32
-    export_code.extend_from_slice(&[0x56]);
-    export_code.extend_from_slice(&[0x51]);
-    export_code.extend_from_slice(&[0xFC]);
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
-    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 200));
-    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]);
-    export_code.extend_from_slice(&[0xB9, 0x11, 0x00, 0x00, 0x00]);
-    export_code.extend_from_slice(&[0xF3, 0xA4]);
-    export_code.extend_from_slice(&[0x59]);
-    export_code.extend_from_slice(&[0x5E]);
-    export_code.extend_from_slice(&[0x8B, 0x42, 0x04]);
-    export_code.extend_from_slice(&[0x49, 0x89, 0x44, 0x24, 0x02]);
-    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x02]);
-    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
-    export_code.extend_from_slice(&[0x41, 0x89, 0x44, 0x24, 0x0D]);
-    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x11]);
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    let s3_jae_fail_mt_set17 = s3_jae_fail_mt_set; // unified
+    export_code.extend_from_slice(&[0x48, 0x89, 0xD1]); // mov rcx, rdx
+    let s3_call_mt_set_shared = export_code.len();
+    export_code.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    s3_shared_set_calls.push(s3_call_mt_set_shared);
     let s3_mt_set_cont = export_code.len();
-    patch_rel32(&mut export_code, s3_jmp_mt_set_cont, s3_mt_set_cont);
     export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]); // add rdx, 8
     export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]); // dec r14d
     let s3_jnz_mt_set = export_code.len();
@@ -3175,8 +3140,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.453: lift s1 LDB+MCPD any-slot.
     // S3.454: lift s1 MCPS any-slot.
     // S3.455: post-s1-lift map — s1 GET..MCPS any-slot (shared+hand) done.
-    // Next ≥10 = OW-RT long-pole / real gap (not densify). DATA/LABEL=meta.
-    // Densify remaining mt hand-disp32 = sheep. Not CLOSED.
+    // S3.456: collapse shared SET seed (mt+s1, slot→disp8/d32). Next ≥10 =
+    // shared ALLOC / OW-RT. DATA/LABEL=meta. Densify hand-disp32 = sheep.
+    // Not CLOSED.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
     patch_jcc32(&mut export_code, s3_jne_mt_set_a, s3_mt_get);
@@ -4845,68 +4811,84 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     patch_rel8(&mut export_code, s1_ja_jcc, s1_jmp_fail_op);
 
     // --- SET argc must be 2: emit movabs rax,imm64 + store [r15+slot*8]
-    // S3.78: slot≤255 → disp8 (14B) or disp32 (17B).
+    // S3.456: collapse s1 SET → shared SET seed (slot→disp8/d32).
     let s1_set = export_code.len();
     patch_jcc32(&mut export_code, s1_je_set, s1_set);
     export_code.extend_from_slice(&[0x80, 0xFA, 0x02]); // cmp dl, 2
     let s1_jne_set_argc = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // movzx eax, word [rcx+2] slot
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // movzx eax, slot
     export_code.extend_from_slice(&[0x3D, 0x00, 0x01, 0x00, 0x00]); // cmp eax, 256
     let s1_jae_slot = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae fail (slot>255)
-    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]); // shl eax, 3 → disp
-    export_code.extend_from_slice(&[0x3D, 0x80, 0x00, 0x00, 0x00]); // cmp eax, 0x80
-    let s1_jae_set_d32 = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae disp32 path
-    // --- disp8: S3.422 SET poke-from-seed (bake row2 14B + poke imm/disp) ---
-    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]); // mov rax, r12
-    export_code.extend_from_slice(&[0x48, 0x83, 0xC0, 0x0E]); // add rax, 14
-    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]); // cmp rax, r13
+    export_code.extend_from_slice(&[0x41, 0xB8, 0x0E, 0x00, 0x00, 0x00]); // r8d=14
+    export_code.extend_from_slice(&[0x83, 0xF8, 0x10]); // cmp slot, 16
+    let s1_jb_set_sz14 = export_code.len();
+    export_code.extend_from_slice(&[0x72, 0x00]);
+    export_code.extend_from_slice(&[0x41, 0xB8, 0x11, 0x00, 0x00, 0x00]); // r8d=17
+    let s1_set_sz_ready = export_code.len();
+    patch_rel8(&mut export_code, s1_jb_set_sz14, s1_set_sz_ready);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x4C, 0x01, 0xC0]);
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
     let s1_ja_set_ovf = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x56]); // push rsi
-    export_code.extend_from_slice(&[0x51]); // push rcx (record)
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]); // lea rsi,[rip+bake]
-    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 40 + 4)); // SET
-    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
-    export_code.extend_from_slice(&[0xB9, 0x0E, 0x00, 0x00, 0x00]); // ecx = 14
-    export_code.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
-    export_code.extend_from_slice(&[0x59]); // pop rcx
-    export_code.extend_from_slice(&[0x8B, 0x41, 0x04]); // mov eax, imm32
-    export_code.extend_from_slice(&[0x49, 0x89, 0x44, 0x24, 0x02]); // poke imm @+2
-    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // slot
-    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]); // disp
-    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x0D]); // poke disp @+13
-    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x0E]); // add r12, 14
-    export_code.extend_from_slice(&[0x5E]); // pop rsi
+    let s1_ja_set_ovf17 = s1_ja_set_ovf; // unified
+    // S3.422/S3.456: SET body = shared SET seed (call)
+    let s3_call_s1_set_shared = export_code.len();
+    export_code.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    s3_shared_set_calls.push(s3_call_s1_set_shared);
     let s1_jmp_next = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-    // --- disp32: S3.424 SET poke-from-seed (bake+200, 17B) ---
-    let s1_set_d32 = export_code.len();
-    patch_jcc32(&mut export_code, s1_jae_set_d32, s1_set_d32);
-    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]); // mov rax, r12
-    export_code.extend_from_slice(&[0x48, 0x83, 0xC0, 0x11]); // add rax, 17
-    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]); // cmp rax, r13
-    let s1_ja_set_ovf17 = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x56]); // push rsi
-    export_code.extend_from_slice(&[0x51]); // push rcx
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]); // lea rsi,[rip+seed]
-    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 200)); // SET disp32
-    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
-    export_code.extend_from_slice(&[0xB9, 0x11, 0x00, 0x00, 0x00]); // ecx = 17
-    export_code.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
-    export_code.extend_from_slice(&[0x59]); // pop rcx
-    export_code.extend_from_slice(&[0x8B, 0x41, 0x04]); // imm32
-    export_code.extend_from_slice(&[0x49, 0x89, 0x44, 0x24, 0x02]); // poke imm @+2
+    let s1_jmp_next_set_d32 = s1_jmp_next; // alias retained for patch list
+
+    // S3.456: shared SET seed — rcx=rec, slot→+44 disp8 / +200 d32, r12=out; RET.
+    let s3_shared_set_seed = export_code.len();
+    for at in &s3_shared_set_calls {
+        patch_rel32(&mut export_code, *at, s3_shared_set_seed);
+    }
     export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // slot
-    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]); // disp
-    export_code.extend_from_slice(&[0x41, 0x89, 0x44, 0x24, 0x0D]); // poke disp32 @+13
-    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x11]); // add r12, 17
-    export_code.extend_from_slice(&[0x5E]); // pop rsi
-    let s1_jmp_next_set_d32 = export_code.len();
-    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x83, 0xF8, 0x10]);
+    let s3_jae_shared_set_d32 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    // --- disp8: 14B @+44 ---
+    export_code.extend_from_slice(&[0x56]);
+    export_code.extend_from_slice(&[0x51]);
+    export_code.extend_from_slice(&[0xFC]);
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 40 + 4));
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]);
+    export_code.extend_from_slice(&[0xB9, 0x0E, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0xF3, 0xA4]);
+    export_code.extend_from_slice(&[0x59]);
+    export_code.extend_from_slice(&[0x5E]);
+    export_code.extend_from_slice(&[0x8B, 0x41, 0x04]); // imm
+    export_code.extend_from_slice(&[0x49, 0x89, 0x44, 0x24, 0x02]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]);
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x0D]);
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x0E]);
+    export_code.extend_from_slice(&[0xC3]); // ret
+    // --- disp32: 17B @+200 ---
+    let s3_shared_set_d32 = export_code.len();
+    patch_jcc32(&mut export_code, s3_jae_shared_set_d32, s3_shared_set_d32);
+    export_code.extend_from_slice(&[0x56]);
+    export_code.extend_from_slice(&[0x51]);
+    export_code.extend_from_slice(&[0xFC]);
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 200));
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]);
+    export_code.extend_from_slice(&[0xB9, 0x11, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0xF3, 0xA4]);
+    export_code.extend_from_slice(&[0x59]);
+    export_code.extend_from_slice(&[0x5E]);
+    export_code.extend_from_slice(&[0x8B, 0x41, 0x04]);
+    export_code.extend_from_slice(&[0x49, 0x89, 0x44, 0x24, 0x02]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]);
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0x89, 0x44, 0x24, 0x0D]);
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x11]);
+    export_code.extend_from_slice(&[0xC3]); // ret
 
     // S3.91: ALLOC any slot≤255 → VirtualAlloc([r15+S1_SLIM_IAT_BASE]) + store
     // S3.430: prefix = bake+317 (34B) + poke size @+7.

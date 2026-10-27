@@ -11796,6 +11796,37 @@ mod tests {
         );
     }
 
+    /// S3.456: collapse shared SET seed — mt+s1 call one thunk; slot→disp8
+    /// (@+44) / disp32 (@+200) pick inside. Next ≥10 = shared ALLOC / OW-RT.
+    /// Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_collapse_shared_set_seed_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.456"));
+        assert!(
+            pe_dll.contains("collapse shared SET")
+                || pe_dll.contains("shared SET seed")
+        );
+        assert!(pe_dll.contains("s3_shared_set_seed"));
+        assert!(pe_dll.contains("s3_shared_set_calls"));
+        assert!(pe_dll.contains("s3_call_mt_set_shared") || pe_dll.contains("call_mt_set_shared"));
+        assert!(pe_dll.contains("s3_call_s1_set_shared") || pe_dll.contains("call_s1_set_shared"));
+        assert!(pe_dll.contains("slot→+44") || pe_dll.contains("slot→disp8"));
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.438: batch mt LDB+MCPD+MCPS disp8 → bake seeds (LDB oo0@+262 /
     /// oo≠0@+274, MCPD@+248, MCPS pair@+293). disp32/mix still hand. ≥3 arms
     /// one knife. Completes mt disp8 seed surface. Next ≥10 = collapse
@@ -11900,8 +11931,16 @@ mod tests {
     fn s3_ow_rt_multi_set_alloc_seed_reuse_pin() {
         let pe_dll = include_str!("pe_dll_link.rs");
         assert!(pe_dll.contains("S3.433"));
-        assert!(pe_dll.contains("mt SET poke-from-seed (bake row2 14B)"));
-        assert!(pe_dll.contains("mt SET poke-from-seed (bake+200, 17B)"));
+        assert!(
+            pe_dll.contains("mt SET poke-from-seed (bake row2 14B)")
+                || pe_dll.contains("mt SET → shared SET seed")
+                || pe_dll.contains("shared SET seed")
+        );
+        assert!(
+            pe_dll.contains("mt SET poke-from-seed (bake+200, 17B)")
+                || pe_dll.contains("slot→+44")
+                || pe_dll.contains("s3_shared_set_d32")
+        );
         assert!(pe_dll.contains("mt ALLOC"));
         assert!(pe_dll.contains("bake+317/351/355"));
         assert!(pe_dll.contains("s3_bake_table_off + 40 + 4"));
@@ -12087,7 +12126,11 @@ mod tests {
     fn s3_ow_rt_s1_set_disp32_handler_seed_poke_pin() {
         let pe_dll = include_str!("pe_dll_link.rs");
         assert!(pe_dll.contains("S3.424"));
-        assert!(pe_dll.contains("SET poke-from-seed (bake+200"));
+        assert!(
+            pe_dll.contains("SET poke-from-seed (bake+200")
+                || pe_dll.contains("shared SET seed")
+                || pe_dll.contains("disp32: 17B @+200")
+        );
         assert!(pe_dll.contains("s3_bake_table_off + 200"));
         assert_eq!(S3_SET_DISP32_BODY_SEED.len(), 17);
         assert_eq!(&S3_SET_DISP32_BODY_SEED[..2], &[0x48, 0xB8]);
@@ -12156,7 +12199,11 @@ mod tests {
     fn s3_ow_rt_s1_set_get_inc_handler_seed_poke_pin() {
         let pe_dll = include_str!("pe_dll_link.rs");
         assert!(pe_dll.contains("S3.422"));
-        assert!(pe_dll.contains("SET poke-from-seed"));
+        assert!(
+            pe_dll.contains("SET poke-from-seed")
+                || pe_dll.contains("SET body = shared SET seed")
+                || pe_dll.contains("shared SET seed")
+        );
         assert!(
             pe_dll.contains("GET/MOVRR body = bake GET seed")
                 || pe_dll.contains("shared GET disp8 seed")
