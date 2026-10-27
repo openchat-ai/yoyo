@@ -11518,6 +11518,44 @@ mod tests {
         );
     }
 
+    /// S3.447: post-shared-collapse map. Disp8 shared GET..MCPS done.
+    /// Next ≥10 = lift s1 any-slot (GET/MOVRR first — s1 still jae→fail on
+    /// slot≥16) or OW-RT. Densify mt hand-disp32 = sheep. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_post_shared_collapse_map_reject() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.447"));
+        assert!(pe_dll.contains("post-shared-collapse map"));
+        assert!(
+            pe_dll.contains("Densify remaining mt hand-disp32 = sheep")
+                || pe_dll.contains("hand-disp32 = sheep")
+        );
+        assert!(pe_dll.contains("lift s1 any-slot"));
+        assert!(pe_dll.contains("S3.446"));
+        assert!(pe_dll.contains("s3_shared_mcps_pair_seed"));
+        // Shared surface still pinned.
+        assert!(pe_dll.contains("s3_shared_get_disp8_seed"));
+        assert!(pe_dll.contains("s3_shared_addsub_disp8_seed"));
+        assert!(pe_dll.contains("s3_shared_ldb_disp8_seed"));
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.438: batch mt LDB+MCPD+MCPS disp8 → bake seeds (LDB oo0@+262 /
     /// oo≠0@+274, MCPD@+248, MCPS pair@+293). disp32/mix still hand. ≥3 arms
     /// one knife. Completes mt disp8 seed surface. Next ≥10 = collapse

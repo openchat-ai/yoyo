@@ -3169,8 +3169,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.437: batch CMP+IMUL+ALUV. S3.438: batch LDB+MCPD+MCPS.
     // S3.439: post-disp8 map + densify = sheep. collapse wedge = shared
     // call thunks. Naive jmp s1_loop mid-mt = sheep (ABI cliff).
-    // S3.440–445: shared GET..MCPD. S3.446: shared MCPS pair.
-    // Next ≥10 = lift s1 any-slot / OW-RT. Not CLOSED.
+    // S3.440–446: shared GET..MCPS pair — disp8 shared surface complete.
+    // S3.447: post-shared-collapse map. lift s1 any-slot (GET/MOVRR first;
+    // s1 still jae→fail on slot≥16) or OW-RT long-pole. Densify remaining
+    // mt hand-disp32 = sheep. Not CLOSED.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
     patch_jcc32(&mut export_code, s3_jne_mt_set_a, s3_mt_get);
