@@ -3074,6 +3074,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // setup · handler guards · mt dispatch. Densify hand-disp32 = sheep.
     // Next ≥10 = template-post-lea seed / write_out / OW-RT. Not CLOSED.
     // OW-RT remains CUT.
+    // S3.480: template-post-lea = YOYO object seed (18B) + poke PE/len; RIP lea
+    // stays hand (419). Next ≥10 = write_out setup seed / OW-RT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -6843,13 +6845,19 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s1_ja_trail = s1_trail + crate::s1_tyb_parser::S3_TRAIL_C3_JA_AT;
 
     // memcpy template → [rsp+0x1180]
+    // RIP lea stays hand (419 cliff). S3.480: post-lea = seed + poke PE/len.
     emit_lea_rcx_rdata(&mut export_code, &mut rip_patches, template_off); // rcx = src
-    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24]);
-    push_u32_le(&mut export_code, IN_DLL_S1_PE_OFF); // lea rdi,[rsp+0x1180]
-    export_code.extend_from_slice(&[0x48, 0x89, 0xCE]); // mov rsi, rcx
-    export_code.extend_from_slice(&[0xB9]); // mov ecx, template_len
-    export_code.extend_from_slice(&template_len.to_le_bytes());
-    export_code.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
+    let s1_tmpl_post = export_code.len();
+    export_code.extend_from_slice(&crate::s1_tyb_parser::S3_TEMPLATE_POST_LEA_BODY_SEED);
+    {
+        let pe = IN_DLL_S1_PE_OFF.to_le_bytes();
+        let ln = template_len.to_le_bytes();
+        let b = s1_tmpl_post;
+        let a = crate::s1_tyb_parser::S3_TEMPLATE_POST_LEA_PE_OFF_AT;
+        let a2 = crate::s1_tyb_parser::S3_TEMPLATE_POST_LEA_LEN_AT;
+        export_code[b + a..b + a + 4].copy_from_slice(&pe);
+        export_code[b + a2..b + a2 + 4].copy_from_slice(&ln);
+    }
 
     // memcpy code → pe + S1_SLIM_TEXT_PAYLOAD_OFF (0x40D)
     // S3.477: body = S3_MEMCPY_CODE_BODY_SEED; poke CODE/PE; TEXT baked.

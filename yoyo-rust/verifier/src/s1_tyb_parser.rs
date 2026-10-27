@@ -2606,6 +2606,18 @@ const _: () = assert!(
         && S3_MEMCPY_DATA_FINISH_BODY_SEED[31] == ((S1_SLIM_DATA_PAYLOAD_OFF >> 8) as u8)
 );
 
+/// S3.480: template-post-lea memcpy = own-ISA object seed (18B). Assumes
+/// rcx=template src already (RIP lea stays hand · 419). Live poke: PE @+4,
+/// len @+12.
+pub const S3_TEMPLATE_POST_LEA_BODY_SEED: [u8; 18] = [
+    0x48, 0x8D, 0xBC, 0x24, 0x00, 0x00, 0x00, 0x00, // lea rdi,[rsp+PE] poke @4
+    0x48, 0x89, 0xCE, // mov rsi, rcx
+    0xB9, 0x00, 0x00, 0x00, 0x00, // mov ecx, len poke @12
+    0xF3, 0xA4, // rep movsb
+];
+pub const S3_TEMPLATE_POST_LEA_PE_OFF_AT: usize = 4;
+pub const S3_TEMPLATE_POST_LEA_LEN_AT: usize = 12;
+
 /// S3.337: test-only helper.
 #[cfg(test)]
 fn s3_fixed10_named_cases() -> Vec<(&'static str, Vec<(u8, u8, [u8; 6])>)> {
@@ -13044,6 +13056,44 @@ mod tests {
                 || pe_dll.contains("s3_shared_retnop_seed")
         );
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.480: template-post-lea = YOYO object seed (18B) + poke PE/len; RIP
+    /// lea stays hand (419). Next ≥10 = write_out setup seed / OW-RT. Not
+    /// CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_template_post_lea_body_seed_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.480"));
+        assert!(
+            pe_dll.contains("template-post-lea")
+                || pe_dll.contains("S3_TEMPLATE_POST_LEA_BODY_SEED")
+        );
+        assert!(pe_dll.contains("S3_TEMPLATE_POST_LEA_BODY_SEED"));
+        assert!(pe_dll.contains("S3_TEMPLATE_POST_LEA_PE_OFF_AT"));
+        assert!(pe_dll.contains("S3_TEMPLATE_POST_LEA_LEN_AT"));
+        assert!(pe_dll.contains("emit_lea_rcx_rdata"));
+        assert_eq!(S3_TEMPLATE_POST_LEA_BODY_SEED.len(), 18);
+        assert_eq!(S3_TEMPLATE_POST_LEA_BODY_SEED[0], 0x48);
+        assert_eq!(S3_TEMPLATE_POST_LEA_BODY_SEED[8], 0x48); // mov rsi,rcx
+        assert_eq!(S3_TEMPLATE_POST_LEA_BODY_SEED[11], 0xB9); // mov ecx,len
+        assert_eq!(S3_TEMPLATE_POST_LEA_BODY_SEED[16], 0xF3);
+        assert_eq!(S3_TEMPLATE_POST_LEA_BODY_SEED[17], 0xA4);
+        assert_eq!(S3_TEMPLATE_POST_LEA_PE_OFF_AT, 4);
+        assert_eq!(S3_TEMPLATE_POST_LEA_LEN_AT, 12);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
                 .unwrap()
