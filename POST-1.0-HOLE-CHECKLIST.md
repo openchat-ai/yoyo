@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.483**（482 post-s1-finish map；下一刀=guard densify reject / mt / OW-RT；**不**假 CLOSED）。
+**默认** 继续 **= S3.484**（483 guard densify reject；下一刀=mt residual / OW-RT；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -160,9 +160,10 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.480** ✅ | 96a4d19 | template-post-lea object seed（18B + poke） |
 | **S3.481** ✅ | dca3af0 | write_out setup object seed（19B + poke） |
 | **S3.482** ✅ | f62cb02 | post-s1-finish map（finish body seeds done） |
-| **S3.483** ⏳ | — | **本步**：guard densify reject / mt / OW-RT |
+| **S3.483** ✅ | 07ebcee | handler guard densify = sheep reject |
+| **S3.484** ⏳ | — | **本步**：mt residual / OW-RT |
 
-**缺口**：s1_finish seeds+map 完成。下一刀=guard densify reject · mt · OW-RT。RIP lea=419 cliff。Densify=羊。无假 CLOSED。ake=362 · s3_=292。
+**缺口**：s1_finish seeds + guard densify reject 完成。下一刀=mt residual · OW-RT。RIP lea=419 cliff。Densify=羊。无假 CLOSED。ake=362 · s3_=293。
 
 ---
 
@@ -204,4 +205,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-26**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.483** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 看板已再折（波段+近窗）
+**快照 2026-10-26**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.484** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 看板已再折（波段+近窗）
