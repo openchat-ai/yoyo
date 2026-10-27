@@ -2421,6 +2421,24 @@ pub const S3_S1_OP_DISPATCH_INDEX_SEED: [u8; 256] = {
 /// S3.461 name kept as alias of full op-dispatch seed (S3.462).
 pub const S3_S1_FIXED10_DISPATCH_INDEX_SEED: [u8; 256] = S3_S1_OP_DISPATCH_INDEX_SEED;
 
+/// S3.466: YOYO-own s1_loop op-dispatch probe object seed (45B).
+/// lea r10→index / lookup / jz fail / lea r11→tramp / scaled jmp.
+/// Disp32 at +3 (seed) · jz at +19 · lea tramp at +25 (disp +28) patched live.
+pub const S3_S1_OP_DISPATCH_PROBE_SEED: [u8; 45] = [
+    0x4C, 0x8D, 0x15, 0x00, 0x00, 0x00, 0x00, // lea r10,[rip+d]
+    0x44, 0x0F, 0xB6, 0xC0, // movzx r8d, al
+    0x47, 0x0F, 0xB6, 0x04, 0x02, // movzx r8d,[r10+r8]
+    0x45, 0x85, 0xC0, // test r8d, r8d
+    0x0F, 0x84, 0x00, 0x00, 0x00, 0x00, // jz fail
+    0x4C, 0x8D, 0x1D, 0x00, 0x00, 0x00, 0x00, // lea r11,[rip+d]
+    0x41, 0xFF, 0xC8, // dec r8d
+    0x41, 0xC1, 0xE0, 0x03, // shl r8d, 3
+    0x4D, 0x01, 0xC3, // add r11, r8
+    0x41, 0xFF, 0xE3, // jmp r11
+];
+pub const S3_S1_OP_DISPATCH_PROBE_JZ_OFF: usize = 19;
+pub const S3_S1_OP_DISPATCH_PROBE_LEA_TRAMP_AT: usize = 25;
+
 /// S3.337: test-only helper.
 #[cfg(test)]
 fn s3_fixed10_named_cases() -> Vec<(&'static str, Vec<(u8, u8, [u8; 6])>)> {
@@ -11103,6 +11121,40 @@ mod tests {
         assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x61], 8);
         assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x64], 9);
         assert_eq!(S3_S1_OP_DISPATCH_INDEX_SEED[0x65], 10);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.466: YOYO-emit dispatch probe object seed (45B) — lea/lookup/jz/
+    /// lea-tramp/scaled-jmp. Patch sites via seed offs. ≥10 assembler.
+    /// Next ≥10 = mt→same index / OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_yoyo_emit_dispatch_probe_seed_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.466"));
+        assert!(
+            pe_dll.contains("dispatch probe object seed")
+                || pe_dll.contains("S3_S1_OP_DISPATCH_PROBE_SEED")
+        );
+        assert!(pe_dll.contains("S3_S1_OP_DISPATCH_PROBE_SEED"));
+        assert!(pe_dll.contains("s1_op_disp_probe"));
+        assert_eq!(S3_S1_OP_DISPATCH_PROBE_SEED.len(), 45);
+        assert_eq!(S3_S1_OP_DISPATCH_PROBE_SEED[0], 0x4C); // lea r10
+        assert_eq!(S3_S1_OP_DISPATCH_PROBE_JZ_OFF, 19);
+        assert_eq!(S3_S1_OP_DISPATCH_PROBE_LEA_TRAMP_AT, 25);
+        assert_eq!(S3_S1_OP_DISPATCH_PROBE_SEED[19], 0x0F); // jz
+        assert_eq!(S3_S1_OP_DISPATCH_PROBE_SEED[25], 0x4C); // lea r11
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,

@@ -3037,12 +3037,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // + s1 lift done. S3.460: collapse shared CALL/JMP/JCC seeds (mt+s1).
     // S3.461: YOYO-own fixed10 dispatcher slice. S3.462: extend to full
     // op index+trampoline (29 slots; sequential cmp/je gone).
-    // S3.463: post-dispatch map. S3.464: collapse shared LOAD/WRITE seeds
-    // (mt+s1). S3.465: post-LOAD/WRITE-collapse map — shared SET/ALLOC/
-    // LOAD/WRITE + CALL/JMP/JCC + GET..MCPS + YOYO op dispatch done.
-    // handlers/finish/mt still Rust hex → OW-RT remains CUT.
-    // Densify remaining mt hand-disp32 = sheep. Next ≥10 = YOYO-emit
-    // dispatch stub · mt→same index · OW-RT. DATA/LABEL=meta. Not CLOSED.
+    // S3.463–465: post-dispatch / LOAD/WRITE maps. S3.466: YOYO-emit
+    // dispatch probe object seed (45B). Densify hand-disp32 = sheep.
+    // Next ≥10 = mt→same index / OW-RT. DATA/LABEL=meta. Not CLOSED.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
     patch_jcc32(&mut export_code, s3_jne_mt_set_a, s3_mt_get);
@@ -4610,21 +4607,15 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x0F, 0xB6, 0x51, 0x01]); // movzx edx, byte [rcx+1] ; argc
 
     // op dispatch (near jcc — handlers are far) + S3.461/S3.462 YOYO-own
-    // full op index seed + trampoline (29 slots). Sequential cmp/je gone.
+    // full op index seed + trampoline (29 slots). S3.466: probe = object seed.
     // Not OW-RT CLOSED.
-    let s1_lea_op_disp = export_code.len();
-    export_code.extend_from_slice(&[0x4C, 0x8D, 0x15, 0, 0, 0, 0]); // lea r10,[rip+d]
-    export_code.extend_from_slice(&[0x44, 0x0F, 0xB6, 0xC0]); // movzx r8d, al
-    export_code.extend_from_slice(&[0x47, 0x0F, 0xB6, 0x04, 0x02]); // movzx r8d,[r10+r8]
-    export_code.extend_from_slice(&[0x45, 0x85, 0xC0]); // test r8d, r8d
-    let s1_jz_disp_fail = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]); // jz unsupported
-    let s1_lea_op_tramp = export_code.len();
-    export_code.extend_from_slice(&[0x4C, 0x8D, 0x1D, 0, 0, 0, 0]); // lea r11,[rip+d]
-    export_code.extend_from_slice(&[0x41, 0xFF, 0xC8]); // dec r8d
-    export_code.extend_from_slice(&[0x41, 0xC1, 0xE0, 0x03]); // shl r8d, 3
-    export_code.extend_from_slice(&[0x4D, 0x01, 0xC3]); // add r11, r8
-    export_code.extend_from_slice(&[0x41, 0xFF, 0xE3]); // jmp r11
+    let s1_op_disp_probe = export_code.len();
+    export_code.extend_from_slice(&crate::s1_tyb_parser::S3_S1_OP_DISPATCH_PROBE_SEED);
+    let s1_lea_op_disp = s1_op_disp_probe; // lea r10 at probe+0
+    let s1_jz_disp_fail =
+        s1_op_disp_probe + crate::s1_tyb_parser::S3_S1_OP_DISPATCH_PROBE_JZ_OFF;
+    let s1_lea_op_tramp =
+        s1_op_disp_probe + crate::s1_tyb_parser::S3_S1_OP_DISPATCH_PROBE_LEA_TRAMP_AT;
     let s1_op_trampolines = export_code.len();
     // S3.461 names kept; S3.462 adds 11..=29. 29×8B E9+NOP stride.
     let s1_je_ret = s1_op_trampolines + 0 * 8;
