@@ -13077,6 +13077,45 @@ mod tests {
         );
     }
 
+    /// S3.482: post-s1-finish map. pass-2 · trail · memcpy-code/data ·
+    /// template-post-lea · write_out = YOYO seeds. Remaining: RIP lea (419) ·
+    /// handler guards · mt dispatch → OW-RT CUT. Next ≥10 ≠ densify
+    /// hand-disp32. Candidates: guard-collapse reject · mt path · OW-RT.
+    /// Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_post_s1_finish_map_reject() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.482"));
+        assert!(pe_dll.contains("post-s1-finish map"));
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        assert!(pe_dll.contains("S3_PASS2_BODY_SEED"));
+        assert!(pe_dll.contains("S3_TRAIL_C3_BODY_SEED"));
+        assert!(pe_dll.contains("S3_MEMCPY_CODE_BODY_SEED"));
+        assert!(pe_dll.contains("S3_MEMCPY_DATA_FINISH_BODY_SEED"));
+        assert!(pe_dll.contains("S3_TEMPLATE_POST_LEA_BODY_SEED"));
+        assert!(pe_dll.contains("S3_WRITE_OUT_SETUP_BODY_SEED"));
+        assert!(
+            pe_dll.contains("Densify hand-disp32 = sheep")
+                || pe_dll.contains("hand-disp32 = sheep")
+        );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.481: write_out setup = YOYO object seed (19B) + poke PE/len; jmp
     /// live. Next ≥10 = post-s1-finish map / guards / OW-RT. Not CLOSED.
     #[test]
