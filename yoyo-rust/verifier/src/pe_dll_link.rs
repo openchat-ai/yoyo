@@ -3091,6 +3091,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // template RIP lea (419) · handler size/guard hex · fail-site glue.
     // Densify hand-disp32 = sheep. Next ≥10 = OW-RT mini→YOYO / mt residual.
     // Not CLOSED. OW-RT remains CUT.
+    // S3.485: OW-RT mini→YOYO entry cliff reject — jmp_s1 / s1 mini / try
+    // pilots remain Rust (≥10). Deleting without YOYO-built compile = sheep.
+    // mt ABI=467. Next ≥10 = YOYO-built compile path / mt residual.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.

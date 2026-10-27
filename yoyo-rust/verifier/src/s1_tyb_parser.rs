@@ -13077,6 +13077,59 @@ mod tests {
         );
     }
 
+    /// S3.485: OW-RT mini→YOYO entry cliff reject. Finish seeds landed; mini
+    /// entry (`jmp_s1` / `S1 mini TYB` / try pilots ≥10) still Rust. Deleting
+    /// pilots without YOYO-built compile = sheep. mt ABI=467. Next ≥10 =
+    /// YOYO-built compile path / mt residual. Not CLOSED. OW-RT CUT.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_mini_to_yoyo_entry_cliff_reject() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.485"));
+        assert!(
+            pe_dll.contains("mini→YOYO entry cliff")
+                || pe_dll.contains("OW-RT mini→YOYO entry")
+        );
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        assert!(pe_dll.contains("jmp_s1"));
+        assert!(pe_dll.contains("S1 mini TYB codegen"));
+        let tries = [
+            "let s3_try_set",
+            "let s3_try_get",
+            "let s3_try_inc",
+            "let s3_try_dec",
+            "let s3_try_add",
+            "let s3_try_sub",
+            "let s3_try_movrr",
+            "let s3_try_cmp",
+            "let s3_try_multi",
+            "let s1_loop",
+        ];
+        for t in tries {
+            assert!(pe_dll.contains(t), "missing entry {t}");
+        }
+        assert!(tries.len() >= 10, "mini entry surface ≥10 — not a sheep cut");
+        assert!(
+            pe_dll.contains("Densify") || pe_dll.contains("sheep"),
+            "sheep bar"
+        );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.484: post-finish/guard residual map. s1_finish seeds + push_patch +
     /// guard densify reject done. Remaining: mt dispatch (467 ABI) · RIP lea
     /// (419) · handler hex · fail-site glue → OW-RT CUT. Next ≥10 ≠ densify
