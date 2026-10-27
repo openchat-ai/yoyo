@@ -2368,6 +2368,25 @@ const S3_FIXED10_OPS: [u8; 10] = [
     0xFF, 0x00, 0x30, 0x60, 0x66, 0x62, 0x67, 0x61, 0x64, 0x65,
 ];
 
+/// S3.461: YOYO-own s1_loop fixed10 dispatch index seed (256B).
+/// Nonzero = trampoline index 1..=10 (order ≡ [`S3_FIXED10_OPS`]); 0 = sequential rest.
+/// Own-ISA object seed — not densify of cmp/je hex.
+pub const S3_S1_FIXED10_DISPATCH_INDEX_SEED: [u8; 256] = {
+    let mut t = [0u8; 256];
+    // Order ≡ S3_FIXED10_OPS: RET NOP SET GET INC ADD DEC SUB MOVRR CMP
+    t[0xFF] = 1;
+    t[0x00] = 2;
+    t[0x30] = 3;
+    t[0x60] = 4;
+    t[0x66] = 5;
+    t[0x62] = 6;
+    t[0x67] = 7;
+    t[0x61] = 8;
+    t[0x64] = 9;
+    t[0x65] = 10;
+    t
+};
+
 /// S3.337: test-only helper.
 #[cfg(test)]
 fn s3_fixed10_named_cases() -> Vec<(&'static str, Vec<(u8, u8, [u8; 6])>)> {
@@ -10971,18 +10990,19 @@ mod tests {
         );
     }
 
-    /// S3.418: s1_loop densify reject. Sequential cmp/je dispatch (~30 arms) is
-    /// hand-hex (S3.408 residual). Compressing hex = sheep 0 capability; 256B
-    /// op→handler jump table needs pe_dll rdata layout rewrite (mirror S3.342
-    /// host-loop cliff). True close = replace mini dispatcher with YOYO (OW-RT
-    /// long pole). Next ≥10 = s1_finish memcpy/patch → YOYO IR seed (413 map#1).
-    /// Not CLOSED.
+    /// S3.418: s1_loop densify reject. Sequential cmp/je dispatch was hand-hex
+    /// (S3.408 residual). S3.461 lifts fixed10 → YOYO index+trampoline; remaining
+    /// non-fixed10 still sequential. Compressing residual hex = sheep. Full
+    /// 256-entry close = OW-RT long pole. Not CLOSED.
     #[test]
     #[cfg(windows)]
     fn s3_ow_rt_s1_loop_densify_reject() {
         let pe_dll = include_str!("pe_dll_link.rs");
         assert!(pe_dll.contains("let s1_loop = export_code.len()"));
-        assert!(pe_dll.contains("op dispatch (near jcc"));
+        assert!(
+            pe_dll.contains("op dispatch (near jcc")
+                || pe_dll.contains("S3.461 YOYO-own fixed10")
+        );
         // Named handler entry pins (subset of arms — densify ≠ delete these).
         let arms = [
             "s1_je_set",
@@ -11000,12 +11020,53 @@ mod tests {
             assert!(pe_dll.contains(a), "missing arm {a}");
         }
         assert!(arms.len() >= 10, "dispatch surface ≥10 — not a sheep cut");
-        // Jump-table densify still needs full rewrite, not −1 hex.
         assert!(
             pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
             "OW-RT CUT"
         );
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.461: YOYO-own fixed10 dispatcher slice — 256B index seed + 10
+    /// trampolines; fixed10 ops leave sequential cmp/je. ≥10 assembler.
+    /// Non-fixed10 sequential remains. OW-RT still CUT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_yoyo_own_fixed10_dispatcher_slice_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.461"));
+        assert!(
+            pe_dll.contains("YOYO-own fixed10")
+                || pe_dll.contains("fixed10 dispatcher slice")
+        );
+        assert!(pe_dll.contains("S3_S1_FIXED10_DISPATCH_INDEX_SEED"));
+        assert!(pe_dll.contains("s1_fixed10_trampolines"));
+        assert!(pe_dll.contains("s1_fixed10_disp_seed_at"));
+        assert!(pe_dll.contains("s1_dispatch_rest"));
+        // Seed covers all fixed10 ops (1..=10).
+        assert_eq!(S3_S1_FIXED10_DISPATCH_INDEX_SEED[0xFF], 1);
+        assert_eq!(S3_S1_FIXED10_DISPATCH_INDEX_SEED[0x00], 2);
+        assert_eq!(S3_S1_FIXED10_DISPATCH_INDEX_SEED[0x30], 3);
+        assert_eq!(S3_S1_FIXED10_DISPATCH_INDEX_SEED[0x60], 4);
+        assert_eq!(S3_S1_FIXED10_DISPATCH_INDEX_SEED[0x66], 5);
+        assert_eq!(S3_S1_FIXED10_DISPATCH_INDEX_SEED[0x62], 6);
+        assert_eq!(S3_S1_FIXED10_DISPATCH_INDEX_SEED[0x67], 7);
+        assert_eq!(S3_S1_FIXED10_DISPATCH_INDEX_SEED[0x61], 8);
+        assert_eq!(S3_S1_FIXED10_DISPATCH_INDEX_SEED[0x64], 9);
+        assert_eq!(S3_S1_FIXED10_DISPATCH_INDEX_SEED[0x65], 10);
+        assert_eq!(S3_S1_FIXED10_DISPATCH_INDEX_SEED[0x20], 0); // ALLOC → rest
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
                 .unwrap()
