@@ -13123,6 +13123,50 @@ mod tests {
         );
     }
 
+    /// S3.490: mt→s1 push_label share reject. s1 has `S3_PUSH_LABEL_BODY_SEED`;
+    /// mt LABEL stays hand — rdx/r9/r10 vs rcx/edx/esi (≡467 ABI cliff).
+    /// Surface: mt label path ≥10 distinct sites remain. Next ≥10 = OW-RT.
+    /// Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_mt_push_label_abi_cliff_reject() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.490"));
+        assert!(
+            pe_dll.contains("mt→s1 push_label") || pe_dll.contains("push_label share")
+        );
+        assert!(pe_dll.contains("S3_PUSH_LABEL_BODY_SEED"));
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        let mt = [
+            "s3_jne_mt_label",
+            "s3_jne_mt_label_a",
+            "s3_jae_fail_mt_label",
+            "s3_jnz_mt_label",
+            "s3_jmp_finish_label",
+            "s3_mt_after_label",
+            "mov r9d, [rdx+2]",
+            "IN_DLL_S1_LABELS_OFF",
+            "IN_DLL_S1_N_LABELS_OFF",
+            "dec r14d",
+        ];
+        for m in mt {
+            assert!(pe_dll.contains(m), "missing mt label site {m}");
+        }
+        assert!(mt.len() >= 10, "mt LABEL surface ≥10 — share ≠ sheep cut");
+        assert_eq!(S3_PUSH_LABEL_BODY_SEED.len(), 62);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.489: post-label map. s1 push_label = YOYO seed; LABEL=.text meta;
     /// mt LABEL hand (ABI). Remaining: mt (467) · RIP lea (419) · handler hex
     /// · entry (485) → OW-RT CUT. Next ≥10 ≠ densify hand-disp32. Candidates:
