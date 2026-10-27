@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.451**（450 lift s1 ADD/SUB；下一刀=lift CMP/IMUL/… / OW-RT；**不**假 CLOSED）。
+**默认** 继续 **= S3.452**（451 lift s1 CMP；下一刀=lift IMUL/ALUV/… / OW-RT；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -100,7 +100,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.359–406** ✅ | `a39a2a2` | 目标码种子链；Win PE 去 wrap |
 | **S3.407–420** ✅ | `5b425df` | OW-RT 切片 + densify/skip-mini **拒羊** |
 | **S3.421–428** ✅ | `2bc6fbc` | s1_loop op-handler poke-from-seed |
-| **S3.429–450** ✅ | 7f5d6a3 | seed batch + collapse + lift s1 GET..ADD |
+| **S3.429–451** ✅ | 4c9228a | seed batch + collapse + lift s1 GET..CMP |
 
 #### 近窗（本波 · 单刀）
 
@@ -128,9 +128,10 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.448** ✅ | 0145ebe | lift s1 GET/MOVRR any-slot（disp8 shared + hand mix） |
 | **S3.449** ✅ | 88ce21f | lift s1 INC/DEC any-slot（disp8 shared + hand d32） |
 | **S3.450** ✅ | 7f5d6a3 | lift s1 ADD/SUB any-slot（disp8 shared + hand d32） |
-| **S3.451** ⏳ | — | **本步**：lift s1 CMP/IMUL/… any-slot / OW-RT |
+| **S3.451** ✅ | 4c9228a | lift s1 CMP any-slot（disp8 shared + hand mix） |
+| **S3.452** ⏳ | — | **本步**：lift s1 IMUL/ALUV/… any-slot / OW-RT |
 
-**缺口**：s1 GET/INC/ADD any-slot 已 lift。下一刀=lift CMP/IMUL/… · OW-RT。DATA/LABEL=meta。无假 CLOSED。`bake=362` · `s3_=260`。
+**缺口**：s1 GET..CMP any-slot 已 lift。下一刀=lift IMUL/ALUV/… · OW-RT。DATA/LABEL=meta。无假 CLOSED。`bake=362` · `s3_=261`。
 
 ---
 
@@ -164,7 +165,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.451**（lift s1 CMP/IMUL/… any-slot / OW-RT；禁 densify）。做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.452**（lift s1 IMUL/ALUV/… any-slot / OW-RT；禁 densify）。做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
