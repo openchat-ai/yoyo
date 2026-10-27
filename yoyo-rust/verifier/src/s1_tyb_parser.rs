@@ -11670,6 +11670,36 @@ mod tests {
         );
     }
 
+    /// S3.452: lift s1 IMUL+ALUV any-slot — both <16 → shared; mix → hand.
+    /// ALUV keeps r8b=opcode. Next ≥10 = lift LDB/MCP / OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_lift_s1_imul_aluv_any_slot_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.452"));
+        assert!(pe_dll.contains("lift s1 IMUL any-slot") || pe_dll.contains("lift s1 IMUL+ALUV"));
+        assert!(pe_dll.contains("s1 IMUL hand any-slot"));
+        assert!(pe_dll.contains("s1 ALUV hand any-slot"));
+        assert!(pe_dll.contains("let s1_imul_hand"));
+        assert!(pe_dll.contains("let s1_aluv_hand"));
+        assert!(pe_dll.contains("s1_jmp_next13b"));
+        assert!(pe_dll.contains("s1_jmp_next14b"));
+        assert!(pe_dll.contains("s3_shared_imul_disp8_seed"));
+        assert!(pe_dll.contains("s3_shared_aluv_disp8_seed"));
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.438: batch mt LDB+MCPD+MCPS disp8 → bake seeds (LDB oo0@+262 /
     /// oo≠0@+274, MCPD@+248, MCPS pair@+293). disp32/mix still hand. ≥3 arms
     /// one knife. Completes mt disp8 seed surface. Next ≥10 = collapse
