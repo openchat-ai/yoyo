@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.446**（445 shared LDB+MCPD；下一刀=MCPS pair shared 或 lift s1 / OW-RT；**不**假 CLOSED）。
+**默认** 继续 **= S3.447**（446 shared MCPS pair；下一刀=lift s1 any-slot / OW-RT；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -100,7 +100,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.359–406** ✅ | `a39a2a2` | 目标码种子链；Win PE 去 wrap |
 | **S3.407–420** ✅ | `5b425df` | OW-RT 切片 + densify/skip-mini **拒羊** |
 | **S3.421–428** ✅ | `2bc6fbc` | s1_loop op-handler poke-from-seed |
-| **S3.429–445** ✅ | 6ffce38 | seed batch + collapse GET..MCPD shared |
+| **S3.429–446** ✅ | 75636c5 | seed batch + collapse GET..MCPS shared |
 
 #### 近窗（本波 · 单刀）
 
@@ -123,7 +123,8 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.443** ✅ | e25f9c6 | collapse shared CMP disp8 seed thunk |
 | **S3.444** ✅ | 73d700d | collapse shared IMUL+ALUV disp8 seed thunk |
 | **S3.445** ✅ | 6ffce38 | collapse shared LDB+MCPD disp8 seed thunk |
-| **S3.446** ⏳ | — | **本步**：MCPS pair shared 或 lift/OW-RT |
+| **S3.446** ✅ | 75636c5 | collapse shared MCPS pair seed thunk |
+| **S3.447** ⏳ | — | **本步**：lift s1 any-slot / OW-RT |
 
 **缺口**：shared GET/MOVRR+INC/DEC。下一刀=shared ADD/SUB/CMP · lift s1 any-slot · OW-RT。DATA/LABEL=meta。无假 CLOSED。`bake=362` · `s3_=251`。
 
