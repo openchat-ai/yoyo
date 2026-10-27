@@ -11117,6 +11117,47 @@ mod tests {
         );
     }
 
+    /// S3.465: post-LOAD/WRITE-collapse map. Shared SET/ALLOC/LOAD/WRITE +
+    /// CALL/JMP/JCC + GET..MCPS + YOYO op dispatch done. Remaining: handlers
+    /// / finish / mt Rust hex → OW-RT CUT. Next ≥10 ≠ densify hand-disp32.
+    /// Candidates: YOYO-emit dispatch stub · mt→same index. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_post_load_write_collapse_map_reject() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.465"));
+        assert!(pe_dll.contains("post-LOAD/WRITE-collapse map"));
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        assert!(
+            pe_dll.contains("YOYO-emit dispatch stub") || pe_dll.contains("mt→same index")
+        );
+        assert!(
+            pe_dll.contains("Densify remaining mt hand-disp32 = sheep")
+                || pe_dll.contains("hand-disp32 = sheep")
+        );
+        // Shared surface still pinned.
+        assert!(pe_dll.contains("s3_shared_load_seed"));
+        assert!(pe_dll.contains("s3_shared_write_seed"));
+        assert!(pe_dll.contains("s3_shared_set_seed"));
+        assert!(pe_dll.contains("s3_shared_alloc_seed"));
+        assert!(pe_dll.contains("s1_op_trampolines"));
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.464: collapse shared LOAD/WRITE seeds — mt+s1 call one thunk each
     /// (rcx=rec; WRITE also r8d=path r9d=sz). Patch registration in callers.
     /// Next ≥10 = YOYO-emit dispatch stub / OW-RT. Not CLOSED.
