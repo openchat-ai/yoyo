@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.479**（478 memcpy-data seed；下一刀=post-finish-memcpy map / template RIP / OW-RT；**不**假 CLOSED）。
+**默认** 继续 **= S3.480**（479 post-finish-memcpy map；下一刀=template-post-lea seed / write_out / OW-RT；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -156,9 +156,10 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.476** ✅ | c757a92 | trail-C3 object seed（44B + poke） |
 | **S3.477** ✅ | a0d7b6a | memcpy-code object seed（39B + poke） |
 | **S3.478** ✅ | 9f88418 | memcpy-data object seed（36B + poke） |
-| **S3.479** ⏳ | — | **本步**：post-finish-memcpy map / template RIP / OW-RT |
+| **S3.479** ✅ | 6c08b80 | post-finish-memcpy map（finish memcpy seeds done） |
+| **S3.480** ⏳ | — | **本步**：template-post-lea seed / write_out / OW-RT |
 
-**缺口**：finish memcpy-code/data seeds 完成。下一刀=post-finish-memcpy map · template RIP · OW-RT。Densify=羊。无假 CLOSED。ake=362 · s3_=288。
+**缺口**：finish memcpy seeds+map 完成。下一刀=template-post-lea · write_out · OW-RT。RIP lea 仍 cliff。Densify=羊。无假 CLOSED。ake=362 · s3_=289。
 
 ---
 
@@ -200,4 +201,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-26**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.479** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 看板已再折（波段+近窗）
+**快照 2026-10-26**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.480** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 看板已再折（波段+近窗）
