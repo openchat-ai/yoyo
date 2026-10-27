@@ -2558,6 +2558,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let mut s3_shared_incdec_calls: Vec<usize> = Vec::new();
     // S3.442: call sites → shared ADD/SUB disp8 seed (rcx=rec, r8b=ModRM C0/E8, r12=out).
     let mut s3_shared_addsub_calls: Vec<usize> = Vec::new();
+    // S3.443: call sites → shared CMP disp8 seed (rcx=rec, r12=out).
+    let mut s3_shared_cmp_calls: Vec<usize> = Vec::new();
     let emit_mt_push_patch = |code: &mut Vec<u8>, jmps: &mut Vec<usize>| {
         let lea_at = code.len();
         code.extend_from_slice(&[0x4C, 0x8D, 0x1D, 0, 0, 0, 0]); // lea r11,[rip+ret]
@@ -3158,8 +3160,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.439: post-disp8 map + densify = sheep. collapse wedge = shared
     // call thunks. Naive jmp s1_loop mid-mt = sheep (ABI cliff).
     // S3.440: shared GET/MOVRR. S3.441: shared INC/DEC (r8b=ModRM C0/C8).
-    // S3.442: shared ADD/SUB (r8b=ModRM C0/E8). Next ≥10 = CMP shared /
-    // lift s1 any-slot / OW-RT. Not CLOSED.
+    // S3.442: shared ADD/SUB (r8b=ModRM C0/E8). S3.443: shared CMP.
+    // Next ≥10 = lift s1 any-slot / OW-RT / remaining shared. Not CLOSED.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
     patch_jcc32(&mut export_code, s3_jne_mt_set_a, s3_mt_get);
@@ -3670,23 +3672,11 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x66, 0x83, 0x7A, 0x04, 0x10]); // cmp b, 16
     let s3_jae_mt_cmp_hand2 = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x56]);
-    export_code.extend_from_slice(&[0x51]);
-    export_code.extend_from_slice(&[0xFC]);
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
-    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 180 + 4));
-    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]);
-    export_code.extend_from_slice(&[0xB9, 0x0B, 0x00, 0x00, 0x00]);
-    export_code.extend_from_slice(&[0xF3, 0xA4]);
-    export_code.extend_from_slice(&[0x59]);
-    export_code.extend_from_slice(&[0x5E]);
-    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x02]); // a
-    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
-    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x03]); // poke a @+3
-    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x04]); // b
-    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
-    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x07]); // poke b @+7
-    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x0B]);
+    // S3.437/S3.443: mt CMP disp8 → shared CMP seed
+    export_code.extend_from_slice(&[0x48, 0x89, 0xD1]); // mov rcx, rdx
+    let s3_call_mt_cmp_shared = export_code.len();
+    export_code.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    s3_shared_cmp_calls.push(s3_call_mt_cmp_shared);
     let s3_jmp_mt_cmp_seed_done = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     let s3_mt_cmp_hand = export_code.len();
@@ -5616,22 +5606,37 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x3D, 0x80, 0x00, 0x00, 0x00]);
     let s1_jae_cmp_b = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x41, 0x88, 0xC2]);
-    // S3.423: CMP body = bake CMP seed (11B) + poke a/b disp
-    export_code.extend_from_slice(&[0x56]); // push rsi
-    export_code.extend_from_slice(&[0x51]); // push rcx
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]); // lea rsi,[rip+bake]
-    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 180 + 4)); // CMP
-    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
-    export_code.extend_from_slice(&[0xB9, 0x0B, 0x00, 0x00, 0x00]); // ecx = 11
-    export_code.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
-    export_code.extend_from_slice(&[0x59]); // pop rcx
-    export_code.extend_from_slice(&[0x5E]); // pop rsi
-    export_code.extend_from_slice(&[0x45, 0x88, 0x4C, 0x24, 0x03]); // poke a @+3
-    export_code.extend_from_slice(&[0x45, 0x88, 0x54, 0x24, 0x07]); // poke b @+7
-    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x0B]);
+    // S3.423/S3.443: CMP body = shared CMP disp8 seed (call)
+    let s3_call_s1_cmp_shared = export_code.len();
+    export_code.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    s3_shared_cmp_calls.push(s3_call_s1_cmp_shared);
     let s1_jmp_next9 = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+    // S3.443: shared CMP disp8 seed — rcx=rec, r12=out; RET.
+    // Emitted after all call sites (mt CMP + s1 CMP) are registered.
+    let s3_shared_cmp_disp8_seed = export_code.len();
+    for at in &s3_shared_cmp_calls {
+        patch_rel32(&mut export_code, *at, s3_shared_cmp_disp8_seed);
+    }
+    export_code.extend_from_slice(&[0x56]); // push rsi
+    export_code.extend_from_slice(&[0x51]); // push rcx
+    export_code.extend_from_slice(&[0xFC]); // cld
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 180 + 4));
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
+    export_code.extend_from_slice(&[0xB9, 0x0B, 0x00, 0x00, 0x00]); // ecx = 11
+    export_code.extend_from_slice(&[0xF3, 0xA4]);
+    export_code.extend_from_slice(&[0x59]); // pop rcx
+    export_code.extend_from_slice(&[0x5E]); // pop rsi
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // a
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x03]); // poke a @+3
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x04]); // b
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x07]); // poke b @+7
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x0B]);
+    export_code.extend_from_slice(&[0xC3]); // ret
 
     // --- LDB argc=3: load ss→rax; [oo!=0 → add imm32]; movzx; store dd
     // size 12 (oo=0) or 19 (oo!=0)

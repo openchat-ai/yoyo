@@ -11227,7 +11227,10 @@ mod tests {
         let pe_dll = include_str!("pe_dll_link.rs");
         assert!(pe_dll.contains("S3.437"));
         assert!(pe_dll.contains("batch CMP+IMUL+ALUV"));
-        assert!(pe_dll.contains("both slots <16 → bake+180 CMP seed"));
+        assert!(
+            pe_dll.contains("both slots <16 → bake+180 CMP seed")
+                || pe_dll.contains("mt CMP disp8 → shared CMP")
+        );
         assert!(pe_dll.contains("both slots <16 → bake+217 IMUL seed"));
         assert!(pe_dll.contains("both slots <16 → bake+233 ALUV seed"));
         assert!(pe_dll.contains("s3_bake_table_off + 180 + 4"));
@@ -11367,6 +11370,34 @@ mod tests {
         let calls = pe_dll.matches("s3_shared_addsub_calls.push").count();
         assert!(calls >= 3, "shared ADD/SUB call sites ≥3, got {calls}");
         assert!(pe_dll.contains("s3_bake_table_off + 100 + 4"));
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.443: collapse — shared CMP disp8 seed (bake+180). mt CMP + s1
+    /// CMP → call. ≥2 sites (CMP has no ModRM twin). Next ≥10 = lift s1
+    /// any-slot / OW-RT / remaining shared. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_collapse_shared_cmp_disp8_seed_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.443"));
+        assert!(pe_dll.contains("shared CMP disp8"));
+        assert!(pe_dll.contains("s3_shared_cmp_disp8_seed"));
+        assert!(pe_dll.contains("mt CMP disp8 → shared"));
+        let calls = pe_dll.matches("s3_shared_cmp_calls.push").count();
+        assert!(calls >= 2, "shared CMP call sites ≥2, got {calls}");
+        assert!(pe_dll.contains("s3_bake_table_off + 180 + 4"));
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
@@ -11687,7 +11718,10 @@ mod tests {
             pe_dll.contains("ADD/SUB body = bake ADD seed")
                 || pe_dll.contains("ADD/SUB body = shared ADD seed")
         );
-        assert!(pe_dll.contains("CMP body = bake CMP seed"));
+        assert!(
+            pe_dll.contains("CMP body = bake CMP seed")
+                || pe_dll.contains("CMP body = shared CMP")
+        );
         assert!(pe_dll.contains("s3_bake_table_off + 100 + 4")); // ADD
         assert!(pe_dll.contains("s3_bake_table_off + 180 + 4")); // CMP
         assert_eq!(s3_fixed_row(0x62).len(), 15);
