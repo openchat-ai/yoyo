@@ -12953,6 +12953,44 @@ mod tests {
         );
     }
 
+    /// S3.474: post-push_patch map. push_patch = YOYO seed (41B+poke).
+    /// LABEL/DATA=meta. Remaining: guards · s1_finish (419 IR reject) ·
+    /// mt dispatch · pass-2 → OW-RT CUT. Next ≥10 ≠ densify hand-disp32.
+    /// Candidates: pass-2 object seed · OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_post_push_patch_map_reject() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.474"));
+        assert!(pe_dll.contains("post-push_patch map"));
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        assert!(pe_dll.contains("S3_PUSH_PATCH_BODY_SEED"));
+        assert!(
+            pe_dll.contains("pass-2") || pe_dll.contains("Pass 2")
+        );
+        assert!(
+            pe_dll.contains("Densify hand-disp32 = sheep")
+                || pe_dll.contains("hand-disp32 = sheep")
+        );
+        assert!(pe_dll.contains("LABEL") && pe_dll.contains("meta"));
+        assert_eq!(S3_PUSH_PATCH_BODY_SEED.len(), 41);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.473: push_patch body = YOYO object seed (41B) + poke N/PATCHES offs;
     /// jae fail live. Shared by mt+s1 via jmp r11. Next ≥10 = post-push_patch
     /// map / s1_finish / OW-RT. Not CLOSED.

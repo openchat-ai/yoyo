@@ -3055,6 +3055,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // OW-RT. Not CLOSED. OW-RT remains CUT.
     // S3.473: push_patch body = YOYO object seed (41B) + poke N/PATCHES offs;
     // jae fail live. Next ≥10 = post-push_patch map / s1_finish / OW-RT.
+    // S3.474: post-push_patch map — push_patch seed done; LABEL/DATA=meta.
+    // Remaining Rust: handler guards · s1_finish (419 IR reject) · mt dispatch
+    // · pass-2. Densify hand-disp32 = sheep. Next ≥10 = pass-2 seed / OW-RT.
+    // Not CLOSED. OW-RT remains CUT.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
     patch_jcc32(&mut export_code, s3_jne_mt_set_a, s3_mt_get);
