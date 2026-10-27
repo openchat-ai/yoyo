@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.441**（440 collapse GET/MOVRR shared seed；下一刀=more shared thunks / lift s1 any-slot / OW-RT；**不**假 CLOSED）。
+**默认** 继续 **= S3.442**（441 shared INC/DEC；下一刀=shared ADD/SUB/CMP 或 lift s1 / OW-RT；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -100,7 +100,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.359–406** ✅ | `a39a2a2` | 目标码种子链；Win PE 去 wrap |
 | **S3.407–420** ✅ | `5b425df` | OW-RT 切片 + densify/skip-mini **拒羊** |
 | **S3.421–428** ✅ | `2bc6fbc` | s1_loop op-handler poke-from-seed |
-| **S3.429–440** ✅ | 72d53e0 | seed batch + collapse GET/MOVRR shared |
+| **S3.429–441** ✅ | 168453c | seed batch + collapse GET..INC shared |
 
 #### 近窗（本波 · 单刀）
 
@@ -118,9 +118,10 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.438** ✅ | a34856f | batch mt LDB+MCPD+MCPS disp8→bake |
 | **S3.439** ✅ | 90df71f | post-disp8 map + 拒 disp32 densify 羊 |
 | **S3.440** ✅ | 72d53e0 | collapse shared GET/MOVRR disp8 seed thunk |
-| **S3.441** ⏳ | — | **本步**：more shared / lift s1 / OW-RT |
+| **S3.441** ✅ | 168453c | collapse shared INC/DEC disp8 seed thunk |
+| **S3.442** ⏳ | — | **本步**：shared ADD/SUB/CMP 或 lift/OW-RT |
 
-**缺口**：collapse 楔子=shared GET/MOVRR。拒 naive jmp s1=羊。下一刀=more shared thunks · lift s1 any-slot · OW-RT。DATA/LABEL=meta。无假 CLOSED。`bake=362` · `s3_=250`。
+**缺口**：shared GET/MOVRR+INC/DEC。下一刀=shared ADD/SUB/CMP · lift s1 any-slot · OW-RT。DATA/LABEL=meta。无假 CLOSED。`bake=362` · `s3_=251`。
 
 ---
 
@@ -154,7 +155,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.441**（more shared thunks / lift s1 / OW-RT；禁 one-op densify）。做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.442**（shared ADD/SUB/CMP 或 lift/OW-RT；禁 densify）。做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -162,4 +163,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-26**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.441** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 看板已再折（波段+近窗）
+**快照 2026-10-26**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.442** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 看板已再折（波段+近窗）
