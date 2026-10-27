@@ -127,7 +127,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.447** ✅ | a26dd4a | post-shared-collapse map + 拒 densify hand-disp32 |
 | **S3.448** ⏳ | — | **本步**：lift s1 GET/MOVRR any-slot / OW-RT |
 
-**缺口**：shared GET/MOVRR+INC/DEC。下一刀=shared ADD/SUB/CMP · lift s1 any-slot · OW-RT。DATA/LABEL=meta。无假 CLOSED。`bake=362` · `s3_=251`。
+**缺口**：disp8 shared 面完成。下一刀=lift s1 GET/MOVRR any-slot · OW-RT。DATA/LABEL=meta。无假 CLOSED。`bake=362` · `s3_=257`。
 
 ---
 
@@ -161,7 +161,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.442**（shared ADD/SUB/CMP 或 lift/OW-RT；禁 densify）。做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.448**（lift s1 GET/MOVRR any-slot / OW-RT；禁 densify）。做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
