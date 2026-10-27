@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.461**（460 collapse shared CALL/JMP/JCC；下一刀=YOYO-own dispatcher / OW-RT；**不**假 CLOSED）。
+**默认** 继续 **= S3.462**（461 YOYO-own fixed10 dispatcher；下一刀=extend dispatch / OW-RT；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -100,7 +100,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.359–406** ✅ | `a39a2a2` | 目标码种子链；Win PE 去 wrap |
 | **S3.407–420** ✅ | `5b425df` | OW-RT 切片 + densify/skip-mini **拒羊** |
 | **S3.421–428** ✅ | `2bc6fbc` | s1_loop op-handler poke-from-seed |
-| **S3.429–460** ✅ | c9884af | seed+collapse+lift + shared SET/ALLOC/CALL/JMP/JCC + maps |
+| **S3.429–461** ✅ | 5ee8732 | seed+collapse+lift + shared + fixed10 YOYO dispatch |
 
 #### 近窗（本波 · 单刀）
 
@@ -138,9 +138,10 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.458** ✅ | b7af3a2 | post-SET/ALLOC-collapse map |
 | **S3.459** ✅ | 64fc271 | OW-RT entry cliff map（dispatcher still Rust） |
 | **S3.460** ✅ | c9884af | collapse shared CALL/JMP/JCC seeds（mt+s1） |
-| **S3.461** ⏳ | — | **本步**：YOYO-own dispatcher slice / OW-RT |
+| **S3.461** ✅ | 5ee8732 | YOYO-own fixed10 dispatcher slice（index+tramp） |
+| **S3.462** ⏳ | — | **本步**：extend YOYO-own dispatch / OW-RT |
 
-**缺口**：shared CALL/JMP/JCC 已 collapse。下一刀=YOYO-own dispatcher slice · OW-RT。Densify=羊。DATA/LABEL=meta。无假 CLOSED。`bake=362` · `s3_=270`。
+**缺口**：fixed10 YOYO-own dispatch 已切片。下一刀=extend dispatch（非 fixed10）· OW-RT。Densify=羊。DATA/LABEL=meta。无假 CLOSED。ake=362 · s3_=271。
 
 ---
 
@@ -182,4 +183,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-26**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.461** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 看板已再折（波段+近窗）
+**快照 2026-10-26**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.462** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 看板已再折（波段+近窗）
