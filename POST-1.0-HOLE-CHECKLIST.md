@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.460**（459 OW-RT entry map；下一刀=YOYO-own dispatcher slice / real gap；**不**假 CLOSED）。
+**默认** 继续 **= S3.461**（460 collapse shared CALL/JMP/JCC；下一刀=YOYO-own dispatcher / OW-RT；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -100,7 +100,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.359–406** ✅ | `a39a2a2` | 目标码种子链；Win PE 去 wrap |
 | **S3.407–420** ✅ | `5b425df` | OW-RT 切片 + densify/skip-mini **拒羊** |
 | **S3.421–428** ✅ | `2bc6fbc` | s1_loop op-handler poke-from-seed |
-| **S3.429–459** ✅ | 64fc271 | seed+collapse+lift + shared SET/ALLOC + OW-RT entry map |
+| **S3.429–460** ✅ | c9884af | seed+collapse+lift + shared SET/ALLOC/CALL/JMP/JCC + maps |
 
 #### 近窗（本波 · 单刀）
 
@@ -119,7 +119,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.439** ✅ | 90df71f | post-disp8 map + 拒 disp32 densify 羊 |
 | **S3.440** ✅ | 72d53e0 | collapse shared GET/MOVRR disp8 seed thunk |
 | **S3.441** ✅ | 168453c | collapse shared INC/DEC disp8 seed thunk |
-| **S3.442** ✅ | 6c9006b | collapse shared ADD/SUB disp8 seed thunk |
+| **S3.461** ✅ | 6c9006b | collapse shared ADD/SUB disp8 seed thunk |
 | **S3.443** ✅ | e25f9c6 | collapse shared CMP disp8 seed thunk |
 | **S3.444** ✅ | 73d700d | collapse shared IMUL+ALUV disp8 seed thunk |
 | **S3.445** ✅ | 6ffce38 | collapse shared LDB+MCPD disp8 seed thunk |
@@ -137,9 +137,10 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.457** ✅ | d2436f9 | collapse shared ALLOC seed（mt+s1 prefix+store） |
 | **S3.458** ✅ | b7af3a2 | post-SET/ALLOC-collapse map |
 | **S3.459** ✅ | 64fc271 | OW-RT entry cliff map（dispatcher still Rust） |
-| **S3.460** ⏳ | — | **本步**：YOYO-own dispatcher slice / real gap |
+| **S3.460** ✅ | c9884af | collapse shared CALL/JMP/JCC seeds（mt+s1） |
+| **S3.461** ⏳ | — | **本步**：YOYO-own dispatcher slice / OW-RT |
 
-**缺口**：s1 lift + shared SET/ALLOC 完成；in-DLL mini dispatcher **仍 Rust** → OW-RT CUT。下一刀=YOYO-own dispatcher slice · real gap。Densify=羊。无假 CLOSED。`bake=362` · `s3_=269`。
+**缺口**：shared CALL/JMP/JCC 已 collapse。下一刀=YOYO-own dispatcher slice · OW-RT。Densify=羊。DATA/LABEL=meta。无假 CLOSED。`bake=362` · `s3_=270`。
 
 ---
 
@@ -173,7 +174,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.460**（YOYO-own dispatcher slice / real gap；禁 densify）。做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.461**（YOYO-own dispatcher slice / OW-RT；禁 densify）。做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -181,4 +182,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-26**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.442** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 看板已再折（波段+近窗）
+**快照 2026-10-26**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.461** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 看板已再折（波段+近窗）
