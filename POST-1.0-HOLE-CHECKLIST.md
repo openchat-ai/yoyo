@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.448**（447 post-shared map；下一刀=lift s1 GET/MOVRR any-slot / OW-RT；**不**假 CLOSED）。
+**默认** 继续 **= S3.449**（448 lift s1 GET/MOVRR；下一刀=lift INC/ADD/… / OW-RT；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -100,7 +100,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.359–406** ✅ | `a39a2a2` | 目标码种子链；Win PE 去 wrap |
 | **S3.407–420** ✅ | `5b425df` | OW-RT 切片 + densify/skip-mini **拒羊** |
 | **S3.421–428** ✅ | `2bc6fbc` | s1_loop op-handler poke-from-seed |
-| **S3.429–447** ✅ | a26dd4a | seed batch + collapse + post-shared map |
+| **S3.429–448** ✅ | 0145ebe | seed batch + collapse + lift s1 GET |
 
 #### 近窗（本波 · 单刀）
 
@@ -125,9 +125,10 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.445** ✅ | 6ffce38 | collapse shared LDB+MCPD disp8 seed thunk |
 | **S3.446** ✅ | 75636c5 | collapse shared MCPS pair seed thunk |
 | **S3.447** ✅ | a26dd4a | post-shared-collapse map + 拒 densify hand-disp32 |
-| **S3.448** ⏳ | — | **本步**：lift s1 GET/MOVRR any-slot / OW-RT |
+| **S3.448** ✅ | 0145ebe | lift s1 GET/MOVRR any-slot（disp8 shared + hand mix） |
+| **S3.449** ⏳ | — | **本步**：lift s1 INC/ADD/… any-slot / OW-RT |
 
-**缺口**：disp8 shared 面完成。下一刀=lift s1 GET/MOVRR any-slot · OW-RT。DATA/LABEL=meta。无假 CLOSED。`bake=362` · `s3_=257`。
+**缺口**：s1 GET/MOVRR any-slot 已 lift。下一刀=lift INC/ADD/… · OW-RT。DATA/LABEL=meta。无假 CLOSED。`bake=362` · `s3_=258`。
 
 ---
 
@@ -161,7 +162,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.448**（lift s1 GET/MOVRR any-slot / OW-RT；禁 densify）。做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.449**（lift s1 INC/ADD/… any-slot / OW-RT；禁 densify）。做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
