@@ -11185,14 +11185,24 @@ mod tests {
         let pe_dll = include_str!("pe_dll_link.rs");
         assert!(pe_dll.contains("S3.436"));
         assert!(pe_dll.contains("batch ADD+SUB+MOVRR"));
-        assert!(pe_dll.contains("mt ADD disp8 = bake+100"));
-        assert!(pe_dll.contains("mt SUB disp8 = bake+100"));
+        assert!(
+            pe_dll.contains("mt ADD disp8 = bake+100")
+                || pe_dll.contains("mt ADD disp8 → shared ADD/SUB")
+        );
+        assert!(
+            pe_dll.contains("mt SUB disp8 = bake+100")
+                || pe_dll.contains("mt SUB disp8 → shared ADD/SUB")
+        );
         assert!(
             pe_dll.contains("both slots <16 → bake+60 GET seed")
                 || pe_dll.contains("both slots <16 → shared GET seed")
         );
         assert!(pe_dll.contains("s3_bake_table_off + 100 + 4"));
-        assert!(pe_dll.contains("poke SUB ModRM"));
+        assert!(
+            pe_dll.contains("poke SUB ModRM")
+                || pe_dll.contains("r8b=E8")
+                || pe_dll.contains("shared ADD/SUB")
+        );
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
@@ -11328,6 +11338,35 @@ mod tests {
         let calls = pe_dll.matches("s3_shared_incdec_calls.push").count();
         assert!(calls >= 3, "shared INC/DEC call sites ≥3, got {calls}");
         assert!(pe_dll.contains("s3_bake_table_off + 80 + 4"));
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.442: collapse — shared ADD/SUB disp8 seed (bake+100, r8b=ModRM
+    /// C0/E8). mt ADD/SUB + s1 addsub → call. ≥3 sites. Next ≥10 = CMP
+    /// shared / lift s1 / OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_collapse_shared_add_sub_disp8_seed_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.442"));
+        assert!(pe_dll.contains("shared ADD/SUB disp8"));
+        assert!(pe_dll.contains("s3_shared_addsub_disp8_seed"));
+        assert!(pe_dll.contains("mt ADD disp8 → shared"));
+        assert!(pe_dll.contains("mt SUB disp8 → shared"));
+        let calls = pe_dll.matches("s3_shared_addsub_calls.push").count();
+        assert!(calls >= 3, "shared ADD/SUB call sites ≥3, got {calls}");
+        assert!(pe_dll.contains("s3_bake_table_off + 100 + 4"));
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
@@ -11644,7 +11683,10 @@ mod tests {
     fn s3_ow_rt_s1_add_sub_cmp_handler_seed_poke_pin() {
         let pe_dll = include_str!("pe_dll_link.rs");
         assert!(pe_dll.contains("S3.423"));
-        assert!(pe_dll.contains("ADD/SUB body = bake ADD seed"));
+        assert!(
+            pe_dll.contains("ADD/SUB body = bake ADD seed")
+                || pe_dll.contains("ADD/SUB body = shared ADD seed")
+        );
         assert!(pe_dll.contains("CMP body = bake CMP seed"));
         assert!(pe_dll.contains("s3_bake_table_off + 100 + 4")); // ADD
         assert!(pe_dll.contains("s3_bake_table_off + 180 + 4")); // CMP
