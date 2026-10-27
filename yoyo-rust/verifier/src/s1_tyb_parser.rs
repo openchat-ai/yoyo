@@ -13077,6 +13077,47 @@ mod tests {
         );
     }
 
+    /// S3.484: post-finish/guard residual map. s1_finish seeds + push_patch +
+    /// guard densify reject done. Remaining: mt dispatch (467 ABI) · RIP lea
+    /// (419) · handler hex · fail-site glue → OW-RT CUT. Next ≥10 ≠ densify
+    /// hand-disp32. Candidates: OW-RT mini→YOYO · mt residual. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_post_finish_guard_residual_map_reject() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.484"));
+        assert!(
+            pe_dll.contains("post-finish/guard residual map")
+                || pe_dll.contains("residual map")
+        );
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        assert!(pe_dll.contains("S3_PUSH_PATCH_BODY_SEED"));
+        assert!(pe_dll.contains("S3_WRITE_OUT_SETUP_BODY_SEED"));
+        assert!(pe_dll.contains("S3.483") || pe_dll.contains("guard densify"));
+        assert!(
+            pe_dll.contains("467") || pe_dll.contains("ABI cliff") || pe_dll.contains("mt→same")
+        );
+        assert!(
+            pe_dll.contains("Densify hand-disp32 = sheep")
+                || pe_dll.contains("hand-disp32 = sheep")
+        );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.483: handler argc/ovf guard densify = sheep reject. Collapsing
     /// per-handler `jne_argc`/`ja_ovf` into one shared guard helper is −1
     /// densify (no new YOYO capability). Surface stays ≥10 distinct sites.
