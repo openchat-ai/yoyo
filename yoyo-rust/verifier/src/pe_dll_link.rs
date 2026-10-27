@@ -3170,9 +3170,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.439: post-disp8 map + densify = sheep. collapse wedge = shared
     // call thunks. Naive jmp s1_loop mid-mt = sheep (ABI cliff).
     // S3.440–446: shared GET..MCPS pair — disp8 shared surface complete.
-    // S3.447: post-shared-collapse map. lift s1 any-slot (GET/MOVRR first;
-    // s1 still jae→fail on slot≥16) or OW-RT long-pole. Densify remaining
-    // mt hand-disp32 = sheep. Not CLOSED.
+    // S3.447: post-shared-collapse map. S3.448: lift s1 GET/MOVRR any-slot
+    // (disp8→shared; mix/disp32→hand). Densify mt hand-disp32 = sheep.
+    // Next ≥10 = lift more s1 ops / OW-RT. Not CLOSED.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
     patch_jcc32(&mut export_code, s3_jne_mt_set_a, s3_mt_get);
@@ -5243,35 +5243,102 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s1_jmp_next19 = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
-    // --- GET / MOVRR argc=2: load src→rax; store dst←rax (8B)
+    // --- GET / MOVRR argc=2: load src→rax; store dst←rax (disp8=8B | any-slot mix)
+    // S3.448: lift s1 any-slot — both <16 → shared; else hand (mirror mt).
     let s1_get = export_code.len();
     patch_jcc32(&mut export_code, s1_je_get, s1_get);
     patch_jcc32(&mut export_code, s1_je_movrr, s1_get);
     export_code.extend_from_slice(&[0x80, 0xFA, 0x02]);
     let s1_jne_get_argc = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    // slots ≤255
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // dst
+    export_code.extend_from_slice(&[0x3D, 0x00, 0x01, 0x00, 0x00]);
+    let s1_jae_get_dst = export_code.len(); // → fail if >255
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x04]); // src
+    export_code.extend_from_slice(&[0x3D, 0x00, 0x01, 0x00, 0x00]);
+    let s1_jae_get_src = export_code.len(); // → fail if >255
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    // r8d = size = (src<16?4:7)+(dst<16?4:7) — eax temps; rcx=rec live
+    export_code.extend_from_slice(&[0x45, 0x31, 0xC0]); // xor r8d, r8d
+    export_code.extend_from_slice(&[0xB8, 0x04, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x41, 0xBA, 0x07, 0x00, 0x00, 0x00]); // r10d=7
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x04]); // movzx eax, src
+    export_code.extend_from_slice(&[0x83, 0xF8, 0x10]); // cmp eax, 16
+    export_code.extend_from_slice(&[0xB8, 0x04, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x41, 0x0F, 0x43, 0xC2]); // cmovae eax,r10d
+    export_code.extend_from_slice(&[0x41, 0x01, 0xC0]); // add r8d, eax
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // movzx eax, dst
+    export_code.extend_from_slice(&[0x83, 0xF8, 0x10]);
+    export_code.extend_from_slice(&[0xB8, 0x04, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x41, 0x0F, 0x43, 0xC2]);
+    export_code.extend_from_slice(&[0x41, 0x01, 0xC0]);
     export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
-    export_code.extend_from_slice(&[0x48, 0x83, 0xC0, 0x08]); // need 8 bytes
+    export_code.extend_from_slice(&[0x4C, 0x01, 0xC0]);
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
     let s1_ja_get_ovf = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
-    // Record: [op][argc][args6]; dst=u16@[rcx+2], src=u16@[rcx+4]
-    // src disp → r9b; dst disp → r10b
-    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x04]); // movzx eax, word [rcx+4] src
-    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
-    export_code.extend_from_slice(&[0x3D, 0x80, 0x00, 0x00, 0x00]);
-    let s1_jae_get_src = export_code.len();
+    // both <16 → shared; else hand
+    export_code.extend_from_slice(&[0x66, 0x83, 0x79, 0x02, 0x10]); // cmp dst, 16
+    let s1_jae_get_hand = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // movzx eax, word [rcx+2] dst
-    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
-    export_code.extend_from_slice(&[0x3D, 0x80, 0x00, 0x00, 0x00]);
-    let s1_jae_get_dst = export_code.len();
+    export_code.extend_from_slice(&[0x66, 0x83, 0x79, 0x04, 0x10]); // cmp src, 16
+    let s1_jae_get_hand2 = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
     // S3.422/S3.440: GET/MOVRR body = shared GET disp8 seed (call)
     let s3_call_s1_get_shared = export_code.len();
     export_code.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
     s3_shared_get_calls.push(s3_call_s1_get_shared);
     let s1_jmp_next6 = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    // S3.448: s1 GET/MOVRR hand any-slot (rcx=rec preserved, r12=out)
+    let s1_get_hand = export_code.len();
+    patch_jcc32(&mut export_code, s1_jae_get_hand, s1_get_hand);
+    patch_jcc32(&mut export_code, s1_jae_get_hand2, s1_get_hand);
+    // load src → rax (eax=disp; do not clobber rcx=rec)
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x04]); // movzx eax, src
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]); // shl eax, 3
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x8B]);
+    export_code.extend_from_slice(&[0x66, 0x83, 0x79, 0x04, 0x10]); // src≥16?
+    let s1_jae_get_ld32 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x02, 0x47]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x03]); // [r12+3]=al
+    export_code.extend_from_slice(&[0x41, 0xB9, 0x04, 0x00, 0x00, 0x00]);
+    let s1_jmp_get_store = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let s1_get_ld32 = export_code.len();
+    patch_jcc32(&mut export_code, s1_jae_get_ld32, s1_get_ld32);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x02, 0x87]);
+    export_code.extend_from_slice(&[0x41, 0x89, 0x44, 0x24, 0x03]); // [r12+3]=eax
+    export_code.extend_from_slice(&[0x41, 0xB9, 0x07, 0x00, 0x00, 0x00]);
+    let s1_get_store = export_code.len();
+    patch_rel32(&mut export_code, s1_jmp_get_store, s1_get_store);
+    // store dst ← rax at r12+r9
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // movzx eax, dst
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x4F, 0x8D, 0x14, 0x0C]); // lea r10,[r12+r9]
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x02, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x42, 0x01, 0x89]);
+    export_code.extend_from_slice(&[0x66, 0x83, 0x79, 0x02, 0x10]); // dst≥16?
+    let s1_jae_get_st32 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x42, 0x02, 0x47]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x42, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0x83, 0xC1, 0x04]);
+    let s1_jmp_get_hand_done = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let s1_get_st32 = export_code.len();
+    patch_jcc32(&mut export_code, s1_jae_get_st32, s1_get_st32);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x42, 0x02, 0x87]);
+    export_code.extend_from_slice(&[0x41, 0x89, 0x42, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0x83, 0xC1, 0x07]);
+    let s1_get_hand_done = export_code.len();
+    patch_rel32(&mut export_code, s1_jmp_get_hand_done, s1_get_hand_done);
+    export_code.extend_from_slice(&[0x4D, 0x01, 0xCC]); // add r12, r9
+    let s1_jmp_next6b = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // S3.440: shared GET/MOVRR disp8 seed — rcx=record, r12=out; RET.
@@ -6145,6 +6212,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         s1_jmp_next4,
         s1_jmp_next5,
         s1_jmp_next6,
+        s1_jmp_next6b,
         s1_jmp_next7,
         s1_jmp_next8,
         s1_jmp_next9,
