@@ -3098,6 +3098,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // mt ABI=467. Next ≥10 = YOYO-built compile path / mt residual.
     // S3.486: DATA append body = YOYO object seed (39B) shared mt+s1
     // (rcx=rec, r9b=argc, rdi=dest). Next ≥10 = post-data-append map / OW-RT.
+    // S3.487: post-data-append map — DATA append seed shared. LABEL=meta.
+    // Remaining: mt dispatch (467) · RIP lea (419) · handler hex · OW-RT entry
+    // (485). Densify hand-disp32 = sheep. Next ≥10 = OW-RT / mt residual.
+    // Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
