@@ -3105,6 +3105,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.488: s1 LABEL table-push = YOYO object seed (62B) + poke N/CODE/LABELS;
     // jae fail live. mt LABEL stays hand (ABI). Next ≥10 = post-label map /
     // OW-RT.
+    // S3.489: post-label map — s1 push_label seed done; LABEL=.text meta; mt
+    // LABEL hand (ABI). Remaining: mt dispatch (467) · RIP lea (419) · handler
+    // hex · OW-RT entry (485). Densify hand-disp32 = sheep. Next ≥10 = OW-RT /
+    // mt residual. Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
