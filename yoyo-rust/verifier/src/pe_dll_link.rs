@@ -3172,7 +3172,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.440–446: shared GET..MCPS pair — disp8 shared surface complete.
     // S3.447: post-shared-collapse map. S3.448–451: lift s1 GET..CMP.
     // S3.452: lift s1 IMUL+ALUV any-slot.
-    // S3.453: lift s1 LDB+MCPD any-slot. Next ≥10 = lift MCPS / OW-RT.
+    // S3.453: lift s1 LDB+MCPD any-slot.
+    // S3.454: lift s1 MCPS any-slot. Next ≥10 = post-lift map / OW-RT.
     // Densify remaining mt hand-disp32 = sheep. Not CLOSED.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
@@ -6307,7 +6308,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x0E]);
     export_code.extend_from_slice(&[0xC3]); // ret
 
-    // --- MEMCPY_STATE argc=3: unroll n≤4 load/store pairs (8×n bytes)
+    // --- MEMCPY_STATE argc=3: unroll n≤4 load/store pairs
+    // S3.454: lift s1 MCPS any-slot — last <16 → shared; else hand (mirror mt).
     let s1_mcp_state = export_code.len();
     patch_jcc32(&mut export_code, s1_je_mcp_state, s1_mcp_state);
     export_code.extend_from_slice(&[0x80, 0xFA, 0x03]);
@@ -6317,44 +6319,65 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x83, 0xFE, 0x04]);
     let s1_ja_mcps_n = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]); // n > 4
-    // space = 8*n
-    export_code.extend_from_slice(&[0x89, 0xF0]);
-    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
-    export_code.extend_from_slice(&[0x4C, 0x01, 0xE0]); // rax = r12 + 8*n
-    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
-    let s1_ja_mcps_ovf = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // dst slot
-    export_code.extend_from_slice(&[0x0F, 0xB7, 0x51, 0x04]); // src slot
-    // if n==0 → next
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // dst
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x51, 0x04]); // src
     export_code.extend_from_slice(&[0x85, 0xF6]);
     let s1_jz_mcps_empty = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    // last = slot+n-1; check disp8
+    // last = slot+n-1 < 256
     export_code.extend_from_slice(&[0x8D, 0x7C, 0x30, 0xFF]); // edi = dst+n-1
-    export_code.extend_from_slice(&[0xC1, 0xE7, 0x03]);
-    export_code.extend_from_slice(&[0x81, 0xFF, 0x80, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x81, 0xFF, 0x00, 0x01, 0x00, 0x00]);
     let s1_jae_mcps_dst = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
     export_code.extend_from_slice(&[0x8D, 0x7C, 0x32, 0xFF]); // edi = src+n-1
-    export_code.extend_from_slice(&[0xC1, 0xE7, 0x03]);
-    export_code.extend_from_slice(&[0x81, 0xFF, 0x80, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x81, 0xFF, 0x00, 0x01, 0x00, 0x00]);
     let s1_jae_mcps_src = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-    // also check base slots
-    export_code.extend_from_slice(&[0x89, 0xC7]);
-    export_code.extend_from_slice(&[0xC1, 0xE7, 0x03]);
-    export_code.extend_from_slice(&[0x81, 0xFF, 0x80, 0x00, 0x00, 0x00]);
-    let s1_jae_mcps_dst0 = export_code.len();
+    let s1_jae_mcps_dst0 = s1_jae_mcps_dst; // last covers base
+    let s1_jae_mcps_src0 = s1_jae_mcps_src;
+    // r10d=dst r11d=src; r8d = Σ sizes; r9d=7 (do NOT clobber ebx)
+    export_code.extend_from_slice(&[0x41, 0x89, 0xC2]); // r10d = dst
+    export_code.extend_from_slice(&[0x41, 0x89, 0xD3]); // r11d = src
+    export_code.extend_from_slice(&[0x45, 0x31, 0xC0]); // xor r8d
+    export_code.extend_from_slice(&[0x31, 0xFF]); // edi = 0
+    export_code.extend_from_slice(&[0x41, 0xB9, 0x07, 0x00, 0x00, 0x00]); // r9d = 7
+    let s1_mcps_sz_loop = export_code.len();
+    export_code.extend_from_slice(&[0x39, 0xF7]); // cmp edi, esi
+    let s1_jge_mcps_sz_done = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x8D, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x41, 0x8D, 0x04, 0x3B]); // lea eax,[r11+rdi]
+    export_code.extend_from_slice(&[0x83, 0xF8, 0x10]);
+    export_code.extend_from_slice(&[0xB8, 0x04, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x41, 0x0F, 0x43, 0xC1]); // cmovae eax, r9d
+    export_code.extend_from_slice(&[0x41, 0x01, 0xC0]);
+    export_code.extend_from_slice(&[0x41, 0x8D, 0x04, 0x3A]); // lea eax,[r10+rdi]
+    export_code.extend_from_slice(&[0x83, 0xF8, 0x10]);
+    export_code.extend_from_slice(&[0xB8, 0x04, 0x00, 0x00, 0x00]);
+    export_code.extend_from_slice(&[0x41, 0x0F, 0x43, 0xC1]); // cmovae eax, r9d
+    export_code.extend_from_slice(&[0x41, 0x01, 0xC0]);
+    export_code.extend_from_slice(&[0xFF, 0xC7]);
+    let s1_jmp_mcps_sz_loop = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    patch_rel32(&mut export_code, s1_jmp_mcps_sz_loop, s1_mcps_sz_loop);
+    let s1_mcps_sz_done = export_code.len();
+    patch_jcc32(&mut export_code, s1_jge_mcps_sz_done, s1_mcps_sz_done);
+    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
+    export_code.extend_from_slice(&[0x4C, 0x01, 0xC0]);
+    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
+    let s1_ja_mcps_ovf = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    // last ≥16 → hand
+    export_code.extend_from_slice(&[0x41, 0x8D, 0x44, 0x32, 0xFF]); // lea eax,[r10+rsi-1]
+    export_code.extend_from_slice(&[0x83, 0xF8, 0x10]);
+    let s1_jae_mcps_hand = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x89, 0xD7]);
-    export_code.extend_from_slice(&[0xC1, 0xE7, 0x03]);
-    export_code.extend_from_slice(&[0x81, 0xFF, 0x80, 0x00, 0x00, 0x00]);
-    let s1_jae_mcps_src0 = export_code.len();
+    export_code.extend_from_slice(&[0x41, 0x8D, 0x44, 0x33, 0xFF]); // lea eax,[r11+rsi-1]
+    export_code.extend_from_slice(&[0x83, 0xF8, 0x10]);
+    let s1_jae_mcps_hand2 = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-    // save dst/src slots in r8d/r9d; i=0 in edi
-    export_code.extend_from_slice(&[0x41, 0x89, 0xC0]); // r8d = dst
-    export_code.extend_from_slice(&[0x41, 0x89, 0xD1]); // r9d = src
+    // shared: r8d=dst r9d=src; i=0
+    export_code.extend_from_slice(&[0x45, 0x89, 0xD0]); // r8d = r10d
+    export_code.extend_from_slice(&[0x45, 0x89, 0xD9]); // r9d = r11d
     export_code.extend_from_slice(&[0x31, 0xFF]); // edi = 0
     let s1_mcps_loop = export_code.len();
     export_code.extend_from_slice(&[0x39, 0xF7]); // cmp edi, esi
@@ -6382,8 +6405,74 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     patch_jcc32(&mut export_code, s1_mcps_done, s1_mcps_end);
     let s1_jmp_next17 = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-    // empty n → jump to the next-record jmp
     patch_jcc32(&mut export_code, s1_jz_mcps_empty, s1_jmp_next17);
+    // S3.454: s1 MCPS hand any-slot (rcx=rec; r10=dst r11=src esi=n)
+    let s1_mcps_hand = export_code.len();
+    patch_jcc32(&mut export_code, s1_jae_mcps_hand, s1_mcps_hand);
+    patch_jcc32(&mut export_code, s1_jae_mcps_hand2, s1_mcps_hand);
+    export_code.extend_from_slice(&[0x31, 0xFF]); // edi = 0
+    let s1_mcps_hand_loop = export_code.len();
+    export_code.extend_from_slice(&[0x39, 0xF7]);
+    let s1_mcps_hand_done = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x8D, 0, 0, 0, 0]);
+    // load (src+i)
+    export_code.extend_from_slice(&[0x41, 0x8D, 0x04, 0x3B]); // lea eax,[r11+rdi]
+    export_code.extend_from_slice(&[0x83, 0xF8, 0x10]);
+    let s1_jae_mcps_ld32 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x41, 0x8D, 0x04, 0x3B]);
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x8B]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x02, 0x47]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x03]);
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x04]);
+    let s1_jmp_mcps_st = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let s1_mcps_ld32 = export_code.len();
+    patch_jcc32(&mut export_code, s1_jae_mcps_ld32, s1_mcps_ld32);
+    export_code.extend_from_slice(&[0x41, 0x8D, 0x04, 0x3B]);
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x8B]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x02, 0x87]);
+    export_code.extend_from_slice(&[0x41, 0x89, 0x44, 0x24, 0x03]);
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x07]);
+    let s1_mcps_st = export_code.len();
+    patch_rel32(&mut export_code, s1_jmp_mcps_st, s1_mcps_st);
+    // store (dst+i)
+    export_code.extend_from_slice(&[0x41, 0x8D, 0x04, 0x3A]); // lea eax,[r10+rdi]
+    export_code.extend_from_slice(&[0x83, 0xF8, 0x10]);
+    let s1_jae_mcps_st32 = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x41, 0x8D, 0x04, 0x3A]);
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x89]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x02, 0x47]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x03]);
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x04]);
+    let s1_jmp_mcps_next = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let s1_mcps_st32 = export_code.len();
+    patch_jcc32(&mut export_code, s1_jae_mcps_st32, s1_mcps_st32);
+    export_code.extend_from_slice(&[0x41, 0x8D, 0x04, 0x3A]);
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0x49]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x01, 0x89]);
+    export_code.extend_from_slice(&[0x41, 0xC6, 0x44, 0x24, 0x02, 0x87]);
+    export_code.extend_from_slice(&[0x41, 0x89, 0x44, 0x24, 0x03]);
+    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x07]);
+    let s1_mcps_next = export_code.len();
+    patch_rel32(&mut export_code, s1_jmp_mcps_next, s1_mcps_next);
+    export_code.extend_from_slice(&[0xFF, 0xC7]);
+    let s1_mcps_hand_loop_jmp = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    patch_rel32(&mut export_code, s1_mcps_hand_loop_jmp, s1_mcps_hand_loop);
+    let s1_mcps_hand_end = export_code.len();
+    patch_jcc32(&mut export_code, s1_mcps_hand_done, s1_mcps_hand_end);
+    let s1_jmp_next17b = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // S3.446: shared MCPS pair seed — r8b=dst_disp, r9b=src_disp, r12=out; RET.
     let s3_shared_mcps_pair_seed = export_code.len();
@@ -6714,6 +6803,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         s1_jmp_next16,
         s1_jmp_next16b,
         s1_jmp_next17,
+        s1_jmp_next17b,
         s1_jmp_next18,
         s1_jmp_next19,
     ] {
