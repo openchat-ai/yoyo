@@ -12934,6 +12934,46 @@ mod tests {
         );
     }
 
+    /// S3.472: post-raw map. RAW_BYTE + RAW_BYTES emit = YOYO seeds shared.
+    /// LABEL/DATA=meta. Remaining: guards · s1_finish · mt dispatch ·
+    /// push_patch → OW-RT CUT. Next ≥10 ≠ densify hand-disp32. Candidates:
+    /// push_patch object seed · OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_post_raw_map_reject() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.472"));
+        assert!(pe_dll.contains("post-raw map"));
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        assert!(
+            pe_dll.contains("push_patch") || pe_dll.contains("s1_push_patch")
+        );
+        assert!(
+            pe_dll.contains("Densify hand-disp32 = sheep")
+                || pe_dll.contains("hand-disp32 = sheep")
+        );
+        assert!(pe_dll.contains("S3_RAW_BYTE_EMIT_BODY_SEED"));
+        assert!(pe_dll.contains("S3_RAW_BYTES_EMIT_BODY_SEED"));
+        assert!(pe_dll.contains("s3_shared_raw_byte_seed"));
+        assert!(pe_dll.contains("s3_shared_raw_bytes_seed"));
+        assert!(pe_dll.contains("LABEL") && pe_dll.contains("meta"));
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.471: RAW_BYTES emit body = YOYO object seed (48B) + shared mt+s1
     /// (rcx=rec, r9b=argc≤3). Rel8s baked in seed. Next ≥10 = post-raw map /
     /// OW-RT. Not CLOSED.

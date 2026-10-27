@@ -3048,11 +3048,11 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // seed. S3.467: mt→same index reject — Naive share = ABI cliff
     // (mt rdx/r14 vs s1 rcx trampolines). S3.468: YOYO-own handler
     // trampoline table seed (29×8 E9+NOP). S3.469: collapse shared
-    // RET/NOP bake-emit seed (r8d=payload off). S3.470: RAW_BYTE emit
-    // body seed + shared (mt+s1); LABEL=meta — no seed. S3.471: RAW_BYTES
-    // emit body seed + shared (r9b=argc). Densify remaining mt hand-disp32
-    // = sheep. Next ≥10 = post-raw map / OW-RT. DATA/LABEL=meta. Not CLOSED.
-    // OW-RT remains CUT.
+    // S3.469–471: RET/NOP + RAW_BYTE + RAW_BYTES YOYO emit seeds shared.
+    // S3.472: post-raw map — text-emit body seeds for RAW_* done; LABEL/
+    // DATA=meta. Remaining Rust: handlers guards · finish · mt dispatch ·
+    // push_patch. Densify hand-disp32 = sheep. Next ≥10 = push_patch seed /
+    // OW-RT. Not CLOSED. OW-RT remains CUT.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
     patch_jcc32(&mut export_code, s3_jne_mt_set_a, s3_mt_get);
