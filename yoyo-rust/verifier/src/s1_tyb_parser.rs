@@ -11567,7 +11567,10 @@ mod tests {
     fn s3_ow_rt_lift_s1_get_movrr_any_slot_pin() {
         let pe_dll = include_str!("pe_dll_link.rs");
         assert!(pe_dll.contains("S3.448"));
-        assert!(pe_dll.contains("lift s1 GET/MOVRR any-slot"));
+        assert!(
+            pe_dll.contains("lift s1 GET/MOVRR any-slot")
+                || pe_dll.contains("s1 GET/MOVRR hand any-slot")
+        );
         assert!(pe_dll.contains("s1 GET/MOVRR hand any-slot"));
         assert!(pe_dll.contains("let s1_get_hand"));
         assert!(pe_dll.contains("s1_jmp_next6b"));
@@ -11599,6 +11602,33 @@ mod tests {
         assert!(pe_dll.contains("let s1_incdec_hand"));
         assert!(pe_dll.contains("s1_jmp_next8b"));
         assert!(pe_dll.contains("s3_shared_incdec_disp8_seed"));
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.450: lift s1 ADD/SUB any-slot — slot≤255; <16→shared; else hand
+    /// disp32 21B (r8b=ModRM C0/E8 + imm). Next ≥10 = lift CMP/IMUL/… /
+    /// OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_lift_s1_add_sub_any_slot_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.450"));
+        assert!(pe_dll.contains("lift s1 ADD/SUB any-slot"));
+        assert!(pe_dll.contains("s1 ADD/SUB hand disp32"));
+        assert!(pe_dll.contains("let s1_addsub_hand"));
+        assert!(pe_dll.contains("s1_jmp_next7b"));
+        assert!(pe_dll.contains("s3_shared_addsub_disp8_seed"));
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
