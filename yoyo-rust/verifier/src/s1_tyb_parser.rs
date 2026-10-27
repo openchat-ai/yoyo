@@ -11149,7 +11149,10 @@ mod tests {
         assert!(pe_dll.contains("batch GET+INC+DEC disp8"));
         assert!(pe_dll.contains("mt INC disp8 = bake+80"));
         assert!(pe_dll.contains("mt DEC disp8 = bake+80"));
-        assert!(pe_dll.contains("both slots <16 → bake+60 GET seed"));
+        assert!(
+            pe_dll.contains("both slots <16 → bake+60 GET seed")
+                || pe_dll.contains("both slots <16 → shared GET seed")
+        );
         assert!(pe_dll.contains("s3_bake_table_off + 80 + 4"));
         assert!(pe_dll.contains("s3_bake_table_off + 60 + 4"));
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
@@ -11178,7 +11181,10 @@ mod tests {
         assert!(pe_dll.contains("batch ADD+SUB+MOVRR"));
         assert!(pe_dll.contains("mt ADD disp8 = bake+100"));
         assert!(pe_dll.contains("mt SUB disp8 = bake+100"));
-        assert!(pe_dll.contains("both slots <16 → bake+60 GET seed (8B); else hand disp32 mix"));
+        assert!(
+            pe_dll.contains("both slots <16 → bake+60 GET seed")
+                || pe_dll.contains("both slots <16 → shared GET seed")
+        );
         assert!(pe_dll.contains("s3_bake_table_off + 100 + 4"));
         assert!(pe_dll.contains("poke SUB ModRM"));
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
@@ -11235,9 +11241,17 @@ mod tests {
     fn s3_ow_rt_post_mt_disp8_seed_map_reject() {
         let pe_dll = include_str!("pe_dll_link.rs");
         assert!(pe_dll.contains("S3.439"));
-        assert!(pe_dll.contains("post-disp8-seed"));
-        assert!(pe_dll.contains("One-op disp32 densify = sheep"));
-        assert!(pe_dll.contains("collapse mt→s1") || pe_dll.contains("collapse mt→s1_loop"));
+        assert!(pe_dll.contains("post-disp8") || pe_dll.contains("post-disp8-seed"));
+        assert!(
+            pe_dll.contains("One-op disp32 densify = sheep")
+                || pe_dll.contains("拒 densify")
+                || pe_dll.contains("densify = sheep")
+        );
+        assert!(
+            pe_dll.contains("collapse mt→s1")
+                || pe_dll.contains("collapse mt→s1_loop")
+                || pe_dll.contains("collapse wedge")
+        );
         // Batch surface still pinned.
         assert!(pe_dll.contains("S3.435"));
         assert!(pe_dll.contains("S3.438"));
@@ -11246,6 +11260,36 @@ mod tests {
             pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
             "OW-RT CUT"
         );
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.440: collapse wedge — shared GET/MOVRR disp8 seed thunk. mt adapts
+    /// rcx←rdx then call; s1 calls same. ≥3 call sites. Naive mid-mt jmp
+    /// s1_loop = sheep (ABI cliff). Next ≥10 = more shared thunks / lift s1
+    /// any-slot / OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_collapse_shared_get_movrr_disp8_seed_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.440"));
+        assert!(pe_dll.contains("collapse wedge") || pe_dll.contains("shared GET/MOVRR disp8"));
+        assert!(pe_dll.contains("s3_shared_get_disp8_seed"));
+        assert!(pe_dll.contains("collapse adapter rcx←rdx"));
+        assert!(pe_dll.contains("Naive jmp s1_loop mid-mt = sheep"));
+        let calls = pe_dll.matches("s3_shared_get_calls.push").count();
+        assert!(calls >= 3, "shared GET call sites ≥3, got {calls}");
+        assert!(pe_dll.contains("s3_bake_table_off + 60 + 4"));
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
         assert_eq!(
             S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
@@ -11594,7 +11638,10 @@ mod tests {
         let pe_dll = include_str!("pe_dll_link.rs");
         assert!(pe_dll.contains("S3.422"));
         assert!(pe_dll.contains("SET poke-from-seed"));
-        assert!(pe_dll.contains("GET/MOVRR body = bake GET seed"));
+        assert!(
+            pe_dll.contains("GET/MOVRR body = bake GET seed")
+                || pe_dll.contains("shared GET disp8 seed")
+        );
         assert!(pe_dll.contains("INC/DEC body = bake INC seed"));
         assert!(pe_dll.contains("s3_bake_table_off + 40 + 4")); // SET
         assert!(pe_dll.contains("s3_bake_table_off + 60 + 4")); // GET

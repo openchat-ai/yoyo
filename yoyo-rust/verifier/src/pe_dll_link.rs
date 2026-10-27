@@ -2552,6 +2552,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // rdx=record cursor; r14d=remaining; keep r12 on fallthrough
     // S3.67: multi CF → s1_push_patch (jmp sites patched once helper exists)
     let mut s3_mt_pp_jmps: Vec<usize> = Vec::new();
+    // S3.440: call sites → shared GET/MOVRR disp8 seed (rcx=rec, r12=out).
+    let mut s3_shared_get_calls: Vec<usize> = Vec::new();
     let emit_mt_push_patch = |code: &mut Vec<u8>, jmps: &mut Vec<usize>| {
         let lea_at = code.len();
         code.extend_from_slice(&[0x4C, 0x8D, 0x1D, 0, 0, 0, 0]); // lea r11,[rip+ret]
@@ -3149,10 +3151,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // still hand-C6. One-op mt densify = sheep (mirror 418/420).
     // S3.435: batch GET+INC+DEC disp8. S3.436: batch ADD+SUB+MOVRR.
     // S3.437: batch CMP+IMUL+ALUV. S3.438: batch LDB+MCPD+MCPS.
-    // S3.439: post-disp8-seed map — mt disp8 ≈ seeded; residual = disp32/
-    // mix hand + DATA/LABEL meta. One-op disp32 densify = sheep.
-    // True next ≥10 = (B) collapse mt→s1_loop · (C) OW-RT mini→YOYO.
-    // Not CLOSED.
+    // S3.439: post-disp8 map + densify = sheep. S3.440: collapse wedge —
+    // shared GET/MOVRR disp8 seed thunk (call); mt adapts rcx←rdx; s1 same.
+    // Naive jmp s1_loop mid-mt = sheep (ABI rdx/r14d vs rcx/ebx).
+    // Next ≥10 = more shared thunks / lift s1 any-slot / OW-RT. Not CLOSED.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
     patch_jcc32(&mut export_code, s3_jne_mt_set_a, s3_mt_get);
@@ -3198,30 +3200,18 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]); // cmp rax, r13
     let s3_jae_fail_mt_get = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
-    // S3.435: both slots <16 → bake+60 GET seed (8B); else hand disp32 mix
+    // S3.435/S3.440: both slots <16 → shared GET seed (call); else hand
     export_code.extend_from_slice(&[0x66, 0x83, 0x7A, 0x02, 0x10]); // cmp dst, 16
     let s3_jae_mt_get_hand = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
     export_code.extend_from_slice(&[0x66, 0x83, 0x7A, 0x04, 0x10]); // cmp src, 16
     let s3_jae_mt_get_hand2 = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x56]);
-    export_code.extend_from_slice(&[0x51]);
-    export_code.extend_from_slice(&[0xFC]);
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
-    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 60 + 4));
-    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]);
-    export_code.extend_from_slice(&[0xB9, 0x08, 0x00, 0x00, 0x00]);
-    export_code.extend_from_slice(&[0xF3, 0xA4]);
-    export_code.extend_from_slice(&[0x59]);
-    export_code.extend_from_slice(&[0x5E]);
-    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x04]); // src
-    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
-    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x03]); // poke src @+3
-    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x02]); // dst
-    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
-    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x07]); // poke dst @+7
-    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x08]);
+    // S3.440: collapse adapter rcx←rdx → shared GET/MOVRR disp8 seed
+    export_code.extend_from_slice(&[0x48, 0x89, 0xD1]); // mov rcx, rdx
+    let s3_call_mt_get_shared = export_code.len();
+    export_code.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    s3_shared_get_calls.push(s3_call_mt_get_shared);
     let s3_jmp_mt_get_seed_done = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     let s3_mt_get_hand = export_code.len();
@@ -3601,30 +3591,18 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]); // cmp rax, r13
     let s3_jae_fail_mt_movrr = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
-    // S3.436: both slots <16 → bake+60 GET seed (8B); else hand disp32 mix
+    // S3.436/S3.440: both slots <16 → shared GET seed (call); else hand
     export_code.extend_from_slice(&[0x66, 0x83, 0x7A, 0x02, 0x10]); // cmp dst, 16
     let s3_jae_mt_movrr_hand = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
     export_code.extend_from_slice(&[0x66, 0x83, 0x7A, 0x04, 0x10]); // cmp src, 16
     let s3_jae_mt_movrr_hand2 = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x56]);
-    export_code.extend_from_slice(&[0x51]);
-    export_code.extend_from_slice(&[0xFC]);
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]);
-    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 60 + 4));
-    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]);
-    export_code.extend_from_slice(&[0xB9, 0x08, 0x00, 0x00, 0x00]);
-    export_code.extend_from_slice(&[0xF3, 0xA4]);
-    export_code.extend_from_slice(&[0x59]);
-    export_code.extend_from_slice(&[0x5E]);
-    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x04]); // src
-    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
-    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x03]); // poke src @+3
-    export_code.extend_from_slice(&[0x0F, 0xB7, 0x42, 0x02]); // dst
-    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
-    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x07]); // poke dst @+7
-    export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x08]);
+    // S3.440: collapse adapter rcx←rdx → shared GET/MOVRR disp8 seed
+    export_code.extend_from_slice(&[0x48, 0x89, 0xD1]); // mov rcx, rdx
+    let s3_call_mt_movrr_shared = export_code.len();
+    export_code.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    s3_shared_get_calls.push(s3_call_mt_movrr_shared);
     let s3_jmp_mt_movrr_seed_done = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     let s3_mt_movrr_hand = export_code.len();
@@ -5402,28 +5380,42 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x3D, 0x80, 0x00, 0x00, 0x00]);
     let s1_jae_get_src = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x41, 0x88, 0xC1]); // mov r9b, al
     export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // movzx eax, word [rcx+2] dst
     export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
     export_code.extend_from_slice(&[0x3D, 0x80, 0x00, 0x00, 0x00]);
     let s1_jae_get_dst = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x41, 0x88, 0xC2]); // mov r10b, al
-    // S3.422: GET/MOVRR body = bake GET seed (8B) + poke src/dst disp
+    // S3.422/S3.440: GET/MOVRR body = shared GET disp8 seed (call)
+    let s3_call_s1_get_shared = export_code.len();
+    export_code.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    s3_shared_get_calls.push(s3_call_s1_get_shared);
+    let s1_jmp_next6 = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+    // S3.440: shared GET/MOVRR disp8 seed — rcx=record, r12=out; RET.
+    // Emitted after all call sites (mt GET/MOVRR + s1 GET) are registered.
+    let s3_shared_get_disp8_seed = export_code.len();
+    for at in &s3_shared_get_calls {
+        patch_rel32(&mut export_code, *at, s3_shared_get_disp8_seed);
+    }
     export_code.extend_from_slice(&[0x56]); // push rsi
     export_code.extend_from_slice(&[0x51]); // push rcx
+    export_code.extend_from_slice(&[0xFC]); // cld
     export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]); // lea rsi,[rip+bake]
-    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 60 + 4)); // GET
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 60 + 4));
     export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
     export_code.extend_from_slice(&[0xB9, 0x08, 0x00, 0x00, 0x00]); // ecx = 8
     export_code.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
     export_code.extend_from_slice(&[0x59]); // pop rcx
     export_code.extend_from_slice(&[0x5E]); // pop rsi
-    export_code.extend_from_slice(&[0x45, 0x88, 0x4C, 0x24, 0x03]); // poke src @+3
-    export_code.extend_from_slice(&[0x45, 0x88, 0x54, 0x24, 0x07]); // poke dst @+7
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x04]); // src
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x03]); // poke src @+3
+    export_code.extend_from_slice(&[0x0F, 0xB7, 0x41, 0x02]); // dst
+    export_code.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    export_code.extend_from_slice(&[0x41, 0x88, 0x44, 0x24, 0x07]); // poke dst @+7
     export_code.extend_from_slice(&[0x49, 0x83, 0xC4, 0x08]); // add r12, 8
-    let s1_jmp_next6 = export_code.len();
-    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0xC3]); // ret
 
     // --- ADD (0x62) / SUB (0x61) imm: load + 81 /0|/5 imm32 + store (15B)
     // Entry: r8b = 0xC0 (ADD) or 0xE8 (SUB) — set before shared body.
