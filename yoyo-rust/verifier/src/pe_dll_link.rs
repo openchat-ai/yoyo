@@ -3097,10 +3097,11 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.453: lift s1 LDB+MCPD any-slot.
     // S3.454: lift s1 MCPS any-slot.
     // S3.455: post-s1-lift map — s1 GET..MCPS any-slot (shared+hand) done.
-    // S3.447: post-shared-collapse map (kept). S3.455: post-s1-lift map.
-    // S3.456–457: collapse shared SET+ALLOC. S3.458: post-SET/ALLOC-collapse map.
-    // Next ≥10 = OW-RT long-pole / real gap (not densify). DATA/LABEL=meta.
-    // Densify remaining mt hand-disp32 = sheep. Not CLOSED.
+    // S3.447/S3.455: maps kept. S3.458: post-SET/ALLOC-collapse map.
+    // Shared SET+ALLOC + s1 GET..MCPS lift done.
+    // S3.459: OW-RT entry cliff map — in-DLL mini dispatcher still Rust
+    // (OW-RT remains CUT). Next ≥10 = YOYO-own dispatcher slice / real gap.
+    // Densify remaining mt hand-disp32 = sheep. DATA/LABEL=meta. Not CLOSED.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
     patch_jcc32(&mut export_code, s3_jne_mt_set_a, s3_mt_get);
