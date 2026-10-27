@@ -11452,6 +11452,41 @@ mod tests {
         );
     }
 
+    /// S3.445: collapse — shared LDB (bake+262/+274, oo pick) + MCPD
+    /// (bake+248). mt+s1 each → call. ≥2+2 sites. Next ≥10 = MCPS pair
+    /// shared / lift s1 any-slot / OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_collapse_shared_ldb_mcpd_disp8_seed_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.445"));
+        assert!(pe_dll.contains("shared LDB disp8"));
+        assert!(pe_dll.contains("shared MCPD disp8"));
+        assert!(pe_dll.contains("s3_shared_ldb_disp8_seed"));
+        assert!(pe_dll.contains("s3_shared_mcpd_disp8_seed"));
+        assert!(pe_dll.contains("mt LDB disp8 → shared"));
+        assert!(pe_dll.contains("mt MCPD disp8 → shared"));
+        let ldb = pe_dll.matches("s3_shared_ldb_calls.push").count();
+        let mcpd = pe_dll.matches("s3_shared_mcpd_calls.push").count();
+        assert!(ldb >= 2, "shared LDB call sites ≥2, got {ldb}");
+        assert!(mcpd >= 2, "shared MCPD call sites ≥2, got {mcpd}");
+        assert!(pe_dll.contains("s3_bake_table_off + 262"));
+        assert!(pe_dll.contains("s3_bake_table_off + 274"));
+        assert!(pe_dll.contains("s3_bake_table_off + 248"));
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.438: batch mt LDB+MCPD+MCPS disp8 → bake seeds (LDB oo0@+262 /
     /// oo≠0@+274, MCPD@+248, MCPS pair@+293). disp32/mix still hand. ≥3 arms
     /// one knife. Completes mt disp8 seed surface. Next ≥10 = collapse
@@ -11462,8 +11497,14 @@ mod tests {
         let pe_dll = include_str!("pe_dll_link.rs");
         assert!(pe_dll.contains("S3.438"));
         assert!(pe_dll.contains("batch LDB+MCPD+MCPS"));
-        assert!(pe_dll.contains("both slots <16 → bake LDB seed"));
-        assert!(pe_dll.contains("all slots <16 → bake+248 MCPD seed"));
+        assert!(
+            pe_dll.contains("both slots <16 → bake LDB seed")
+                || pe_dll.contains("mt LDB disp8 → shared LDB")
+        );
+        assert!(
+            pe_dll.contains("all slots <16 → bake+248 MCPD seed")
+                || pe_dll.contains("mt MCPD disp8 → shared MCPD")
+        );
         assert!(pe_dll.contains("last slots <16 → pair seed @+293"));
         assert!(pe_dll.contains("s3_bake_table_off + 262"));
         assert!(pe_dll.contains("s3_bake_table_off + 274"));
@@ -11640,8 +11681,14 @@ mod tests {
     fn s3_ow_rt_s1_ldb_memcpy_handler_seed_poke_pin() {
         let pe_dll = include_str!("pe_dll_link.rs");
         assert!(pe_dll.contains("S3.427"));
-        assert!(pe_dll.contains("MEMCPY_DATA body = bake+248"));
-        assert!(pe_dll.contains("LDB body = bake seed"));
+        assert!(
+            pe_dll.contains("MEMCPY_DATA body = bake+248")
+                || pe_dll.contains("MEMCPY_DATA body = shared MCPD")
+        );
+        assert!(
+            pe_dll.contains("LDB body = bake seed")
+                || pe_dll.contains("LDB body = shared LDB")
+        );
         assert!(pe_dll.contains("s3_bake_table_off + 248"));
         assert!(pe_dll.contains("s3_bake_table_off + 262"));
         assert!(pe_dll.contains("s3_bake_table_off + 274"));
