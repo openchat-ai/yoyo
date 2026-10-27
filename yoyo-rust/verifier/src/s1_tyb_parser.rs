@@ -11135,6 +11135,57 @@ mod tests {
         );
     }
 
+    /// S3.467: mt→same-index reject. s1_loop YOYO index+trampoline assumes
+    /// rcx=rec → s1 handlers; mt path = rdx=rec · r14 countdown · per-op
+    /// finish jmp. Sharing trampolines without adapter = ABI cliff (≥10
+    /// inventory below). Densify ≠ close. Next ≥10 = OW-RT / YOYO handler
+    /// seeds. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_mt_same_index_abi_cliff_reject() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.467"));
+        assert!(
+            pe_dll.contains("mt→same index")
+                || pe_dll.contains("mt→same-index")
+                || pe_dll.contains("Naive share = ABI cliff")
+        );
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        // ≥10 ABI / surface inventory pins (not a sheep −1).
+        let pins = [
+            "s1_op_trampolines",
+            "S3_S1_OP_DISPATCH_INDEX_SEED",
+            "S3_S1_OP_DISPATCH_PROBE_SEED",
+            "let s3_try_multi",
+            "mov r14d, ebx",
+            "mov rdx, rcx",
+            "s3_multi_emit",
+            "s3_jmp_finish_mt_set",
+            "s3_shared_load_seed",
+            "s3_shared_write_seed",
+            "Naive jmp s1_loop mid-mt = sheep",
+        ];
+        for p in pins {
+            assert!(pe_dll.contains(p), "missing inventory {p}");
+        }
+        assert!(pins.len() >= 10);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.466: YOYO-emit dispatch probe object seed (45B) — lea/lookup/jz/
     /// lea-tramp/scaled-jmp. Patch sites via seed offs. ≥10 assembler.
     /// Next ≥10 = mt→same index / OW-RT. Not CLOSED.

@@ -3037,9 +3037,11 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // + s1 lift done. S3.460: collapse shared CALL/JMP/JCC seeds (mt+s1).
     // S3.461: YOYO-own fixed10 dispatcher slice. S3.462: extend to full
     // op index+trampoline (29 slots; sequential cmp/je gone).
-    // S3.463–465: post-dispatch / LOAD/WRITE maps. S3.466: YOYO-emit
-    // dispatch probe object seed (45B). Densify hand-disp32 = sheep.
-    // Next ≥10 = mt→same index / OW-RT. DATA/LABEL=meta. Not CLOSED.
+    // S3.463–466: maps + YOYO dispatch probe seed. S3.467: mt→same index
+    // reject — mt uses rdx=rec / r14 loop / per-op finish; s1 index assumes
+    // rcx=rec / trampoline→s1 handlers. Naive share = ABI cliff (mirror
+    // mid-mt jmp s1_loop sheep). Densify hand-disp32 = sheep. Next ≥10 =
+    // OW-RT long-pole / more YOYO handler seeds. DATA/LABEL=meta. Not CLOSED.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
     patch_jcc32(&mut export_code, s3_jne_mt_set_a, s3_mt_get);
