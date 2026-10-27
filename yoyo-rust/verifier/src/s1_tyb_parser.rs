@@ -11085,9 +11085,21 @@ mod tests {
     fn s3_ow_rt_s1_call_jmp_jcc_seed_poke_pin() {
         let pe_dll = include_str!("pe_dll_link.rs");
         assert!(pe_dll.contains("S3.429"));
-        assert!(pe_dll.contains("bake+301 CALL seed"));
-        assert!(pe_dll.contains("bake+306 JMP seed"));
-        assert!(pe_dll.contains("bake+311 JCC seed"));
+        assert!(
+            pe_dll.contains("bake+301 CALL seed")
+                || pe_dll.contains("shared CALL seed")
+                || pe_dll.contains("s3_shared_call_seed")
+        );
+        assert!(
+            pe_dll.contains("bake+306 JMP seed")
+                || pe_dll.contains("shared JMP seed")
+                || pe_dll.contains("s3_shared_jmp_seed")
+        );
+        assert!(
+            pe_dll.contains("bake+311 JCC seed")
+                || pe_dll.contains("shared JCC seed")
+                || pe_dll.contains("s3_shared_jcc_seed")
+        );
         assert!(pe_dll.contains("s3_bake_table_off + 301"));
         assert!(pe_dll.contains("s3_bake_table_off + 306"));
         assert!(pe_dll.contains("s3_bake_table_off + 311"));
@@ -11940,6 +11952,41 @@ mod tests {
         );
     }
 
+    /// S3.460: collapse shared CALL/JMP/JCC seeds — mt+s1 call one thunk each
+    /// (+301/+306/+311; JCC r8b=cc). Patch registration stays in callers.
+    /// Next ≥10 = YOYO-own dispatcher / OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_collapse_shared_call_jmp_jcc_seed_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.460"));
+        assert!(
+            pe_dll.contains("collapse shared CALL/JMP/JCC")
+                || pe_dll.contains("shared CALL/JMP/JCC seeds")
+        );
+        assert!(pe_dll.contains("s3_shared_call_seed"));
+        assert!(pe_dll.contains("s3_shared_jmp_seed"));
+        assert!(pe_dll.contains("s3_shared_jcc_seed"));
+        assert!(pe_dll.contains("s3_shared_call_calls"));
+        assert!(pe_dll.contains("s3_shared_jmp_calls"));
+        assert!(pe_dll.contains("s3_shared_jcc_calls"));
+        assert!(pe_dll.contains("s3_bake_table_off + 301"));
+        assert!(pe_dll.contains("s3_bake_table_off + 306"));
+        assert!(pe_dll.contains("s3_bake_table_off + 311"));
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.438: batch mt LDB+MCPD+MCPS disp8 → bake seeds (LDB oo0@+262 /
     /// oo≠0@+274, MCPD@+248, MCPS pair@+293). disp32/mix still hand. ≥3 arms
     /// one knife. Completes mt disp8 seed surface. Next ≥10 = collapse
@@ -12082,11 +12129,31 @@ mod tests {
     fn s3_ow_rt_multi_call_jmp_jcc_seed_reuse_pin() {
         let pe_dll = include_str!("pe_dll_link.rs");
         assert!(pe_dll.contains("S3.432"));
-        assert!(pe_dll.contains("bake+306 JMP seed; stay in multi"));
-        assert!(pe_dll.contains("bake+301 CALL seed; stay in multi"));
-        assert!(pe_dll.contains("bake+311 JCC seed + poke cc=0x84"));
-        assert!(pe_dll.contains("bake+311 JCC seed + poke cc=0x85"));
-        assert!(pe_dll.contains("bake+311 + poke cc from table"));
+        assert!(
+            pe_dll.contains("bake+306 JMP seed; stay in multi")
+                || pe_dll.contains("mt JMP → shared JMP seed")
+                || pe_dll.contains("shared JMP seed")
+        );
+        assert!(
+            pe_dll.contains("bake+301 CALL seed; stay in multi")
+                || pe_dll.contains("mt CALL → shared CALL seed")
+                || pe_dll.contains("shared CALL seed")
+        );
+        assert!(
+            pe_dll.contains("bake+311 JCC seed + poke cc=0x84")
+                || pe_dll.contains("shared JCC seed (r8b=0x84)")
+                || pe_dll.contains("r8b=0x84")
+        );
+        assert!(
+            pe_dll.contains("bake+311 JCC seed + poke cc=0x85")
+                || pe_dll.contains("shared JCC seed (r8b=0x85)")
+                || pe_dll.contains("r8b=0x85")
+        );
+        assert!(
+            pe_dll.contains("bake+311 + poke cc from table")
+                || pe_dll.contains("map cc → r8b → shared JCC")
+                || pe_dll.contains("shared JCC seed")
+        );
         assert!(pe_dll.contains("s3_bake_table_off + 306"));
         assert!(pe_dll.contains("s3_bake_table_off + 301"));
         assert!(pe_dll.contains("s3_bake_table_off + 311"));
