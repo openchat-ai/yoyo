@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.458**（457 collapse shared ALLOC；下一刀=post-collapse map / OW-RT；**不**假 CLOSED）。
+**默认** 继续 **= S3.459**（458 post-SET/ALLOC map；下一刀=OW-RT long-pole / real gap；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -100,7 +100,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.359–406** ✅ | `a39a2a2` | 目标码种子链；Win PE 去 wrap |
 | **S3.407–420** ✅ | `5b425df` | OW-RT 切片 + densify/skip-mini **拒羊** |
 | **S3.421–428** ✅ | `2bc6fbc` | s1_loop op-handler poke-from-seed |
-| **S3.429–457** ✅ | d2436f9 | seed+collapse+lift + post-map + shared SET/ALLOC |
+| **S3.429–458** ✅ | b7af3a2 | seed+collapse+lift + shared SET/ALLOC + maps |
 
 #### 近窗（本波 · 单刀）
 
@@ -135,9 +135,10 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.455** ✅ | 30246b7 | post-s1-lift map（GET..MCPS shared+hand done） |
 | **S3.456** ✅ | af5bb08 | collapse shared SET seed（mt+s1 slot→d8/d32） |
 | **S3.457** ✅ | d2436f9 | collapse shared ALLOC seed（mt+s1 prefix+store） |
-| **S3.458** ⏳ | — | **本步**：post-SET/ALLOC-collapse map / OW-RT |
+| **S3.458** ✅ | b7af3a2 | post-SET/ALLOC-collapse map |
+| **S3.459** ⏳ | — | **本步**：OW-RT long-pole / real gap |
 
-**缺口**：shared SET+ALLOC 已 collapse。下一刀=post-collapse map · OW-RT long-pole。Densify hand-disp32=羊。DATA/LABEL=meta。无假 CLOSED。`bake=362` · `s3_=267`。
+**缺口**：s1 lift + shared SET/ALLOC 已完成。下一刀=OW-RT long-pole（去 Rust sidecar）/ real gap。Densify hand-disp32=羊。DATA/LABEL=meta。无假 CLOSED。`bake=362` · `s3_=268`。
 
 ---
 
@@ -171,7 +172,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.458**（post-SET/ALLOC-collapse map / OW-RT；禁 densify）。做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.459**（OW-RT long-pole / real gap；禁 densify）。做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
