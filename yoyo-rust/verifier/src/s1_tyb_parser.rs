@@ -13123,6 +13123,65 @@ mod tests {
         );
     }
 
+    /// S3.493: YOYO-IR compile slice map. Host fixed10 →
+    /// `try_compile_tyb_via_yoyo_table` / `try_emit_text_via_yoyo_table`
+    /// (YOYO table compose — not emit_x86). Extending `S3_FIXED10_OPS` folds
+    /// golden/layout (禁). Non-fixed10 / len>8 → emit_x86 fallthrough.
+    /// pe_dll hand-x86 BODY_SEED densify ≠ this slice (492). Next ≥10 =
+    /// non-fixed10 YOYO compose without golden fold / OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_yoyo_ir_compile_slice_map_reject() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        let this = include_str!("s1_tyb_parser.rs");
+        assert!(pe_dll.contains("S3.493") || this.contains("S3.493"));
+        assert!(
+            pe_dll.contains("YOYO-IR compile slice")
+                || this.contains("YOYO-IR compile slice")
+        );
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        // ≥10 YOYO-owned vs fallthrough inventory.
+        let pins = [
+            "try_compile_tyb_via_yoyo_table",
+            "try_emit_text_via_yoyo_table",
+            "S3_FIXED10_OPS",
+            "S3_FIXED10_BODY_SEED",
+            "S3_HOST_TABLE_SEED",
+            "S3_COMPILE_PE_RET_IMAGE_SEED",
+            "s3_try_emit_via_pe",
+            "emit_x86",
+            "validate_tyb_mini",
+            "fixed_template_ops",
+            "S3_FIXED10_OPS.contains",
+        ];
+        for p in pins {
+            assert!(
+                this.contains(p) || pe_dll.contains(p),
+                "missing YOYO-IR pin {p}"
+            );
+        }
+        assert!(pins.len() >= 10);
+        assert_eq!(S3_FIXED10_OPS.len(), 10);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+        // fixed10 still YOYO-path; a non-fixed10 op is outside table.
+        assert!(try_emit_text_via_yoyo_table(&[0xFF]).is_some());
+        assert!(try_emit_text_via_yoyo_table(&[0x63]).is_none()); // IMUL ≠ fixed10
+    }
+
     /// S3.492: YOYO-built compile cliff reject. Freezing more pe_dll hand-x86
     /// into `*_BODY_SEED` = translation densify — **YOYO ≠ other-lang
     /// translate**. mt→same index = 467 ABI (no retry). Honest CUT surface:

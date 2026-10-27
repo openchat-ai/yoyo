@@ -3120,6 +3120,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // as BODY_SEED = translation densify (≠ YOYO). mt index = 467 ABI.
     // YOYO-built = call-time YOYO compile in sidecar, not host bootstrap /
     // finite oracle. Next ≥10 = YOYO-IR compile slice / OW-RT. Not CLOSED.
+    // S3.493: YOYO-IR compile slice map — host owns fixed10 via YOYO table
+    // compose (not emit_x86). Extend fixed10 = fold golden (禁). Non-fixed10
+    // still emit_x86 fallthrough. pe_dll densify ≠ slice. Next ≥10 =
+    // non-fixed10 YOYO compose (no golden fold) / OW-RT. Not CLOSED.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
