@@ -3053,6 +3053,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // DATA=meta. Remaining Rust: handlers guards · finish · mt dispatch ·
     // push_patch. Densify hand-disp32 = sheep. Next ≥10 = push_patch seed /
     // OW-RT. Not CLOSED. OW-RT remains CUT.
+    // S3.473: push_patch body = YOYO object seed (41B) + poke N/PATCHES offs;
+    // jae fail live. Next ≥10 = post-push_patch map / s1_finish / OW-RT.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
     patch_jcc32(&mut export_code, s3_jne_mt_set_a, s3_mt_get);
@@ -6424,19 +6426,21 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // --- shared: push patch (pos=eax, id=edx) → patches[n++]; return via jmp r11
     // Must not use call/ret: RSP-relative label/patch tables assume fixed frame.
     // clobbers: esi, rdi
+    // S3.473: body = S3_PUSH_PATCH_BODY_SEED; poke N_PATCHES/PATCHES; jae live.
     let s1_push_patch = export_code.len();
-    export_code.extend_from_slice(&[0x8B, 0xB4, 0x24]);
-    push_u32_le(&mut export_code, IN_DLL_S1_N_PATCHES_OFF); // esi = n_patches
-    export_code.extend_from_slice(&[0x83, 0xFE, 0x10]);
-    let s1_jae_npatch = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24]);
-    push_u32_le(&mut export_code, IN_DLL_S1_PATCHES_OFF); // lea rdi,[rsp+0x2800]
-    export_code.extend_from_slice(&[0x89, 0x04, 0xF7]); // [rdi+rsi*8] = pos
-    export_code.extend_from_slice(&[0x89, 0x54, 0xF7, 0x04]); // +4 = id
-    export_code.extend_from_slice(&[0xFF, 0x84, 0x24]);
-    push_u32_le(&mut export_code, IN_DLL_S1_N_PATCHES_OFF); // inc n_patches
-    export_code.extend_from_slice(&[0x41, 0xFF, 0xE3]); // jmp r11
+    export_code.extend_from_slice(&crate::s1_tyb_parser::S3_PUSH_PATCH_BODY_SEED);
+    {
+        let n = IN_DLL_S1_N_PATCHES_OFF.to_le_bytes();
+        let p = IN_DLL_S1_PATCHES_OFF.to_le_bytes();
+        let base = s1_push_patch;
+        let a = crate::s1_tyb_parser::S3_PUSH_PATCH_N_OFF_AT;
+        let a2 = crate::s1_tyb_parser::S3_PUSH_PATCH_N_OFF_AT2;
+        let t = crate::s1_tyb_parser::S3_PUSH_PATCH_TABLE_OFF_AT;
+        export_code[base + a..base + a + 4].copy_from_slice(&n);
+        export_code[base + a2..base + a2 + 4].copy_from_slice(&n);
+        export_code[base + t..base + t + 4].copy_from_slice(&p);
+    }
+    let s1_jae_npatch = s1_push_patch + crate::s1_tyb_parser::S3_PUSH_PATCH_JAE_AT;
 
     // lea r11,[rip+ret]; jmp s1_push_patch; ret:  (no call — keep RSP frame fixed)
     let emit_invoke_push_patch = |code: &mut Vec<u8>| {

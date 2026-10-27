@@ -2487,6 +2487,25 @@ pub const S3_RAW_BYTES_EMIT_BODY_SEED: [u8; 48] = [
     0xC3, // done: ret
 ];
 
+/// S3.473: push_patch body = own-ISA object seed (pos=eax, id=edx; return via
+/// jmp r11 — no call, fixed RSP frame). Live poke: N_PATCHES @+3/+34,
+/// PATCHES @+20. Live patch: jae fail @+10. Clobbers esi, rdi.
+pub const S3_PUSH_PATCH_BODY_SEED: [u8; 41] = [
+    0x8B, 0xB4, 0x24, 0x00, 0x00, 0x00, 0x00, // mov esi,[rsp+N_PATCHES]  poke @3
+    0x83, 0xFE, 0x10, // cmp esi, 16
+    0x0F, 0x83, 0x00, 0x00, 0x00, 0x00, // jae fail  live @10
+    0x48, 0x8D, 0xBC, 0x24, 0x00, 0x00, 0x00, 0x00, // lea rdi,[rsp+PATCHES] poke @20
+    0x89, 0x04, 0xF7, // mov [rdi+rsi*8], eax
+    0x89, 0x54, 0xF7, 0x04, // mov [rdi+rsi*8+4], edx
+    0xFF, 0x84, 0x24, 0x00, 0x00, 0x00, 0x00, // inc dword [rsp+N_PATCHES] poke @34
+    0x41, 0xFF, 0xE3, // jmp r11
+];
+/// Poke sites inside [`S3_PUSH_PATCH_BODY_SEED`].
+pub const S3_PUSH_PATCH_N_OFF_AT: usize = 3;
+pub const S3_PUSH_PATCH_N_OFF_AT2: usize = 34;
+pub const S3_PUSH_PATCH_TABLE_OFF_AT: usize = 20;
+pub const S3_PUSH_PATCH_JAE_AT: usize = 10;
+
 /// S3.337: test-only helper.
 #[cfg(test)]
 fn s3_fixed10_named_cases() -> Vec<(&'static str, Vec<(u8, u8, [u8; 6])>)> {
@@ -12925,6 +12944,47 @@ mod tests {
                 || pe_dll.contains("s3_shared_retnop_seed")
         );
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.473: push_patch body = YOYO object seed (41B) + poke N/PATCHES offs;
+    /// jae fail live. Shared by mt+s1 via jmp r11. Next ≥10 = post-push_patch
+    /// map / s1_finish / OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_push_patch_body_seed_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.473"));
+        assert!(
+            pe_dll.contains("push_patch body")
+                || pe_dll.contains("S3_PUSH_PATCH_BODY_SEED")
+        );
+        assert!(pe_dll.contains("S3_PUSH_PATCH_BODY_SEED"));
+        assert!(pe_dll.contains("S3_PUSH_PATCH_N_OFF_AT"));
+        assert!(pe_dll.contains("S3_PUSH_PATCH_TABLE_OFF_AT"));
+        assert!(pe_dll.contains("S3_PUSH_PATCH_JAE_AT"));
+        assert_eq!(S3_PUSH_PATCH_BODY_SEED.len(), 41);
+        assert_eq!(S3_PUSH_PATCH_BODY_SEED[0], 0x8B); // mov esi,[rsp+…]
+        assert_eq!(S3_PUSH_PATCH_BODY_SEED[10], 0x0F); // jae
+        assert_eq!(S3_PUSH_PATCH_BODY_SEED[11], 0x83);
+        assert_eq!(S3_PUSH_PATCH_BODY_SEED[38], 0x41); // jmp r11
+        assert_eq!(S3_PUSH_PATCH_BODY_SEED[39], 0xFF);
+        assert_eq!(S3_PUSH_PATCH_BODY_SEED[40], 0xE3);
+        assert_eq!(S3_PUSH_PATCH_N_OFF_AT, 3);
+        assert_eq!(S3_PUSH_PATCH_N_OFF_AT2, 34);
+        assert_eq!(S3_PUSH_PATCH_TABLE_OFF_AT, 20);
+        assert_eq!(S3_PUSH_PATCH_JAE_AT, 10);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
                 .unwrap()
