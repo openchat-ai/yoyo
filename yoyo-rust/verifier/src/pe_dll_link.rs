@@ -2586,6 +2586,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let mut s3_shared_retnop_calls: Vec<usize> = Vec::new();
     // S3.470: call sites → shared RAW_BYTE emit seed (rcx=rec, r12=out).
     let mut s3_shared_raw_byte_calls: Vec<usize> = Vec::new();
+    // S3.471: call sites → shared RAW_BYTES emit seed (rcx=rec, r9b=argc, r12=out).
+    let mut s3_shared_raw_bytes_calls: Vec<usize> = Vec::new();
     let emit_mt_push_patch = |code: &mut Vec<u8>, jmps: &mut Vec<usize>| {
         let lea_at = code.len();
         code.extend_from_slice(&[0x4C, 0x8D, 0x1D, 0, 0, 0, 0]); // lea r11,[rip+ret]
@@ -3047,9 +3049,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // (mt rdx/r14 vs s1 rcx trampolines). S3.468: YOYO-own handler
     // trampoline table seed (29×8 E9+NOP). S3.469: collapse shared
     // RET/NOP bake-emit seed (r8d=payload off). S3.470: RAW_BYTE emit
-    // body seed + shared (mt+s1); LABEL=meta — no seed. Densify remaining
-    // mt hand-disp32 = sheep. Next ≥10 = RAW_BYTES body seed / OW-RT.
-    // DATA/LABEL=meta. Not CLOSED. OW-RT remains CUT.
+    // body seed + shared (mt+s1); LABEL=meta — no seed. S3.471: RAW_BYTES
+    // emit body seed + shared (r9b=argc). Densify remaining mt hand-disp32
+    // = sheep. Next ≥10 = post-raw map / OW-RT. DATA/LABEL=meta. Not CLOSED.
+    // OW-RT remains CUT.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
     patch_jcc32(&mut export_code, s3_jne_mt_set_a, s3_mt_get);
@@ -3956,28 +3959,11 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]); // cmp rax, r13
     let s3_jae_fail_mt_raws = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae compile_fail
-    export_code.extend_from_slice(&[0x45, 0x84, 0xC9]); // test r9b, r9b
-    let s3_jz_mt_raws0 = export_code.len();
-    export_code.extend_from_slice(&[0x74, 0x00]); // jz done
-    export_code.extend_from_slice(&[0x8A, 0x42, 0x02]);
-    export_code.extend_from_slice(&[0x41, 0x88, 0x04, 0x24]);
-    export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]);
-    export_code.extend_from_slice(&[0x41, 0x80, 0xF9, 0x01]); // cmp r9b, 1
-    let s3_jbe_mt_raws1 = export_code.len();
-    export_code.extend_from_slice(&[0x76, 0x00]); // jbe done
-    export_code.extend_from_slice(&[0x8A, 0x42, 0x04]);
-    export_code.extend_from_slice(&[0x41, 0x88, 0x04, 0x24]);
-    export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]);
-    export_code.extend_from_slice(&[0x41, 0x80, 0xF9, 0x02]); // cmp r9b, 2
-    let s3_jbe_mt_raws2 = export_code.len();
-    export_code.extend_from_slice(&[0x76, 0x00]); // jbe done
-    export_code.extend_from_slice(&[0x8A, 0x42, 0x06]);
-    export_code.extend_from_slice(&[0x41, 0x88, 0x04, 0x24]);
-    export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]);
-    let s3_mt_raws_done = export_code.len();
-    patch_rel8(&mut export_code, s3_jz_mt_raws0, s3_mt_raws_done);
-    patch_rel8(&mut export_code, s3_jbe_mt_raws1, s3_mt_raws_done);
-    patch_rel8(&mut export_code, s3_jbe_mt_raws2, s3_mt_raws_done);
+    // S3.471: mt RAW_BYTES → shared seed (rcx←rdx; r9b=argc already)
+    export_code.extend_from_slice(&[0x48, 0x89, 0xD1]); // mov rcx, rdx
+    let s3_call_mt_raws_shared = export_code.len();
+    export_code.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    s3_shared_raw_bytes_calls.push(s3_call_mt_raws_shared);
     export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]); // add rdx, 8
     export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]); // dec r14d
     let s3_jnz_mt_raws = export_code.len();
@@ -5107,6 +5093,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&crate::s1_tyb_parser::S3_RAW_BYTE_EMIT_BODY_SEED);
 
     // --- RAW_BYTES argc≤3: append low-bytes to .text (same layout as DATA args)
+    // S3.471: body = shared RAW_BYTES emit seed (r9b=argc).
     let s1_raws = export_code.len();
     patch_rel32(&mut export_code, s1_je_raws, s1_raws); // S3.462 trampoline E9
     export_code.extend_from_slice(&[0x80, 0xFA, 0x03]);
@@ -5118,30 +5105,19 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
     let s1_ja_raws_ovf = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x84, 0xD2]);
-    let s1_jz_raws0 = export_code.len();
-    export_code.extend_from_slice(&[0x74, 0x00]);
-    export_code.extend_from_slice(&[0x8A, 0x41, 0x02]);
-    export_code.extend_from_slice(&[0x41, 0x88, 0x04, 0x24]);
-    export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]);
-    export_code.extend_from_slice(&[0x80, 0xFA, 0x01]);
-    let s1_jbe_raws1 = export_code.len();
-    export_code.extend_from_slice(&[0x76, 0x00]);
-    export_code.extend_from_slice(&[0x8A, 0x41, 0x04]);
-    export_code.extend_from_slice(&[0x41, 0x88, 0x04, 0x24]);
-    export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]);
-    export_code.extend_from_slice(&[0x80, 0xFA, 0x02]);
-    let s1_jbe_raws2 = export_code.len();
-    export_code.extend_from_slice(&[0x76, 0x00]);
-    export_code.extend_from_slice(&[0x8A, 0x41, 0x06]);
-    export_code.extend_from_slice(&[0x41, 0x88, 0x04, 0x24]);
-    export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]);
-    let s1_raws_done = export_code.len();
-    patch_rel8(&mut export_code, s1_jz_raws0, s1_raws_done);
-    patch_rel8(&mut export_code, s1_jbe_raws1, s1_raws_done);
-    patch_rel8(&mut export_code, s1_jbe_raws2, s1_raws_done);
+    export_code.extend_from_slice(&[0x41, 0x89, 0xD1]); // mov r9d, edx (argc)
+    let s3_call_s1_raws_shared = export_code.len();
+    export_code.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    s3_shared_raw_bytes_calls.push(s3_call_s1_raws_shared);
     let s1_jmp_next19 = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+    // S3.471: shared RAW_BYTES emit seed ≡ S3_RAW_BYTES_EMIT_BODY_SEED
+    let s3_shared_raw_bytes_seed = export_code.len();
+    for at in &s3_shared_raw_bytes_calls {
+        patch_rel32(&mut export_code, *at, s3_shared_raw_bytes_seed);
+    }
+    export_code.extend_from_slice(&crate::s1_tyb_parser::S3_RAW_BYTES_EMIT_BODY_SEED);
 
     // --- GET / MOVRR argc=2: load src→rax; store dst←rax (disp8=8B | any-slot mix)
     // S3.448: lift s1 GET/MOVRR any-slot — both <16 → shared; else hand.

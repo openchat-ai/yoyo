@@ -2466,6 +2466,27 @@ pub const S3_RAW_BYTE_EMIT_BODY_SEED: [u8; 11] = [
     0xC3, // ret
 ];
 
+/// S3.471: RAW_BYTES emit body = own-ISA object seed (rcx=rec, r9b=argc≤3,
+/// r12=out; RET). Appends low-bytes of args[0..argc) from record. Rel8s baked.
+pub const S3_RAW_BYTES_EMIT_BODY_SEED: [u8; 48] = [
+    0x45, 0x84, 0xC9, // test r9b, r9b
+    0x74, 0x2A, // jz done
+    0x8A, 0x41, 0x02, // mov al, [rcx+2]
+    0x41, 0x88, 0x04, 0x24, // mov [r12], al
+    0x49, 0xFF, 0xC4, // inc r12
+    0x41, 0x80, 0xF9, 0x01, // cmp r9b, 1
+    0x76, 0x1A, // jbe done
+    0x8A, 0x41, 0x04,
+    0x41, 0x88, 0x04, 0x24,
+    0x49, 0xFF, 0xC4,
+    0x41, 0x80, 0xF9, 0x02, // cmp r9b, 2
+    0x76, 0x0A, // jbe done
+    0x8A, 0x41, 0x06,
+    0x41, 0x88, 0x04, 0x24,
+    0x49, 0xFF, 0xC4,
+    0xC3, // done: ret
+];
+
 /// S3.337: test-only helper.
 #[cfg(test)]
 fn s3_fixed10_named_cases() -> Vec<(&'static str, Vec<(u8, u8, [u8; 6])>)> {
@@ -12904,6 +12925,40 @@ mod tests {
                 || pe_dll.contains("s3_shared_retnop_seed")
         );
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.471: RAW_BYTES emit body = YOYO object seed (48B) + shared mt+s1
+    /// (rcx=rec, r9b=argc≤3). Rel8s baked in seed. Next ≥10 = post-raw map /
+    /// OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_raw_bytes_emit_body_seed_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.471"));
+        assert!(
+            pe_dll.contains("RAW_BYTES emit")
+                || pe_dll.contains("S3_RAW_BYTES_EMIT_BODY_SEED")
+        );
+        assert!(pe_dll.contains("S3_RAW_BYTES_EMIT_BODY_SEED"));
+        assert!(pe_dll.contains("s3_shared_raw_bytes_seed"));
+        assert!(pe_dll.contains("s3_shared_raw_bytes_calls"));
+        assert_eq!(S3_RAW_BYTES_EMIT_BODY_SEED.len(), 48);
+        assert_eq!(S3_RAW_BYTES_EMIT_BODY_SEED[0], 0x45); // test r9b
+        assert_eq!(S3_RAW_BYTES_EMIT_BODY_SEED[47], 0xC3);
+        assert_eq!(S3_RAW_BYTES_EMIT_BODY_SEED[3], 0x74); // jz
+        assert_eq!(S3_RAW_BYTES_EMIT_BODY_SEED[4], 0x2A);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
                 .unwrap()
