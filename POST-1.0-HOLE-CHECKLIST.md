@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.452**（451 lift s1 CMP；下一刀=lift IMUL/ALUV/… / OW-RT；**不**假 CLOSED）。
+**默认** 继续 **= S3.453**（452 lift s1 IMUL+ALUV；下一刀=lift LDB/MCP / OW-RT；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -100,7 +100,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.359–406** ✅ | `a39a2a2` | 目标码种子链；Win PE 去 wrap |
 | **S3.407–420** ✅ | `5b425df` | OW-RT 切片 + densify/skip-mini **拒羊** |
 | **S3.421–428** ✅ | `2bc6fbc` | s1_loop op-handler poke-from-seed |
-| **S3.429–451** ✅ | 4c9228a | seed batch + collapse + lift s1 GET..CMP |
+| **S3.429–452** ✅ | 39e680a | seed batch + collapse + lift s1 GET..ALUV |
 
 #### 近窗（本波 · 单刀）
 
@@ -129,7 +129,8 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.449** ✅ | 88ce21f | lift s1 INC/DEC any-slot（disp8 shared + hand d32） |
 | **S3.450** ✅ | 7f5d6a3 | lift s1 ADD/SUB any-slot（disp8 shared + hand d32） |
 | **S3.451** ✅ | 4c9228a | lift s1 CMP any-slot（disp8 shared + hand mix） |
-| **S3.452** ⏳ | — | **本步**：lift s1 IMUL/ALUV/… any-slot / OW-RT |
+| **S3.452** ✅ | 39e680a | lift s1 IMUL+ALUV any-slot（disp8 shared + hand mix） |
+| **S3.453** ⏳ | — | **本步**：lift s1 LDB/MCP / OW-RT |
 
 **缺口**：s1 GET..CMP any-slot 已 lift。下一刀=lift IMUL/ALUV/… · OW-RT。DATA/LABEL=meta。无假 CLOSED。`bake=362` · `s3_=261`。
 
