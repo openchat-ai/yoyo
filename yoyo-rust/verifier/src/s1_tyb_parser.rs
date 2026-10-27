@@ -2506,6 +2506,44 @@ pub const S3_PUSH_PATCH_N_OFF_AT2: usize = 34;
 pub const S3_PUSH_PATCH_TABLE_OFF_AT: usize = 20;
 pub const S3_PUSH_PATCH_JAE_AT: usize = 10;
 
+/// S3.475: pass-2 rel32 patch loop = own-ISA object seed (95B). Internal
+/// jcc/jmp rels baked. Live poke: N_PATCHES @+5, PATCHES @+19, N_LABELS @+35,
+/// LABELS @+49, CODE @+78. Clobbers esi/edi/eax/edx/ecx/r8.
+pub const S3_PASS2_BODY_SEED: [u8; 95] = [
+    0x31, 0xF6, // xor esi,esi
+    // loop:
+    0x3B, 0xB4, 0x24, 0x00, 0x00, 0x00, 0x00, // cmp esi,[rsp+N_PATCHES] poke @5
+    0x0F, 0x8D, 0x50, 0x00, 0x00, 0x00, // jge done (+80)
+    0x48, 0x8D, 0xBC, 0x24, 0x00, 0x00, 0x00, 0x00, // lea rdi,[rsp+PATCHES] poke @19
+    0x8B, 0x04, 0xF7, // mov eax,[rdi+rsi*8]
+    0x8B, 0x54, 0xF7, 0x04, // mov edx,[rdi+rsi*8+4]
+    0x31, 0xFF, // xor edi,edi
+    // find:
+    0x3B, 0xBC, 0x24, 0x00, 0x00, 0x00, 0x00, // cmp edi,[rsp+N_LABELS] poke @35
+    0x0F, 0x8D, 0x2B, 0x00, 0x00, 0x00, // jge next (+43)
+    0x48, 0x8D, 0x8C, 0x24, 0x00, 0x00, 0x00, 0x00, // lea rcx,[rsp+LABELS] poke @49
+    0x39, 0x14, 0xF9, // cmp [rcx+rdi*8],edx
+    0x74, 0x07, // je hit
+    0xFF, 0xC7, // inc edi
+    0xE9, 0xDF, 0xFF, 0xFF, 0xFF, // jmp find (-33)
+    // hit:
+    0x8B, 0x4C, 0xF9, 0x04, // mov ecx,[rcx+rdi*8+4]
+    0x8D, 0x50, 0x04, // lea edx,[rax+4]
+    0x29, 0xD1, // sub ecx,edx
+    0x4C, 0x8D, 0x84, 0x24, 0x00, 0x00, 0x00, 0x00, // lea r8,[rsp+CODE] poke @78
+    0x49, 0x01, 0xC0, // add r8,rax
+    0x41, 0x89, 0x08, // mov [r8],ecx
+    // next:
+    0xFF, 0xC6, // inc esi
+    0xE9, 0xA3, 0xFF, 0xFF, 0xFF, // jmp loop (-93)
+    // done:
+];
+pub const S3_PASS2_N_PATCHES_OFF_AT: usize = 5;
+pub const S3_PASS2_PATCHES_OFF_AT: usize = 19;
+pub const S3_PASS2_N_LABELS_OFF_AT: usize = 35;
+pub const S3_PASS2_LABELS_OFF_AT: usize = 49;
+pub const S3_PASS2_CODE_OFF_AT: usize = 78;
+
 /// S3.337: test-only helper.
 #[cfg(test)]
 fn s3_fixed10_named_cases() -> Vec<(&'static str, Vec<(u8, u8, [u8; 6])>)> {
@@ -12944,6 +12982,47 @@ mod tests {
                 || pe_dll.contains("s3_shared_retnop_seed")
         );
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.475: pass-2 body = YOYO object seed (95B) + poke N/PATCHES/LABELS/
+    /// CODE; internal jcc/jmp baked. Next ≥10 = post-pass2 map / trail-C3 /
+    /// OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_pass2_body_seed_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.475"));
+        assert!(
+            pe_dll.contains("pass-2 body") || pe_dll.contains("S3_PASS2_BODY_SEED")
+        );
+        assert!(pe_dll.contains("S3_PASS2_BODY_SEED"));
+        assert!(pe_dll.contains("S3_PASS2_N_PATCHES_OFF_AT"));
+        assert!(pe_dll.contains("S3_PASS2_CODE_OFF_AT"));
+        assert_eq!(S3_PASS2_BODY_SEED.len(), 95);
+        assert_eq!(S3_PASS2_BODY_SEED[0], 0x31); // xor esi
+        assert_eq!(S3_PASS2_BODY_SEED[1], 0xF6);
+        assert_eq!(S3_PASS2_BODY_SEED[9], 0x0F); // jge done
+        assert_eq!(S3_PASS2_BODY_SEED[11], 0x50); // +80
+        assert_eq!(S3_PASS2_BODY_SEED[56], 0x74); // je hit
+        assert_eq!(S3_PASS2_BODY_SEED[57], 0x07);
+        assert_eq!(S3_PASS2_BODY_SEED[90], 0xE9); // jmp loop
+        assert_eq!(S3_PASS2_N_PATCHES_OFF_AT, 5);
+        assert_eq!(S3_PASS2_PATCHES_OFF_AT, 19);
+        assert_eq!(S3_PASS2_N_LABELS_OFF_AT, 35);
+        assert_eq!(S3_PASS2_LABELS_OFF_AT, 49);
+        assert_eq!(S3_PASS2_CODE_OFF_AT, 78);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
                 .unwrap()

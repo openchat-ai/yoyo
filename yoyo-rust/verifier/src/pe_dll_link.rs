@@ -3059,6 +3059,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // Remaining Rust: handler guards · s1_finish (419 IR reject) · mt dispatch
     // · pass-2. Densify hand-disp32 = sheep. Next ≥10 = pass-2 seed / OW-RT.
     // Not CLOSED. OW-RT remains CUT.
+    // S3.475: pass-2 body = YOYO object seed (95B) + poke N/PATCHES/LABELS/CODE;
+    // internal jcc/jmp baked. Next ≥10 = post-pass2 map / trail-C3 / OW-RT.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
     patch_jcc32(&mut export_code, s3_jne_mt_set_a, s3_mt_get);
@@ -6789,52 +6791,28 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     patch_jcc32(&mut export_code, s3_jnz_mt_mcpd, s3_multi_emit);
     patch_jcc32(&mut export_code, s3_jnz_mt_mcps, s3_multi_emit);
     // Pass 2: for i in 0..n_patches: lookup label, write rel32
-    export_code.extend_from_slice(&[0x31, 0xF6]); // esi = 0 (patch index)
-    let s1_p2_loop = export_code.len();
-    export_code.extend_from_slice(&[0x3B, 0xB4, 0x24]);
-    push_u32_le(&mut export_code, IN_DLL_S1_N_PATCHES_OFF); // cmp esi, n_patches
-    let s1_p2_done_jge = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x8D, 0, 0, 0, 0]); // jge pass2_done
-    // load patch: pos=[rsp+0x2800+esi*8], id=+4
-    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24]);
-    push_u32_le(&mut export_code, IN_DLL_S1_PATCHES_OFF);
-    export_code.extend_from_slice(&[0x8B, 0x04, 0xF7]); // eax = pos
-    export_code.extend_from_slice(&[0x8B, 0x54, 0xF7, 0x04]); // edx = label_id
-    // find label: edi=0
-    export_code.extend_from_slice(&[0x31, 0xFF]);
-    let s1_p2_find = export_code.len();
-    export_code.extend_from_slice(&[0x3B, 0xBC, 0x24]);
-    push_u32_le(&mut export_code, IN_DLL_S1_N_LABELS_OFF); // cmp edi, n_labels
-    let s1_p2_nofind = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x8D, 0, 0, 0, 0]); // jge next_patch (undef → leave 0)
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x8C, 0x24]);
-    push_u32_le(&mut export_code, IN_DLL_S1_LABELS_OFF); // lea rcx,[labels]
-    export_code.extend_from_slice(&[0x39, 0x14, 0xF9]); // cmp [rcx+rdi*8], edx
-    let s1_p2_found = export_code.len();
-    export_code.extend_from_slice(&[0x74, 0x00]); // je found
-    export_code.extend_from_slice(&[0xFF, 0xC7]); // inc edi
-    let s1_p2_find_jmp = export_code.len();
-    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-    patch_rel32(&mut export_code, s1_p2_find_jmp, s1_p2_find);
-    let s1_p2_hit = export_code.len();
-    patch_rel8(&mut export_code, s1_p2_found, s1_p2_hit);
-    // target = [rcx+rdi*8+4]; rel = target - (pos+4); write at code_base+pos
-    // eax still holds pos (find loop only touches ecx/edi/edx-cmp)
-    export_code.extend_from_slice(&[0x8B, 0x4C, 0xF9, 0x04]); // ecx = target off
-    export_code.extend_from_slice(&[0x8D, 0x50, 0x04]); // edx = pos+4
-    export_code.extend_from_slice(&[0x29, 0xD1]); // ecx = target - (pos+4)
-    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24]);
-    push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF); // lea r8, code_base
-    export_code.extend_from_slice(&[0x49, 0x01, 0xC0]); // r8 += pos (rax)
-    export_code.extend_from_slice(&[0x41, 0x89, 0x08]); // mov [r8], ecx
-    let s1_p2_next = export_code.len();
-    patch_jcc32(&mut export_code, s1_p2_nofind, s1_p2_next);
-    export_code.extend_from_slice(&[0xFF, 0xC6]); // inc esi
-    let s1_p2_loop_jmp = export_code.len();
-    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-    patch_rel32(&mut export_code, s1_p2_loop_jmp, s1_p2_loop);
-    let s1_p2_done = export_code.len();
-    patch_jcc32(&mut export_code, s1_p2_done_jge, s1_p2_done);
+    // S3.475: body = S3_PASS2_BODY_SEED; poke N/PATCHES/LABELS/CODE; rels baked.
+    let s1_p2 = export_code.len();
+    export_code.extend_from_slice(&crate::s1_tyb_parser::S3_PASS2_BODY_SEED);
+    {
+        let np = IN_DLL_S1_N_PATCHES_OFF.to_le_bytes();
+        let pt = IN_DLL_S1_PATCHES_OFF.to_le_bytes();
+        let nl = IN_DLL_S1_N_LABELS_OFF.to_le_bytes();
+        let lb = IN_DLL_S1_LABELS_OFF.to_le_bytes();
+        let cd = IN_DLL_S1_CODE_OFF.to_le_bytes();
+        let b = s1_p2;
+        let a = crate::s1_tyb_parser::S3_PASS2_N_PATCHES_OFF_AT;
+        let a2 = crate::s1_tyb_parser::S3_PASS2_PATCHES_OFF_AT;
+        let a3 = crate::s1_tyb_parser::S3_PASS2_N_LABELS_OFF_AT;
+        let a4 = crate::s1_tyb_parser::S3_PASS2_LABELS_OFF_AT;
+        let a5 = crate::s1_tyb_parser::S3_PASS2_CODE_OFF_AT;
+        export_code[b + a..b + a + 4].copy_from_slice(&np);
+        export_code[b + a2..b + a2 + 4].copy_from_slice(&pt);
+        export_code[b + a3..b + a3 + 4].copy_from_slice(&nl);
+        export_code[b + a4..b + a4 + 4].copy_from_slice(&lb);
+        export_code[b + a5..b + a5 + 4].copy_from_slice(&cd);
+    }
+    let _s1_p2_done = s1_p2 + crate::s1_tyb_parser::S3_PASS2_BODY_SEED.len();
 
     // if code empty or last != C3, append C3
     export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24]);
