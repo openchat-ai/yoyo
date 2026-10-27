@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.442**（441 shared INC/DEC；下一刀=shared ADD/SUB/CMP 或 lift s1 / OW-RT；**不**假 CLOSED）。
+**默认** 继续 **= S3.443**（442 shared ADD/SUB；下一刀=shared CMP 或 lift s1 / OW-RT；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -100,7 +100,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.359–406** ✅ | `a39a2a2` | 目标码种子链；Win PE 去 wrap |
 | **S3.407–420** ✅ | `5b425df` | OW-RT 切片 + densify/skip-mini **拒羊** |
 | **S3.421–428** ✅ | `2bc6fbc` | s1_loop op-handler poke-from-seed |
-| **S3.429–441** ✅ | 168453c | seed batch + collapse GET..INC shared |
+| **S3.429–442** ✅ | 6c9006b | seed batch + collapse GET..ADD shared |
 
 #### 近窗（本波 · 单刀）
 
@@ -119,7 +119,8 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.439** ✅ | 90df71f | post-disp8 map + 拒 disp32 densify 羊 |
 | **S3.440** ✅ | 72d53e0 | collapse shared GET/MOVRR disp8 seed thunk |
 | **S3.441** ✅ | 168453c | collapse shared INC/DEC disp8 seed thunk |
-| **S3.442** ⏳ | — | **本步**：shared ADD/SUB/CMP 或 lift/OW-RT |
+| **S3.442** ✅ | 6c9006b | collapse shared ADD/SUB disp8 seed thunk |
+| **S3.443** ⏳ | — | **本步**：shared CMP 或 lift/OW-RT |
 
 **缺口**：shared GET/MOVRR+INC/DEC。下一刀=shared ADD/SUB/CMP · lift s1 any-slot · OW-RT。DATA/LABEL=meta。无假 CLOSED。`bake=362` · `s3_=251`。
 
