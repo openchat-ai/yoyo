@@ -3061,6 +3061,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // Not CLOSED. OW-RT remains CUT.
     // S3.475: pass-2 body = YOYO object seed (95B) + poke N/PATCHES/LABELS/CODE;
     // internal jcc/jmp baked. Next ≥10 = post-pass2 map / trail-C3 / OW-RT.
+    // S3.476: trail-C3 = YOYO object seed (44B) + poke CODE; ja fail live;
+    // internal je rel8 baked. Next ≥10 = post-trail map / memcpy finish / OW-RT.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
     patch_jcc32(&mut export_code, s3_jne_mt_set_a, s3_mt_get);
@@ -6815,25 +6817,15 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let _s1_p2_done = s1_p2 + crate::s1_tyb_parser::S3_PASS2_BODY_SEED.len();
 
     // if code empty or last != C3, append C3
-    export_code.extend_from_slice(&[0x4C, 0x8D, 0x84, 0x24]);
-    push_u32_le(&mut export_code, IN_DLL_S1_CODE_OFF); // lea r8,[rsp+0x1080]
-    export_code.extend_from_slice(&[0x4D, 0x39, 0xC4]); // cmp r12, r8
-    let s1_je_empty = export_code.len();
-    export_code.extend_from_slice(&[0x74, 0x00]); // je need_ret
-    export_code.extend_from_slice(&[0x41, 0x80, 0x7C, 0x24, 0xFF, 0xC3]); // cmp byte [r12-1], 0xC3
-    let s1_je_has_ret = export_code.len();
-    export_code.extend_from_slice(&[0x74, 0x00]);
-    let s1_need_ret = export_code.len();
-    patch_rel8(&mut export_code, s1_je_empty, s1_need_ret);
-    export_code.extend_from_slice(&[0x4C, 0x89, 0xE0]);
-    export_code.extend_from_slice(&[0x48, 0xFF, 0xC0]);
-    export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
-    let s1_ja_trail = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
-    export_code.extend_from_slice(&[0x41, 0xC6, 0x04, 0x24, 0xC3]);
-    export_code.extend_from_slice(&[0x49, 0xFF, 0xC4]);
-    let s1_after_ret = export_code.len();
-    patch_rel8(&mut export_code, s1_je_has_ret, s1_after_ret);
+    // S3.476: body = S3_TRAIL_C3_BODY_SEED; poke CODE; ja fail live; je baked.
+    let s1_trail = export_code.len();
+    export_code.extend_from_slice(&crate::s1_tyb_parser::S3_TRAIL_C3_BODY_SEED);
+    {
+        let cd = IN_DLL_S1_CODE_OFF.to_le_bytes();
+        let a = crate::s1_tyb_parser::S3_TRAIL_C3_CODE_OFF_AT;
+        export_code[s1_trail + a..s1_trail + a + 4].copy_from_slice(&cd);
+    }
+    let s1_ja_trail = s1_trail + crate::s1_tyb_parser::S3_TRAIL_C3_JA_AT;
 
     // memcpy template → [rsp+0x1180]
     emit_lea_rcx_rdata(&mut export_code, &mut rip_patches, template_off); // rcx = src

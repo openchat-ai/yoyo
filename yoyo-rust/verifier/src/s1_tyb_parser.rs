@@ -2544,6 +2544,27 @@ pub const S3_PASS2_N_LABELS_OFF_AT: usize = 35;
 pub const S3_PASS2_LABELS_OFF_AT: usize = 49;
 pub const S3_PASS2_CODE_OFF_AT: usize = 78;
 
+/// S3.476: trail-C3 ensure = own-ISA object seed (44B). If .text empty or
+/// last≠C3, append C3 (ovf→fail). Live poke: CODE @+4. Live patch: ja fail
+/// @+30. Internal je rel8s baked.
+pub const S3_TRAIL_C3_BODY_SEED: [u8; 44] = [
+    0x4C, 0x8D, 0x84, 0x24, 0x00, 0x00, 0x00, 0x00, // lea r8,[rsp+CODE] poke @4
+    0x4D, 0x39, 0xC4, // cmp r12, r8
+    0x74, 0x08, // je need_ret
+    0x41, 0x80, 0x7C, 0x24, 0xFF, 0xC3, // cmp byte [r12-1], 0xC3
+    0x74, 0x17, // je after
+    // need_ret:
+    0x4C, 0x89, 0xE0, // mov rax, r12
+    0x48, 0xFF, 0xC0, // inc rax
+    0x4C, 0x39, 0xE8, // cmp rax, r13
+    0x0F, 0x87, 0x00, 0x00, 0x00, 0x00, // ja fail  live @30
+    0x41, 0xC6, 0x04, 0x24, 0xC3, // mov byte [r12], 0xC3
+    0x49, 0xFF, 0xC4, // inc r12
+    // after:
+];
+pub const S3_TRAIL_C3_CODE_OFF_AT: usize = 4;
+pub const S3_TRAIL_C3_JA_AT: usize = 30;
+
 /// S3.337: test-only helper.
 #[cfg(test)]
 fn s3_fixed10_named_cases() -> Vec<(&'static str, Vec<(u8, u8, [u8; 6])>)> {
@@ -12982,6 +13003,46 @@ mod tests {
                 || pe_dll.contains("s3_shared_retnop_seed")
         );
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.476: trail-C3 ensure = YOYO object seed (44B) + poke CODE; ja fail
+    /// live; je rel8 baked. Next ≥10 = post-trail map / memcpy finish / OW-RT.
+    /// Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_trail_c3_body_seed_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.476"));
+        assert!(
+            pe_dll.contains("trail-C3") || pe_dll.contains("S3_TRAIL_C3_BODY_SEED")
+        );
+        assert!(pe_dll.contains("S3_TRAIL_C3_BODY_SEED"));
+        assert!(pe_dll.contains("S3_TRAIL_C3_CODE_OFF_AT"));
+        assert!(pe_dll.contains("S3_TRAIL_C3_JA_AT"));
+        assert_eq!(S3_TRAIL_C3_BODY_SEED.len(), 44);
+        assert_eq!(S3_TRAIL_C3_BODY_SEED[0], 0x4C); // lea r8
+        assert_eq!(S3_TRAIL_C3_BODY_SEED[11], 0x74); // je need
+        assert_eq!(S3_TRAIL_C3_BODY_SEED[12], 0x08);
+        assert_eq!(S3_TRAIL_C3_BODY_SEED[19], 0x74); // je after
+        assert_eq!(S3_TRAIL_C3_BODY_SEED[20], 0x17);
+        assert_eq!(S3_TRAIL_C3_BODY_SEED[30], 0x0F); // ja fail
+        assert_eq!(S3_TRAIL_C3_BODY_SEED[31], 0x87);
+        assert_eq!(S3_TRAIL_C3_BODY_SEED[36], 0x41); // mov byte [r12],C3
+        assert_eq!(S3_TRAIL_C3_BODY_SEED[40], 0xC3);
+        assert_eq!(S3_TRAIL_C3_CODE_OFF_AT, 4);
+        assert_eq!(S3_TRAIL_C3_JA_AT, 30);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
                 .unwrap()
