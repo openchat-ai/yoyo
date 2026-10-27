@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.493**（492 YOYO-built compile cliff reject；下一刀=YOYO-IR compile slice / OW-RT；**不**假 CLOSED；禁 pe_dll hex densify 当自举）。
+**默认** 继续 **= S3.494**（493 YOYO-IR compile slice map；下一刀=non-fixed10 YOYO compose（不折 golden）/ OW-RT；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -170,9 +170,10 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.490** ✅ | 27b20a9 | mt→s1 push_label ABI cliff reject |
 | **S3.491** ✅ | 9f5893a | OW-RT residual after finish/table-seed wave |
 | **S3.492** ✅ | 1968e60 | YOYO-built compile cliff reject（≠ seed densify） |
-| **S3.493** ⏳ | — | **本步**：YOYO-IR compile slice / OW-RT |
+| **S3.493** ✅ | 4907afc | YOYO-IR compile slice map（fixed10 owned；扩表禁折 golden） |
+| **S3.494** ⏳ | — | **本步**：non-fixed10 YOYO compose / OW-RT |
 
-**缺口**：再冻 pe_dll 手写 x86→seed = 翻译 densify（≠ YOYO）。mt index=467。下一刀=YOYO-IR 编译切片 · OW-RT。无假 CLOSED。ake=362 · s3_=302。
+**缺口**：fixed10=YOYO table；非 fixed10 仍 emit_x86。扩 S3_FIXED10=折 golden（禁）。下一刀=non-fixed10 YOYO compose · OW-RT。禁 pe_dll densify。无假 CLOSED。ake=362 · s3_=303。
 
 ---
 
@@ -214,4 +215,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-26**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.493** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 看板已再折（波段+近窗）
+**快照 2026-10-26**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.494** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 看板已再折（波段+近窗）
