@@ -2582,6 +2582,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // (rcx=rec, r8d=path, r9d=sz_slot, r12=out).
     let mut s3_shared_load_calls: Vec<usize> = Vec::new();
     let mut s3_shared_write_calls: Vec<usize> = Vec::new();
+    // S3.469: call sites → shared RET/NOP bake-emit seed (r8d=bake payload off).
+    let mut s3_shared_retnop_calls: Vec<usize> = Vec::new();
     let emit_mt_push_patch = |code: &mut Vec<u8>, jmps: &mut Vec<usize>| {
         let lea_at = code.len();
         code.extend_from_slice(&[0x4C, 0x8D, 0x1D, 0, 0, 0, 0]); // lea r11,[rip+ret]
@@ -3041,9 +3043,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.465: post-LOAD/WRITE-collapse map. S3.466: YOYO dispatch probe
     // seed. S3.467: mt→same index reject — Naive share = ABI cliff
     // (mt rdx/r14 vs s1 rcx trampolines). S3.468: YOYO-own handler
-    // trampoline table seed (29×8 E9+NOP). Densify remaining mt
-    // hand-disp32 = sheep. Next ≥10 = more YOYO handler body seeds /
-    // OW-RT. DATA/LABEL=meta. Not CLOSED. OW-RT remains CUT.
+    // trampoline table seed (29×8 E9+NOP). S3.469: collapse shared
+    // RET/NOP bake-emit seed (r8d=payload off). Densify remaining mt
+    // hand-disp32 = sheep. Next ≥10 = RAW_BYTE/LABEL body seeds / OW-RT.
+    // DATA/LABEL=meta. Not CLOSED. OW-RT remains CUT.
     let s3_mt_get = export_code.len();
     patch_rel32(&mut export_code, s3_jmp_mt_after_plat, s3_mt_get);
     patch_jcc32(&mut export_code, s3_jne_mt_set_a, s3_mt_get);
@@ -4986,8 +4989,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0xC3]); // ret
 
     // --- RET
-    // S3.421: first YOYO op-handler object seed — emit body = bake row0
-    // payload (S3_HOST_TABLE_SEED / fixed10 RET), not hand-imm 0xC3.
+    // S3.421: first YOYO op-handler object seed — bake row0 payload (not
+    // hand-imm 0xC3). S3.469: collapse → shared RET/NOP bake-emit (r8d=4).
     let s1_ret = export_code.len();
     patch_rel32(&mut export_code, s1_je_ret, s1_ret); // S3.461 trampoline E9
     export_code.extend_from_slice(&[0x84, 0xD2]); // test dl, dl
@@ -4998,19 +5001,11 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
     let s1_ja_ret_ovf = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
-    // RET emit: keep seed memcpy (bake+4). Also CLD — LDB/MCP movsb must not
-    // leave DF=1 (would make this store walk backward into the prior op).
-    export_code.extend_from_slice(&[0xFC]); // cld
-    export_code.extend_from_slice(&[0x56]); // push rsi
-    export_code.extend_from_slice(&[0x51]); // push rcx (record; movsb clobbers)
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]); // lea rsi,[rip+bake]
-    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 4)); // row0 payload
-    export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
-    export_code.extend_from_slice(&[0xB9, 0x01, 0x00, 0x00, 0x00]); // ecx = 1
-    export_code.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
-    export_code.extend_from_slice(&[0x49, 0x89, 0xFC]); // mov r12, rdi
-    export_code.extend_from_slice(&[0x59]); // pop rcx
-    export_code.extend_from_slice(&[0x5E]); // pop rsi
+    // S3.469: RET body = shared bake-emit (r8d = row0 payload off +4)
+    export_code.extend_from_slice(&[0x41, 0xB8, 0x04, 0x00, 0x00, 0x00]); // r8d=4
+    let s3_call_s1_ret_shared = export_code.len();
+    export_code.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    s3_shared_retnop_calls.push(s3_call_s1_ret_shared);
     let s1_jmp_next2 = export_code.len();
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
@@ -5043,7 +5038,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // --- NOP
-    // S3.421: emit body = bake row1 payload (fixed10 NOP 0x90), same seed bridge.
+    // S3.421: bake row1 payload. S3.469: shared bake-emit (r8d=24 = +20+4).
     let s1_nop = export_code.len();
     patch_rel32(&mut export_code, s1_je_nop, s1_nop); // S3.461 trampoline E9
     export_code.extend_from_slice(&[0x84, 0xD2]);
@@ -5054,18 +5049,32 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x4C, 0x39, 0xE8]);
     let s1_ja_nop_ovf = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0x41, 0xB8, 0x18, 0x00, 0x00, 0x00]); // r8d=24
+    let s3_call_s1_nop_shared = export_code.len();
+    export_code.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
+    s3_shared_retnop_calls.push(s3_call_s1_nop_shared);
+    let s1_jmp_next4 = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+    // S3.469: shared RET/NOP bake-emit seed — r8d=payload off from bake base;
+    // cld + memcpy 1B → r12; RET. (CLD: LDB/MCP must not leave DF=1.)
+    let s3_shared_retnop_seed = export_code.len();
+    for at in &s3_shared_retnop_calls {
+        patch_rel32(&mut export_code, *at, s3_shared_retnop_seed);
+    }
+    export_code.extend_from_slice(&[0xFC]); // cld
     export_code.extend_from_slice(&[0x56]); // push rsi
     export_code.extend_from_slice(&[0x51]); // push rcx
     export_code.extend_from_slice(&[0x48, 0x8D, 0x35, 0, 0, 0, 0]); // lea rsi,[rip+bake]
-    rip_patches.push((export_code.len() - 4, s3_bake_table_off + 20 + 4)); // row1
+    rip_patches.push((export_code.len() - 4, s3_bake_table_off));
+    export_code.extend_from_slice(&[0x4C, 0x01, 0xC6]); // add rsi, r8
     export_code.extend_from_slice(&[0x4C, 0x89, 0xE7]); // mov rdi, r12
     export_code.extend_from_slice(&[0xB9, 0x01, 0x00, 0x00, 0x00]); // ecx = 1
     export_code.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
     export_code.extend_from_slice(&[0x49, 0x89, 0xFC]); // mov r12, rdi
     export_code.extend_from_slice(&[0x59]); // pop rcx
     export_code.extend_from_slice(&[0x5E]); // pop rsi
-    let s1_jmp_next4 = export_code.len();
-    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    export_code.extend_from_slice(&[0xC3]); // ret
 
     // --- RAW_BYTE argc=1: emit args_raw[0]
     let s1_raw = export_code.len();

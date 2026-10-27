@@ -12884,9 +12884,49 @@ mod tests {
                 .as_slice(),
             S3_COMPILE_PE_RET_IMAGE_SEED
         );
-        assert!(pe_dll.contains("s3_bake_table_off + 4"));
-        assert!(pe_dll.contains("s3_bake_table_off + 20 + 4"));
+        assert!(
+            pe_dll.contains("s3_bake_table_off + 4")
+                || pe_dll.contains("s3_shared_retnop_seed")
+                || pe_dll.contains("r8d=4")
+        );
+        assert!(
+            pe_dll.contains("s3_bake_table_off + 20 + 4")
+                || pe_dll.contains("r8d=24")
+                || pe_dll.contains("s3_shared_retnop_seed")
+        );
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
+    /// S3.469: collapse shared RET/NOP bake-emit seed — r8d=payload off
+    /// (4=row0 RET / 24=row1 NOP); cld+memcpy 1B. ≥2 call sites one thunk.
+    /// Next ≥10 = RAW_BYTE/LABEL body seeds / OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_collapse_shared_ret_nop_bake_emit_seed_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        assert!(pe_dll.contains("S3.469"));
+        assert!(
+            pe_dll.contains("shared RET/NOP bake-emit")
+                || pe_dll.contains("s3_shared_retnop_seed")
+        );
+        assert!(pe_dll.contains("s3_shared_retnop_seed"));
+        assert!(pe_dll.contains("s3_shared_retnop_calls"));
+        assert!(pe_dll.contains("r8d=4") || pe_dll.contains("0x04, 0x00, 0x00, 0x00"));
+        assert!(pe_dll.contains("r8d=24") || pe_dll.contains("0x18, 0x00, 0x00, 0x00"));
+        assert_eq!(S3_HOST_TABLE_SEED[4], 0xC3);
+        assert_eq!(S3_HOST_TABLE_SEED[24], 0x90);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
         assert_eq!(
             parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
                 .unwrap()
