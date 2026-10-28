@@ -181,7 +181,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.501** ✅ | 25b7888 | ALLOC+RET YOYO object-seed compose（PREFIX+STORE_DISP32） |
 | **S3.502** ✅ | 0daf55a | STB+RET YOYO object-seed compose（OO0/imm8；bake=362 未扩） |
 | **S3.503** ✅ | 704a3c6 | RAW_BYTE/RAW_BYTES+RET YOYO literal payload compose |
-| **S3.504** ✅ | — | LOAD_FILE+RET YOYO object-seed compose（160B poke；bake=362） |
+| **S3.504** ✅ | 5a6f831 | LOAD_FILE+RET YOYO object-seed compose（160B poke；bake=362） |
 | **S3.505** ⏳ | — | **本步**：WRITE_FILE+RET seed compose / OW-RT |
 
 **缺口**：fixed10 + …/RAW_*/LOAD+RET=YOYO；WRITE 仍 emit_x86。下一刀=WRITE_FILE+RET。bake=362 · s3_=314。
