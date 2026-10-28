@@ -3198,6 +3198,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.518: bare ALLOC + CF residual (CF+LABEL rel0; CF+filler(s)+LABEL
     // forward pass-2 beyond single-NOP). Next ≥10 = LOAD/WRITE bare /
     // OW-RT. Not CLOSED. OW-RT remains CUT.
+    // S3.519: LOAD/WRITE/RAW_BYTE/STB bare batch (no RET record; auto-C3).
+    // Next ≥10 = LDB/MCP bare / OW-RT. Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.

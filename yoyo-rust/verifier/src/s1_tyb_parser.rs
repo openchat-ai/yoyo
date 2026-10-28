@@ -9569,6 +9569,97 @@ fn try_write_file_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
     Some(text)
 }
 
+/// S3.519: bare LOAD_FILE (no RET record) — body ‖ auto-C3.
+fn try_load_file_bare_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
+    if prog.records.len() != 1 {
+        return None;
+    }
+    let load = &prog.records[0];
+    if load.op != 0x50 {
+        return None;
+    }
+    let (slot, path_off) = arg_slot_imm(load)?;
+    let mut text = try_compose_load_file_body_via_yoyo_seed(slot, path_off)?;
+    text.push(0xC3);
+    Some(text)
+}
+
+/// S3.519: bare LOAD_FILE ops (`ops=[0x50]`) — slot0/path0 ‖C3.
+fn try_emit_load_file_bare_via_yoyo_seed(ops: &[u8]) -> Option<Vec<u8>> {
+    if ops != [0x50] {
+        return None;
+    }
+    let mut text = try_compose_load_file_body_via_yoyo_seed(0, 0)?;
+    text.push(0xC3);
+    Some(text)
+}
+
+/// S3.519: bare WRITE_FILE (no RET record) — body ‖ auto-C3.
+fn try_write_file_bare_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
+    if prog.records.len() != 1 {
+        return None;
+    }
+    let wr = &prog.records[0];
+    if wr.op != 0x51 {
+        return None;
+    }
+    let (slot, path_off, sz_slot) = if let Some((s, p, z)) = arg_slot3(wr) {
+        (s, p as u32, z)
+    } else {
+        let (s, p) = arg_slot_imm(wr)?;
+        (s, p, 0)
+    };
+    let mut text = try_compose_write_file_body_via_yoyo_seed(slot, path_off, sz_slot)?;
+    text.push(0xC3);
+    Some(text)
+}
+
+/// S3.519: bare WRITE_FILE ops (`ops=[0x51]`) — defaults ‖C3.
+fn try_emit_write_file_bare_via_yoyo_seed(ops: &[u8]) -> Option<Vec<u8>> {
+    if ops != [0x51] {
+        return None;
+    }
+    let mut text = try_compose_write_file_body_via_yoyo_seed(0, 0, 0)?;
+    text.push(0xC3);
+    Some(text)
+}
+
+/// S3.519: bare RAW_BYTE (no RET) — byte ‖ auto-C3.
+fn try_raw_byte_bare_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
+    if prog.records.len() != 1 {
+        return None;
+    }
+    let raw = &prog.records[0];
+    if raw.op != 0xA0 || raw.argc != 1 {
+        return None;
+    }
+    let b = arg_u32(raw)? as u8;
+    Some(vec![b, 0xC3])
+}
+
+/// S3.519: bare RAW_BYTE ops (`ops=[0xA0]`) — default NOP ‖C3.
+fn try_emit_raw_byte_bare_via_yoyo_seed(ops: &[u8]) -> Option<Vec<u8>> {
+    if ops != [0xA0] {
+        return None;
+    }
+    Some(vec![S3_RAW_BYTE_RET_OPS_DEFAULT, 0xC3])
+}
+
+/// S3.519: bare STB (no RET) — body ‖ auto-C3.
+fn try_stb_bare_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
+    if prog.records.len() != 1 {
+        return None;
+    }
+    let stb = &prog.records[0];
+    if stb.op != 0x81 {
+        return None;
+    }
+    let (val, base, oo) = arg_slot3(stb)?;
+    let mut text = try_compose_stb_body_via_yoyo_seed(val, base, oo)?;
+    text.push(0xC3);
+    Some(text)
+}
+
 /// S3.506: DATA/STR/RAW+RET ops-path — `.text`=C3; `.data` empty (TYB carries).
 /// In-DLL `S3_DATA_APPEND_BODY_SEED` = emitter ≠ host payload. **Not** FIXED10.
 fn try_emit_data_ret_via_yoyo_seed(ops: &[u8]) -> Option<Vec<u8>> {
@@ -9670,7 +9761,16 @@ pub fn try_emit_text_via_yoyo_table(ops: &[u8]) -> Option<Vec<u8>> {
     if let Some(text) = try_emit_load_file_ret_via_yoyo_seed(ops) {
         return Some(text);
     }
+    if let Some(text) = try_emit_load_file_bare_via_yoyo_seed(ops) {
+        return Some(text);
+    }
     if let Some(text) = try_emit_write_file_ret_via_yoyo_seed(ops) {
+        return Some(text);
+    }
+    if let Some(text) = try_emit_write_file_bare_via_yoyo_seed(ops) {
+        return Some(text);
+    }
+    if let Some(text) = try_emit_raw_byte_bare_via_yoyo_seed(ops) {
         return Some(text);
     }
     if let Some(text) = try_emit_data_ret_via_yoyo_seed(ops) {
@@ -10093,6 +10193,71 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         }
     }
     if let Some(text) = try_raw_bytes_bare_tyb(&prog) {
+        #[cfg(windows)]
+        {
+            return Some(crate::pe_link::PeImage {
+                bytes: s3_compile_pe_patch_text(&text),
+            });
+        }
+        #[cfg(not(windows))]
+        {
+            return wrap_pe_slim(&CodegenOutput {
+                text,
+                data: Vec::new(),
+            })
+            .ok();
+        }
+    }
+    // S3.519: bare LOAD/WRITE/RAW_BYTE/STB
+    if let Some(text) = try_load_file_bare_tyb(&prog) {
+        #[cfg(windows)]
+        {
+            return Some(crate::pe_link::PeImage {
+                bytes: s3_compile_pe_patch_text(&text),
+            });
+        }
+        #[cfg(not(windows))]
+        {
+            return wrap_pe_slim(&CodegenOutput {
+                text,
+                data: Vec::new(),
+            })
+            .ok();
+        }
+    }
+    if let Some(text) = try_write_file_bare_tyb(&prog) {
+        #[cfg(windows)]
+        {
+            return Some(crate::pe_link::PeImage {
+                bytes: s3_compile_pe_patch_text(&text),
+            });
+        }
+        #[cfg(not(windows))]
+        {
+            return wrap_pe_slim(&CodegenOutput {
+                text,
+                data: Vec::new(),
+            })
+            .ok();
+        }
+    }
+    if let Some(text) = try_raw_byte_bare_tyb(&prog) {
+        #[cfg(windows)]
+        {
+            return Some(crate::pe_link::PeImage {
+                bytes: s3_compile_pe_patch_text(&text),
+            });
+        }
+        #[cfg(not(windows))]
+        {
+            return wrap_pe_slim(&CodegenOutput {
+                text,
+                data: Vec::new(),
+            })
+            .ok();
+        }
+    }
+    if let Some(text) = try_stb_bare_tyb(&prog) {
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
@@ -17041,6 +17206,87 @@ mod tests {
         ]);
         assert!(try_cf_filler_label_ret_tyb(&parse_tyb(&tyb_510).unwrap()).is_none());
         assert!(try_cf_nop_label_ret_tyb(&parse_tyb(&tyb_510).unwrap()).is_some());
+    }
+
+    /// S3.519: LOAD/WRITE/RAW_BYTE/STB bare batch — no RET record; body ‖
+    /// emit_x86 auto-C3; ops-path [0x50]/[0x51]/[0xA0]. Not FIXED10.
+    /// bake=362. Next ≥10 = LDB/MCP bare / OW-RT.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_load_write_bare_batch_yoyo_seed_compose_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        let this = include_str!("s1_tyb_parser.rs");
+        assert!(this.contains("S3.519") || pe_dll.contains("S3.519"));
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        let pins = [
+            "S3.519",
+            "try_load_file_bare_tyb",
+            "try_write_file_bare_tyb",
+            "try_emit_load_file_bare_via_yoyo_seed",
+            "try_emit_write_file_bare_via_yoyo_seed",
+            "try_raw_byte_bare_tyb",
+            "try_emit_raw_byte_bare_via_yoyo_seed",
+            "try_stb_bare_tyb",
+            "LOAD/WRITE bare",
+            "bare LOAD_FILE",
+        ];
+        for p in pins {
+            assert!(this.contains(p), "missing LOAD/WRITE bare pin {p}");
+        }
+        assert!(pins.len() >= 10);
+        assert_eq!(S3_FIXED10_OPS.len(), 10);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+        // bare LOAD_FILE
+        let tyb_l = tyb_from_records(&[(0x50, 2, [16, 0, 0x10, 0, 0, 0])]);
+        let via_l = try_load_file_bare_tyb(&parse_tyb(&tyb_l).unwrap()).expect("LOAD bare");
+        assert_eq!(via_l, emit_x86(&parse_tyb(&tyb_l).unwrap()).text);
+        assert!(via_l.ends_with(&[0xC3]));
+        assert_eq!(
+            try_compile_tyb_via_yoyo_table(&tyb_l).unwrap().bytes,
+            compile_tyb_to_pe_mini(&tyb_l).unwrap().bytes
+        );
+        assert!(try_emit_text_via_yoyo_table(&[0x50]).is_some());
+        // bare WRITE_FILE argc=3
+        let tyb_w = tyb_from_records(&[(0x51, 3, [16, 0, 0x20, 0, 17, 0])]);
+        let via_w = try_write_file_bare_tyb(&parse_tyb(&tyb_w).unwrap()).expect("WRITE bare");
+        assert_eq!(via_w, emit_x86(&parse_tyb(&tyb_w).unwrap()).text);
+        assert!(try_compile_tyb_via_yoyo_table(&tyb_w).is_some());
+        assert!(try_emit_text_via_yoyo_table(&[0x51]).is_some());
+        // bare RAW_BYTE
+        let tyb_rb = tyb_from_records(&[(0xA0, 1, [0xCC, 0, 0, 0, 0, 0])]);
+        let via_rb = try_raw_byte_bare_tyb(&parse_tyb(&tyb_rb).unwrap()).expect("RAW_BYTE");
+        assert_eq!(via_rb, vec![0xCC, 0xC3]);
+        assert_eq!(via_rb, emit_x86(&parse_tyb(&tyb_rb).unwrap()).text);
+        assert_eq!(
+            try_emit_text_via_yoyo_table(&[0xA0]).unwrap(),
+            vec![0x90, 0xC3]
+        );
+        // bare STB
+        let tyb_s = tyb_from_records(&[(0x81, 3, [16, 0, 17, 0, 5, 0])]);
+        let via_s = try_stb_bare_tyb(&parse_tyb(&tyb_s).unwrap()).expect("STB bare");
+        assert_eq!(via_s, emit_x86(&parse_tyb(&tyb_s).unwrap()).text);
+        assert!(try_compile_tyb_via_yoyo_table(&tyb_s).is_some());
+        // +RET still via ret paths, not bare
+        let with_ret = tyb_from_records(&[
+            (0x50, 2, [0, 0, 0, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        assert!(try_load_file_bare_tyb(&parse_tyb(&with_ret).unwrap()).is_none());
+        assert!(try_load_file_ret_tyb(&parse_tyb(&with_ret).unwrap()).is_some());
     }
 
     /// S3.492: YOYO-built compile cliff reject. Freezing more pe_dll hand-x86
