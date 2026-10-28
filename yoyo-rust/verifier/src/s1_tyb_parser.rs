@@ -9243,6 +9243,107 @@ fn try_alloc_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
     Some(text)
 }
 
+/// S3.518: bare ALLOC (no RET record) — body ‖ auto-C3 (`emit_x86`).
+fn try_alloc_bare_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
+    if prog.records.len() != 1 {
+        return None;
+    }
+    let alloc = &prog.records[0];
+    if alloc.op != 0x20 {
+        return None;
+    }
+    let (slot, size) = arg_slot_imm(alloc)?;
+    let mut text = try_compose_alloc_body_via_yoyo_seed(slot, size)?;
+    text.push(0xC3);
+    Some(text)
+}
+
+/// S3.518: bare ALLOC ops-path (`ops=[0x20]`) — default slot0/size0 ‖C3.
+fn try_emit_alloc_bare_via_yoyo_seed(ops: &[u8]) -> Option<Vec<u8>> {
+    if ops != [0x20] {
+        return None;
+    }
+    let mut text = try_compose_alloc_body_via_yoyo_seed(0, 0)?;
+    text.push(0xC3);
+    Some(text)
+}
+
+/// S3.518: CF+LABEL+RET (no filler) — LABEL@after-CF ⇒ rel32=0 (≡ CF+RET).
+fn try_cf_label_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
+    if prog.records.len() != 3 {
+        return None;
+    }
+    let cf = &prog.records[0];
+    let lab = &prog.records[1];
+    let ret = &prog.records[2];
+    if lab.op != 0x40 || ret.op != 0xFF || ret.argc != 0 || cf.argc != 1 {
+        return None;
+    }
+    let cid = arg_u32(cf)?;
+    let lid = arg_u32(lab)?;
+    if cid != lid {
+        return None;
+    }
+    // LABEL emits 0B → target==next_ip → rel0 ≡ try_cf_ret
+    try_emit_cf_ret_via_yoyo_seed(&[cf.op, 0xFF])
+}
+
+/// S3.518: CF + filler(s) + LABEL + RET — forward pass-2.
+/// filler = NOP or fixed10-ish ALU (1..=3). Extends S3.510 beyond single NOP.
+fn try_cf_filler_label_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
+    let n = prog.records.len();
+    if !(4..=6).contains(&n) {
+        return None;
+    }
+    let cf = &prog.records[0];
+    let lab = &prog.records[n - 2];
+    let ret = &prog.records[n - 1];
+    if lab.op != 0x40 || ret.op != 0xFF || ret.argc != 0 || cf.argc != 1 {
+        return None;
+    }
+    let cid = arg_u32(cf)?;
+    let lid = arg_u32(lab)?;
+    if cid != lid {
+        return None;
+    }
+    let fillers = &prog.records[1..n - 2];
+    if fillers.is_empty() || fillers.len() > 3 {
+        return None;
+    }
+    // S3.510 owns exact CF+NOP+LABEL+RET — leave that path (same bytes OK either way,
+    // but refuse single-NOP here so 510 stays the pin).
+    if fillers.len() == 1 && fillers[0].op == 0x00 && fillers[0].argc == 0 {
+        return None;
+    }
+    let mut text = match cf.op {
+        0x41 => S3_CALL_BODY_SEED.to_vec(),
+        0x70 => S3_JMP_BODY_SEED.to_vec(),
+        op if (0x71..=0x7A).contains(&op) => {
+            let mut j = S3_JCC_BODY_SEED.to_vec();
+            j[1] = s3_jcc_cc(op)?;
+            j
+        }
+        _ => return None,
+    };
+    let patch_pos = if matches!(cf.op, 0x41 | 0x70) { 1 } else { 2 };
+    for f in fillers {
+        let body = s3_compose_slot_alu_body(f)?;
+        if body.is_empty() {
+            return None; // LABEL-as-filler not allowed mid-forward
+        }
+        text.extend_from_slice(&body);
+    }
+    let target = text.len() as i32;
+    let next_ip = (patch_pos + 4) as i32;
+    let rel = target - next_ip;
+    text[patch_pos..patch_pos + 4].copy_from_slice(&rel.to_le_bytes());
+    text.push(0xC3);
+    if text.len() > S1_SLIM_MAX_CODE {
+        return None;
+    }
+    Some(text)
+}
+
 /// S3.502/S3.513: STB+RET via OO0 / imm8 / imm32 object seeds.
 /// `ops=[0x81,0xFF]` → val=base=oo=0. TYB: disp8 slots; any oo (S3.513).
 /// **Not** FIXED10 fold; bake=362 unchanged.
@@ -9547,6 +9648,10 @@ pub fn try_emit_text_via_yoyo_table(ops: &[u8]) -> Option<Vec<u8>> {
         return Some(text);
     }
     if let Some(text) = try_emit_alloc_ret_via_yoyo_seed(ops) {
+        return Some(text);
+    }
+    // S3.518: bare ALLOC ops
+    if let Some(text) = try_emit_alloc_bare_via_yoyo_seed(ops) {
         return Some(text);
     }
     if let Some(text) = try_emit_stb_ret_via_yoyo_seed(ops) {
@@ -9875,6 +9980,56 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         }
     }
     if let Some(text) = try_cf_nop_label_ret_tyb(&prog) {
+        #[cfg(windows)]
+        {
+            return Some(crate::pe_link::PeImage {
+                bytes: s3_compile_pe_patch_text(&text),
+            });
+        }
+        #[cfg(not(windows))]
+        {
+            return wrap_pe_slim(&CodegenOutput {
+                text,
+                data: Vec::new(),
+            })
+            .ok();
+        }
+    }
+    // S3.518: CF+LABEL+RET (rel0) / CF+filler(s)+LABEL+RET
+    if let Some(text) = try_cf_label_ret_tyb(&prog) {
+        #[cfg(windows)]
+        {
+            return Some(crate::pe_link::PeImage {
+                bytes: s3_compile_pe_patch_text(&text),
+            });
+        }
+        #[cfg(not(windows))]
+        {
+            return wrap_pe_slim(&CodegenOutput {
+                text,
+                data: Vec::new(),
+            })
+            .ok();
+        }
+    }
+    if let Some(text) = try_cf_filler_label_ret_tyb(&prog) {
+        #[cfg(windows)]
+        {
+            return Some(crate::pe_link::PeImage {
+                bytes: s3_compile_pe_patch_text(&text),
+            });
+        }
+        #[cfg(not(windows))]
+        {
+            return wrap_pe_slim(&CodegenOutput {
+                text,
+                data: Vec::new(),
+            })
+            .ok();
+        }
+    }
+    // S3.518: bare ALLOC
+    if let Some(text) = try_alloc_bare_tyb(&prog) {
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
@@ -15887,7 +16042,7 @@ mod tests {
         assert!(gaps.len() >= 10);
         // Witnesses: RAW_BYTES bare / CMP≥16 / DATA+ALU = S3.516–517
         assert!(try_emit_text_via_yoyo_table(&[0xA1]).is_some()); // RAW_BYTES bare = S3.517
-        assert!(try_emit_text_via_yoyo_table(&[0x20]).is_none()); // bare ALLOC still outside
+        assert!(try_emit_text_via_yoyo_table(&[0x20]).is_some()); // bare ALLOC = S3.518
         // CMP slot≥16 owned by S3.516 — green
         let cmp_big = tyb_from_records(&[
             (0x65, 2, [16, 0, 17, 0, 0, 0]),
@@ -16780,6 +16935,112 @@ mod tests {
         ]);
         assert!(try_data_alu_mix_ret_tyb(&parse_tyb(&pure).unwrap()).is_none());
         assert!(try_data_section_ret_tyb(&parse_tyb(&pure).unwrap()).is_some());
+    }
+
+    /// S3.518: bare ALLOC + CF residual — bare ALLOC (TYB/ops ‖auto-C3);
+    /// CF+LABEL+RET (rel0); CF+filler(s)+LABEL+RET forward pass-2
+    /// (extends S3.510 beyond single NOP). Not FIXED10. bake=362.
+    /// Next ≥10 = LOAD/WRITE bare / OW-RT.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_bare_alloc_cf_residual_yoyo_seed_compose_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        let this = include_str!("s1_tyb_parser.rs");
+        assert!(this.contains("S3.518") || pe_dll.contains("S3.518"));
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        let pins = [
+            "S3.518",
+            "try_alloc_bare_tyb",
+            "try_emit_alloc_bare_via_yoyo_seed",
+            "try_cf_label_ret_tyb",
+            "try_cf_filler_label_ret_tyb",
+            "bare ALLOC",
+            "CF residual",
+            "CF+LABEL+RET",
+            "forward pass-2",
+            "extends S3.510 beyond single NOP",
+        ];
+        for p in pins {
+            assert!(this.contains(p), "missing bare-ALLOC/CF pin {p}");
+        }
+        assert!(pins.len() >= 10);
+        assert_eq!(S3_FIXED10_OPS.len(), 10);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+        // bare ALLOC slot16 size=0x100
+        let tyb_a = tyb_from_records(&[(0x20, 2, [16, 0, 0x00, 0x01, 0, 0])]);
+        let via_a = try_alloc_bare_tyb(&parse_tyb(&tyb_a).unwrap()).expect("ALLOC bare");
+        assert_eq!(via_a, emit_x86(&parse_tyb(&tyb_a).unwrap()).text);
+        assert!(via_a.ends_with(&[0xC3]));
+        assert_eq!(
+            try_compile_tyb_via_yoyo_table(&tyb_a).unwrap().bytes,
+            compile_tyb_to_pe_mini(&tyb_a).unwrap().bytes
+        );
+        assert!(try_emit_text_via_yoyo_table(&[0x20]).is_some());
+        // CF+LABEL+RET ≡ CF+RET (rel0)
+        let tyb_cl = tyb_from_records(&[
+            (0x41, 1, [3, 0, 0, 0, 0, 0]),
+            (0x40, 1, [3, 0, 0, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let via_cl = try_cf_label_ret_tyb(&parse_tyb(&tyb_cl).unwrap()).expect("CF+L");
+        assert_eq!(via_cl, emit_x86(&parse_tyb(&tyb_cl).unwrap()).text);
+        assert_eq!(
+            via_cl,
+            try_cf_ret_tyb(&parse_tyb(&tyb_from_records(&[
+                (0x41, 1, [3, 0, 0, 0, 0, 0]),
+                (0xFF, 0, [0; 6]),
+            ]))
+            .unwrap())
+            .unwrap()
+        );
+        assert!(try_compile_tyb_via_yoyo_table(&tyb_cl).is_some());
+        // CF + dual-NOP + LABEL + RET (filler residual; ≠ S3.510 single NOP)
+        let tyb_fn = tyb_from_records(&[
+            (0x70, 1, [9, 0, 0, 0, 0, 0]),
+            (0x00, 0, [0; 6]),
+            (0x00, 0, [0; 6]),
+            (0x40, 1, [9, 0, 0, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let via_fn = try_cf_filler_label_ret_tyb(&parse_tyb(&tyb_fn).unwrap()).expect("2NOP");
+        assert_eq!(via_fn, emit_x86(&parse_tyb(&tyb_fn).unwrap()).text);
+        assert!(try_compile_tyb_via_yoyo_table(&tyb_fn).is_some());
+        // CF + INC16 + LABEL + RET
+        let tyb_fi = tyb_from_records(&[
+            (0x71, 1, [2, 0, 0, 0, 0, 0]),
+            (0x66, 1, [16, 0, 0, 0, 0, 0]),
+            (0x40, 1, [2, 0, 0, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let via_fi = try_cf_filler_label_ret_tyb(&parse_tyb(&tyb_fi).unwrap()).expect("INC fill");
+        assert_eq!(via_fi, emit_x86(&parse_tyb(&tyb_fi).unwrap()).text);
+        assert_eq!(
+            try_compile_tyb_via_yoyo_table(&tyb_fi).unwrap().bytes,
+            compile_tyb_to_pe_mini(&tyb_fi).unwrap().bytes
+        );
+        // single-NOP still owned by S3.510 (filler path refuses)
+        let tyb_510 = tyb_from_records(&[
+            (0x41, 1, [1, 0, 0, 0, 0, 0]),
+            (0x00, 0, [0; 6]),
+            (0x40, 1, [1, 0, 0, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        assert!(try_cf_filler_label_ret_tyb(&parse_tyb(&tyb_510).unwrap()).is_none());
+        assert!(try_cf_nop_label_ret_tyb(&parse_tyb(&tyb_510).unwrap()).is_some());
     }
 
     /// S3.492: YOYO-built compile cliff reject. Freezing more pe_dll hand-x86
