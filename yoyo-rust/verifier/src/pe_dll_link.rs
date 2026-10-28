@@ -3143,6 +3143,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // +RET YOYO-owned; JMP/CALL/JCC/ALLOC/STB/RAW_* still emit_x86.
     // Extend FIXED10 = fold golden (禁). Next ≥10 = control-flow +RET
     // seed compose / OW-RT. Not CLOSED. OW-RT remains CUT.
+    // S3.500: control-flow +RET YOYO object-seed compose (CALL/JMP/JCC
+    // rel32=0 ≡ undefined label; JCC poke cc). Next ≥10 = ALLOC+RET
+    // seed compose / OW-RT. Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.

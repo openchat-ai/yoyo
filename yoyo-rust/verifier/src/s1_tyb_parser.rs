@@ -8584,14 +8584,71 @@ fn try_memcpy_state_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
     Some(text)
 }
 
+/// S3.500: JCC op → x86 cc byte (matches emit_x86).
+fn s3_jcc_cc(op: u8) -> Option<u8> {
+    Some(match op {
+        0x71 => 0x84,
+        0x72 => 0x85,
+        0x73 => 0x8C,
+        0x74 => 0x8D,
+        0x75 => 0x8E,
+        0x76 => 0x8F,
+        0x77 => 0x82,
+        0x78 => 0x83,
+        0x79 => 0x86,
+        0x7A => 0x87,
+        _ => return None,
+    })
+}
+
+/// S3.500: control-flow +RET via CALL/JMP/JCC object seeds (rel32=0 ≡
+/// undefined label). **Not** FIXED10 fold; no pass-2 patch here.
+fn try_emit_cf_ret_via_yoyo_seed(ops: &[u8]) -> Option<Vec<u8>> {
+    if ops.len() != 2 || ops[1] != 0xFF {
+        return None;
+    }
+    let mut text = match ops[0] {
+        0x41 => S3_CALL_BODY_SEED.to_vec(),
+        0x70 => S3_JMP_BODY_SEED.to_vec(),
+        op if (0x71..=0x7A).contains(&op) => {
+            let mut j = S3_JCC_BODY_SEED.to_vec();
+            j[1] = s3_jcc_cc(op)?;
+            j
+        }
+        _ => return None,
+    };
+    text.push(0xC3);
+    Some(text)
+}
+
+/// S3.500: TYB → CF+RET when argc=1 (rel32 left 0; no LABEL in prog).
+fn try_cf_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
+    if prog.records.len() != 2 {
+        return None;
+    }
+    let cf = &prog.records[0];
+    let ret = &prog.records[1];
+    if ret.op != 0xFF || ret.argc != 0 {
+        return None;
+    }
+    if cf.argc != 1 || arg_u32(cf).is_none() {
+        return None;
+    }
+    // Defined LABEL would need pass-2 — refuse if any LABEL present.
+    if prog.records.iter().any(|r| r.op == 0x40) {
+        return None;
+    }
+    try_emit_cf_ret_via_yoyo_seed(&[cf.op, 0xFF])
+}
+
 /// Host-side YOYO table compose → `.text` bytes.
-/// `None` if `ops` outside the fixed template subset (and S3.494–498 seeds).
+/// `None` if `ops` outside the fixed template subset (and S3.494–500 seeds).
 /// S3.350: call cursor directly (default-seed `s3_sim_prog_loop` is cfg(test)).
 pub fn try_emit_text_via_yoyo_table(ops: &[u8]) -> Option<Vec<u8>> {
     if ops.is_empty() || ops.len() > 8 {
         return None;
     }
-    // S3.494–498: non-fixed10 YOYO compose — object seeds (no golden fold).
+    // S3.494–500: non-fixed10 YOYO compose — object seeds (no golden fold).
     if let Some(text) = try_emit_imul_ret_via_yoyo_seed(ops) {
         return Some(text);
     }
@@ -8605,6 +8662,9 @@ pub fn try_emit_text_via_yoyo_table(ops: &[u8]) -> Option<Vec<u8>> {
         return Some(text);
     }
     if let Some(text) = try_emit_memcpy_state_ret_via_yoyo_seed(ops) {
+        return Some(text);
+    }
+    if let Some(text) = try_emit_cf_ret_via_yoyo_seed(ops) {
         return Some(text);
     }
     if !ops.iter().all(|o| S3_FIXED10_OPS.contains(o)) {
@@ -8739,6 +8799,22 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         }
     }
     if let Some(text) = try_memcpy_state_ret_tyb(&prog) {
+        #[cfg(windows)]
+        {
+            return Some(crate::pe_link::PeImage {
+                bytes: s3_compile_pe_patch_text(&text),
+            });
+        }
+        #[cfg(not(windows))]
+        {
+            return wrap_pe_slim(&CodegenOutput {
+                text,
+                data: Vec::new(),
+            })
+            .ok();
+        }
+    }
+    if let Some(text) = try_cf_ret_tyb(&prog) {
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
@@ -13936,10 +14012,7 @@ mod tests {
             assert!(this.contains(p), "missing owned compose {p}");
         }
         assert!(owned.len() >= 10);
-        // Still outside YOYO seed compose (emit_x86 fallthrough).
-        assert!(try_emit_text_via_yoyo_table(&[0x70, 0xFF]).is_none()); // JMP
-        assert!(try_emit_text_via_yoyo_table(&[0x41, 0xFF]).is_none()); // CALL
-        assert!(try_emit_text_via_yoyo_table(&[0x71, 0xFF]).is_none()); // JCC
+        // Still outside as of map tip (S3.500 may own CF later).
         assert!(try_emit_text_via_yoyo_table(&[0x20, 0xFF]).is_none()); // ALLOC
         assert!(try_emit_text_via_yoyo_table(&[0x81, 0xFF]).is_none()); // STB
         // Owned still green; FIXED10 untouched.
@@ -13963,6 +14036,98 @@ mod tests {
                 .len(),
             173
         );
+    }
+
+    /// S3.500: control-flow +RET YOYO compose — `S3_CALL/JMP/JCC_BODY_SEED`‖C3
+    /// (rel32=0 ≡ undefined label; JCC poke cc @+1). No LABEL/pass-2.
+    /// Not FIXED10 fold. ALLOC/STB/RAW_* still emit_x86. bake/ASM/IR
+    /// unchanged. Next ≥10 = ALLOC+RET seed compose / OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_cf_ret_yoyo_seed_compose_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        let this = include_str!("s1_tyb_parser.rs");
+        assert!(this.contains("S3.500") || pe_dll.contains("S3.500"));
+        assert!(
+            this.contains("try_emit_cf_ret_via_yoyo_seed")
+                && this.contains("try_cf_ret_tyb")
+                && this.contains("s3_jcc_cc")
+        );
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        let pins = [
+            "try_emit_cf_ret_via_yoyo_seed",
+            "try_cf_ret_tyb",
+            "s3_jcc_cc",
+            "S3_CALL_BODY_SEED",
+            "S3_JMP_BODY_SEED",
+            "S3_JCC_BODY_SEED",
+            "S3.500",
+            "undefined label",
+            "S3_FIXED10_OPS",
+            "try_emit_text_via_yoyo_table",
+            "try_compile_tyb_via_yoyo_table",
+        ];
+        for p in pins {
+            assert!(this.contains(p), "missing CF+RET pin {p}");
+        }
+        assert!(pins.len() >= 10);
+        assert_eq!(S3_FIXED10_OPS.len(), 10);
+        assert!(!S3_FIXED10_OPS.contains(&0x70));
+        assert!(!S3_FIXED10_OPS.contains(&0x41));
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+        // JMP / CALL
+        let cf_cases: [(u8, &[u8]); 2] = [
+            (0x70, &S3_JMP_BODY_SEED),
+            (0x41, &S3_CALL_BODY_SEED),
+        ];
+        for (op, seed) in cf_cases {
+            let via = try_emit_text_via_yoyo_table(&[op, 0xFF]).expect("CF YOYO");
+            assert_eq!(&via[..seed.len()], seed);
+            assert_eq!(*via.last().unwrap(), 0xC3);
+            let tyb = tyb_from_records(&[(op, 1, [0, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])]);
+            let rust = emit_x86(&parse_tyb(&tyb).unwrap()).text;
+            assert_eq!(via, rust, "op={op:#x}");
+            assert!(try_compile_tyb_via_yoyo_table(&tyb).is_some());
+            assert!(fixed_template_ops(&parse_tyb(&tyb).unwrap()).is_none());
+        }
+        // JE (0x71) poke cc=0x84
+        let via_je = try_emit_text_via_yoyo_table(&[0x71, 0xFF]).expect("JE");
+        assert_eq!(via_je[0], 0x0F);
+        assert_eq!(via_je[1], 0x84);
+        assert_eq!(via_je.len(), 7);
+        let tyb_je = tyb_from_records(&[(0x71, 1, [1, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])]);
+        assert_eq!(via_je, emit_x86(&parse_tyb(&tyb_je).unwrap()).text);
+        assert!(try_compile_tyb_via_yoyo_table(&tyb_je).is_some());
+        // All 10 JCC ops compose.
+        for op in 0x71u8..=0x7Au8 {
+            let via = try_emit_text_via_yoyo_table(&[op, 0xFF]).expect("JCC");
+            assert_eq!(via[1], s3_jcc_cc(op).unwrap());
+        }
+        // LABEL present → refuse (needs pass-2).
+        let with_lab = tyb_from_records(&[
+            (0x40, 1, [0, 0, 0, 0, 0, 0]),
+            (0x70, 1, [0, 0, 0, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        // 3 records → try_cf_ret_tyb None; also not fixed10.
+        assert!(try_compile_tyb_via_yoyo_table(&with_lab).is_none());
+        // ALLOC / STB still outside.
+        assert!(try_emit_text_via_yoyo_table(&[0x20, 0xFF]).is_none());
+        assert!(try_emit_text_via_yoyo_table(&[0x81, 0xFF]).is_none());
     }
 
     /// S3.492: YOYO-built compile cliff reject. Freezing more pe_dll hand-x86
