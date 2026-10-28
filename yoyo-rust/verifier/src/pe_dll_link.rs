@@ -3188,6 +3188,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.515: STB+LDB+MEMCPY_DATA+MEMCPY_STATE any-slot≤255 batch
     // (rsi/rdi/movzx/add/rep seeds + mini validate). Next ≥10 =
     // CMP any-slot / multi-op mix / OW-RT. Not CLOSED. OW-RT remains CUT.
+    // S3.516: CMP any-slot + fixed10-ish multi-op mix (SET/GET/MOVRR/
+    // ADD/SUB/INC/DEC/CMP/NOP chain+RET via load/store/ALU seeds; activates
+    // when fixed_template_ops refuses). Next ≥10 = LABEL residual / bare
+    // op / OW-RT. Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.

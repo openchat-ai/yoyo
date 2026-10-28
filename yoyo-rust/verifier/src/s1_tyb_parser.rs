@@ -1307,8 +1307,9 @@ pub fn validate_tyb_mini(prog: &TybProgram) -> crate::types::IsaResult<()> {
                 }
                 let dst = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]);
                 let src = u16::from_le_bytes([rec.args_raw[2], rec.args_raw[3]]);
-                if !mini_slot_disp8_ok(dst) || !mini_slot_disp8_ok(src) {
-                    return bad(i, format!("s1 mini GET/MOVRR slot disp32 unsupported"));
+                // S3.516: GET/MOVRR any-slot≤255
+                if !mini_slot_any_ok(dst) || !mini_slot_any_ok(src) {
+                    return bad(i, "s1 mini GET/MOVRR slot out of range (>255)".into());
                 }
             }
             0x61 | 0x62 => {
@@ -1319,8 +1320,12 @@ pub fn validate_tyb_mini(prog: &TybProgram) -> crate::types::IsaResult<()> {
                     );
                 }
                 let slot = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]);
-                if !mini_slot_disp8_ok(slot) {
-                    return bad(i, format!("s1 mini ADD/SUB slot {slot} disp32 unsupported"));
+                // S3.516: ADD/SUB any-slot≤255
+                if !mini_slot_any_ok(slot) {
+                    return bad(
+                        i,
+                        format!("s1 mini ADD/SUB slot {slot} out of range (>255)"),
+                    );
                 }
             }
             0x66 | 0x67 => {
@@ -1331,8 +1336,12 @@ pub fn validate_tyb_mini(prog: &TybProgram) -> crate::types::IsaResult<()> {
                     );
                 }
                 let slot = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]);
-                if !mini_slot_disp8_ok(slot) {
-                    return bad(i, format!("s1 mini INC/DEC slot {slot} disp32 unsupported"));
+                // S3.516: INC/DEC any-slot≤255
+                if !mini_slot_any_ok(slot) {
+                    return bad(
+                        i,
+                        format!("s1 mini INC/DEC slot {slot} out of range (>255)"),
+                    );
                 }
             }
             0x63 | 0x65 | 0x68 | 0x69 | 0x6A => {
@@ -1347,13 +1356,12 @@ pub fn validate_tyb_mini(prog: &TybProgram) -> crate::types::IsaResult<()> {
                 }
                 let a = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]);
                 let b = u16::from_le_bytes([rec.args_raw[2], rec.args_raw[3]]);
-                // S3.514: IMUL/ALUV any-slot≤255 (host≡in-DLL lift); CMP stays disp8.
-                if matches!(rec.op, 0x63 | 0x68 | 0x69 | 0x6A) {
-                    if !mini_slot_any_ok(a) || !mini_slot_any_ok(b) {
-                        return bad(i, "s1 mini IMUL/ALUV slot out of range (>255)".into());
-                    }
-                } else if !mini_slot_disp8_ok(a) || !mini_slot_disp8_ok(b) {
-                    return bad(i, "s1 mini ALU-reg/CMP slot disp32 unsupported".into());
+                // S3.514/S3.516: IMUL/ALUV/CMP any-slot≤255 (host≡in-DLL lift).
+                if !mini_slot_any_ok(a) || !mini_slot_any_ok(b) {
+                    return bad(
+                        i,
+                        "s1 mini IMUL/CMP/ALUV slot out of range (>255)".into(),
+                    );
                 }
             }
             0x80 => {
@@ -2874,6 +2882,16 @@ pub const S3_ADD_RAX_IMM32_SEED: [u8; 7] = [0x48, 0x81, 0xc0, 0x00, 0x00, 0x00, 
 pub const S3_ADD_RAX_IMM8_SEED: [u8; 4] = [0x48, 0x83, 0xc0, 0x00];
 pub const S3_STORE_CL_RAX_SEED: [u8; 2] = [0x88, 0x08];
 pub const S3_REP_MOVSB_SEED: [u8; 2] = [0xf3, 0xa4];
+
+/// S3.516: fixed10-ish ALU host seeds (CMP / INC / DEC / SUB / MOVABS).
+pub const S3_CMP_RAX_RCX_SEED: [u8; 3] = [0x48, 0x39, 0xc8];
+pub const S3_INC_RAX_SEED: [u8; 3] = [0x48, 0xff, 0xc0];
+pub const S3_DEC_RAX_SEED: [u8; 3] = [0x48, 0xff, 0xc8];
+pub const S3_SUB_RAX_IMM32_SEED: [u8; 7] = [0x48, 0x81, 0xe8, 0x00, 0x00, 0x00, 0x00];
+/// `movabs rax, imm64` — poke imm32 @+2 (high dword stays 0).
+pub const S3_MOVABS_RAX_IMM64_SEED: [u8; 10] = [
+    0x48, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
 
 /// S3.514/S3.515: poke disp into a 4B disp8 or 7B disp32 load/store seed.
 fn s3_push_r15_mem_op(out: &mut Vec<u8>, slot: u16, disp8: &[u8; 4], disp32: &[u8; 7]) {
@@ -8954,6 +8972,118 @@ fn try_compose_cf_nop_label_ret_via_yoyo_seed(cf_op: u8) -> Option<Vec<u8>> {
 }
 
 /// S3.510: TYB → CF + NOP + LABEL same-id + RET (forward pass-2).
+/// S3.516: compose one fixed10-ish ALU body (SET/GET/MOVRR/ADD/SUB/INC/DEC/CMP/NOP)
+/// via load/store + ALU host seeds. Any slot≤255; any imm for SET/ADD/SUB.
+/// **Not** folded into `S3_FIXED10_OPS` / golden.
+fn s3_compose_slot_alu_body(rec: &TybRecord) -> Option<Vec<u8>> {
+    match rec.op {
+        0x00 => {
+            if rec.argc != 0 {
+                return None;
+            }
+            Some(vec![0x90])
+        }
+        0x30 => {
+            let (slot, imm) = arg_slot_imm(rec)?;
+            if !mini_slot_any_ok(slot) {
+                return None;
+            }
+            let mut body = Vec::with_capacity(20);
+            let mut m = S3_MOVABS_RAX_IMM64_SEED;
+            m[2..6].copy_from_slice(&imm.to_le_bytes());
+            body.extend_from_slice(&m);
+            s3_push_store_rax_slot(&mut body, slot);
+            Some(body)
+        }
+        0x60 | 0x64 => {
+            let (dst, src) = arg_slot_slot(rec)?;
+            if !mini_slot_any_ok(dst) || !mini_slot_any_ok(src) {
+                return None;
+            }
+            let mut body = Vec::with_capacity(16);
+            s3_push_load_rax_slot(&mut body, src);
+            s3_push_store_rax_slot(&mut body, dst);
+            Some(body)
+        }
+        0x61 | 0x62 => {
+            let (slot, imm) = arg_slot_imm(rec)?;
+            if !mini_slot_any_ok(slot) {
+                return None;
+            }
+            let mut body = Vec::with_capacity(24);
+            s3_push_load_rax_slot(&mut body, slot);
+            if rec.op == 0x61 {
+                let mut sub = S3_SUB_RAX_IMM32_SEED;
+                sub[3..7].copy_from_slice(&imm.to_le_bytes());
+                body.extend_from_slice(&sub);
+            } else {
+                let mut add = S3_ADD_RAX_IMM32_SEED;
+                add[3..7].copy_from_slice(&imm.to_le_bytes());
+                body.extend_from_slice(&add);
+            }
+            s3_push_store_rax_slot(&mut body, slot);
+            Some(body)
+        }
+        0x66 | 0x67 => {
+            let slot = arg_u32(rec)? as u16;
+            if !mini_slot_any_ok(slot) {
+                return None;
+            }
+            let mut body = Vec::with_capacity(16);
+            s3_push_load_rax_slot(&mut body, slot);
+            if rec.op == 0x66 {
+                body.extend_from_slice(&S3_INC_RAX_SEED);
+            } else {
+                body.extend_from_slice(&S3_DEC_RAX_SEED);
+            }
+            s3_push_store_rax_slot(&mut body, slot);
+            Some(body)
+        }
+        0x65 => {
+            let (a, b) = arg_slot_slot(rec)?;
+            if !mini_slot_any_ok(a) || !mini_slot_any_ok(b) {
+                return None;
+            }
+            let mut body = Vec::with_capacity(20);
+            s3_push_load_rax_slot(&mut body, a);
+            s3_push_load_rcx_slot(&mut body, b);
+            body.extend_from_slice(&S3_CMP_RAX_RCX_SEED);
+            Some(body)
+        }
+        _ => None,
+    }
+}
+
+/// S3.516: CMP any-slot + fixed10-ish multi-op mix +RET.
+/// Chains SET/GET/MOVRR/ADD/SUB/INC/DEC/CMP/NOP then RET (2..=8 records).
+/// Activates only when `fixed_template_ops` refuses (wrong-slot / non-canonical
+/// imm / multi-op outside default image seeds) — **does not** fold FIXED10.
+fn try_slot_alu_chain_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
+    let n = prog.records.len();
+    if !(2..=8).contains(&n) {
+        return None;
+    }
+    let last = prog.records.last()?;
+    if last.op != 0xFF || last.argc != 0 {
+        return None;
+    }
+    // Leave default-slot fixed10 PE/image path alone (禁折 FIXED10).
+    if fixed_template_ops(prog).is_some() {
+        return None;
+    }
+    let mut text = Vec::with_capacity(64);
+    for rec in &prog.records[..n - 1] {
+        let body = s3_compose_slot_alu_body(rec)?;
+        text.extend_from_slice(&body);
+    }
+    text.push(0xC3);
+    if text.len() > S1_SLIM_MAX_CODE {
+        return None;
+    }
+    Some(text)
+}
+
+/// S3.510: CF+NOP+LABEL+RET — forward pass-2 (NOP filler ⇒ rel≠0).
 fn try_cf_nop_label_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
     if prog.records.len() != 4 {
         return None;
@@ -9645,6 +9775,23 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         }
     }
     if let Some(text) = try_cf_nop_label_ret_tyb(&prog) {
+        #[cfg(windows)]
+        {
+            return Some(crate::pe_link::PeImage {
+                bytes: s3_compile_pe_patch_text(&text),
+            });
+        }
+        #[cfg(not(windows))]
+        {
+            return wrap_pe_slim(&CodegenOutput {
+                text,
+                data: Vec::new(),
+            })
+            .ok();
+        }
+    }
+    // S3.516: CMP any-slot + fixed10-ish multi-op mix (non-default slots/imm).
+    if let Some(text) = try_slot_alu_chain_ret_tyb(&prog) {
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
@@ -15595,12 +15742,12 @@ mod tests {
         // Witnesses: still outside YOYO try_*
         assert!(try_emit_text_via_yoyo_table(&[0xA1]).is_none()); // RAW_BYTES bare
         assert!(try_emit_text_via_yoyo_table(&[0x20]).is_none()); // bare
-        // CMP still disp8-only
+        // CMP slot≥16 owned by S3.516 — green
         let cmp_big = tyb_from_records(&[
             (0x65, 2, [16, 0, 17, 0, 0, 0]),
             (0xFF, 0, [0; 6]),
         ]);
-        assert!(try_compile_tyb_via_yoyo_table(&cmp_big).is_none());
+        assert!(try_compile_tyb_via_yoyo_table(&cmp_big).is_some());
         // mem any-slot owned by S3.515 — green
         assert!(try_stb_ret_tyb(
             &parse_tyb(&tyb_from_records(&[
@@ -16260,6 +16407,129 @@ mod tests {
             (0xFF, 0, [0; 6]),
         ]);
         assert!(try_stb_ret_tyb(&parse_tyb(&bad).unwrap()).is_none());
+    }
+
+    /// S3.516: CMP any-slot + fixed10-ish multi-op mix — SET/GET/MOVRR/
+    /// ADD/SUB/INC/DEC/CMP/NOP chain+RET via load/store/ALU host seeds +
+    /// mini validate lift. Activates when `fixed_template_ops` refuses
+    /// (wrong-slot / non-canonical imm). **Not** FIXED10 fold. bake=362.
+    /// Next ≥10 = LABEL residual / bare op / OW-RT.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_cmp_any_slot_multi_op_mix_yoyo_seed_compose_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        let this = include_str!("s1_tyb_parser.rs");
+        assert!(this.contains("S3.516") || pe_dll.contains("S3.516"));
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        let pins = [
+            "S3.516",
+            "S3_CMP_RAX_RCX_SEED",
+            "S3_INC_RAX_SEED",
+            "S3_DEC_RAX_SEED",
+            "S3_SUB_RAX_IMM32_SEED",
+            "S3_MOVABS_RAX_IMM64_SEED",
+            "s3_compose_slot_alu_body",
+            "try_slot_alu_chain_ret_tyb",
+            "CMP any-slot",
+            "multi-op mix",
+            "fixed_template_ops(prog).is_some()",
+        ];
+        for p in pins {
+            assert!(this.contains(p), "missing CMP/multi-op pin {p}");
+        }
+        assert!(pins.len() >= 10);
+        assert_eq!(S3_FIXED10_OPS.len(), 10);
+        assert!(S3_FIXED10_OPS.contains(&0x65)); // CMP still in fixed10; not folded away
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+        // CMP a=16 b=17 + RET
+        let tyb_cmp = tyb_from_records(&[
+            (0x65, 2, [16, 0, 17, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let via_cmp = try_slot_alu_chain_ret_tyb(&parse_tyb(&tyb_cmp).unwrap()).expect("CMP");
+        assert_eq!(via_cmp, emit_x86(&parse_tyb(&tyb_cmp).unwrap()).text);
+        assert_eq!(
+            try_compile_tyb_via_yoyo_table(&tyb_cmp)
+                .unwrap()
+                .bytes,
+            compile_tyb_to_pe_mini(&tyb_cmp).unwrap().bytes
+        );
+        assert!(fixed_template_ops(&parse_tyb(&tyb_cmp).unwrap()).is_none());
+        // GET dst=20 src=21
+        let tyb_get = tyb_from_records(&[
+            (0x60, 2, [20, 0, 21, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let via_get = try_slot_alu_chain_ret_tyb(&parse_tyb(&tyb_get).unwrap()).expect("GET");
+        assert_eq!(via_get, emit_x86(&parse_tyb(&tyb_get).unwrap()).text);
+        assert!(try_compile_tyb_via_yoyo_table(&tyb_get).is_some());
+        // INC slot=18
+        let tyb_inc = tyb_from_records(&[(0x66, 1, [18, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])]);
+        assert_eq!(
+            try_slot_alu_chain_ret_tyb(&parse_tyb(&tyb_inc).unwrap()).unwrap(),
+            emit_x86(&parse_tyb(&tyb_inc).unwrap()).text
+        );
+        // ADD slot=16 imm=7 (non-canonical imm)
+        let tyb_add = tyb_from_records(&[
+            (0x62, 2, [16, 0, 7, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        assert_eq!(
+            try_slot_alu_chain_ret_tyb(&parse_tyb(&tyb_add).unwrap()).unwrap(),
+            emit_x86(&parse_tyb(&tyb_add).unwrap()).text
+        );
+        // SET slot=16 imm=0xAABBCCDD
+        let tyb_set = tyb_from_records(&[
+            (0x30, 2, [16, 0, 0xDD, 0xCC, 0xBB, 0xAA]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        assert_eq!(
+            try_slot_alu_chain_ret_tyb(&parse_tyb(&tyb_set).unwrap()).unwrap(),
+            emit_x86(&parse_tyb(&tyb_set).unwrap()).text
+        );
+        // multi-op mix: INC16 + CMP16,17 + RET
+        let tyb_mix = tyb_from_records(&[
+            (0x66, 1, [16, 0, 0, 0, 0, 0]),
+            (0x65, 2, [16, 0, 17, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let via_mix = try_slot_alu_chain_ret_tyb(&parse_tyb(&tyb_mix).unwrap()).expect("mix");
+        assert_eq!(via_mix, emit_x86(&parse_tyb(&tyb_mix).unwrap()).text);
+        assert_eq!(
+            try_compile_tyb_via_yoyo_table(&tyb_mix)
+                .unwrap()
+                .bytes,
+            compile_tyb_to_pe_mini(&tyb_mix).unwrap().bytes
+        );
+        // default-slot CMP 0,1 stays on FIXED10 path (chain refuses)
+        let tyb_def = tyb_from_records(&[
+            (0x65, 2, [0, 0, 1, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        assert!(try_slot_alu_chain_ret_tyb(&parse_tyb(&tyb_def).unwrap()).is_none());
+        assert!(fixed_template_ops(&parse_tyb(&tyb_def).unwrap()).is_some());
+        assert!(try_compile_tyb_via_yoyo_table(&tyb_def).is_some());
+        // slot>255 refuses validate
+        let bad = tyb_from_records(&[
+            (0x65, 2, [0, 1, 0, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        assert!(validate_tyb_mini(&parse_tyb(&bad).unwrap()).is_err());
+        assert!(try_compile_tyb_via_yoyo_table(&bad).is_none());
     }
 
     /// S3.492: YOYO-built compile cliff reject. Freezing more pe_dll hand-x86
