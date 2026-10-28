@@ -3281,6 +3281,11 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // mini bake + call-time write; export/oracle ≠ in-DLL compiler.
     // CLOSED needs compile machine code inside export. Next ≥10 =
     // IR-in-DLL slice / Gate I. Not CLOSED. OW-RT remains CUT.
+    // S3.525 / M1: mutate-after-load proof — same linked in-DLL recompile
+    // DLL, different cwd TYB → different output.exe via S1.5.b call-time
+    // mini (yoyo_sidecar_in_dll_call_time_invoke). Mini ≠ full compiler;
+    // production Rust sidecar unchanged. Next ≥10 = M2 H_00 path / Gate I.
+    // Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -7733,6 +7738,17 @@ pub fn yoyo_sidecar_in_dll_recompile(work_dir: &Path) -> i32 {
         Ok(d) => d,
         Err(_) => return EXIT_WRITE_FAIL,
     };
+    yoyo_sidecar_in_dll_call_time_invoke(&dll, work_dir)
+}
+
+/// S3.525 / M1: place pre-linked in-DLL recompile DLL and invoke export once.
+///
+/// Call-time: export `ReadFile`s cwd `input.*`; TYB → S1.5.b mini codegen
+/// inside the DLL (not host bake). **Same `dll` bytes + different cwd input
+/// ⇒ different `output.exe`** is the M1 mutate-after-load proof.
+///
+/// Honest: mini-ISA ≠ full YOYO compiler; production default remains Rust → CUT.
+pub fn yoyo_sidecar_in_dll_call_time_invoke(dll: &[u8], work_dir: &Path) -> i32 {
     let sidecar = work_dir.join(RUNTIME_SIDECAR_NAME);
     if let Some(parent) = sidecar.parent() {
         if !parent.as_os_str().is_empty() {
@@ -7741,7 +7757,7 @@ pub fn yoyo_sidecar_in_dll_recompile(work_dir: &Path) -> i32 {
             }
         }
     }
-    if std::fs::write(&sidecar, &dll).is_err() {
+    if std::fs::write(&sidecar, dll).is_err() {
         return EXIT_WRITE_FAIL;
     }
 
@@ -7750,18 +7766,21 @@ pub fn yoyo_sidecar_in_dll_recompile(work_dir: &Path) -> i32 {
 
     #[cfg(windows)]
     {
-        match call_export_compile_mapped(&dll, work_dir) {
+        match call_export_compile_mapped(dll, work_dir) {
             Ok(code) => code,
             Err(_) => EXIT_WRITE_FAIL,
         }
     }
     #[cfg(not(windows))]
     {
+        let entries = match gate_g_recompile_entries() {
+            Ok(e) => e,
+            Err(_) => return EXIT_COMPILE_FAIL,
+        };
         let input = match read_cwd_input(work_dir) {
             Ok(d) => d,
             Err(e) => return e,
         };
-        // S1.5.a: TYB → compile_tyb_to_pe; else oracle (same order as resolve_recompile_input).
         match resolve_recompile_input(&entries, &input) {
             Some(pe) => {
                 if std::fs::write(&out_path, pe).is_err() {
@@ -8685,6 +8704,48 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+
+    /// S3.525 / M1: same DLL bytes, mutate cwd TYB after link → output changes
+    /// and ≡ host `compile_tyb_to_pe_mini`. Proves call-time S1.5.b (not 523
+    /// bake/write). Not OW-RT CLOSED (mini ≠ full; Rust sidecar default).
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_sidecar_in_dll_m1_mutate_after_load_call_time_pin() {
+        let entries = gate_g_recompile_entries().expect("entries");
+        let dll = link_yoyo_in_dll_recompile_dll(&entries).expect("link once");
+        let dir = temp_work("m1-mutate");
+        // --- invoke 1: RET ---
+        let tyb_ret = {
+            let mut t = Vec::new();
+            t.extend_from_slice(b"TYB\0");
+            t.extend_from_slice(&[0, 0]);
+            t.extend_from_slice(&1u16.to_le_bytes());
+            t.extend_from_slice(&[0xFF, 0, 0, 0, 0, 0, 0, 0]);
+            t
+        };
+        std::fs::write(dir.join("input.tyb"), &tyb_ret).expect("write ret");
+        assert_eq!(yoyo_sidecar_in_dll_call_time_invoke(&dll, &dir), EXIT_OK);
+        let out1 = std::fs::read(dir.join(OUTPUT_NAME)).expect("out1");
+        let expect1 = crate::s1_tyb_parser::compile_tyb_to_pe_mini(&tyb_ret)
+            .unwrap()
+            .bytes;
+        assert_eq!(out1, expect1, "call-time RET ≡ mini");
+        // --- invoke 2: same DLL, SET+RET (mutate input) ---
+        let tyb_set = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x30);
+        std::fs::write(dir.join("input.tyb"), &tyb_set).expect("write set");
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        assert_eq!(yoyo_sidecar_in_dll_call_time_invoke(&dll, &dir), EXIT_OK);
+        let out2 = std::fs::read(dir.join(OUTPUT_NAME)).expect("out2");
+        let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_mini(&tyb_set)
+            .unwrap()
+            .bytes;
+        assert_eq!(out2, expect2, "call-time SET+RET ≡ mini");
+        assert_ne!(out1, out2, "M1: mutate input after load must change PE");
+        // DLL file on disk unchanged across invokes (same bytes we linked)
+        let on_disk = std::fs::read(dir.join(RUNTIME_SIDECAR_NAME)).expect("dll");
+        assert_eq!(on_disk, dll, "sidecar DLL bytes stable across call-time invokes");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     /// S3.410/S3.411: in-DLL all fixed10+RET ≡ host `compile_tyb_to_pe` (shared
     /// PE template seed S3.407). Mini still emits; not OW-RT CLOSED.
