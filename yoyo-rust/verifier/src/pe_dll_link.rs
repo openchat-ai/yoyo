@@ -3127,6 +3127,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.494: IMUL+RET YOYO object-seed compose (`S3_IMUL_BODY_SEED`‖C3,
     // slots 0,1) — not FIXED10 fold. Wrong slots/ALUV still emit_x86.
     // Next ≥10 = ALUV+RET seed compose / OW-RT. Not CLOSED. OW-RT remains CUT.
+    // S3.495: ALUV+RET YOYO object-seed compose (`S3_ALUV_BODY_SEED`‖C3 +
+    // opcode poke @+9) slots 0,1 — not FIXED10. Next ≥10 = LDB+RET seed
+    // compose / OW-RT. Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
