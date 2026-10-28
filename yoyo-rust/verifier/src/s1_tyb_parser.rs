@@ -1347,7 +1347,12 @@ pub fn validate_tyb_mini(prog: &TybProgram) -> crate::types::IsaResult<()> {
                 }
                 let a = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]);
                 let b = u16::from_le_bytes([rec.args_raw[2], rec.args_raw[3]]);
-                if !mini_slot_disp8_ok(a) || !mini_slot_disp8_ok(b) {
+                // S3.514: IMUL/ALUV any-slot≤255 (host≡in-DLL lift); CMP stays disp8.
+                if matches!(rec.op, 0x63 | 0x68 | 0x69 | 0x6A) {
+                    if !mini_slot_any_ok(a) || !mini_slot_any_ok(b) {
+                        return bad(i, "s1 mini IMUL/ALUV slot out of range (>255)".into());
+                    }
+                } else if !mini_slot_disp8_ok(a) || !mini_slot_disp8_ok(b) {
                     return bad(i, "s1 mini ALU-reg/CMP slot disp32 unsupported".into());
                 }
             }
@@ -2843,6 +2848,59 @@ pub const S3_STORE_RAX_DISP8_SEED: [u8; 4] = [0x49, 0x89, 0x47, 0x00];
 
 /// S3.431: `mov [r15+disp32], rax` (7B). Bake +355; poke disp @+3.
 pub const S3_STORE_RAX_DISP32_SEED: [u8; 7] = [0x49, 0x89, 0x87, 0x00, 0x00, 0x00, 0x00];
+
+/// S3.514: host `mov rax,[r15+disp8]` (4B). Not bake append.
+pub const S3_LOAD_RAX_DISP8_SEED: [u8; 4] = [0x49, 0x8b, 0x47, 0x00];
+/// S3.514: host `mov rax,[r15+disp32]` (7B).
+pub const S3_LOAD_RAX_DISP32_SEED: [u8; 7] = [0x49, 0x8b, 0x87, 0x00, 0x00, 0x00, 0x00];
+/// S3.514: host `mov rcx,[r15+disp8]` (4B).
+pub const S3_LOAD_RCX_DISP8_SEED: [u8; 4] = [0x49, 0x8b, 0x4f, 0x00];
+/// S3.514: host `mov rcx,[r15+disp32]` (7B).
+pub const S3_LOAD_RCX_DISP32_SEED: [u8; 7] = [0x49, 0x8b, 0x8f, 0x00, 0x00, 0x00, 0x00];
+/// S3.514: `imul rax, rcx` (4B).
+pub const S3_IMUL_RAX_RCX_SEED: [u8; 4] = [0x48, 0x0f, 0xaf, 0xc1];
+
+/// S3.514: append load rax,[r15+slot*8] via disp8/32 host seeds.
+fn s3_push_load_rax_slot(out: &mut Vec<u8>, slot: u16) {
+    let disp = (slot as u32) * 8;
+    if disp <= 127 {
+        let mut s = S3_LOAD_RAX_DISP8_SEED;
+        s[3] = disp as u8;
+        out.extend_from_slice(&s);
+    } else {
+        let mut s = S3_LOAD_RAX_DISP32_SEED;
+        s[3..7].copy_from_slice(&disp.to_le_bytes());
+        out.extend_from_slice(&s);
+    }
+}
+
+/// S3.514: append load rcx,[r15+slot*8] via disp8/32 host seeds.
+fn s3_push_load_rcx_slot(out: &mut Vec<u8>, slot: u16) {
+    let disp = (slot as u32) * 8;
+    if disp <= 127 {
+        let mut s = S3_LOAD_RCX_DISP8_SEED;
+        s[3] = disp as u8;
+        out.extend_from_slice(&s);
+    } else {
+        let mut s = S3_LOAD_RCX_DISP32_SEED;
+        s[3..7].copy_from_slice(&disp.to_le_bytes());
+        out.extend_from_slice(&s);
+    }
+}
+
+/// S3.514: append store [r15+slot*8],rax via existing store seeds.
+fn s3_push_store_rax_slot(out: &mut Vec<u8>, slot: u16) {
+    let disp = (slot as u32) * 8;
+    if disp <= 127 {
+        let mut s = S3_STORE_RAX_DISP8_SEED;
+        s[3] = disp as u8;
+        out.extend_from_slice(&s);
+    } else {
+        let mut s = S3_STORE_RAX_DISP32_SEED;
+        s[3..7].copy_from_slice(&disp.to_le_bytes());
+        out.extend_from_slice(&s);
+    }
+}
 
 static S3_FIXED10_BODY_SEED: [&[u8]; 10] = [
     /* 0xff RET */ &[0xc3],
@@ -8457,20 +8515,31 @@ fn try_emit_imul_ret_via_yoyo_seed(ops: &[u8]) -> Option<Vec<u8>> {
     try_compose_imul_ret_via_yoyo_seed(0, 1)
 }
 
-/// S3.511: compose IMUL body — poke dst@+3 / src@+7 / store@+15 (disp8).
+/// S3.511/S3.514: compose IMUL — disp8 seed poke, or load/store seed compose
+/// for any slot≤255 (disp32 when needed).
 fn try_compose_imul_ret_via_yoyo_seed(dst: u16, src: u16) -> Option<Vec<u8>> {
-    if !mini_slot_disp8_ok(dst) || !mini_slot_disp8_ok(src) {
+    if !mini_slot_any_ok(dst) || !mini_slot_any_ok(src) {
         return None;
     }
-    let mut text = S3_IMUL_BODY_SEED.to_vec();
-    text[3] = (dst as u8) * 8;
-    text[7] = (src as u8) * 8;
-    text[15] = (dst as u8) * 8;
+    if mini_slot_disp8_ok(dst) && mini_slot_disp8_ok(src) {
+        let mut text = S3_IMUL_BODY_SEED.to_vec();
+        text[3] = (dst as u8) * 8;
+        text[7] = (src as u8) * 8;
+        text[15] = (dst as u8) * 8;
+        text.push(0xC3);
+        return Some(text);
+    }
+    // S3.514: variable disp8/32 via host load/store seeds
+    let mut text = Vec::with_capacity(28);
+    s3_push_load_rax_slot(&mut text, dst);
+    s3_push_load_rcx_slot(&mut text, src);
+    text.extend_from_slice(&S3_IMUL_RAX_RCX_SEED);
+    s3_push_store_rax_slot(&mut text, dst);
     text.push(0xC3);
     Some(text)
 }
 
-/// S3.494/S3.511: TYB → IMUL+RET (disp8 slots).
+/// S3.494/S3.511/S3.514: TYB → IMUL+RET ops (slot≤255).
 fn try_imul_ret_ops(prog: &TybProgram) -> Option<[u8; 2]> {
     if prog.records.len() != 2 {
         return None;
@@ -8481,13 +8550,13 @@ fn try_imul_ret_ops(prog: &TybProgram) -> Option<[u8; 2]> {
         return None;
     }
     let (dst, src) = arg_slot_slot(imul)?;
-    if !mini_slot_disp8_ok(dst) || !mini_slot_disp8_ok(src) {
+    if !mini_slot_any_ok(dst) || !mini_slot_any_ok(src) {
         return None;
     }
     Some([0x63, 0xFF])
 }
 
-/// S3.511: TYB → IMUL+RET text with slot poke (disp8).
+/// S3.511/S3.514: TYB → IMUL+RET text (slot≤255).
 fn try_imul_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
     if prog.records.len() != 2 {
         return None;
@@ -8511,9 +8580,9 @@ fn try_emit_aluv_ret_via_yoyo_seed(ops: &[u8]) -> Option<Vec<u8>> {
     try_compose_aluv_ret_via_yoyo_seed(ops[0], 0, 1)
 }
 
-/// S3.511: compose ALUV body — poke dst/src/store disp8 + alu opcode@+9.
+/// S3.511/S3.514: compose ALUV — disp8 seed or load/store seed compose (≤255).
 fn try_compose_aluv_ret_via_yoyo_seed(op: u8, dst: u16, src: u16) -> Option<Vec<u8>> {
-    if !mini_slot_disp8_ok(dst) || !mini_slot_disp8_ok(src) {
+    if !mini_slot_any_ok(dst) || !mini_slot_any_ok(src) {
         return None;
     }
     let poke = match op {
@@ -8522,16 +8591,26 @@ fn try_compose_aluv_ret_via_yoyo_seed(op: u8, dst: u16, src: u16) -> Option<Vec<
         0x6A => 0x29u8, // SUBV
         _ => return None,
     };
-    let mut text = S3_ALUV_BODY_SEED.to_vec();
-    text[3] = (dst as u8) * 8;
-    text[7] = (src as u8) * 8;
-    text[9] = poke;
-    text[14] = (dst as u8) * 8;
+    if mini_slot_disp8_ok(dst) && mini_slot_disp8_ok(src) {
+        let mut text = S3_ALUV_BODY_SEED.to_vec();
+        text[3] = (dst as u8) * 8;
+        text[7] = (src as u8) * 8;
+        text[9] = poke;
+        text[14] = (dst as u8) * 8;
+        text.push(0xC3);
+        return Some(text);
+    }
+    // S3.514: load/store seeds + alu byte
+    let mut text = Vec::with_capacity(28);
+    s3_push_load_rax_slot(&mut text, dst);
+    s3_push_load_rcx_slot(&mut text, src);
+    text.extend_from_slice(&[0x48, poke, 0xc8]); // alu rax, rcx
+    s3_push_store_rax_slot(&mut text, dst);
     text.push(0xC3);
     Some(text)
 }
 
-/// S3.495/S3.511: TYB → ALUV+RET ops when slots disp8.
+/// S3.495/S3.511/S3.514: TYB → ALUV+RET ops (slot≤255).
 fn try_aluv_ret_ops(prog: &TybProgram) -> Option<[u8; 2]> {
     if prog.records.len() != 2 {
         return None;
@@ -8542,13 +8621,13 @@ fn try_aluv_ret_ops(prog: &TybProgram) -> Option<[u8; 2]> {
         return None;
     }
     let (dst, src) = arg_slot_slot(alu)?;
-    if !mini_slot_disp8_ok(dst) || !mini_slot_disp8_ok(src) {
+    if !mini_slot_any_ok(dst) || !mini_slot_any_ok(src) {
         return None;
     }
     Some([alu.op, 0xFF])
 }
 
-/// S3.511: TYB → ALUV+RET text with slot poke (disp8).
+/// S3.511/S3.514: TYB → ALUV+RET text (slot≤255).
 fn try_aluv_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
     if prog.records.len() != 2 {
         return None;
@@ -15413,9 +15492,9 @@ mod tests {
 
     /// S3.508: host YOYO compose gap inventory. Single-op+RET surface largely
     /// owned (494–507+). Remaining emit_x86 fallthrough cliffs (≥10):
-    /// LABEL+pass-2 residual · STB slot≥16 · ALUV slot≥16 · RAW_BYTES bare ·
+    /// LABEL+pass-2 residual · STB slot≥16 residual · RAW_BYTES bare ·
     /// bare op · mixed non-DATA multi · FIXED10 fold ban · bake pin ·
-    /// OW-RT CUT · YOYO-built cliff. (STB oo>127 = S3.513.)
+    /// OW-RT CUT · YOYO-built cliff. (IMUL/ALUV slot≥16 = S3.514.)
     /// Next ≥10 = LABEL+CF+RET / OW-RT. Not CLOSED.
     #[test]
     #[cfg(windows)]
@@ -15434,7 +15513,7 @@ mod tests {
         let gaps = [
             "LABEL+pass-2 residual",
             "STB slot≥16",
-            "ALUV slot≥16",
+            "STB slot≥16 residual",
             "RAW_BYTES bare",
             "bare op",
             "mixed non-DATA multi",
@@ -15455,15 +15534,19 @@ mod tests {
         assert!(try_emit_text_via_yoyo_table(&[0xA1]).is_none()); // RAW_BYTES bare
         assert!(try_emit_text_via_yoyo_table(&[0x20]).is_none()); // bare
         let stb_slot = tyb_from_records(&[
-            (0x81, 3, [16, 0, 0, 0, 0, 0]), // val slot≥16
+            (0x81, 3, [16, 0, 0, 0, 0, 0]), // STB val slot≥16 residual
             (0xFF, 0, [0; 6]),
         ]);
         assert!(try_stb_ret_tyb(&parse_tyb(&stb_slot).unwrap()).is_none());
-        let aluv_bad = tyb_from_records(&[
-            (0x68, 2, [16, 0, 17, 0, 0, 0]), // slot≥16 → beyond disp8
-            (0xFF, 0, [0; 6]),
-        ]);
-        assert!(try_aluv_ret_ops(&parse_tyb(&aluv_bad).unwrap()).is_none());
+        // IMUL/ALUV slot≥16 owned by S3.514 — still green
+        assert!(try_aluv_ret_ops(
+            &parse_tyb(&tyb_from_records(&[
+                (0x68, 2, [16, 0, 17, 0, 0, 0]),
+                (0xFF, 0, [0; 6]),
+            ]))
+            .unwrap()
+        )
+        .is_some());
         let labeled = tyb_from_records(&[
             (0x40, 1, [1, 0, 0, 0, 0, 0]),
             (0x41, 1, [1, 0, 0, 0, 0, 0]),
@@ -15756,12 +15839,12 @@ mod tests {
         assert_eq!(via_a[7], 32);
         assert_eq!(via_a[14], 24);
         assert!(try_compile_tyb_via_yoyo_table(&tyb_a).is_some());
-        // slot≥16 still outside
+        // slot≥16 = S3.514
         let big = tyb_from_records(&[
             (0x63, 2, [16, 0, 0, 0, 0, 0]),
             (0xFF, 0, [0; 6]),
         ]);
-        assert!(try_imul_ret_tyb(&parse_tyb(&big).unwrap()).is_none());
+        assert!(try_imul_ret_tyb(&parse_tyb(&big).unwrap()).is_some());
     }
 
     /// S3.512: RAW_BYTES+RET ops-path — `S3_RAW_BYTES_RET_OPS_DEFAULT`‖C3
@@ -15835,6 +15918,91 @@ mod tests {
         assert!(try_compile_tyb_via_yoyo_table(&tyb2).is_some());
         // bare still outside
         assert!(try_emit_text_via_yoyo_table(&[0xA1]).is_none());
+    }
+
+    /// S3.514: IMUL/ALUV+RET any-slot≤255 — load/store host seeds compose
+    /// disp8|disp32. validate mini lifted for IMUL/ALUV. Not FIXED10.
+    /// Next ≥10 = STB slot≥16 / OW-RT.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_imul_aluv_any_slot_yoyo_seed_compose_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        let this = include_str!("s1_tyb_parser.rs");
+        assert!(this.contains("S3.514") || pe_dll.contains("S3.514"));
+        assert!(
+            this.contains("s3_push_load_rax_slot")
+                && this.contains("s3_push_load_rcx_slot")
+                && this.contains("s3_push_store_rax_slot")
+                && this.contains("S3_LOAD_RAX_DISP32_SEED")
+        );
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        let pins = [
+            "s3_push_load_rax_slot",
+            "s3_push_load_rcx_slot",
+            "s3_push_store_rax_slot",
+            "S3_LOAD_RAX_DISP32_SEED",
+            "S3_LOAD_RCX_DISP32_SEED",
+            "S3_IMUL_RAX_RCX_SEED",
+            "S3.514",
+            "mini_slot_any_ok",
+            "S3_FIXED10_OPS",
+            "try_imul_ret_tyb",
+            "try_aluv_ret_tyb",
+        ];
+        for p in pins {
+            assert!(this.contains(p), "missing any-slot pin {p}");
+        }
+        assert!(pins.len() >= 10);
+        assert_eq!(S3_FIXED10_OPS.len(), 10);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+        // both ≥16
+        let tyb = tyb_from_records(&[
+            (0x63, 2, [16, 0, 17, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let via = try_imul_ret_tyb(&parse_tyb(&tyb).unwrap()).expect("IMUL16");
+        assert_eq!(via, emit_x86(&parse_tyb(&tyb).unwrap()).text);
+        assert_eq!(via.len(), 26); // 25+C3
+        let pe_y = try_compile_tyb_via_yoyo_table(&tyb).expect("yoyo");
+        let pe_m = compile_tyb_to_pe_mini(&tyb).expect("mini");
+        assert_eq!(pe_y.bytes, pe_m.bytes);
+        // mix disp8+disp32
+        let tyb_m = tyb_from_records(&[
+            (0x63, 2, [0, 0, 16, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let via_m = try_imul_ret_tyb(&parse_tyb(&tyb_m).unwrap()).expect("mix");
+        assert_eq!(via_m, emit_x86(&parse_tyb(&tyb_m).unwrap()).text);
+        assert_eq!(via_m.len(), 20); // 19+C3
+        assert!(try_compile_tyb_via_yoyo_table(&tyb_m).is_some());
+        // ALUV slot 20,21
+        let tyb_a = tyb_from_records(&[
+            (0x6A, 2, [20, 0, 21, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let via_a = try_aluv_ret_tyb(&parse_tyb(&tyb_a).unwrap()).expect("ALUV");
+        assert_eq!(via_a, emit_x86(&parse_tyb(&tyb_a).unwrap()).text);
+        assert!(try_compile_tyb_via_yoyo_table(&tyb_a).is_some());
+        // slot>255 refuses
+        let bad = tyb_from_records(&[
+            (0x63, 2, [0, 1, 0, 0, 0, 0]), // dst=256
+            (0xFF, 0, [0; 6]),
+        ]);
+        assert!(try_imul_ret_tyb(&parse_tyb(&bad).unwrap()).is_none());
     }
 
     /// S3.513: STB+RET oo>127 YOYO compose — `S3_STB_OO_IMM32_BODY_SEED`
