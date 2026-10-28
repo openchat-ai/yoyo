@@ -8388,12 +8388,46 @@ fn s3_try_emit_via_pe(ops: &[u8]) -> Option<Vec<u8>> {
     Some(s3_run_slim_pe_outbuf_at(&pe, S3_HOST_OUTBUF_OFF, len))
 }
 
+/// S3.494: IMUL+RET via own-ISA object seed (`S3_IMUL_BODY_SEED`‖C3).
+/// Seed hardcodes dst=0/src=1 (disp 0/8) — same contract as fixed-template
+/// slot gates. **Not** folded into `S3_FIXED10_OPS` (golden/layout 禁折).
+fn try_emit_imul_ret_via_yoyo_seed(ops: &[u8]) -> Option<Vec<u8>> {
+    if ops != [0x63, 0xFF] {
+        return None;
+    }
+    let mut text = Vec::with_capacity(S3_IMUL_BODY_SEED.len() + 1);
+    text.extend_from_slice(&S3_IMUL_BODY_SEED);
+    text.push(0xC3); // RET ≡ fixed10 RET body
+    Some(text)
+}
+
+/// S3.494: TYB → IMUL+RET ops only when slots match the object seed (0,1).
+fn try_imul_ret_ops(prog: &TybProgram) -> Option<[u8; 2]> {
+    if prog.records.len() != 2 {
+        return None;
+    }
+    let imul = &prog.records[0];
+    let ret = &prog.records[1];
+    if imul.op != 0x63 || ret.op != 0xFF || ret.argc != 0 {
+        return None;
+    }
+    let (dst, src) = arg_slot_slot(imul)?;
+    if dst != 0 || src != 1 {
+        return None;
+    }
+    Some([0x63, 0xFF])
+}
+
 /// Host-side YOYO table compose → `.text` bytes.
-/// `None` if `ops` outside the fixed template subset.
+/// `None` if `ops` outside the fixed template subset (and S3.494 IMUL+RET).
 /// S3.350: call cursor directly (default-seed `s3_sim_prog_loop` is cfg(test)).
 pub fn try_emit_text_via_yoyo_table(ops: &[u8]) -> Option<Vec<u8>> {
     if ops.is_empty() || ops.len() > 8 {
         return None;
+    }
+    // S3.494: non-fixed10 YOYO compose — IMUL+RET object seed (no golden fold).
+    if let Some(text) = try_emit_imul_ret_via_yoyo_seed(ops) {
+        return Some(text);
     }
     if !ops.iter().all(|o| S3_FIXED10_OPS.contains(o)) {
         return None;
@@ -8459,6 +8493,24 @@ fn s3_compile_pe_patch_text_data(text: &[u8], data: &[u8]) -> Vec<u8> {
 pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeImage> {
     let prog = parse_tyb(tyb).ok()?;
     validate_tyb_mini(&prog).ok()?;
+    // S3.494: IMUL+RET (slots 0,1) → YOYO object-seed compose; not FIXED10.
+    if let Some(ops) = try_imul_ret_ops(&prog) {
+        let text = try_emit_imul_ret_via_yoyo_seed(&ops)?;
+        #[cfg(windows)]
+        {
+            return Some(crate::pe_link::PeImage {
+                bytes: s3_compile_pe_patch_text(&text),
+            });
+        }
+        #[cfg(not(windows))]
+        {
+            return wrap_pe_slim(&CodegenOutput {
+                text,
+                data: Vec::new(),
+            })
+            .ok();
+        }
+    }
     let ops = fixed_template_ops(&prog)?;
     // S3.397/S3.400: Windows — RET/SET+RET image seeds; else patch text into
     // compile RET template (no wrap — gap T).
@@ -13177,9 +13229,90 @@ mod tests {
                 .len(),
             173
         );
-        // fixed10 still YOYO-path; a non-fixed10 op is outside table.
+        // fixed10 still YOYO-path; bare IMUL (no RET) still outside (S3.494 needs +RET).
         assert!(try_emit_text_via_yoyo_table(&[0xFF]).is_some());
-        assert!(try_emit_text_via_yoyo_table(&[0x63]).is_none()); // IMUL ≠ fixed10
+        assert!(try_emit_text_via_yoyo_table(&[0x63]).is_none()); // bare IMUL ≠ path
+    }
+
+    /// S3.494: non-fixed10 YOYO compose — IMUL+RET via `S3_IMUL_BODY_SEED`‖C3
+    /// (slots 0,1). Does **not** extend `S3_FIXED10_OPS` / fold golden.
+    /// Wrong slots / bare IMUL / ALUV still emit_x86 fallthrough. bake=362 /
+    /// ASM_PIN=22 / host IR=173 unchanged. Next ≥10 = ALUV+RET seed compose
+    /// / OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_imul_ret_yoyo_seed_compose_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        let this = include_str!("s1_tyb_parser.rs");
+        assert!(this.contains("S3.494") || pe_dll.contains("S3.494"));
+        assert!(
+            this.contains("try_emit_imul_ret_via_yoyo_seed")
+                && this.contains("try_imul_ret_ops")
+        );
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        // ≥10 YOYO-owned assemble / gate inventory (no FIXED10 fold).
+        let pins = [
+            "try_emit_imul_ret_via_yoyo_seed",
+            "try_imul_ret_ops",
+            "S3_IMUL_BODY_SEED",
+            "S3.494",
+            "non-fixed10 YOYO compose",
+            "0x63, 0xFF",
+            "dst != 0 || src != 1",
+            "s3_compile_pe_patch_text",
+            "S3_FIXED10_OPS",
+            "try_emit_text_via_yoyo_table",
+            "try_compile_tyb_via_yoyo_table",
+        ];
+        for p in pins {
+            assert!(this.contains(p), "missing IMUL+RET pin {p}");
+        }
+        assert!(pins.len() >= 10);
+        assert_eq!(S3_FIXED10_OPS.len(), 10);
+        assert!(!S3_FIXED10_OPS.contains(&0x63), "IMUL must not fold FIXED10");
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+        assert_eq!(S3_IMUL_BODY_SEED.len(), 16);
+        let via = try_emit_text_via_yoyo_table(&[0x63, 0xFF]).expect("IMUL+RET YOYO");
+        assert_eq!(via.len(), 17);
+        assert_eq!(&via[..16], &S3_IMUL_BODY_SEED);
+        assert_eq!(*via.last().unwrap(), 0xC3);
+        let rust = emit_x86(
+            &parse_tyb(&tyb_from_records(&[
+                (0x63, 2, [0, 0, 1, 0, 0, 0]),
+                (0xFF, 0, [0; 6]),
+            ]))
+            .unwrap(),
+        )
+        .text;
+        assert_eq!(via, rust, "YOYO seed ≡ emit_x86 for slots 0,1");
+        let tyb = tyb_from_records(&[(0x63, 2, [0, 0, 1, 0, 0, 0]), (0xFF, 0, [0; 6])]);
+        let pe_y = try_compile_tyb_via_yoyo_table(&tyb).expect("yoyo pe");
+        let pe_m = compile_tyb_to_pe_mini(&tyb).expect("mini pe");
+        assert_eq!(pe_y.bytes, pe_m.bytes, "mini prefers YOYO IMUL+RET path");
+        assert_eq!(
+            slim_pe_user_text(&pe_y.bytes, via.len()).unwrap(),
+            via.as_slice()
+        );
+        assert!(fixed_template_ops(&parse_tyb(&tyb).unwrap()).is_none());
+        // Wrong slots / bare IMUL / ALUV still outside.
+        assert!(try_emit_text_via_yoyo_table(&[0x63]).is_none());
+        assert!(try_emit_text_via_yoyo_table(&[0x68, 0xFF]).is_none());
+        let wrong = tyb_from_records(&[(0x63, 2, [1, 0, 2, 0, 0, 0]), (0xFF, 0, [0; 6])]);
+        assert!(try_compile_tyb_via_yoyo_table(&wrong).is_none());
     }
 
     /// S3.492: YOYO-built compile cliff reject. Freezing more pe_dll hand-x86
@@ -18814,9 +18947,18 @@ mod tests {
             assert_eq!(t_y, t_r, "PE user text ops={ops:?}");
             assert_eq!(fixed_template_ops(&parse_tyb(&tyb).unwrap()).unwrap(), *ops);
         }
-        // Outside subset → None (IMUL not in table)
-        assert!(try_emit_text_via_yoyo_table(&[0x63, 0xFF]).is_none());
-        let other = tyb_from_records(&[(0x63, 2, [0, 0, 1, 0, 0, 0]), (0xFF, 0, [0; 6])]);
+        // S3.494: IMUL+RET slots 0,1 = YOYO seed path; still ≠ FIXED10.
+        let imul_ops: &[u8] = &[0x63, 0xFF];
+        let imul_sem: &[(u8, u8, [u8; 6])] =
+            &[(0x63, 2, [0, 0, 1, 0, 0, 0]), (0xFF, 0, [0; 6])];
+        let via_imul = try_emit_text_via_yoyo_table(imul_ops).expect("IMUL+RET yoyo");
+        let rust_imul = emit_x86(&parse_tyb(&tyb_from_records(imul_sem)).unwrap()).text;
+        assert_eq!(via_imul, rust_imul);
+        let tyb_imul = tyb_from_records(imul_sem);
+        assert!(try_compile_tyb_via_yoyo_table(&tyb_imul).is_some());
+        assert!(fixed_template_ops(&parse_tyb(&tyb_imul).unwrap()).is_none());
+        // Wrong IMUL slots still outside YOYO table/seed path.
+        let other = tyb_from_records(&[(0x63, 2, [1, 0, 2, 0, 0, 0]), (0xFF, 0, [0; 6])]);
         assert!(try_compile_tyb_via_yoyo_table(&other).is_none());
         assert!(fixed_template_ops(&parse_tyb(&other).unwrap()).is_none());
     }
@@ -18838,14 +18980,24 @@ mod tests {
             slim_pe_user_text(&pe_mini.bytes, text.len()).unwrap(),
             text.as_slice()
         );
-        // Non-subset (IMUL) still compiles via emit_x86 fallback
+        // S3.494: IMUL+RET slots 0,1 = YOYO seed path (mini prefers it too).
         let imul_ret = tyb_from_records(&[(0x63, 2, [0, 0, 1, 0, 0, 0]), (0xFF, 0, [0; 6])]);
-        assert!(try_compile_tyb_via_yoyo_table(&imul_ret).is_none());
-        let pe_imul = compile_tyb_to_pe_mini(&imul_ret).expect("imul fallback");
+        let pe_imul_y = try_compile_tyb_via_yoyo_table(&imul_ret).expect("imul yoyo");
+        let pe_imul_m = compile_tyb_to_pe_mini(&imul_ret).expect("imul mini");
+        assert_eq!(pe_imul_y.bytes, pe_imul_m.bytes);
         let expect = emit_x86(&parse_tyb(&imul_ret).unwrap()).text;
         assert_eq!(
-            slim_pe_user_text(&pe_imul.bytes, expect.len()).unwrap(),
+            slim_pe_user_text(&pe_imul_m.bytes, expect.len()).unwrap(),
             expect.as_slice()
+        );
+        // Wrong-slot IMUL still emit_x86 fallback (outside YOYO seed).
+        let imul_wrong = tyb_from_records(&[(0x63, 2, [1, 0, 2, 0, 0, 0]), (0xFF, 0, [0; 6])]);
+        assert!(try_compile_tyb_via_yoyo_table(&imul_wrong).is_none());
+        let pe_wrong = compile_tyb_to_pe_mini(&imul_wrong).expect("imul fallback");
+        let expect_w = emit_x86(&parse_tyb(&imul_wrong).unwrap()).text;
+        assert_eq!(
+            slim_pe_user_text(&pe_wrong.bytes, expect_w.len()).unwrap(),
+            expect_w.as_slice()
         );
     }
 }
