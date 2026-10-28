@@ -380,6 +380,24 @@ pub fn place_cwd_runtime_sidecar(out_path: &Path, rust_dll: &[u8]) -> IsaResult<
     }
 }
 
+/// S3.528 / M4-prep: blockers that keep production cwd sidecar on Rust.
+///
+/// Flip (default = YOYO in-DLL DLL) is **ABSENT** until every entry is cleared.
+/// Clearing ≠ OW-RT CLOSED by itself — inventory `closed` is a separate gate.
+pub fn yoyo_m4_production_flip_blockers() -> &'static [&'static str] {
+    &[
+        "in-DLL compile is mini-ISA only (≠ full YOYO / gen4 yoyo.tyb)",
+        "Gate I full (gen4 + yoyo.tyb + no Rust) remains RED",
+        "production place_cwd default still Rust (ALT unset)",
+        "inventory OW-RT disposition=CUT (closed=0)",
+    ]
+}
+
+/// S3.528 / M4-prep: production flip ready? Always `false` while blockers remain.
+pub fn yoyo_m4_production_flip_ready() -> bool {
+    yoyo_m4_production_flip_blockers().is_empty()
+}
+
 /// Exit contract shared with Rust `yoyo_runtime_selfhost_main`.
 pub const EXIT_OK: i32 = 0;
 pub const EXIT_COMPILE_FAIL: i32 = 1;
@@ -3338,6 +3356,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.527 / M3: `YOYO_OW_RT_ALT_SIDECAR=in-dll` → place_cwd writes M1
     // in-DLL DLL (not probe); H_00 subset still GREEN. Default remains Rust.
     // Next ≥10 = M4 production flip / OW-RT. Not CLOSED. OW-RT remains CUT.
+    // S3.528 / M4-prep: production flip ABSENT — default still Rust; flip
+    // blocked until in-DLL ≠ mini-only + inventory allows CLOSED. Not CLOSED.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -8974,6 +8994,36 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&dir);
         let _ = std::fs::remove_dir_all(&dir2);
+    }
+
+    /// S3.528 / M4-prep: production flip ABSENT — blockers non-empty; default
+    /// place_cwd still Rust when env unset. Not OW-RT CLOSED.
+    #[test]
+    fn yoyo_m4_production_flip_absent_cliff_pin() {
+        assert!(
+            !yoyo_m4_production_flip_ready(),
+            "M4 flip must stay ABSENT while blockers listed"
+        );
+        let blockers = yoyo_m4_production_flip_blockers();
+        assert!(blockers.len() >= 3, "honest blocker list");
+        assert!(blockers.iter().any(|b| b.contains("mini-ISA")));
+        assert!(blockers.iter().any(|b| b.contains("Gate I full")));
+        assert!(blockers.iter().any(|b| b.contains("CUT") || b.contains("closed=0")));
+        // Default path still Rust when env off (this process must not set ALT).
+        if matches!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off) {
+            let dir = temp_work("m4-flip-absent");
+            let rustish = b"MZ\0RUST_DEFAULT_STILL_________________________";
+            let kind = place_cwd_runtime_sidecar(&dir.join(RUNTIME_SIDECAR_NAME), rustish)
+                .expect("place");
+            assert_eq!(kind, CwdSidecarKind::Rust);
+            assert_eq!(std::fs::read(dir.join(RUNTIME_SIDECAR_NAME)).unwrap(), rustish);
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+        assert!(
+            include_str!("pe_dll_link.rs").contains("yoyo_m4_production_flip_blockers")
+                && include_str!("pe_dll_link.rs").contains("S3.528 / M4-prep"),
+            "M4-prep cliff must stay named in pe_dll_link"
+        );
     }
 
     /// S3.527 / M3: `YOYO_OW_RT_ALT_SIDECAR=in-dll` → place_cwd writes M1 DLL;
