@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.501**（500 control-flow +RET YOYO seed compose；下一刀=ALLOC+RET seed compose / OW-RT；**不**假 CLOSED）。
+**默认** 继续 **= S3.502**（501 ALLOC+RET YOYO seed compose；下一刀=STB+RET seed compose / OW-RT；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -178,9 +178,10 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.498** ✅ | — | MEMCPY_STATE+RET YOYO object-seed compose（loop PAIR；n∈1..=4） |
 | **S3.499** ✅ | — | post-non-fixed10 seed compose map（IMUL..MCPS owned；CF/I/O 仍 emit_x86） |
 | **S3.500** ✅ | — | control-flow +RET YOYO object-seed compose（CALL/JMP/JCC；rel32=0） |
-| **S3.501** ⏳ | — | **本步**：ALLOC+RET seed compose / OW-RT |
+| **S3.501** ✅ | — | ALLOC+RET YOYO object-seed compose（PREFIX+STORE_DISP32） |
+| **S3.502** ⏳ | — | **本步**：STB+RET seed compose / OW-RT |
 
-**缺口**：fixed10 + IMUL..MCPS/CF+RET=YOYO；ALLOC/STB/RAW_*/I/O 仍 emit_x86。扩 S3_FIXED10=折 golden（禁）。下一刀=ALLOC+RET · OW-RT。禁 pe_dll densify。无假 CLOSED。bake=362 · s3_=310。
+**缺口**：fixed10 + IMUL..MCPS/CF/ALLOC+RET=YOYO；STB/LOAD/WRITE/RAW_* 仍 emit_x86。扩 S3_FIXED10=折 golden（禁）。下一刀=STB+RET · OW-RT。禁 pe_dll densify。无假 CLOSED。bake=362 · s3_=311。
 
 ---
 
@@ -214,7 +215,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.500**（control-flow +RET seed compose / OW-RT；禁 densify / 禁折 FIXED10）。做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.501**（ALLOC+RET seed compose / OW-RT；禁 densify / 禁折 FIXED10）。做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -222,4 +223,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-28**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.500** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 看板已再折（波段+近窗）
+**快照 2026-10-28**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.501** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 看板已再折（波段+近窗）
