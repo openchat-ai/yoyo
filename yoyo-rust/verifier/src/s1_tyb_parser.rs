@@ -8747,14 +8747,58 @@ fn try_stb_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
     Some(text)
 }
 
+/// S3.503: RAW_BYTE+RET ops-path default payload byte (NOP). TYB carries real.
+pub const S3_RAW_BYTE_RET_OPS_DEFAULT: u8 = 0x90;
+
+/// S3.503: RAW_BYTE+RET — literal byte‖C3 (YOYO payload, not FIXED10).
+/// `ops=[0xA0,0xFF]` → NOP‖C3. In-DLL `S3_RAW_BYTE_EMIT_BODY_SEED` = emitter ≠ this.
+fn try_emit_raw_byte_ret_via_yoyo_seed(ops: &[u8]) -> Option<Vec<u8>> {
+    if ops != [0xA0, 0xFF] {
+        return None;
+    }
+    Some(vec![S3_RAW_BYTE_RET_OPS_DEFAULT, 0xC3])
+}
+
+/// S3.503: TYB → RAW_BYTE+RET (argc=1).
+fn try_raw_byte_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
+    if prog.records.len() != 2 {
+        return None;
+    }
+    let raw = &prog.records[0];
+    let ret = &prog.records[1];
+    if raw.op != 0xA0 || ret.op != 0xFF || ret.argc != 0 {
+        return None;
+    }
+    let b = arg_u32(raw)? as u8;
+    Some(vec![b, 0xC3])
+}
+
+/// S3.503: TYB → RAW_BYTES+RET (argc 1..=3 low-bytes‖C3).
+fn try_raw_bytes_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
+    if prog.records.len() != 2 {
+        return None;
+    }
+    let raw = &prog.records[0];
+    let ret = &prog.records[1];
+    if raw.op != 0xA1 || ret.op != 0xFF || ret.argc != 0 {
+        return None;
+    }
+    if raw.argc == 0 || raw.argc > 3 {
+        return None;
+    }
+    let mut text = arg_low_bytes(raw);
+    text.push(0xC3);
+    Some(text)
+}
+
 /// Host-side YOYO table compose → `.text` bytes.
-/// `None` if `ops` outside the fixed template subset (and S3.494–502 seeds).
+/// `None` if `ops` outside the fixed template subset (and S3.494–503 seeds).
 /// S3.350: call cursor directly (default-seed `s3_sim_prog_loop` is cfg(test)).
 pub fn try_emit_text_via_yoyo_table(ops: &[u8]) -> Option<Vec<u8>> {
     if ops.is_empty() || ops.len() > 8 {
         return None;
     }
-    // S3.494–502: non-fixed10 YOYO compose — object seeds (no golden fold).
+    // S3.494–503: non-fixed10 YOYO compose — object seeds (no golden fold).
     if let Some(text) = try_emit_imul_ret_via_yoyo_seed(ops) {
         return Some(text);
     }
@@ -8777,6 +8821,9 @@ pub fn try_emit_text_via_yoyo_table(ops: &[u8]) -> Option<Vec<u8>> {
         return Some(text);
     }
     if let Some(text) = try_emit_stb_ret_via_yoyo_seed(ops) {
+        return Some(text);
+    }
+    if let Some(text) = try_emit_raw_byte_ret_via_yoyo_seed(ops) {
         return Some(text);
     }
     if !ops.iter().all(|o| S3_FIXED10_OPS.contains(o)) {
@@ -8959,6 +9006,38 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         }
     }
     if let Some(text) = try_stb_ret_tyb(&prog) {
+        #[cfg(windows)]
+        {
+            return Some(crate::pe_link::PeImage {
+                bytes: s3_compile_pe_patch_text(&text),
+            });
+        }
+        #[cfg(not(windows))]
+        {
+            return wrap_pe_slim(&CodegenOutput {
+                text,
+                data: Vec::new(),
+            })
+            .ok();
+        }
+    }
+    if let Some(text) = try_raw_byte_ret_tyb(&prog) {
+        #[cfg(windows)]
+        {
+            return Some(crate::pe_link::PeImage {
+                bytes: s3_compile_pe_patch_text(&text),
+            });
+        }
+        #[cfg(not(windows))]
+        {
+            return wrap_pe_slim(&CodegenOutput {
+                text,
+                data: Vec::new(),
+            })
+            .ok();
+        }
+    }
+    if let Some(text) = try_raw_bytes_ret_tyb(&prog) {
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
@@ -14156,8 +14235,8 @@ mod tests {
             assert!(this.contains(p), "missing owned compose {p}");
         }
         assert!(owned.len() >= 10);
-        // Still outside as of map tip (later knives own CF/ALLOC/STB).
-        assert!(try_emit_text_via_yoyo_table(&[0x12, 0xFF]).is_none()); // RAW_BYTE
+        // Still outside as of map tip (later knives own more ops).
+        assert!(try_emit_text_via_yoyo_table(&[0x12, 0xFF]).is_none()); // DATA
         // Owned still green; FIXED10 untouched.
         assert!(try_emit_text_via_yoyo_table(&[0x63, 0xFF]).is_some());
         assert!(try_emit_text_via_yoyo_table(&[0x68, 0xFF]).is_some());
@@ -14354,8 +14433,8 @@ mod tests {
     /// S3.502: STB+RET YOYO compose — `S3_STB_OO0_BODY_SEED` /
     /// `S3_STB_OO_IMM8_BODY_SEED`‖C3 (disp8 val/base; oo=0 or 1..=127).
     /// Host object seeds (not bake append; bake=362). Not FIXED10 fold.
-    /// oo>127 / LOAD/WRITE/RAW_* still emit_x86. Next ≥10 =
-    /// RAW_BYTE+RET seed compose / OW-RT. Not CLOSED.
+    /// oo>127 / LOAD/WRITE still emit_x86. Next ≥10 =
+    /// RAW_BYTE+RET seed compose / OW-RT.
     #[test]
     #[cfg(windows)]
     fn s3_ow_rt_stb_ret_yoyo_seed_compose_pin() {
@@ -14430,13 +14509,93 @@ mod tests {
         assert_eq!(via5[7], 8); // base=1
         assert_eq!(via5[11], 5);
         assert!(try_compile_tyb_via_yoyo_table(&tyb5).is_some());
-        // oo>127 / bare / RAW still outside.
+        // oo>127 / bare still outside (RAW_BYTE = S3.503).
         assert!(try_emit_text_via_yoyo_table(&[0x81]).is_none());
         let big_oo = tyb_from_records(&[
             (0x81, 3, [0, 0, 0, 0, 0x80, 0]),
             (0xFF, 0, [0; 6]),
         ]);
         assert!(try_stb_ret_tyb(&parse_tyb(&big_oo).unwrap()).is_none());
+    }
+
+    /// S3.503: RAW_BYTE / RAW_BYTES +RET YOYO compose — literal payload‖C3.
+    /// ops RAW_BYTE → NOP‖C3 default; TYB carries byte / argc1..=3 low-bytes.
+    /// `S3_RAW_BYTE_EMIT_BODY_SEED` = in-DLL emitter ≠ host payload path.
+    /// Not FIXED10. LOAD/WRITE/DATA still emit_x86. Next ≥10 =
+    /// LOAD_FILE+RET seed compose / OW-RT.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_raw_byte_ret_yoyo_seed_compose_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        let this = include_str!("s1_tyb_parser.rs");
+        assert!(this.contains("S3.503") || pe_dll.contains("S3.503"));
+        assert!(
+            this.contains("try_emit_raw_byte_ret_via_yoyo_seed")
+                && this.contains("try_raw_byte_ret_tyb")
+                && this.contains("try_raw_bytes_ret_tyb")
+        );
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        let pins = [
+            "try_emit_raw_byte_ret_via_yoyo_seed",
+            "try_raw_byte_ret_tyb",
+            "try_raw_bytes_ret_tyb",
+            "S3_RAW_BYTE_RET_OPS_DEFAULT",
+            "S3_RAW_BYTE_EMIT_BODY_SEED",
+            "S3.503",
+            "0xA0",
+            "0xA1",
+            "arg_low_bytes",
+            "S3_FIXED10_OPS",
+            "try_emit_text_via_yoyo_table",
+        ];
+        for p in pins {
+            assert!(this.contains(p), "missing RAW+RET pin {p}");
+        }
+        assert!(pins.len() >= 10);
+        assert_eq!(S3_FIXED10_OPS.len(), 10);
+        assert!(!S3_FIXED10_OPS.contains(&0xA0));
+        assert!(!S3_FIXED10_OPS.contains(&0xA1));
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+        // ops default NOP‖C3
+        let via_ops = try_emit_text_via_yoyo_table(&[0xA0, 0xFF]).expect("RAW_BYTE ops");
+        assert_eq!(via_ops, vec![0x90, 0xC3]);
+        let tyb_nop = tyb_from_records(&[(0xA0, 1, [0x90, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])]);
+        assert_eq!(via_ops, emit_x86(&parse_tyb(&tyb_nop).unwrap()).text);
+        let pe_y = try_compile_tyb_via_yoyo_table(&tyb_nop).expect("yoyo pe");
+        let pe_m = compile_tyb_to_pe_mini(&tyb_nop).expect("mini pe");
+        assert_eq!(pe_y.bytes, pe_m.bytes);
+        assert!(fixed_template_ops(&parse_tyb(&tyb_nop).unwrap()).is_none());
+        // TYB other byte
+        let tyb_cc = tyb_from_records(&[(0xA0, 1, [0xCC, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])]);
+        let via_cc = try_raw_byte_ret_tyb(&parse_tyb(&tyb_cc).unwrap()).expect("CC");
+        assert_eq!(via_cc, vec![0xCC, 0xC3]);
+        assert_eq!(via_cc, emit_x86(&parse_tyb(&tyb_cc).unwrap()).text);
+        assert!(try_compile_tyb_via_yoyo_table(&tyb_cc).is_some());
+        // RAW_BYTES argc=2
+        let tyb_ab = tyb_from_records(&[
+            (0xA1, 2, [0x90, 0, 0xCC, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let via_ab = try_raw_bytes_ret_tyb(&parse_tyb(&tyb_ab).unwrap()).expect("RAW_BYTES");
+        assert_eq!(via_ab, emit_x86(&parse_tyb(&tyb_ab).unwrap()).text);
+        assert!(try_compile_tyb_via_yoyo_table(&tyb_ab).is_some());
+        // bare / DATA / A1 ops-only still outside.
+        assert!(try_emit_text_via_yoyo_table(&[0xA0]).is_none());
+        assert!(try_emit_text_via_yoyo_table(&[0xA1, 0xFF]).is_none());
         assert!(try_emit_text_via_yoyo_table(&[0x12, 0xFF]).is_none());
     }
 
