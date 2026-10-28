@@ -8945,6 +8945,33 @@ fn try_data_section_ret_tyb(prog: &TybProgram) -> Option<(Vec<u8>, Vec<u8>)> {
     Some((vec![0xC3], arg_low_bytes(d)))
 }
 
+/// S3.507: multi DATA|STR|RAW +RET → concat `.data` ‖ text=C3.
+/// ≥2 payload records; total ≤ [`S1_MINI_DATA_MAX`]. **Not** FIXED10.
+fn try_multi_data_section_ret_tyb(prog: &TybProgram) -> Option<(Vec<u8>, Vec<u8>)> {
+    if prog.records.len() < 3 {
+        return None;
+    }
+    let ret = prog.records.last()?;
+    if ret.op != 0xFF || ret.argc != 0 {
+        return None;
+    }
+    let payloads = &prog.records[..prog.records.len() - 1];
+    if payloads.len() < 2 {
+        return None;
+    }
+    let mut data = Vec::new();
+    for d in payloads {
+        if !matches!(d.op, 0x10 | 0x12 | 0x13) || d.argc > 3 {
+            return None;
+        }
+        data.extend(arg_low_bytes(d));
+        if data.len() > S1_MINI_DATA_MAX {
+            return None;
+        }
+    }
+    Some((vec![0xC3], data))
+}
+
 /// Host-side YOYO table compose → `.text` bytes.
 /// `None` if `ops` outside the fixed template subset (and S3.494–506 seeds).
 /// S3.350: call cursor directly (default-seed `s3_sim_prog_loop` is cfg(test)).
@@ -9249,6 +9276,18 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         }
     }
     if let Some((text, data)) = try_data_section_ret_tyb(&prog) {
+        #[cfg(windows)]
+        {
+            return Some(crate::pe_link::PeImage {
+                bytes: s3_compile_pe_patch_text_data(&text, &data),
+            });
+        }
+        #[cfg(not(windows))]
+        {
+            return wrap_pe_slim(&CodegenOutput { text, data }).ok();
+        }
+    }
+    if let Some((text, data)) = try_multi_data_section_ret_tyb(&prog) {
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
@@ -15078,6 +15117,79 @@ mod tests {
         assert!(try_compile_tyb_via_yoyo_table(&tyb_str).is_some());
         // bare still outside (multi-DATA = S3.507).
         assert!(try_emit_text_via_yoyo_table(&[0x10]).is_none());
+    }
+
+    /// S3.507: multi DATA|STR|RAW+RET YOYO compose — concat `.data` ‖ C3.
+    /// ≥2 payload records; ≤S1_MINI_DATA_MAX. Not FIXED10. Next ≥10 =
+    /// host gap inventory / OW-RT.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_multi_data_section_ret_yoyo_seed_compose_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        let this = include_str!("s1_tyb_parser.rs");
+        assert!(this.contains("S3.507") || pe_dll.contains("S3.507"));
+        assert!(this.contains("try_multi_data_section_ret_tyb"));
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        let pins = [
+            "try_multi_data_section_ret_tyb",
+            "try_data_section_ret_tyb",
+            "S3.507",
+            "S1_MINI_DATA_MAX",
+            "0x10",
+            "0x12",
+            "0x13",
+            "arg_low_bytes",
+            "s3_compile_pe_patch_text_data",
+            "S3_FIXED10_OPS",
+            "S3_DATA_APPEND_BODY_SEED",
+        ];
+        for p in pins {
+            assert!(this.contains(p), "missing multi-DATA pin {p}");
+        }
+        assert!(pins.len() >= 10);
+        assert_eq!(S3_FIXED10_OPS.len(), 10);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+        assert_eq!(S1_MINI_DATA_MAX, 384);
+        // STR + RAW + RET
+        let tyb = tyb_from_records(&[
+            (0x12, 2, [0x41, 0, 0x42, 0, 0, 0]),
+            (0x13, 1, [0xFF, 0, 0, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let (t, d) = try_multi_data_section_ret_tyb(&parse_tyb(&tyb).unwrap()).expect("multi");
+        let rust = emit_x86(&parse_tyb(&tyb).unwrap());
+        assert_eq!(t, rust.text);
+        assert_eq!(d, rust.data);
+        assert_eq!(d, vec![0x41, 0x42, 0xFF]);
+        let pe_y = try_compile_tyb_via_yoyo_table(&tyb).expect("yoyo");
+        let pe_m = compile_tyb_to_pe_mini(&tyb).expect("mini");
+        assert_eq!(pe_y.bytes, pe_m.bytes);
+        assert!(fixed_template_ops(&parse_tyb(&tyb).unwrap()).is_none());
+        // single DATA still via S3.506 path, not multi
+        let one = tyb_from_records(&[(0x10, 1, [0x90, 0, 0, 0, 0, 0]), (0xFF, 0, [0; 6])]);
+        assert!(try_multi_data_section_ret_tyb(&parse_tyb(&one).unwrap()).is_none());
+        assert!(try_data_section_ret_tyb(&parse_tyb(&one).unwrap()).is_some());
+        // mixed with non-data refuses
+        let mixed = tyb_from_records(&[
+            (0x10, 1, [1, 0, 0, 0, 0, 0]),
+            (0x30, 2, [0, 0, 0, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        assert!(try_multi_data_section_ret_tyb(&parse_tyb(&mixed).unwrap()).is_none());
     }
 
     /// S3.492: YOYO-built compile cliff reject. Freezing more pe_dll hand-x86
