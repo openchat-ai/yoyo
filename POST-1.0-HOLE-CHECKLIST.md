@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.513**（512 RAW_BYTES ops；下一刀=STB oo>127 / OW-RT）。
+**默认** 继续 **= S3.514**（513 STB oo>127；下一刀=slot≥16 / OW-RT）。
 
 ## 阻塞 / 勿做
 
