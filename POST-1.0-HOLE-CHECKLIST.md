@@ -110,7 +110,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | 刀 | pin | 一句话 |
 | --- | --- | --- |
 | **S3.522–525** ✅ | 7c12713 | Gate F mini → sidecar bake → ABSENT cliff → **M1** mutate-after-load |
-| **S3.526** ✅ | — | **M2**：H_00 seed（yoyo.ty）+ M1 YOYO DLL + mini TYB；Gate I 子集 GREEN |
+| **S3.526** ✅ | 5dcee69 | **M2**：H_00 seed（yoyo.ty）+ M1 YOYO DLL + mini TYB；Gate I 子集 GREEN |
 | **S3.527** ⏳ | — | **本步=M3**：`YOYO_OW_RT_ALT_SIDECAR`（或等价）无 Rust 默认试跑 |
 
 **缺口**：M2（H_00 CreateProcess + YOYO in-DLL mini）已钉；M3=ALT 默认试跑。host 侧面禁作默认 tip。bake=362。明细 → `git log --grep=S3.`。
