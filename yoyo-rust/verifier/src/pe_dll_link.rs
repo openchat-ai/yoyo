@@ -3178,6 +3178,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // OW-RT remains CUT.
     // S3.511: IMUL/ALUV+RET disp8 wrong-slot lift (poke dst/src/store).
     // Next ≥10 = RAW_BYTES ops / OW-RT. Not CLOSED. OW-RT remains CUT.
+    // S3.512: RAW_BYTES+RET ops-path (default NOP‖C3; TYB argc1..=3).
+    // Next ≥10 = STB oo>127 / slot≥16 / OW-RT. Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
