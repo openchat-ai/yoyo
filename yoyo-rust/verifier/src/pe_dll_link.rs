@@ -259,21 +259,52 @@ pub fn link_probe_runtime_dll() -> IsaResult<Vec<u8>> {
     link_pe_dll_export0(&code, RUNTIME_SIDECAR_NAME, RUNTIME_EXPORT_NAME)
 }
 
-/// Env opt-in: place YOYO `pe_dll` probe as cwd `yoyo_rt.dll` instead of Rust.
+/// Env opt-in: place YOYO cwd `yoyo_rt.dll` instead of Rust.
 ///
-/// Gate G **slice only** — must not become production default until full
-/// YOYO-built R→C→W lives inside the sidecar and inventory can fail-closed CLOSED.
+/// Values (case-insensitive):
+/// - unset / `0` / `false` / `off` → Rust (production default)
+/// - `1` / `true` / `yes` / `on` → YOYO **probe** (exit-2 only; Gate G slice)
+/// - `in-dll` / `m1` / `recompile` → YOYO **in-DLL recompile** (M1/M3 call-time mini)
+///
+/// Must not become production default until inventory can fail-closed CLOSED.
 pub const ALT_SIDECAR_ENV: &str = "YOYO_OW_RT_ALT_SIDECAR";
 
-/// True when `YOYO_OW_RT_ALT_SIDECAR` is `1` / `true` / `yes` / `on` (case-insensitive).
-pub fn yoyo_alt_sidecar_enabled() -> bool {
+/// Parsed [`ALT_SIDECAR_ENV`] placement mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AltSidecarMode {
+    /// Production default — caller supplies Rust bytes.
+    Off,
+    /// Gate G probe DLL (fixed exit-2 export).
+    Probe,
+    /// S3.527 / M3: M1 in-DLL recompile DLL (call-time mini).
+    InDll,
+}
+
+/// Parse [`ALT_SIDECAR_ENV`] (unknown non-empty values treated as [`AltSidecarMode::Probe`]
+/// for backward compatibility with Gate G scripts that set `=1`).
+pub fn yoyo_alt_sidecar_mode() -> AltSidecarMode {
     match std::env::var(ALT_SIDECAR_ENV) {
-        Ok(v) => matches!(
-            v.trim().to_ascii_lowercase().as_str(),
-            "1" | "true" | "yes" | "on"
-        ),
-        Err(_) => false,
+        Ok(v) => {
+            let t = v.trim().to_ascii_lowercase();
+            if t.is_empty() || matches!(t.as_str(), "0" | "false" | "no" | "off") {
+                AltSidecarMode::Off
+            } else if matches!(
+                t.as_str(),
+                "in-dll" | "indll" | "in_dll" | "m1" | "recompile" | "in-dll-recompile"
+            ) {
+                AltSidecarMode::InDll
+            } else {
+                // `1` / `true` / `yes` / `on` / anything else historically meant probe
+                AltSidecarMode::Probe
+            }
+        }
+        Err(_) => AltSidecarMode::Off,
     }
+}
+
+/// True when env opts into **any** YOYO cwd sidecar (probe or in-DLL).
+pub fn yoyo_alt_sidecar_enabled() -> bool {
+    !matches!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off)
 }
 
 /// Write YOYO-origin probe PE32+ DLL to `out_path` (typically `…/yoyo_rt.dll`).
@@ -295,43 +326,57 @@ pub fn write_yoyo_alt_sidecar(out_path: &Path) -> IsaResult<Vec<u8>> {
 }
 
 /// Prefer YOYO alt sidecar bytes when env opt-in is set; else `None` (caller uses Rust).
+///
+/// Probe mode → exit-2 DLL; InDll mode → M1 in-DLL recompile DLL.
 pub fn yoyo_alt_sidecar_bytes_if_enabled() -> IsaResult<Option<Vec<u8>>> {
-    if yoyo_alt_sidecar_enabled() {
-        Ok(Some(link_probe_runtime_dll()?))
-    } else {
-        Ok(None)
+    match yoyo_alt_sidecar_mode() {
+        AltSidecarMode::Off => Ok(None),
+        AltSidecarMode::Probe => Ok(Some(link_probe_runtime_dll()?)),
+        AltSidecarMode::InDll => {
+            let entries = gate_g_recompile_entries()?;
+            Ok(Some(link_yoyo_in_dll_recompile_dll(&entries)?))
+        }
     }
 }
 
 /// Which bytes were placed as cwd `yoyo_rt.dll` by [`place_cwd_runtime_sidecar`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CwdSidecarKind {
-    /// YOYO `pe_dll` probe (env opt-in).
+    /// YOYO `pe_dll` probe (env = `1` / `true` / …).
     YoyoAlt,
+    /// YOYO in-DLL recompile / M1 call-time mini (env = `in-dll` / `m1` / …).
+    YoyoInDll,
     /// Rust `yoyo_runtime.dll` bytes (production default).
     Rust,
 }
 
-/// Place cwd `yoyo_rt.dll`: YOYO probe when `YOYO_OW_RT_ALT_SIDECAR` is on, else `rust_dll`.
+/// Place cwd `yoyo_rt.dll` per [`yoyo_alt_sidecar_mode`]; else `rust_dll`.
 ///
 /// Moves toward replacing the Rust production default **without** flipping it —
 /// default path still writes Rust bytes. Not OW-RT CLOSED.
 pub fn place_cwd_runtime_sidecar(out_path: &Path, rust_dll: &[u8]) -> IsaResult<CwdSidecarKind> {
-    if yoyo_alt_sidecar_enabled() {
-        write_yoyo_alt_sidecar(out_path)?;
-        Ok(CwdSidecarKind::YoyoAlt)
-    } else {
-        if let Some(parent) = out_path.parent() {
-            if !parent.as_os_str().is_empty() {
-                std::fs::create_dir_all(parent).map_err(|e| IsaError::IoError {
-                    msg: format!("pe_dll_link: mkdir {}: {e}", parent.display()),
-                })?;
-            }
+    match yoyo_alt_sidecar_mode() {
+        AltSidecarMode::Probe => {
+            write_yoyo_alt_sidecar(out_path)?;
+            Ok(CwdSidecarKind::YoyoAlt)
         }
-        std::fs::write(out_path, rust_dll).map_err(|e| IsaError::IoError {
-            msg: format!("pe_dll_link: write {}: {e}", out_path.display()),
-        })?;
-        Ok(CwdSidecarKind::Rust)
+        AltSidecarMode::InDll => {
+            write_yoyo_in_dll_recompile_sidecar(out_path)?;
+            Ok(CwdSidecarKind::YoyoInDll)
+        }
+        AltSidecarMode::Off => {
+            if let Some(parent) = out_path.parent() {
+                if !parent.as_os_str().is_empty() {
+                    std::fs::create_dir_all(parent).map_err(|e| IsaError::IoError {
+                        msg: format!("pe_dll_link: mkdir {}: {e}", parent.display()),
+                    })?;
+                }
+            }
+            std::fs::write(out_path, rust_dll).map_err(|e| IsaError::IoError {
+                msg: format!("pe_dll_link: write {}: {e}", out_path.display()),
+            })?;
+            Ok(CwdSidecarKind::Rust)
+        }
     }
 }
 
@@ -3290,6 +3335,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // sidecar) + mini TYB → R→C→W (Gate I subset). Full Gate I (gen4 +
     // yoyo.tyb) stays RED. Next ≥10 = M3 ALT_SIDECAR default trial / OW-RT.
     // Not CLOSED. OW-RT remains CUT.
+    // S3.527 / M3: `YOYO_OW_RT_ALT_SIDECAR=in-dll` → place_cwd writes M1
+    // in-DLL DLL (not probe); H_00 subset still GREEN. Default remains Rust.
+    // Next ≥10 = M4 production flip / OW-RT. Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -8246,14 +8294,23 @@ mod tests {
         let rustish = b"MZ\0RUST_PLACEHOLDER_NOT_A_REAL_DLL______________";
         let kind = place_cwd_runtime_sidecar(&path, rustish).expect("place");
         // Without env opt-in this process should get Rust (tests must not set env).
-        if yoyo_alt_sidecar_enabled() {
-            assert_eq!(kind, CwdSidecarKind::YoyoAlt);
-            let on_disk = std::fs::read(&path).expect("read");
-            assert_eq!(&on_disk[0..2], b"MZ");
-            assert!(on_disk.len() > rustish.len());
-        } else {
-            assert_eq!(kind, CwdSidecarKind::Rust);
-            assert_eq!(std::fs::read(&path).expect("read"), rustish);
+        match yoyo_alt_sidecar_mode() {
+            AltSidecarMode::Off => {
+                assert_eq!(kind, CwdSidecarKind::Rust);
+                assert_eq!(std::fs::read(&path).expect("read"), rustish);
+            }
+            AltSidecarMode::Probe => {
+                assert_eq!(kind, CwdSidecarKind::YoyoAlt);
+                let on_disk = std::fs::read(&path).expect("read");
+                assert_eq!(&on_disk[0..2], b"MZ");
+                assert!(on_disk.len() > rustish.len());
+            }
+            AltSidecarMode::InDll => {
+                assert_eq!(kind, CwdSidecarKind::YoyoInDll);
+                let on_disk = std::fs::read(&path).expect("read");
+                assert_eq!(&on_disk[0..2], b"MZ");
+                assert!(on_disk.len() > rustish.len());
+            }
         }
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -8917,6 +8974,52 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&dir);
         let _ = std::fs::remove_dir_all(&dir2);
+    }
+
+    /// S3.527 / M3: `YOYO_OW_RT_ALT_SIDECAR=in-dll` → place_cwd writes M1 DLL;
+    /// H_00 seed + mini RET ≡ mini. Default remains Rust. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_alt_sidecar_m3_in_dll_place_cwd_h00_subset_pin() {
+        // Env is process-global; serialize with cwd lock used by sidecar smokes.
+        let _lock = crate::cwd_guard::test_cwd_lock();
+        let prev = std::env::var(ALT_SIDECAR_ENV).ok();
+        std::env::set_var(ALT_SIDECAR_ENV, "in-dll");
+        assert_eq!(yoyo_alt_sidecar_mode(), AltSidecarMode::InDll);
+
+        let dir = temp_work("m3-alt-indll");
+        let rustish = b"MZ\0RUST_MUST_NOT_BE_WRITTEN___________________";
+        let kind = place_cwd_runtime_sidecar(&dir.join(RUNTIME_SIDECAR_NAME), rustish)
+            .expect("place in-dll");
+        assert_eq!(kind, CwdSidecarKind::YoyoInDll);
+        let dll = std::fs::read(dir.join(RUNTIME_SIDECAR_NAME)).expect("dll");
+        assert_ne!(dll.as_slice(), rustish, "M3 must not write Rust placeholder");
+        assert_eq!(&dll[0..2], b"MZ");
+        let ascii = String::from_utf8_lossy(&dll);
+        assert!(ascii.contains(RUNTIME_EXPORT_NAME));
+        let probe = link_probe_runtime_dll().expect("probe");
+        assert_ne!(dll, probe, "M3 in-dll ≠ Gate G exit-2 probe");
+
+        let seed = yoyo_h00_seed_pe_m2().expect("H_00 seed");
+        std::fs::write(dir.join(M2_H00_SEED_NAME), &seed).expect("seed");
+        let tyb = tyb_ret_only();
+        assert_eq!(
+            yoyo_h00_path_m2_run(&dir, &tyb),
+            EXIT_OK,
+            "M3: place_cwd in-dll + H_00 + RET → 0"
+        );
+        let out = std::fs::read(dir.join(OUTPUT_NAME)).expect("out");
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini(&tyb)
+            .unwrap()
+            .bytes;
+        assert_eq!(out, expect, "M3 H_00 path ≡ mini");
+
+        // restore env
+        match prev {
+            Some(v) => std::env::set_var(ALT_SIDECAR_ENV, v),
+            None => std::env::remove_var(ALT_SIDECAR_ENV),
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.410/S3.411: in-DLL all fixed10+RET ≡ host `compile_tyb_to_pe` (shared

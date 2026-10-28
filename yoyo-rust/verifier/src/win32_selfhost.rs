@@ -72,23 +72,22 @@ pub fn runtime_dll_bytes() -> IsaResult<Vec<u8>> {
     })
 }
 
-/// Place cwd `yoyo_rt.dll` for H_00: YOYO alt when `YOYO_OW_RT_ALT_SIDECAR` is on, else Rust.
+/// Place cwd `yoyo_rt.dll` for H_00: YOYO alt/in-DLL when `YOYO_OW_RT_ALT_SIDECAR`
+/// is set (`1`=probe, `in-dll`/`m1`=M1 recompile), else Rust.
 ///
-/// Gate G progress toward dropping Rust production default — **opt-in only**.
+/// Gate G / M3 progress toward dropping Rust production default — **opt-in only**.
 /// Scripts that still `Copy-Item` Rust are unchanged until they call this helper.
 pub fn write_cwd_runtime_sidecar(
     out_dir: &std::path::Path,
 ) -> IsaResult<(std::path::PathBuf, crate::pe_dll_link::CwdSidecarKind)> {
-    use crate::pe_dll_link::{
-        place_cwd_runtime_sidecar, write_yoyo_alt_sidecar, yoyo_alt_sidecar_enabled, CwdSidecarKind,
-        RUNTIME_SIDECAR_NAME,
-    };
+    use crate::pe_dll_link::{place_cwd_runtime_sidecar, RUNTIME_SIDECAR_NAME};
     let path = out_dir.join(RUNTIME_SIDECAR_NAME);
-    if yoyo_alt_sidecar_enabled() {
-        write_yoyo_alt_sidecar(&path)?;
-        return Ok((path, CwdSidecarKind::YoyoAlt));
-    }
-    let rust = runtime_dll_bytes()?;
+    // Empty rust bytes unused when env selects YOYO; still required by API.
+    let rust = if crate::pe_dll_link::yoyo_alt_sidecar_enabled() {
+        Vec::new()
+    } else {
+        runtime_dll_bytes()?
+    };
     let kind = place_cwd_runtime_sidecar(&path, &rust)?;
     Ok((path, kind))
 }

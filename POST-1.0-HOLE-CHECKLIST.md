@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.527 / M3**（526=M2 H_00+M1 DLL Gate I 子集 GREEN；下一刀=ALT_SIDECAR 默认试跑）。
+**默认** 继续 **= S3.528 / M4**（527=M3 ALT=in-dll place_cwd GREEN；下一刀=生产默认翻转预备）。
 
 ## 阻塞 / 勿做
 
@@ -111,9 +111,10 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | --- | --- | --- |
 | **S3.522–525** ✅ | 7c12713 | Gate F mini → sidecar bake → ABSENT cliff → **M1** mutate-after-load |
 | **S3.526** ✅ | 5dcee69 | **M2**：H_00 seed（yoyo.ty）+ M1 YOYO DLL + mini TYB；Gate I 子集 GREEN |
-| **S3.527** ⏳ | — | **本步=M3**：`YOYO_OW_RT_ALT_SIDECAR`（或等价）无 Rust 默认试跑 |
+| **S3.527** ✅ | — | **M3**：`YOYO_OW_RT_ALT_SIDECAR=in-dll` → place_cwd 写 M1 DLL；H_00 子集 GREEN |
+| **S3.528** ⏳ | — | **本步=M4**：生产默认翻转预备（仍禁假 CLOSED） |
 
-**缺口**：M2（H_00 CreateProcess + YOYO in-DLL mini）已钉；M3=ALT 默认试跑。host 侧面禁作默认 tip。bake=362。明细 → `git log --grep=S3.`。
+**缺口**：M3（ALT=in-dll place_cwd）已钉；M4=生产默认翻转才碰 CLOSED。host 侧面禁作默认 tip。bake=362。明细 → `git log --grep=S3.`。
 
 ---
 
@@ -147,7 +148,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.527 / M3**（ALT_SIDECAR 默认试跑 / 无 Rust；禁 host 侧面充数 / 禁 densify / 禁假 CLOSED）。M2 已 GREEN。红了记根因停。
+- `继续` → **S3.528 / M4**（生产默认翻转预备；禁 host 侧面充数 / 禁 densify / 禁假 CLOSED）。M3 已 GREEN。红了记根因停。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -155,4 +156,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *Created：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-28**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.527/M3** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · M2 H_00 Gate I 子集 · 近窗自动收拢
+**快照 2026-10-28**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.528/M4** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · M3 ALT=in-dll · 近窗自动收拢
