@@ -171,14 +171,14 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.491** ✅ | 9f5893a | OW-RT residual after finish/table-seed wave |
 | **S3.492** ✅ | 1968e60 | YOYO-built compile cliff reject（≠ seed densify） |
 | **S3.493** ✅ | 4907afc | YOYO-IR compile slice map（fixed10 owned；扩表禁折 golden） |
-| **S3.494** ✅ | — | IMUL+RET YOYO object-seed compose（slots 0,1；不折 FIXED10） |
-| **S3.495** ✅ | — | ALUV+RET YOYO object-seed compose（poke 01/09/29；slots 0,1） |
-| **S3.496** ✅ | — | LDB+RET YOYO object-seed compose（OO0/OO poke；dd=ss=0） |
-| **S3.497** ✅ | — | MEMCPY_DATA+RET YOYO object-seed compose（disp8 poke） |
-| **S3.498** ✅ | — | MEMCPY_STATE+RET YOYO object-seed compose（loop PAIR；n∈1..=4） |
-| **S3.499** ✅ | — | post-non-fixed10 seed compose map（IMUL..MCPS owned；CF/I/O 仍 emit_x86） |
-| **S3.500** ✅ | — | control-flow +RET YOYO object-seed compose（CALL/JMP/JCC；rel32=0） |
-| **S3.501** ✅ | — | ALLOC+RET YOYO object-seed compose（PREFIX+STORE_DISP32） |
+| **S3.494** ✅ | 71f36cc | IMUL+RET YOYO object-seed compose（slots 0,1；不折 FIXED10） |
+| **S3.495** ✅ | b052e70 | ALUV+RET YOYO object-seed compose（poke 01/09/29；slots 0,1） |
+| **S3.496** ✅ | 91d1c8e | LDB+RET YOYO object-seed compose（OO0/OO poke；dd=ss=0） |
+| **S3.497** ✅ | 9814bc7 | MEMCPY_DATA+RET YOYO object-seed compose（disp8 poke） |
+| **S3.498** ✅ | 7c70f08 | MEMCPY_STATE+RET YOYO object-seed compose（loop PAIR；n∈1..=4） |
+| **S3.499** ✅ | ccf0f02 | post-non-fixed10 seed compose map（IMUL..MCPS owned；CF/I/O 仍 emit_x86） |
+| **S3.500** ✅ | a57dde7 | control-flow +RET YOYO object-seed compose（CALL/JMP/JCC；rel32=0） |
+| **S3.501** ✅ | 25b7888 | ALLOC+RET YOYO object-seed compose（PREFIX+STORE_DISP32） |
 | **S3.502** ⏳ | — | **本步**：STB+RET seed compose / OW-RT |
 
 **缺口**：fixed10 + IMUL..MCPS/CF/ALLOC+RET=YOYO；STB/LOAD/WRITE/RAW_* 仍 emit_x86。扩 S3_FIXED10=折 golden（禁）。下一刀=STB+RET · OW-RT。禁 pe_dll densify。无假 CLOSED。bake=362 · s3_=311。
@@ -215,7 +215,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.501**（ALLOC+RET seed compose / OW-RT；禁 densify / 禁折 FIXED10）。做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.502**（STB+RET seed compose / OW-RT；禁 densify / 禁折 FIXED10）。做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -223,4 +223,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-28**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.501** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 看板已再折（波段+近窗）
+**快照 2026-10-28**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.502** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 看板已再折（波段+近窗）
