@@ -14481,8 +14481,8 @@ mod tests {
             assert!(this.contains(p), "missing owned compose {p}");
         }
         assert!(owned.len() >= 10);
-        // Still outside as of map tip (later knives own more ops).
-        assert!(try_emit_text_via_yoyo_table(&[0x12, 0xFF]).is_none()); // DATA
+        // S3.499 tip: DATA was outside; S3.506+ owns DATA/STR/RAW+RET.
+        assert!(try_emit_text_via_yoyo_table(&[0x12, 0xFF]).is_some());
         // Owned still green; FIXED10 untouched.
         assert!(try_emit_text_via_yoyo_table(&[0x63, 0xFF]).is_some());
         assert!(try_emit_text_via_yoyo_table(&[0x68, 0xFF]).is_some());
@@ -15190,6 +15190,91 @@ mod tests {
             (0xFF, 0, [0; 6]),
         ]);
         assert!(try_multi_data_section_ret_tyb(&parse_tyb(&mixed).unwrap()).is_none());
+    }
+
+    /// S3.508: host YOYO compose gap inventory. Single-op+RET surface largely
+    /// owned (494–507). Remaining emit_x86 fallthrough cliffs (≥10):
+    /// LABEL+pass-2 · STB oo>127 · ALUV wrong-slot · RAW_BYTES ops-only ·
+    /// bare op · mixed non-DATA multi · FIXED10 fold ban · bake pin ·
+    /// OW-RT CUT · YOYO-built cliff. Next ≥10 = LABEL+CF+RET / OW-RT.
+    /// Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_host_yoyo_compose_gap_inventory_reject() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        let this = include_str!("s1_tyb_parser.rs");
+        assert!(this.contains("S3.508") || pe_dll.contains("S3.508"));
+        assert!(
+            pe_dll.contains("host YOYO compose gap inventory")
+                || this.contains("host YOYO compose gap inventory")
+        );
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        let gaps = [
+            "LABEL+pass-2",
+            "STB oo>127",
+            "ALUV wrong-slot",
+            "RAW_BYTES ops-only",
+            "bare op",
+            "mixed non-DATA multi",
+            "FIXED10 fold ban",
+            "bake pin",
+            "OW-RT remains CUT",
+            "YOYO-built cliff",
+            "S3.508",
+        ];
+        for g in gaps {
+            assert!(
+                this.contains(g) || pe_dll.contains(g),
+                "missing gap pin {g}"
+            );
+        }
+        assert!(gaps.len() >= 10);
+        // Witnesses: still outside YOYO try_* 
+        assert!(try_emit_text_via_yoyo_table(&[0xA1, 0xFF]).is_none()); // RAW_BYTES ops-only
+        assert!(try_emit_text_via_yoyo_table(&[0x20]).is_none()); // bare
+        let stb_big = tyb_from_records(&[
+            (0x81, 3, [0, 0, 0, 0, 0x80, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        assert!(try_stb_ret_tyb(&parse_tyb(&stb_big).unwrap()).is_none());
+        let aluv_bad = tyb_from_records(&[
+            (0x68, 2, [1, 0, 2, 0, 0, 0]), // dst=1 src=2 ≠ seed
+            (0xFF, 0, [0; 6]),
+        ]);
+        assert!(try_aluv_ret_ops(&parse_tyb(&aluv_bad).unwrap()).is_none());
+        let labeled = tyb_from_records(&[
+            (0x40, 1, [1, 0, 0, 0, 0, 0]),
+            (0x41, 1, [1, 0, 0, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        assert!(try_cf_ret_tyb(&parse_tyb(&labeled).unwrap()).is_none());
+        let mixed = tyb_from_records(&[
+            (0x10, 1, [1, 0, 0, 0, 0, 0]),
+            (0x30, 2, [0, 0, 0, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        assert!(try_multi_data_section_ret_tyb(&parse_tyb(&mixed).unwrap()).is_none());
+        assert_eq!(S3_FIXED10_OPS.len(), 10);
+        assert!(!S3_FIXED10_OPS.contains(&0x50));
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+        // Owned surface still green (not sheep −1 densify).
+        assert!(try_emit_text_via_yoyo_table(&[0x50, 0xFF]).is_some());
+        assert!(try_emit_text_via_yoyo_table(&[0x10, 0xFF]).is_some());
+        assert!(try_emit_text_via_yoyo_table(&[0x41, 0xFF]).is_some());
     }
 
     /// S3.492: YOYO-built compile cliff reject. Freezing more pe_dll hand-x86
