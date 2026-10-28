@@ -3136,6 +3136,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.497: MEMCPY_DATA+RET YOYO object-seed compose (disp8 poke src/dst/n)
     // — not FIXED10. Next ≥10 = MEMCPY_STATE+RET seed compose / OW-RT.
     // Not CLOSED. OW-RT remains CUT.
+    // S3.498: MEMCPY_STATE+RET YOYO object-seed compose (looped PAIR seed,
+    // n∈1..=4 disp8) — not FIXED10. Next ≥10 = post-non-fixed10 seed
+    // compose map / OW-RT. Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
