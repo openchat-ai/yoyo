@@ -8971,12 +8971,18 @@ fn try_compose_cf_nop_label_ret_via_yoyo_seed(cf_op: u8) -> Option<Vec<u8>> {
     Some(text)
 }
 
-/// S3.510: TYB → CF + NOP + LABEL same-id + RET (forward pass-2).
-/// S3.516: compose one fixed10-ish ALU body (SET/GET/MOVRR/ADD/SUB/INC/DEC/CMP/NOP)
-/// via load/store + ALU host seeds. Any slot≤255; any imm for SET/ADD/SUB.
+/// S3.516/S3.517: compose one fixed10-ish ALU/LABEL body
+/// (SET/GET/MOVRR/ADD/SUB/INC/DEC/CMP/NOP/LABEL) via load/store + ALU host
+/// seeds. LABEL → empty. Any slot≤255; any imm for SET/ADD/SUB.
 /// **Not** folded into `S3_FIXED10_OPS` / golden.
 fn s3_compose_slot_alu_body(rec: &TybRecord) -> Option<Vec<u8>> {
     match rec.op {
+        0x40 => {
+            if rec.argc != 1 {
+                return None;
+            }
+            Some(Vec::new()) // LABEL: position marker only
+        }
         0x00 => {
             if rec.argc != 0 {
                 return None;
@@ -9054,10 +9060,10 @@ fn s3_compose_slot_alu_body(rec: &TybRecord) -> Option<Vec<u8>> {
     }
 }
 
-/// S3.516: CMP any-slot + fixed10-ish multi-op mix +RET.
-/// Chains SET/GET/MOVRR/ADD/SUB/INC/DEC/CMP/NOP then RET (2..=8 records).
+/// S3.516/S3.517: CMP any-slot + fixed10-ish multi-op mix + LABEL residual +RET.
+/// Chains LABEL/SET/GET/MOVRR/ADD/SUB/INC/DEC/CMP/NOP then RET (2..=8 records).
 /// Activates only when `fixed_template_ops` refuses (wrong-slot / non-canonical
-/// imm / multi-op outside default image seeds) — **does not** fold FIXED10.
+/// imm / LABEL / multi-op outside default image seeds) — **does not** fold FIXED10.
 fn try_slot_alu_chain_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
     let n = prog.records.len();
     if !(2..=8).contains(&n) {
@@ -9081,6 +9087,96 @@ fn try_slot_alu_chain_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
         return None;
     }
     Some(text)
+}
+
+/// S3.517: bare fixed10-ish ALU/LABEL (no trailing RET record).
+/// `emit_x86` always appends C3 — match that. 1..=7 records; must emit ≥1
+/// code byte before auto-C3. **Not** FIXED10.
+fn try_slot_alu_bare_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
+    let n = prog.records.len();
+    if !(1..=7).contains(&n) {
+        return None;
+    }
+    if prog.records.last()?.op == 0xFF {
+        return None;
+    }
+    if fixed_template_ops(prog).is_some() {
+        return None;
+    }
+    let mut text = Vec::with_capacity(64);
+    for rec in &prog.records {
+        let body = s3_compose_slot_alu_body(rec)?;
+        text.extend_from_slice(&body);
+    }
+    if text.is_empty() {
+        return None;
+    }
+    text.push(0xC3); // emit_x86 auto-terminate
+    if text.len() > S1_SLIM_MAX_CODE {
+        return None;
+    }
+    Some(text)
+}
+
+/// S3.517: bare RAW_BYTES (no RET record) — payload ‖ auto-C3 (`emit_x86`).
+fn try_raw_bytes_bare_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
+    if prog.records.len() != 1 {
+        return None;
+    }
+    let raw = &prog.records[0];
+    if raw.op != 0xA1 || raw.argc == 0 || raw.argc > 3 {
+        return None;
+    }
+    let mut text = arg_low_bytes(raw);
+    text.push(0xC3);
+    Some(text)
+}
+
+/// S3.517: bare RAW_BYTES ops-path (`ops=[0xA1]`) — default NOP, no C3.
+fn try_emit_raw_bytes_bare_via_yoyo_seed(ops: &[u8]) -> Option<Vec<u8>> {
+    if ops != [0xA1] {
+        return None;
+    }
+    Some(S3_RAW_BYTES_RET_OPS_DEFAULT.to_vec())
+}
+
+/// S3.517: DATA|STR|RAW + ALU/LABEL mix +RET → `.data` payload + ALU text‖C3.
+/// ≥1 data then ≥1 ALU/LABEL then RET. Pure-data owned by S3.506/507.
+fn try_data_alu_mix_ret_tyb(prog: &TybProgram) -> Option<(Vec<u8>, Vec<u8>)> {
+    let n = prog.records.len();
+    if !(3..=10).contains(&n) {
+        return None;
+    }
+    let last = prog.records.last()?;
+    if last.op != 0xFF || last.argc != 0 {
+        return None;
+    }
+    let body = &prog.records[..n - 1];
+    let mut i = 0usize;
+    let mut data = Vec::new();
+    while i < body.len() && matches!(body[i].op, 0x10 | 0x12 | 0x13) {
+        if body[i].argc > 3 {
+            return None;
+        }
+        data.extend(arg_low_bytes(&body[i]));
+        if data.len() > S1_MINI_DATA_MAX {
+            return None;
+        }
+        i += 1;
+    }
+    if data.is_empty() || i >= body.len() {
+        return None; // no data, or all-data (506/507)
+    }
+    let mut text = Vec::with_capacity(64);
+    for rec in &body[i..] {
+        let b = s3_compose_slot_alu_body(rec)?;
+        text.extend_from_slice(&b);
+    }
+    text.push(0xC3);
+    if text.len() > S1_SLIM_MAX_CODE {
+        return None;
+    }
+    Some((text, data))
 }
 
 /// S3.510: CF+NOP+LABEL+RET — forward pass-2 (NOP filler ⇒ rel≠0).
@@ -9462,6 +9558,10 @@ pub fn try_emit_text_via_yoyo_table(ops: &[u8]) -> Option<Vec<u8>> {
     if let Some(text) = try_emit_raw_bytes_ret_via_yoyo_seed(ops) {
         return Some(text);
     }
+    // S3.517: bare RAW_BYTES ops (no RET)
+    if let Some(text) = try_emit_raw_bytes_bare_via_yoyo_seed(ops) {
+        return Some(text);
+    }
     if let Some(text) = try_emit_load_file_ret_via_yoyo_seed(ops) {
         return Some(text);
     }
@@ -9790,8 +9890,54 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
             .ok();
         }
     }
-    // S3.516: CMP any-slot + fixed10-ish multi-op mix (non-default slots/imm).
+    // S3.517: DATA + ALU/LABEL mix +RET
+    if let Some((text, data)) = try_data_alu_mix_ret_tyb(&prog) {
+        #[cfg(windows)]
+        {
+            return Some(crate::pe_link::PeImage {
+                bytes: s3_compile_pe_patch_text_data(&text, &data),
+            });
+        }
+        #[cfg(not(windows))]
+        {
+            return wrap_pe_slim(&CodegenOutput { text, data }).ok();
+        }
+    }
+    // S3.516/S3.517: CMP any-slot + multi-op + LABEL residual (non-default).
     if let Some(text) = try_slot_alu_chain_ret_tyb(&prog) {
+        #[cfg(windows)]
+        {
+            return Some(crate::pe_link::PeImage {
+                bytes: s3_compile_pe_patch_text(&text),
+            });
+        }
+        #[cfg(not(windows))]
+        {
+            return wrap_pe_slim(&CodegenOutput {
+                text,
+                data: Vec::new(),
+            })
+            .ok();
+        }
+    }
+    // S3.517: bare ALU / bare RAW_BYTES (no trailing RET)
+    if let Some(text) = try_slot_alu_bare_tyb(&prog) {
+        #[cfg(windows)]
+        {
+            return Some(crate::pe_link::PeImage {
+                bytes: s3_compile_pe_patch_text(&text),
+            });
+        }
+        #[cfg(not(windows))]
+        {
+            return wrap_pe_slim(&CodegenOutput {
+                text,
+                data: Vec::new(),
+            })
+            .ok();
+        }
+    }
+    if let Some(text) = try_raw_bytes_bare_tyb(&prog) {
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
@@ -15739,9 +15885,9 @@ mod tests {
             );
         }
         assert!(gaps.len() >= 10);
-        // Witnesses: still outside YOYO try_*
-        assert!(try_emit_text_via_yoyo_table(&[0xA1]).is_none()); // RAW_BYTES bare
-        assert!(try_emit_text_via_yoyo_table(&[0x20]).is_none()); // bare
+        // Witnesses: RAW_BYTES bare / CMP≥16 / DATA+ALU = S3.516–517
+        assert!(try_emit_text_via_yoyo_table(&[0xA1]).is_some()); // RAW_BYTES bare = S3.517
+        assert!(try_emit_text_via_yoyo_table(&[0x20]).is_none()); // bare ALLOC still outside
         // CMP slot≥16 owned by S3.516 — green
         let cmp_big = tyb_from_records(&[
             (0x65, 2, [16, 0, 17, 0, 0, 0]),
@@ -15777,6 +15923,7 @@ mod tests {
             (0xFF, 0, [0; 6]),
         ]);
         assert!(try_multi_data_section_ret_tyb(&parse_tyb(&mixed).unwrap()).is_none());
+        assert!(try_data_alu_mix_ret_tyb(&parse_tyb(&mixed).unwrap()).is_some()); // S3.517
         assert_eq!(S3_FIXED10_OPS.len(), 10);
         assert!(!S3_FIXED10_OPS.contains(&0x50));
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
@@ -16530,6 +16677,109 @@ mod tests {
         ]);
         assert!(validate_tyb_mini(&parse_tyb(&bad).unwrap()).is_err());
         assert!(try_compile_tyb_via_yoyo_table(&bad).is_none());
+    }
+
+    /// S3.517: LABEL residual + bare ALU/RAW_BYTES + DATA|ALU mix —
+    /// LABEL in chain+RET; bare (no C3); DATA+SET/…+RET. Not FIXED10.
+    /// bake=362. Next ≥10 = bare ALLOC / CF residual / OW-RT.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_label_bare_data_alu_mix_yoyo_seed_compose_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        let this = include_str!("s1_tyb_parser.rs");
+        assert!(this.contains("S3.517") || pe_dll.contains("S3.517"));
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        let pins = [
+            "S3.517",
+            "try_slot_alu_bare_tyb",
+            "try_raw_bytes_bare_tyb",
+            "try_emit_raw_bytes_bare_via_yoyo_seed",
+            "try_data_alu_mix_ret_tyb",
+            "LABEL residual",
+            "bare op",
+            "mixed non-DATA multi",
+            "s3_compose_slot_alu_body",
+            "LABEL: position marker only",
+        ];
+        for p in pins {
+            assert!(this.contains(p), "missing LABEL/bare/mix pin {p}");
+        }
+        assert!(pins.len() >= 10);
+        assert_eq!(S3_FIXED10_OPS.len(), 10);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+        // LABEL+RET → C3
+        let tyb_lab = tyb_from_records(&[
+            (0x40, 1, [1, 0, 0, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let via_lab = try_slot_alu_chain_ret_tyb(&parse_tyb(&tyb_lab).unwrap()).expect("LABEL");
+        assert_eq!(via_lab, vec![0xC3]);
+        assert_eq!(via_lab, emit_x86(&parse_tyb(&tyb_lab).unwrap()).text);
+        assert!(try_compile_tyb_via_yoyo_table(&tyb_lab).is_some());
+        // LABEL + INC16 + RET
+        let tyb_li = tyb_from_records(&[
+            (0x40, 1, [7, 0, 0, 0, 0, 0]),
+            (0x66, 1, [16, 0, 0, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let via_li = try_slot_alu_chain_ret_tyb(&parse_tyb(&tyb_li).unwrap()).expect("L+INC");
+        assert_eq!(via_li, emit_x86(&parse_tyb(&tyb_li).unwrap()).text);
+        assert_eq!(
+            try_compile_tyb_via_yoyo_table(&tyb_li).unwrap().bytes,
+            compile_tyb_to_pe_mini(&tyb_li).unwrap().bytes
+        );
+        // bare INC16 (no RET record; emit_x86 still auto-C3)
+        let tyb_bare = tyb_from_records(&[(0x66, 1, [16, 0, 0, 0, 0, 0])]);
+        let via_bare = try_slot_alu_bare_tyb(&parse_tyb(&tyb_bare).unwrap()).expect("bare");
+        assert_eq!(via_bare, emit_x86(&parse_tyb(&tyb_bare).unwrap()).text);
+        assert!(via_bare.ends_with(&[0xC3]));
+        assert!(try_compile_tyb_via_yoyo_table(&tyb_bare).is_some());
+        // bare RAW_BYTES (argc=2 → low bytes @0,@2; auto-C3)
+        let tyb_raw = tyb_from_records(&[(0xA1, 2, [0x90, 0, 0x90, 0, 0, 0])]);
+        let via_raw = try_raw_bytes_bare_tyb(&parse_tyb(&tyb_raw).unwrap()).expect("raw bare");
+        assert_eq!(via_raw, vec![0x90, 0x90, 0xC3]);
+        assert_eq!(via_raw, emit_x86(&parse_tyb(&tyb_raw).unwrap()).text);
+        assert_eq!(
+            try_emit_text_via_yoyo_table(&[0xA1]).unwrap(),
+            vec![0x90]
+        );
+        // DATA + SET slot16 + RET
+        let tyb_mix = tyb_from_records(&[
+            (0x10, 1, [0xAB, 0, 0, 0, 0, 0]),
+            (0x30, 2, [16, 0, 0x11, 0x22, 0x33, 0x44]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let (via_t, via_d) =
+            try_data_alu_mix_ret_tyb(&parse_tyb(&tyb_mix).unwrap()).expect("DATA+ALU");
+        let emit = emit_x86(&parse_tyb(&tyb_mix).unwrap());
+        assert_eq!(via_t, emit.text);
+        assert_eq!(via_d, emit.data);
+        assert_eq!(via_d, vec![0xAB]);
+        assert_eq!(
+            try_compile_tyb_via_yoyo_table(&tyb_mix).unwrap().bytes,
+            compile_tyb_to_pe_mini(&tyb_mix).unwrap().bytes
+        );
+        // pure DATA still via 506, not mix
+        let pure = tyb_from_records(&[
+            (0x10, 1, [1, 0, 0, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        assert!(try_data_alu_mix_ret_tyb(&parse_tyb(&pure).unwrap()).is_none());
+        assert!(try_data_section_ret_tyb(&parse_tyb(&pure).unwrap()).is_some());
     }
 
     /// S3.492: YOYO-built compile cliff reject. Freezing more pe_dll hand-x86
