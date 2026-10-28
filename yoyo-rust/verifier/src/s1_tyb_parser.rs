@@ -8742,6 +8742,60 @@ fn try_label_cf_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
     try_compose_label_cf_ret_via_yoyo_seed(cf.op, lid)
 }
 
+/// S3.510: CF+NOP+LABEL+RET — forward pass-2 (NOP filler ⇒ rel≠0).
+/// `ops=[cf,0x00,0x40,0xFF]`. **Not** FIXED10; not sheep of bare CF+RET.
+fn try_emit_cf_nop_label_ret_via_yoyo_seed(ops: &[u8]) -> Option<Vec<u8>> {
+    if ops.len() != 4 || ops[1] != 0x00 || ops[2] != 0x40 || ops[3] != 0xFF {
+        return None;
+    }
+    try_compose_cf_nop_label_ret_via_yoyo_seed(ops[0])
+}
+
+/// S3.510: compose CF body + NOP + pass-2 rel to LABEL@after-NOP ‖C3.
+fn try_compose_cf_nop_label_ret_via_yoyo_seed(cf_op: u8) -> Option<Vec<u8>> {
+    let mut text = match cf_op {
+        0x41 => S3_CALL_BODY_SEED.to_vec(),
+        0x70 => S3_JMP_BODY_SEED.to_vec(),
+        op if (0x71..=0x7A).contains(&op) => {
+            let mut j = S3_JCC_BODY_SEED.to_vec();
+            j[1] = s3_jcc_cc(op)?;
+            j
+        }
+        _ => return None,
+    };
+    let patch_pos = if matches!(cf_op, 0x41 | 0x70) { 1 } else { 2 };
+    text.push(0x90); // NOP filler
+    let target = text.len() as i32; // LABEL here
+    let next_ip = (patch_pos + 4) as i32;
+    let rel = target - next_ip;
+    text[patch_pos..patch_pos + 4].copy_from_slice(&rel.to_le_bytes());
+    text.push(0xC3);
+    Some(text)
+}
+
+/// S3.510: TYB → CF + NOP + LABEL same-id + RET (forward pass-2).
+fn try_cf_nop_label_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
+    if prog.records.len() != 4 {
+        return None;
+    }
+    let cf = &prog.records[0];
+    let nop = &prog.records[1];
+    let lab = &prog.records[2];
+    let ret = &prog.records[3];
+    if nop.op != 0x00 || nop.argc != 0 || lab.op != 0x40 || ret.op != 0xFF || ret.argc != 0 {
+        return None;
+    }
+    if cf.argc != 1 {
+        return None;
+    }
+    let cid = arg_u32(cf)?;
+    let lid = arg_u32(lab)?;
+    if cid != lid {
+        return None;
+    }
+    try_compose_cf_nop_label_ret_via_yoyo_seed(cf.op)
+}
+
 /// S3.501: ALLOC+RET via `S3_ALLOC_PREFIX_SEED` + `S3_STORE_RAX_DISP32_SEED`‖C3.
 /// `ops=[0x20,0xFF]` → slot=0 size=0. TYB pokes size@+7 / store disp@+3.
 /// Matches host `emit_slim_alloc` (always disp32 store). **Not** FIXED10.
@@ -9024,13 +9078,13 @@ fn try_multi_data_section_ret_tyb(prog: &TybProgram) -> Option<(Vec<u8>, Vec<u8>
 }
 
 /// Host-side YOYO table compose → `.text` bytes.
-/// `None` if `ops` outside the fixed template subset (and S3.494–509 seeds).
+/// `None` if `ops` outside the fixed template subset (and S3.494–510 seeds).
 /// S3.350: call cursor directly (default-seed `s3_sim_prog_loop` is cfg(test)).
 pub fn try_emit_text_via_yoyo_table(ops: &[u8]) -> Option<Vec<u8>> {
     if ops.is_empty() || ops.len() > 8 {
         return None;
     }
-    // S3.494–509: non-fixed10 YOYO compose — object seeds (no golden fold).
+    // S3.494–510: non-fixed10 YOYO compose — object seeds (no golden fold).
     if let Some(text) = try_emit_imul_ret_via_yoyo_seed(ops) {
         return Some(text);
     }
@@ -9068,6 +9122,9 @@ pub fn try_emit_text_via_yoyo_table(ops: &[u8]) -> Option<Vec<u8>> {
         return Some(text);
     }
     if let Some(text) = try_emit_label_cf_ret_via_yoyo_seed(ops) {
+        return Some(text);
+    }
+    if let Some(text) = try_emit_cf_nop_label_ret_via_yoyo_seed(ops) {
         return Some(text);
     }
     if !ops.iter().all(|o| S3_FIXED10_OPS.contains(o)) {
@@ -9354,6 +9411,22 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         }
     }
     if let Some(text) = try_label_cf_ret_tyb(&prog) {
+        #[cfg(windows)]
+        {
+            return Some(crate::pe_link::PeImage {
+                bytes: s3_compile_pe_patch_text(&text),
+            });
+        }
+        #[cfg(not(windows))]
+        {
+            return wrap_pe_slim(&CodegenOutput {
+                text,
+                data: Vec::new(),
+            })
+            .ok();
+        }
+    }
+    if let Some(text) = try_cf_nop_label_ret_tyb(&prog) {
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
@@ -15445,6 +15518,93 @@ mod tests {
             (0xFF, 0, [0; 6]),
         ]);
         assert!(try_label_cf_ret_tyb(&parse_tyb(&fwd).unwrap()).is_none());
+    }
+
+    /// S3.510: CF+NOP+LABEL+RET YOYO compose — forward pass-2 (NOP filler
+    /// ⇒ rel≠0). Not FIXED10 / not sheep of bare CF+RET. Next ≥10 =
+    /// wrong-slot lift / OW-RT.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_cf_nop_label_ret_yoyo_seed_compose_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        let this = include_str!("s1_tyb_parser.rs");
+        assert!(this.contains("S3.510") || pe_dll.contains("S3.510"));
+        assert!(
+            this.contains("try_emit_cf_nop_label_ret_via_yoyo_seed")
+                && this.contains("try_compose_cf_nop_label_ret_via_yoyo_seed")
+                && this.contains("try_cf_nop_label_ret_tyb")
+        );
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        let pins = [
+            "try_emit_cf_nop_label_ret_via_yoyo_seed",
+            "try_compose_cf_nop_label_ret_via_yoyo_seed",
+            "try_cf_nop_label_ret_tyb",
+            "S3.510",
+            "NOP filler",
+            "forward pass-2",
+            "S3_CALL_BODY_SEED",
+            "S3_JMP_BODY_SEED",
+            "S3_JCC_BODY_SEED",
+            "S3_FIXED10_OPS",
+            "try_emit_text_via_yoyo_table",
+        ];
+        for p in pins {
+            assert!(this.contains(p), "missing CF+NOP+LABEL pin {p}");
+        }
+        assert!(pins.len() >= 10);
+        assert_eq!(S3_FIXED10_OPS.len(), 10);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+        let via = try_emit_text_via_yoyo_table(&[0x70, 0x00, 0x40, 0xFF]).expect("fwd JMP");
+        let tyb = tyb_from_records(&[
+            (0x70, 1, [1, 0, 0, 0, 0, 0]),
+            (0x00, 0, [0; 6]),
+            (0x40, 1, [1, 0, 0, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let rust = emit_x86(&parse_tyb(&tyb).unwrap()).text;
+        assert_eq!(via, rust);
+        // JMP 5B + NOP; target=6 next=5 ⇒ rel=1
+        assert_eq!(via[0], 0xE9);
+        assert_eq!(&via[1..5], &1i32.to_le_bytes());
+        assert_eq!(via[5], 0x90);
+        assert_eq!(*via.last().unwrap(), 0xC3);
+        let pe_y = try_compile_tyb_via_yoyo_table(&tyb).expect("yoyo");
+        let pe_m = compile_tyb_to_pe_mini(&tyb).expect("mini");
+        assert_eq!(pe_y.bytes, pe_m.bytes);
+        assert!(fixed_template_ops(&parse_tyb(&tyb).unwrap()).is_none());
+        // JCC forward
+        let tyb_j = tyb_from_records(&[
+            (0x72, 1, [9, 0, 0, 0, 0, 0]),
+            (0x00, 0, [0; 6]),
+            (0x40, 1, [9, 0, 0, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let via_j = try_cf_nop_label_ret_tyb(&parse_tyb(&tyb_j).unwrap()).expect("JCC");
+        assert_eq!(via_j, emit_x86(&parse_tyb(&tyb_j).unwrap()).text);
+        // JCC 6B + NOP; target=7 next=6 ⇒ rel=1
+        assert_eq!(&via_j[2..6], &1i32.to_le_bytes());
+        assert!(try_compile_tyb_via_yoyo_table(&tyb_j).is_some());
+        // no-NOP CF+LABEL still outside; id mismatch refuses.
+        let no_nop = tyb_from_records(&[
+            (0x70, 1, [1, 0, 0, 0, 0, 0]),
+            (0x40, 1, [1, 0, 0, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        assert!(try_cf_nop_label_ret_tyb(&parse_tyb(&no_nop).unwrap()).is_none());
     }
 
     /// S3.492: YOYO-built compile cliff reject. Freezing more pe_dll hand-x86
