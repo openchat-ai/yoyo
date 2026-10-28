@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.502**（501 ALLOC+RET YOYO seed compose；下一刀=STB+RET seed compose / OW-RT；**不**假 CLOSED）。
+**默认** 继续 **= S3.503**（502 STB+RET YOYO seed compose；下一刀=RAW_BYTE+RET seed compose / OW-RT；**不**假 CLOSED）。
 
 ## 阻塞 / 勿做
 
@@ -179,9 +179,10 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.499** ✅ | ccf0f02 | post-non-fixed10 seed compose map（IMUL..MCPS owned；CF/I/O 仍 emit_x86） |
 | **S3.500** ✅ | a57dde7 | control-flow +RET YOYO object-seed compose（CALL/JMP/JCC；rel32=0） |
 | **S3.501** ✅ | 25b7888 | ALLOC+RET YOYO object-seed compose（PREFIX+STORE_DISP32） |
-| **S3.502** ⏳ | — | **本步**：STB+RET seed compose / OW-RT |
+| **S3.502** ✅ | PIN502 | STB+RET YOYO object-seed compose（OO0/imm8；bake=362 未扩） |
+| **S3.503** ⏳ | — | **本步**：RAW_BYTE+RET seed compose / OW-RT |
 
-**缺口**：fixed10 + IMUL..MCPS/CF/ALLOC+RET=YOYO；STB/LOAD/WRITE/RAW_* 仍 emit_x86。扩 S3_FIXED10=折 golden（禁）。下一刀=STB+RET · OW-RT。禁 pe_dll densify。无假 CLOSED。bake=362 · s3_=311。
+**缺口**：fixed10 + IMUL..ALLOC/STB+RET=YOYO；LOAD/WRITE/RAW_* 仍 emit_x86。扩 S3_FIXED10=折 golden（禁）。下一刀=RAW_BYTE+RET · OW-RT。禁 pe_dll densify。无假 CLOSED。bake=362 · s3_=312。
 
 ---
 
