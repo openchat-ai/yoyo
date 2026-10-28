@@ -3170,6 +3170,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.508: host YOYO compose gap inventory — LABEL/pass-2 · wrong-slot
     // · mixed non-DATA · RAW_BYTES ops-only still emit_x86. Not CLOSED.
     // Next ≥10 = LABEL+CF+RET / OW-RT. OW-RT remains CUT.
+    // S3.509: LABEL+CF+RET YOYO compose (LABEL@0 + CALL/JMP/JCC pass-2
+    // backward rel32‖C3). Next ≥10 = CF+LABEL+RET forward / OW-RT.
+    // Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
