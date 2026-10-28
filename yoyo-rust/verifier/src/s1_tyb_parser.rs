@@ -9802,6 +9802,86 @@ fn try_data_section_ret_tyb(prog: &TybProgram) -> Option<(Vec<u8>, Vec<u8>)> {
     Some((vec![0xC3], arg_low_bytes(d)))
 }
 
+/// S3.521: bare DATA|STR|RAW (no RET) — text=C3 (emit_x86 auto), data=payload.
+fn try_data_section_bare_tyb(prog: &TybProgram) -> Option<(Vec<u8>, Vec<u8>)> {
+    if prog.records.len() != 1 {
+        return None;
+    }
+    let d = &prog.records[0];
+    if !matches!(d.op, 0x10 | 0x12 | 0x13) || d.argc > 3 {
+        return None;
+    }
+    Some((vec![0xC3], arg_low_bytes(d)))
+}
+
+/// S3.521: bare DATA ops (`ops=[0x10|0x12|0x13]`) — text=C3; data empty.
+fn try_emit_data_bare_via_yoyo_seed(ops: &[u8]) -> Option<Vec<u8>> {
+    match ops {
+        [0x10] | [0x12] | [0x13] => Some(vec![0xC3]),
+        _ => None,
+    }
+}
+
+/// S3.521: multi bare DATA|STR|RAW (no RET) — concat data ‖ text=C3.
+fn try_multi_data_section_bare_tyb(prog: &TybProgram) -> Option<(Vec<u8>, Vec<u8>)> {
+    if prog.records.len() < 2 {
+        return None;
+    }
+    if prog.records.last()?.op == 0xFF {
+        return None;
+    }
+    let mut data = Vec::new();
+    for d in &prog.records {
+        if !matches!(d.op, 0x10 | 0x12 | 0x13) || d.argc > 3 {
+            return None;
+        }
+        data.extend(arg_low_bytes(d));
+        if data.len() > S1_MINI_DATA_MAX {
+            return None;
+        }
+    }
+    Some((vec![0xC3], data))
+}
+
+/// S3.521: DATA + ALU mix bare (no RET) — data payload + ALU text ‖ auto-C3.
+fn try_data_alu_mix_bare_tyb(prog: &TybProgram) -> Option<(Vec<u8>, Vec<u8>)> {
+    let n = prog.records.len();
+    if !(2..=9).contains(&n) {
+        return None;
+    }
+    if prog.records.last()?.op == 0xFF {
+        return None;
+    }
+    let mut i = 0usize;
+    let mut data = Vec::new();
+    while i < n && matches!(prog.records[i].op, 0x10 | 0x12 | 0x13) {
+        if prog.records[i].argc > 3 {
+            return None;
+        }
+        data.extend(arg_low_bytes(&prog.records[i]));
+        if data.len() > S1_MINI_DATA_MAX {
+            return None;
+        }
+        i += 1;
+    }
+    if data.is_empty() || i >= n {
+        return None;
+    }
+    let mut text = Vec::with_capacity(64);
+    for rec in &prog.records[i..] {
+        let b = s3_compose_slot_alu_body(rec)?;
+        text.extend_from_slice(&b);
+    }
+    if text.is_empty() {
+        return None;
+    }
+    text.push(0xC3);
+    if text.len() > S1_SLIM_MAX_CODE {
+        return None;
+    }
+    Some((text, data))
+}
+
 /// S3.507: multi DATA|STR|RAW +RET → concat `.data` ‖ text=C3.
 /// ≥2 payload records; total ≤ [`S1_MINI_DATA_MAX`]. **Not** FIXED10.
 fn try_multi_data_section_ret_tyb(prog: &TybProgram) -> Option<(Vec<u8>, Vec<u8>)> {
@@ -9906,6 +9986,9 @@ pub fn try_emit_text_via_yoyo_table(ops: &[u8]) -> Option<Vec<u8>> {
         return Some(text);
     }
     if let Some(text) = try_emit_data_ret_via_yoyo_seed(ops) {
+        return Some(text);
+    }
+    if let Some(text) = try_emit_data_bare_via_yoyo_seed(ops) {
         return Some(text);
     }
     if let Some(text) = try_emit_label_cf_ret_via_yoyo_seed(ops) {
@@ -10183,7 +10266,43 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
             return wrap_pe_slim(&CodegenOutput { text, data }).ok();
         }
     }
+    if let Some((text, data)) = try_data_section_bare_tyb(&prog) {
+        #[cfg(windows)]
+        {
+            return Some(crate::pe_link::PeImage {
+                bytes: s3_compile_pe_patch_text_data(&text, &data),
+            });
+        }
+        #[cfg(not(windows))]
+        {
+            return wrap_pe_slim(&CodegenOutput { text, data }).ok();
+        }
+    }
     if let Some((text, data)) = try_multi_data_section_ret_tyb(&prog) {
+        #[cfg(windows)]
+        {
+            return Some(crate::pe_link::PeImage {
+                bytes: s3_compile_pe_patch_text_data(&text, &data),
+            });
+        }
+        #[cfg(not(windows))]
+        {
+            return wrap_pe_slim(&CodegenOutput { text, data }).ok();
+        }
+    }
+    if let Some((text, data)) = try_multi_data_section_bare_tyb(&prog) {
+        #[cfg(windows)]
+        {
+            return Some(crate::pe_link::PeImage {
+                bytes: s3_compile_pe_patch_text_data(&text, &data),
+            });
+        }
+        #[cfg(not(windows))]
+        {
+            return wrap_pe_slim(&CodegenOutput { text, data }).ok();
+        }
+    }
+    if let Some((text, data)) = try_data_alu_mix_bare_tyb(&prog) {
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
@@ -17576,6 +17695,98 @@ mod tests {
             try_compile_tyb_via_yoyo_table(&tyb_v).unwrap().bytes,
             compile_tyb_to_pe_mini(&tyb_v).unwrap().bytes
         );
+    }
+
+    /// S3.521: DATA bare batch — single/multi DATA|STR|RAW no RET;
+    /// DATA+ALU mix bare; ops [0x10|12|13]. text=C3 / ALU‖C3. Not FIXED10.
+    /// bake=362. Next ≥10 = OW-RT cliff / YOYO-built.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_data_bare_batch_yoyo_seed_compose_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        let this = include_str!("s1_tyb_parser.rs");
+        assert!(this.contains("S3.521") || pe_dll.contains("S3.521"));
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        let pins = [
+            "S3.521",
+            "try_data_section_bare_tyb",
+            "try_emit_data_bare_via_yoyo_seed",
+            "try_multi_data_section_bare_tyb",
+            "try_data_alu_mix_bare_tyb",
+            "DATA bare",
+            "bare DATA|STR|RAW",
+            "multi bare DATA",
+            "DATA+ALU mix bare",
+            "ops=[0x10|0x12|0x13]",
+        ];
+        for p in pins {
+            assert!(this.contains(p), "missing DATA bare pin {p}");
+        }
+        assert!(pins.len() >= 10);
+        assert_eq!(S3_FIXED10_OPS.len(), 10);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+        // bare DATA
+        let tyb_d = tyb_from_records(&[(0x10, 1, [0xAB, 0, 0, 0, 0, 0])]);
+        let (t, d) = try_data_section_bare_tyb(&parse_tyb(&tyb_d).unwrap()).expect("DATA bare");
+        let emit = emit_x86(&parse_tyb(&tyb_d).unwrap());
+        assert_eq!(t, emit.text);
+        assert_eq!(d, emit.data);
+        assert_eq!(t, vec![0xC3]);
+        assert_eq!(d, vec![0xAB]);
+        assert_eq!(
+            try_compile_tyb_via_yoyo_table(&tyb_d).unwrap().bytes,
+            compile_tyb_to_pe_mini(&tyb_d).unwrap().bytes
+        );
+        assert_eq!(try_emit_text_via_yoyo_table(&[0x10]).unwrap(), vec![0xC3]);
+        // multi bare
+        let tyb_m = tyb_from_records(&[
+            (0x10, 1, [1, 0, 0, 0, 0, 0]),
+            (0x12, 1, [2, 0, 0, 0, 0, 0]),
+        ]);
+        let (tm, dm) =
+            try_multi_data_section_bare_tyb(&parse_tyb(&tyb_m).unwrap()).expect("multi bare");
+        assert_eq!(tm, vec![0xC3]);
+        assert_eq!(dm, vec![1, 2]);
+        assert_eq!(
+            (tm.clone(), dm.clone()),
+            (
+                emit_x86(&parse_tyb(&tyb_m).unwrap()).text,
+                emit_x86(&parse_tyb(&tyb_m).unwrap()).data
+            )
+        );
+        assert!(try_compile_tyb_via_yoyo_table(&tyb_m).is_some());
+        // DATA + INC16 bare
+        let tyb_mix = tyb_from_records(&[
+            (0x10, 1, [0xEE, 0, 0, 0, 0, 0]),
+            (0x66, 1, [16, 0, 0, 0, 0, 0]),
+        ]);
+        let (tx, dx) =
+            try_data_alu_mix_bare_tyb(&parse_tyb(&tyb_mix).unwrap()).expect("DATA+ALU bare");
+        let em = emit_x86(&parse_tyb(&tyb_mix).unwrap());
+        assert_eq!(tx, em.text);
+        assert_eq!(dx, em.data);
+        assert!(try_compile_tyb_via_yoyo_table(&tyb_mix).is_some());
+        // +RET still via ret path
+        let with_ret = tyb_from_records(&[
+            (0x10, 1, [1, 0, 0, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        assert!(try_data_section_bare_tyb(&parse_tyb(&with_ret).unwrap()).is_none());
+        assert!(try_data_section_ret_tyb(&parse_tyb(&with_ret).unwrap()).is_some());
     }
 
     /// S3.492: YOYO-built compile cliff reject. Freezing more pe_dll hand-x86
