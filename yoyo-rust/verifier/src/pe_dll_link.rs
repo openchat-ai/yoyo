@@ -3161,6 +3161,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.505: WRITE_FILE+RET YOYO object-seed compose (139B poke path/
     // slot/sz/store; host ≡ slim_write_tmpl; bake=362). Not FIXED10.
     // Next ≥10 = DATA+RET / OW-RT. Not CLOSED. OW-RT remains CUT.
+    // S3.506: DATA/STR/RAW+RET YOYO compose (text=C3; .data=low-bytes;
+    // emitter seed ≠ payload). Next ≥10 = multi-DATA / OW-RT.
+    // Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
