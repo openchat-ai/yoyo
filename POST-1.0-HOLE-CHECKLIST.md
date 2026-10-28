@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.505**（504 LOAD_FILE+RET；下一刀=WRITE_FILE+RET / OW-RT）。
+**默认** 继续 **= S3.506**（505 WRITE_FILE+RET；下一刀=DATA+RET / OW-RT）。
 
 ## 阻塞 / 勿做
 
@@ -182,9 +182,10 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.502** ✅ | 0daf55a | STB+RET YOYO object-seed compose（OO0/imm8；bake=362 未扩） |
 | **S3.503** ✅ | 704a3c6 | RAW_BYTE/RAW_BYTES+RET YOYO literal payload compose |
 | **S3.504** ✅ | 5a6f831 | LOAD_FILE+RET YOYO object-seed compose（160B poke；bake=362） |
-| **S3.505** ⏳ | — | **本步**：WRITE_FILE+RET seed compose / OW-RT |
+| **S3.505** ✅ | ae48400 | WRITE_FILE+RET YOYO object-seed compose（139B poke；bake=362） |
+| **S3.506** ⏳ | — | **本步**：DATA+RET seed compose / OW-RT |
 
-**缺口**：fixed10 + …/RAW_*/LOAD+RET=YOYO；WRITE 仍 emit_x86。下一刀=WRITE_FILE+RET。bake=362 · s3_=314。
+**缺口**：fixed10 + …/LOAD/WRITE+RET=YOYO；DATA/STR 仍 emit_x86。下一刀=DATA+RET。bake=362 · s3_=315。
 
 ---
 
@@ -218,7 +219,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.505**（WRITE_FILE+RET / OW-RT；禁 densify / 禁折 FIXED10）。做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
+- `继续` → **S3.506**（DATA+RET / OW-RT；禁 densify / 禁折 FIXED10）。做完直接下一刀；红了先修再进。path 2 已勾勿重开。fixed10 golden / 布局不要再折。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -226,4 +227,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-28**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.505** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 看板已再折（波段+近窗）
+**快照 2026-10-28**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.506** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · 无假 CLOSED · 看板已再折（波段+近窗）
