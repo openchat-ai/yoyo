@@ -3277,6 +3277,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // `yoyo_sidecar_export_compile_mini` (host mini bake; call-time write
     // only; ≠ in-DLL recompile). Next ≥10 = true call-time YOYO compile in
     // sidecar / OW-RT. Not CLOSED. OW-RT remains CUT.
+    // S3.524: true call-time YOYO compile ABSENT cliff — 522/523 = host
+    // mini bake + call-time write; export/oracle ≠ in-DLL compiler.
+    // CLOSED needs compile machine code inside export. Next ≥10 =
+    // IR-in-DLL slice / Gate I. Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.

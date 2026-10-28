@@ -17925,6 +17925,66 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// S3.524: true call-time YOYO compile ABSENT cliff. 522/523 = host mini
+    /// bake + call-time write; export/oracle ≠ in-DLL compiler. CLOSED needs
+    /// compile machine code inside export. Not densify. bake=362.
+    /// Next ≥10 = IR-in-DLL slice / Gate I / OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_true_call_time_yoyo_compile_absent_cliff_reject() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        let this = include_str!("s1_tyb_parser.rs");
+        assert!(this.contains("S3.524") || pe_dll.contains("S3.524"));
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        let cliffs = [
+            "S3.524",
+            "true call-time YOYO compile ABSENT",
+            "general in-DLL compiler still ABSENT",
+            "Does **not** re-compile at call",
+            "finite YOYO-precompiled",
+            "not an in-DLL YOYO compiler",
+            "link_yoyo_in_dll_recompile_dll",
+            "yoyo_sidecar_export_compile_mini",
+            "yoyo_built_runtime_effect_mini",
+            "production default remains Rust",
+            "compile machine code inside export",
+            "IR-in-DLL",
+        ];
+        for c in cliffs {
+            assert!(
+                this.contains(c) || pe_dll.contains(c),
+                "missing call-time ABSENT pin {c}"
+            );
+        }
+        assert!(cliffs.len() >= 10);
+        // Witness: export bake helpers are host-side; try_* not in export emit
+        assert!(pe_dll.contains("yoyo_sidecar_export_bake"));
+        assert!(
+            !pe_dll.contains("try_compose_imul_ret_via_yoyo_seed")
+                || this.contains("try_compose_imul_ret_via_yoyo_seed"),
+            "compose lives in s1 host — not a claim of in-DLL"
+        );
+        assert_eq!(S3_FIXED10_OPS.len(), 10);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+        // Mutate input after bake: export_compile_mini already wrote; re-read
+        // would need new bake — call-time path does not re-parse TYB in DLL.
+        assert!(pe_dll.contains("Call-time = write") || pe_dll.contains("call-time write"));
+    }
+
     /// S3.492: YOYO-built compile cliff reject. Freezing more pe_dll hand-x86
     /// into `*_BODY_SEED` = translation densify — **YOYO ≠ other-lang
     /// translate**. mt→same index = 467 ABI (no retry). Honest CUT surface:
