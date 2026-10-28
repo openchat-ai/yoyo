@@ -1362,19 +1362,20 @@ pub fn validate_tyb_mini(prog: &TybProgram) -> crate::types::IsaResult<()> {
                 }
                 let dd = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]);
                 let ss = u16::from_le_bytes([rec.args_raw[2], rec.args_raw[3]]);
-                if !mini_slot_disp8_ok(dd) || !mini_slot_disp8_ok(ss) {
-                    return bad(i, "s1 mini LDB slot disp32 unsupported".into());
+                // S3.515: LDB any-slot≤255
+                if !mini_slot_any_ok(dd) || !mini_slot_any_ok(ss) {
+                    return bad(i, "s1 mini LDB slot out of range (>255)".into());
                 }
             }
-            // S3.156: STB val base oo (same slot rules as LDB).
+            // S3.156/S3.515: STB val base oo — any-slot≤255
             0x81 => {
                 if rec.argc != 3 {
                     return bad(i, format!("s1 mini STB requires argc=3, got {}", rec.argc));
                 }
                 let val = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]);
                 let base = u16::from_le_bytes([rec.args_raw[2], rec.args_raw[3]]);
-                if !mini_slot_disp8_ok(val) || !mini_slot_disp8_ok(base) {
-                    return bad(i, "s1 mini STB slot disp32 unsupported".into());
+                if !mini_slot_any_ok(val) || !mini_slot_any_ok(base) {
+                    return bad(i, "s1 mini STB slot out of range (>255)".into());
                 }
             }
             0x84 => {
@@ -1387,8 +1388,9 @@ pub fn validate_tyb_mini(prog: &TybProgram) -> crate::types::IsaResult<()> {
                 let dst = u16::from_le_bytes([rec.args_raw[0], rec.args_raw[1]]);
                 let src = u16::from_le_bytes([rec.args_raw[2], rec.args_raw[3]]);
                 let n = u16::from_le_bytes([rec.args_raw[4], rec.args_raw[5]]);
-                if !mini_slot_disp8_ok(dst) || !mini_slot_disp8_ok(src) || !mini_slot_disp8_ok(n) {
-                    return bad(i, "s1 mini MEMCPY_DATA slot disp32 unsupported".into());
+                // S3.515: MEMCPY_DATA any-slot≤255
+                if !mini_slot_any_ok(dst) || !mini_slot_any_ok(src) || !mini_slot_any_ok(n) {
+                    return bad(i, "s1 mini MEMCPY_DATA slot out of range (>255)".into());
                 }
             }
             0x85 => {
@@ -1413,12 +1415,13 @@ pub fn validate_tyb_mini(prog: &TybProgram) -> crate::types::IsaResult<()> {
                 if n > 0 {
                     let last_dst = dst.wrapping_add(n - 1);
                     let last_src = src.wrapping_add(n - 1);
-                    if !mini_slot_disp8_ok(dst)
-                        || !mini_slot_disp8_ok(src)
-                        || !mini_slot_disp8_ok(last_dst)
-                        || !mini_slot_disp8_ok(last_src)
+                    // S3.515: MEMCPY_STATE any-slot≤255 across range
+                    if !mini_slot_any_ok(dst)
+                        || !mini_slot_any_ok(src)
+                        || !mini_slot_any_ok(last_dst)
+                        || !mini_slot_any_ok(last_src)
                     {
-                        return bad(i, "s1 mini MEMCPY_STATE slot disp32 unsupported".into());
+                        return bad(i, "s1 mini MEMCPY_STATE slot out of range (>255)".into());
                     }
                 }
             }
@@ -2860,46 +2863,46 @@ pub const S3_LOAD_RCX_DISP32_SEED: [u8; 7] = [0x49, 0x8b, 0x8f, 0x00, 0x00, 0x00
 /// S3.514: `imul rax, rcx` (4B).
 pub const S3_IMUL_RAX_RCX_SEED: [u8; 4] = [0x48, 0x0f, 0xaf, 0xc1];
 
-/// S3.514: append load rax,[r15+slot*8] via disp8/32 host seeds.
+/// S3.515: host `mov rsi,[r15+disp8/32]` / `mov rdi,[r15+…]` (MEMCPY_DATA).
+pub const S3_LOAD_RSI_DISP8_SEED: [u8; 4] = [0x49, 0x8b, 0x77, 0x00];
+pub const S3_LOAD_RSI_DISP32_SEED: [u8; 7] = [0x49, 0x8b, 0xb7, 0x00, 0x00, 0x00, 0x00];
+pub const S3_LOAD_RDI_DISP8_SEED: [u8; 4] = [0x49, 0x8b, 0x7f, 0x00];
+pub const S3_LOAD_RDI_DISP32_SEED: [u8; 7] = [0x49, 0x8b, 0xbf, 0x00, 0x00, 0x00, 0x00];
+/// S3.515: `movzx rax, byte [rax]` / `add rax,imm32` / `add rax,imm8` / `mov [rax],cl`.
+pub const S3_MOVZX_RAX_BYTE_RAX_SEED: [u8; 4] = [0x48, 0x0f, 0xb6, 0x00];
+pub const S3_ADD_RAX_IMM32_SEED: [u8; 7] = [0x48, 0x81, 0xc0, 0x00, 0x00, 0x00, 0x00];
+pub const S3_ADD_RAX_IMM8_SEED: [u8; 4] = [0x48, 0x83, 0xc0, 0x00];
+pub const S3_STORE_CL_RAX_SEED: [u8; 2] = [0x88, 0x08];
+pub const S3_REP_MOVSB_SEED: [u8; 2] = [0xf3, 0xa4];
+
+/// S3.514/S3.515: poke disp into a 4B disp8 or 7B disp32 load/store seed.
+fn s3_push_r15_mem_op(out: &mut Vec<u8>, slot: u16, disp8: &[u8; 4], disp32: &[u8; 7]) {
+    let disp = (slot as u32) * 8;
+    if disp <= 127 {
+        let mut s = *disp8;
+        s[3] = disp as u8;
+        out.extend_from_slice(&s);
+    } else {
+        let mut s = *disp32;
+        s[3..7].copy_from_slice(&disp.to_le_bytes());
+        out.extend_from_slice(&s);
+    }
+}
+
 fn s3_push_load_rax_slot(out: &mut Vec<u8>, slot: u16) {
-    let disp = (slot as u32) * 8;
-    if disp <= 127 {
-        let mut s = S3_LOAD_RAX_DISP8_SEED;
-        s[3] = disp as u8;
-        out.extend_from_slice(&s);
-    } else {
-        let mut s = S3_LOAD_RAX_DISP32_SEED;
-        s[3..7].copy_from_slice(&disp.to_le_bytes());
-        out.extend_from_slice(&s);
-    }
+    s3_push_r15_mem_op(out, slot, &S3_LOAD_RAX_DISP8_SEED, &S3_LOAD_RAX_DISP32_SEED);
 }
-
-/// S3.514: append load rcx,[r15+slot*8] via disp8/32 host seeds.
 fn s3_push_load_rcx_slot(out: &mut Vec<u8>, slot: u16) {
-    let disp = (slot as u32) * 8;
-    if disp <= 127 {
-        let mut s = S3_LOAD_RCX_DISP8_SEED;
-        s[3] = disp as u8;
-        out.extend_from_slice(&s);
-    } else {
-        let mut s = S3_LOAD_RCX_DISP32_SEED;
-        s[3..7].copy_from_slice(&disp.to_le_bytes());
-        out.extend_from_slice(&s);
-    }
+    s3_push_r15_mem_op(out, slot, &S3_LOAD_RCX_DISP8_SEED, &S3_LOAD_RCX_DISP32_SEED);
 }
-
-/// S3.514: append store [r15+slot*8],rax via existing store seeds.
+fn s3_push_load_rsi_slot(out: &mut Vec<u8>, slot: u16) {
+    s3_push_r15_mem_op(out, slot, &S3_LOAD_RSI_DISP8_SEED, &S3_LOAD_RSI_DISP32_SEED);
+}
+fn s3_push_load_rdi_slot(out: &mut Vec<u8>, slot: u16) {
+    s3_push_r15_mem_op(out, slot, &S3_LOAD_RDI_DISP8_SEED, &S3_LOAD_RDI_DISP32_SEED);
+}
 fn s3_push_store_rax_slot(out: &mut Vec<u8>, slot: u16) {
-    let disp = (slot as u32) * 8;
-    if disp <= 127 {
-        let mut s = S3_STORE_RAX_DISP8_SEED;
-        s[3] = disp as u8;
-        out.extend_from_slice(&s);
-    } else {
-        let mut s = S3_STORE_RAX_DISP32_SEED;
-        s[3..7].copy_from_slice(&disp.to_le_bytes());
-        out.extend_from_slice(&s);
-    }
+    s3_push_r15_mem_op(out, slot, &S3_STORE_RAX_DISP8_SEED, &S3_STORE_RAX_DISP32_SEED);
 }
 
 static S3_FIXED10_BODY_SEED: [&[u8]; 10] = [
@@ -8654,20 +8657,33 @@ fn try_emit_ldb_ret_via_yoyo_seed(ops: &[u8]) -> Option<Vec<u8>> {
     Some(text)
 }
 
-/// S3.496: compose LDB body — dd=ss=0; oo=0 → OO0 seed; else poke oo @+7.
+/// S3.496/S3.515: compose LDB — dd=ss=0 fast path; else any-slot≤255 seeds.
 fn try_compose_ldb_body_via_yoyo_seed(dd: u16, ss: u16, oo: u16) -> Option<Vec<u8>> {
-    if dd != 0 || ss != 0 {
+    if !mini_slot_any_ok(dd) || !mini_slot_any_ok(ss) {
         return None;
     }
-    if oo == 0 {
-        return Some(S3_LDB_OO0_BODY_SEED.to_vec());
+    if dd == 0 && ss == 0 {
+        if oo == 0 {
+            return Some(S3_LDB_OO0_BODY_SEED.to_vec());
+        }
+        let mut body = S3_LDB_OO_BODY_SEED.to_vec();
+        body[7..11].copy_from_slice(&(oo as u32).to_le_bytes());
+        return Some(body);
     }
-    let mut body = S3_LDB_OO_BODY_SEED.to_vec();
-    body[7..11].copy_from_slice(&(oo as u32).to_le_bytes());
+    // S3.515: load ss → (+add oo) → movzx → store dd
+    let mut body = Vec::with_capacity(32);
+    s3_push_load_rax_slot(&mut body, ss);
+    if oo != 0 {
+        let mut add = S3_ADD_RAX_IMM32_SEED;
+        add[3..7].copy_from_slice(&(oo as u32).to_le_bytes());
+        body.extend_from_slice(&add);
+    }
+    body.extend_from_slice(&S3_MOVZX_RAX_BYTE_RAX_SEED);
+    s3_push_store_rax_slot(&mut body, dd);
     Some(body)
 }
 
-/// S3.496: TYB → LDB+RET when dd=ss=0 (oo free; OO0 / OO seeds).
+/// S3.496/S3.515: TYB → LDB+RET (slot≤255).
 fn try_ldb_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
     if prog.records.len() != 2 {
         return None;
@@ -8684,7 +8700,7 @@ fn try_ldb_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
 }
 
 /// S3.497: MEMCPY_DATA+RET via `S3_MEMCPY_DATA_BODY_SEED`‖C3.
-/// `ops=[0x84,0xFF]` → dst=src=n=0. TYB path pokes disp8 when all slots <16.
+/// `ops=[0x84,0xFF]` → dst=src=n=0. TYB: any-slot≤255 (S3.515).
 /// **Not** folded into `S3_FIXED10_OPS`.
 fn try_emit_memcpy_data_ret_via_yoyo_seed(ops: &[u8]) -> Option<Vec<u8>> {
     if ops != [0x84, 0xFF] {
@@ -8696,19 +8712,28 @@ fn try_emit_memcpy_data_ret_via_yoyo_seed(ops: &[u8]) -> Option<Vec<u8>> {
     Some(text)
 }
 
-/// S3.497: compose MEMCPY_DATA body — poke src@+3 / dst@+7 / n@+11 (disp8).
+/// S3.497/S3.515: compose MEMCPY_DATA — disp8 seed or rsi/rdi/rcx load seeds.
 fn try_compose_memcpy_data_body_via_yoyo_seed(dst: u16, src: u16, n: u16) -> Option<Vec<u8>> {
-    if dst >= 16 || src >= 16 || n >= 16 {
+    if !mini_slot_any_ok(dst) || !mini_slot_any_ok(src) || !mini_slot_any_ok(n) {
         return None;
     }
-    let mut body = S3_MEMCPY_DATA_BODY_SEED.to_vec();
-    body[3] = (src as u8) * 8;
-    body[7] = (dst as u8) * 8;
-    body[11] = (n as u8) * 8;
+    if mini_slot_disp8_ok(dst) && mini_slot_disp8_ok(src) && mini_slot_disp8_ok(n) {
+        let mut body = S3_MEMCPY_DATA_BODY_SEED.to_vec();
+        body[3] = (src as u8) * 8;
+        body[7] = (dst as u8) * 8;
+        body[11] = (n as u8) * 8;
+        return Some(body);
+    }
+    // S3.515: RSI←src, RDI←dst, RCX←n, rep movsb
+    let mut body = Vec::with_capacity(28);
+    s3_push_load_rsi_slot(&mut body, src);
+    s3_push_load_rdi_slot(&mut body, dst);
+    s3_push_load_rcx_slot(&mut body, n);
+    body.extend_from_slice(&S3_REP_MOVSB_SEED);
     Some(body)
 }
 
-/// S3.497: TYB → MEMCPY_DATA+RET when all slots <16 (disp8 seed).
+/// S3.497/S3.515: TYB → MEMCPY_DATA+RET (slot≤255).
 fn try_memcpy_data_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
     if prog.records.len() != 2 {
         return None;
@@ -8724,8 +8749,8 @@ fn try_memcpy_data_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
     Some(text)
 }
 
-/// S3.498: MEMCPY_STATE+RET via looped `S3_MEMCPY_STATE_PAIR_SEED`‖C3.
-/// `ops=[0x85,0xFF]` → n=1 dst=src=0. TYB: n∈1..=4, all slots disp8.
+/// S3.498: MEMCPY_STATE+RET via looped pair seeds‖C3.
+/// `ops=[0x85,0xFF]` → n=1 dst=src=0. TYB: n∈1..=4, slot≤255 (S3.515).
 /// **Not** folded into `S3_FIXED10_OPS`.
 fn try_emit_memcpy_state_ret_via_yoyo_seed(ops: &[u8]) -> Option<Vec<u8>> {
     if ops != [0x85, 0xFF] {
@@ -8736,25 +8761,44 @@ fn try_emit_memcpy_state_ret_via_yoyo_seed(ops: &[u8]) -> Option<Vec<u8>> {
     Some(text)
 }
 
-/// S3.498: compose MEMCPY_STATE — n pairs, poke src@+3 / dst@+7 each.
+/// S3.498/S3.515: compose MEMCPY_STATE — disp8 pair poke or load/store seeds.
 fn try_compose_memcpy_state_body_via_yoyo_seed(dst: u16, src: u16, n: u16) -> Option<Vec<u8>> {
     if n == 0 || n > S1_MINI_MEMCPY_STATE_MAX_N {
         return None;
     }
-    if (dst as u32) + (n as u32) > 16 || (src as u32) + (n as u32) > 16 {
+    let last_dst = dst.wrapping_add(n - 1);
+    let last_src = src.wrapping_add(n - 1);
+    if !mini_slot_any_ok(dst)
+        || !mini_slot_any_ok(src)
+        || !mini_slot_any_ok(last_dst)
+        || !mini_slot_any_ok(last_src)
+    {
         return None;
     }
-    let mut body = Vec::with_capacity((n as usize) * S3_MEMCPY_STATE_PAIR_SEED.len());
+    let all_disp8 = mini_slot_disp8_ok(dst)
+        && mini_slot_disp8_ok(src)
+        && mini_slot_disp8_ok(last_dst)
+        && mini_slot_disp8_ok(last_src);
+    if all_disp8 {
+        let mut body = Vec::with_capacity((n as usize) * S3_MEMCPY_STATE_PAIR_SEED.len());
+        for i in 0..n {
+            let mut pair = S3_MEMCPY_STATE_PAIR_SEED.to_vec();
+            pair[3] = ((src + i) as u8) * 8;
+            pair[7] = ((dst + i) as u8) * 8;
+            body.extend_from_slice(&pair);
+        }
+        return Some(body);
+    }
+    // S3.515: per-slot load/store seeds
+    let mut body = Vec::with_capacity((n as usize) * 14);
     for i in 0..n {
-        let mut pair = S3_MEMCPY_STATE_PAIR_SEED.to_vec();
-        pair[3] = ((src + i) as u8) * 8;
-        pair[7] = ((dst + i) as u8) * 8;
-        body.extend_from_slice(&pair);
+        s3_push_load_rax_slot(&mut body, src + i);
+        s3_push_store_rax_slot(&mut body, dst + i);
     }
     Some(body)
 }
 
-/// S3.498: TYB → MEMCPY_STATE+RET (n∈1..=4, disp8 range).
+/// S3.498/S3.515: TYB → MEMCPY_STATE+RET (n∈1..=4, slot≤255).
 fn try_memcpy_state_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
     if prog.records.len() != 2 {
         return None;
@@ -8985,29 +9029,47 @@ fn try_emit_stb_ret_via_yoyo_seed(ops: &[u8]) -> Option<Vec<u8>> {
     Some(text)
 }
 
-/// S3.502/S3.513: compose STB body — poke val/base disp8; oo=0 / imm8 / imm32.
+/// S3.502/S3.513/S3.515: compose STB — disp8 body seeds, or any-slot load seeds.
 fn try_compose_stb_body_via_yoyo_seed(val: u16, base: u16, oo: u16) -> Option<Vec<u8>> {
-    if !mini_slot_disp8_ok(val) || !mini_slot_disp8_ok(base) {
+    if !mini_slot_any_ok(val) || !mini_slot_any_ok(base) {
         return None;
     }
-    if oo == 0 {
-        let mut body = S3_STB_OO0_BODY_SEED.to_vec();
+    if mini_slot_disp8_ok(val) && mini_slot_disp8_ok(base) {
+        if oo == 0 {
+            let mut body = S3_STB_OO0_BODY_SEED.to_vec();
+            body[3] = (val as u8) * 8;
+            body[7] = (base as u8) * 8;
+            return Some(body);
+        }
+        if oo <= 127 {
+            let mut body = S3_STB_OO_IMM8_BODY_SEED.to_vec();
+            body[3] = (val as u8) * 8;
+            body[7] = (base as u8) * 8;
+            body[11] = oo as u8;
+            return Some(body);
+        }
+        let mut body = S3_STB_OO_IMM32_BODY_SEED.to_vec();
         body[3] = (val as u8) * 8;
         body[7] = (base as u8) * 8;
+        body[11..15].copy_from_slice(&(oo as u32).to_le_bytes());
         return Some(body);
     }
-    if oo <= 127 {
-        let mut body = S3_STB_OO_IMM8_BODY_SEED.to_vec();
-        body[3] = (val as u8) * 8;
-        body[7] = (base as u8) * 8;
-        body[11] = oo as u8;
-        return Some(body);
+    // S3.515: load val→rcx, base→rax, (+oo), store cl
+    let mut body = Vec::with_capacity(28);
+    s3_push_load_rcx_slot(&mut body, val);
+    s3_push_load_rax_slot(&mut body, base);
+    if oo != 0 {
+        if oo <= 127 {
+            let mut add = S3_ADD_RAX_IMM8_SEED;
+            add[3] = oo as u8;
+            body.extend_from_slice(&add);
+        } else {
+            let mut add = S3_ADD_RAX_IMM32_SEED;
+            add[3..7].copy_from_slice(&(oo as u32).to_le_bytes());
+            body.extend_from_slice(&add);
+        }
     }
-    // S3.513: oo>127 → imm32 add
-    let mut body = S3_STB_OO_IMM32_BODY_SEED.to_vec();
-    body[3] = (val as u8) * 8;
-    body[7] = (base as u8) * 8;
-    body[11..15].copy_from_slice(&(oo as u32).to_le_bytes());
+    body.extend_from_slice(&S3_STORE_CL_RAX_SEED);
     Some(body)
 }
 
@@ -14511,7 +14573,7 @@ mod tests {
             "S3_LDB_OO_BODY_SEED",
             "S3.496",
             "body[7..11]",
-            "dd != 0 || ss != 0",
+            "S3_MOVZX_RAX_BYTE_RAX_SEED",
             "S3_FIXED10_OPS",
             "try_emit_text_via_yoyo_table",
             "try_compile_tyb_via_yoyo_table",
@@ -14561,13 +14623,13 @@ mod tests {
         assert_eq!(via5, rust5);
         assert_eq!(&via5[7..11], &5u32.to_le_bytes());
         assert!(try_compile_tyb_via_yoyo_table(&tyb5).is_some());
-        // Wrong dd/ss / bare LDB still outside (MEMCPY_DATA = S3.497).
+        // bare LDB still outside; any-slot dd/ss = S3.515.
         assert!(try_emit_text_via_yoyo_table(&[0x80]).is_none());
-        let wrong = tyb_from_records(&[
+        let lifted = tyb_from_records(&[
             (0x80, 3, [1, 0, 2, 0, 0, 0]),
             (0xFF, 0, [0; 6]),
         ]);
-        assert!(try_compile_tyb_via_yoyo_table(&wrong).is_none());
+        assert!(try_compile_tyb_via_yoyo_table(&lifted).is_some()); // S3.515
     }
 
     /// S3.497: MEMCPY_DATA+RET YOYO compose — `S3_MEMCPY_DATA_BODY_SEED`‖C3
@@ -14598,7 +14660,7 @@ mod tests {
             "body[3]",
             "body[7]",
             "body[11]",
-            "dst >= 16 || src >= 16 || n >= 16",
+            "S3_REP_MOVSB_SEED",
             "S3_FIXED10_OPS",
             "try_emit_text_via_yoyo_table",
         ];
@@ -14647,13 +14709,13 @@ mod tests {
         assert_eq!(via_p[7], 8); // dst=1
         assert_eq!(via_p[11], 24); // n=3
         assert!(try_compile_tyb_via_yoyo_table(&tyb_p).is_some());
-        // Slot≥16 / bare still outside (MEMCPY_STATE = S3.498).
+        // bare still outside; slot≥16 = S3.515.
         assert!(try_emit_text_via_yoyo_table(&[0x84]).is_none());
         let big = tyb_from_records(&[
             (0x84, 3, [16, 0, 0, 0, 0, 0]),
             (0xFF, 0, [0; 6]),
         ]);
-        assert!(try_compile_tyb_via_yoyo_table(&big).is_none());
+        assert!(try_compile_tyb_via_yoyo_table(&big).is_some()); // S3.515
     }
 
     /// S3.498: MEMCPY_STATE+RET YOYO compose — looped `S3_MEMCPY_STATE_PAIR_SEED`
@@ -15492,10 +15554,10 @@ mod tests {
 
     /// S3.508: host YOYO compose gap inventory. Single-op+RET surface largely
     /// owned (494–507+). Remaining emit_x86 fallthrough cliffs (≥10):
-    /// LABEL+pass-2 residual · STB slot≥16 residual · RAW_BYTES bare ·
-    /// bare op · mixed non-DATA multi · FIXED10 fold ban · bake pin ·
-    /// OW-RT CUT · YOYO-built cliff. (IMUL/ALUV slot≥16 = S3.514.)
-    /// Next ≥10 = LABEL+CF+RET / OW-RT. Not CLOSED.
+    /// LABEL+pass-2 residual · RAW_BYTES bare · bare op · mixed non-DATA ·
+    /// FIXED10 fold ban · bake pin · OW-RT CUT · YOYO-built cliff ·
+    /// CMP slot≥16 · multi-op mix. (mem any-slot = S3.515.)
+    /// Next ≥10 = CMP any-slot / OW-RT. Not CLOSED.
     #[test]
     #[cfg(windows)]
     fn s3_ow_rt_host_yoyo_compose_gap_inventory_reject() {
@@ -15512,8 +15574,6 @@ mod tests {
         );
         let gaps = [
             "LABEL+pass-2 residual",
-            "STB slot≥16",
-            "STB slot≥16 residual",
             "RAW_BYTES bare",
             "bare op",
             "mixed non-DATA multi",
@@ -15521,6 +15581,8 @@ mod tests {
             "bake pin",
             "OW-RT remains CUT",
             "YOYO-built cliff",
+            "CMP slot≥16",
+            "multi-op mix",
             "S3.508",
         ];
         for g in gaps {
@@ -15533,12 +15595,21 @@ mod tests {
         // Witnesses: still outside YOYO try_*
         assert!(try_emit_text_via_yoyo_table(&[0xA1]).is_none()); // RAW_BYTES bare
         assert!(try_emit_text_via_yoyo_table(&[0x20]).is_none()); // bare
-        let stb_slot = tyb_from_records(&[
-            (0x81, 3, [16, 0, 0, 0, 0, 0]), // STB val slot≥16 residual
+        // CMP still disp8-only
+        let cmp_big = tyb_from_records(&[
+            (0x65, 2, [16, 0, 17, 0, 0, 0]),
             (0xFF, 0, [0; 6]),
         ]);
-        assert!(try_stb_ret_tyb(&parse_tyb(&stb_slot).unwrap()).is_none());
-        // IMUL/ALUV slot≥16 owned by S3.514 — still green
+        assert!(try_compile_tyb_via_yoyo_table(&cmp_big).is_none());
+        // mem any-slot owned by S3.515 — green
+        assert!(try_stb_ret_tyb(
+            &parse_tyb(&tyb_from_records(&[
+                (0x81, 3, [16, 0, 0, 0, 0, 0]),
+                (0xFF, 0, [0; 6]),
+            ]))
+            .unwrap()
+        )
+        .is_some());
         assert!(try_aluv_ret_ops(
             &parse_tyb(&tyb_from_records(&[
                 (0x68, 2, [16, 0, 17, 0, 0, 0]),
@@ -16081,9 +16152,111 @@ mod tests {
         assert_eq!(via2, emit_x86(&parse_tyb(&tyb2).unwrap()).text);
         assert_eq!(&via2[11..15], &0x1000u32.to_le_bytes());
         assert!(try_compile_tyb_via_yoyo_table(&tyb2).is_some());
-        // slot≥16 still outside
-        let bad = tyb_from_records(&[
+        // slot≥16 = S3.515
+        let big = tyb_from_records(&[
             (0x81, 3, [16, 0, 0, 0, 0x80, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        assert!(try_stb_ret_tyb(&parse_tyb(&big).unwrap()).is_some());
+    }
+
+    /// S3.515: mem-op any-slot≤255 batch — STB · LDB · MEMCPY_DATA ·
+    /// MEMCPY_STATE via load/store/rsi/rdi host seeds + mini validate lift.
+    /// One thick knife (not −1 densify). Not FIXED10. bake=362.
+    /// Next ≥10 = CMP any-slot / multi-op mix / OW-RT.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_mem_ops_any_slot_batch_yoyo_seed_compose_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        let this = include_str!("s1_tyb_parser.rs");
+        assert!(this.contains("S3.515") || pe_dll.contains("S3.515"));
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        let pins = [
+            "S3.515",
+            "s3_push_load_rsi_slot",
+            "s3_push_load_rdi_slot",
+            "S3_LOAD_RSI_DISP32_SEED",
+            "S3_LOAD_RDI_DISP32_SEED",
+            "S3_MOVZX_RAX_BYTE_RAX_SEED",
+            "S3_ADD_RAX_IMM32_SEED",
+            "S3_ADD_RAX_IMM8_SEED",
+            "S3_STORE_CL_RAX_SEED",
+            "S3_REP_MOVSB_SEED",
+            "s3_push_r15_mem_op",
+            "try_compose_stb_body_via_yoyo_seed",
+            "try_compose_ldb_body_via_yoyo_seed",
+            "try_compose_memcpy_data_body_via_yoyo_seed",
+            "try_compose_memcpy_state_body_via_yoyo_seed",
+        ];
+        for p in pins {
+            assert!(this.contains(p), "missing mem-ops batch pin {p}");
+        }
+        assert!(pins.len() >= 10);
+        assert_eq!(S3_FIXED10_OPS.len(), 10);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+        // STB val=16 base=17 oo=5
+        let tyb_stb = tyb_from_records(&[
+            (0x81, 3, [16, 0, 17, 0, 5, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let via_stb = try_stb_ret_tyb(&parse_tyb(&tyb_stb).unwrap()).expect("STB");
+        assert_eq!(via_stb, emit_x86(&parse_tyb(&tyb_stb).unwrap()).text);
+        assert_eq!(
+            try_compile_tyb_via_yoyo_table(&tyb_stb)
+                .unwrap()
+                .bytes,
+            compile_tyb_to_pe_mini(&tyb_stb).unwrap().bytes
+        );
+        // LDB dd=20 ss=21 oo=0x100
+        let tyb_ldb = tyb_from_records(&[
+            (0x80, 3, [20, 0, 21, 0, 0x00, 0x01]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let via_ldb = try_ldb_ret_tyb(&parse_tyb(&tyb_ldb).unwrap()).expect("LDB");
+        assert_eq!(via_ldb, emit_x86(&parse_tyb(&tyb_ldb).unwrap()).text);
+        assert!(try_compile_tyb_via_yoyo_table(&tyb_ldb).is_some());
+        // MEMCPY_DATA dst=16 src=17 n=18
+        let tyb_d = tyb_from_records(&[
+            (0x84, 3, [16, 0, 17, 0, 18, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let via_d = try_memcpy_data_ret_tyb(&parse_tyb(&tyb_d).unwrap()).expect("MCPD");
+        assert_eq!(via_d, emit_x86(&parse_tyb(&tyb_d).unwrap()).text);
+        assert!(try_compile_tyb_via_yoyo_table(&tyb_d).is_some());
+        // MEMCPY_STATE dst=16 src=20 n=2
+        let tyb_s = tyb_from_records(&[
+            (0x85, 3, [16, 0, 20, 0, 2, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let via_s = try_memcpy_state_ret_tyb(&parse_tyb(&tyb_s).unwrap()).expect("MCPS");
+        assert_eq!(via_s, emit_x86(&parse_tyb(&tyb_s).unwrap()).text);
+        assert!(try_compile_tyb_via_yoyo_table(&tyb_s).is_some());
+        // mix disp8+disp32 STB
+        let tyb_mix = tyb_from_records(&[
+            (0x81, 3, [1, 0, 16, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        assert_eq!(
+            try_stb_ret_tyb(&parse_tyb(&tyb_mix).unwrap()).unwrap(),
+            emit_x86(&parse_tyb(&tyb_mix).unwrap()).text
+        );
+        // slot>255 refuses
+        let bad = tyb_from_records(&[
+            (0x81, 3, [0, 1, 0, 0, 0, 0]),
             (0xFF, 0, [0; 6]),
         ]);
         assert!(try_stb_ret_tyb(&parse_tyb(&bad).unwrap()).is_none());
