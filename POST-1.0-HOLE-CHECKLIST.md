@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.526 / M2**（525=M1 mutate-after-load GREEN；下一刀=H_00 最小路径 / Gate I 子集）。
+**默认** 继续 **= S3.527 / M3**（526=M2 H_00+M1 DLL Gate I 子集 GREEN；下一刀=ALT_SIDECAR 默认试跑）。
 
 ## 阻塞 / 勿做
 
@@ -109,13 +109,11 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 | 刀 | pin | 一句话 |
 | --- | --- | --- |
-| **S3.522** ✅ | 1f0dc99 | Gate F mini R→C→W + post-host-compose OW-RT cliff map |
-| **S3.523** ✅ | 930a1c8 | sidecar mini bake（path_rcw_mini + export_compile_mini；call-time write） |
-| **S3.524** ✅ | b17749e | true call-time YOYO compile ABSENT cliff（general；≠ densify） |
-| **S3.525** ✅ | — | **M1**：同 DLL 改 TYB → PE 变 + ≡ mini（S1.5.b call-time） |
-| **S3.526** ⏳ | — | **本步=M2**：H_00 最小路径跑通 M1 DLL / Gate I 子集 |
+| **S3.522–525** ✅ | 7c12713 | Gate F mini → sidecar bake → ABSENT cliff → **M1** mutate-after-load |
+| **S3.526** ✅ | — | **M2**：H_00 seed（yoyo.ty）+ M1 YOYO DLL + mini TYB；Gate I 子集 GREEN |
+| **S3.527** ⏳ | — | **本步=M3**：`YOYO_OW_RT_ALT_SIDECAR`（或等价）无 Rust 默认试跑 |
 
-**缺口**：M1（call-time mini + mutate-after-load）已钉；M2=H_00 只认这颗 DLL。host 侧面禁作默认 tip。bake=362。明细 → `git log --grep=S3.`。
+**缺口**：M2（H_00 CreateProcess + YOYO in-DLL mini）已钉；M3=ALT 默认试跑。host 侧面禁作默认 tip。bake=362。明细 → `git log --grep=S3.`。
 
 ---
 
@@ -149,12 +147,12 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.526 / M2**（H_00 最小路径 / Gate I 子集；禁 host 侧面充数 / 禁 densify / 禁假 CLOSED）。M1 已 GREEN。红了记根因停。
+- `继续` → **S3.527 / M3**（ALT_SIDECAR 默认试跑 / 无 Rust；禁 host 侧面充数 / 禁 densify / 禁假 CLOSED）。M2 已 GREEN。红了记根因停。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
 ---
 
-*创建：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
+*Created：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-28**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.526/M2** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · M1 mutate-after-load · 近窗自动收拢
+**快照 2026-10-28**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.527/M3** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · M2 H_00 Gate I 子集 · 近窗自动收拢

@@ -1,10 +1,11 @@
-//! Emit YOYO pe_dll as cwd `yoyo_rt.dll`, optionally run Gate G slices.
+//! Emit YOYO pe_dll as cwd `yoyo_rt.dll`, optionally run Gate G / M2 slices.
 //!
 //! Usage:
 //!   emit-rt-sidecar <out.dll>
 //!   emit-rt-sidecar --rcw <workdir>
 //!   emit-rt-sidecar --export-compile <workdir>
 //!   emit-rt-sidecar --in-dll-recompile <workdir>
+//!   emit-rt-sidecar --m2-h00-subset <workdir>
 //!
 //! Honest: production default remains Rust; still CUT — not OW-RT CLOSED.
 
@@ -14,6 +15,41 @@ use std::process::ExitCode;
 
 fn main() -> ExitCode {
     let mut args: Vec<String> = env::args().skip(1).collect();
+    if args.first().map(|s| s.as_str()) == Some("--m2-h00-subset") {
+        args.remove(0);
+        let Some(work) = args.first() else {
+            eprintln!("usage: emit-rt-sidecar --m2-h00-subset <workdir>");
+            eprintln!("  M2 / Gate I subset: H_00 seed + YOYO in-DLL DLL + mini RET;");
+            eprintln!("  no Rust sidecar. Still CUT — not OW-RT CLOSED.");
+            return ExitCode::from(2);
+        };
+        let work_dir = Path::new(work);
+        if let Err(e) = std::fs::create_dir_all(work_dir) {
+            eprintln!("error: mkdir {}: {e}", work_dir.display());
+            return ExitCode::FAILURE;
+        }
+        #[cfg(windows)]
+        {
+            let code = verifier::pe_dll_link::yoyo_h00_path_m2_mini(work_dir);
+            let sidecar = work_dir.join(verifier::pe_dll_link::RUNTIME_SIDECAR_NAME);
+            let side_bytes = std::fs::metadata(&sidecar).map(|m| m.len()).unwrap_or(0);
+            let out = work_dir.join("output.exe");
+            let has_out = out.is_file();
+            println!(
+                "OW_RT_M2_H00_SUBSET workdir={} sidecar_bytes={} output={} exit={} disposition=CUT",
+                work_dir.display(),
+                side_bytes,
+                has_out,
+                code
+            );
+            return ExitCode::from(u8::try_from(code).unwrap_or(1));
+        }
+        #[cfg(not(windows))]
+        {
+            eprintln!("OW_RT_M2_H00_SUBSET status=SKIP reason=non-Windows");
+            return ExitCode::from(2);
+        }
+    }
     if args.first().map(|s| s.as_str()) == Some("--in-dll-recompile") {
         args.remove(0);
         let Some(work) = args.first() else {
@@ -92,7 +128,9 @@ fn main() -> ExitCode {
         eprintln!("       emit-rt-sidecar --rcw <workdir>");
         eprintln!("       emit-rt-sidecar --export-compile <workdir>");
         eprintln!("       emit-rt-sidecar --in-dll-recompile <workdir>");
+        eprintln!("       emit-rt-sidecar --m2-h00-subset <workdir>");
         eprintln!("  Gate G: alt / RCW / export-compile / in-DLL recompile");
+        eprintln!("  M2: H_00 + YOYO in-DLL mini (Gate I subset)");
         eprintln!("  Still CUT — not OW-RT CLOSED");
         return ExitCode::from(2);
     };

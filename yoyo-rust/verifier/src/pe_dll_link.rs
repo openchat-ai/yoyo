@@ -3286,6 +3286,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // mini (yoyo_sidecar_in_dll_call_time_invoke). Mini ≠ full compiler;
     // production Rust sidecar unchanged. Next ≥10 = M2 H_00 path / Gate I.
     // Not CLOSED. OW-RT remains CUT.
+    // S3.526 / M2: H_00 seed PE loads M1 YOYO in-DLL DLL (no Rust cwd
+    // sidecar) + mini TYB → R→C→W (Gate I subset). Full Gate I (gen4 +
+    // yoyo.tyb) stays RED. Next ≥10 = M3 ALT_SIDECAR default trial / OW-RT.
+    // Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -7741,6 +7745,100 @@ pub fn yoyo_sidecar_in_dll_recompile(work_dir: &Path) -> i32 {
     yoyo_sidecar_in_dll_call_time_invoke(&dll, work_dir)
 }
 
+/// H_00 seed PE basename for M2 Gate I subset (cwd sidecar contract driver).
+pub const M2_H00_SEED_NAME: &str = "seed_h00.exe";
+
+/// S3.526 / M2: write M1 in-DLL recompile DLL (call-time mini) to `out_path`.
+///
+/// Same bytes H_00 loads as cwd `yoyo_rt.dll` under the Gate I subset —
+/// **not** the exit-2 probe ([`write_yoyo_alt_sidecar`]) and **not** Rust.
+pub fn write_yoyo_in_dll_recompile_sidecar(out_path: &Path) -> IsaResult<Vec<u8>> {
+    let entries = gate_g_recompile_entries()?;
+    let dll = link_yoyo_in_dll_recompile_dll(&entries)?;
+    if let Some(parent) = out_path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent).map_err(|e| IsaError::IoError {
+                msg: format!("pe_dll_link: mkdir {}: {e}", parent.display()),
+            })?;
+        }
+    }
+    std::fs::write(out_path, &dll).map_err(|e| IsaError::IoError {
+        msg: format!("pe_dll_link: write {}: {e}", out_path.display()),
+    })?;
+    Ok(dll)
+}
+
+/// Build an H_00-linked seed PE (seed/link host) used as the M2 driver.
+///
+/// Entry jumps to H_00 manual-map → cwd `yoyo_rt.dll` → `functions[0]` export.
+/// Seed source must be a **full-body** `.ty` with H_20/H_21 (same as Gate G
+/// `yoyo link` of `yoyo.ty`). Bare RET TYB links **without** H_00 and crashes
+/// under CreateProcess (`0x40001000`) — not a valid M2 driver.
+pub fn yoyo_h00_seed_pe_m2() -> IsaResult<Vec<u8>> {
+    let ty = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join("yoyo/projects/yoyo.ty");
+    let src = std::fs::read(&ty).map_err(|e| IsaError::IoError {
+        msg: format!("pe_dll_link: read H_00 seed {}: {e}", ty.display()),
+    })?;
+    crate::selfhost::seed_host_compile(&src)
+}
+
+/// S3.526 / M2: run H_00 seed PE against a pre-placed YOYO in-DLL DLL + TYB.
+///
+/// `work_dir` must already contain [`M2_H00_SEED_NAME`] and
+/// [`RUNTIME_SIDECAR_NAME`]. Writes `input.tyb` from `tyb`, then CreateProcess
+/// the seed (child cwd = `work_dir`). Exit = export return (0/1/2/3).
+///
+/// Gate I **subset** only (mini TYB). Full Gate I remains RED.
+#[cfg(windows)]
+pub fn yoyo_h00_path_m2_run(work_dir: &Path, tyb: &[u8]) -> i32 {
+    let seed = work_dir.join(M2_H00_SEED_NAME);
+    let sidecar = work_dir.join(RUNTIME_SIDECAR_NAME);
+    if !seed.is_file() || !sidecar.is_file() {
+        return EXIT_WRITE_FAIL;
+    }
+    if std::fs::write(work_dir.join("input.tyb"), tyb).is_err() {
+        return EXIT_WRITE_FAIL;
+    }
+    let out_path = work_dir.join(OUTPUT_NAME);
+    let _ = std::fs::remove_file(&out_path);
+    match std::process::Command::new(&seed)
+        .current_dir(work_dir)
+        .status()
+    {
+        Ok(st) => st.code().unwrap_or(EXIT_WRITE_FAIL),
+        Err(_) => EXIT_WRITE_FAIL,
+    }
+}
+
+/// S3.526 / M2: place H_00 seed + M1 YOYO DLL (no Rust) + mini RET TYB → R→C→W.
+///
+/// Honest: mini ≠ full YOYO compiler; production default remains Rust → CUT.
+/// Full Gate I (`gen4` + `yoyo.tyb`) is a different contract and stays RED.
+#[cfg(windows)]
+pub fn yoyo_h00_path_m2_mini(work_dir: &Path) -> i32 {
+    let seed_pe = match yoyo_h00_seed_pe_m2() {
+        Ok(b) => b,
+        Err(_) => return EXIT_COMPILE_FAIL,
+    };
+    if std::fs::create_dir_all(work_dir).is_err() {
+        return EXIT_WRITE_FAIL;
+    }
+    if std::fs::write(work_dir.join(M2_H00_SEED_NAME), &seed_pe).is_err() {
+        return EXIT_WRITE_FAIL;
+    }
+    if write_yoyo_in_dll_recompile_sidecar(&work_dir.join(RUNTIME_SIDECAR_NAME)).is_err() {
+        return EXIT_WRITE_FAIL;
+    }
+    let mut tyb = Vec::new();
+    tyb.extend_from_slice(b"TYB\0");
+    tyb.extend_from_slice(&[0, 0]);
+    tyb.extend_from_slice(&1u16.to_le_bytes());
+    tyb.extend_from_slice(&[0xFF, 0, 0, 0, 0, 0, 0, 0]);
+    yoyo_h00_path_m2_run(work_dir, &tyb)
+}
+
 /// S3.525 / M1: place pre-linked in-DLL recompile DLL and invoke export once.
 ///
 /// Call-time: export `ReadFile`s cwd `input.*`; TYB → S1.5.b mini codegen
@@ -8745,6 +8843,80 @@ mod tests {
         let on_disk = std::fs::read(dir.join(RUNTIME_SIDECAR_NAME)).expect("dll");
         assert_eq!(on_disk, dll, "sidecar DLL bytes stable across call-time invokes");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.526 / M2: H_00 seed PE + YOYO in-DLL DLL (no Rust) + mini TYB.
+    /// Gate I subset — CreateProcess seed; export R→C→W ≡ mini; mutate;
+    /// no-input → 2. Full Gate I (gen4+yoyo.tyb) stays RED. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_h00_path_m2_mini_gate_i_subset_pin() {
+        let dir = temp_work("m2-h00");
+        let seed = yoyo_h00_seed_pe_m2().expect("H_00 seed PE");
+        assert_eq!(&seed[0..2], b"MZ");
+        let dll = write_yoyo_in_dll_recompile_sidecar(&dir.join(RUNTIME_SIDECAR_NAME))
+            .expect("write M1 DLL");
+        std::fs::write(dir.join(M2_H00_SEED_NAME), &seed).expect("write seed");
+        // cwd has YOYO DLL only (bytes we just wrote) — Gate I subset posture
+        let on_disk = std::fs::read(dir.join(RUNTIME_SIDECAR_NAME)).expect("dll");
+        assert_eq!(on_disk, dll, "cwd sidecar must be YOYO in-DLL DLL");
+        let ascii = String::from_utf8_lossy(&dll);
+        assert!(ascii.contains(RUNTIME_EXPORT_NAME));
+
+        let tyb_ret = tyb_ret_only();
+        assert_eq!(
+            yoyo_h00_path_m2_run(&dir, &tyb_ret),
+            EXIT_OK,
+            "M2: H_00 + RET must exit 0"
+        );
+        let out1 = std::fs::read(dir.join(OUTPUT_NAME)).expect("out1");
+        let expect1 = crate::s1_tyb_parser::compile_tyb_to_pe_mini(&tyb_ret)
+            .unwrap()
+            .bytes;
+        assert_eq!(out1, expect1, "M2 H_00 path RET ≡ mini");
+
+        let tyb_set = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x30);
+        assert_eq!(
+            yoyo_h00_path_m2_run(&dir, &tyb_set),
+            EXIT_OK,
+            "M2: H_00 + SET+RET must exit 0"
+        );
+        let out2 = std::fs::read(dir.join(OUTPUT_NAME)).expect("out2");
+        let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_mini(&tyb_set)
+            .unwrap()
+            .bytes;
+        assert_eq!(out2, expect2, "M2 H_00 path SET+RET ≡ mini");
+        assert_ne!(out1, out2, "M2: mutate TYB under same seed+DLL must change PE");
+        // same DLL bytes across H_00 CreateProcess invokes
+        assert_eq!(
+            std::fs::read(dir.join(RUNTIME_SIDECAR_NAME)).expect("dll2"),
+            dll
+        );
+
+        // no-input → exit 2 (H_00 still loads DLL; export fail-closed)
+        let _ = std::fs::remove_file(dir.join("input.tyb"));
+        let _ = std::fs::remove_file(dir.join("input.ky"));
+        let _ = std::fs::remove_file(dir.join("input.ty"));
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let no_in = std::process::Command::new(dir.join(M2_H00_SEED_NAME))
+            .current_dir(&dir)
+            .status()
+            .expect("spawn no-input");
+        assert_eq!(
+            no_in.code().unwrap_or(-1),
+            PROBE_EXIT_NO_INPUT,
+            "M2: H_00 + no input → exit 2"
+        );
+        assert!(!dir.join(OUTPUT_NAME).exists(), "no-input must not write PE");
+
+        // convenience wrapper
+        let dir2 = temp_work("m2-h00-wrap");
+        assert_eq!(yoyo_h00_path_m2_mini(&dir2), EXIT_OK);
+        let wrap_out = std::fs::read(dir2.join(OUTPUT_NAME)).expect("wrap out");
+        assert_eq!(wrap_out, expect1, "yoyo_h00_path_m2_mini ≡ RET mini");
+
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&dir2);
     }
 
     /// S3.410/S3.411: in-DLL all fixed10+RET ≡ host `compile_tyb_to_pe` (shared
