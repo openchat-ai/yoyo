@@ -378,6 +378,9 @@ const OUTPUT_NAME: &str = "output.exe";
 /// (`bootstrap_compile`) — **no** `LoadLibrary(yoyo_rt.dll)`.
 ///
 /// Honest: production H_00 still ships Rust sidecar → OW-RT remains CUT.
+/// Compile step = Win32 `executor` seed/link — **not** S1
+/// [`crate::s1_tyb_parser::try_compile_tyb_via_yoyo_table`] (see
+/// [`yoyo_built_runtime_effect_mini`] for that slice).
 pub fn yoyo_built_runtime_effect(work_dir: &Path) -> i32 {
     let input = match read_cwd_input(work_dir) {
         Ok(d) => d,
@@ -386,6 +389,37 @@ pub fn yoyo_built_runtime_effect(work_dir: &Path) -> i32 {
     let out = match crate::selfhost::bootstrap_compile(&input) {
         Ok(p) => p,
         Err(_) => return EXIT_COMPILE_FAIL,
+    };
+    let out_path = work_dir.join(OUTPUT_NAME);
+    if std::fs::write(&out_path, &out).is_err() {
+        return EXIT_WRITE_FAIL;
+    }
+    EXIT_OK
+}
+
+/// S3.522: Gate F **mini** R→C→W — TYB via
+/// [`crate::s1_tyb_parser::compile_tyb_to_pe_mini`] (YOYO table compose
+/// first). Non-TYB / mini-reject → [`crate::selfhost::bootstrap_compile`].
+/// Does **not** replace [`yoyo_built_runtime_effect`] / `seed_host_compile`
+/// / production Rust sidecar. OW-RT remains CUT.
+pub fn yoyo_built_runtime_effect_mini(work_dir: &Path) -> i32 {
+    let input = match read_cwd_input(work_dir) {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+    let out = if crate::tyb_parser::is_tyb(&input) {
+        match crate::s1_tyb_parser::compile_tyb_to_pe_mini(&input) {
+            Ok(pe) => pe.bytes,
+            Err(_) => match crate::selfhost::bootstrap_compile(&input) {
+                Ok(p) => p,
+                Err(_) => return EXIT_COMPILE_FAIL,
+            },
+        }
+    } else {
+        match crate::selfhost::bootstrap_compile(&input) {
+            Ok(p) => p,
+            Err(_) => return EXIT_COMPILE_FAIL,
+        }
     };
     let out_path = work_dir.join(OUTPUT_NAME);
     if std::fs::write(&out_path, &out).is_err() {
@@ -3204,6 +3238,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // OW-RT. Not CLOSED. OW-RT remains CUT.
     // S3.521: DATA bare batch (single/multi/DATA+ALU; ops [0x10|12|13]).
     // Next ≥10 = OW-RT cliff / YOYO-built. Not CLOSED. OW-RT remains CUT.
+    // S3.522: post-host-compose OW-RT cliff map + Gate F mini R→C→W
+    // (`yoyo_built_runtime_effect_mini` → compile_tyb_to_pe_mini; production
+    // Gate F / seed_host unchanged). Next ≥10 = sidecar call-time compile /
+    // OW-RT. Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -7943,6 +7981,35 @@ mod tests {
         let src = std::fs::read(&fixture).expect("read fixture");
         let expect = crate::selfhost::bootstrap_compile(&src).expect("bootstrap");
         assert_eq!(bytes, expect, "Gate F effect PE must match seed/link compile");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.522: Gate F mini — RET TYB → compile_tyb_to_pe_mini (YOYO table).
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_built_effect_mini_ret_tyb_writes_pe_exit_0() {
+        let dir = temp_work("mini-ret");
+        // TYB: single RET
+        let mut tyb = Vec::new();
+        tyb.extend_from_slice(b"TYB\0");
+        tyb.extend_from_slice(&[0, 0]);
+        tyb.extend_from_slice(&1u16.to_le_bytes());
+        tyb.extend_from_slice(&[0xFF, 0, 0, 0, 0, 0, 0, 0]);
+        std::fs::write(dir.join("input.tyb"), &tyb).expect("write tyb");
+        assert_eq!(yoyo_built_runtime_effect_mini(&dir), EXIT_OK);
+        let out = dir.join(OUTPUT_NAME);
+        let bytes = std::fs::read(&out).expect("read output.exe");
+        assert_eq!(&bytes[0..2], b"MZ");
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini(&tyb)
+            .expect("mini")
+            .bytes;
+        assert_eq!(bytes, expect, "mini Gate F PE must match compile_tyb_to_pe_mini");
+        // production Gate F still bootstrap path (≠ mini PE for same TYB)
+        assert_ne!(
+            crate::selfhost::bootstrap_compile(&tyb).expect("boot"),
+            expect,
+            "seed/link PE ≠ slim mini — paths stay distinct"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 

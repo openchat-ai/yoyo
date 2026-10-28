@@ -17789,6 +17789,81 @@ mod tests {
         assert!(try_data_section_ret_tyb(&parse_tyb(&with_ret).unwrap()).is_some());
     }
 
+    /// S3.522: post-host-compose OW-RT cliff map + Gate F mini R→C→W.
+    /// Host try_* surface largely owned (494–521). Remaining CUT cliffs
+    /// (≥10): sidecar call-time compile · Gate F=bootstrap≠mini · Rust
+    /// sidecar default · finite oracle · mt ABI 467 · RIP lea 419 · mini
+    /// entry 485 · FIXED10 fold ban · densify sheep · Gate I RED.
+    /// `yoyo_built_runtime_effect_mini` = slice only. Not CLOSED. bake=362.
+    /// Next ≥10 = sidecar call-time compile / OW-RT.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_post_host_compose_cliff_map_gate_f_mini_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        let this = include_str!("s1_tyb_parser.rs");
+        assert!(this.contains("S3.522") || pe_dll.contains("S3.522"));
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        let cliffs = [
+            "yoyo_built_runtime_effect_mini",
+            "compile_tyb_to_pe_mini",
+            "bootstrap_compile",
+            "production default remains Rust",
+            "finite YOYO-precompiled",
+            "not an in-DLL YOYO compiler",
+            "S3.467",
+            "call-time YOYO compile",
+            "FIXED10 fold ban",
+            "Densify hand-disp32 = sheep",
+            "yoyo_built_runtime_effect",
+            "seed_host_compile",
+        ];
+        for c in cliffs {
+            assert!(
+                this.contains(c) || pe_dll.contains(c),
+                "missing OW-RT cliff pin {c}"
+            );
+        }
+        assert!(cliffs.len() >= 10);
+        assert!(pe_dll.contains("Does **not** replace"));
+        assert!(pe_dll.contains("S3.522"));
+        assert_eq!(S3_FIXED10_OPS.len(), 10);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+        // mini Gate F: RET TYB → YOYO table PE
+        let tyb = tyb_from_records(&[(0xFF, 0, [0; 6])]);
+        let dir = std::env::temp_dir().join(format!(
+            "yoyo-s3522-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        std::fs::write(dir.join("input.tyb"), &tyb).expect("write");
+        assert_eq!(
+            crate::pe_dll_link::yoyo_built_runtime_effect_mini(&dir),
+            crate::pe_dll_link::EXIT_OK
+        );
+        let got = std::fs::read(dir.join("output.exe")).expect("out");
+        assert_eq!(got, compile_tyb_to_pe_mini(&tyb).unwrap().bytes);
+        let _ = std::fs::remove_dir_all(&dir);
+        // production Gate F still named bootstrap_compile
+        assert!(pe_dll.contains("bootstrap_compile(&input)"));
+        // host compose still YOYO for RET
+        assert!(try_compile_tyb_via_yoyo_table(&tyb).is_some());
+    }
+
     /// S3.492: YOYO-built compile cliff reject. Freezing more pe_dll hand-x86
     /// into `*_BODY_SEED` = translation densify — **YOYO ≠ other-lang
     /// translate**. mt→same index = 467 ABI (no retry). Honest CUT surface:
