@@ -13896,6 +13896,75 @@ mod tests {
         assert!(try_compile_tyb_via_yoyo_table(&n0).is_none());
     }
 
+    /// S3.499: post-non-fixed10 seed compose map. Host YOYO-owned +RET
+    /// compose (not FIXED10 fold): IMUL · ALUV · LDB · MEMCPY_DATA ·
+    /// MEMCPY_STATE. Still emit_x86: control-flow (JMP/CALL/JCC) ·
+    /// ALLOC/LOAD/WRITE · STB · RAW_* · DATA/STR · wrong-slot gates.
+    /// Extending `S3_FIXED10_OPS` = fold golden (禁). pe_dll densify ≠
+    /// compose. bake=362 / ASM_PIN=22 / host IR=173. Next ≥10 =
+    /// control-flow +RET seed compose / OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_post_non_fixed10_seed_compose_map_reject() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        let this = include_str!("s1_tyb_parser.rs");
+        assert!(this.contains("S3.499") || pe_dll.contains("S3.499"));
+        assert!(
+            this.contains("post-non-fixed10 seed compose")
+                || pe_dll.contains("post-non-fixed10 seed compose")
+        );
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        // ≥10 YOYO-owned non-fixed10 compose inventory.
+        let owned = [
+            "try_emit_imul_ret_via_yoyo_seed",
+            "try_emit_aluv_ret_via_yoyo_seed",
+            "try_emit_ldb_ret_via_yoyo_seed",
+            "try_emit_memcpy_data_ret_via_yoyo_seed",
+            "try_emit_memcpy_state_ret_via_yoyo_seed",
+            "S3_IMUL_BODY_SEED",
+            "S3_ALUV_BODY_SEED",
+            "S3_LDB_OO0_BODY_SEED",
+            "S3_MEMCPY_DATA_BODY_SEED",
+            "S3_MEMCPY_STATE_PAIR_SEED",
+            "S3.494",
+            "S3.498",
+        ];
+        for p in owned {
+            assert!(this.contains(p), "missing owned compose {p}");
+        }
+        assert!(owned.len() >= 10);
+        // Still outside YOYO seed compose (emit_x86 fallthrough).
+        assert!(try_emit_text_via_yoyo_table(&[0x70, 0xFF]).is_none()); // JMP
+        assert!(try_emit_text_via_yoyo_table(&[0x41, 0xFF]).is_none()); // CALL
+        assert!(try_emit_text_via_yoyo_table(&[0x71, 0xFF]).is_none()); // JCC
+        assert!(try_emit_text_via_yoyo_table(&[0x20, 0xFF]).is_none()); // ALLOC
+        assert!(try_emit_text_via_yoyo_table(&[0x81, 0xFF]).is_none()); // STB
+        // Owned still green; FIXED10 untouched.
+        assert!(try_emit_text_via_yoyo_table(&[0x63, 0xFF]).is_some());
+        assert!(try_emit_text_via_yoyo_table(&[0x68, 0xFF]).is_some());
+        assert!(try_emit_text_via_yoyo_table(&[0x80, 0xFF]).is_some());
+        assert!(try_emit_text_via_yoyo_table(&[0x84, 0xFF]).is_some());
+        assert!(try_emit_text_via_yoyo_table(&[0x85, 0xFF]).is_some());
+        assert_eq!(S3_FIXED10_OPS.len(), 10);
+        assert!(!S3_FIXED10_OPS.contains(&0x63));
+        assert!(!S3_FIXED10_OPS.contains(&0x85));
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+    }
+
     /// S3.492: YOYO-built compile cliff reject. Freezing more pe_dll hand-x86
     /// into `*_BODY_SEED` = translation densify — **YOYO ≠ other-lang
     /// translate**. mt→same index = 467 ABI (no retry). Honest CUT surface:
