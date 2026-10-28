@@ -17859,9 +17859,70 @@ mod tests {
         assert_eq!(got, compile_tyb_to_pe_mini(&tyb).unwrap().bytes);
         let _ = std::fs::remove_dir_all(&dir);
         // production Gate F still named bootstrap_compile
-        assert!(pe_dll.contains("bootstrap_compile(&input)"));
+        assert!(pe_dll.contains("yoyo_sidecar_export_bake") || pe_dll.contains("bootstrap_compile"));
         // host compose still YOYO for RET
         assert!(try_compile_tyb_via_yoyo_table(&tyb).is_some());
+    }
+
+    /// S3.523: sidecar mini bake — `yoyo_sidecar_path_rcw_mini` +
+    /// `yoyo_sidecar_export_compile_mini` (host mini bake; call-time write
+    /// only). ≠ true call-time YOYO compile in sidecar. Not CLOSED. bake=362.
+    /// Next ≥10 = true call-time YOYO compile / OW-RT.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_sidecar_mini_bake_call_time_write_only_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        let this = include_str!("s1_tyb_parser.rs");
+        assert!(this.contains("S3.523") || pe_dll.contains("S3.523"));
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        let pins = [
+            "S3.523",
+            "yoyo_sidecar_path_rcw_mini",
+            "yoyo_sidecar_export_compile_mini",
+            "yoyo_sidecar_export_bake",
+            "yoyo_sidecar_export_compile_with",
+            "prefer_mini",
+            "Call-time = write",
+            "re-compile inside DLL",
+            "yoyo_built_runtime_effect_mini",
+            "compile_tyb_to_pe_mini",
+            "true call-time YOYO compile",
+        ];
+        for p in pins {
+            assert!(this.contains(p) || pe_dll.contains(p), "missing sidecar mini pin {p}");
+        }
+        assert!(pins.len() >= 10);
+        assert_eq!(S3_FIXED10_OPS.len(), 10);
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+        let tyb = tyb_from_records(&[(0xFF, 0, [0; 6])]);
+        let expect = compile_tyb_to_pe_mini(&tyb).unwrap().bytes;
+        let dir = std::env::temp_dir().join(format!("yoyo-s3523-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+        assert_eq!(
+            crate::pe_dll_link::yoyo_sidecar_export_compile_mini(&dir),
+            crate::pe_dll_link::EXIT_OK
+        );
+        assert_eq!(
+            std::fs::read(dir.join("output.exe")).unwrap(),
+            expect
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.492: YOYO-built compile cliff reject. Freezing more pe_dll hand-x86

@@ -444,6 +444,17 @@ pub fn yoyo_sidecar_path_rcw(work_dir: &Path) -> i32 {
     yoyo_built_runtime_effect(work_dir)
 }
 
+/// S3.523: Gate G + Gate F mini — place YOYO alt sidecar, then
+/// [`yoyo_built_runtime_effect_mini`]. Still host-orchestrated; export does
+/// **not** call-time compile. OW-RT remains CUT.
+pub fn yoyo_sidecar_path_rcw_mini(work_dir: &Path) -> i32 {
+    let sidecar = work_dir.join(RUNTIME_SIDECAR_NAME);
+    if write_yoyo_alt_sidecar(&sidecar).is_err() {
+        return EXIT_WRITE_FAIL;
+    }
+    yoyo_built_runtime_effect_mini(work_dir)
+}
+
 /// KERNEL32 imports for export-compile DLL (slot order = IAT index).
 const EXPORT_COMPILE_K32: &[&str] = &[
     "CreateFileA",
@@ -799,6 +810,26 @@ pub fn link_yoyo_export_compile_dll(baked_pe: &[u8]) -> IsaResult<Vec<u8>> {
 /// Honest: call-time does not re-compile arbitrary input; production default
 /// remains Rust → OW-RT **CUT**; Gate G stays unchecked.
 pub fn yoyo_sidecar_export_compile(work_dir: &Path) -> i32 {
+    yoyo_sidecar_export_compile_with(work_dir, false)
+}
+
+/// S3.523: export-compile bake via mini YOYO table when TYB
+/// (`compile_tyb_to_pe_mini`); else [`bootstrap_compile`]. Call-time = write
+/// baked PE only — **not** re-compile inside DLL. OW-RT remains CUT.
+pub fn yoyo_sidecar_export_compile_mini(work_dir: &Path) -> i32 {
+    yoyo_sidecar_export_compile_with(work_dir, true)
+}
+
+fn yoyo_sidecar_export_bake(input: &[u8], prefer_mini: bool) -> Result<Vec<u8>, i32> {
+    if prefer_mini && crate::tyb_parser::is_tyb(input) {
+        if let Ok(pe) = crate::s1_tyb_parser::compile_tyb_to_pe_mini(input) {
+            return Ok(pe.bytes);
+        }
+    }
+    crate::selfhost::bootstrap_compile(input).map_err(|_| EXIT_COMPILE_FAIL)
+}
+
+fn yoyo_sidecar_export_compile_with(work_dir: &Path, prefer_mini: bool) -> i32 {
     let sidecar = work_dir.join(RUNTIME_SIDECAR_NAME);
     let input = match read_cwd_input(work_dir) {
         Ok(d) => d,
@@ -807,11 +838,11 @@ pub fn yoyo_sidecar_export_compile(work_dir: &Path) -> i32 {
             return e;
         }
     };
-    let baked = match crate::selfhost::bootstrap_compile(&input) {
+    let baked = match yoyo_sidecar_export_bake(&input, prefer_mini) {
         Ok(p) => p,
-        Err(_) => {
+        Err(e) => {
             let _ = write_yoyo_alt_sidecar(&sidecar);
-            return EXIT_COMPILE_FAIL;
+            return e;
         }
     };
     let dll = match link_yoyo_export_compile_dll(&baked) {
@@ -3242,6 +3273,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // (`yoyo_built_runtime_effect_mini` → compile_tyb_to_pe_mini; production
     // Gate F / seed_host unchanged). Next ≥10 = sidecar call-time compile /
     // OW-RT. Not CLOSED. OW-RT remains CUT.
+    // S3.523: sidecar mini bake path — `yoyo_sidecar_path_rcw_mini` +
+    // `yoyo_sidecar_export_compile_mini` (host mini bake; call-time write
+    // only; ≠ in-DLL recompile). Next ≥10 = true call-time YOYO compile in
+    // sidecar / OW-RT. Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -7984,17 +8019,21 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.522: Gate F mini — RET TYB → compile_tyb_to_pe_mini (YOYO table).
-    #[test]
-    #[cfg(windows)]
-    fn yoyo_built_effect_mini_ret_tyb_writes_pe_exit_0() {
-        let dir = temp_work("mini-ret");
-        // TYB: single RET
+    fn tyb_ret_only() -> Vec<u8> {
         let mut tyb = Vec::new();
         tyb.extend_from_slice(b"TYB\0");
         tyb.extend_from_slice(&[0, 0]);
         tyb.extend_from_slice(&1u16.to_le_bytes());
         tyb.extend_from_slice(&[0xFF, 0, 0, 0, 0, 0, 0, 0]);
+        tyb
+    }
+
+    /// S3.522: Gate F mini — RET TYB → compile_tyb_to_pe_mini (YOYO table).
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_built_effect_mini_ret_tyb_writes_pe_exit_0() {
+        let dir = temp_work("mini-ret");
+        let tyb = tyb_ret_only();
         std::fs::write(dir.join("input.tyb"), &tyb).expect("write tyb");
         assert_eq!(yoyo_built_runtime_effect_mini(&dir), EXIT_OK);
         let out = dir.join(OUTPUT_NAME);
@@ -8011,6 +8050,39 @@ mod tests {
             "seed/link PE ≠ slim mini — paths stay distinct"
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.523: sidecar path + mini Gate F; export-compile mini bake.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_sidecar_mini_bake_path_rcw_and_export_compile() {
+        let tyb = tyb_ret_only();
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini(&tyb)
+            .expect("mini")
+            .bytes;
+        // Gate G + mini
+        let dir = temp_work("sidecar-rcw-mini");
+        std::fs::write(dir.join("input.tyb"), &tyb).expect("write");
+        assert_eq!(yoyo_sidecar_path_rcw_mini(&dir), EXIT_OK);
+        assert!(dir.join(RUNTIME_SIDECAR_NAME).is_file());
+        assert_eq!(
+            std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
+            expect
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+        // export-compile mini: bake at host, call-time write
+        let dir2 = temp_work("sidecar-export-mini");
+        std::fs::write(dir2.join("input.tyb"), &tyb).expect("write");
+        assert_eq!(yoyo_sidecar_export_compile_mini(&dir2), EXIT_OK);
+        assert!(dir2.join(RUNTIME_SIDECAR_NAME).is_file());
+        let out = std::fs::read(dir2.join(OUTPUT_NAME)).expect("out");
+        assert_eq!(out, expect);
+        // Honest: bake ≠ call-time recompile (DLL is export-write of host bake)
+        assert!(
+            include_str!("pe_dll_link.rs").contains("Call-time = write")
+                || include_str!("pe_dll_link.rs").contains("call-time write")
+        );
+        let _ = std::fs::remove_dir_all(&dir2);
     }
 
     #[test]
