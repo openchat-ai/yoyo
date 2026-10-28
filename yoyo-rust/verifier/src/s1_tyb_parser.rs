@@ -2750,6 +2750,22 @@ pub const S3_LDB_OO_BODY_SEED: [u8; 19] = [
     0x49, 0x89, 0x47, 0x00, // mov [r15+dd], rax
 ];
 
+/// S3.502: STB oo=0 body seed (10B) — host compose (not bake append; bake=362).
+/// Poke val disp @+3 / base disp @+7. Matches `emit_stb` for oo=0.
+pub const S3_STB_OO0_BODY_SEED: [u8; 10] = [
+    0x49, 0x8b, 0x4f, 0x00, // mov rcx, [r15+val]
+    0x49, 0x8b, 0x47, 0x00, // mov rax, [r15+base]
+    0x88, 0x08, // mov [rax], cl
+];
+
+/// S3.502: STB oo∈1..=127 body seed (14B). Poke val@+3 / base@+7 / oo@+11.
+pub const S3_STB_OO_IMM8_BODY_SEED: [u8; 14] = [
+    0x49, 0x8b, 0x4f, 0x00, // mov rcx, [r15+val]
+    0x49, 0x8b, 0x47, 0x00, // mov rax, [r15+base]
+    0x48, 0x83, 0xc0, 0x01, // add rax, imm8
+    0x88, 0x08, // mov [rax], cl
+];
+
 /// S3.428: MEMCPY_STATE one slot pair (8B) — load src + store dst.
 /// Bake +293; loop pokes disp @+3 / @+7 then advances r12 by 8.
 pub const S3_MEMCPY_STATE_PAIR_SEED: [u8; 8] = [
@@ -8682,14 +8698,63 @@ fn try_alloc_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
     Some(text)
 }
 
+/// S3.502: STB+RET via OO0 / imm8 object seeds.
+/// `ops=[0x81,0xFF]` → val=base=oo=0. TYB: disp8 slots; oo=0 or 1..=127.
+/// oo>127 still emit_x86. **Not** FIXED10 fold; bake=362 unchanged.
+fn try_emit_stb_ret_via_yoyo_seed(ops: &[u8]) -> Option<Vec<u8>> {
+    if ops != [0x81, 0xFF] {
+        return None;
+    }
+    let mut text = try_compose_stb_body_via_yoyo_seed(0, 0, 0)?;
+    text.push(0xC3);
+    Some(text)
+}
+
+/// S3.502: compose STB body — poke val/base disp8; oo=0 or imm8.
+fn try_compose_stb_body_via_yoyo_seed(val: u16, base: u16, oo: u16) -> Option<Vec<u8>> {
+    if !mini_slot_disp8_ok(val) || !mini_slot_disp8_ok(base) {
+        return None;
+    }
+    if oo == 0 {
+        let mut body = S3_STB_OO0_BODY_SEED.to_vec();
+        body[3] = (val as u8) * 8;
+        body[7] = (base as u8) * 8;
+        return Some(body);
+    }
+    if oo > 127 {
+        return None;
+    }
+    let mut body = S3_STB_OO_IMM8_BODY_SEED.to_vec();
+    body[3] = (val as u8) * 8;
+    body[7] = (base as u8) * 8;
+    body[11] = oo as u8;
+    Some(body)
+}
+
+/// S3.502: TYB → STB+RET (disp8 slots; oo≤127).
+fn try_stb_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
+    if prog.records.len() != 2 {
+        return None;
+    }
+    let stb = &prog.records[0];
+    let ret = &prog.records[1];
+    if stb.op != 0x81 || ret.op != 0xFF || ret.argc != 0 {
+        return None;
+    }
+    let (val, base, oo) = arg_slot3(stb)?;
+    let mut text = try_compose_stb_body_via_yoyo_seed(val, base, oo)?;
+    text.push(0xC3);
+    Some(text)
+}
+
 /// Host-side YOYO table compose → `.text` bytes.
-/// `None` if `ops` outside the fixed template subset (and S3.494–501 seeds).
+/// `None` if `ops` outside the fixed template subset (and S3.494–502 seeds).
 /// S3.350: call cursor directly (default-seed `s3_sim_prog_loop` is cfg(test)).
 pub fn try_emit_text_via_yoyo_table(ops: &[u8]) -> Option<Vec<u8>> {
     if ops.is_empty() || ops.len() > 8 {
         return None;
     }
-    // S3.494–501: non-fixed10 YOYO compose — object seeds (no golden fold).
+    // S3.494–502: non-fixed10 YOYO compose — object seeds (no golden fold).
     if let Some(text) = try_emit_imul_ret_via_yoyo_seed(ops) {
         return Some(text);
     }
@@ -8709,6 +8774,9 @@ pub fn try_emit_text_via_yoyo_table(ops: &[u8]) -> Option<Vec<u8>> {
         return Some(text);
     }
     if let Some(text) = try_emit_alloc_ret_via_yoyo_seed(ops) {
+        return Some(text);
+    }
+    if let Some(text) = try_emit_stb_ret_via_yoyo_seed(ops) {
         return Some(text);
     }
     if !ops.iter().all(|o| S3_FIXED10_OPS.contains(o)) {
@@ -8875,6 +8943,22 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         }
     }
     if let Some(text) = try_alloc_ret_tyb(&prog) {
+        #[cfg(windows)]
+        {
+            return Some(crate::pe_link::PeImage {
+                bytes: s3_compile_pe_patch_text(&text),
+            });
+        }
+        #[cfg(not(windows))]
+        {
+            return wrap_pe_slim(&CodegenOutput {
+                text,
+                data: Vec::new(),
+            })
+            .ok();
+        }
+    }
+    if let Some(text) = try_stb_ret_tyb(&prog) {
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
@@ -14072,8 +14156,8 @@ mod tests {
             assert!(this.contains(p), "missing owned compose {p}");
         }
         assert!(owned.len() >= 10);
-        // Still outside as of map tip (later knives own CF/ALLOC).
-        assert!(try_emit_text_via_yoyo_table(&[0x81, 0xFF]).is_none()); // STB
+        // Still outside as of map tip (later knives own CF/ALLOC/STB).
+        assert!(try_emit_text_via_yoyo_table(&[0x12, 0xFF]).is_none()); // RAW_BYTE
         // Owned still green; FIXED10 untouched.
         assert!(try_emit_text_via_yoyo_table(&[0x63, 0xFF]).is_some());
         assert!(try_emit_text_via_yoyo_table(&[0x68, 0xFF]).is_some());
@@ -14184,13 +14268,13 @@ mod tests {
         ]);
         // 3 records → try_cf_ret_tyb None; also not fixed10.
         assert!(try_compile_tyb_via_yoyo_table(&with_lab).is_none());
-        // STB still outside (ALLOC = S3.501).
-        assert!(try_emit_text_via_yoyo_table(&[0x81, 0xFF]).is_none());
+        // STB owned by S3.502; RAW still outside here.
+        assert!(try_emit_text_via_yoyo_table(&[0x12, 0xFF]).is_none()); // RAW_BYTE
     }
 
     /// S3.501: ALLOC+RET YOYO compose — `S3_ALLOC_PREFIX_SEED` (size poke @+7)
     /// + `S3_STORE_RAX_DISP32_SEED` (disp poke) ‖C3. Matches emit_slim_alloc.
-    /// Not FIXED10 fold. STB/LOAD/WRITE/RAW_* still emit_x86. bake/ASM/IR
+    /// Not FIXED10 fold. LOAD/WRITE/RAW_* still emit_x86. bake/ASM/IR
     /// unchanged. Next ≥10 = STB+RET seed compose / OW-RT. Not CLOSED.
     #[test]
     #[cfg(windows)]
@@ -14263,9 +14347,97 @@ mod tests {
         assert_eq!(&via1[7..11], &0x100u32.to_le_bytes());
         assert_eq!(&via1[37..41], &8u32.to_le_bytes()); // slot1 disp
         assert!(try_compile_tyb_via_yoyo_table(&tyb1).is_some());
-        // STB / bare still outside.
+        // bare ALLOC still outside (STB = S3.502).
         assert!(try_emit_text_via_yoyo_table(&[0x20]).is_none());
-        assert!(try_emit_text_via_yoyo_table(&[0x81, 0xFF]).is_none());
+    }
+
+    /// S3.502: STB+RET YOYO compose — `S3_STB_OO0_BODY_SEED` /
+    /// `S3_STB_OO_IMM8_BODY_SEED`‖C3 (disp8 val/base; oo=0 or 1..=127).
+    /// Host object seeds (not bake append; bake=362). Not FIXED10 fold.
+    /// oo>127 / LOAD/WRITE/RAW_* still emit_x86. Next ≥10 =
+    /// RAW_BYTE+RET seed compose / OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_stb_ret_yoyo_seed_compose_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        let this = include_str!("s1_tyb_parser.rs");
+        assert!(this.contains("S3.502") || pe_dll.contains("S3.502"));
+        assert!(
+            this.contains("try_emit_stb_ret_via_yoyo_seed")
+                && this.contains("try_compose_stb_body_via_yoyo_seed")
+                && this.contains("try_stb_ret_tyb")
+        );
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        let pins = [
+            "try_emit_stb_ret_via_yoyo_seed",
+            "try_compose_stb_body_via_yoyo_seed",
+            "try_stb_ret_tyb",
+            "S3_STB_OO0_BODY_SEED",
+            "S3_STB_OO_IMM8_BODY_SEED",
+            "S3.502",
+            "body[11]",
+            "mini_slot_disp8_ok",
+            "oo > 127",
+            "S3_FIXED10_OPS",
+            "try_emit_text_via_yoyo_table",
+        ];
+        for p in pins {
+            assert!(this.contains(p), "missing STB+RET pin {p}");
+        }
+        assert!(pins.len() >= 10);
+        assert_eq!(S3_FIXED10_OPS.len(), 10);
+        assert!(!S3_FIXED10_OPS.contains(&0x81));
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+        assert_eq!(S3_STB_OO0_BODY_SEED.len(), 10);
+        assert_eq!(S3_STB_OO_IMM8_BODY_SEED.len(), 14);
+        // oo=0 via ops
+        let via0 = try_emit_text_via_yoyo_table(&[0x81, 0xFF]).expect("STB oo0");
+        assert_eq!(via0.len(), 11);
+        assert_eq!(&via0[..10], &S3_STB_OO0_BODY_SEED);
+        assert_eq!(via0[10], 0xC3);
+        let tyb0 = tyb_from_records(&[
+            (0x81, 3, [0, 0, 0, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let rust0 = emit_x86(&parse_tyb(&tyb0).unwrap()).text;
+        assert_eq!(via0, rust0);
+        let pe_y = try_compile_tyb_via_yoyo_table(&tyb0).expect("yoyo pe");
+        let pe_m = compile_tyb_to_pe_mini(&tyb0).expect("mini pe");
+        assert_eq!(pe_y.bytes, pe_m.bytes);
+        assert!(fixed_template_ops(&parse_tyb(&tyb0).unwrap()).is_none());
+        // val=0 base=1 oo=5 imm8
+        let tyb5 = tyb_from_records(&[
+            (0x81, 3, [0, 0, 1, 0, 5, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let via5 = try_stb_ret_tyb(&parse_tyb(&tyb5).unwrap()).expect("STB oo5");
+        let rust5 = emit_x86(&parse_tyb(&tyb5).unwrap()).text;
+        assert_eq!(via5, rust5);
+        assert_eq!(via5[7], 8); // base=1
+        assert_eq!(via5[11], 5);
+        assert!(try_compile_tyb_via_yoyo_table(&tyb5).is_some());
+        // oo>127 / bare / RAW still outside.
+        assert!(try_emit_text_via_yoyo_table(&[0x81]).is_none());
+        let big_oo = tyb_from_records(&[
+            (0x81, 3, [0, 0, 0, 0, 0x80, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        assert!(try_stb_ret_tyb(&parse_tyb(&big_oo).unwrap()).is_none());
+        assert!(try_emit_text_via_yoyo_table(&[0x12, 0xFF]).is_none());
     }
 
     /// S3.492: YOYO-built compile cliff reject. Freezing more pe_dll hand-x86
