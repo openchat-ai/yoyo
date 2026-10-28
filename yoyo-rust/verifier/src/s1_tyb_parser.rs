@@ -8497,14 +8497,55 @@ fn try_ldb_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
     Some(text)
 }
 
+/// S3.497: MEMCPY_DATA+RET via `S3_MEMCPY_DATA_BODY_SEED`‖C3.
+/// `ops=[0x84,0xFF]` → dst=src=n=0. TYB path pokes disp8 when all slots <16.
+/// **Not** folded into `S3_FIXED10_OPS`.
+fn try_emit_memcpy_data_ret_via_yoyo_seed(ops: &[u8]) -> Option<Vec<u8>> {
+    if ops != [0x84, 0xFF] {
+        return None;
+    }
+    let mut text = Vec::with_capacity(S3_MEMCPY_DATA_BODY_SEED.len() + 1);
+    text.extend_from_slice(&S3_MEMCPY_DATA_BODY_SEED);
+    text.push(0xC3);
+    Some(text)
+}
+
+/// S3.497: compose MEMCPY_DATA body — poke src@+3 / dst@+7 / n@+11 (disp8).
+fn try_compose_memcpy_data_body_via_yoyo_seed(dst: u16, src: u16, n: u16) -> Option<Vec<u8>> {
+    if dst >= 16 || src >= 16 || n >= 16 {
+        return None;
+    }
+    let mut body = S3_MEMCPY_DATA_BODY_SEED.to_vec();
+    body[3] = (src as u8) * 8;
+    body[7] = (dst as u8) * 8;
+    body[11] = (n as u8) * 8;
+    Some(body)
+}
+
+/// S3.497: TYB → MEMCPY_DATA+RET when all slots <16 (disp8 seed).
+fn try_memcpy_data_ret_tyb(prog: &TybProgram) -> Option<Vec<u8>> {
+    if prog.records.len() != 2 {
+        return None;
+    }
+    let mcp = &prog.records[0];
+    let ret = &prog.records[1];
+    if mcp.op != 0x84 || ret.op != 0xFF || ret.argc != 0 {
+        return None;
+    }
+    let (dst, src, n) = arg_slot3(mcp)?;
+    let mut text = try_compose_memcpy_data_body_via_yoyo_seed(dst, src, n)?;
+    text.push(0xC3);
+    Some(text)
+}
+
 /// Host-side YOYO table compose → `.text` bytes.
-/// `None` if `ops` outside the fixed template subset (and S3.494–496 seeds).
+/// `None` if `ops` outside the fixed template subset (and S3.494–497 seeds).
 /// S3.350: call cursor directly (default-seed `s3_sim_prog_loop` is cfg(test)).
 pub fn try_emit_text_via_yoyo_table(ops: &[u8]) -> Option<Vec<u8>> {
     if ops.is_empty() || ops.len() > 8 {
         return None;
     }
-    // S3.494–496: non-fixed10 YOYO compose — object seeds (no golden fold).
+    // S3.494–497: non-fixed10 YOYO compose — object seeds (no golden fold).
     if let Some(text) = try_emit_imul_ret_via_yoyo_seed(ops) {
         return Some(text);
     }
@@ -8512,6 +8553,9 @@ pub fn try_emit_text_via_yoyo_table(ops: &[u8]) -> Option<Vec<u8>> {
         return Some(text);
     }
     if let Some(text) = try_emit_ldb_ret_via_yoyo_seed(ops) {
+        return Some(text);
+    }
+    if let Some(text) = try_emit_memcpy_data_ret_via_yoyo_seed(ops) {
         return Some(text);
     }
     if !ops.iter().all(|o| S3_FIXED10_OPS.contains(o)) {
@@ -8578,7 +8622,7 @@ fn s3_compile_pe_patch_text_data(text: &[u8], data: &[u8]) -> Vec<u8> {
 pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeImage> {
     let prog = parse_tyb(tyb).ok()?;
     validate_tyb_mini(&prog).ok()?;
-    // S3.494–496: IMUL|ALUV|LDB+RET → YOYO object-seed; not FIXED10.
+    // S3.494–497: IMUL|ALUV|LDB|MEMCPY_DATA+RET → YOYO object-seed; not FIXED10.
     if let Some(ops) = try_imul_ret_ops(&prog) {
         let text = try_emit_imul_ret_via_yoyo_seed(&ops)?;
         #[cfg(windows)]
@@ -8614,6 +8658,22 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         }
     }
     if let Some(text) = try_ldb_ret_tyb(&prog) {
+        #[cfg(windows)]
+        {
+            return Some(crate::pe_link::PeImage {
+                bytes: s3_compile_pe_patch_text(&text),
+            });
+        }
+        #[cfg(not(windows))]
+        {
+            return wrap_pe_slim(&CodegenOutput {
+                text,
+                data: Vec::new(),
+            })
+            .ok();
+        }
+    }
+    if let Some(text) = try_memcpy_data_ret_tyb(&prog) {
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
@@ -13516,8 +13576,8 @@ mod tests {
     }
 
     /// S3.496: LDB+RET YOYO compose — `S3_LDB_OO0_BODY_SEED` / `S3_LDB_OO_BODY_SEED`
-    /// ‖C3 (dd=ss=0; oo=0 or poke @+7). Not FIXED10 fold. Wrong dd/ss /
-    /// MEMCPY still emit_x86. bake/ASM/IR unchanged. Next ≥10 =
+    /// ‖C3 (dd=ss=0; oo=0 or poke @+7). Not FIXED10 fold. Wrong dd/ss
+    /// still emit_x86. bake/ASM/IR unchanged. Next ≥10 =
     /// MEMCPY_DATA+RET seed compose / OW-RT. Not CLOSED.
     #[test]
     #[cfg(windows)]
@@ -13592,14 +13652,100 @@ mod tests {
         assert_eq!(via5, rust5);
         assert_eq!(&via5[7..11], &5u32.to_le_bytes());
         assert!(try_compile_tyb_via_yoyo_table(&tyb5).is_some());
-        // Wrong dd/ss / MEMCPY / bare LDB still outside.
+        // Wrong dd/ss / bare LDB still outside (MEMCPY_DATA = S3.497).
         assert!(try_emit_text_via_yoyo_table(&[0x80]).is_none());
-        assert!(try_emit_text_via_yoyo_table(&[0x84, 0xFF]).is_none());
         let wrong = tyb_from_records(&[
             (0x80, 3, [1, 0, 2, 0, 0, 0]),
             (0xFF, 0, [0; 6]),
         ]);
         assert!(try_compile_tyb_via_yoyo_table(&wrong).is_none());
+    }
+
+    /// S3.497: MEMCPY_DATA+RET YOYO compose — `S3_MEMCPY_DATA_BODY_SEED`‖C3
+    /// with disp8 poke src@+3/dst@+7/n@+11 (slots <16). Not FIXED10 fold.
+    /// Slot≥16 / MEMCPY_STATE still emit_x86. bake/ASM/IR unchanged.
+    /// Next ≥10 = MEMCPY_STATE+RET seed compose / OW-RT. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn s3_ow_rt_memcpy_data_ret_yoyo_seed_compose_pin() {
+        let pe_dll = include_str!("pe_dll_link.rs");
+        let this = include_str!("s1_tyb_parser.rs");
+        assert!(this.contains("S3.497") || pe_dll.contains("S3.497"));
+        assert!(
+            this.contains("try_emit_memcpy_data_ret_via_yoyo_seed")
+                && this.contains("try_compose_memcpy_data_body_via_yoyo_seed")
+                && this.contains("try_memcpy_data_ret_tyb")
+        );
+        assert!(
+            pe_dll.contains("OW-RT remains CUT") || pe_dll.contains("OW-RT **CUT**"),
+            "OW-RT CUT"
+        );
+        let pins = [
+            "try_emit_memcpy_data_ret_via_yoyo_seed",
+            "try_compose_memcpy_data_body_via_yoyo_seed",
+            "try_memcpy_data_ret_tyb",
+            "S3_MEMCPY_DATA_BODY_SEED",
+            "S3.497",
+            "body[3]",
+            "body[7]",
+            "body[11]",
+            "dst >= 16 || src >= 16 || n >= 16",
+            "S3_FIXED10_OPS",
+            "try_emit_text_via_yoyo_table",
+        ];
+        for p in pins {
+            assert!(this.contains(p), "missing MEMCPY_DATA+RET pin {p}");
+        }
+        assert!(pins.len() >= 10);
+        assert_eq!(S3_FIXED10_OPS.len(), 10);
+        assert!(!S3_FIXED10_OPS.contains(&0x84));
+        assert_eq!(S3_EXPAND_ASM_PIN, 22);
+        assert_eq!(
+            S3_HOST_TABLE_SEED.len() + 17 + 16 + 15 + 14 + 12 + 19 + 8 + 5 + 5 + 6 + 34 + 4 + 7,
+            362
+        );
+        assert_eq!(
+            parse_tyb(&s3_host_prog_loop_tyb(&[0xFF]))
+                .unwrap()
+                .records
+                .len(),
+            173
+        );
+        assert_eq!(S3_MEMCPY_DATA_BODY_SEED.len(), 14);
+        let via0 = try_emit_text_via_yoyo_table(&[0x84, 0xFF]).expect("MCPD YOYO");
+        assert_eq!(via0.len(), 15);
+        assert_eq!(&via0[..14], &S3_MEMCPY_DATA_BODY_SEED);
+        assert_eq!(via0[14], 0xC3);
+        let tyb0 = tyb_from_records(&[
+            (0x84, 3, [0, 0, 0, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let rust0 = emit_x86(&parse_tyb(&tyb0).unwrap()).text;
+        assert_eq!(via0, rust0);
+        let pe_y = try_compile_tyb_via_yoyo_table(&tyb0).expect("yoyo pe");
+        let pe_m = compile_tyb_to_pe_mini(&tyb0).expect("mini pe");
+        assert_eq!(pe_y.bytes, pe_m.bytes);
+        assert!(fixed_template_ops(&parse_tyb(&tyb0).unwrap()).is_none());
+        // disp8 poke: dst=1 src=2 n=3
+        let tyb_p = tyb_from_records(&[
+            (0x84, 3, [1, 0, 2, 0, 3, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        let via_p = try_memcpy_data_ret_tyb(&parse_tyb(&tyb_p).unwrap()).expect("poke");
+        let rust_p = emit_x86(&parse_tyb(&tyb_p).unwrap()).text;
+        assert_eq!(via_p, rust_p);
+        assert_eq!(via_p[3], 16); // src=2 → disp 16
+        assert_eq!(via_p[7], 8); // dst=1
+        assert_eq!(via_p[11], 24); // n=3
+        assert!(try_compile_tyb_via_yoyo_table(&tyb_p).is_some());
+        // Slot≥16 / MEMCPY_STATE / bare still outside.
+        assert!(try_emit_text_via_yoyo_table(&[0x84]).is_none());
+        assert!(try_emit_text_via_yoyo_table(&[0x85, 0xFF]).is_none());
+        let big = tyb_from_records(&[
+            (0x84, 3, [16, 0, 0, 0, 0, 0]),
+            (0xFF, 0, [0; 6]),
+        ]);
+        assert!(try_compile_tyb_via_yoyo_table(&big).is_none());
     }
 
     /// S3.492: YOYO-built compile cliff reject. Freezing more pe_dll hand-x86
