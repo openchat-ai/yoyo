@@ -114,7 +114,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.529–533** ✅ | 68d7edf | beyond-mini oracle → yoyo.tyb VirtualAlloc → gen4 e2e → live ABSENT cliff → **ALT gate-i** |
 | **S3.534–538** ✅ | 5160946 | live-compile map → slice_ready=false → sheep-reject → CreateProcess ABSENT → **IAT CreateProcessA** |
 | **S3.539** ✅ | c086649 | CreateProcess call-site design + `yoyo_compiler.exe` 名；ready=false |
-| **S3.540** ✅ | PENDING | in-DLL IAT +WaitForSingleObject（slot 9）；call sites 仍 ABSENT |
+| **S3.540** ✅ | 4b00383 | in-DLL IAT +WaitForSingleObject（slot 9）；call sites 仍 ABSENT |
 | **S3.541** ⏳ | — | **本步**：compiler PE bytes / emit call-site （禁假 CLOSED） |
 
 **缺口**：live in-DLL compile **ABSENT**（见 `yoyo_live_in_dll_compile_map`）。生产 flip 仍 ABSENT。bake=362。
