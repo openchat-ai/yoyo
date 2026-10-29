@@ -453,7 +453,7 @@ pub fn yoyo_in_dll_createprocess_compiler_blockers() -> &'static [&'static str] 
         "CreateProcessA IAT slot present; call sites / compiler PE wiring still ABSENT",
         "no YOYO-built standalone compiler PE distinct from gen4+sidecar contract",
         "cwd/export re-entrancy + handle inheritance design ABSENT",
-        "WaitForSingleObject IAT slot ABSENT (needed after CreateProcess)",
+        "WaitForSingleObject IAT slot present; CreateProcess/Wait call sites still ABSENT",
         "still would be oracle/host-compose under the hood unless compiler PE is live",
     ]
 }
@@ -476,7 +476,7 @@ pub fn yoyo_createprocess_call_site_design() -> &'static [&'static str] {
         "lpCommandLine = NULL; inherit handles=FALSE; cwd = export work_dir",
         "compiler PE must ReadFile input.tyb and WriteFile output.exe (same exit 0/1/2/3)",
         "compiler PE provenance = YOYO-built (seed_host/gen chain) — Rust runtime ABSENT",
-        "in-DLL emits CreateProcessA IAT call then WaitForSingleObject — Wait IAT also ABSENT",
+        "in-DLL emits CreateProcessA+WaitForSingleObject IAT calls — call sites still ABSENT",
         "re-entrancy: export must not hold locks across CreateProcess",
     ]
 }
@@ -1053,6 +1053,9 @@ const IN_DLL_RECOMPILE_K32: &[&str] = &[
 
     // S3.538: slot for CreateProcess YOYO-compiler experiment (call sites still ABSENT)
     "CreateProcessA",
+
+    // S3.540: Wait after CreateProcess (call sites still ABSENT)
+    "WaitForSingleObject",
 ];
 
 /// Max cwd input the export will ReadFile.
@@ -3559,6 +3562,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // ready=false (WaitForSingleObject IAT + compiler PE bytes ABSENT).
     // Next >=10 = Wait IAT + compiler PE bytes / emit call-site / M4 / OW-RT.
     // Not CLOSED. OW-RT remains CUT.
+    // S3.540: WaitForSingleObject added to in-DLL K32 IAT (slot 9); call sites ABSENT.
+    // Next >=10 = compiler PE bytes / emit call-site / M4 / OW-RT. Not CLOSED. CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -9381,7 +9386,28 @@ mod tests {
     
     
     
-    /// S3.539: call-site design named; ready=false; compiler PE name frozen.
+    
+    /// S3.540: in-DLL IAT imports WaitForSingleObject; call sites still ABSENT.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_in_dll_waitforsingleobject_iat_slot_pin() {
+        let entries = gate_g_recompile_entries().expect("entries");
+        let dll = link_yoyo_in_dll_recompile_dll(&entries).expect("link");
+        let ascii = String::from_utf8_lossy(&dll);
+        assert!(ascii.contains("WaitForSingleObject"));
+        assert!(ascii.contains("CreateProcessA"));
+        assert!(IN_DLL_RECOMPILE_K32.contains(&"WaitForSingleObject"));
+        assert_eq!(IN_DLL_RECOMPILE_K32.len(), 10);
+        assert!(!yoyo_in_dll_createprocess_compiler_ready());
+        assert!(!yoyo_createprocess_call_site_ready());
+        assert!(
+            include_str!("pe_dll_link.rs").contains("S3.540"),
+            "S3.540 must stay named"
+        );
+    }
+
+
+/// S3.539: call-site design named; ready=false; compiler PE name frozen.
     #[test]
     fn yoyo_createprocess_call_site_design_pin() {
         assert_eq!(YOYO_COMPILER_PE_NAME, "yoyo_compiler.exe");
@@ -9417,7 +9443,7 @@ mod tests {
             IN_DLL_RECOMPILE_K32.contains(&"CreateProcessA"),
             "K32 table must list CreateProcessA"
         );
-        assert_eq!(IN_DLL_RECOMPILE_K32.len(), 9);
+        assert_eq!(IN_DLL_RECOMPILE_K32.len(), 10);
         assert!(!yoyo_in_dll_createprocess_compiler_ready());
         assert!(yoyo_in_dll_createprocess_compiler_blockers()
             .iter()
