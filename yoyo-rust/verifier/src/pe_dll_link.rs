@@ -451,7 +451,7 @@ pub fn yoyo_live_compile_slice_ready() -> bool {
 pub fn yoyo_in_dll_createprocess_compiler_blockers() -> &'static [&'static str] {
     &[
         "CreateProcessA IAT slot present; call sites / compiler PE wiring still ABSENT",
-        "no YOYO-built standalone compiler PE distinct from gen4+sidecar contract",
+        "yoyo_compiler_pe_bytes()=None — no YOYO-built standalone compiler PE yet",
         "cwd/export re-entrancy + handle inheritance design ABSENT",
         "WaitForSingleObject IAT slot present; CreateProcess/Wait call sites still ABSENT",
         "still would be oracle/host-compose under the hood unless compiler PE is live",
@@ -485,6 +485,30 @@ pub fn yoyo_createprocess_call_site_design() -> &'static [&'static str] {
 /// **and** a real compiler PE bytes path exists.
 pub fn yoyo_createprocess_call_site_ready() -> bool {
     false
+}
+
+
+/// S3.541: bytes for cwd [`YOYO_COMPILER_PE_NAME`], if a YOYO-built compiler PE exists.
+///
+/// Always `None` today — no standalone compiler PE distinct from gen4+sidecar.
+/// Returning `Some` without call-site emit still leaves the experiment ABSENT.
+pub fn yoyo_compiler_pe_bytes() -> Option<Vec<u8>> {
+    None
+}
+
+/// S3.541: write compiler PE to `work_dir` / [`YOYO_COMPILER_PE_NAME`] when bytes exist.
+///
+/// Returns `Err(())` while [`yoyo_compiler_pe_bytes`] is `None`.
+pub fn yoyo_place_compiler_pe(work_dir: &Path) -> Result<PathBuf, ()> {
+    let bytes = yoyo_compiler_pe_bytes().ok_or(())?;
+    let path = work_dir.join(YOYO_COMPILER_PE_NAME);
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent).map_err(|_| ())?;
+        }
+    }
+    std::fs::write(&path, bytes).map_err(|_| ())?;
+    Ok(path)
 }
 
 /// Exit contract shared with Rust `yoyo_runtime_selfhost_main`.
@@ -3564,6 +3588,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // Not CLOSED. OW-RT remains CUT.
     // S3.540: WaitForSingleObject added to in-DLL K32 IAT (slot 9); call sites ABSENT.
     // Next >=10 = compiler PE bytes / emit call-site / M4 / OW-RT. Not CLOSED. CUT.
+    // S3.541: yoyo_compiler_pe_bytes()=None ABSENT cliff; place_compiler_pe Err.
+    // Next >=10 = first compiler PE bytes OR emit CreateProcess call-site / M4.
+    // Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -9387,7 +9414,29 @@ mod tests {
     
     
     
-    /// S3.540: in-DLL IAT imports WaitForSingleObject; call sites still ABSENT.
+    
+    /// S3.541: compiler PE bytes ABSENT; place fails closed; name frozen.
+    #[test]
+    fn yoyo_compiler_pe_bytes_absent_cliff_pin() {
+        assert!(yoyo_compiler_pe_bytes().is_none());
+        let dir = temp_work("s541-compiler-pe");
+        assert!(yoyo_place_compiler_pe(&dir).is_err());
+        assert!(!dir.join(YOYO_COMPILER_PE_NAME).exists());
+        assert!(!yoyo_createprocess_call_site_ready());
+        assert!(!yoyo_in_dll_createprocess_compiler_ready());
+        assert!(yoyo_in_dll_createprocess_compiler_blockers()
+            .iter()
+            .any(|s| s.contains("yoyo_compiler_pe_bytes") || s.contains("None")));
+        assert!(
+            include_str!("pe_dll_link.rs").contains("S3.541")
+                && include_str!("pe_dll_link.rs").contains("yoyo_compiler_pe_bytes"),
+            "S3.541 compiler PE ABSENT must stay named"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+
+/// S3.540: in-DLL IAT imports WaitForSingleObject; call sites still ABSENT.
     #[test]
     #[cfg(windows)]
     fn yoyo_in_dll_waitforsingleobject_iat_slot_pin() {

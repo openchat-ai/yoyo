@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.541**（540=WaitForSingleObject IAT；下一刀=compiler PE bytes / emit call-site）。
+**默认** 继续 **= S3.542**（541=compiler PE bytes ABSENT；下一刀=emit CreateProcess call-site / first PE bytes）。
 
 ## 阻塞 / 勿做
 
@@ -115,7 +115,8 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.534–538** ✅ | 5160946 | live-compile map → slice_ready=false → sheep-reject → CreateProcess ABSENT → **IAT CreateProcessA** |
 | **S3.539** ✅ | c086649 | CreateProcess call-site design + `yoyo_compiler.exe` 名；ready=false |
 | **S3.540** ✅ | 4b00383 | in-DLL IAT +WaitForSingleObject（slot 9）；call sites 仍 ABSENT |
-| **S3.541** ⏳ | — | **本步**：compiler PE bytes / emit call-site （禁假 CLOSED） |
+| **S3.541** ✅ | PENDING | `yoyo_compiler_pe_bytes()=None`；place fail-closed；非 CLOSED |
+| **S3.542** ⏳ | — | **本步**：emit CreateProcess call-site / first PE bytes （禁假 CLOSED） |
 
 **缺口**：live in-DLL compile **ABSENT**（见 `yoyo_live_in_dll_compile_map`）。生产 flip 仍 ABSENT。bake=362。
 
@@ -151,7 +152,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.541**（compiler PE bytes / emit call-site；禁 densify / 假 CLOSED）。S3.540 已 GREEN。红了记根因停。
+- `继续` → **S3.542**（emit call-site / first PE bytes；禁 densify / 假 CLOSED）。S3.541 已 GREEN。红了记根因停。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -159,4 +160,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *Created：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-29**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.541** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · Wait IAT · 近窗自动收拢
+**快照 2026-10-29**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.542** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · compiler PE ABSENT · 近窗自动收拢
