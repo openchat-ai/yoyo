@@ -450,10 +450,10 @@ pub fn yoyo_live_compile_slice_ready() -> bool {
 /// Non-empty ⇒ experiment ABSENT. Clearing ≠ live-compile slice ready by itself.
 pub fn yoyo_in_dll_createprocess_compiler_blockers() -> &'static [&'static str] {
     &[
-        "CreateProcessA IAT slot present; call sites / compiler PE wiring still ABSENT",
+        "CreateProcessA/Wait/GetExitCode call-site emitted; yoyo_compiler_pe_bytes still None",
         "yoyo_compiler_pe_bytes()=None — no YOYO-built standalone compiler PE yet",
         "cwd/export re-entrancy + handle inheritance design ABSENT",
-        "WaitForSingleObject IAT slot present; CreateProcess/Wait call sites still ABSENT",
+        "compiler PE bytes ABSENT — CreateProcess path unused unless cwd has yoyo_compiler.exe",
         "still would be oracle/host-compose under the hood unless compiler PE is live",
     ]
 }
@@ -476,7 +476,7 @@ pub fn yoyo_createprocess_call_site_design() -> &'static [&'static str] {
         "lpCommandLine = NULL; inherit handles=FALSE; cwd = export work_dir",
         "compiler PE must ReadFile input.tyb and WriteFile output.exe (same exit 0/1/2/3)",
         "compiler PE provenance = YOYO-built (seed_host/gen chain) — Rust runtime ABSENT",
-        "in-DLL emits CreateProcessA+WaitForSingleObject IAT calls — call sites still ABSENT",
+        "in-DLL emits CreateProcessA+Wait+GetExitCode call-site (S3.542); needs compiler PE bytes",
         "re-entrancy: export must not hold locks across CreateProcess",
     ]
 }
@@ -485,6 +485,11 @@ pub fn yoyo_createprocess_call_site_design() -> &'static [&'static str] {
 /// **and** a real compiler PE bytes path exists.
 pub fn yoyo_createprocess_call_site_ready() -> bool {
     false
+}
+
+/// S3.542: export body contains CreateProcessA+Wait+GetExitCode path (gated on PE file).
+pub fn yoyo_createprocess_call_site_emitted() -> bool {
+    true
 }
 
 
@@ -1078,8 +1083,10 @@ const IN_DLL_RECOMPILE_K32: &[&str] = &[
     // S3.538: slot for CreateProcess YOYO-compiler experiment (call sites still ABSENT)
     "CreateProcessA",
 
-    // S3.540: Wait after CreateProcess (call sites still ABSENT)
+    // S3.540: Wait after CreateProcess
     "WaitForSingleObject",
+    // S3.542: exit code after Wait (call-site emit)
+    "GetExitCodeProcess",
 ];
 
 /// Max cwd input the export will ReadFile.
@@ -1105,6 +1112,12 @@ const IN_DLL_S1_DATA_CAP: u32 = crate::s1_tyb_parser::S1_MINI_DATA_MAX as u32;
 const IN_DLL_S1_STACK: u32 = 0x3200;
 /// S3.530: qword heap input ptr (r14 is multi remaining -- cannot dual-use).
 const IN_DLL_S1_INPUT_PTR_OFF: u32 = 0x50;
+/// S3.542: STARTUPINFOA (104B) for CreateProcessA.
+const IN_DLL_S1_SI_OFF: u32 = 0x70;
+/// S3.542: PROCESS_INFORMATION (24B).
+const IN_DLL_S1_PI_OFF: u32 = 0xE0;
+/// S3.542: DWORD exit code out-param for GetExitCodeProcess.
+const IN_DLL_S1_EXITCODE_OFF: u32 = 0xF8;
 
 /// Fail-closed layout math (S3.219 code/PE + S3.25 data cap).
 const _: () = assert!(IN_DLL_S1_CODE_CAP == 1024);
@@ -2135,9 +2148,103 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     je_compile_fail_sites.push(jz_fail_read);
 
+    // S3.542: if cwd yoyo_compiler.exe exists → CreateProcessA + Wait +
+    // GetExitCodeProcess → epilogue (exit = child). Else fall through to oracle.
+    // String + marker live in .text behind a short jmp (no new rdata param).
+    let jmp_over_cp_name = export_code.len();
+    export_code.extend_from_slice(&[0xEB, 0x00]); // jmp rel8 → after name
+    let cp_name_at = export_code.len();
+    export_code.extend_from_slice(b"yoyo_compiler.exe\0");
+    export_code.extend_from_slice(b"yoyo_cp_call\0"); // pin marker
+    let after_cp_name = export_code.len();
+    patch_rel8(&mut export_code, jmp_over_cp_name, after_cp_name);
+    // lea rcx, [rip+cp_name]
+    let lea_cp = export_code.len();
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x0D, 0, 0, 0, 0]);
+    {
+        let next = lea_cp + 7;
+        let rel = cp_name_at as i32 - next as i32;
+        export_code[lea_cp + 3..lea_cp + 7].copy_from_slice(&rel.to_le_bytes());
+    }
+    emit_call_iat(&mut export_code, &mut iat_patches, 4); // GetFileAttributesA
+    export_code.extend_from_slice(&[0x83, 0xF8, 0xFF]); // cmp eax, -1
+    let je_no_compiler = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]); // je oracle_first
+
+    // zero STARTUPINFOA + PROCESS_INFORMATION (stosq); reload rsi from INPUT_PTR after
+    export_code.extend_from_slice(&[0x48, 0x8D, 0xBC, 0x24]); // lea rdi,[rsp+SI]
+    push_u32_le(&mut export_code, IN_DLL_S1_SI_OFF);
+    export_code.extend_from_slice(&[0x48, 0x31, 0xC0]); // xor rax, rax
+    export_code.extend_from_slice(&[0xB9, 0x10, 0x00, 0x00, 0x00]); // ecx = 16 qwords (128B covers SI+PI)
+    export_code.extend_from_slice(&[0xF3, 0x48, 0xAB]); // rep stosq
+    export_code.extend_from_slice(&[0x48, 0x8B, 0xB4, 0x24]); // mov rsi,[rsp+INPUT_PTR]
+    push_u32_le(&mut export_code, IN_DLL_S1_INPUT_PTR_OFF);
+    // SI.cb = 104
+    export_code.extend_from_slice(&[0xC7, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_SI_OFF);
+    export_code.extend_from_slice(&[0x68, 0x00, 0x00, 0x00]); // 104
+
+    // CreateProcessA(name, NULL, NULL, NULL, FALSE, 0, NULL, NULL, &SI, &PI)
+    let lea_cp2 = export_code.len();
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x0D, 0, 0, 0, 0]); // lea rcx, name
+    {
+        let next = lea_cp2 + 7;
+        let rel = cp_name_at as i32 - next as i32;
+        export_code[lea_cp2 + 3..lea_cp2 + 7].copy_from_slice(&rel.to_le_bytes());
+    }
+    export_code.extend_from_slice(&[0x48, 0x31, 0xD2]); // xor rdx, rdx
+    export_code.extend_from_slice(&[0x4D, 0x31, 0xC0]); // xor r8, r8
+    export_code.extend_from_slice(&[0x4D, 0x31, 0xC9]); // xor r9, r9
+    export_code.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x20, 0, 0, 0, 0]); // inherit=0
+    export_code.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x28, 0, 0, 0, 0]); // flags=0
+    export_code.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x30, 0, 0, 0, 0]); // env=0
+    export_code.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x38, 0, 0, 0, 0]); // curdir=0
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x84, 0x24]); // lea rax,[rsp+SI]
+    push_u32_le(&mut export_code, IN_DLL_S1_SI_OFF);
+    export_code.extend_from_slice(&[0x48, 0x89, 0x44, 0x24, 0x40]); // [rsp+0x40]=&SI
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x84, 0x24]); // lea rax,[rsp+PI]
+    push_u32_le(&mut export_code, IN_DLL_S1_PI_OFF);
+    export_code.extend_from_slice(&[0x48, 0x89, 0x44, 0x24, 0x48]); // [rsp+0x48]=&PI
+    emit_call_iat(&mut export_code, &mut iat_patches, 8); // CreateProcessA
+    export_code.extend_from_slice(&[0x85, 0xC0]); // test eax, eax
+    let jz_cp_fail = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    je_compile_fail_sites.push(jz_cp_fail);
+
+    // WaitForSingleObject(hProcess, INFINITE)
+    export_code.extend_from_slice(&[0x48, 0x8B, 0x8C, 0x24]); // mov rcx,[rsp+PI]
+    push_u32_le(&mut export_code, IN_DLL_S1_PI_OFF);
+    export_code.extend_from_slice(&[0xBA, 0xFF, 0xFF, 0xFF, 0xFF]); // edx=INFINITE
+    emit_call_iat(&mut export_code, &mut iat_patches, 9); // WaitForSingleObject
+
+    // GetExitCodeProcess(hProcess, &exitcode)
+    export_code.extend_from_slice(&[0x48, 0x8B, 0x8C, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_PI_OFF);
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x94, 0x24]); // lea rdx,[rsp+EXITCODE]
+    push_u32_le(&mut export_code, IN_DLL_S1_EXITCODE_OFF);
+    emit_call_iat(&mut export_code, &mut iat_patches, 10); // GetExitCodeProcess
+    export_code.extend_from_slice(&[0x85, 0xC0]);
+    let jz_gec_fail = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    je_compile_fail_sites.push(jz_gec_fail);
+
+    // CloseHandle(hThread); CloseHandle(hProcess)
+    export_code.extend_from_slice(&[0x48, 0x8B, 0x8C, 0x24]); // mov rcx,[rsp+PI+8]
+    push_u32_le(&mut export_code, IN_DLL_S1_PI_OFF + 8);
+    emit_call_iat(&mut export_code, &mut iat_patches, 3);
+    export_code.extend_from_slice(&[0x48, 0x8B, 0x8C, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_PI_OFF);
+    emit_call_iat(&mut export_code, &mut iat_patches, 3);
+
+    export_code.extend_from_slice(&[0x8B, 0x84, 0x24]); // mov eax,[rsp+EXITCODE]
+    push_u32_le(&mut export_code, IN_DLL_S1_EXITCODE_OFF);
+    let jmp_epi_cp = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // → epilogue
+
     // S3.529: oracle exact-match **first** (beyond-mini seed_host rows), then
     // TYB mini. Unconditional forward jmp; patched when oracle_scan is known.
     let jmp_oracle_first = export_code.len();
+    patch_jcc32(&mut export_code, je_no_compiler, jmp_oracle_first);
     export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // TYB mini entry — reached only after oracle miss (jz_no_match).
@@ -3591,8 +3698,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.541: yoyo_compiler_pe_bytes()=None ABSENT cliff; place_compiler_pe Err.
     // Next >=10 = first compiler PE bytes OR emit CreateProcess call-site / M4.
     // Not CLOSED. OW-RT remains CUT.
-    // S3.542: open tip — emit CreateProcess call-site and/or first compiler PE bytes.
-    // Near-window 539–541 folded. Not CLOSED. OW-RT remains CUT.
+    // S3.542: CreateProcessA+Wait+GetExitCode call-site emitted (gated on cwd
+    // yoyo_compiler.exe); PE bytes still None. Next >=10 = first compiler PE bytes
+    // / live compile / M4. Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -7538,6 +7646,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         patch_rel8(&mut export_code, jz_fail_write, write_fail_at);
         patch_rel8(&mut export_code, jmp_epi_ok, epilogue_at);
         patch_rel8(&mut export_code, jmp_epi_wf, epilogue_at);
+        patch_rel32(&mut export_code, jmp_epi_cp, epilogue_at);
         // compile_fail falls through to epilogue — need jmp
         // Currently compile_fail_at is mov eax,1 then epilogue_at — falls through. Good if adjacent.
         assert_eq!(compile_fail_at + 5, epilogue_at);
@@ -9417,7 +9526,46 @@ mod tests {
     
     
     
-    /// S3.541: compiler PE bytes ABSENT; place fails closed; name frozen.
+    
+    /// S3.542: call-site emitted in linked DLL; marker present; PE bytes still None;
+    /// without compiler PE, oracle path unchanged (mini RET GREEN).
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_createprocess_call_site_emit_pin() {
+        assert!(yoyo_createprocess_call_site_emitted());
+        assert!(!yoyo_createprocess_call_site_ready());
+        assert!(yoyo_compiler_pe_bytes().is_none());
+        assert!(!yoyo_in_dll_createprocess_compiler_ready());
+
+        let entries = gate_g_recompile_entries().expect("entries");
+        let dll = link_yoyo_in_dll_recompile_dll(&entries).expect("link");
+        let ascii = String::from_utf8_lossy(&dll);
+        assert!(ascii.contains("CreateProcessA"));
+        assert!(ascii.contains("WaitForSingleObject"));
+        assert!(ascii.contains("GetExitCodeProcess"));
+        assert!(ascii.contains("yoyo_compiler.exe"));
+        assert!(ascii.contains("yoyo_cp_call"), "S3.542 call-site marker");
+
+        // no compiler PE → existing oracle/mini path still works
+        let dir = temp_work("s542-cp-emit");
+        let mut tyb = Vec::new();
+        tyb.extend_from_slice(b"TYB\0");
+        tyb.extend_from_slice(&[0, 0]);
+        tyb.extend_from_slice(&1u16.to_le_bytes());
+        tyb.extend_from_slice(&[0xFF, 0, 0, 0, 0, 0, 0, 0]);
+        std::fs::write(dir.join("input.tyb"), &tyb).expect("tyb");
+        assert_eq!(yoyo_sidecar_in_dll_call_time_invoke(&dll, &dir), EXIT_OK);
+        assert!(dir.join(OUTPUT_NAME).is_file());
+        assert!(
+            include_str!("pe_dll_link.rs").contains("S3.542")
+                && include_str!("pe_dll_link.rs").contains("yoyo_cp_call"),
+            "S3.542 must stay named"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+
+/// S3.541: compiler PE bytes ABSENT; place fails closed; name frozen.
     #[test]
     fn yoyo_compiler_pe_bytes_absent_cliff_pin() {
         assert!(yoyo_compiler_pe_bytes().is_none());
@@ -9448,7 +9596,7 @@ mod tests {
         assert!(ascii.contains("WaitForSingleObject"));
         assert!(ascii.contains("CreateProcessA"));
         assert!(IN_DLL_RECOMPILE_K32.contains(&"WaitForSingleObject"));
-        assert_eq!(IN_DLL_RECOMPILE_K32.len(), 10);
+        assert_eq!(IN_DLL_RECOMPILE_K32.len(), 11);
         assert!(!yoyo_in_dll_createprocess_compiler_ready());
         assert!(!yoyo_createprocess_call_site_ready());
         assert!(
@@ -9494,7 +9642,7 @@ mod tests {
             IN_DLL_RECOMPILE_K32.contains(&"CreateProcessA"),
             "K32 table must list CreateProcessA"
         );
-        assert_eq!(IN_DLL_RECOMPILE_K32.len(), 10);
+        assert_eq!(IN_DLL_RECOMPILE_K32.len(), 11);
         assert!(!yoyo_in_dll_createprocess_compiler_ready());
         assert!(yoyo_in_dll_createprocess_compiler_blockers()
             .iter()
