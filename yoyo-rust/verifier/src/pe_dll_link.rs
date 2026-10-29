@@ -450,7 +450,7 @@ pub fn yoyo_live_compile_slice_ready() -> bool {
 /// Non-empty ⇒ experiment ABSENT. Clearing ≠ live-compile slice ready by itself.
 pub fn yoyo_in_dll_createprocess_compiler_blockers() -> &'static [&'static str] {
     &[
-        "in-DLL KERNEL32 IAT has no CreateProcessA slot yet",
+        "CreateProcessA IAT slot present; call sites / compiler PE wiring still ABSENT",
         "no YOYO-built standalone compiler PE distinct from gen4+sidecar contract",
         "cwd/export re-entrancy + handle inheritance design ABSENT",
         "still would be oracle/host-compose under the hood unless compiler PE is live",
@@ -1025,6 +1025,9 @@ const IN_DLL_RECOMPILE_K32: &[&str] = &[
     // S3.530: large input (yoyo.tyb) — heap buffer, keep stack frame small for H_00
     "VirtualAlloc",
     "VirtualFree",
+
+    // S3.538: slot for CreateProcess YOYO-compiler experiment (call sites still ABSENT)
+    "CreateProcessA",
 ];
 
 /// Max cwd input the export will ReadFile.
@@ -3525,6 +3528,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.537: CreateProcess YOYO-compiler experiment ABSENT (blockers).
     // Next >=10 = IAT CreateProcessA + compiler PE design / M4 / OW-RT.
     // Not CLOSED. OW-RT remains CUT.
+    // S3.538: CreateProcessA added to in-DLL K32 IAT (slot 8); call sites ABSENT.
+    // Next >=10 = call-site / compiler PE design / M4 / OW-RT. Not CLOSED. CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -9345,7 +9350,35 @@ mod tests {
     
     
     
-    /// S3.537: CreateProcess YOYO-compiler path ABSENT; blockers honest; not CLOSED.
+    
+    /// S3.538: in-DLL recompile DLL imports CreateProcessA; call sites still ABSENT.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_in_dll_createprocess_a_iat_slot_pin() {
+        let entries = gate_g_recompile_entries().expect("entries");
+        let dll = link_yoyo_in_dll_recompile_dll(&entries).expect("link");
+        let ascii = String::from_utf8_lossy(&dll);
+        assert!(
+            ascii.contains("CreateProcessA"),
+            "S3.538 in-DLL IAT must name CreateProcessA"
+        );
+        assert!(
+            IN_DLL_RECOMPILE_K32.contains(&"CreateProcessA"),
+            "K32 table must list CreateProcessA"
+        );
+        assert_eq!(IN_DLL_RECOMPILE_K32.len(), 9);
+        assert!(!yoyo_in_dll_createprocess_compiler_ready());
+        assert!(yoyo_in_dll_createprocess_compiler_blockers()
+            .iter()
+            .any(|s| s.contains("call sites") || s.contains("wiring")));
+        assert!(
+            include_str!("pe_dll_link.rs").contains("S3.538"),
+            "S3.538 must stay named"
+        );
+    }
+
+
+/// S3.537: CreateProcess YOYO-compiler path ABSENT; blockers honest; not CLOSED.
     #[test]
     fn yoyo_in_dll_createprocess_compiler_absent_cliff_pin() {
         assert!(!yoyo_in_dll_createprocess_compiler_ready());
