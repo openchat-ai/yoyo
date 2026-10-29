@@ -119,7 +119,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.544** ✅ | 6635294 | passthrough input.tyb→output.exe；place+CreateProcess e2e；C ABSENT |
 | **S3.545** ✅ | 14415ff | RET-only compile-in-child→slim RET PE；beyond-RET ABSENT；M4-prep |
 | **S3.546** ✅ | 3c0b114 | RET+SET+RET compile-in-child；beyond-SET+RET/yoyo.tyb ABSENT |
-| **S3.547** ✅ | PENDING | mini-table yoyo_tbl_c（RET+SET+RET rows）；broader fixed10 ABSENT |
+| **S3.547** ✅ | 3fdd9c2 | mini-table yoyo_tbl_c（RET+SET+RET rows）；broader fixed10 ABSENT |
 | **S3.548** ⏳ | — | **本步**：more fixed10 rows / M4 （禁假 CLOSED） |
 
 **缺口**：live in-DLL compile **ABSENT**（见 `yoyo_live_in_dll_compile_map`）。生产 flip 仍 ABSENT。bake=362。
