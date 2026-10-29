@@ -116,7 +116,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.535** ✅ | 351c2cc | `yoyo_live_compile_slice_ready=false`；densify≠slice；map ABSENT |
 | **S3.536** ✅ | 5beeab3 | 拒羊：slim-cap raise≠live graduation；map 记 CreateProcess 候选 ABSENT |
 | **S3.537** ✅ | 76aa8d9 | CreateProcess YOYO-compiler 实验 ABSENT （blockers；非 CLOSED） |
-| **S3.538** ✅ | PENDING | in-DLL IAT +CreateProcessA（slot 8）；call sites 仍 ABSENT |
+| **S3.538** ✅ | 5160946 | in-DLL IAT +CreateProcessA（slot 8）；call sites 仍 ABSENT |
 | **S3.539** ⏳ | — | **本步**：CreateProcess call-site / compiler PE 设计 （禁假 CLOSED） |
 
 **缺口**：live in-DLL compile **ABSENT**（见 `yoyo_live_in_dll_compile_map`）。生产 flip 仍 ABSENT。bake=362。
