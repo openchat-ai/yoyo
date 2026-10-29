@@ -6,6 +6,7 @@
 //!   emit-rt-sidecar --export-compile <workdir>
 //!   emit-rt-sidecar --in-dll-recompile <workdir>
 //!   emit-rt-sidecar --m2-h00-subset <workdir>
+//!   emit-rt-sidecar --gate-i-gen4-yoyo-tyb <workdir>
 //!
 //! Honest: production default remains Rust; still CUT — not OW-RT CLOSED.
 
@@ -15,6 +16,41 @@ use std::process::ExitCode;
 
 fn main() -> ExitCode {
     let mut args: Vec<String> = env::args().skip(1).collect();
+    if args.first().map(|s| s.as_str()) == Some("--gate-i-gen4-yoyo-tyb") {
+        args.remove(0);
+        let Some(work) = args.first() else {
+            eprintln!("usage: emit-rt-sidecar --gate-i-gen4-yoyo-tyb <workdir>");
+            eprintln!("  S3.531 Gate I: trust-root gen4 + YOYO in-DLL oracle+yoyo.tyb;");
+            eprintln!("  oracle != live compile. Still CUT — not OW-RT CLOSED.");
+            return ExitCode::from(2);
+        };
+        let work_dir = Path::new(work);
+        if let Err(e) = std::fs::create_dir_all(work_dir) {
+            eprintln!("error: mkdir {}: {e}", work_dir.display());
+            return ExitCode::FAILURE;
+        }
+        #[cfg(windows)]
+        {
+            let code = verifier::pe_dll_link::yoyo_gen4_path_gate_i_yoyo_tyb(work_dir);
+            let sidecar = work_dir.join(verifier::pe_dll_link::RUNTIME_SIDECAR_NAME);
+            let side_bytes = std::fs::metadata(&sidecar).map(|m| m.len()).unwrap_or(0);
+            let out = work_dir.join("output.exe");
+            let has_out = out.is_file();
+            println!(
+                "OW_RT_GATE_I_GEN4_YOYO_TYB workdir={} sidecar_bytes={} output={} exit={} disposition=CUT",
+                work_dir.display(),
+                side_bytes,
+                has_out,
+                code
+            );
+            return ExitCode::from(u8::try_from(code).unwrap_or(1));
+        }
+        #[cfg(not(windows))]
+        {
+            eprintln!("OW_RT_GATE_I_GEN4_YOYO_TYB status=SKIP reason=non-Windows");
+            return ExitCode::from(2);
+        }
+    }
     if args.first().map(|s| s.as_str()) == Some("--m2-h00-subset") {
         args.remove(0);
         let Some(work) = args.first() else {
@@ -129,8 +165,10 @@ fn main() -> ExitCode {
         eprintln!("       emit-rt-sidecar --export-compile <workdir>");
         eprintln!("       emit-rt-sidecar --in-dll-recompile <workdir>");
         eprintln!("       emit-rt-sidecar --m2-h00-subset <workdir>");
+        eprintln!("       emit-rt-sidecar --gate-i-gen4-yoyo-tyb <workdir>");
         eprintln!("  Gate G: alt / RCW / export-compile / in-DLL recompile");
         eprintln!("  M2: H_00 + YOYO in-DLL mini (Gate I subset)");
+        eprintln!("  S3.531: gen4 + oracle+yoyo.tyb (Gate I; oracle != live)");
         eprintln!("  Still CUT — not OW-RT CLOSED");
         return ExitCode::from(2);
     };

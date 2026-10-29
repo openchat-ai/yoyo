@@ -387,7 +387,7 @@ pub fn place_cwd_runtime_sidecar(out_path: &Path, rust_dll: &[u8]) -> IsaResult<
 pub fn yoyo_m4_production_flip_blockers() -> &'static [&'static str] {
     &[
         "in-DLL call-time compile still mini/slim-only (beyond-mini/yoyo.tyb = oracle bake)",
-        "Gate I full still needs gen4 e2e evidence (oracle ≠ live compile)",
+        "Gate I gen4+oracle may GREEN; live in-DLL compile still ABSENT (oracle != live)",
         "production place_cwd default still Rust (ALT unset)",
         "inventory OW-RT disposition=CUT (closed=0)",
     ]
@@ -3439,9 +3439,12 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.529: beyond-mini = oracle-first + slim-overflow TYB→seed_host row;
     // mini fail-closed (no panic). Call-time mini unchanged for small TYB.
     // S3.530: MAX_INPUT=32KiB + VirtualAlloc input + bake yoyo.tyb→seed_host;
-    // H_00+in-DLL GREEN (heap; stack stays 0x3200). Oracle ≠ live full compile;
-    // production default still Rust. Next ≥10 = Gate I gen4 e2e cliff / OW-RT.
-    // Not CLOSED. OW-RT remains CUT.    // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
+    // H_00+in-DLL GREEN (heap; stack stays 0x3200). Oracle != live full compile;
+    // production default still Rust. Not CLOSED. OW-RT remains CUT.
+    // S3.531: Gate I gen4 + oracle+yoyo.tyb e2e (trust-root driver). Oracle !=
+    // live full compile; production default still Rust. Next >=10 = live
+    // in-DLL compile / M4 flip / OW-RT. Not CLOSED. OW-RT remains CUT.
+    // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
     // Next ≥10 = write_out prologue seed / OW-RT. Not CLOSED. OW-RT remains CUT.
@@ -8002,7 +8005,7 @@ pub fn yoyo_h00_path_m2_run(work_dir: &Path, tyb: &[u8]) -> i32 {
 /// S3.526 / M2: place H_00 seed + M1 YOYO DLL (no Rust) + mini RET TYB → R→C→W.
 ///
 /// Honest: mini ≠ full YOYO compiler; production default remains Rust → CUT.
-/// Full Gate I (`gen4` + `yoyo.tyb`) is a different contract and stays RED.
+/// Full Gate I (`gen4` + `yoyo.tyb`) = S3.531 (oracle path; != live compile).
 #[cfg(windows)]
 pub fn yoyo_h00_path_m2_mini(work_dir: &Path) -> i32 {
     let seed_pe = match yoyo_h00_seed_pe_m2() {
@@ -8024,6 +8027,78 @@ pub fn yoyo_h00_path_m2_mini(work_dir: &Path) -> i32 {
     tyb.extend_from_slice(&1u16.to_le_bytes());
     tyb.extend_from_slice(&[0xFF, 0, 0, 0, 0, 0, 0, 0]);
     yoyo_h00_path_m2_run(work_dir, &tyb)
+}
+
+/// Trust-root gen4.exe (Gate I / OW-SEED). Fail-closed if missing.
+pub fn gate_i_gen4_path() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join("scripts/_stage9-pure-m4/gen4.exe")
+}
+
+/// S3.531: write in-DLL recompile DLL with default oracle **plus** `yoyo.tyb`→seed_host.
+pub fn write_yoyo_in_dll_recompile_sidecar_with_yoyo_tyb(out_path: &Path) -> IsaResult<Vec<u8>> {
+    let entries = gate_g_recompile_entries_with_yoyo_tyb()?;
+    let dll = link_yoyo_in_dll_recompile_dll(&entries)?;
+    if let Some(parent) = out_path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent).map_err(|e| IsaError::IoError {
+                msg: format!("pe_dll_link: mkdir {}: {e}", parent.display()),
+            })?;
+        }
+    }
+    std::fs::write(out_path, &dll).map_err(|e| IsaError::IoError {
+        msg: format!("pe_dll_link: write {}: {e}", out_path.display()),
+    })?;
+    Ok(dll)
+}
+
+/// S3.531 / Gate I: place trust-root gen4 + YOYO in-DLL (oracle+yoyo.tyb) + `yoyo.tyb`.
+///
+/// Returns export exit (0/1/2/3) or [`EXIT_WRITE_FAIL`] if gen4/sidecar/IO missing.
+/// Honest: success = oracle bake served via gen4 driver — **not** live full compile;
+/// production default still Rust → OW-RT CUT.
+#[cfg(windows)]
+pub fn yoyo_gen4_path_gate_i_yoyo_tyb(work_dir: &Path) -> i32 {
+    let gen4 = gate_i_gen4_path();
+    if !gen4.is_file() {
+        return EXIT_WRITE_FAIL;
+    }
+    let tyb = match std::fs::read(gate_i_yoyo_tyb_path()) {
+        Ok(b) => b,
+        Err(_) => return EXIT_COMPILE_FAIL,
+    };
+    if std::fs::create_dir_all(work_dir).is_err() {
+        return EXIT_WRITE_FAIL;
+    }
+    // Driver: trust-root gen4 (not seed_h00). Same cwd sidecar contract.
+    if std::fs::copy(&gen4, work_dir.join("emitter_gen4.exe")).is_err() {
+        return EXIT_WRITE_FAIL;
+    }
+    if write_yoyo_in_dll_recompile_sidecar_with_yoyo_tyb(&work_dir.join(RUNTIME_SIDECAR_NAME))
+        .is_err()
+    {
+        return EXIT_WRITE_FAIL;
+    }
+    if std::fs::write(work_dir.join("input.tyb"), &tyb).is_err() {
+        return EXIT_WRITE_FAIL;
+    }
+    // gen4 historically also looks at input.ky; place yoyo.ty sibling if present.
+    let ky = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join("yoyo/projects/yoyo.ty");
+    if ky.is_file() {
+        let _ = std::fs::copy(&ky, work_dir.join("input.ky"));
+    }
+    let out_path = work_dir.join(OUTPUT_NAME);
+    let _ = std::fs::remove_file(&out_path);
+    match std::process::Command::new(work_dir.join("emitter_gen4.exe"))
+        .current_dir(work_dir)
+        .status()
+    {
+        Ok(st) => st.code().unwrap_or(EXIT_WRITE_FAIL),
+        Err(_) => EXIT_WRITE_FAIL,
+    }
 }
 
 /// S3.525 / M1: place pre-linked in-DLL recompile DLL and invoke export once.
@@ -9153,6 +9228,31 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// S3.531: trust-root gen4 + in-DLL oracle+yoyo.tyb → output ≡ seed_host.
+    /// Oracle ≠ live compile. Not CLOSED. OW-RT CUT.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_gate_i_gen4_yoyo_tyb_oracle_e2e_pin() {
+        let gen4 = gate_i_gen4_path();
+        assert!(
+            gen4.is_file(),
+            "trust-root gen4.exe missing at {}",
+            gen4.display()
+        );
+        let tyb = std::fs::read(gate_i_yoyo_tyb_path()).expect("yoyo.tyb");
+        let expect = crate::selfhost::seed_host_compile(&tyb).expect("seed_host");
+
+        let dir = temp_work("s531-gen4-yoyo-tyb");
+        let code = yoyo_gen4_path_gate_i_yoyo_tyb(&dir);
+        assert_eq!(
+            code, EXIT_OK,
+            "S3.531 gen4+oracle+yoyo.tyb must exit 0 (got {code:#x})"
+        );
+        let out = std::fs::read(dir.join(OUTPUT_NAME)).expect("output.exe");
+        assert_eq!(out, expect, "gen4 driver + oracle must ≡ seed_host(yoyo.tyb)");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// S3.529: beyond-mini slim-overflow TYB → mini Err; seed_host OK;
     /// oracle-first in-DLL serves H_00 PE ≡ seed_host. Not full yoyo.tyb.
     #[test]
@@ -9218,7 +9318,7 @@ mod tests {
         let blockers = yoyo_m4_production_flip_blockers();
         assert!(blockers.len() >= 3, "honest blocker list");
         assert!(blockers.iter().any(|b| b.contains("mini") || b.contains("oracle")));
-        assert!(blockers.iter().any(|b| b.contains("Gate I full")));
+        assert!(blockers.iter().any(|b| b.contains("Gate I") && b.contains("ABSENT")));
         assert!(blockers.iter().any(|b| b.contains("CUT") || b.contains("closed=0")));
         // Default path still Rust when env off (this process must not set ALT).
         if matches!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off) {
