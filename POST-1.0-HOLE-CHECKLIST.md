@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.552**（551=SET+ADD/GET multi GREEN；下一刀=longer chains / yoyo.tyb）。
+**默认** 继续 **= S3.553**（552=3-op chains GREEN；下一刀=4-op / yoyo.tyb cliff）。
 
 ## 阻塞 / 勿做
 
@@ -124,7 +124,8 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.549** ✅ | 25feff7 | in-DLL CreateProcess fixed10 smoke（NOP+RET / GET+RET） |
 | **S3.550** ✅ | 25feff7 | M4-prep — fixed10 child GREEN ≠ flip；blockers 仍 non-empty |
 | **S3.551** ✅ | 57c3e91 | multi-op SET+ADD/SET+GET+RET emit + in-DLL；yoyo_multi_c；yoyo.tyb ABSENT |
-| **S3.552** ⏳ | — | **本步**：longer fixed10 chains / yoyo.tyb （禁假 CLOSED） |
+| **S3.552** ✅ | 6aa33d2 | longer chains SET+ADD+SUB / NOP+INC+DEC +RET；in-DLL；yoyo.tyb ABSENT |
+| **S3.553** ⏳ | — | **本步**：4-op chain / yoyo.tyb cliff （禁假 CLOSED） |
 
 **缺口**：live in-DLL compile **ABSENT**（见 `yoyo_live_in_dll_compile_map`）。生产 flip 仍 ABSENT。bake=362。
 
@@ -160,7 +161,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- 继续 → **S3.552**（longer chains / yoyo.tyb；禁 densify / 假 CLOSED）。S3.551=multi SET+ADD/GET。红了记根因停。
+- 继续 → **S3.553**（4-op / yoyo.tyb cliff；禁 densify / 假 CLOSED）。S3.552=3-op chains。红了记根因停。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -168,4 +169,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *Created：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-29**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.552** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · fixed10+multi compile-in-child GREEN · 近窗自动收拢
+**快照 2026-10-29**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.553** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · fixed10+multi compile-in-child GREEN · 近窗自动收拢
