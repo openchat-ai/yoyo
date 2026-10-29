@@ -115,7 +115,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.530** ✅ | 2b0d565 | MAX_INPUT=32KiB + VirtualAlloc input + yoyo.tyb→seed_host；H_00 GREEN；oracle≠live |
 | **S3.531** ✅ | 6763178 | Gate I gen4 + oracle+yoyo.tyb e2e ≡ seed_host；oracle≠live；OW-RT CUT |
 | **S3.532** ✅ | 80f467e | live in-DLL compile ABSENT：default oracle+yoyo.tyb→exit1；mini Err；oracle≠live |
-| **S3.533** ✅ | PENDING | ALT=`in-dll-gate-i` 放置 Gate I oracle DLL；H_00+yoyo.tyb GREEN；M4 flip ABSENT |
+| **S3.533** ✅ | 68d7edf | ALT=`in-dll-gate-i` 放置 Gate I oracle DLL；H_00+yoyo.tyb GREEN；M4 flip ABSENT |
 | **S3.534** ⏳ | — | **本步**：近窗收拢 S3.529–533 + live compile 地图（禁假 CLOSED） |
 
 **缺口**：ALT gate-i / gen4+oracle = **opt-in GREEN**。live compile / 生产 flip 仍 ABSENT。bake=362。
