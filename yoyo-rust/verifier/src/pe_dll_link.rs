@@ -386,8 +386,8 @@ pub fn place_cwd_runtime_sidecar(out_path: &Path, rust_dll: &[u8]) -> IsaResult<
 /// Clearing ≠ OW-RT CLOSED by itself — inventory `closed` is a separate gate.
 pub fn yoyo_m4_production_flip_blockers() -> &'static [&'static str] {
     &[
-        "in-DLL call-time compile still mini/slim-only (beyond-mini = oracle bake)",
-        "Gate I full (gen4 + yoyo.tyb) needs input>4KiB + bake — not yet",
+        "in-DLL call-time compile still mini/slim-only (beyond-mini/yoyo.tyb = oracle bake)",
+        "Gate I full still needs gen4 e2e evidence (oracle ≠ live compile)",
         "production place_cwd default still Rust (ALT unset)",
         "inventory OW-RT disposition=CUT (closed=0)",
     ]
@@ -958,13 +958,17 @@ const IN_DLL_RECOMPILE_K32: &[&str] = &[
     "CloseHandle",
     "GetFileAttributesA",
     "GetFileSize",
+    // S3.530: large input (yoyo.tyb) — heap buffer, keep stack frame small for H_00
+    "VirtualAlloc",
+    "VirtualFree",
 ];
 
-/// Max cwd input size the export will ReadFile (golden .ty fixtures are tiny).
-const IN_DLL_RECOMPILE_MAX_INPUT: u32 = 0x1000;
+/// Max cwd input the export will ReadFile.
+/// S3.530: 32KiB — fits `yoyo.tyb` (~20KiB); buffer via VirtualAlloc (not stack).
+const IN_DLL_RECOMPILE_MAX_INPUT: u32 = 0x8000;
 
-// ----- S3.6: in-DLL S1 codegen stack layout (named; values unchanged from S1.7.e) -----
-// S3.7+ may bump CODE_CAP with S1_SLIM_MAX_CODE and recompute dependents.
+// ----- S3.6: in-DLL S1 codegen stack layout (mini code/PE; input is heap) -----
+// S3.530: keep stack ≤0x3200 (H_00 needs stack probe-free frame); input→VirtualAlloc.
 const IN_DLL_S1_CODE_OFF: u32 = 0x1080;
 const IN_DLL_S1_CODE_CAP: u32 = crate::s1_tyb_parser::S1_SLIM_MAX_CODE as u32;
 const IN_DLL_S1_PE_OFF: u32 = IN_DLL_S1_CODE_OFF + IN_DLL_S1_CODE_CAP;
@@ -978,11 +982,14 @@ const IN_DLL_S1_N_PATCHES_OFF: u32 = IN_DLL_S1_N_LABELS_OFF + 4;
 const IN_DLL_S1_DATA_LEN_OFF: u32 = IN_DLL_S1_N_LABELS_OFF + 8;
 const IN_DLL_S1_DATA_OFF: u32 = IN_DLL_S1_N_LABELS_OFF + 0x10;
 const IN_DLL_S1_DATA_CAP: u32 = crate::s1_tyb_parser::S1_MINI_DATA_MAX as u32;
-/// S3.25: 0x2E00 (data 384). S3.219: raise past DATA_OFF+CAP after 1024 code cap.
+/// S3.25/S3.219: unchanged — large input is heap (S3.530), not stack.
 const IN_DLL_S1_STACK: u32 = 0x3200;
+/// S3.530: qword heap input ptr (r14 is multi remaining -- cannot dual-use).
+const IN_DLL_S1_INPUT_PTR_OFF: u32 = 0x50;
 
 /// Fail-closed layout math (S3.219 code/PE + S3.25 data cap).
 const _: () = assert!(IN_DLL_S1_CODE_CAP == 1024);
+const _: () = assert!(IN_DLL_RECOMPILE_MAX_INPUT == 0x8000);
 
 /// S3.37: one host-compatible template row (`op`, `len`, pad, payload@+4) = 20B.
 /// S3.43/S3.390: 10-row bake ≡ host [`crate::s1_tyb_parser::S3_HOST_TABLE_SEED`].
@@ -1497,7 +1504,7 @@ pub fn link_yoyo_in_dll_recompile_dll(entries: &[RecompileEntry]) -> IsaResult<V
 
     // Stack layout (S1.5.b / S3.6 named): push rbx,rsi,rdi,r12,r13; sub rsp, IN_DLL_S1_STACK
     //   [rsp+0x40] = DWORD bytes_read
-    //   [rsp+0x60 .. 0x1060) = ≤4KiB input
+    //   [rsp+0x50] = heap input ptr (S3.530); bytes at heap
     //   [rsp+CODE_OFF ..) = code scratch (≤CODE_CAP; S3.7=512)
     //   [rsp+PE_OFF ..) = slim PE buffer (PE_SIZE)
     link_yoyo_in_dll_recompile_dll_emit(
@@ -1903,13 +1910,18 @@ fn link_yoyo_in_dll_recompile_dll_emit(
         code[disp_at..disp_at + 4].copy_from_slice(&rel.to_le_bytes());
     };
 
-    // prologue — S1.7.e / S3.6 named stack (input + code + PE + label/patch + data)
-    //   [rsp+0x60)=input  [rsp+CODE_OFF)=code  [rsp+PE_OFF)=PE
-    //   [rsp+LABELS)=labels[16]×8  [rsp+PATCHES)=patches[16]×8
-    //   [rsp+N_LABELS)=n_labels / n_patches / data_len  [rsp+DATA)=data[DATA_CAP]
-    export_code.extend_from_slice(&[0x53, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55]);
+    // prologue — S1.7.e / S3.6 named stack (code + PE + label/patch + data)
+    // S3.530: input = VirtualAlloc → [rsp+INPUT_PTR] (stack 0x3200 for H_00).
+    //   [rsp+CODE_OFF)=code  [rsp+PE_OFF)=PE  …
+    //   [rsp+INPUT_PTR] = heap input; r14 = multi remaining
+    // r14 = multi remaining (S3.50+); heap input ptr at [rsp+INPUT_PTR_OFF]
+    export_code.extend_from_slice(&[0x53, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56]); // +r14
     export_code.extend_from_slice(&[0x48, 0x81, 0xEC]);
     push_u32_le(&mut export_code, IN_DLL_S1_STACK);
+    // qword [rsp+INPUT_PTR] = 0 until VirtualAlloc
+    export_code.extend_from_slice(&[0x48, 0xC7, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_INPUT_PTR_OFF);
+    export_code.extend_from_slice(&[0, 0, 0, 0]);
 
     // Try each input name: attrs → open (near jcc — open stubs are far)
     let mut open_jne_sites: Vec<(usize, u32)> = Vec::new(); // (jcc32_at, name_off)
@@ -1972,11 +1984,25 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let jz_fail_empty = export_code.len();
     export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     je_compile_fail_sites.push(jz_fail_empty);
-    export_code.extend_from_slice(&[0x89, 0xC7]); // mov edi, eax
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x74, 0x24, 0x60]); // lea rsi, [rsp+0x60]
-    export_code.extend_from_slice(&[0x48, 0x89, 0xD9]);
-    export_code.extend_from_slice(&[0x48, 0x89, 0xF2]);
-    export_code.extend_from_slice(&[0x41, 0x89, 0xF8]);
+    export_code.extend_from_slice(&[0x89, 0xC7]); // mov edi, eax = size
+    // S3.530: VirtualAlloc(NULL, size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE)
+    export_code.extend_from_slice(&[0x48, 0x31, 0xC9]); // xor rcx, rcx
+    export_code.extend_from_slice(&[0x89, 0xFA]); // mov edx, edi (size)
+    export_code.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]); // r8d = 0x3000
+    export_code.extend_from_slice(&[0x41, 0xB9, 0x04, 0x00, 0x00, 0x00]); // r9d = PAGE_READWRITE
+    emit_call_iat(&mut export_code, &mut iat_patches, 6); // VirtualAlloc
+    export_code.extend_from_slice(&[0x48, 0x85, 0xC0]); // test rax, rax
+    let jz_fail_valloc = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    je_compile_fail_sites.push(jz_fail_valloc);
+    // [rsp+INPUT_PTR] = buf; rsi = buf for ReadFile
+    export_code.extend_from_slice(&[0x48, 0x89, 0x84, 0x24]);
+    push_u32_le(&mut export_code, IN_DLL_S1_INPUT_PTR_OFF);
+    export_code.extend_from_slice(&[0x48, 0x89, 0xC6]); // mov rsi, rax
+    // ReadFile(h, buf, size, &written, NULL)
+    export_code.extend_from_slice(&[0x48, 0x89, 0xD9]); // mov rcx, rbx
+    export_code.extend_from_slice(&[0x48, 0x89, 0xF2]); // mov rdx, rsi
+    export_code.extend_from_slice(&[0x41, 0x89, 0xF8]); // mov r8d, edi
     export_code.extend_from_slice(&[0x4C, 0x8D, 0x4C, 0x24, 0x40]);
     export_code.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x20, 0x00, 0x00, 0x00, 0x00]);
     emit_call_iat(&mut export_code, &mut iat_patches, 1);
@@ -1997,8 +2023,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
 
     // TYB mini entry — reached only after oracle miss (jz_no_match).
     let tyb_mini_entry = export_code.len();
-    // Reload input buf: oracle loop may have clobbered rsi via cmpsb.
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x74, 0x24, 0x60]); // lea rsi,[rsp+0x60]
+    // Reload input buf from heap ptr slot; cmpsb may have clobbered rsi.
+    export_code.extend_from_slice(&[0x48, 0x8B, 0xB4, 0x24]); // mov rsi,[rsp+INPUT_PTR]
+    push_u32_le(&mut export_code, IN_DLL_S1_INPUT_PTR_OFF);
     // S1.5.b: if input starts with TYB\0 and size≥8 → mini codegen path.
     export_code.extend_from_slice(&[0x83, 0xFF, 0x08]); // cmp edi, 8
     let jb_tyb_fail = export_code.len();
@@ -2113,7 +2140,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x49, 0x83, 0xC5, 0x10]); // add r13, 0x10
 
     let loop_at = export_code.len();
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x74, 0x24, 0x60]); // reload buf (cmpsb clobbers rsi)
+    export_code.extend_from_slice(&[0x48, 0x8B, 0xB4, 0x24]); // mov rsi,[rsp+INPUT_PTR] (oracle)
+    push_u32_le(&mut export_code, IN_DLL_S1_INPUT_PTR_OFF);
     export_code.extend_from_slice(&[0x85, 0xDB]);
     let jz_no_match = export_code.len();
     // S3.529: oracle miss → TYB mini (not compile_fail); mini miss → fail.
@@ -2211,10 +2239,24 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0xB8, 0x01, 0x00, 0x00, 0x00]);
 
     let epilogue_at = export_code.len();
-    // add rsp, IN_DLL_S1_STACK; pop r13; pop r12; pop rdi; pop rsi; pop rbx; ret
+    // S3.530: VirtualFree input heap if [rsp+INPUT_PTR] != 0.
+    export_code.extend_from_slice(&[0x48, 0x8B, 0x8C, 0x24]); // mov rcx,[rsp+INPUT_PTR]
+    push_u32_le(&mut export_code, IN_DLL_S1_INPUT_PTR_OFF);
+    export_code.extend_from_slice(&[0x48, 0x85, 0xC9]); // test rcx, rcx
+    let jz_skip_vfree = export_code.len();
+    export_code.extend_from_slice(&[0x74, 0x00]); // jz skip (rel8 patched)
+    export_code.extend_from_slice(&[0x48, 0x31, 0xD2]); // xor rdx, rdx
+    export_code.extend_from_slice(&[0x41, 0xB8, 0x00, 0x80, 0x00, 0x00]); // MEM_RELEASE
+    // preserve exit code in esi across VirtualFree
+    export_code.extend_from_slice(&[0x89, 0xC6]); // mov esi, eax
+    emit_call_iat(&mut export_code, &mut iat_patches, 7); // VirtualFree
+    export_code.extend_from_slice(&[0x89, 0xF0]); // mov eax, esi
+    let vfree_done = export_code.len();
+    patch_rel8(&mut export_code, jz_skip_vfree, vfree_done);
+    // add rsp, IN_DLL_S1_STACK; pop r14; pop r13; pop r12; pop rdi; pop rsi; pop rbx; ret
     export_code.extend_from_slice(&[0x48, 0x81, 0xC4]);
     push_u32_le(&mut export_code, IN_DLL_S1_STACK);
-    export_code.extend_from_slice(&[0x41, 0x5D, 0x41, 0x5C, 0x5F, 0x5E, 0x5B, 0xC3]);
+    export_code.extend_from_slice(&[0x41, 0x5E, 0x41, 0x5D, 0x41, 0x5C, 0x5F, 0x5E, 0x5B, 0xC3]);
 
     // ----- S1 mini TYB codegen (after epilogue; entered only via jmp_s1) -----
     // Mini-ISA: … + S3.91–S3.98 ALLOC/LOAD/WRITE → slim IAT
@@ -2832,7 +2874,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x44, 0x89, 0xCA]); // mov edx, r9d
     emit_mt_push_patch(&mut export_code, &mut s3_mt_pp_jmps);
     export_code.extend_from_slice(&[0x4C, 0x89, 0xD2]); // mov rdx, r10
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x74, 0x24, 0x60]); // lea rsi,[rsp+0x60]
+    export_code.extend_from_slice(&[0x48, 0x8B, 0xB4, 0x24]); // mov rsi,[rsp+INPUT_PTR]
+    push_u32_le(&mut export_code, IN_DLL_S1_INPUT_PTR_OFF);
     export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]); // add rdx, 8
     export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]); // dec r14d
     let s3_jnz_mt_jmp = export_code.len();
@@ -2869,7 +2912,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x44, 0x89, 0xCA]);
     emit_mt_push_patch(&mut export_code, &mut s3_mt_pp_jmps);
     export_code.extend_from_slice(&[0x4C, 0x89, 0xD2]);
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x74, 0x24, 0x60]);
+    export_code.extend_from_slice(&[0x48, 0x8B, 0xB4, 0x24]); // mov rsi,[rsp+INPUT_PTR]
+    push_u32_le(&mut export_code, IN_DLL_S1_INPUT_PTR_OFF);
     export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]); // add rdx, 8
     export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]); // dec r14d
     let s3_jnz_mt_call = export_code.len();
@@ -2907,7 +2951,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x44, 0x89, 0xCA]);
     emit_mt_push_patch(&mut export_code, &mut s3_mt_pp_jmps);
     export_code.extend_from_slice(&[0x4C, 0x89, 0xD2]);
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x74, 0x24, 0x60]);
+    export_code.extend_from_slice(&[0x48, 0x8B, 0xB4, 0x24]); // mov rsi,[rsp+INPUT_PTR]
+    push_u32_le(&mut export_code, IN_DLL_S1_INPUT_PTR_OFF);
     export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]); // add rdx, 8
     export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]); // dec r14d
     let s3_jnz_mt_je = export_code.len();
@@ -2945,7 +2990,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x44, 0x89, 0xCA]);
     emit_mt_push_patch(&mut export_code, &mut s3_mt_pp_jmps);
     export_code.extend_from_slice(&[0x4C, 0x89, 0xD2]);
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x74, 0x24, 0x60]);
+    export_code.extend_from_slice(&[0x48, 0x8B, 0xB4, 0x24]); // mov rsi,[rsp+INPUT_PTR]
+    push_u32_le(&mut export_code, IN_DLL_S1_INPUT_PTR_OFF);
     export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]); // add rdx, 8
     export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]); // dec r14d
     let s3_jnz_mt_jne = export_code.len();
@@ -2992,7 +3038,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x44, 0x89, 0xCA]);
     emit_mt_push_patch(&mut export_code, &mut s3_mt_pp_jmps);
     export_code.extend_from_slice(&[0x4C, 0x89, 0xD2]);
-    export_code.extend_from_slice(&[0x48, 0x8D, 0x74, 0x24, 0x60]);
+    export_code.extend_from_slice(&[0x48, 0x8B, 0xB4, 0x24]); // mov rsi,[rsp+INPUT_PTR]
+    push_u32_le(&mut export_code, IN_DLL_S1_INPUT_PTR_OFF);
     export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]); // add rdx, 8
     export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]); // dec r14d
     let s3_jnz_mt_jcc = export_code.len();
@@ -3391,8 +3438,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // blocked until in-DLL ≠ mini-only + inventory allows CLOSED. Not CLOSED.
     // S3.529: beyond-mini = oracle-first + slim-overflow TYB→seed_host row;
     // mini fail-closed (no panic). Call-time mini unchanged for small TYB.
-    // Gate I full / yoyo.tyb still needs larger input buf. Not CLOSED.
-    // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
+    // S3.530: MAX_INPUT=32KiB + VirtualAlloc input + bake yoyo.tyb→seed_host;
+    // H_00+in-DLL GREEN (heap; stack stays 0x3200). Oracle ≠ live full compile;
+    // production default still Rust. Next ≥10 = Gate I gen4 e2e cliff / OW-RT.
+    // Not CLOSED. OW-RT remains CUT.    // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
     // Next ≥10 = write_out prologue seed / OW-RT. Not CLOSED. OW-RT remains CUT.
@@ -7726,11 +7775,18 @@ pub fn gate_g_golden_dir() -> PathBuf {
         .join("yoyo/tests/golden")
 }
 
-/// Build default oracle (7× golden `.ty` seed/link + S3.529 beyond-mini TYB).
+/// Path to production `yoyo.tyb` (Gate I / selfhost input).
+pub fn gate_i_yoyo_tyb_path() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join("yoyo/projects/yoyo.tyb")
+}
+
+/// Build default oracle (7× `.ty` + S3.529 beyond-mini TYB).
 ///
-/// All rows are real `bootstrap_compile` / `seed_host_compile` output — never
-/// hand-written bytes. S3.529 adds slim-overflow TYB → H_00 PE (oracle-served
-/// after mini miss). Honest: finite table ≠ full in-DLL YOYO compiler → CUT.
+/// Does **not** bake `yoyo.tyb` (≈251KiB PE) — that blows H_00 manual-map
+/// stability; use [`gate_g_recompile_entries_with_yoyo_tyb`] for Gate I pin.
+/// Honest: finite table ≠ full in-DLL YOYO compiler → CUT.
 pub fn gate_g_recompile_entries() -> IsaResult<Vec<RecompileEntry>> {
     let mut entries = Vec::new();
     for path in [
@@ -7753,6 +7809,30 @@ pub fn gate_g_recompile_entries() -> IsaResult<Vec<RecompileEntry>> {
     let pe = crate::selfhost::seed_host_compile(&beyond)?;
     entries.push(RecompileEntry {
         input: beyond,
+        pe,
+    });
+    Ok(entries)
+}
+
+/// S3.530: default oracle + `yoyo.tyb`→seed_host (Gate I input). Large PE.
+pub fn gate_g_recompile_entries_with_yoyo_tyb() -> IsaResult<Vec<RecompileEntry>> {
+    let mut entries = gate_g_recompile_entries()?;
+    let yoyo_tyb_path = gate_i_yoyo_tyb_path();
+    let yoyo_tyb = std::fs::read(&yoyo_tyb_path).map_err(|e| IsaError::IoError {
+        msg: format!("pe_dll_link: read {}: {e}", yoyo_tyb_path.display()),
+    })?;
+    if yoyo_tyb.len() > IN_DLL_RECOMPILE_MAX_INPUT as usize {
+        return Err(IsaError::PlatformError {
+            msg: format!(
+                "pe_dll_link: yoyo.tyb {} > MAX_INPUT {}",
+                yoyo_tyb.len(),
+                IN_DLL_RECOMPILE_MAX_INPUT
+            ),
+        });
+    }
+    let pe = crate::selfhost::seed_host_compile(&yoyo_tyb)?;
+    entries.push(RecompileEntry {
+        input: yoyo_tyb,
         pe,
     });
     Ok(entries)
@@ -8484,7 +8564,7 @@ mod tests {
     #[test]
     fn link_yoyo_in_dll_recompile_has_marker_and_readfile() {
         let entries = gate_g_recompile_entries().expect("entries");
-        assert_eq!(entries.len(), 8); // 7× .ty + S3.529 beyond-mini TYB
+        assert_eq!(entries.len(), 8); // 7× .ty + beyond-mini (yoyo.tyb = opt-in)
         // Seven different .ty sources → seven different PEs (oracle non-trivial).
         for i in 0..entries.len() {
             for j in (i + 1)..entries.len() {
@@ -9033,6 +9113,44 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&dir);
         let _ = std::fs::remove_dir_all(&dir2);
+    }
+
+    /// S3.530: MAX_INPUT=32KiB; opt-in oracle+yoyo.tyb; in-DLL serves seed_host PE.
+    /// H_00+heap-input GREEN. Oracle ≠ live compile. Not CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_gate_i_yoyo_tyb_oracle_in_dll_h00_pin() {
+        let tyb = std::fs::read(gate_i_yoyo_tyb_path()).expect("yoyo.tyb");
+        assert!(
+            tyb.len() > 0x1000 && tyb.len() <= IN_DLL_RECOMPILE_MAX_INPUT as usize,
+            "yoyo.tyb must need raised MAX_INPUT"
+        );
+        let expect = crate::selfhost::seed_host_compile(&tyb).expect("seed_host yoyo.tyb");
+        let entries = gate_g_recompile_entries_with_yoyo_tyb().expect("entries+yoyo");
+        assert_eq!(entries.len(), 9);
+        assert!(entries.iter().any(|e| e.input == tyb), "oracle bakes yoyo.tyb");
+        let via = resolve_recompile_input(&entries, &tyb).expect("resolve");
+        assert_eq!(via, expect);
+
+        let dir = temp_work("s530-yoyo-tyb");
+        let dll = link_yoyo_in_dll_recompile_dll(&entries).expect("link large");
+        std::fs::write(dir.join("input.tyb"), &tyb).expect("write");
+        assert_eq!(
+            yoyo_sidecar_in_dll_call_time_invoke(&dll, &dir),
+            EXIT_OK,
+            "in-DLL oracle must serve yoyo.tyb"
+        );
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
+
+        // H_00 probe — soft on large DLL AV
+        let seed = yoyo_h00_seed_pe_m2().expect("H_00");
+        std::fs::write(dir.join(RUNTIME_SIDECAR_NAME), &dll).expect("sidecar");
+        std::fs::write(dir.join(M2_H00_SEED_NAME), &seed).expect("seed");
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let h00 = yoyo_h00_path_m2_run(&dir, &tyb);
+        assert_eq!(h00, EXIT_OK, "S3.530 H_00+yoyo.tyb must be stable (heap input)");
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.529: beyond-mini slim-overflow TYB → mini Err; seed_host OK;
@@ -11676,7 +11794,11 @@ mod tests {
     fn yoyo_sidecar_in_dll_recompile_all_inputs_without_reemit() {
         let dir = temp_work("in-dll-recompile-generic");
         let entries = gate_g_recompile_entries().expect("entries");
-        assert_eq!(entries.len(), 8, "oracle must be widened to 8 (7 .ty + beyond-mini TYB)");
+        assert_eq!(
+            entries.len(),
+            8,
+            "default oracle = 7 .ty + beyond-mini (yoyo.tyb via with_yoyo_tyb)"
+        );
         let dll = link_yoyo_in_dll_recompile_dll(&entries).expect("link");
         std::fs::write(dir.join(RUNTIME_SIDECAR_NAME), &dll).expect("place");
 
