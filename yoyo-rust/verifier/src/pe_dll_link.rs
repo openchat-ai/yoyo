@@ -9329,7 +9329,7 @@ mod tests {
         assert_eq!(
             crate::s1_tyb_parser::S1_SLIM_MAX_CODE,
             1024,
-            "slim cap floor; do not "graduate" by raising"
+            "slim cap floor; do not graduate by raising"
         );
         assert_eq!(IN_DLL_S1_CODE_CAP, 1024);
         assert!(!yoyo_live_compile_slice_ready());
