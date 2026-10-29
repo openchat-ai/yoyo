@@ -113,7 +113,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.526–528** ✅ | b6c570a | **M2/M3** H_00+ALT → **M4-prep** flip ABSENT |
 | **S3.529–533** ✅ | 68d7edf | beyond-mini oracle → yoyo.tyb VirtualAlloc → gen4 e2e → live ABSENT cliff → **ALT gate-i** |
 | **S3.534** ✅ | 2efb853 | 近窗收拢 529–533 + `yoyo_live_in_dll_compile_map` |
-| **S3.535** ✅ | PENDING | `yoyo_live_compile_slice_ready=false`；densify≠slice；map ABSENT |
+| **S3.535** ✅ | 351c2cc | `yoyo_live_compile_slice_ready=false`；densify≠slice；map ABSENT |
 | **S3.536** ⏳ | — | **本步**：首个非羊 live emit 实验 / M4 （禁假 CLOSED；禁抬 slim cap 当毕业） |
 
 **缺口**：live in-DLL compile **ABSENT**（见 `yoyo_live_in_dll_compile_map`）。生产 flip 仍 ABSENT。bake=362。
