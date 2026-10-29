@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.544**（543=pe_link(exit0) smoke PE；下一刀=passthrough/write-output compiler PE）。
+**默认** 继续 **= S3.545**（544=passthrough write-output PE；下一刀=real compile-in-child / M4-prep）。
 
 ## 阻塞 / 勿做
 
@@ -116,7 +116,8 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.539–541** ✅ | 48784ef | call-site design → Wait IAT → **compiler PE bytes ABSENT** |
 | **S3.542** ✅ | 1946a35 | CreateProcessA+Wait+GetExitCode call-site （无 PE→oracle）；PE bytes 仍 None |
 | **S3.543** ✅ | b11733e | first PE bytes=pe_link(exit0) smoke；place+CreateProcess e2e；≠R→C→W |
-| **S3.544** ⏳ | — | **本步**：passthrough/write-output compiler PE （禁假 CLOSED） |
+| **S3.544** ✅ | 6635294 | passthrough input.tyb→output.exe；place+CreateProcess e2e；C ABSENT |
+| **S3.545** ⏳ | — | **本步**：real compile-in-child / M4-prep （禁假 CLOSED） |
 
 **缺口**：live in-DLL compile **ABSENT**（见 `yoyo_live_in_dll_compile_map`）。生产 flip 仍 ABSENT。bake=362。
 
@@ -152,7 +153,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `??` ? **S3.545**?real compile-in-child / M4-prep?? densify / ? CLOSED??S3.544=passthrough write-output????????
+- `继续` → **S3.545**（real compile-in-child / M4-prep；禁 densify / 假 CLOSED）。S3.544=passthrough write-output。红了记根因停。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -160,4 +161,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *Created：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-29**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.544** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · exit0 smoke PE · 近窗自动收拢
+**快照 2026-10-29**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.545** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · passthrough write-output PE · 近窗自动收拢
