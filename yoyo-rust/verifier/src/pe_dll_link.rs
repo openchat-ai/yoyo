@@ -453,6 +453,7 @@ pub fn yoyo_in_dll_createprocess_compiler_blockers() -> &'static [&'static str] 
         "CreateProcessA IAT slot present; call sites / compiler PE wiring still ABSENT",
         "no YOYO-built standalone compiler PE distinct from gen4+sidecar contract",
         "cwd/export re-entrancy + handle inheritance design ABSENT",
+        "WaitForSingleObject IAT slot ABSENT (needed after CreateProcess)",
         "still would be oracle/host-compose under the hood unless compiler PE is live",
     ]
 }
@@ -460,6 +461,30 @@ pub fn yoyo_in_dll_createprocess_compiler_blockers() -> &'static [&'static str] 
 /// S3.537: CreateProcess YOYO-compiler experiment ready? Always false while blockers remain.
 pub fn yoyo_in_dll_createprocess_compiler_ready() -> bool {
     yoyo_in_dll_createprocess_compiler_blockers().is_empty()
+}
+
+
+/// S3.539: planned cwd name for a YOYO-built compiler PE (CreateProcess target).
+///
+/// File is **not** produced yet — design pin only. Not a live compiler.
+pub const YOYO_COMPILER_PE_NAME: &str = "yoyo_compiler.exe";
+
+/// S3.539: CreateProcess call-site design notes (honest ABSENT checklist).
+pub fn yoyo_createprocess_call_site_design() -> &'static [&'static str] {
+    &[
+        "lpApplicationName = cwd YOYO_COMPILER_PE_NAME (not gen4; gen4 needs sidecar)",
+        "lpCommandLine = NULL; inherit handles=FALSE; cwd = export work_dir",
+        "compiler PE must ReadFile input.tyb and WriteFile output.exe (same exit 0/1/2/3)",
+        "compiler PE provenance = YOYO-built (seed_host/gen chain) — Rust runtime ABSENT",
+        "in-DLL emits CreateProcessA IAT call then WaitForSingleObject — Wait IAT also ABSENT",
+        "re-entrancy: export must not hold locks across CreateProcess",
+    ]
+}
+
+/// S3.539: call-site design ready to emit? Always false until design notes cleared
+/// **and** a real compiler PE bytes path exists.
+pub fn yoyo_createprocess_call_site_ready() -> bool {
+    false
 }
 
 /// Exit contract shared with Rust `yoyo_runtime_selfhost_main`.
@@ -3530,8 +3555,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // Not CLOSED. OW-RT remains CUT.
     // S3.538: CreateProcessA added to in-DLL K32 IAT (slot 8); call sites ABSENT.
     // Next >=10 = call-site / compiler PE design / M4 / OW-RT. Not CLOSED. CUT.
-    // S3.539: CreateProcess call-site / compiler PE design (open tip).
-    // Near-window 534–538 folded on board. Not CLOSED. OW-RT remains CUT.
+    // S3.539: CreateProcess call-site design notes + YOYO_COMPILER_PE_NAME;
+    // ready=false (WaitForSingleObject IAT + compiler PE bytes ABSENT).
+    // Next >=10 = Wait IAT + compiler PE bytes / emit call-site / M4 / OW-RT.
+    // Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -9353,7 +9380,29 @@ mod tests {
     
     
     
-    /// S3.538: in-DLL recompile DLL imports CreateProcessA; call sites still ABSENT.
+    
+    /// S3.539: call-site design named; ready=false; compiler PE name frozen.
+    #[test]
+    fn yoyo_createprocess_call_site_design_pin() {
+        assert_eq!(YOYO_COMPILER_PE_NAME, "yoyo_compiler.exe");
+        assert!(!yoyo_createprocess_call_site_ready());
+        let d = yoyo_createprocess_call_site_design();
+        assert!(d.len() >= 5);
+        assert!(d.iter().any(|s| s.contains("YOYO_COMPILER_PE_NAME")));
+        assert!(d.iter().any(|s| s.contains("WaitForSingleObject")));
+        assert!(yoyo_in_dll_createprocess_compiler_blockers()
+            .iter()
+            .any(|s| s.contains("WaitForSingleObject")));
+        assert!(!yoyo_in_dll_createprocess_compiler_ready());
+        assert!(
+            include_str!("pe_dll_link.rs").contains("S3.539")
+                && include_str!("pe_dll_link.rs").contains("yoyo_createprocess_call_site_design"),
+            "S3.539 design must stay named"
+        );
+    }
+
+
+/// S3.538: in-DLL recompile DLL imports CreateProcessA; call sites still ABSENT.
     #[test]
     #[cfg(windows)]
     fn yoyo_in_dll_createprocess_a_iat_slot_pin() {
