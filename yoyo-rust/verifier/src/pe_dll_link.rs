@@ -432,7 +432,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "production default place_cwd remains Rust (ALT unset)",
         "raising S1_SLIM_MAX_CODE / densify hand-hex ≠ live-compile graduation (sheep)",
         "CreateProcess compiler PE: fixed10+all CHAINS multi live2 GREEN; yoyo.tyb/full still ABSENT",
-        "child live compose ABSENT — emit2=SET imm only; emit1≠general emit_x86; see design",
+        "child live compose ABSENT — emit2=SET/ADD/SUB imm; emit1≠general emit_x86; see design",
     ]
 }
 
@@ -464,9 +464,9 @@ pub fn yoyo_in_dll_createprocess_compiler_ready() -> bool {
 }
 
 
-/// S3.556–S3.583: design notes for **live compose** inside the child compiler PE.
+/// S3.556–S3.584: design notes for **live compose** inside the child compiler PE.
 ///
-/// Today = emit1 table + emit2 SET imm-from-TYB. Live = general parse+emit+link.
+/// Today = emit1 table + emit2 SET/ADD/SUB imm-from-TYB. Live = general parse+emit+link.
 /// Non-empty ⇒ slice ABSENT. Clearing ≠ M4 flip / ≠ OW-RT CLOSED. Densify ≠ slice.
 pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
     &[
@@ -484,7 +484,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.581 emit1 DONE: all CHAINS via emit1 (4-op+SET+MOV/CMP)",
         "S3.582 cliff: emit1 finite imm-table ≠ general emit_x86 (no parse+ISA emit)",
         "S3.583 emit2 DONE: SET+RET patches imm32 from TYB into movabs (yoyo_emit2_c)",
-        "today: emit2 SET imm-from-TYB; other ops emit1 table; live emit ABSENT",
+        "S3.584 emit2 DONE: ADD+SUB imm-from-TYB widen (≠ hardcoded 5)",
+        "today: emit2 SET/ADD/SUB imm-from-TYB; other ops emit1 table; live emit ABSENT",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside child .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
         "yoyo.tyb exceeds mini fixed10 ISA — needs host compose / oracle / densify≠",
@@ -968,7 +969,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     let _ = live2_inc_text_off;
 
-    // S3.559: ADD+RET field-match (op=0x62 argc=2 slot=0 imm=5)
+    // S3.559/S3.584: ADD+RET field-match (op=0x62 argc=2 slot=0; imm from TYB)
     let try_add = c.len();
     c.extend_from_slice(&[0x80, 0x7E, 0x08, 0x62]);
     let jne_try_extra_notadd = c.len();
@@ -979,14 +980,11 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x66, 0x83, 0x7E, 0x0A, 0x00]);
     let jne_fail_add_slot = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x83, 0x7E, 0x0C, 0x05]); // imm == 5
-    let jne_fail_add_imm = c.len();
-    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    // S3.584 emit2: imm from TYB [rsi+0x0C] — no hard-check imm==5
     c.extend_from_slice(&[0x80, 0x7E, 0x10, 0xFF]);
     let jne_fail_add_ret = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    // S3.576 emit1 ADD
-    let jmp_emit1_add = c.len();
+    let jmp_emit2_add = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     let _ = live2_add_text_off;
 
@@ -1006,7 +1004,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     let _ = live2_dec_text_off;
 
-    // S3.562: SUB+RET (0x61 argc=2 slot=0 imm=5)
+    // S3.562/S3.584: SUB+RET (0x61 argc=2 slot=0; imm from TYB)
     let try_sub = c.len();
     c.extend_from_slice(&[0x80, 0x7E, 0x08, 0x61]);
     let jne_try_mov_notsub = c.len();
@@ -1017,14 +1015,11 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x66, 0x83, 0x7E, 0x0A, 0x00]);
     let jne_fail_sub_slot = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x83, 0x7E, 0x0C, 0x05]); // imm == 5
-    let jne_fail_sub_imm = c.len();
-    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    // S3.584 emit2: imm from TYB [rsi+0x0C] — no hard-check imm==5
     c.extend_from_slice(&[0x80, 0x7E, 0x10, 0xFF]);
     let jne_fail_sub_ret = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    // S3.576 emit1 SUB
-    let jmp_emit1_sub = c.len();
+    let jmp_emit2_sub = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     let _ = live2_sub_text_off;
 
@@ -1304,8 +1299,9 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let jmp_emit1_get_w = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
-    // S3.576 emit1 ADD
+    // S3.576 emit1 ADD (dead after S3.584 emit2; body kept)
     let emit1_add = c.len();
+    let _ = emit1_add;
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0xBA, 0x00, 0x1A, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
@@ -1333,8 +1329,9 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let jmp_emit1_add_w = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
-    // S3.576 emit1 SUB
+    // S3.576 emit1 SUB (dead after S3.584 emit2; body kept)
     let emit1_sub = c.len();
+    let _ = emit1_sub;
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0xBA, 0x00, 0x1A, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
@@ -1362,8 +1359,9 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let jmp_emit1_sub_w = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
-    // S3.576 emit1 SET
+    // S3.576 emit1 SET (dead after S3.583 emit2; body kept)
     let emit1_set = c.len();
+    let _ = emit1_set;
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0xBA, 0x00, 0x1A, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
@@ -1718,6 +1716,72 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let jmp_emit2_set_w = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
+    // S3.584 emit2 ADD: 49 8B 47 00 48 81 C0 <imm32> 49 89 47 00 C3
+    let emit2_add = c.len();
+    c.extend_from_slice(&[0x48, 0x89, 0x74, 0x24, 0x50]); // mov [rsp+0x50], rsi
+    c.extend_from_slice(&[0x31, 0xC9]);
+    c.extend_from_slice(&[0xBA, 0x00, 0x1A, 0x00, 0x00]);
+    c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
+    c.extend_from_slice(&[0x41, 0xB9, 0x04, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x41, 0xFF, 0x97, 0x00, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
+    let je_emit2_add_va = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x89, 0xC3]);
+    c.extend_from_slice(&[0x49, 0x8D, 0xB7]);
+    c.extend_from_slice(&ret_pe_off.to_le_bytes());
+    c.extend_from_slice(&[0x48, 0x89, 0xDF]);
+    c.extend_from_slice(&[0xB9, 0x00, 0x1A, 0x00, 0x00]);
+    c.extend_from_slice(&[0xF3, 0xA4]);
+    c.extend_from_slice(&[0x48, 0x8D, 0xBB, 0x0D, 0x04, 0x00, 0x00]);
+    c.extend_from_slice(&[0x31, 0xC0]);
+    c.extend_from_slice(&[0xB9, 0x00, 0x04, 0x00, 0x00]);
+    c.extend_from_slice(&[0xF3, 0xAA]);
+    c.extend_from_slice(&[0xC7, 0x83, 0x0D, 0x04, 0x00, 0x00, 0x49, 0x8B, 0x47, 0x00]);
+    c.extend_from_slice(&[0xC7, 0x83, 0x11, 0x04, 0x00, 0x00, 0x48, 0x81, 0xC0, 0x00]);
+    c.extend_from_slice(&[0x48, 0x8B, 0x74, 0x24, 0x50]); // mov rsi,[rsp+0x50]
+    c.extend_from_slice(&[0x8B, 0x46, 0x0C]); // mov eax,[rsi+0xc]
+    c.extend_from_slice(&[0x89, 0x83, 0x14, 0x04, 0x00, 0x00]); // mov [rbx+0x414],eax imm32
+    c.extend_from_slice(&[0xC7, 0x83, 0x18, 0x04, 0x00, 0x00, 0x49, 0x89, 0x47, 0x00]);
+    c.extend_from_slice(&[0xC6, 0x83, 0x1C, 0x04, 0x00, 0x00, 0xC3]);
+    c.extend_from_slice(&[0x48, 0x89, 0xDA]);
+    c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x1A, 0x00, 0x00]);
+    let jmp_emit2_add_w = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+    // S3.584 emit2 SUB: 49 8B 47 00 48 81 E8 <imm32> 49 89 47 00 C3
+    let emit2_sub = c.len();
+    c.extend_from_slice(&[0x48, 0x89, 0x74, 0x24, 0x50]);
+    c.extend_from_slice(&[0x31, 0xC9]);
+    c.extend_from_slice(&[0xBA, 0x00, 0x1A, 0x00, 0x00]);
+    c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
+    c.extend_from_slice(&[0x41, 0xB9, 0x04, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x41, 0xFF, 0x97, 0x00, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
+    let je_emit2_sub_va = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x89, 0xC3]);
+    c.extend_from_slice(&[0x49, 0x8D, 0xB7]);
+    c.extend_from_slice(&ret_pe_off.to_le_bytes());
+    c.extend_from_slice(&[0x48, 0x89, 0xDF]);
+    c.extend_from_slice(&[0xB9, 0x00, 0x1A, 0x00, 0x00]);
+    c.extend_from_slice(&[0xF3, 0xA4]);
+    c.extend_from_slice(&[0x48, 0x8D, 0xBB, 0x0D, 0x04, 0x00, 0x00]);
+    c.extend_from_slice(&[0x31, 0xC0]);
+    c.extend_from_slice(&[0xB9, 0x00, 0x04, 0x00, 0x00]);
+    c.extend_from_slice(&[0xF3, 0xAA]);
+    c.extend_from_slice(&[0xC7, 0x83, 0x0D, 0x04, 0x00, 0x00, 0x49, 0x8B, 0x47, 0x00]);
+    c.extend_from_slice(&[0xC7, 0x83, 0x11, 0x04, 0x00, 0x00, 0x48, 0x81, 0xE8, 0x00]);
+    c.extend_from_slice(&[0x48, 0x8B, 0x74, 0x24, 0x50]);
+    c.extend_from_slice(&[0x8B, 0x46, 0x0C]);
+    c.extend_from_slice(&[0x89, 0x83, 0x14, 0x04, 0x00, 0x00]);
+    c.extend_from_slice(&[0xC7, 0x83, 0x18, 0x04, 0x00, 0x00, 0x49, 0x89, 0x47, 0x00]);
+    c.extend_from_slice(&[0xC6, 0x83, 0x1C, 0x04, 0x00, 0x00, 0xC3]);
+    c.extend_from_slice(&[0x48, 0x89, 0xDA]);
+    c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x1A, 0x00, 0x00]);
+    let jmp_emit2_sub_w = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
     // S3.565 live2 common: r8=text ptr, r9d=text len; RET skeleton pe_patch
     let live2_nop = c.len(); // shared entry (GET/ADD/…; NOP/INC/DEC → emit1)
     // save text args across VirtualAlloc (clobbers rcx/rdx/r8/r9)
@@ -1795,6 +1859,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jmp(&mut c, jmp_emit1_add_w, do_write);
     patch_jcc(&mut c, je_emit1_sub_va, fail_wr);
     patch_jmp(&mut c, jmp_emit1_sub_w, do_write);
+    // S3.584 emit2 ADD/SUB patches (emit1_add/sub bodies kept dead)
     patch_jcc(&mut c, je_emit1_set_va, fail_wr);
     patch_jmp(&mut c, jmp_emit1_set_w, do_write);
     patch_jcc(&mut c, je_live2_va, fail_wr);
@@ -1812,9 +1877,10 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jcc(&mut c, jne_try_extra_notadd, try_dec);
     patch_jcc(&mut c, jne_fail_add_argc, fail_compile);
     patch_jcc(&mut c, jne_fail_add_slot, fail_compile);
-    patch_jcc(&mut c, jne_fail_add_imm, fail_compile);
     patch_jcc(&mut c, jne_fail_add_ret, fail_compile);
-    patch_jmp(&mut c, jmp_emit1_add, emit1_add);
+    patch_jmp(&mut c, jmp_emit2_add, emit2_add);
+    patch_jcc(&mut c, je_emit2_add_va, fail_wr);
+    patch_jmp(&mut c, jmp_emit2_add_w, do_write);
     patch_jcc(&mut c, jne_try_extra_notdec, try_sub);
     patch_jcc(&mut c, jne_fail_dec_argc, fail_compile);
     patch_jcc(&mut c, jne_fail_dec_ret, fail_compile);
@@ -1822,9 +1888,10 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jcc(&mut c, jne_try_mov_notsub, try_mov);
     patch_jcc(&mut c, jne_fail_sub_argc, fail_compile);
     patch_jcc(&mut c, jne_fail_sub_slot, fail_compile);
-    patch_jcc(&mut c, jne_fail_sub_imm, fail_compile);
     patch_jcc(&mut c, jne_fail_sub_ret, fail_compile);
-    patch_jmp(&mut c, jmp_emit1_sub, emit1_sub);
+    patch_jmp(&mut c, jmp_emit2_sub, emit2_sub);
+    patch_jcc(&mut c, je_emit2_sub_va, fail_wr);
+    patch_jmp(&mut c, jmp_emit2_sub_w, do_write);
     patch_jcc(&mut c, jne_try_cmp_notmov, try_cmp);
     patch_jcc(&mut c, jne_fail_mov_argc, fail_compile);
     patch_jcc(&mut c, jne_fail_mov_slot, fail_compile);
@@ -5244,7 +5311,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.581: emit1 all CHAINS (4-op+MOV/CMP).
     // S3.582: emit1≠general emit_x86 cliff (finite imm table).
     // S3.583: emit2 SET imm-from-TYB (yoyo_emit2_c).
-    // Next >=10 = emit2 widen / M4 / OW-RT. Not CLOSED. CUT.
+    // S3.584: emit2 ADD+SUB imm-from-TYB widen.
+    // Next >=10 = emit2 more / M4 / OW-RT. Not CLOSED. CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -12102,7 +12170,63 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-
+    /// S3.584: emit2 ADD+SUB patch imm from TYB; canonical + alt-imm GREEN.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_emit2_add_sub_imm_from_tyb_pin() {
+        let pe = yoyo_compiler_pe_bytes().expect("S3.584");
+        assert!(String::from_utf8_lossy(&pe).contains("yoyo_emit2_c"));
+        let dir = temp_work("s584-emit2-add-sub");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        for &op in &[0x62u8, 0x61u8] {
+            let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+                .expect("emit")
+                .bytes;
+            std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+            let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+            let st = std::process::Command::new(&path)
+                .current_dir(&dir)
+                .status()
+                .unwrap();
+            assert!(st.success(), "emit2 op={op:#x} exit {:?}", st.code());
+            assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
+            let mut tyb_alt = tyb.clone();
+            tyb_alt[0x0C..0x10].copy_from_slice(&0x1234_5678u32.to_le_bytes());
+            let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_alt)
+                .expect("emit alt")
+                .bytes;
+            std::fs::write(dir.join("input.tyb"), &tyb_alt).unwrap();
+            let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+            let st = std::process::Command::new(&path)
+                .current_dir(&dir)
+                .status()
+                .unwrap();
+            assert!(
+                st.success(),
+                "emit2 op={op:#x} alt-imm exit {:?}",
+                st.code()
+            );
+            assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect_alt);
+        }
+        // SET still emit2
+        let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x30);
+        let expect = crate::s1_tyb_parser::S3_COMPILE_PE_SET_RET_IMAGE_SEED.to_vec();
+        std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success(), "emit2 SET still ok {:?}", st.code());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("584") && s.contains("ADD+SUB")));
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.584"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     /// S3.569: SET+ADD+RET live2 pe_patch after memcmp hit; other multis still bake.
     #[test]
