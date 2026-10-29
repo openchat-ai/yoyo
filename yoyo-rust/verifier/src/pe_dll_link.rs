@@ -473,8 +473,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.557-562 live1 DONE: field-match all fixed10 op+RET (yoyo_live1_c) — PE still bake",
         "today: field-match fixed10 + memcmp multi chains → WriteFile baked PE",
         "S3.564-567 live2: all fixed10 op+RET pe_patch-in-child (RET skeleton + .text blobs)",
-        "S3.569: SET+ADD live2 pe_patch (memcmp-hit → .text blob); other chains still memcmp",
-"S3.568 cliff reduced: multi beyond SET+ADD still ABSENT (memcmp-bake)",
+        "S3.569-570: SET+ADD/SET+GET live2 pe_patch (memcmp-hit → .text blob)",
+"multi beyond 2-op SET+* still ABSENT (longer chains memcmp-bake)",
         "general live emit_x86 in child still ABSENT; live2 = pe_patch not full emit",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside child .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -646,6 +646,15 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     while data.len() % 16 != 0 {
         data.push(0);
     }
+    // S3.570: SET+GET+RET live2 text (SET sans C3 + GET) — 23 bytes
+    let live2_set_get_text_rel = data.len() as u32;
+    data.extend_from_slice(&[
+        0x48, 0xB8, 0xEF, 0xBE, 0xAD, 0xDE, 0x00, 0x00, 0x00, 0x00, 0x49, 0x89, 0x47, 0x00,
+        0x49, 0x8B, 0x47, 0x08, 0x49, 0x89, 0x47, 0x00, 0xC3,
+    ]);
+    while data.len() % 16 != 0 {
+        data.push(0);
+    }
     let ret_pe_rel = data.len() as u32;
     data.extend_from_slice(ret_seed);
     let setret_pe_rel = data.len() as u32;
@@ -747,6 +756,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let live2_mov_text_off = YOYO_COMPILER_PE_USER_DATA_OFF + live2_mov_text_rel;
     let live2_cmp_text_off = YOYO_COMPILER_PE_USER_DATA_OFF + live2_cmp_text_rel;
     let live2_set_add_text_off = YOYO_COMPILER_PE_USER_DATA_OFF + live2_set_add_text_rel;
+    let live2_set_get_text_off = YOYO_COMPILER_PE_USER_DATA_OFF + live2_set_get_text_rel;
     let seed_len = 6656u32;
 
     let mut c = Vec::new();
@@ -1034,12 +1044,17 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
         c.extend_from_slice(&[0x5E, 0x5F, 0x59, 0x58]);
         let jne2 = c.len();
         c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-        if i == 0 {
-            // SET+ADD: pe_patch via live2 (recognition still memcmp)
+        let live2_blob: Option<(u32, u32)> = match i {
+            0 => Some((live2_set_add_text_off, 30)), // SET+ADD
+            1 => Some((live2_set_get_text_off, 23)), // SET+GET
+            _ => None,
+        };
+        if let Some((text_off, text_len)) = live2_blob {
             c.extend_from_slice(&[0x49, 0x8D, 0x87]);
-            c.extend_from_slice(&live2_set_add_text_off.to_le_bytes());
+            c.extend_from_slice(&text_off.to_le_bytes());
             c.extend_from_slice(&[0x49, 0x89, 0xC0]);
-            c.extend_from_slice(&[0x41, 0xB9, 0x1E, 0x00, 0x00, 0x00]); // r9d=30
+            c.extend_from_slice(&[0x41, 0xB9]);
+            c.extend_from_slice(&text_len.to_le_bytes());
             let jmp_l = c.len();
             c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
             extra_patches.push((jne1, jne2, jmp_l, true));
@@ -4577,7 +4592,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.566: live2 GET/ADD/SUB/SET pe_patch.
     // S3.567: live2 MOVRR/CMP — all fixed10 op+RET via pe_patch.
     // S3.568: multi live2 pe_patch ABSENT cliff (chains still memcmp).
-    // S3.569: SET+ADD live2 pe_patch (memcmp→blob). Other multi still memcmp.
+    // S3.569: SET+ADD live2 pe_patch (memcmp→blob).
+    // S3.570: SET+GET live2 pe_patch. Longer multi still memcmp.
     // Next >=10 = more multi live2 / emit_x86 / M4 / OW-RT. Not CLOSED. CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
@@ -11046,6 +11062,30 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(yoyo_child_live_compose_design()
             .iter()
             .any(|s| s.contains("SET+ADD") && s.contains("live2")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+
+
+    /// S3.570: SET+GET+RET live2 pe_patch after memcmp hit.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_live2_set_get_multi_pin() {
+        let dir = temp_work("s570-live2-sg");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x60]);
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            .expect("emit")
+            .bytes;
+        std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success(), "SET+GET live2 exit {:?}", st.code());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
+        assert!(include_str!("pe_dll_link.rs").contains("S3.570"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
