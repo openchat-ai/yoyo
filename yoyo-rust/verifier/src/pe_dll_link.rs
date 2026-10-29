@@ -472,7 +472,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
     &[
         "S3.557-562 live1 DONE: field-match all fixed10 op+RET (yoyo_live1_c) — PE still bake",
         "today: field-match fixed10 + memcmp multi chains → WriteFile baked PE",
-        "S3.563 cliff: live emit inside child .text still ABSENT (write seed ≠ emit_x86)",
+        "S3.564 live2: NOP pe_patch-in-child (RET skeleton + .text 90 C3) — still not full emit_x86",
+        "S3.563/564: general live emit still ABSENT; live2 = first pe_patch experiment",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside child .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
         "yoyo.tyb exceeds mini fixed10 ISA — needs host compose / oracle / densify≠",
@@ -569,6 +570,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     data.extend_from_slice(b"yoyo_f10_c\0");
     data.extend_from_slice(b"yoyo_multi_c\0");
     data.extend_from_slice(b"yoyo_live1_c\0");
+    data.extend_from_slice(b"yoyo_live2_c\0");
     while data.len() % 16 != 0 {
         data.push(0);
     }
@@ -769,11 +771,8 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x80, 0x7E, 0x10, 0xFF]); // second op == RET
     let jne_fail_nop_ret = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x49, 0x8D, 0x97]);
-    c.extend_from_slice(&nop_pe_off.to_le_bytes());
-    c.extend_from_slice(&[0x41, 0xB8]);
-    c.extend_from_slice(&nop_pe_len.to_le_bytes());
-    let jmp_do_write_nop = c.len();
+    // S3.564 live2: pe_patch-in-child (not WriteFile baked NOP PE)
+    let jmp_live2_nop = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // S3.558: GET+RET field-match (op=0x60 argc=2 slot=0 imm=1)
@@ -1007,6 +1006,37 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x68]);
     c.extend_from_slice(&[0xC3]);
 
+
+    // S3.564 live2: VirtualAlloc PE buf ← RET seed; zero .text; write NOP 90 C3; do_write
+    let live2_nop = c.len();
+    c.extend_from_slice(&[0x31, 0xC9]); // xor ecx,ecx
+    c.extend_from_slice(&[0xBA, 0x00, 0x1A, 0x00, 0x00]); // mov edx,6656
+    c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]); // r8d=MEM_COMMIT|RESERVE
+    c.extend_from_slice(&[0x41, 0xB9, 0x04, 0x00, 0x00, 0x00]); // r9d=PAGE_READWRITE
+    c.extend_from_slice(&[0x41, 0xFF, 0x97, 0x00, 0x00, 0x00, 0x00]); // call VirtualAlloc
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
+    let je_live2_va = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x89, 0xC3]); // rbx = pe buf
+    // memcpy RET seed → buf
+    c.extend_from_slice(&[0x49, 0x8D, 0xB7]); // lea rsi,[r15+ret_pe]
+    c.extend_from_slice(&ret_pe_off.to_le_bytes());
+    c.extend_from_slice(&[0x48, 0x89, 0xDF]); // mov rdi,rbx
+    c.extend_from_slice(&[0xB9, 0x00, 0x1A, 0x00, 0x00]); // mov ecx,6656
+    c.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
+    // zero text payload [rbx+0x40d, +1024)
+    c.extend_from_slice(&[0x48, 0x8D, 0xBB, 0x0D, 0x04, 0x00, 0x00]); // lea rdi,[rbx+0x40d]
+    c.extend_from_slice(&[0x31, 0xC0]); // xor eax,eax
+    c.extend_from_slice(&[0xB9, 0x00, 0x04, 0x00, 0x00]); // mov ecx,1024
+    c.extend_from_slice(&[0xF3, 0xAA]); // rep stosb
+    // patch NOP text 90 C3
+    c.extend_from_slice(&[0x66, 0xC7, 0x83, 0x0D, 0x04, 0x00, 0x00, 0x90, 0xC3]); // mov word [rbx+0x40d],0xC390
+    c.extend_from_slice(&[0x48, 0x89, 0xDA]); // mov rdx,rbx
+    c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x1A, 0x00, 0x00]); // mov r8d,6656
+    let jmp_live2_to_write = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+
     let patch_jcc = |code: &mut Vec<u8>, at: usize, target: usize| {
         let rel = (target as i32) - ((at + 6) as i32);
         code[at + 2..at + 6].copy_from_slice(&rel.to_le_bytes());
@@ -1036,7 +1066,9 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jcc(&mut c, jne_try_get_notnop, try_get);
     patch_jcc(&mut c, jne_fail_nop_argc, fail_compile);
     patch_jcc(&mut c, jne_fail_nop_ret, fail_compile);
-    patch_jmp(&mut c, jmp_do_write_nop, do_write);
+    patch_jmp(&mut c, jmp_live2_nop, live2_nop);
+    patch_jcc(&mut c, je_live2_va, fail_wr);
+    patch_jmp(&mut c, jmp_live2_to_write, do_write);
     patch_jcc(&mut c, jne_try_extra_notget, try_inc);
     patch_jcc(&mut c, jne_fail_get_argc, fail_compile);
     patch_jcc(&mut c, jne_fail_get_slot, fail_compile);
@@ -4434,7 +4466,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.561: MOVRR+CMP field-match.
     // S3.562: SUB field-match — all fixed10 op+RET structured.
     // S3.563: live-emit cliff named (write bake ≠ emit_x86 in child).
-    // Next >=10 = first live-emit experiment / M4 / OW-RT. Not CLOSED. CUT.
+    // S3.564: live2 NOP pe_patch-in-child (yoyo_live2_c). Next >=10 =
+    // live2 more ops / full emit_x86 / M4 / OW-RT. Not CLOSED. CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -10842,6 +10875,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
 
     /// S3.563: live-emit cliff named after live1 field-match complete; ready=false.
     #[test]
+
     fn yoyo_child_live_emit_cliff_pin() {
         let d = yoyo_child_live_compose_design();
         assert!(d.iter().any(|s| s.contains("live1 DONE") || s.contains("562")));
@@ -10851,6 +10885,37 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.563"));
     }
+
+
+    /// S3.564: live2 NOP pe_patch-in-child; output ≡ emit-bake; marker yoyo_live2_c.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_live2_nop_pe_patch_pin() {
+        let pe = yoyo_compiler_pe_bytes().expect("S3.564");
+        assert!(String::from_utf8_lossy(&pe).contains("yoyo_live2_c"));
+        let dir = temp_work("s564-live2-nop");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x00);
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            .expect("emit")
+            .bytes;
+        std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success(), "live2 NOP exit {:?}", st.code());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
+        // still not ready
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("live2")));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.564"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
 
     /// S3.557: live1 — NOP+RET via field-match (not memcmp); marker yoyo_live1_c.
     #[test]
