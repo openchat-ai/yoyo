@@ -450,10 +450,10 @@ pub fn yoyo_live_compile_slice_ready() -> bool {
 /// Non-empty ⇒ experiment ABSENT. Clearing ≠ live-compile slice ready by itself.
 pub fn yoyo_in_dll_createprocess_compiler_blockers() -> &'static [&'static str] {
     &[
-        "CreateProcessA/Wait/GetExitCode call-site emitted; PE=pe_link(exit0) smoke ≠ R→C→W",
-        "yoyo_compiler_pe_bytes=Some(exit0 smoke); live R→C→W compiler PE still ABSENT",
+        "CreateProcessA/Wait/GetExitCode call-site emitted; PE=passthrough write-output ≠ live compile",
+        "yoyo_compiler_pe_bytes=Some(passthrough stub); live R→C→W compiler PE still ABSENT",
         "cwd/export re-entrancy + handle inheritance design ABSENT",
-        "RET smoke stub ignores input / writes no output.exe — not a live compiler",
+        "passthrough copies input.tyb→output.exe — C (compile) still ABSENT",
         "still would be oracle/host-compose under the hood unless compiler PE is live",
     ]
 }
@@ -493,18 +493,14 @@ pub fn yoyo_createprocess_call_site_emitted() -> bool {
 }
 
 
-/// S3.543: YOYO-built smoke PE for [`YOYO_COMPILER_PE_NAME`] (pe_link exit0).
+/// S3.544: YOYO-built passthrough compiler PE for [`YOYO_COMPILER_PE_NAME`].
 ///
-/// Honest: **not** an R→C→W compiler — child ignores input and writes no `output.exe`.
-/// Proves place + CreateProcess+Wait+GetExitCode. Live compiler still ABSENT for ready().
+/// Honest: **not** live compile — child `ReadFile(input.tyb)` → `WriteFile(output.exe)`
+/// (byte copy). Proves place + CreateProcess + write-output. C still ABSENT for ready().
 pub fn yoyo_compiler_pe_bytes() -> Option<Vec<u8>> {
     #[cfg(windows)]
     {
-        // Honest smoke: YOYO pe_link Win32 EXE whose entry is xor eax,eax; ret
-        // (process exit 0). Bare seed_host(RET) / slim RET exit 0x40001000 under
-        // CreateProcess — not usable as compiler-PE stand-in.
-        let pe = crate::pe_link::link_pe_win32(&[0x31, 0xC0, 0xC3], &[], &[]).ok()?;
-        Some(pe.bytes)
+        Some(yoyo_compiler_passthrough_pe_link().ok()?.bytes)
     }
     #[cfg(not(windows))]
     {
@@ -512,9 +508,133 @@ pub fn yoyo_compiler_pe_bytes() -> Option<Vec<u8>> {
     }
 }
 
-/// True while [`yoyo_compiler_pe_bytes`] is the S3.543 RET smoke stub (≠ live compiler).
+/// S3.543 exit0-only smoke — superseded by S3.544 passthrough.
 pub fn yoyo_compiler_pe_is_ret_smoke_stub() -> bool {
+    false
+}
+
+/// True while [`yoyo_compiler_pe_bytes`] is the S3.544 passthrough stub (≠ live compiler).
+pub fn yoyo_compiler_pe_is_passthrough_stub() -> bool {
     yoyo_compiler_pe_bytes().is_some()
+}
+
+/// pe_link `.data` user payload starts at this r15 offset (IAT header + scratch pad).
+const YOYO_COMPILER_PE_USER_DATA_OFF: u32 = 0x120;
+
+/// Build passthrough EXE: input.tyb → output.exe (max 32KiB), exit 0/2/3.
+fn yoyo_compiler_passthrough_pe_link() -> crate::types::IsaResult<crate::pe_link::PeImage> {
+    // user .data at r15+0x120: input.tyb\0 output.exe\0 yoyo_pt_write\0
+    let mut data = Vec::new();
+    let input_rel = 0u32;
+    data.extend_from_slice(b"input.tyb\0");
+    let output_rel = data.len() as u32;
+    data.extend_from_slice(b"output.exe\0");
+    data.extend_from_slice(b"yoyo_pt_write\0");
+    let input_off = YOYO_COMPILER_PE_USER_DATA_OFF + input_rel;
+    let output_off = YOYO_COMPILER_PE_USER_DATA_OFF + output_rel;
+
+    let mut c = Vec::new();
+    // sub rsp,0x68 — entry RSP≡8 → after sub ≡0 (mod 16)
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x68]);
+
+    // CreateFileA(input, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL)
+    c.extend_from_slice(&[0x49, 0x8D, 0x8F]); // lea rcx,[r15+input]
+    c.extend_from_slice(&input_off.to_le_bytes());
+    c.extend_from_slice(&[0xBA, 0x00, 0x00, 0x00, 0x80]);
+    c.extend_from_slice(&[0x45, 0x31, 0xC0, 0x45, 0x31, 0xC9]);
+    c.extend_from_slice(&[0xC7, 0x44, 0x24, 0x20, 0x03, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x28, 0x80, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x30, 0x00, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x41, 0xFF, 0x97, 0x08, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x48, 0x83, 0xF8, 0xFF]);
+    let je_no_input = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x89, 0xC3]);
+
+    // VirtualAlloc(NULL, 0x8000, COMMIT|RESERVE, READWRITE)
+    c.extend_from_slice(&[0x31, 0xC9]);
+    c.extend_from_slice(&[0xBA, 0x00, 0x80, 0x00, 0x00]);
+    c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
+    c.extend_from_slice(&[0x41, 0xB9, 0x04, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x41, 0xFF, 0x97, 0x00, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
+    let je_fail_va = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x89, 0xC6]);
+
+    // ReadFile(h, buf, 0x8000, &written, NULL)
+    c.extend_from_slice(&[0x48, 0x89, 0xD9]);
+    c.extend_from_slice(&[0x48, 0x89, 0xF2]);
+    c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x80, 0x00, 0x00]);
+    c.extend_from_slice(&[0x4C, 0x8D, 0x4C, 0x24, 0x40]);
+    c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x20, 0x00, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x41, 0xFF, 0x97, 0x10, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x85, 0xC0]);
+    let je_fail_rd = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x8B, 0x7C, 0x24, 0x40]);
+
+    // CloseHandle(input)
+    c.extend_from_slice(&[0x48, 0x89, 0xD9]);
+    c.extend_from_slice(&[0x41, 0xFF, 0x97, 0x20, 0x00, 0x00, 0x00]);
+
+    // CreateFileA(output, GENERIC_WRITE, ...)
+    c.extend_from_slice(&[0x49, 0x8D, 0x8F]);
+    c.extend_from_slice(&output_off.to_le_bytes());
+    c.extend_from_slice(&[0xBA, 0x00, 0x00, 0x00, 0x40]);
+    c.extend_from_slice(&[0x45, 0x31, 0xC0, 0x45, 0x31, 0xC9]);
+    c.extend_from_slice(&[0xC7, 0x44, 0x24, 0x20, 0x02, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x28, 0x80, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x30, 0x00, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x41, 0xFF, 0x97, 0x08, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x48, 0x83, 0xF8, 0xFF]);
+    let je_fail_out = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x89, 0xC3]);
+
+    // WriteFile(h, buf, edi, &written, NULL)
+    c.extend_from_slice(&[0x48, 0x89, 0xD9]);
+    c.extend_from_slice(&[0x48, 0x89, 0xF2]);
+    c.extend_from_slice(&[0x41, 0x89, 0xF8]);
+    c.extend_from_slice(&[0x4C, 0x8D, 0x4C, 0x24, 0x40]);
+    c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x20, 0x00, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x41, 0xFF, 0x97, 0x18, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x85, 0xC0]);
+    let je_fail_wr = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+
+    // CloseHandle(output)
+    c.extend_from_slice(&[0x48, 0x89, 0xD9]);
+    c.extend_from_slice(&[0x41, 0xFF, 0x97, 0x20, 0x00, 0x00, 0x00]);
+
+    // exit 0
+    c.extend_from_slice(&[0x31, 0xC0]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x68]);
+    c.extend_from_slice(&[0xC3]);
+
+    let patch_jcc = |code: &mut Vec<u8>, at: usize, target: usize| {
+        let rel = (target as i32) - ((at + 6) as i32);
+        code[at + 2..at + 6].copy_from_slice(&rel.to_le_bytes());
+    };
+
+    // EXIT_NO_INPUT = 2
+    let fail_no = c.len();
+    c.extend_from_slice(&[0xB8, 0x02, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x68]);
+    c.extend_from_slice(&[0xC3]);
+    // EXIT_WRITE_FAIL = 3
+    let fail_wr = c.len();
+    c.extend_from_slice(&[0xB8, 0x03, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x68]);
+    c.extend_from_slice(&[0xC3]);
+
+    patch_jcc(&mut c, je_no_input, fail_no);
+    patch_jcc(&mut c, je_fail_va, fail_wr);
+    patch_jcc(&mut c, je_fail_rd, fail_wr);
+    patch_jcc(&mut c, je_fail_out, fail_wr);
+    patch_jcc(&mut c, je_fail_wr, fail_wr);
+
+    crate::pe_link::link_pe_win32(&c, &data, &[])
 }
 
 /// Write compiler PE to `work_dir` / [`YOYO_COMPILER_PE_NAME`] when bytes exist.
@@ -3720,8 +3840,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // Not CLOSED. OW-RT remains CUT.
     // S3.542: CreateProcessA+Wait+GetExitCode call-site emitted (gated on cwd
     // yoyo_compiler.exe). Not CLOSED. OW-RT remains CUT.
-    // S3.543: yoyo_compiler_pe_bytes=pe_link(exit0) smoke PE; place+CreateProcess
-    // e2e. ≠ R→C→W. Next >=10 = passthrough/write-output compiler PE / M4.
+    // S3.543: pe_link(exit0) smoke PE place+CreateProcess e2e.
+    // S3.544: passthrough input.tyb→output.exe compiler PE; ≠ live compile.
+    // Next >=10 = real compile-in-child / M4 / OW-RT. Not CLOSED.
     // Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
@@ -9592,39 +9713,71 @@ mod tests {
     #[cfg(windows)]
     
     fn yoyo_compiler_pe_ret_smoke_place_createprocess_pin() {
-        let pe = yoyo_compiler_pe_bytes().expect("S3.543 PE bytes");
-        assert!(pe.len() > 0x200 && pe[0] == b'M' && pe[1] == b'Z');
-        assert!(yoyo_compiler_pe_is_ret_smoke_stub());
-        assert!(!yoyo_createprocess_call_site_ready());
-        assert!(!yoyo_in_dll_createprocess_compiler_ready());
-        assert!(yoyo_in_dll_createprocess_compiler_blockers()
-            .iter()
-            .any(|s| s.contains("RET smoke") || s.contains("R→C→W") || s.contains("R->C->W")));
-
-        let dir = temp_work("s543-compiler-smoke");
-        let path = yoyo_place_compiler_pe(&dir).expect("place");
-        assert_eq!(path, dir.join(YOYO_COMPILER_PE_NAME));
-        assert_eq!(std::fs::read(&path).unwrap(), pe);
-
-        let entries = gate_g_recompile_entries().expect("entries");
-        let dll = link_yoyo_in_dll_recompile_dll(&entries).expect("link");
-        // non-TYB input → without compiler PE would fail; with RET smoke → child exit 0
-        std::fs::write(dir.join("input.tyb"), b"not-a-tyb-input").expect("input");
-        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
-        assert_eq!(
-            yoyo_sidecar_in_dll_call_time_invoke(&dll, &dir),
-            EXIT_OK,
-            "CreateProcess(exit0 smoke) must return child exit 0"
-        );
-        // honest: smoke stub does not write output.exe
-        assert!(
-            !dir.join(OUTPUT_NAME).exists(),
-            "exit0 smoke must not pretend to compile"
-        );
+        // S3.543 pin retained as named cliff; bytes path superseded by S3.544 passthrough.
+        assert!(!yoyo_compiler_pe_is_ret_smoke_stub());
+        assert!(yoyo_compiler_pe_is_passthrough_stub());
         assert!(
             include_str!("pe_dll_link.rs").contains("S3.543")
                 && include_str!("pe_dll_link.rs").contains("yoyo_compiler_pe_is_ret_smoke_stub"),
             "S3.543 must stay named"
+        );
+    }
+
+
+/// S3.544: passthrough compiler PE — Read(input.tyb)→Write(output.exe);
+    /// place + CreateProcess e2e; ≠ live compile (C ABSENT).
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_passthrough_write_output_pin() {
+        let pe = yoyo_compiler_pe_bytes().expect("S3.544 PE bytes");
+        assert!(pe.len() > 0x200 && pe[0] == b'M' && pe[1] == b'Z');
+        assert!(yoyo_compiler_pe_is_passthrough_stub());
+        assert!(!yoyo_compiler_pe_is_ret_smoke_stub());
+        assert!(!yoyo_createprocess_call_site_ready());
+        assert!(!yoyo_in_dll_createprocess_compiler_ready());
+        assert!(yoyo_in_dll_createprocess_compiler_blockers()
+            .iter()
+            .any(|s| s.contains("passthrough") || s.contains("ABSENT")));
+        let ascii = String::from_utf8_lossy(&pe);
+        assert!(ascii.contains("yoyo_pt_write"), "passthrough marker in PE");
+        assert!(ascii.contains("input.tyb"));
+        assert!(ascii.contains("output.exe"));
+
+        let dir = temp_work("s544-pt-write");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        assert_eq!(path, dir.join(YOYO_COMPILER_PE_NAME));
+
+        let payload = b"S3.544-PASSTHROUGH-PAYLOAD";
+        std::fs::write(dir.join("input.tyb"), payload).expect("input");
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .expect("spawn");
+        assert!(st.success(), "passthrough PE must exit 0 (got {:?})", st.code());
+        assert_eq!(
+            std::fs::read(dir.join(OUTPUT_NAME)).expect("output"),
+            payload,
+            "passthrough must copy input→output"
+        );
+
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        std::fs::write(dir.join("input.tyb"), payload).expect("input2");
+        let entries = gate_g_recompile_entries().expect("entries");
+        let dll = link_yoyo_in_dll_recompile_dll(&entries).expect("link");
+        assert_eq!(
+            yoyo_sidecar_in_dll_call_time_invoke(&dll, &dir),
+            EXIT_OK,
+            "in-DLL CreateProcess(passthrough) must exit 0"
+        );
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), payload);
+
+        assert!(
+            include_str!("pe_dll_link.rs").contains("S3.544")
+                && include_str!("pe_dll_link.rs").contains("yoyo_pt_write")
+                && include_str!("pe_dll_link.rs").contains("yoyo_compiler_pe_is_passthrough_stub"),
+            "S3.544 must stay named"
         );
         let _ = std::fs::remove_dir_all(&dir);
     }

@@ -152,7 +152,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.544**（passthrough/write-output compiler PE；禁 densify / 假 CLOSED）。S3.543=pe_link(exit0) smoke。红了记根因停。
+- `??` ? **S3.545**?real compile-in-child / M4-prep?? densify / ? CLOSED??S3.544=passthrough write-output????????
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
