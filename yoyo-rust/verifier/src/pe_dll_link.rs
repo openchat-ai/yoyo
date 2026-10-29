@@ -432,7 +432,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "production default place_cwd remains Rust (ALT unset)",
         "raising S1_SLIM_MAX_CODE / densify hand-hex ≠ live-compile graduation (sheep)",
         "CreateProcess compiler PE: fixed10+all CHAINS multi live2 GREEN; yoyo.tyb/full still ABSENT",
-        "child live compose ABSENT — emit1=all fixed10+CHAINS; general parse+emit_x86 still ABSENT",
+        "child live compose ABSENT — emit1≠general emit_x86; see S3.582 cliff / design",
     ]
 }
 
@@ -464,9 +464,9 @@ pub fn yoyo_in_dll_createprocess_compiler_ready() -> bool {
 }
 
 
-/// S3.556–S3.581: design notes for **live compose** inside the child compiler PE.
+/// S3.556–S3.582: design notes for **live compose** inside the child compiler PE.
 ///
-/// Today = emit1 all fixed10+all CHAINS. Live = general parse+emit+link.
+/// Today = emit1 all fixed10+CHAINS (imm table). Live = general parse+emit+link.
 /// Non-empty ⇒ slice ABSENT. Clearing ≠ M4 flip / ≠ OW-RT CLOSED. Densify ≠ slice.
 pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
     &[
@@ -482,12 +482,13 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.579 emit1 DONE: SET+GET chain inline (≠ live2 blob)",
         "S3.580 emit1 DONE: SET+ADD+SUB / NOP+INC+DEC 3-op chains",
         "S3.581 emit1 DONE: all CHAINS via emit1 (4-op+SET+MOV/CMP)",
-        "today: emit1 all fixed10+all CHAINS; general parse+emit still ABSENT",
+        "S3.582 cliff: emit1 finite imm-table ≠ general emit_x86 (no parse+ISA emit)",
+        "today: emit1 covers fixed10+CHAINS via inline immediates; live emit ABSENT",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside child .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
         "yoyo.tyb exceeds mini fixed10 ISA — needs host compose / oracle / densify≠",
         "hand-hex densify of emit_x86 into child = sheep; not a live-compose slice",
-        "finite bake/blob table growth ≠ graduation; live slice clears this design list",
+        "finite emit1/imm table growth ≠ graduation; live slice clears this design list",
     ]
 }
 
@@ -5207,7 +5208,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.579: emit1 SET+GET chain.
     // S3.580: emit1 SET+ADD+SUB / NOP+INC+DEC.
     // S3.581: emit1 all CHAINS (4-op+MOV/CMP).
-    // Next >=10 = general emit_x86 / M4 / OW-RT. Not CLOSED. CUT.
+    // S3.582: emit1≠general emit_x86 cliff (finite imm table).
+    // Next >=10 = general emit seed / M4 / OW-RT. Not CLOSED. CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -12007,6 +12009,23 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.581"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.582: emit1 finite imm-table ≠ general emit_x86 cliff; ready=false.
+    #[test]
+    fn yoyo_child_emit1_neq_general_emit_cliff_pin() {
+        let d = yoyo_child_live_compose_design();
+        assert!(d.iter().any(|s| s.contains("581") && s.contains("all CHAINS")));
+        assert!(d.iter().any(|s| s.contains("582") && s.contains("emit1") && s.contains("emit_x86")));
+        assert!(d.iter().any(|s| s.contains("live needs") && s.contains("emit_x86")));
+        assert!(d.iter().any(|s| s.contains("finite") || s.contains("imm")));
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(!yoyo_live_compile_slice_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_live_in_dll_compile_map()
+            .iter()
+            .any(|s| s.contains("emit1") || s.contains("emit_x86") || s.contains("582")));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.582"));
     }
 
 
