@@ -2359,6 +2359,17 @@ pub fn s3_fixed10_ret_tyb(op: u8) -> Vec<u8> {
     }
 }
 
+/// S3.551: fixed10 multi-op chain + trailing RET (beyond single op+RET).
+///
+/// `ops` are non-RET fixed10 opcodes; RET is appended. Empty → RET-only.
+pub fn s3_fixed10_chain_ret_tyb(ops: &[u8]) -> Vec<u8> {
+    let mut recs: Vec<(u8, u8, [u8; 6])> = ops.iter().map(|&op| s3_fixed_rec(op)).collect();
+    if ops.last().copied() != Some(0xFF) {
+        recs.push(s3_fixed_rec(0xFF));
+    }
+    s3_host_tyb_from_records(&recs)
+}
+
 /// S3.129: canonical argc/args for one fixed10 opcode. Does not tighten `fixed_template_ops`.
 fn s3_fixed_rec(op: u8) -> (u8, u8, [u8; 6]) {
     let pack = |slot: u16, imm: u32| {

@@ -431,7 +431,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "ALT in-dll-gate-i / gen4 GREEN paths are still oracle lookup, not live emit",
         "production default place_cwd remains Rust (ALT unset)",
         "raising S1_SLIM_MAX_CODE / densify hand-hex ≠ live-compile graduation (sheep)",
-        "CreateProcess compiler PE: fixed10 op+RET mini-table GREEN; yoyo.tyb/multi still ABSENT",
+        "CreateProcess compiler PE: fixed10+SET/ADD|GET multi GREEN; yoyo.tyb/full still ABSENT",
     ]
 }
 
@@ -450,10 +450,10 @@ pub fn yoyo_live_compile_slice_ready() -> bool {
 /// Non-empty ⇒ experiment ABSENT. Clearing ≠ live-compile slice ready by itself.
 pub fn yoyo_in_dll_createprocess_compiler_blockers() -> &'static [&'static str] {
     &[
-        "CreateProcessA/Wait/GetExitCode call-site emitted; PE=fixed10 op+RET mini-table ≠ full live",
-        "yoyo_compiler_pe_bytes=Some(fixed10 table); yoyo.tyb / multi-op beyond-fixed10 still ABSENT",
+        "CreateProcessA/Wait/GetExitCode call-site emitted; PE=fixed10+multi emit-bake ≠ full live",
+        "yoyo_compiler_pe_bytes=Some(fixed10+multi); yoyo.tyb / general compose still ABSENT",
         "cwd/export re-entrancy + handle inheritance design ABSENT",
-        "table rows = seed/emit-bake — not live general compose / densify",
+        "rows = seed/emit-bake — not live general compose / densify",
         "still would be oracle/host-compose under the hood unless compiler PE is live",
     ]
 }
@@ -492,10 +492,10 @@ pub fn yoyo_createprocess_call_site_emitted() -> bool {
 }
 
 
-/// S3.548: YOYO-built **fixed10 op+RET** compile-in-child PE for [`YOYO_COMPILER_PE_NAME`].
+/// S3.548/S3.551: YOYO-built fixed10 + multi-op compile-in-child PE for [`YOYO_COMPILER_PE_NAME`].
 ///
-/// Honest: RET/SET seeds + emit-bake remaining fixed10. Marker `yoyo_f10_c`.
-/// yoyo.tyb / beyond-fixed10 still ABSENT. Not M4 flip / not CLOSED.
+/// Honest: RET/SET seeds + emit-bake fixed10 + SET+ADD/GET multi. Markers `yoyo_f10_c`/`yoyo_multi_c`.
+/// yoyo.tyb / general compose still ABSENT. Not M4 flip / not CLOSED.
 pub fn yoyo_compiler_pe_bytes() -> Option<Vec<u8>> {
     #[cfg(windows)]
     {
@@ -525,9 +525,10 @@ pub fn yoyo_compiler_pe_is_ret_compile_stub() -> bool {
 /// pe_link `.data` user payload starts at this r15 offset (IAT header + scratch pad).
 const YOYO_COMPILER_PE_USER_DATA_OFF: u32 = 0x120;
 
-/// Build fixed10 op+RET compile-in-child EXE (S3.548).
+/// Build fixed10 + multi-op compile-in-child EXE (S3.548/S3.551).
 ///
-/// RET/SET+RET seeds + emit-baked remaining fixed10. Marker `yoyo_f10_c`.
+/// RET/SET seeds + emit-bake fixed10 op+RET + SET+ADD/SET+GET multi.
+/// Markers `yoyo_f10_c` / `yoyo_multi_c`. yoyo.tyb still ABSENT.
 #[cfg(windows)]
 fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link::PeImage> {
     let ret_seed = crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED;
@@ -542,6 +543,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     data.extend_from_slice(b"yoyo_sr_c\0");
     data.extend_from_slice(b"yoyo_tbl_c\0");
     data.extend_from_slice(b"yoyo_f10_c\0");
+    data.extend_from_slice(b"yoyo_multi_c\0");
     while data.len() % 16 != 0 {
         data.push(0);
     }
@@ -551,9 +553,10 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     data.extend_from_slice(setret_seed);
 
     const EXTRA: [u8; 8] = [0x00, 0x60, 0x66, 0x62, 0x67, 0x61, 0x64, 0x65];
+    // S3.551: multi-op beyond single op+RET (SET+ADD / SET+GET + RET)
+    const CHAINS: [&[u8]; 2] = [&[0x30, 0x62], &[0x30, 0x60]];
     let mut extras: Vec<(u32, u32, u32, u32)> = Vec::new();
-    for &op in &EXTRA {
-        let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
+    let mut bake_row = |tyb: Vec<u8>, extras: &mut Vec<(u32, u32, u32, u32)>, data: &mut Vec<u8>| -> crate::types::IsaResult<()> {
         let pe = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)?.bytes;
         while data.len() % 16 != 0 {
             data.push(0);
@@ -571,6 +574,21 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
             YOYO_COMPILER_PE_USER_DATA_OFF + pe_rel,
             pe.len() as u32,
         ));
+        Ok(())
+    };
+    for &op in &EXTRA {
+        bake_row(
+            crate::s1_tyb_parser::s3_fixed10_ret_tyb(op),
+            &mut extras,
+            &mut data,
+        )?;
+    }
+    for &ops in &CHAINS {
+        bake_row(
+            crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(ops),
+            &mut extras,
+            &mut data,
+        )?;
     }
 
     let input_off = YOYO_COMPILER_PE_USER_DATA_OFF + input_rel;
@@ -4119,9 +4137,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.547: mini-table marker.
     // S3.548: fixed10 op+RET compile-in-child (hand RET/SET + emit extras;
     // marker yoyo_f10_c). S3.549: in-DLL CreateProcess fixed10 smoke.
-    // S3.550: M4-prep — fixed10 child GREEN ≠ flip. Next >=10 =
-    // multi-op beyond single op+RET / yoyo.tyb / M4 flip / OW-RT.
-    // Not CLOSED. OW-RT remains CUT.
+    // S3.550: M4-prep — fixed10 child GREEN ≠ flip.
+    // S3.551: multi-op SET+ADD/SET+GET+RET emit rows (yoyo_multi_c);
+    // yoyo.tyb/full still ABSENT. Next >=10 = longer chains / yoyo.tyb /
+    // M4 flip / OW-RT. Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -10316,6 +10335,52 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             "S3.550 cliff named via f10 surface"
         );
         assert!(include_str!("pe_dll_link.rs").contains("S3.550"));
+    }
+
+    /// S3.551: multi-op beyond single op+RET (SET+ADD / SET+GET + RET) GREEN.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_multi_op_chain_pin() {
+        let pe = yoyo_compiler_pe_bytes().expect("S3.551");
+        let ascii = String::from_utf8_lossy(&pe);
+        assert!(ascii.contains("yoyo_multi_c"));
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_live_compile_slice_ready());
+
+        let dir = temp_work("s551-multi");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        let chains: [&[u8]; 2] = [&[0x30, 0x62], &[0x30, 0x60]];
+        for ops in &chains {
+            let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(ops);
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+                .expect("emit")
+                .bytes;
+            std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+            let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+            let st = std::process::Command::new(&path)
+                .current_dir(&dir)
+                .status()
+                .unwrap();
+            assert!(st.success(), "ops={ops:?} exit {:?}", st.code());
+            assert_eq!(
+                std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
+                expect,
+                "ops={ops:?}"
+            );
+        }
+        // in-DLL CreateProcess SET+ADD+RET
+        let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x62]);
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            .expect("emit")
+            .bytes;
+        std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let entries = gate_g_recompile_entries().expect("e");
+        let dll = link_yoyo_in_dll_recompile_dll(&entries).expect("dll");
+        assert_eq!(yoyo_sidecar_in_dll_call_time_invoke(&dll, &dir), EXIT_OK);
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
+        assert!(include_str!("pe_dll_link.rs").contains("S3.551"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
 
