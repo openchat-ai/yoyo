@@ -1494,7 +1494,7 @@ pub fn compile_tyb_to_pe(tyb: &[u8]) -> crate::types::IsaResult<crate::pe_link::
     #[cfg(windows)]
     {
         return Ok(crate::pe_link::PeImage {
-            bytes: s3_compile_pe_patch_text_data(&out.text, &out.data),
+            bytes: s3_compile_pe_patch_text_data(&out.text, &out.data)?,
         });
     }
     #[cfg(not(windows))]
@@ -1523,7 +1523,7 @@ pub fn compile_tyb_to_pe_mini(tyb: &[u8]) -> crate::types::IsaResult<crate::pe_l
     #[cfg(windows)]
     {
         return Ok(crate::pe_link::PeImage {
-            bytes: s3_compile_pe_patch_text_data(&out.text, &out.data),
+            bytes: s3_compile_pe_patch_text_data(&out.text, &out.data)?,
         });
     }
     #[cfg(not(windows))]
@@ -10032,14 +10032,31 @@ pub const S3_COMPILE_PE_SET_RET_IMAGE_SEED: &[u8] =
 
 /// S3.400/S3.405: patch user `.text`/`.data` into compile PE template (IAT kept).
 #[cfg(windows)]
-fn s3_compile_pe_patch_text(text: &[u8]) -> Vec<u8> {
+fn s3_compile_pe_patch_text(text: &[u8]) -> crate::types::IsaResult<Vec<u8>> {
     s3_compile_pe_patch_text_data(text, &[])
 }
 
 #[cfg(windows)]
-fn s3_compile_pe_patch_text_data(text: &[u8], data: &[u8]) -> Vec<u8> {
-    debug_assert!(text.len() <= S1_SLIM_MAX_CODE);
-    debug_assert!(data.len() <= S1_SLIM_IAT_BASE as usize);
+fn s3_compile_pe_patch_text_data(text: &[u8], data: &[u8]) -> crate::types::IsaResult<Vec<u8>> {
+    // S3.529: fail-closed beyond slim (was debug_assert → panic on overflow).
+    if text.len() > S1_SLIM_MAX_CODE {
+        return Err(crate::types::IsaError::PlatformError {
+            msg: format!(
+                "s1 slim PE text {} > max {}",
+                text.len(),
+                S1_SLIM_MAX_CODE
+            ),
+        });
+    }
+    if data.len() > S1_SLIM_IAT_BASE as usize {
+        return Err(crate::types::IsaError::PlatformError {
+            msg: format!(
+                "s1 slim PE data {} > max {}",
+                data.len(),
+                S1_SLIM_IAT_BASE
+            ),
+        });
+    }
     let mut pe = S3_COMPILE_PE_RET_IMAGE_SEED.to_vec();
     let t0 = S1_SLIM_TEXT_PAYLOAD_OFF;
     let t_end = t0 + S1_SLIM_MAX_CODE;
@@ -10055,7 +10072,7 @@ fn s3_compile_pe_patch_text_data(text: &[u8], data: &[u8]) -> Vec<u8> {
     if !data.is_empty() {
         pe[d0..d0 + data.len()].copy_from_slice(data);
     }
-    pe
+    Ok(pe)
 }
 
 pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeImage> {
@@ -10066,7 +10083,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10082,7 +10099,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10098,7 +10115,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10114,7 +10131,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10130,7 +10147,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10146,7 +10163,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10162,7 +10179,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10178,7 +10195,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10194,7 +10211,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10210,7 +10227,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10226,7 +10243,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10242,7 +10259,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10258,7 +10275,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text_data(&text, &data),
+                bytes: s3_compile_pe_patch_text_data(&text, &data).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10270,7 +10287,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text_data(&text, &data),
+                bytes: s3_compile_pe_patch_text_data(&text, &data).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10282,7 +10299,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text_data(&text, &data),
+                bytes: s3_compile_pe_patch_text_data(&text, &data).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10294,7 +10311,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text_data(&text, &data),
+                bytes: s3_compile_pe_patch_text_data(&text, &data).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10306,7 +10323,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text_data(&text, &data),
+                bytes: s3_compile_pe_patch_text_data(&text, &data).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10318,7 +10335,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10334,7 +10351,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10351,7 +10368,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10367,7 +10384,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10384,7 +10401,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10401,7 +10418,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text_data(&text, &data),
+                bytes: s3_compile_pe_patch_text_data(&text, &data).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10414,7 +10431,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10431,7 +10448,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10447,7 +10464,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10464,7 +10481,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10480,7 +10497,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10496,7 +10513,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10512,7 +10529,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10529,7 +10546,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10545,7 +10562,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10561,7 +10578,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10577,7 +10594,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10593,7 +10610,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         #[cfg(windows)]
         {
             return Some(crate::pe_link::PeImage {
-                bytes: s3_compile_pe_patch_text(&text),
+                bytes: s3_compile_pe_patch_text(&text).ok()?,
             });
         }
         #[cfg(not(windows))]
@@ -10622,7 +10639,7 @@ pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeIm
         }
         let text = try_emit_text_via_yoyo_table(&ops)?;
         return Some(crate::pe_link::PeImage {
-            bytes: s3_compile_pe_patch_text(&text),
+            bytes: s3_compile_pe_patch_text(&text).ok()?,
         });
     }
     #[cfg(not(windows))]
@@ -19289,7 +19306,7 @@ mod tests {
                 .unwrap()
                 .bytes
                 .as_slice(),
-            s3_compile_pe_patch_text(&try_emit_text_via_yoyo_table(&add_ops).unwrap())
+            s3_compile_pe_patch_text(&try_emit_text_via_yoyo_table(&add_ops).unwrap()).unwrap()
                 .as_slice()
         );
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
@@ -19324,7 +19341,7 @@ mod tests {
         let out = emit_x86(&parse_tyb(&imul).unwrap());
         assert_eq!(
             pe_i.bytes.as_slice(),
-            s3_compile_pe_patch_text_data(&out.text, &out.data).as_slice()
+            s3_compile_pe_patch_text_data(&out.text, &out.data).unwrap().as_slice()
         );
         assert_eq!(S3_HOST_TABLE_SEED.len(), 200);
         assert_eq!(S3_EXPAND_ASM_PIN, 22);
@@ -19349,7 +19366,7 @@ mod tests {
         assert!(try_compile_tyb_via_yoyo_table(&imul).is_none());
         let pe = compile_tyb_to_pe(&imul).unwrap();
         let out = emit_x86(&parse_tyb(&imul).unwrap());
-        let patched = s3_compile_pe_patch_text_data(&out.text, &out.data);
+        let patched = s3_compile_pe_patch_text_data(&out.text, &out.data).unwrap();
         assert_eq!(pe.bytes.as_slice(), patched.as_slice());
         assert_eq!(&pe.bytes[..2], b"MZ");
         // Oracle: text payload ≡ live wrap.
@@ -19437,7 +19454,7 @@ mod tests {
         let pe = try_compile_tyb_via_yoyo_table(&tyb).unwrap();
         assert_eq!(
             pe.bytes.as_slice(),
-            s3_compile_pe_patch_text(&via).as_slice()
+            s3_compile_pe_patch_text(&via).unwrap().as_slice()
         );
         // wrap still available as oracle (H not deleted).
         let live = wrap_pe_slim(&CodegenOutput {
@@ -19602,7 +19619,7 @@ mod tests {
         assert_eq!(pe.bytes.len(), 6656);
         assert_eq!(&pe.bytes[..2], b"MZ");
         let text = try_emit_text_via_yoyo_table(&[0x62, 0xFF]).unwrap();
-        let patched = s3_compile_pe_patch_text(&text);
+        let patched = s3_compile_pe_patch_text(&text).unwrap();
         assert_eq!(pe.bytes.as_slice(), patched.as_slice());
         // Oracle: patch outbuf-equivalent region ≡ live wrap text payload.
         let live = wrap_pe_slim(&CodegenOutput {

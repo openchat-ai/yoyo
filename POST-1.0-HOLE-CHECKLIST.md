@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.529**（528=M4-prep flip ABSENT；下一刀=扩 in-DLL 超 mini / Gate I full 仍 RED）。
+**默认** 继续 **= S3.530**（529=beyond-mini oracle-first + slim-overflow TYB；下一刀=yoyo.tyb 输入缓冲 / Gate I full）。
 
 ## 阻塞 / 勿做
 
@@ -110,11 +110,11 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | 刀 | pin | 一句话 |
 | --- | --- | --- |
 | **S3.522–525** ✅ | 7c12713 | Gate F mini → sidecar bake → ABSENT cliff → **M1** mutate-after-load |
-| **S3.526–527** ✅ | bbbaac5 | **M2** H_00 Gate I 子集 → **M3** ALT=in-dll place_cwd |
-| **S3.528** ✅ | — | **M4-prep**：生产 flip ABSENT cliff（blockers；默认仍 Rust） |
-| **S3.529** ⏳ | — | **本步**：扩 in-DLL 超 mini（Gate I full 仍 RED；禁假 CLOSED） |
+| **S3.526–528** ✅ | b6c570a | **M2/M3** H_00+ALT → **M4-prep** flip ABSENT |
+| **S3.529** ✅ | — | beyond-mini：oracle-first + slim-overflow TYB→seed_host；mini 不 panic |
+| **S3.530** ⏳ | — | **本步**：抬 input 上限 + 烘焙 `yoyo.tyb`（Gate I full 仍可能 RED） |
 
-**缺口**：M1–M3 GREEN；M4 flip **ABSENT**（mini≠full）。下一刀=扩 DLL 内编译面。host 侧面禁作默认 tip。bake=362。
+**缺口**：beyond-mini = **oracle 烘焙**（≠ 当场全量编）。Gate I full / 生产 flip 仍 ABSENT。bake=362。
 
 ---
 
@@ -148,7 +148,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.529**（扩 in-DLL 超 mini；禁 host 侧面 / densify / 假 CLOSED）。M4 flip ABSENT。红了记根因停。
+- `继续` → **S3.530**（yoyo.tyb 输入缓冲+oracle；禁 host 侧面 / densify / 假 CLOSED）。beyond-mini 已 GREEN。红了记根因停。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -156,4 +156,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *Created：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-28**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.529** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · M4 flip ABSENT · 近窗自动收拢
+**快照 2026-10-29**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.530** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · beyond-mini oracle · 近窗自动收拢

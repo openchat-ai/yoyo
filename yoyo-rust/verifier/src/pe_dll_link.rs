@@ -386,8 +386,8 @@ pub fn place_cwd_runtime_sidecar(out_path: &Path, rust_dll: &[u8]) -> IsaResult<
 /// Clearing ≠ OW-RT CLOSED by itself — inventory `closed` is a separate gate.
 pub fn yoyo_m4_production_flip_blockers() -> &'static [&'static str] {
     &[
-        "in-DLL compile is mini-ISA only (≠ full YOYO / gen4 yoyo.tyb)",
-        "Gate I full (gen4 + yoyo.tyb + no Rust) remains RED",
+        "in-DLL call-time compile still mini/slim-only (beyond-mini = oracle bake)",
+        "Gate I full (gen4 + yoyo.tyb) needs input>4KiB + bake — not yet",
         "production place_cwd default still Rust (ALT unset)",
         "inventory OW-RT disposition=CUT (closed=0)",
     ]
@@ -1106,18 +1106,40 @@ pub fn match_recompile_entry<'a>(
         .map(|e| e.pe.as_slice())
 }
 
-/// S1.5/S1.6 host entry bridge: TYB magic → mini codegen; else oracle match.
+/// S1.5/S1.6 + S3.529 host entry bridge.
 ///
-/// Returns owned PE bytes. TYB path uses [`crate::s1_tyb_parser::compile_tyb_to_pe_mini`]
-/// (same mini-ISA + fail-closed rules as the in-DLL export body). Oracle path
-/// clones the baked row.
+/// Order: **oracle exact match first** (beyond-mini / seed_host baked rows),
+/// then TYB → [`compile_tyb_to_pe_mini`]. Mirrors in-DLL export control flow.
 pub fn resolve_recompile_input(entries: &[RecompileEntry], input: &[u8]) -> Option<Vec<u8>> {
+    if let Some(pe) = match_recompile_entry(entries, input) {
+        return Some(pe.to_vec());
+    }
     if crate::s1_tyb_parser::is_tyb(input) {
         return crate::s1_tyb_parser::compile_tyb_to_pe_mini(input)
             .ok()
             .map(|pe| pe.bytes);
     }
-    match_recompile_entry(entries, input).map(|pe| pe.to_vec())
+    None
+}
+
+/// S3.529: beyond-mini TYB — mini-legal SET×N+RET that overflows slim
+/// [`S1_SLIM_MAX_CODE`] (1024). `compile_tyb_to_pe_mini` fail-closes; 
+/// [`seed_host_compile`] yields H_00 PE. Baked into in-DLL oracle.
+pub fn s3_beyond_mini_slim_overflow_tyb() -> Vec<u8> {
+    // 79× SET + RET → emit text > 1024; TYB bytes ≪ IN_DLL_RECOMPILE_MAX_INPUT.
+    let mut tyb = Vec::new();
+    tyb.extend_from_slice(b"TYB\0");
+    tyb.extend_from_slice(&[0, 0]);
+    let n = 80u16;
+    tyb.extend_from_slice(&n.to_le_bytes());
+    for i in 0..79u16 {
+        tyb.push(0x30); // SET
+        tyb.push(2);
+        tyb.extend_from_slice(&i.to_le_bytes());
+        tyb.extend_from_slice(&1u32.to_le_bytes());
+    }
+    tyb.extend_from_slice(&[0xFF, 0, 0, 0, 0, 0, 0, 0]);
+    tyb
 }
 
 /// Link YOYO pe_dll whose export **recompiles** via call-time input match.
@@ -1968,16 +1990,25 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     je_compile_fail_sites.push(jz_fail_read);
 
+    // S3.529: oracle exact-match **first** (beyond-mini seed_host rows), then
+    // TYB mini. Unconditional forward jmp; patched when oracle_scan is known.
+    let jmp_oracle_first = export_code.len();
+    export_code.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+    // TYB mini entry — reached only after oracle miss (jz_no_match).
+    let tyb_mini_entry = export_code.len();
+    // Reload input buf: oracle loop may have clobbered rsi via cmpsb.
+    export_code.extend_from_slice(&[0x48, 0x8D, 0x74, 0x24, 0x60]); // lea rsi,[rsp+0x60]
     // S1.5.b: if input starts with TYB\0 and size≥8 → mini codegen path.
-    // rsi still = input buf, edi = size (set before ReadFile; cmpsb later
-    // reloads rsi — here both are intact).
     export_code.extend_from_slice(&[0x83, 0xFF, 0x08]); // cmp edi, 8
-    let jb_oracle = export_code.len();
-    // S3.415: near jcc — RET/SET+RET skip-mini stubs push oracle past rel8 range.
-    export_code.extend_from_slice(&[0x0F, 0x82, 0, 0, 0, 0]); // jb oracle_scan
+    let jb_tyb_fail = export_code.len();
+    // S3.415: near jcc — RET/SET+RET skip-mini stubs push fail past rel8 range.
+    export_code.extend_from_slice(&[0x0F, 0x82, 0, 0, 0, 0]); // jb compile_fail
     export_code.extend_from_slice(&[0x81, 0x3E, 0x54, 0x59, 0x42, 0x00]); // cmp dword [rsi], 'TYB\0'
-    let jne_oracle = export_code.len();
-    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jne oracle_scan
+    let jne_tyb_fail = export_code.len();
+    export_code.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // jne compile_fail
+    je_compile_fail_sites.push(jb_tyb_fail);
+    je_compile_fail_sites.push(jne_tyb_fail);
     // S3.414: exact RET TYB (len=16, rec_cnt=1, op=FF) → memcpy pe_template
     // (compile RET seed) → write_out; skip mini entirely.
     export_code.extend_from_slice(&[0x83, 0xFF, 0x10]); // cmp edi, 16
@@ -2064,8 +2095,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // CloseHandle, makes rbx's earlier use as a Win32 return register a
     // non-issue.
     let oracle_scan = export_code.len();
-    patch_jcc32(&mut export_code, jb_oracle, oracle_scan);
-    patch_jcc32(&mut export_code, jne_oracle, oracle_scan);
+    patch_rel32(&mut export_code, jmp_oracle_first, oracle_scan);
     emit_lea_rcx_rdata(&mut export_code, &mut rip_patches, table_off);
     // mov ebx, [rcx] — register addressing, no RIP disp, no patch needed.
     export_code.extend_from_slice(&[0x8B, 0x19]);
@@ -2086,8 +2116,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x48, 0x8D, 0x74, 0x24, 0x60]); // reload buf (cmpsb clobbers rsi)
     export_code.extend_from_slice(&[0x85, 0xDB]);
     let jz_no_match = export_code.len();
+    // S3.529: oracle miss → TYB mini (not compile_fail); mini miss → fail.
     export_code.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    je_compile_fail_sites.push(jz_no_match);
+    patch_jcc32(&mut export_code, jz_no_match, tyb_mini_entry);
     export_code.extend_from_slice(&[0x41, 0x8B, 0x45, 0x00]); // input_len → eax
     export_code.extend_from_slice(&[0x39, 0xF8]); // cmp eax, edi (edi = bytes_read, set after ReadFile)
     let jne_next = export_code.len();
@@ -3358,6 +3389,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // Next ≥10 = M4 production flip / OW-RT. Not CLOSED. OW-RT remains CUT.
     // S3.528 / M4-prep: production flip ABSENT — default still Rust; flip
     // blocked until in-DLL ≠ mini-only + inventory allows CLOSED. Not CLOSED.
+    // S3.529: beyond-mini = oracle-first + slim-overflow TYB→seed_host row;
+    // mini fail-closed (no panic). Call-time mini unchanged for small TYB.
+    // Gate I full / yoyo.tyb still needs larger input buf. Not CLOSED.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -7692,13 +7726,11 @@ pub fn gate_g_golden_dir() -> PathBuf {
         .join("yoyo/tests/golden")
 }
 
-/// Build default 7-entry oracle (selfhost_min_nop + 01_set_get + 03_cmp_je
-/// + 02_branch + 02_addv_orv + 04_call_ret + 05_named_slots) via YOYO
-/// seed/link. All rows are real `bootstrap_compile` output — never
-/// hand-written bytes. Widening beyond 3 is Gate G growth evidence: each
-/// new fixture covers a distinct emit shape the mini-compiler can bake.
-/// Honest: still a finite precompiled table — not a full in-DLL YOYO
-/// compiler → OW-RT remains CUT.
+/// Build default oracle (7× golden `.ty` seed/link + S3.529 beyond-mini TYB).
+///
+/// All rows are real `bootstrap_compile` / `seed_host_compile` output — never
+/// hand-written bytes. S3.529 adds slim-overflow TYB → H_00 PE (oracle-served
+/// after mini miss). Honest: finite table ≠ full in-DLL YOYO compiler → CUT.
 pub fn gate_g_recompile_entries() -> IsaResult<Vec<RecompileEntry>> {
     let mut entries = Vec::new();
     for path in [
@@ -7716,6 +7748,13 @@ pub fn gate_g_recompile_entries() -> IsaResult<Vec<RecompileEntry>> {
         let pe = crate::selfhost::bootstrap_compile(&input)?;
         entries.push(RecompileEntry { input, pe });
     }
+    // S3.529: beyond-mini TYB (slim overflow) → seed_host H_00 PE
+    let beyond = s3_beyond_mini_slim_overflow_tyb();
+    let pe = crate::selfhost::seed_host_compile(&beyond)?;
+    entries.push(RecompileEntry {
+        input: beyond,
+        pe,
+    });
     Ok(entries)
 }
 
@@ -8445,7 +8484,7 @@ mod tests {
     #[test]
     fn link_yoyo_in_dll_recompile_has_marker_and_readfile() {
         let entries = gate_g_recompile_entries().expect("entries");
-        assert_eq!(entries.len(), 7);
+        assert_eq!(entries.len(), 8); // 7× .ty + S3.529 beyond-mini TYB
         // Seven different .ty sources → seven different PEs (oracle non-trivial).
         for i in 0..entries.len() {
             for j in (i + 1)..entries.len() {
@@ -8996,6 +9035,60 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir2);
     }
 
+    /// S3.529: beyond-mini slim-overflow TYB → mini Err; seed_host OK;
+    /// oracle-first in-DLL serves H_00 PE ≡ seed_host. Not full yoyo.tyb.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_beyond_mini_slim_overflow_oracle_in_dll_pin() {
+        let tyb = s3_beyond_mini_slim_overflow_tyb();
+        assert!(tyb.len() < IN_DLL_RECOMPILE_MAX_INPUT as usize);
+        assert!(
+            crate::s1_tyb_parser::compile_tyb_to_pe_mini(&tyb).is_err(),
+            "beyond-mini must fail-close mini/slim"
+        );
+        let expect = crate::selfhost::seed_host_compile(&tyb).expect("seed_host");
+        assert!(expect.len() > 6656, "seed_host PE ≫ slim");
+
+        let entries = gate_g_recompile_entries().expect("entries");
+        assert!(
+            entries.iter().any(|e| e.input == tyb),
+            "oracle must bake beyond-mini TYB"
+        );
+        let via = resolve_recompile_input(&entries, &tyb).expect("oracle resolve");
+        assert_eq!(via, expect, "resolve oracle-first ≡ seed_host");
+
+        let dir = temp_work("s529-beyond-mini");
+        std::fs::write(dir.join("input.tyb"), &tyb).expect("write");
+        assert_eq!(
+            yoyo_sidecar_in_dll_recompile(&dir),
+            EXIT_OK,
+            "in-DLL oracle serves beyond-mini"
+        );
+        let out = std::fs::read(dir.join(OUTPUT_NAME)).expect("out");
+        assert_eq!(out, expect, "in-DLL beyond-mini PE ≡ seed_host");
+
+        // H_00 path (M2 contract) + beyond-mini
+        let seed = yoyo_h00_seed_pe_m2().expect("H_00 seed");
+        let dll = write_yoyo_in_dll_recompile_sidecar(&dir.join(RUNTIME_SIDECAR_NAME))
+            .expect("dll");
+        std::fs::write(dir.join(M2_H00_SEED_NAME), &seed).expect("seed");
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        assert_eq!(
+            yoyo_h00_path_m2_run(&dir, &tyb),
+            EXIT_OK,
+            "H_00 + beyond-mini oracle → 0"
+        );
+        assert_eq!(
+            std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
+            expect
+        );
+        assert_eq!(
+            std::fs::read(dir.join(RUNTIME_SIDECAR_NAME)).unwrap(),
+            dll
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// S3.528 / M4-prep: production flip ABSENT — blockers non-empty; default
     /// place_cwd still Rust when env unset. Not OW-RT CLOSED.
     #[test]
@@ -9006,7 +9099,7 @@ mod tests {
         );
         let blockers = yoyo_m4_production_flip_blockers();
         assert!(blockers.len() >= 3, "honest blocker list");
-        assert!(blockers.iter().any(|b| b.contains("mini-ISA")));
+        assert!(blockers.iter().any(|b| b.contains("mini") || b.contains("oracle")));
         assert!(blockers.iter().any(|b| b.contains("Gate I full")));
         assert!(blockers.iter().any(|b| b.contains("CUT") || b.contains("closed=0")));
         // Default path still Rust when env off (this process must not set ALT).
@@ -11583,7 +11676,7 @@ mod tests {
     fn yoyo_sidecar_in_dll_recompile_all_inputs_without_reemit() {
         let dir = temp_work("in-dll-recompile-generic");
         let entries = gate_g_recompile_entries().expect("entries");
-        assert_eq!(entries.len(), 7, "oracle must be widened to 7 fixtures");
+        assert_eq!(entries.len(), 8, "oracle must be widened to 8 (7 .ty + beyond-mini TYB)");
         let dll = link_yoyo_in_dll_recompile_dll(&entries).expect("link");
         std::fs::write(dir.join(RUNTIME_SIDECAR_NAME), &dll).expect("place");
 
