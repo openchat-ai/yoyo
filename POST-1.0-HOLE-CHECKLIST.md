@@ -114,7 +114,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.529** ✅ | 2be15be | beyond-mini：oracle-first + slim-overflow TYB→seed_host；mini 不 panic |
 | **S3.530** ✅ | 2b0d565 | MAX_INPUT=32KiB + VirtualAlloc input + yoyo.tyb→seed_host；H_00 GREEN；oracle≠live |
 | **S3.531** ✅ | 6763178 | Gate I gen4 + oracle+yoyo.tyb e2e ≡ seed_host；oracle≠live；OW-RT CUT |
-| **S3.532** ✅ | PENDING | live in-DLL compile ABSENT：default oracle+yoyo.tyb→exit1；mini Err；oracle≠live |
+| **S3.532** ✅ | 80f467e | live in-DLL compile ABSENT：default oracle+yoyo.tyb→exit1；mini Err；oracle≠live |
 | **S3.533** ⏳ | — | **本步**：M4 flip / ALT Gate I bake cliff（禁假 CLOSED） |
 
 **缺口**：live in-DLL compile **ABSENT**（yoyo.tyb 需 oracle）。生产 flip / ALT Gate I bake 仍待。bake=362。
