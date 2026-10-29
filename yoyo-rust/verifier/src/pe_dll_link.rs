@@ -431,7 +431,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "ALT in-dll-gate-i / gen4 GREEN paths are still oracle lookup, not live emit",
         "production default place_cwd remains Rust (ALT unset)",
         "raising S1_SLIM_MAX_CODE / densify hand-hex ≠ live-compile graduation (sheep)",
-        "CreateProcess compiler PE: fixed10+2/3-op multi GREEN; yoyo.tyb/full still ABSENT",
+        "CreateProcess compiler PE: fixed10+2/3/4-op+MOVRR/CMP multi GREEN; yoyo.tyb/full still ABSENT",
     ]
 }
 
@@ -553,13 +553,15 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     data.extend_from_slice(setret_seed);
 
     const EXTRA: [u8; 8] = [0x00, 0x60, 0x66, 0x62, 0x67, 0x61, 0x64, 0x65];
-    // S3.551–553: multi-op chains (2/3/4-op) beyond single op+RET
-    const CHAINS: [&[u8]; 5] = [
+    // S3.551–555: multi-op chains (2/3/4-op + MOVRR/CMP) beyond single op+RET
+    const CHAINS: [&[u8]; 7] = [
         &[0x30, 0x62],             // SET+ADD
         &[0x30, 0x60],             // SET+GET
         &[0x30, 0x62, 0x61],       // SET+ADD+SUB
         &[0x00, 0x66, 0x67],       // NOP+INC+DEC
         &[0x30, 0x62, 0x61, 0x00], // SET+ADD+SUB+NOP
+        &[0x30, 0x64],             // SET+MOVRR
+        &[0x30, 0x65, 0x64],       // SET+CMP+MOVRR
     ];
     let mut extras: Vec<(u32, u32, u32, u32)> = Vec::new();
     let mut bake_row = |tyb: Vec<u8>, extras: &mut Vec<(u32, u32, u32, u32)>, data: &mut Vec<u8>| -> crate::types::IsaResult<()> {
@@ -4147,8 +4149,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.551: multi-op SET+ADD/SET+GET+RET emit rows (yoyo_multi_c).
     // S3.552: longer chains SET+ADD+SUB / NOP+INC+DEC +RET.
     // S3.553: 4-op SET+ADD+SUB+NOP+RET. S3.554: yoyo.tyb child reject cliff.
-    // yoyo.tyb/full still ABSENT. Next >=10 = live compose / M4 flip / OW-RT.
-    // Not CLOSED. OW-RT remains CUT.
+    // S3.555: SET+MOVRR / SET+CMP+MOVRR chains. yoyo.tyb/full still ABSENT.
+    // Next >=10 = live compose / M4 flip / OW-RT. Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -10499,6 +10501,37 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_live_compile_slice_ready());
         assert!(!yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.554"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.555: SET+MOVRR / SET+CMP+MOVRR chains GREEN; M4 flip still ABSENT.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_movrr_cmp_chain_pin() {
+        let dir = temp_work("s555-movrr-cmp");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        let chains: [&[u8]; 2] = [&[0x30, 0x64], &[0x30, 0x65, 0x64]];
+        for ops in &chains {
+            let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(ops);
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+                .expect("emit")
+                .bytes;
+            std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+            let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+            let st = std::process::Command::new(&path)
+                .current_dir(&dir)
+                .status()
+                .unwrap();
+            assert!(st.success(), "ops={ops:?} exit {:?}", st.code());
+            assert_eq!(
+                std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
+                expect,
+                "ops={ops:?}"
+            );
+        }
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_blockers().len() >= 3);
+        assert!(include_str!("pe_dll_link.rs").contains("S3.555"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
