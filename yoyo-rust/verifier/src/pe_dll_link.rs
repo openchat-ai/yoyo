@@ -430,6 +430,8 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "in-DLL export has no seed_host/bootstrap_compile machine at call-time",
         "ALT in-dll-gate-i / gen4 GREEN paths are still oracle lookup, not live emit",
         "production default place_cwd remains Rust (ALT unset)",
+        "raising S1_SLIM_MAX_CODE / densify hand-hex ≠ live-compile graduation (sheep)",
+        "candidate non-sheep: in-DLL CreateProcess of YOYO-built compiler PE (ABSENT)",
     ]
 }
 
@@ -3498,6 +3500,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // Next >=10 = live compile slice / M4 flip / OW-RT. Not CLOSED. CUT.
     // S3.535: live_compile_slice_ready=false while map ABSENT. Densify ≠ slice.
     // Next >=10 = first live emit experiment (non-sheep) / M4 / OW-RT.
+    // Not CLOSED. OW-RT remains CUT.
+    // S3.536: reject slim-cap raise as graduation; map names CreateProcess
+    // YOYO-compiler candidate (ABSENT). Next >=10 = that experiment / M4 / OW-RT.
     // Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
@@ -9317,7 +9322,34 @@ mod tests {
 
     
     
-    /// S3.534/S3.535: live-compile map non-empty; slice_ready=false; M4 ABSENT.
+    
+    /// S3.536: S1_SLIM_MAX_CODE stays 1024; raising it ≠ slice ready; sheep named.
+    #[test]
+    fn yoyo_live_compile_rejects_slim_cap_raise_as_graduation_pin() {
+        assert_eq!(
+            crate::s1_tyb_parser::S1_SLIM_MAX_CODE,
+            1024,
+            "slim cap floor; do not "graduate" by raising"
+        );
+        assert_eq!(IN_DLL_S1_CODE_CAP, 1024);
+        assert!(!yoyo_live_compile_slice_ready());
+        let map = yoyo_live_in_dll_compile_map();
+        assert!(
+            map.iter().any(|s| s.contains("sheep") || s.contains("S1_SLIM_MAX_CODE")),
+            "map must name densify/slim-cap as non-graduation"
+        );
+        assert!(
+            map.iter().any(|s| s.contains("CreateProcess")),
+            "map must name non-sheep candidate"
+        );
+        assert!(
+            include_str!("pe_dll_link.rs").contains("S3.536"),
+            "S3.536 sheep-reject must stay named"
+        );
+    }
+
+
+/// S3.534/S3.535: live-compile map non-empty; slice_ready=false; M4 ABSENT.
     #[test]
     fn yoyo_live_in_dll_compile_map_absent_pin() {
         let map = yoyo_live_in_dll_compile_map();
