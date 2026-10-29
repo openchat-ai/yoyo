@@ -432,6 +432,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "production default place_cwd remains Rust (ALT unset)",
         "raising S1_SLIM_MAX_CODE / densify hand-hex ≠ live-compile graduation (sheep)",
         "CreateProcess compiler PE: fixed10+2/3/4-op+MOVRR/CMP multi GREEN; yoyo.tyb/full still ABSENT",
+        "child live compose (parse+emit+link in .text) ABSENT — see yoyo_child_live_compose_design",
     ]
 }
 
@@ -460,6 +461,27 @@ pub fn yoyo_in_dll_createprocess_compiler_blockers() -> &'static [&'static str] 
 
 pub fn yoyo_in_dll_createprocess_compiler_ready() -> bool {
     yoyo_in_dll_createprocess_compiler_blockers().is_empty()
+}
+
+
+/// S3.556: design notes for **live compose** inside the child compiler PE.
+///
+/// Today = memcmp against emit-baked rows. Live = parse+emit+link in child `.text`.
+/// Non-empty ⇒ slice ABSENT. Clearing ≠ M4 flip / ≠ OW-RT CLOSED. Densify ≠ slice.
+pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
+    &[
+        "today: memcmp input.tyb vs emit-baked fixed10/multi rows → WriteFile PE",
+        "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside child .text",
+        "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
+        "yoyo.tyb exceeds mini fixed10 ISA — needs host compose / oracle / densify≠",
+        "hand-hex densify of emit_x86 into child = sheep; not a live-compose slice",
+        "finite bake table growth ≠ graduation; live slice clears this design list",
+    ]
+}
+
+/// S3.556: live compose inside child ready? Always false while design non-empty.
+pub fn yoyo_child_live_compose_ready() -> bool {
+    yoyo_child_live_compose_design().is_empty()
 }
 
 
@@ -4150,7 +4172,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.552: longer chains SET+ADD+SUB / NOP+INC+DEC +RET.
     // S3.553: 4-op SET+ADD+SUB+NOP+RET. S3.554: yoyo.tyb child reject cliff.
     // S3.555: SET+MOVRR / SET+CMP+MOVRR chains. yoyo.tyb/full still ABSENT.
-    // Next >=10 = live compose / M4 flip / OW-RT. Not CLOSED. OW-RT remains CUT.
+    // S3.556: child live-compose design (memcmp bake ≠ parse+emit+link).
+    // Next >=10 = first live-compose experiment / M4 flip / OW-RT.
+    // Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -10533,6 +10557,27 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(yoyo_m4_production_flip_blockers().len() >= 3);
         assert!(include_str!("pe_dll_link.rs").contains("S3.555"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.556: child live-compose design named; ready=false; bake ≠ live.
+    #[test]
+    fn yoyo_child_live_compose_design_pin() {
+        let d = yoyo_child_live_compose_design();
+        assert!(d.len() >= 5);
+        assert!(d.iter().any(|s| s.contains("memcmp")));
+        assert!(d.iter().any(|s| s.contains("emit_x86") || s.contains("parse")));
+        assert!(d.iter().any(|s| s.contains("sheep") || s.contains("densify")));
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(!yoyo_live_compile_slice_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(
+            yoyo_live_in_dll_compile_map()
+                .iter()
+                .any(|s| s.contains("live compose") || s.contains("yoyo_child_live_compose")),
+            "map names live-compose cliff"
+        );
+        assert!(include_str!("pe_dll_link.rs").contains("S3.556"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_child_live_compose_design"));
     }
 
 
