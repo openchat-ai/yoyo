@@ -472,8 +472,9 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
     &[
         "S3.557-562 live1 DONE: field-match all fixed10 op+RET (yoyo_live1_c) — PE still bake",
         "today: field-match fixed10 + memcmp multi chains → WriteFile baked PE",
-        "S3.564 live2: NOP pe_patch-in-child (RET skeleton + .text 90 C3) — still not full emit_x86",
-        "S3.563/564: general live emit still ABSENT; live2 = first pe_patch experiment",
+        "S3.564-567 live2: all fixed10 op+RET pe_patch-in-child (RET skeleton + .text blobs)",
+        "S3.568 cliff: multi-op live2 pe_patch still ABSENT (chains still memcmp-bake)",
+        "general live emit_x86 in child still ABSENT; live2 = pe_patch not full emit",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside child .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
         "yoyo.tyb exceeds mini fixed10 ISA — needs host compose / oracle / densify≠",
@@ -4547,6 +4548,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.565: live2 NOP/INC/DEC pe_patch (shared).
     // S3.566: live2 GET/ADD/SUB/SET pe_patch.
     // S3.567: live2 MOVRR/CMP — all fixed10 op+RET via pe_patch.
+    // S3.568: multi live2 pe_patch ABSENT cliff (chains still memcmp).
     // Next >=10 = multi live2 / emit_x86 / M4 / OW-RT. Not CLOSED. CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
@@ -10964,6 +10966,30 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_live_compile_slice_ready());
         assert!(!yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.563"));
+    }
+
+    /// S3.568: multi live2 pe_patch ABSENT; SET+ADD etc still memcmp-bake.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_multi_live2_absent_cliff_pin() {
+        let d = yoyo_child_live_compose_design();
+        assert!(d.iter().any(|s| s.contains("multi") && s.contains("ABSENT")));
+        let dir = temp_work("s568-multi-absent");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x62]);
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            .expect("emit")
+            .bytes;
+        std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success(), "memcmp multi still GREEN");
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.568"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
 
