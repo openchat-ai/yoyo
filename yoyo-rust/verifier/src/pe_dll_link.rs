@@ -473,8 +473,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.557-562 live1 DONE: field-match all fixed10 op+RET (yoyo_live1_c) — PE still bake",
         "today: field-match fixed10 + memcmp multi chains → WriteFile baked PE",
         "S3.564-567 live2: all fixed10 op+RET pe_patch-in-child (RET skeleton + .text blobs)",
-        "S3.569-570: SET+ADD/SET+GET live2 pe_patch (memcmp-hit → .text blob)",
-"multi beyond 2-op SET+* still ABSENT (longer chains memcmp-bake)",
+        "S3.569-571: multi live2 pe_patch for SET+ADD/GET/ADD+SUB, NOP+INC+DEC, SET+MOVRR",
+"remaining multi ABSENT: SET+ADD+SUB+NOP / SET+CMP+MOVRR still memcmp-bake",
         "general live emit_x86 in child still ABSENT; live2 = pe_patch not full emit",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside child .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -655,6 +655,36 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     while data.len() % 16 != 0 {
         data.push(0);
     }
+    // S3.571: SET+ADD+SUB+RET (SET/ADD sans C3 + SUB) — 45 bytes
+    let live2_set_add_sub_text_rel = data.len() as u32;
+    data.extend_from_slice(&[
+        0x48, 0xB8, 0xEF, 0xBE, 0xAD, 0xDE, 0x00, 0x00, 0x00, 0x00, 0x49, 0x89, 0x47, 0x00,
+        0x49, 0x8B, 0x47, 0x00, 0x48, 0x81, 0xC0, 0x05, 0x00, 0x00, 0x00, 0x49, 0x89, 0x47, 0x00,
+        0x49, 0x8B, 0x47, 0x00, 0x48, 0x81, 0xE8, 0x05, 0x00, 0x00, 0x00, 0x49, 0x89, 0x47, 0x00,
+        0xC3,
+    ]);
+    while data.len() % 16 != 0 {
+        data.push(0);
+    }
+    // S3.571: NOP+INC+DEC+RET (NOP/INC sans C3 + DEC) — 24 bytes
+    let live2_nop_inc_dec_text_rel = data.len() as u32;
+    data.extend_from_slice(&[
+        0x90,
+        0x49, 0x8B, 0x47, 0x00, 0x48, 0xFF, 0xC0, 0x49, 0x89, 0x47, 0x00,
+        0x49, 0x8B, 0x47, 0x00, 0x48, 0xFF, 0xC8, 0x49, 0x89, 0x47, 0x00, 0xC3,
+    ]);
+    while data.len() % 16 != 0 {
+        data.push(0);
+    }
+    // S3.571: SET+MOVRR+RET (SET sans C3 + MOV) — 23 bytes
+    let live2_set_mov_text_rel = data.len() as u32;
+    data.extend_from_slice(&[
+        0x48, 0xB8, 0xEF, 0xBE, 0xAD, 0xDE, 0x00, 0x00, 0x00, 0x00, 0x49, 0x89, 0x47, 0x00,
+        0x49, 0x8B, 0x47, 0x00, 0x49, 0x89, 0x47, 0x08, 0xC3,
+    ]);
+    while data.len() % 16 != 0 {
+        data.push(0);
+    }
     let ret_pe_rel = data.len() as u32;
     data.extend_from_slice(ret_seed);
     let setret_pe_rel = data.len() as u32;
@@ -757,6 +787,9 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let live2_cmp_text_off = YOYO_COMPILER_PE_USER_DATA_OFF + live2_cmp_text_rel;
     let live2_set_add_text_off = YOYO_COMPILER_PE_USER_DATA_OFF + live2_set_add_text_rel;
     let live2_set_get_text_off = YOYO_COMPILER_PE_USER_DATA_OFF + live2_set_get_text_rel;
+    let live2_set_add_sub_text_off = YOYO_COMPILER_PE_USER_DATA_OFF + live2_set_add_sub_text_rel;
+    let live2_nop_inc_dec_text_off = YOYO_COMPILER_PE_USER_DATA_OFF + live2_nop_inc_dec_text_rel;
+    let live2_set_mov_text_off = YOYO_COMPILER_PE_USER_DATA_OFF + live2_set_mov_text_rel;
     let seed_len = 6656u32;
 
     let mut c = Vec::new();
@@ -1047,6 +1080,9 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
         let live2_blob: Option<(u32, u32)> = match i {
             0 => Some((live2_set_add_text_off, 30)), // SET+ADD
             1 => Some((live2_set_get_text_off, 23)), // SET+GET
+            2 => Some((live2_set_add_sub_text_off, 45)), // SET+ADD+SUB
+            3 => Some((live2_nop_inc_dec_text_off, 24)), // NOP+INC+DEC
+            5 => Some((live2_set_mov_text_off, 23)), // SET+MOVRR
             _ => None,
         };
         if let Some((text_off, text_len)) = live2_blob {
@@ -4593,8 +4629,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.567: live2 MOVRR/CMP — all fixed10 op+RET via pe_patch.
     // S3.568: multi live2 pe_patch ABSENT cliff (chains still memcmp).
     // S3.569: SET+ADD live2 pe_patch (memcmp→blob).
-    // S3.570: SET+GET live2 pe_patch. Longer multi still memcmp.
-    // Next >=10 = more multi live2 / emit_x86 / M4 / OW-RT. Not CLOSED. CUT.
+    // S3.570: SET+GET live2 pe_patch.
+    // S3.571: SET+ADD+SUB / NOP+INC+DEC / SET+MOVRR live2.
+    // Next >=10 = remaining multi live2 / emit_x86 / M4 / OW-RT. Not CLOSED. CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -11086,6 +11123,33 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(st.success(), "SET+GET live2 exit {:?}", st.code());
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
         assert!(include_str!("pe_dll_link.rs").contains("S3.570"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+
+
+    /// S3.571: 3-op + SET+MOVRR live2 pe_patch after memcmp hit.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_live2_multi_3op_pin() {
+        let dir = temp_work("s571-live2-3op");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        let cases: [&[u8]; 3] = [&[0x30, 0x62, 0x61], &[0x00, 0x66, 0x67], &[0x30, 0x64]];
+        for ops in cases {
+            let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(ops);
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+                .expect("emit")
+                .bytes;
+            std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+            let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+            let st = std::process::Command::new(&path)
+                .current_dir(&dir)
+                .status()
+                .unwrap();
+            assert!(st.success(), "ops={ops:?} exit {:?}", st.code());
+            assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
+        }
+        assert!(include_str!("pe_dll_link.rs").contains("S3.571"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
