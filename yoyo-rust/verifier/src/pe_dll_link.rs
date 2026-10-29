@@ -431,7 +431,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "ALT in-dll-gate-i / gen4 GREEN paths are still oracle lookup, not live emit",
         "production default place_cwd remains Rust (ALT unset)",
         "raising S1_SLIM_MAX_CODE / densify hand-hex ≠ live-compile graduation (sheep)",
-        "CreateProcess compiler PE: RET+SET+RET compile-in-child GREEN; beyond-SET+RET/yoyo.tyb still ABSENT",
+        "CreateProcess compiler PE: mini-table (RET+SET+RET) GREEN; broader fixed10/yoyo.tyb still ABSENT",
     ]
 }
 
@@ -450,10 +450,10 @@ pub fn yoyo_live_compile_slice_ready() -> bool {
 /// Non-empty ⇒ experiment ABSENT. Clearing ≠ live-compile slice ready by itself.
 pub fn yoyo_in_dll_createprocess_compiler_blockers() -> &'static [&'static str] {
     &[
-        "CreateProcessA/Wait/GetExitCode call-site emitted; PE=RET+SET+RET compile-in-child ≠ full live",
-        "yoyo_compiler_pe_bytes=Some(RET/SET+RET stub); beyond-SET+RET / yoyo.tyb still ABSENT",
+        "CreateProcessA/Wait/GetExitCode call-site emitted; PE=mini-table (RET+SET+RET) ≠ full live",
+        "yoyo_compiler_pe_bytes=Some(mini-table stub); broader fixed10 / yoyo.tyb still ABSENT",
         "cwd/export re-entrancy + handle inheritance design ABSENT",
-        "stub emits seed PE templates — not general mini/host compose",
+        "stub emits host-baked seed PEs — not live general compose",
         "still would be oracle/host-compose under the hood unless compiler PE is live",
     ]
 }
@@ -492,10 +492,10 @@ pub fn yoyo_createprocess_call_site_emitted() -> bool {
 }
 
 
-/// S3.546: YOYO-built RET+SET+RET compile-in-child PE for [`YOYO_COMPILER_PE_NAME`].
+/// S3.547: YOYO-built mini-table compile-in-child PE for [YOYO_COMPILER_PE_NAME].
 ///
-/// Honest: mini RET → RET seed; mini SET+RET (slot0/DEADBEEF) → SET+RET seed.
-/// Beyond-SET+RET / yoyo.tyb still ABSENT. Not M4 flip / not CLOSED.
+/// Honest: table marker yoyo_tbl_c; rows today = RET + SET+RET seeds.
+/// Broader fixed10 / yoyo.tyb still ABSENT. Not M4 flip / not CLOSED.
 pub fn yoyo_compiler_pe_bytes() -> Option<Vec<u8>> {
     #[cfg(windows)]
     {
@@ -543,6 +543,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     data.extend_from_slice(b"output.exe\0");
     data.extend_from_slice(b"yoyo_ret_c\0");
     data.extend_from_slice(b"yoyo_sr_c\0");
+    data.extend_from_slice(b"yoyo_tbl_c\0");
     while data.len() % 16 != 0 {
         data.push(0);
     }
@@ -4051,8 +4052,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.543: pe_link(exit0) smoke PE place+CreateProcess e2e.
     // S3.544: passthrough input.tyb→output.exe compiler PE.
     // S3.545: RET-only compile-in-child.
-    // S3.546: RET+SET+RET compile-in-child; beyond-SET+RET/yoyo.tyb ABSENT.
-    // Next >=10 = broader mini table / M4 flip / OW-RT. Not CLOSED.
+    // S3.546: RET+SET+RET compile-in-child.
+    // S3.547: mini-table +NOP+RET (host-baked); broader fixed10/yoyo.tyb ABSENT.
+    // Next >=10 = more fixed10 rows / M4 flip / OW-RT. Not CLOSED.
     // Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
@@ -10039,8 +10041,8 @@ mod tests {
         assert!(
             yoyo_live_in_dll_compile_map()
                 .iter()
-                .any(|s| s.contains("SET+RET") || s.contains("beyond-SET+RET")),
-            "map must name SET+RET cliff"
+                .any(|s| s.contains("mini-table") || s.contains("fixed10") || s.contains("RET+SET+RET")),
+            "map must name mini-table cliff"
         );
 
         let ret_expect = crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED;
@@ -10105,6 +10107,47 @@ mod tests {
             include_str!("pe_dll_link.rs").contains("S3.546")
                 && include_str!("pe_dll_link.rs").contains("yoyo_sr_c"),
             "S3.546 must stay named"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+
+
+
+/// S3.547: mini-table marker + RET/SET+RET rows; broader fixed10 ABSENT.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
+        let pe = yoyo_compiler_pe_bytes().expect("S3.547 PE");
+        assert!(pe.len() > 0x200 && pe[0] == b'M');
+        assert!(yoyo_compiler_pe_is_ret_compile_stub());
+        assert!(!yoyo_live_compile_slice_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        let ascii = String::from_utf8_lossy(&pe);
+        assert!(ascii.contains("yoyo_tbl_c"), "mini-table marker");
+        assert!(ascii.contains("yoyo_ret_c") && ascii.contains("yoyo_sr_c"));
+
+        // RET row still GREEN via table PE
+        let dir = temp_work("s547-mini-table");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        let mut ret_tyb = Vec::new();
+        ret_tyb.extend_from_slice(b"TYB\0");
+        ret_tyb.extend_from_slice(&[0, 0]);
+        ret_tyb.extend_from_slice(&1u16.to_le_bytes());
+        ret_tyb.extend_from_slice(&[0xFF, 0, 0, 0, 0, 0, 0, 0]);
+        std::fs::write(dir.join("input.tyb"), &ret_tyb).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path).current_dir(&dir).status().unwrap();
+        assert!(st.success());
+        assert_eq!(
+            std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
+            crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED
+        );
+
+        assert!(
+            include_str!("pe_dll_link.rs").contains("S3.547")
+                && include_str!("pe_dll_link.rs").contains("yoyo_tbl_c"),
+            "S3.547 must stay named"
         );
         let _ = std::fs::remove_dir_all(&dir);
     }
