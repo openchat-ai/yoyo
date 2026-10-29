@@ -444,6 +444,24 @@ pub fn yoyo_live_compile_slice_ready() -> bool {
     yoyo_live_in_dll_compile_map().is_empty()
 }
 
+
+/// S3.537: blockers for in-DLL `CreateProcess` of a YOYO-built compiler PE.
+///
+/// Non-empty ⇒ experiment ABSENT. Clearing ≠ live-compile slice ready by itself.
+pub fn yoyo_in_dll_createprocess_compiler_blockers() -> &'static [&'static str] {
+    &[
+        "in-DLL KERNEL32 IAT has no CreateProcessA slot yet",
+        "no YOYO-built standalone compiler PE distinct from gen4+sidecar contract",
+        "cwd/export re-entrancy + handle inheritance design ABSENT",
+        "still would be oracle/host-compose under the hood unless compiler PE is live",
+    ]
+}
+
+/// S3.537: CreateProcess YOYO-compiler experiment ready? Always false while blockers remain.
+pub fn yoyo_in_dll_createprocess_compiler_ready() -> bool {
+    yoyo_in_dll_createprocess_compiler_blockers().is_empty()
+}
+
 /// Exit contract shared with Rust `yoyo_runtime_selfhost_main`.
 pub const EXIT_OK: i32 = 0;
 pub const EXIT_COMPILE_FAIL: i32 = 1;
@@ -3503,6 +3521,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // Not CLOSED. OW-RT remains CUT.
     // S3.536: reject slim-cap raise as graduation; map names CreateProcess
     // YOYO-compiler candidate (ABSENT). Next >=10 = that experiment / M4 / OW-RT.
+    // Not CLOSED. OW-RT remains CUT.
+    // S3.537: CreateProcess YOYO-compiler experiment ABSENT (blockers).
+    // Next >=10 = IAT CreateProcessA + compiler PE design / M4 / OW-RT.
     // Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
@@ -9323,7 +9344,27 @@ mod tests {
     
     
     
-    /// S3.536: S1_SLIM_MAX_CODE stays 1024; raising it ≠ slice ready; sheep named.
+    
+    /// S3.537: CreateProcess YOYO-compiler path ABSENT; blockers honest; not CLOSED.
+    #[test]
+    fn yoyo_in_dll_createprocess_compiler_absent_cliff_pin() {
+        assert!(!yoyo_in_dll_createprocess_compiler_ready());
+        let b = yoyo_in_dll_createprocess_compiler_blockers();
+        assert!(b.len() >= 3);
+        assert!(b.iter().any(|s| s.contains("CreateProcessA")));
+        assert!(b.iter().any(|s| s.contains("compiler PE")));
+        assert!(!yoyo_live_compile_slice_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(
+            include_str!("pe_dll_link.rs").contains("S3.537")
+                && include_str!("pe_dll_link.rs")
+                    .contains("yoyo_in_dll_createprocess_compiler_blockers"),
+            "S3.537 CreateProcess cliff must stay named"
+        );
+    }
+
+
+/// S3.536: S1_SLIM_MAX_CODE stays 1024; raising it ≠ slice ready; sheep named.
     #[test]
     fn yoyo_live_compile_rejects_slim_cap_raise_as_graduation_pin() {
         assert_eq!(
