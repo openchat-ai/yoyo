@@ -433,6 +433,15 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
     ]
 }
 
+
+/// S3.535: is a **live** in-DLL compile slice ready to replace oracle bake?
+///
+/// Always `false` while [`yoyo_live_in_dll_compile_map`] is non-empty.
+/// Raising `S1_SLIM_MAX_CODE` / densify hand-hex = sheep — not a slice.
+pub fn yoyo_live_compile_slice_ready() -> bool {
+    yoyo_live_in_dll_compile_map().is_empty()
+}
+
 /// Exit contract shared with Rust `yoyo_runtime_selfhost_main`.
 pub const EXIT_OK: i32 = 0;
 pub const EXIT_COMPILE_FAIL: i32 = 1;
@@ -3487,6 +3496,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // Not CLOSED. OW-RT remains CUT.
     // S3.534: near-window fold 529–533 + live-compile map (honest ABSENT).
     // Next >=10 = live compile slice / M4 flip / OW-RT. Not CLOSED. CUT.
+    // S3.535: live_compile_slice_ready=false while map ABSENT. Densify ≠ slice.
+    // Next >=10 = first live emit experiment (non-sheep) / M4 / OW-RT.
+    // Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -9305,7 +9317,7 @@ mod tests {
 
     
     
-    /// S3.534: live-compile map non-empty; M4 flip ABSENT; names oracle≠live.
+    /// S3.534/S3.535: live-compile map non-empty; slice_ready=false; M4 ABSENT.
     #[test]
     fn yoyo_live_in_dll_compile_map_absent_pin() {
         let map = yoyo_live_in_dll_compile_map();
@@ -9313,11 +9325,13 @@ mod tests {
         assert!(map.iter().any(|s| s.contains("yoyo.tyb") || s.contains("mini")));
         assert!(map.iter().any(|s| s.contains("oracle")));
         assert!(map.iter().any(|s| s.contains("Rust") || s.contains("place_cwd")));
+        assert!(!yoyo_live_compile_slice_ready(), "S3.535 slice not ready");
         assert!(!yoyo_m4_production_flip_ready());
         assert!(
             include_str!("pe_dll_link.rs").contains("yoyo_live_in_dll_compile_map")
-                && include_str!("pe_dll_link.rs").contains("S3.534"),
-            "S3.534 map must stay named"
+                && include_str!("pe_dll_link.rs").contains("yoyo_live_compile_slice_ready")
+                && include_str!("pe_dll_link.rs").contains("S3.535"),
+            "S3.534/535 live-compile cliff must stay named"
         );
     }
 

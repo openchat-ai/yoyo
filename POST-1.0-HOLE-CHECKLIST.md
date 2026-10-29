@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.535**（534=近窗收拢 529–533 + live-compile map；下一刀=live compile slice / M4）。
+**默认** 继续 **= S3.536**（535=live_compile_slice_ready=false；下一刀=首个非羊 live emit 实验 / M4）。
 
 ## 阻塞 / 勿做
 
@@ -113,7 +113,8 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.526–528** ✅ | b6c570a | **M2/M3** H_00+ALT → **M4-prep** flip ABSENT |
 | **S3.529–533** ✅ | 68d7edf | beyond-mini oracle → yoyo.tyb VirtualAlloc → gen4 e2e → live ABSENT cliff → **ALT gate-i** |
 | **S3.534** ✅ | 2efb853 | 近窗收拢 529–533 + `yoyo_live_in_dll_compile_map` |
-| **S3.535** ⏳ | — | **本步**：live compile slice / M4 flip （禁假 CLOSED；map ABSENT） |
+| **S3.535** ✅ | PENDING | `yoyo_live_compile_slice_ready=false`；densify≠slice；map ABSENT |
+| **S3.536** ⏳ | — | **本步**：首个非羊 live emit 实验 / M4 （禁假 CLOSED；禁抬 slim cap 当毕业） |
 
 **缺口**：live in-DLL compile **ABSENT**（见 `yoyo_live_in_dll_compile_map`）。生产 flip 仍 ABSENT。bake=362。
 
@@ -149,7 +150,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.535**（live compile slice / M4；禁 host 侧面 / densify / 假 CLOSED）。S3.534 已 GREEN。红了记根因停。
+- `继续` → **S3.536**（首个非羊 live emit；禁 host 侧面 / densify / 假 CLOSED）。S3.535 已 GREEN。红了记根因停。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -157,4 +158,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *Created：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-29**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.535** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · live-compile map · 近窗自动收拢
+**快照 2026-10-29**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.536** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · slice_ready=false · 近窗自动收拢
