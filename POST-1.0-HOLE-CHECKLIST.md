@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.568**（567=all fixed10 live2 pe_patch；下一刀=multi live2 / emit_x86）。
+**默认** 继续 **= S3.569**（568=multi live2 ABSENT cliff；下一刀=SET+ADD live2 / emit_x86）。
 
 ## 阻塞 / 勿做
 
@@ -140,7 +140,8 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.565** ✅ | f593880 | live2 NOP/INC/DEC pe_patch（shared RET 骨架+.text blobs） |
 | **S3.566** ✅ | 05a1603 | live2 GET/ADD/SUB/SET pe_patch |
 | **S3.567** ✅ | f081f08 | live2 MOVRR/CMP — all fixed10 op+RET pe_patch |
-| **S3.568** ⏳ | — | **本步**：multi live2 / emit_x86 （禁假 CLOSED） |
+| **S3.568** ✅ | fe8f569 | multi live2 pe_patch ABSENT cliff（chains 仍 memcmp） |
+| **S3.569** ⏳ | — | **本步**：SET+ADD live2 / emit_x86 （禁假 CLOSED） |
 
 **缺口**：live in-DLL compile **ABSENT**（见 `yoyo_live_in_dll_compile_map`）。生产 flip 仍 ABSENT。bake=362。
 
@@ -176,7 +177,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- 继续 → **S3.568**（multi live2 / emit_x86；禁 densify / 假 CLOSED）。S3.567=all fixed10 pe_patch。红了记根因停。
+- 继续 → **S3.569**（SET+ADD live2 / emit_x86；禁 densify / 假 CLOSED）。S3.568=multi ABSENT cliff。红了记根因停。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
