@@ -431,8 +431,8 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "ALT in-dll-gate-i / gen4 GREEN paths are still oracle lookup, not live emit",
         "production default place_cwd remains Rust (ALT unset)",
         "raising S1_SLIM_MAX_CODE / densify hand-hex ≠ live-compile graduation (sheep)",
-        "CreateProcess compiler PE: fixed10+2/3/4-op+MOVRR/CMP multi GREEN; yoyo.tyb/full still ABSENT",
-        "child live compose (parse+emit+link in .text) ABSENT — see yoyo_child_live_compose_design",
+        "CreateProcess compiler PE: fixed10+all CHAINS multi live2 GREEN; yoyo.tyb/full still ABSENT",
+        "child live compose (parse+emit_x86+link in .text) ABSENT — pe_patch ≠ emit; see design",
     ]
 }
 
@@ -451,10 +451,10 @@ pub fn yoyo_live_compile_slice_ready() -> bool {
 /// Non-empty ⇒ experiment ABSENT. Clearing ≠ live-compile slice ready by itself.
 pub fn yoyo_in_dll_createprocess_compiler_blockers() -> &'static [&'static str] {
     &[
-        "CreateProcessA/Wait/GetExitCode call-site emitted; PE=fixed10+multi emit-bake ≠ full live",
+        "CreateProcessA/Wait/GetExitCode call-site emitted; PE=fixed10+multi live2 pe_patch ≠ full live",
         "yoyo_compiler_pe_bytes=Some(fixed10+multi); yoyo.tyb / general compose still ABSENT",
         "cwd/export re-entrancy + handle inheritance design ABSENT",
-        "rows = seed/emit-bake — not live general compose / densify",
+        "rows = pe_patch blobs — not live emit_x86 / densify",
         "still would be oracle/host-compose under the hood unless compiler PE is live",
     ]
 }
@@ -464,23 +464,22 @@ pub fn yoyo_in_dll_createprocess_compiler_ready() -> bool {
 }
 
 
-/// S3.556–S3.563: design notes for **live compose** inside the child compiler PE.
+/// S3.556–S3.573: design notes for **live compose** inside the child compiler PE.
 ///
-/// Today = field-match all fixed10 op+RET + memcmp multi. Live = parse+emit+link in `.text`.
+/// Today = live1 field-match + live2 pe_patch (fixed10 + all CHAINS). Live = parse+emit+link.
 /// Non-empty ⇒ slice ABSENT. Clearing ≠ M4 flip / ≠ OW-RT CLOSED. Densify ≠ slice.
 pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
     &[
         "S3.557-562 live1 DONE: field-match all fixed10 op+RET (yoyo_live1_c) — PE still bake",
-        "today: field-match fixed10 + memcmp multi chains → WriteFile baked PE",
-        "S3.564-567 live2: all fixed10 op+RET pe_patch-in-child (RET skeleton + .text blobs)",
-        "S3.569-572: all CHAINS multi live2 pe_patch (memcmp-hit → .text blob)",
-"general live emit_x86 / arbitrary multi still ABSENT (finite chain table)",
-        "general live emit_x86 in child still ABSENT; live2 = pe_patch not full emit",
+        "S3.564-567 live2 DONE: all fixed10 op+RET pe_patch (RET skeleton + .text blobs)",
+        "S3.569-572 live2 DONE: all CHAINS multi pe_patch incl SET+ADD (memcmp-hit → blob)",
+        "S3.573 cliff: pe_patch ≠ emit_x86 — child has no parse+emit machine in .text",
+        "today: field-match / memcmp → pe_patch blobs; live emit still ABSENT",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside child .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
         "yoyo.tyb exceeds mini fixed10 ISA — needs host compose / oracle / densify≠",
         "hand-hex densify of emit_x86 into child = sheep; not a live-compose slice",
-        "finite bake table growth ≠ graduation; live slice clears this design list",
+        "finite bake/blob table growth ≠ graduation; live slice clears this design list",
     ]
 }
 
@@ -4657,7 +4656,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.570: SET+GET live2 pe_patch.
     // S3.571: SET+ADD+SUB / NOP+INC+DEC / SET+MOVRR live2.
     // S3.572: all CHAINS multi live2 (4-op + SET+CMP+MOVRR).
-    // Next >=10 = emit_x86 in child / M4 / OW-RT. Not CLOSED. CUT.
+    // S3.573: emit_x86-in-child cliff (pe_patch ≠ parse+emit).
+    // Next >=10 = emit_x86 seed / M4 / OW-RT. Not CLOSED. CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -11077,11 +11077,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
     }
 
     /// S3.568: multi live2 pe_patch ABSENT; SET+ADD etc still memcmp-bake.
+    /// (Superseded runtime: S3.569+ live2 GREEN; pin kept as history+ABSENT wording.)
     #[test]
     #[cfg(windows)]
     fn yoyo_compiler_pe_multi_live2_absent_cliff_pin() {
         let d = yoyo_child_live_compose_design();
-        assert!(d.iter().any(|s| s.contains("multi") && s.contains("ABSENT")));
+        assert!(d.iter().any(|s| s.contains("ABSENT")));
         let dir = temp_work("s568-multi-absent");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x62]);
@@ -11093,11 +11094,27 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .current_dir(&dir)
             .status()
             .unwrap();
-        assert!(st.success(), "memcmp multi still GREEN");
+        assert!(st.success(), "SET+ADD still GREEN (now live2)");
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.568"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.573: emit_x86-in-child cliff — pe_patch DONE ≠ parse+emit in .text.
+    #[test]
+    fn yoyo_child_emit_x86_in_child_cliff_pin() {
+        let d = yoyo_child_live_compose_design();
+        assert!(d.iter().any(|s| s.contains("569-572") || s.contains("all CHAINS")));
+        assert!(d.iter().any(|s| s.contains("573") && s.contains("pe_patch") && s.contains("emit_x86")));
+        assert!(d.iter().any(|s| s.contains("live needs") && s.contains("emit_x86")));
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(!yoyo_live_compile_slice_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_live_in_dll_compile_map()
+            .iter()
+            .any(|s| s.contains("pe_patch") || s.contains("emit_x86")));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.573"));
     }
 
 
@@ -11124,7 +11141,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(include_str!("pe_dll_link.rs").contains("S3.569"));
         assert!(yoyo_child_live_compose_design()
             .iter()
-            .any(|s| s.contains("SET+ADD") && s.contains("live2")));
+            .any(|s| s.contains("SET+ADD") || s.contains("all CHAINS")));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
