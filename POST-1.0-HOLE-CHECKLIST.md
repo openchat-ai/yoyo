@@ -111,7 +111,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | --- | --- | --- |
 | **S3.522–525** ✅ | 7c12713 | Gate F mini → sidecar bake → ABSENT cliff → **M1** mutate-after-load |
 | **S3.526–528** ✅ | b6c570a | **M2/M3** H_00+ALT → **M4-prep** flip ABSENT |
-| **S3.529** ✅ | — | beyond-mini：oracle-first + slim-overflow TYB→seed_host；mini 不 panic |
+| **S3.529** ✅ | 2be15be | beyond-mini：oracle-first + slim-overflow TYB→seed_host；mini 不 panic |
 | **S3.530** ⏳ | — | **本步**：抬 input 上限 + 烘焙 `yoyo.tyb`（Gate I full 仍可能 RED） |
 
 **缺口**：beyond-mini = **oracle 烘焙**（≠ 当场全量编）。Gate I full / 生产 flip 仍 ABSENT。bake=362。
