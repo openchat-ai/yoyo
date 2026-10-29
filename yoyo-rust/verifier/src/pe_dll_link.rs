@@ -386,7 +386,7 @@ pub fn place_cwd_runtime_sidecar(out_path: &Path, rust_dll: &[u8]) -> IsaResult<
 /// Clearing ≠ OW-RT CLOSED by itself — inventory `closed` is a separate gate.
 pub fn yoyo_m4_production_flip_blockers() -> &'static [&'static str] {
     &[
-        "in-DLL call-time compile still mini/slim-only (beyond-mini/yoyo.tyb = oracle bake)",
+        "live in-DLL compile ABSENT for yoyo.tyb (mini/slim fail; needs oracle bake)",
         "Gate I gen4+oracle may GREEN; live in-DLL compile still ABSENT (oracle != live)",
         "production place_cwd default still Rust (ALT unset)",
         "inventory OW-RT disposition=CUT (closed=0)",
@@ -3442,8 +3442,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // H_00+in-DLL GREEN (heap; stack stays 0x3200). Oracle != live full compile;
     // production default still Rust. Not CLOSED. OW-RT remains CUT.
     // S3.531: Gate I gen4 + oracle+yoyo.tyb e2e (trust-root driver). Oracle !=
-    // live full compile; production default still Rust. Next >=10 = live
-    // in-DLL compile / M4 flip / OW-RT. Not CLOSED. OW-RT remains CUT.
+    // live full compile; production default still Rust. Not CLOSED. OW-RT CUT.
+    // S3.532: live in-DLL compile ABSENT cliff — default oracle + yoyo.tyb →
+    // EXIT_COMPILE_FAIL (mini Err; no output). Next >=10 = M4 flip blockers /
+    // live compile slice / OW-RT. Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -9252,6 +9254,45 @@ mod tests {
         assert_eq!(out, expect, "gen4 driver + oracle must ≡ seed_host(yoyo.tyb)");
         let _ = std::fs::remove_dir_all(&dir);
     }
+
+
+    /// S3.532: live in-DLL compile ABSENT cliff — default oracle (no yoyo.tyb row)
+    /// + cwd `yoyo.tyb` → EXIT_COMPILE_FAIL; mini also Err. Oracle bake ≠ live.
+    /// Not CLOSED. OW-RT CUT.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_live_in_dll_compile_yoyo_tyb_absent_cliff_pin() {
+        let tyb = std::fs::read(gate_i_yoyo_tyb_path()).expect("yoyo.tyb");
+        assert!(
+            crate::s1_tyb_parser::compile_tyb_to_pe_mini(&tyb).is_err(),
+            "live mini must not compile yoyo.tyb"
+        );
+        // Default oracle must NOT contain yoyo.tyb (opt-in only via with_yoyo_tyb).
+        let entries = gate_g_recompile_entries().expect("default entries");
+        assert!(
+            entries.iter().all(|e| e.input != tyb),
+            "default oracle must omit yoyo.tyb (S3.530 opt-in)"
+        );
+        assert!(
+            resolve_recompile_input(&entries, &tyb).is_none(),
+            "default resolve must miss yoyo.tyb"
+        );
+
+        let dir = temp_work("s532-live-absent");
+        std::fs::write(dir.join("input.tyb"), &tyb).expect("write");
+        // Default in-DLL path (no yoyo.tyb bake) → compile fail, no output.
+        assert_eq!(
+            yoyo_sidecar_in_dll_recompile(&dir),
+            EXIT_COMPILE_FAIL,
+            "live path without oracle row must fail-closed"
+        );
+        assert!(
+            !dir.join(OUTPUT_NAME).exists(),
+            "ABSENT live compile must not write output.exe"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
 
     /// S3.529: beyond-mini slim-overflow TYB → mini Err; seed_host OK;
     /// oracle-first in-DLL serves H_00 PE ≡ seed_host. Not full yoyo.tyb.
