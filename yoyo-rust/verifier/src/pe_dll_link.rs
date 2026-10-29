@@ -431,7 +431,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "ALT in-dll-gate-i / gen4 GREEN paths are still oracle lookup, not live emit",
         "production default place_cwd remains Rust (ALT unset)",
         "raising S1_SLIM_MAX_CODE / densify hand-hex ≠ live-compile graduation (sheep)",
-        "CreateProcess compiler PE: RET-only compile-in-child GREEN; beyond-RET/yoyo.tyb still ABSENT",
+        "CreateProcess compiler PE: RET+SET+RET compile-in-child GREEN; beyond-SET+RET/yoyo.tyb still ABSENT",
     ]
 }
 
@@ -450,10 +450,10 @@ pub fn yoyo_live_compile_slice_ready() -> bool {
 /// Non-empty ⇒ experiment ABSENT. Clearing ≠ live-compile slice ready by itself.
 pub fn yoyo_in_dll_createprocess_compiler_blockers() -> &'static [&'static str] {
     &[
-        "CreateProcessA/Wait/GetExitCode call-site emitted; PE=RET-only compile-in-child ≠ full live",
-        "yoyo_compiler_pe_bytes=Some(RET compile stub); beyond-RET / yoyo.tyb still ABSENT",
+        "CreateProcessA/Wait/GetExitCode call-site emitted; PE=RET+SET+RET compile-in-child ≠ full live",
+        "yoyo_compiler_pe_bytes=Some(RET/SET+RET stub); beyond-SET+RET / yoyo.tyb still ABSENT",
         "cwd/export re-entrancy + handle inheritance design ABSENT",
-        "RET stub emits seed PE template — not general mini/host compose",
+        "stub emits seed PE templates — not general mini/host compose",
         "still would be oracle/host-compose under the hood unless compiler PE is live",
     ]
 }
@@ -492,10 +492,10 @@ pub fn yoyo_createprocess_call_site_emitted() -> bool {
 }
 
 
-/// S3.545: YOYO-built RET-only compile-in-child PE for [`YOYO_COMPILER_PE_NAME`].
+/// S3.546: YOYO-built RET+SET+RET compile-in-child PE for [`YOYO_COMPILER_PE_NAME`].
 ///
-/// Honest: recognizes mini RET TYB → writes [`crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED`].
-/// Beyond-RET / yoyo.tyb still ABSENT. M4-prep — not production flip / not CLOSED.
+/// Honest: mini RET → RET seed; mini SET+RET (slot0/DEADBEEF) → SET+RET seed.
+/// Beyond-SET+RET / yoyo.tyb still ABSENT. Not M4 flip / not CLOSED.
 pub fn yoyo_compiler_pe_bytes() -> Option<Vec<u8>> {
     #[cfg(windows)]
     {
@@ -517,7 +517,7 @@ pub fn yoyo_compiler_pe_is_passthrough_stub() -> bool {
     false
 }
 
-/// True while [`yoyo_compiler_pe_bytes`] is the S3.545 RET-only compile stub.
+/// True while [`yoyo_compiler_pe_bytes`] is the S3.545/546 seed-table compile stub.
 pub fn yoyo_compiler_pe_is_ret_compile_stub() -> bool {
     yoyo_compiler_pe_bytes().is_some()
 }
@@ -525,14 +525,16 @@ pub fn yoyo_compiler_pe_is_ret_compile_stub() -> bool {
 /// pe_link `.data` user payload starts at this r15 offset (IAT header + scratch pad).
 const YOYO_COMPILER_PE_USER_DATA_OFF: u32 = 0x120;
 
-/// Build RET-only compile-in-child EXE (S3.545 / M4-prep).
+/// Build RET+SET+RET compile-in-child EXE (S3.546 / beyond-RET).
 ///
-/// Reads `input.tyb`; if exact mini RET → WriteFile embed of compile RET PE seed;
-/// else exit 1. Marker `yoyo_ret_c`.
+/// Reads `input.tyb`; mini RET → RET PE seed; mini SET+RET → SET+RET PE seed;
+/// else exit 1. Markers `yoyo_ret_c` / `yoyo_sr_c`.
 #[cfg(windows)]
 fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link::PeImage> {
-    let pe_seed = crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED;
-    assert_eq!(pe_seed.len(), 6656);
+    let ret_seed = crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED;
+    let setret_seed = crate::s1_tyb_parser::S3_COMPILE_PE_SET_RET_IMAGE_SEED;
+    assert_eq!(ret_seed.len(), 6656);
+    assert_eq!(setret_seed.len(), 6656);
 
     let mut data = Vec::new();
     let input_rel = 0u32;
@@ -540,20 +542,25 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let output_rel = data.len() as u32;
     data.extend_from_slice(b"output.exe\0");
     data.extend_from_slice(b"yoyo_ret_c\0");
+    data.extend_from_slice(b"yoyo_sr_c\0");
     while data.len() % 16 != 0 {
         data.push(0);
     }
-    let pe_rel = data.len() as u32;
-    data.extend_from_slice(pe_seed);
+    let ret_pe_rel = data.len() as u32;
+    data.extend_from_slice(ret_seed);
+    let setret_pe_rel = data.len() as u32;
+    data.extend_from_slice(setret_seed);
 
     let input_off = YOYO_COMPILER_PE_USER_DATA_OFF + input_rel;
     let output_off = YOYO_COMPILER_PE_USER_DATA_OFF + output_rel;
-    let pe_off = YOYO_COMPILER_PE_USER_DATA_OFF + pe_rel;
-    let pe_len = pe_seed.len() as u32;
+    let ret_pe_off = YOYO_COMPILER_PE_USER_DATA_OFF + ret_pe_rel;
+    let setret_pe_off = YOYO_COMPILER_PE_USER_DATA_OFF + setret_pe_rel;
+    let pe_len = 6656u32;
 
     let mut c = Vec::new();
     c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x68]);
 
+    // CreateFileA input
     c.extend_from_slice(&[0x49, 0x8D, 0x8F]);
     c.extend_from_slice(&input_off.to_le_bytes());
     c.extend_from_slice(&[0xBA, 0x00, 0x00, 0x00, 0x80]);
@@ -567,6 +574,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x89, 0xC3]);
 
+    // VirtualAlloc
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0xBA, 0x00, 0x80, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
@@ -577,6 +585,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x89, 0xC6]);
 
+    // ReadFile
     c.extend_from_slice(&[0x48, 0x89, 0xD9]);
     c.extend_from_slice(&[0x48, 0x89, 0xF2]);
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x80, 0x00, 0x00]);
@@ -588,22 +597,62 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x8B, 0x7C, 0x24, 0x40]);
 
+    // CloseHandle input
     c.extend_from_slice(&[0x48, 0x89, 0xD9]);
     c.extend_from_slice(&[0x41, 0xFF, 0x97, 0x20, 0x00, 0x00, 0x00]);
 
+    // --- try RET (16B) ---
     c.extend_from_slice(&[0x83, 0xFF, 0x10]);
-    let jne_not_ret_a = c.len();
+    let jne_try_sr = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x81, 0x3E, 0x54, 0x59, 0x42, 0x00]);
-    let jne_not_ret_b = c.len();
+    let jne_fail_ret_tyb = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x66, 0x83, 0x7E, 0x06, 0x01]);
-    let jne_not_ret_c = c.len();
+    let jne_fail_ret_cnt = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x80, 0x7E, 0x08, 0xFF]);
-    let jne_not_ret_d = c.len();
+    let jne_fail_ret_op = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    // rdx = ret pe
+    c.extend_from_slice(&[0x49, 0x8D, 0x97]);
+    c.extend_from_slice(&ret_pe_off.to_le_bytes());
+    let jmp_do_write = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
+    // --- try SET+RET (24B) ---
+    let try_sr = c.len();
+    c.extend_from_slice(&[0x83, 0xFF, 0x18]);
+    let jne_fail_sr_len = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x81, 0x3E, 0x54, 0x59, 0x42, 0x00]);
+    let jne_fail_sr_tyb = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x66, 0x83, 0x7E, 0x06, 0x02]);
+    let jne_fail_sr_cnt = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x80, 0x7E, 0x08, 0x30]); // SET
+    let jne_fail_sr_op = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x80, 0x7E, 0x09, 0x02]); // argc=2
+    let jne_fail_sr_argc = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x66, 0x83, 0x7E, 0x0A, 0x00]); // slot==0
+    let jne_fail_sr_slot = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x81, 0x7E, 0x0C, 0xEF, 0xBE, 0xAD, 0xDE]);
+    let jne_fail_sr_imm = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x80, 0x7E, 0x10, 0xFF]); // RET
+    let jne_fail_sr_ret = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x49, 0x8D, 0x97]);
+    c.extend_from_slice(&setret_pe_off.to_le_bytes());
+    // fall through to do_write
+
+    let do_write = c.len();
+    // CreateFileA output (rdx already = pe src)
+    c.extend_from_slice(&[0x48, 0x89, 0xD6]); // mov rsi, rdx  (save pe ptr; rsi was input buf)
     c.extend_from_slice(&[0x49, 0x8D, 0x8F]);
     c.extend_from_slice(&output_off.to_le_bytes());
     c.extend_from_slice(&[0xBA, 0x00, 0x00, 0x00, 0x40]);
@@ -617,9 +666,9 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x89, 0xC3]);
 
+    // WriteFile(h, rsi, pe_len, ...)
     c.extend_from_slice(&[0x48, 0x89, 0xD9]);
-    c.extend_from_slice(&[0x49, 0x8D, 0x97]);
-    c.extend_from_slice(&pe_off.to_le_bytes());
+    c.extend_from_slice(&[0x48, 0x89, 0xF2]);
     c.extend_from_slice(&[0x41, 0xB8]);
     c.extend_from_slice(&pe_len.to_le_bytes());
     c.extend_from_slice(&[0x4C, 0x8D, 0x4C, 0x24, 0x40]);
@@ -640,6 +689,10 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
         let rel = (target as i32) - ((at + 6) as i32);
         code[at + 2..at + 6].copy_from_slice(&rel.to_le_bytes());
     };
+    let patch_jmp = |code: &mut Vec<u8>, at: usize, target: usize| {
+        let rel = (target as i32) - ((at + 5) as i32);
+        code[at + 1..at + 5].copy_from_slice(&rel.to_le_bytes());
+    };
 
     let fail_compile = c.len();
     c.extend_from_slice(&[0xB8, 0x01, 0x00, 0x00, 0x00]);
@@ -657,10 +710,19 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jcc(&mut c, je_no_input, fail_no);
     patch_jcc(&mut c, je_fail_va, fail_wr);
     patch_jcc(&mut c, je_fail_rd, fail_wr);
-    patch_jcc(&mut c, jne_not_ret_a, fail_compile);
-    patch_jcc(&mut c, jne_not_ret_b, fail_compile);
-    patch_jcc(&mut c, jne_not_ret_c, fail_compile);
-    patch_jcc(&mut c, jne_not_ret_d, fail_compile);
+    patch_jcc(&mut c, jne_try_sr, try_sr);
+    patch_jcc(&mut c, jne_fail_ret_tyb, fail_compile);
+    patch_jcc(&mut c, jne_fail_ret_cnt, fail_compile);
+    patch_jcc(&mut c, jne_fail_ret_op, fail_compile);
+    patch_jmp(&mut c, jmp_do_write, do_write);
+    patch_jcc(&mut c, jne_fail_sr_len, fail_compile);
+    patch_jcc(&mut c, jne_fail_sr_tyb, fail_compile);
+    patch_jcc(&mut c, jne_fail_sr_cnt, fail_compile);
+    patch_jcc(&mut c, jne_fail_sr_op, fail_compile);
+    patch_jcc(&mut c, jne_fail_sr_argc, fail_compile);
+    patch_jcc(&mut c, jne_fail_sr_slot, fail_compile);
+    patch_jcc(&mut c, jne_fail_sr_imm, fail_compile);
+    patch_jcc(&mut c, jne_fail_sr_ret, fail_compile);
     patch_jcc(&mut c, je_fail_out, fail_wr);
     patch_jcc(&mut c, je_fail_wr, fail_wr);
 
@@ -3988,8 +4050,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // yoyo_compiler.exe). Not CLOSED. OW-RT remains CUT.
     // S3.543: pe_link(exit0) smoke PE place+CreateProcess e2e.
     // S3.544: passthrough input.tyb→output.exe compiler PE.
-    // S3.545: RET-only compile-in-child (seed PE write); beyond-RET ABSENT. M4-prep.
-    // Next >=10 = beyond-RET compile-in-child / M4 flip / OW-RT. Not CLOSED.
+    // S3.545: RET-only compile-in-child.
+    // S3.546: RET+SET+RET compile-in-child; beyond-SET+RET/yoyo.tyb ABSENT.
+    // Next >=10 = broader mini table / M4 flip / OW-RT. Not CLOSED.
     // Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
@@ -9906,8 +9969,8 @@ mod tests {
         assert!(
             yoyo_live_in_dll_compile_map()
                 .iter()
-                .any(|s| s.contains("RET-only") || s.contains("beyond-RET")),
-            "map must name RET-only cliff"
+                .any(|s| s.contains("RET") && s.contains("ABSENT")),
+            "map must name compile-in-child cliff"
         );
 
         let expect = crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED;
@@ -9954,6 +10017,94 @@ mod tests {
                 && include_str!("pe_dll_link.rs").contains("yoyo_ret_c")
                 && include_str!("pe_dll_link.rs").contains("yoyo_compiler_pe_is_ret_compile_stub"),
             "S3.545 must stay named"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+
+/// S3.546: beyond-RET — SET+RET compile-in-child → SET+RET PE seed;
+    /// RET path still GREEN; non-match → EXIT_COMPILE_FAIL; yoyo.tyb ABSENT.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_setret_compile_in_child_pin() {
+        let pe = yoyo_compiler_pe_bytes().expect("S3.546 PE bytes");
+        assert!(pe.len() > 0x200 && pe[0] == b'M' && pe[1] == b'Z');
+        assert!(yoyo_compiler_pe_is_ret_compile_stub());
+        assert!(!yoyo_live_compile_slice_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_in_dll_createprocess_compiler_ready());
+        let ascii = String::from_utf8_lossy(&pe);
+        assert!(ascii.contains("yoyo_sr_c"), "SET+RET marker");
+        assert!(ascii.contains("yoyo_ret_c"), "RET marker kept");
+        assert!(
+            yoyo_live_in_dll_compile_map()
+                .iter()
+                .any(|s| s.contains("SET+RET") || s.contains("beyond-SET+RET")),
+            "map must name SET+RET cliff"
+        );
+
+        let ret_expect = crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED;
+        let sr_expect = crate::s1_tyb_parser::S3_COMPILE_PE_SET_RET_IMAGE_SEED;
+        let dir = temp_work("s546-setret-compile");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+
+        // RET still works
+        let mut ret_tyb = Vec::new();
+        ret_tyb.extend_from_slice(b"TYB\0");
+        ret_tyb.extend_from_slice(&[0, 0]);
+        ret_tyb.extend_from_slice(&1u16.to_le_bytes());
+        ret_tyb.extend_from_slice(&[0xFF, 0, 0, 0, 0, 0, 0, 0]);
+        std::fs::write(dir.join("input.tyb"), &ret_tyb).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success(), "RET path must stay GREEN");
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), ret_expect);
+
+        // SET+RET
+        let mut sr = Vec::new();
+        sr.extend_from_slice(b"TYB\0");
+        sr.extend_from_slice(&[0, 0]);
+        sr.extend_from_slice(&2u16.to_le_bytes());
+        sr.extend_from_slice(&[0x30, 0x02, 0x00, 0x00, 0xEF, 0xBE, 0xAD, 0xDE]);
+        sr.extend_from_slice(&[0xFF, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(sr.len(), 24);
+        std::fs::write(dir.join("input.tyb"), &sr).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st2 = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st2.success(), "SET+RET compile must exit 0 (got {:?})", st2.code());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), sr_expect);
+
+        // garbage → fail
+        std::fs::write(dir.join("input.tyb"), b"nope").unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st3 = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert_eq!(st3.code(), Some(EXIT_COMPILE_FAIL));
+
+        // in-DLL CreateProcess SET+RET
+        std::fs::write(dir.join("input.tyb"), &sr).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let entries = gate_g_recompile_entries().expect("entries");
+        let dll = link_yoyo_in_dll_recompile_dll(&entries).expect("link");
+        assert_eq!(
+            yoyo_sidecar_in_dll_call_time_invoke(&dll, &dir),
+            EXIT_OK,
+            "in-DLL CreateProcess(SET+RET) must exit 0"
+        );
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), sr_expect);
+
+        assert!(
+            include_str!("pe_dll_link.rs").contains("S3.546")
+                && include_str!("pe_dll_link.rs").contains("yoyo_sr_c"),
+            "S3.546 must stay named"
         );
         let _ = std::fs::remove_dir_all(&dir);
     }
