@@ -464,14 +464,15 @@ pub fn yoyo_in_dll_createprocess_compiler_ready() -> bool {
 }
 
 
-/// S3.556/S3.557: design notes for **live compose** inside the child compiler PE.
+/// S3.556–S3.563: design notes for **live compose** inside the child compiler PE.
 ///
-/// Today = field-match RET/SET/NOP/GET + memcmp bake rows. Live = parse+emit+link in `.text`.
+/// Today = field-match all fixed10 op+RET + memcmp multi. Live = parse+emit+link in `.text`.
 /// Non-empty ⇒ slice ABSENT. Clearing ≠ M4 flip / ≠ OW-RT CLOSED. Densify ≠ slice.
 pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
     &[
-        "S3.557-559 live1: field-match NOP/GET/INC/ADD (yoyo_live1_c) — PE still bake",
-        "today: field-match RET/SET/NOP/GET/INC/ADD + memcmp multi → WriteFile PE",
+        "S3.557-562 live1 DONE: field-match all fixed10 op+RET (yoyo_live1_c) — PE still bake",
+        "today: field-match fixed10 + memcmp multi chains → WriteFile baked PE",
+        "S3.563 cliff: live emit inside child .text still ABSENT (write seed ≠ emit_x86)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside child .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
         "yoyo.tyb exceeds mini fixed10 ISA — needs host compose / oracle / densify≠",
@@ -4432,7 +4433,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.560: DEC field-match.
     // S3.561: MOVRR+CMP field-match.
     // S3.562: SUB field-match — all fixed10 op+RET structured.
-    // Next >=10 = live emit / M4 / OW-RT. Not CLOSED. CUT.
+    // S3.563: live-emit cliff named (write bake ≠ emit_x86 in child).
+    // Next >=10 = first live-emit experiment / M4 / OW-RT. Not CLOSED. CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -10836,6 +10838,18 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         );
         assert!(include_str!("pe_dll_link.rs").contains("S3.556"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_child_live_compose_design"));
+    }
+
+    /// S3.563: live-emit cliff named after live1 field-match complete; ready=false.
+    #[test]
+    fn yoyo_child_live_emit_cliff_pin() {
+        let d = yoyo_child_live_compose_design();
+        assert!(d.iter().any(|s| s.contains("live1 DONE") || s.contains("562")));
+        assert!(d.iter().any(|s| s.contains("live emit") && s.contains("ABSENT")));
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(!yoyo_live_compile_slice_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.563"));
     }
 
     /// S3.557: live1 — NOP+RET via field-match (not memcmp); marker yoyo_live1_c.
