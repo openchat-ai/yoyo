@@ -1510,6 +1510,29 @@ pub fn compile_tyb_to_pe(tyb: &[u8]) -> crate::types::IsaResult<crate::pe_link::
 /// Subset proof does not go through `pack_meta_emit_*`. Host firmware keeps
 /// one DATA pack (`s3_pack_data`); RAW prologue dropped in S3.112.
 /// in-DLL dispatcher remains Rust. OW-RT CUT.
+/// S3.548: slim PE via emit_x86+patch only (skip host-table try_compile).
+///
+/// `try_compile_tyb_via_yoyo_table` can AV when baking child-compiler rows; this
+/// path stays emit-only for fixed10 op+RET table fill.
+pub fn compile_tyb_to_pe_mini_emit(tyb: &[u8]) -> crate::types::IsaResult<crate::pe_link::PeImage> {
+    let prog = parse_tyb(tyb).map_err(|e| crate::types::IsaError::ParseError {
+        line: 0,
+        msg: format!("s1 compile_tyb_to_pe_mini_emit: {e}"),
+    })?;
+    validate_tyb_mini(&prog)?;
+    let out = emit_x86(&prog);
+    #[cfg(windows)]
+    {
+        Ok(crate::pe_link::PeImage {
+            bytes: s3_compile_pe_patch_text_data(&out.text, &out.data)?,
+        })
+    }
+    #[cfg(not(windows))]
+    {
+        wrap_pe_slim(&out)
+    }
+}
+
 pub fn compile_tyb_to_pe_mini(tyb: &[u8]) -> crate::types::IsaResult<crate::pe_link::PeImage> {
     if let Some(pe) = try_compile_tyb_via_yoyo_table(tyb) {
         return Ok(pe);

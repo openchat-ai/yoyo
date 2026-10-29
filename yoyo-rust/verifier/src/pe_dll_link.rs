@@ -431,7 +431,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "ALT in-dll-gate-i / gen4 GREEN paths are still oracle lookup, not live emit",
         "production default place_cwd remains Rust (ALT unset)",
         "raising S1_SLIM_MAX_CODE / densify hand-hex ≠ live-compile graduation (sheep)",
-        "CreateProcess compiler PE: mini-table (RET+SET+RET) GREEN; broader fixed10/yoyo.tyb still ABSENT",
+        "CreateProcess compiler PE: fixed10 op+RET mini-table GREEN; yoyo.tyb/multi still ABSENT",
     ]
 }
 
@@ -450,10 +450,10 @@ pub fn yoyo_live_compile_slice_ready() -> bool {
 /// Non-empty ⇒ experiment ABSENT. Clearing ≠ live-compile slice ready by itself.
 pub fn yoyo_in_dll_createprocess_compiler_blockers() -> &'static [&'static str] {
     &[
-        "CreateProcessA/Wait/GetExitCode call-site emitted; PE=mini-table (RET+SET+RET) ≠ full live",
-        "yoyo_compiler_pe_bytes=Some(mini-table stub); broader fixed10 / yoyo.tyb still ABSENT",
+        "CreateProcessA/Wait/GetExitCode call-site emitted; PE=fixed10 op+RET mini-table ≠ full live",
+        "yoyo_compiler_pe_bytes=Some(fixed10 table); yoyo.tyb / multi-op beyond-fixed10 still ABSENT",
         "cwd/export re-entrancy + handle inheritance design ABSENT",
-        "stub emits host-baked seed PEs — not live general compose",
+        "table rows = seed/emit-bake — not live general compose / densify",
         "still would be oracle/host-compose under the hood unless compiler PE is live",
     ]
 }
@@ -492,10 +492,10 @@ pub fn yoyo_createprocess_call_site_emitted() -> bool {
 }
 
 
-/// S3.547: YOYO-built mini-table compile-in-child PE for [YOYO_COMPILER_PE_NAME].
+/// S3.548: YOYO-built **fixed10 op+RET** compile-in-child PE for [`YOYO_COMPILER_PE_NAME`].
 ///
-/// Honest: table marker yoyo_tbl_c; rows today = RET + SET+RET seeds.
-/// Broader fixed10 / yoyo.tyb still ABSENT. Not M4 flip / not CLOSED.
+/// Honest: RET/SET seeds + emit-bake remaining fixed10. Marker `yoyo_f10_c`.
+/// yoyo.tyb / beyond-fixed10 still ABSENT. Not M4 flip / not CLOSED.
 pub fn yoyo_compiler_pe_bytes() -> Option<Vec<u8>> {
     #[cfg(windows)]
     {
@@ -525,16 +525,13 @@ pub fn yoyo_compiler_pe_is_ret_compile_stub() -> bool {
 /// pe_link `.data` user payload starts at this r15 offset (IAT header + scratch pad).
 const YOYO_COMPILER_PE_USER_DATA_OFF: u32 = 0x120;
 
-/// Build RET+SET+RET compile-in-child EXE (S3.546 / beyond-RET).
+/// Build fixed10 op+RET compile-in-child EXE (S3.548).
 ///
-/// Reads `input.tyb`; mini RET → RET PE seed; mini SET+RET → SET+RET PE seed;
-/// else exit 1. Markers `yoyo_ret_c` / `yoyo_sr_c`.
+/// RET/SET+RET seeds + emit-baked remaining fixed10. Marker `yoyo_f10_c`.
 #[cfg(windows)]
 fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link::PeImage> {
     let ret_seed = crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED;
     let setret_seed = crate::s1_tyb_parser::S3_COMPILE_PE_SET_RET_IMAGE_SEED;
-    assert_eq!(ret_seed.len(), 6656);
-    assert_eq!(setret_seed.len(), 6656);
 
     let mut data = Vec::new();
     let input_rel = 0u32;
@@ -544,6 +541,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     data.extend_from_slice(b"yoyo_ret_c\0");
     data.extend_from_slice(b"yoyo_sr_c\0");
     data.extend_from_slice(b"yoyo_tbl_c\0");
+    data.extend_from_slice(b"yoyo_f10_c\0");
     while data.len() % 16 != 0 {
         data.push(0);
     }
@@ -552,16 +550,38 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let setret_pe_rel = data.len() as u32;
     data.extend_from_slice(setret_seed);
 
+    const EXTRA: [u8; 8] = [0x00, 0x60, 0x66, 0x62, 0x67, 0x61, 0x64, 0x65];
+    let mut extras: Vec<(u32, u32, u32, u32)> = Vec::new();
+    for &op in &EXTRA {
+        let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
+        let pe = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)?.bytes;
+        while data.len() % 16 != 0 {
+            data.push(0);
+        }
+        let tyb_rel = data.len() as u32;
+        data.extend_from_slice(&tyb);
+        while data.len() % 16 != 0 {
+            data.push(0);
+        }
+        let pe_rel = data.len() as u32;
+        data.extend_from_slice(&pe);
+        extras.push((
+            YOYO_COMPILER_PE_USER_DATA_OFF + tyb_rel,
+            tyb.len() as u32,
+            YOYO_COMPILER_PE_USER_DATA_OFF + pe_rel,
+            pe.len() as u32,
+        ));
+    }
+
     let input_off = YOYO_COMPILER_PE_USER_DATA_OFF + input_rel;
     let output_off = YOYO_COMPILER_PE_USER_DATA_OFF + output_rel;
     let ret_pe_off = YOYO_COMPILER_PE_USER_DATA_OFF + ret_pe_rel;
     let setret_pe_off = YOYO_COMPILER_PE_USER_DATA_OFF + setret_pe_rel;
-    let pe_len = 6656u32;
+    let seed_len = 6656u32;
 
     let mut c = Vec::new();
     c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x68]);
 
-    // CreateFileA input
     c.extend_from_slice(&[0x49, 0x8D, 0x8F]);
     c.extend_from_slice(&input_off.to_le_bytes());
     c.extend_from_slice(&[0xBA, 0x00, 0x00, 0x00, 0x80]);
@@ -575,7 +595,6 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x89, 0xC3]);
 
-    // VirtualAlloc
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0xBA, 0x00, 0x80, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
@@ -586,7 +605,6 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x89, 0xC6]);
 
-    // ReadFile
     c.extend_from_slice(&[0x48, 0x89, 0xD9]);
     c.extend_from_slice(&[0x48, 0x89, 0xF2]);
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x80, 0x00, 0x00]);
@@ -598,11 +616,10 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x8B, 0x7C, 0x24, 0x40]);
 
-    // CloseHandle input
     c.extend_from_slice(&[0x48, 0x89, 0xD9]);
     c.extend_from_slice(&[0x41, 0xFF, 0x97, 0x20, 0x00, 0x00, 0x00]);
 
-    // --- try RET (16B) ---
+    // RET
     c.extend_from_slice(&[0x83, 0xFF, 0x10]);
     let jne_try_sr = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
@@ -615,16 +632,17 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x80, 0x7E, 0x08, 0xFF]);
     let jne_fail_ret_op = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    // rdx = ret pe
     c.extend_from_slice(&[0x49, 0x8D, 0x97]);
     c.extend_from_slice(&ret_pe_off.to_le_bytes());
+    c.extend_from_slice(&[0x41, 0xB8]);
+    c.extend_from_slice(&seed_len.to_le_bytes());
     let jmp_do_write = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
-    // --- try SET+RET (24B) ---
+    // SET+RET
     let try_sr = c.len();
     c.extend_from_slice(&[0x83, 0xFF, 0x18]);
-    let jne_fail_sr_len = c.len();
+    let jne_try_extra = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x81, 0x3E, 0x54, 0x59, 0x42, 0x00]);
     let jne_fail_sr_tyb = c.len();
@@ -632,28 +650,65 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x66, 0x83, 0x7E, 0x06, 0x02]);
     let jne_fail_sr_cnt = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x80, 0x7E, 0x08, 0x30]); // SET
-    let jne_fail_sr_op = c.len();
+    c.extend_from_slice(&[0x80, 0x7E, 0x08, 0x30]);
+    let jne_try_extra_notset = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x80, 0x7E, 0x09, 0x02]); // argc=2
+    c.extend_from_slice(&[0x80, 0x7E, 0x09, 0x02]);
     let jne_fail_sr_argc = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x66, 0x83, 0x7E, 0x0A, 0x00]); // slot==0
+    c.extend_from_slice(&[0x66, 0x83, 0x7E, 0x0A, 0x00]);
     let jne_fail_sr_slot = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x81, 0x7E, 0x0C, 0xEF, 0xBE, 0xAD, 0xDE]);
     let jne_fail_sr_imm = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x80, 0x7E, 0x10, 0xFF]); // RET
+    c.extend_from_slice(&[0x80, 0x7E, 0x10, 0xFF]);
     let jne_fail_sr_ret = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x49, 0x8D, 0x97]);
     c.extend_from_slice(&setret_pe_off.to_le_bytes());
-    // fall through to do_write
+    c.extend_from_slice(&[0x41, 0xB8]);
+    c.extend_from_slice(&seed_len.to_le_bytes());
+    let jmp_do_write2 = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
+    // extras: memcmp full tyb
+    let try_extra = c.len();
+    let mut extra_patches: Vec<(usize, usize, usize)> = Vec::new(); // jne1, jne2, jmp_w
+    for &(tyb_off, tyb_len, pe_off, pe_len) in &extras {
+        c.extend_from_slice(&[0x81, 0xFF]);
+        c.extend_from_slice(&tyb_len.to_le_bytes());
+        let jne1 = c.len();
+        c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+        c.extend_from_slice(&[0x50, 0x51, 0x57, 0x56]);
+        c.extend_from_slice(&[0xB9]);
+        c.extend_from_slice(&tyb_len.to_le_bytes());
+        c.extend_from_slice(&[0x49, 0x8D, 0xBF]);
+        c.extend_from_slice(&tyb_off.to_le_bytes());
+        c.extend_from_slice(&[0xF3, 0xA6]);
+        c.extend_from_slice(&[0x5E, 0x5F, 0x59, 0x58]);
+        let jne2 = c.len();
+        c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+        c.extend_from_slice(&[0x49, 0x8D, 0x97]);
+        c.extend_from_slice(&pe_off.to_le_bytes());
+        c.extend_from_slice(&[0x41, 0xB8]);
+        c.extend_from_slice(&pe_len.to_le_bytes());
+        let jmp_w = c.len();
+        c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+        extra_patches.push((jne1, jne2, jmp_w));
+    }
+
+    let fail_compile = c.len();
+    // patch extra fallthroughs to fail_compile (last jne targets)
+    // (done after we know fail_compile — see below)
+
+    c.extend_from_slice(&[0xB8, 0x01, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x68]);
+    c.extend_from_slice(&[0xC3]);
 
     let do_write = c.len();
-    // CreateFileA output (rdx already = pe src)
-    c.extend_from_slice(&[0x48, 0x89, 0xD6]); // mov rsi, rdx  (save pe ptr; rsi was input buf)
+    c.extend_from_slice(&[0x48, 0x89, 0xD6]);
+    c.extend_from_slice(&[0x44, 0x89, 0xC7]);
     c.extend_from_slice(&[0x49, 0x8D, 0x8F]);
     c.extend_from_slice(&output_off.to_le_bytes());
     c.extend_from_slice(&[0xBA, 0x00, 0x00, 0x00, 0x40]);
@@ -667,11 +722,9 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0x89, 0xC3]);
 
-    // WriteFile(h, rsi, pe_len, ...)
     c.extend_from_slice(&[0x48, 0x89, 0xD9]);
     c.extend_from_slice(&[0x48, 0x89, 0xF2]);
-    c.extend_from_slice(&[0x41, 0xB8]);
-    c.extend_from_slice(&pe_len.to_le_bytes());
+    c.extend_from_slice(&[0x41, 0x89, 0xF8]);
     c.extend_from_slice(&[0x4C, 0x8D, 0x4C, 0x24, 0x40]);
     c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x20, 0x00, 0x00, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xFF, 0x97, 0x18, 0x00, 0x00, 0x00]);
@@ -681,8 +734,16 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
 
     c.extend_from_slice(&[0x48, 0x89, 0xD9]);
     c.extend_from_slice(&[0x41, 0xFF, 0x97, 0x20, 0x00, 0x00, 0x00]);
-
     c.extend_from_slice(&[0x31, 0xC0]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x68]);
+    c.extend_from_slice(&[0xC3]);
+
+    let fail_no = c.len();
+    c.extend_from_slice(&[0xB8, 0x02, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x68]);
+    c.extend_from_slice(&[0xC3]);
+    let fail_wr = c.len();
+    c.extend_from_slice(&[0xB8, 0x03, 0x00, 0x00, 0x00]);
     c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x68]);
     c.extend_from_slice(&[0xC3]);
 
@@ -695,19 +756,6 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
         code[at + 1..at + 5].copy_from_slice(&rel.to_le_bytes());
     };
 
-    let fail_compile = c.len();
-    c.extend_from_slice(&[0xB8, 0x01, 0x00, 0x00, 0x00]);
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x68]);
-    c.extend_from_slice(&[0xC3]);
-    let fail_no = c.len();
-    c.extend_from_slice(&[0xB8, 0x02, 0x00, 0x00, 0x00]);
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x68]);
-    c.extend_from_slice(&[0xC3]);
-    let fail_wr = c.len();
-    c.extend_from_slice(&[0xB8, 0x03, 0x00, 0x00, 0x00]);
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x68]);
-    c.extend_from_slice(&[0xC3]);
-
     patch_jcc(&mut c, je_no_input, fail_no);
     patch_jcc(&mut c, je_fail_va, fail_wr);
     patch_jcc(&mut c, je_fail_rd, fail_wr);
@@ -716,14 +764,29 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jcc(&mut c, jne_fail_ret_cnt, fail_compile);
     patch_jcc(&mut c, jne_fail_ret_op, fail_compile);
     patch_jmp(&mut c, jmp_do_write, do_write);
-    patch_jcc(&mut c, jne_fail_sr_len, fail_compile);
+    patch_jcc(&mut c, jne_try_extra, try_extra);
     patch_jcc(&mut c, jne_fail_sr_tyb, fail_compile);
     patch_jcc(&mut c, jne_fail_sr_cnt, fail_compile);
-    patch_jcc(&mut c, jne_fail_sr_op, fail_compile);
+    patch_jcc(&mut c, jne_try_extra_notset, try_extra);
     patch_jcc(&mut c, jne_fail_sr_argc, fail_compile);
     patch_jcc(&mut c, jne_fail_sr_slot, fail_compile);
     patch_jcc(&mut c, jne_fail_sr_imm, fail_compile);
     patch_jcc(&mut c, jne_fail_sr_ret, fail_compile);
+    patch_jmp(&mut c, jmp_do_write2, do_write);
+    let mut extra_starts: Vec<usize> = Vec::new();
+    for &(jne1, _, _) in &extra_patches {
+        extra_starts.push(jne1 - 6); // cmp edi,imm32 is 6 bytes
+    }
+    for (i, &(jne1, jne2, jmp_w)) in extra_patches.iter().enumerate() {
+        let miss = if i + 1 < extra_starts.len() {
+            extra_starts[i + 1]
+        } else {
+            fail_compile
+        };
+        patch_jcc(&mut c, jne1, miss);
+        patch_jcc(&mut c, jne2, miss);
+        patch_jmp(&mut c, jmp_w, do_write);
+    }
     patch_jcc(&mut c, je_fail_out, fail_wr);
     patch_jcc(&mut c, je_fail_wr, fail_wr);
 
@@ -4053,8 +4116,11 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.544: passthrough input.tyb→output.exe compiler PE.
     // S3.545: RET-only compile-in-child.
     // S3.546: RET+SET+RET compile-in-child.
-    // S3.547: mini-table +NOP+RET (host-baked); broader fixed10/yoyo.tyb ABSENT.
-    // Next >=10 = more fixed10 rows / M4 flip / OW-RT. Not CLOSED.
+    // S3.547: mini-table marker.
+    // S3.548: fixed10 op+RET compile-in-child (hand RET/SET + emit extras;
+    // marker yoyo_f10_c). S3.549: in-DLL CreateProcess fixed10 smoke.
+    // S3.550: M4-prep — fixed10 child GREEN ≠ flip. Next >=10 =
+    // multi-op beyond single op+RET / yoyo.tyb / M4 flip / OW-RT.
     // Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
@@ -10041,7 +10107,7 @@ mod tests {
         assert!(
             yoyo_live_in_dll_compile_map()
                 .iter()
-                .any(|s| s.contains("mini-table") || s.contains("fixed10") || s.contains("RET+SET+RET")),
+                .any(|s| s.contains("fixed10") || s.contains("yoyo.tyb") || s.contains("ABSENT")),
             "map must name mini-table cliff"
         );
 
@@ -10117,14 +10183,15 @@ mod tests {
 /// S3.547: mini-table marker + RET/SET+RET rows; broader fixed10 ABSENT.
     #[test]
     #[cfg(windows)]
-    fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
+
+fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let pe = yoyo_compiler_pe_bytes().expect("S3.547 PE");
         assert!(pe.len() > 0x200 && pe[0] == b'M');
         assert!(yoyo_compiler_pe_is_ret_compile_stub());
         assert!(!yoyo_live_compile_slice_ready());
         assert!(!yoyo_m4_production_flip_ready());
         let ascii = String::from_utf8_lossy(&pe);
-        assert!(ascii.contains("yoyo_tbl_c"), "mini-table marker");
+        assert!(ascii.contains("yoyo_f10_c") || ascii.contains("yoyo_tbl_c"), "table marker");
         assert!(ascii.contains("yoyo_ret_c") && ascii.contains("yoyo_sr_c"));
 
         // RET row still GREEN via table PE
@@ -10150,6 +10217,105 @@ mod tests {
             "S3.547 must stay named"
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+
+
+/// S3.548: fixed10 op+RET compile-in-child; all 10 rows GREEN.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_fixed10_table_pin() {
+        let pe = yoyo_compiler_pe_bytes().expect("S3.548");
+        assert!(pe.len() > 0x1000 && pe[0] == b'M');
+        let ascii = String::from_utf8_lossy(&pe);
+        assert!(ascii.contains("yoyo_f10_c"));
+        assert!(!yoyo_live_compile_slice_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_in_dll_createprocess_compiler_ready());
+
+        let dir = temp_work("s548-f10");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        let ops: [u8; 10] = [0xFF, 0x00, 0x30, 0x60, 0x66, 0x62, 0x67, 0x61, 0x64, 0x65];
+        for &op in &ops {
+            let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
+            let expect = if op == 0xFF {
+                crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED.to_vec()
+            } else if op == 0x30 {
+                crate::s1_tyb_parser::S3_COMPILE_PE_SET_RET_IMAGE_SEED.to_vec()
+            } else {
+                crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+                    .expect("emit")
+                    .bytes
+            };
+            std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+            let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+            let st = std::process::Command::new(&path)
+                .current_dir(&dir)
+                .status()
+                .unwrap();
+            assert!(st.success(), "op={op:#x} exit {:?}", st.code());
+            assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect, "op={op:#x}");
+        }
+        assert!(
+            include_str!("pe_dll_link.rs").contains("S3.548")
+                && include_str!("pe_dll_link.rs").contains("yoyo_f10_c"),
+            "S3.548 named"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.549: in-DLL CreateProcess fixed10 smoke (NOP+RET + GET+RET); map honest.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_fixed10_indll_createprocess_pin() {
+        assert!(
+            yoyo_live_in_dll_compile_map()
+                .iter()
+                .any(|s| s.contains("fixed10") && s.contains("ABSENT")),
+            "map names fixed10/yoyo.tyb cliff"
+        );
+        let dir = temp_work("s549-f10-indll");
+        let _ = yoyo_place_compiler_pe(&dir).expect("place");
+        let entries = gate_g_recompile_entries().expect("e");
+        let dll = link_yoyo_in_dll_recompile_dll(&entries).expect("dll");
+        for &op in &[0x00u8, 0x60u8] {
+            let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+                .expect("emit")
+                .bytes;
+            std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+            let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+            assert_eq!(
+                yoyo_sidecar_in_dll_call_time_invoke(&dll, &dir),
+                EXIT_OK,
+                "op={op:#x}"
+            );
+            assert_eq!(
+                std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
+                expect,
+                "op={op:#x}"
+            );
+        }
+        assert!(include_str!("pe_dll_link.rs").contains("S3.549"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.550: M4-prep — fixed10 child GREEN ≠ flip; blockers stay non-empty.
+    #[test]
+    fn yoyo_m4_prep_fixed10_child_not_flip_pin() {
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_live_compile_slice_ready());
+        assert!(!yoyo_in_dll_createprocess_compiler_ready());
+        assert!(yoyo_m4_production_flip_blockers().len() >= 3);
+        assert!(yoyo_in_dll_createprocess_compiler_blockers()
+            .iter()
+            .any(|s| s.contains("fixed10") || s.contains("yoyo.tyb")));
+        assert!(
+            include_str!("pe_dll_link.rs").contains("S3.550")
+                || include_str!("pe_dll_link.rs").contains("yoyo_f10_c"),
+            "S3.550 cliff named via f10 surface"
+        );
+        assert!(include_str!("pe_dll_link.rs").contains("S3.550"));
     }
 
 
