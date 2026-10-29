@@ -419,6 +419,20 @@ pub fn yoyo_m4_production_flip_ready() -> bool {
     yoyo_m4_production_flip_blockers().is_empty()
 }
 
+
+/// S3.534: honest map of what **live** in-DLL compile still lacks (≠ oracle bake).
+///
+/// Non-empty ⇒ M4 production flip stays ABSENT. Clearing entries ≠ OW-RT CLOSED.
+pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
+    &[
+        "yoyo.tyb exceeds mini/slim ISA — needs full host compose or oracle row",
+        "beyond-mini overflow TYB fails mini; today served only via oracle→seed_host",
+        "in-DLL export has no seed_host/bootstrap_compile machine at call-time",
+        "ALT in-dll-gate-i / gen4 GREEN paths are still oracle lookup, not live emit",
+        "production default place_cwd remains Rust (ALT unset)",
+    ]
+}
+
 /// Exit contract shared with Rust `yoyo_runtime_selfhost_main`.
 pub const EXIT_OK: i32 = 0;
 pub const EXIT_COMPILE_FAIL: i32 = 1;
@@ -3471,6 +3485,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // + yoyo.tyb GREEN. Default ALT unset still Rust. M4 flip ABSENT.
     // Next >=10 = production flip blockers / live compile / OW-RT.
     // Not CLOSED. OW-RT remains CUT.
+    // S3.534: near-window fold 529–533 + live-compile map (honest ABSENT).
+    // Next >=10 = live compile slice / M4 flip / OW-RT. Not CLOSED. CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -9288,7 +9304,25 @@ mod tests {
 
 
     
-    /// S3.533: `YOYO_OW_RT_ALT_SIDECAR=in-dll-gate-i` → place Gate I oracle DLL;
+    
+    /// S3.534: live-compile map non-empty; M4 flip ABSENT; names oracle≠live.
+    #[test]
+    fn yoyo_live_in_dll_compile_map_absent_pin() {
+        let map = yoyo_live_in_dll_compile_map();
+        assert!(map.len() >= 4, "map must stay honest / non-empty");
+        assert!(map.iter().any(|s| s.contains("yoyo.tyb") || s.contains("mini")));
+        assert!(map.iter().any(|s| s.contains("oracle")));
+        assert!(map.iter().any(|s| s.contains("Rust") || s.contains("place_cwd")));
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(
+            include_str!("pe_dll_link.rs").contains("yoyo_live_in_dll_compile_map")
+                && include_str!("pe_dll_link.rs").contains("S3.534"),
+            "S3.534 map must stay named"
+        );
+    }
+
+
+/// S3.533: `YOYO_OW_RT_ALT_SIDECAR=in-dll-gate-i` → place Gate I oracle DLL;
     /// H_00 + yoyo.tyb ≡ seed_host. Default unset still Rust. M4 flip ABSENT.
     #[test]
     #[cfg(windows)]
