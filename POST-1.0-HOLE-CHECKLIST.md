@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.533**（532=live in-DLL compile ABSENT cliff；下一刀=M4 flip / ALT Gate I bake / OW-RT）。
+**默认** 继续 **= S3.534**（533=ALT in-dll-gate-i GREEN；下一刀=近窗收拢 529–533 / live compile map）。
 
 ## 阻塞 / 勿做
 
@@ -115,9 +115,10 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.530** ✅ | 2b0d565 | MAX_INPUT=32KiB + VirtualAlloc input + yoyo.tyb→seed_host；H_00 GREEN；oracle≠live |
 | **S3.531** ✅ | 6763178 | Gate I gen4 + oracle+yoyo.tyb e2e ≡ seed_host；oracle≠live；OW-RT CUT |
 | **S3.532** ✅ | 80f467e | live in-DLL compile ABSENT：default oracle+yoyo.tyb→exit1；mini Err；oracle≠live |
-| **S3.533** ⏳ | — | **本步**：M4 flip / ALT Gate I bake cliff（禁假 CLOSED） |
+| **S3.533** ✅ | PENDING | ALT=`in-dll-gate-i` 放置 Gate I oracle DLL；H_00+yoyo.tyb GREEN；M4 flip ABSENT |
+| **S3.534** ⏳ | — | **本步**：近窗收拢 S3.529–533 + live compile 地图（禁假 CLOSED） |
 
-**缺口**：live in-DLL compile **ABSENT**（yoyo.tyb 需 oracle）。生产 flip / ALT Gate I bake 仍待。bake=362。
+**缺口**：ALT gate-i / gen4+oracle = **opt-in GREEN**。live compile / 生产 flip 仍 ABSENT。bake=362。
 
 ---
 
@@ -151,7 +152,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- `继续` → **S3.533**（M4 flip / ALT Gate I bake；禁 host 侧面 / densify / 假 CLOSED）。S3.532 已 GREEN。红了记根因停。
+- `继续` → **S3.534**（近窗收拢 529–533；禁 host 侧面 / densify / 假 CLOSED）。S3.533 已 GREEN。红了记根因停。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
@@ -159,4 +160,4 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 *Created：2026-08-31 · post-v1.0 · 对齐 STAGE16_OWNER_CHECKLIST 模板*
 
-**快照 2026-10-29**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.533** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · live-compile ABSENT cliff · 近窗自动收拢
+**快照 2026-10-29**：ctrl 2 · asm 2 · assembler 22 · many 2 · one 2 · host 173 · 默认 **S3.534** · bake=362 · StubPlatform stub · OW-RT **CUT** · closed=0 cut=7 · ALT gate-i · 近窗自动收拢

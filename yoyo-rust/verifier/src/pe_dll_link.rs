@@ -276,8 +276,10 @@ pub enum AltSidecarMode {
     Off,
     /// Gate G probe DLL (fixed exit-2 export).
     Probe,
-    /// S3.527 / M3: M1 in-DLL recompile DLL (call-time mini).
+    /// S3.527 / M3: M1 in-DLL recompile DLL (call-time mini / default oracle).
     InDll,
+    /// S3.533: in-DLL recompile DLL with Gate I oracle (+yoyo.tyb→seed_host).
+    InDllGateI,
 }
 
 /// Parse [`ALT_SIDECAR_ENV`] (unknown non-empty values treated as [`AltSidecarMode::Probe`]
@@ -288,6 +290,15 @@ pub fn yoyo_alt_sidecar_mode() -> AltSidecarMode {
             let t = v.trim().to_ascii_lowercase();
             if t.is_empty() || matches!(t.as_str(), "0" | "false" | "no" | "off") {
                 AltSidecarMode::Off
+            } else if matches!(
+                t.as_str(),
+                "in-dll-gate-i"
+                    | "indll-gate-i"
+                    | "in_dll_gate_i"
+                    | "gate-i"
+                    | "gate_i"
+            ) {
+                AltSidecarMode::InDllGateI
             } else if matches!(
                 t.as_str(),
                 "in-dll" | "indll" | "in_dll" | "m1" | "recompile" | "in-dll-recompile"
@@ -336,6 +347,10 @@ pub fn yoyo_alt_sidecar_bytes_if_enabled() -> IsaResult<Option<Vec<u8>>> {
             let entries = gate_g_recompile_entries()?;
             Ok(Some(link_yoyo_in_dll_recompile_dll(&entries)?))
         }
+        AltSidecarMode::InDllGateI => {
+            let entries = gate_g_recompile_entries_with_yoyo_tyb()?;
+            Ok(Some(link_yoyo_in_dll_recompile_dll(&entries)?))
+        }
     }
 }
 
@@ -346,6 +361,8 @@ pub enum CwdSidecarKind {
     YoyoAlt,
     /// YOYO in-DLL recompile / M1 call-time mini (env = `in-dll` / `m1` / …).
     YoyoInDll,
+    /// S3.533: YOYO in-DLL + Gate I oracle (env = `in-dll-gate-i` / `gate-i`).
+    YoyoInDllGateI,
     /// Rust `yoyo_runtime.dll` bytes (production default).
     Rust,
 }
@@ -363,6 +380,10 @@ pub fn place_cwd_runtime_sidecar(out_path: &Path, rust_dll: &[u8]) -> IsaResult<
         AltSidecarMode::InDll => {
             write_yoyo_in_dll_recompile_sidecar(out_path)?;
             Ok(CwdSidecarKind::YoyoInDll)
+        }
+        AltSidecarMode::InDllGateI => {
+            write_yoyo_in_dll_recompile_sidecar_with_yoyo_tyb(out_path)?;
+            Ok(CwdSidecarKind::YoyoInDllGateI)
         }
         AltSidecarMode::Off => {
             if let Some(parent) = out_path.parent() {
@@ -3446,6 +3467,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.532: live in-DLL compile ABSENT cliff — default oracle + yoyo.tyb →
     // EXIT_COMPILE_FAIL (mini Err; no output). Next >=10 = M4 flip blockers /
     // live compile slice / OW-RT. Not CLOSED. OW-RT remains CUT.
+    // S3.533: ALT_SIDECAR=in-dll-gate-i → place Gate I oracle DLL; H_00/gen4
+    // + yoyo.tyb GREEN. Default ALT unset still Rust. M4 flip ABSENT.
+    // Next >=10 = production flip blockers / live compile / OW-RT.
+    // Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -8527,6 +8552,12 @@ mod tests {
                 assert_eq!(&on_disk[0..2], b"MZ");
                 assert!(on_disk.len() > rustish.len());
             }
+            AltSidecarMode::InDllGateI => {
+                assert_eq!(kind, CwdSidecarKind::YoyoInDllGateI);
+                let on_disk = std::fs::read(&path).expect("read");
+                assert_eq!(&on_disk[0..2], b"MZ");
+                assert!(on_disk.len() > rustish.len());
+            }
         }
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -9256,7 +9287,47 @@ mod tests {
     }
 
 
-    /// S3.532: live in-DLL compile ABSENT cliff — default oracle (no yoyo.tyb row)
+    
+    /// S3.533: `YOYO_OW_RT_ALT_SIDECAR=in-dll-gate-i` → place Gate I oracle DLL;
+    /// H_00 + yoyo.tyb ≡ seed_host. Default unset still Rust. M4 flip ABSENT.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_alt_sidecar_in_dll_gate_i_h00_yoyo_tyb_pin() {
+        let prev = std::env::var(ALT_SIDECAR_ENV).ok();
+        std::env::set_var(ALT_SIDECAR_ENV, "in-dll-gate-i");
+        assert_eq!(yoyo_alt_sidecar_mode(), AltSidecarMode::InDllGateI);
+
+        let tyb = std::fs::read(gate_i_yoyo_tyb_path()).expect("yoyo.tyb");
+        let expect = crate::selfhost::seed_host_compile(&tyb).expect("seed_host");
+
+        let dir = temp_work("s533-alt-gate-i");
+        let rustish = b"MZ\0RUST_SHOULD_NOT_BE_PLACED________________";
+        let kind = place_cwd_runtime_sidecar(&dir.join(RUNTIME_SIDECAR_NAME), rustish)
+            .expect("place gate-i");
+        assert_eq!(kind, CwdSidecarKind::YoyoInDllGateI);
+        let dll = std::fs::read(dir.join(RUNTIME_SIDECAR_NAME)).expect("dll");
+        assert_ne!(&dll[..], rustish.as_slice());
+
+        let seed = yoyo_h00_seed_pe_m2().expect("H_00");
+        std::fs::write(dir.join(M2_H00_SEED_NAME), &seed).expect("seed");
+        let h00 = yoyo_h00_path_m2_run(&dir, &tyb);
+        assert_eq!(h00, EXIT_OK, "ALT gate-i + H_00 + yoyo.tyb");
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
+
+        // restore env
+        match prev {
+            Some(v) => std::env::set_var(ALT_SIDECAR_ENV, v),
+            None => std::env::remove_var(ALT_SIDECAR_ENV),
+        }
+        assert!(
+            !yoyo_m4_production_flip_ready(),
+            "M4 flip still ABSENT after ALT gate-i"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+
+/// S3.532: live in-DLL compile ABSENT cliff — default oracle (no yoyo.tyb row)
     /// + cwd `yoyo.tyb` → EXIT_COMPILE_FAIL; mini also Err. Oracle bake ≠ live.
     /// Not CLOSED. OW-RT CUT.
     #[test]
