@@ -450,10 +450,10 @@ pub fn yoyo_live_compile_slice_ready() -> bool {
 /// Non-empty ⇒ experiment ABSENT. Clearing ≠ live-compile slice ready by itself.
 pub fn yoyo_in_dll_createprocess_compiler_blockers() -> &'static [&'static str] {
     &[
-        "CreateProcessA/Wait/GetExitCode call-site emitted; yoyo_compiler_pe_bytes still None",
-        "yoyo_compiler_pe_bytes()=None — no YOYO-built standalone compiler PE yet",
+        "CreateProcessA/Wait/GetExitCode call-site emitted; PE=pe_link(exit0) smoke ≠ R→C→W",
+        "yoyo_compiler_pe_bytes=Some(exit0 smoke); live R→C→W compiler PE still ABSENT",
         "cwd/export re-entrancy + handle inheritance design ABSENT",
-        "compiler PE bytes ABSENT — CreateProcess path unused unless cwd has yoyo_compiler.exe",
+        "RET smoke stub ignores input / writes no output.exe — not a live compiler",
         "still would be oracle/host-compose under the hood unless compiler PE is live",
     ]
 }
@@ -493,17 +493,31 @@ pub fn yoyo_createprocess_call_site_emitted() -> bool {
 }
 
 
-/// S3.541: bytes for cwd [`YOYO_COMPILER_PE_NAME`], if a YOYO-built compiler PE exists.
+/// S3.543: YOYO-built smoke PE for [`YOYO_COMPILER_PE_NAME`] (pe_link exit0).
 ///
-/// Always `None` today — no standalone compiler PE distinct from gen4+sidecar.
-/// Returning `Some` without call-site emit still leaves the experiment ABSENT.
+/// Honest: **not** an R→C→W compiler — child ignores input and writes no `output.exe`.
+/// Proves place + CreateProcess+Wait+GetExitCode. Live compiler still ABSENT for ready().
 pub fn yoyo_compiler_pe_bytes() -> Option<Vec<u8>> {
-    None
+    #[cfg(windows)]
+    {
+        // Honest smoke: YOYO pe_link Win32 EXE whose entry is xor eax,eax; ret
+        // (process exit 0). Bare seed_host(RET) / slim RET exit 0x40001000 under
+        // CreateProcess — not usable as compiler-PE stand-in.
+        let pe = crate::pe_link::link_pe_win32(&[0x31, 0xC0, 0xC3], &[], &[]).ok()?;
+        Some(pe.bytes)
+    }
+    #[cfg(not(windows))]
+    {
+        None
+    }
 }
 
-/// S3.541: write compiler PE to `work_dir` / [`YOYO_COMPILER_PE_NAME`] when bytes exist.
-///
-/// Returns `Err(())` while [`yoyo_compiler_pe_bytes`] is `None`.
+/// True while [`yoyo_compiler_pe_bytes`] is the S3.543 RET smoke stub (≠ live compiler).
+pub fn yoyo_compiler_pe_is_ret_smoke_stub() -> bool {
+    yoyo_compiler_pe_bytes().is_some()
+}
+
+/// Write compiler PE to `work_dir` / [`YOYO_COMPILER_PE_NAME`] when bytes exist.
 pub fn yoyo_place_compiler_pe(work_dir: &Path) -> Result<PathBuf, ()> {
     let bytes = yoyo_compiler_pe_bytes().ok_or(())?;
     let path = work_dir.join(YOYO_COMPILER_PE_NAME);
@@ -2047,7 +2061,11 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     //   [rsp+CODE_OFF)=code  [rsp+PE_OFF)=PE  …
     //   [rsp+INPUT_PTR] = heap input; r14 = multi remaining
     // r14 = multi remaining (S3.50+); heap input ptr at [rsp+INPUT_PTR_OFF]
-    export_code.extend_from_slice(&[0x53, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56]); // +r14
+    // S3.543: also push r15 — keep odd push count so RSP≡0(mod 16) before calls
+    // (S3.530 added r14 and made push count even; CreateProcessA AV'd on misalign).
+    export_code.extend_from_slice(&[
+        0x53, 0x56, 0x57, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41, 0x57,
+    ]); // rbx..r15
     export_code.extend_from_slice(&[0x48, 0x81, 0xEC]);
     push_u32_le(&mut export_code, IN_DLL_S1_STACK);
     // qword [rsp+INPUT_PTR] = 0 until VirtualAlloc
@@ -2479,10 +2497,12 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     export_code.extend_from_slice(&[0x89, 0xF0]); // mov eax, esi
     let vfree_done = export_code.len();
     patch_rel8(&mut export_code, jz_skip_vfree, vfree_done);
-    // add rsp, IN_DLL_S1_STACK; pop r14; pop r13; pop r12; pop rdi; pop rsi; pop rbx; ret
+    // add rsp, IN_DLL_S1_STACK; pop r15..rbx; ret
     export_code.extend_from_slice(&[0x48, 0x81, 0xC4]);
     push_u32_le(&mut export_code, IN_DLL_S1_STACK);
-    export_code.extend_from_slice(&[0x41, 0x5E, 0x41, 0x5D, 0x41, 0x5C, 0x5F, 0x5E, 0x5B, 0xC3]);
+    export_code.extend_from_slice(&[
+        0x41, 0x5F, 0x41, 0x5E, 0x41, 0x5D, 0x41, 0x5C, 0x5F, 0x5E, 0x5B, 0xC3,
+    ]);
 
     // ----- S1 mini TYB codegen (after epilogue; entered only via jmp_s1) -----
     // Mini-ISA: … + S3.91–S3.98 ALLOC/LOAD/WRITE → slim IAT
@@ -3699,8 +3719,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // Next >=10 = first compiler PE bytes OR emit CreateProcess call-site / M4.
     // Not CLOSED. OW-RT remains CUT.
     // S3.542: CreateProcessA+Wait+GetExitCode call-site emitted (gated on cwd
-    // yoyo_compiler.exe); PE bytes still None. Next >=10 = first compiler PE bytes
-    // / live compile / M4. Not CLOSED. OW-RT remains CUT.
+    // yoyo_compiler.exe). Not CLOSED. OW-RT remains CUT.
+    // S3.543: yoyo_compiler_pe_bytes=pe_link(exit0) smoke PE; place+CreateProcess
+    // e2e. ≠ R→C→W. Next >=10 = passthrough/write-output compiler PE / M4.
+    // Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -9527,14 +9549,13 @@ mod tests {
     
     
     
-    /// S3.542: call-site emitted in linked DLL; marker present; PE bytes still None;
-    /// without compiler PE, oracle path unchanged (mini RET GREEN).
+    /// S3.542: call-site emitted in linked DLL; marker present;
+    /// without placing compiler PE, oracle path unchanged (mini RET GREEN).
     #[test]
     #[cfg(windows)]
     fn yoyo_createprocess_call_site_emit_pin() {
         assert!(yoyo_createprocess_call_site_emitted());
         assert!(!yoyo_createprocess_call_site_ready());
-        assert!(yoyo_compiler_pe_bytes().is_none());
         assert!(!yoyo_in_dll_createprocess_compiler_ready());
 
         let entries = gate_g_recompile_entries().expect("entries");
@@ -9565,22 +9586,45 @@ mod tests {
     }
 
 
-/// S3.541: compiler PE bytes ABSENT; place fails closed; name frozen.
+/// S3.543: first YOYO-built compiler PE bytes (pe_link exit0 smoke);
+    /// place + CreateProcess path e2e exit 0; ≠ R→C→W (no output from stub).
     #[test]
-    fn yoyo_compiler_pe_bytes_absent_cliff_pin() {
-        assert!(yoyo_compiler_pe_bytes().is_none());
-        let dir = temp_work("s541-compiler-pe");
-        assert!(yoyo_place_compiler_pe(&dir).is_err());
-        assert!(!dir.join(YOYO_COMPILER_PE_NAME).exists());
+    #[cfg(windows)]
+    
+    fn yoyo_compiler_pe_ret_smoke_place_createprocess_pin() {
+        let pe = yoyo_compiler_pe_bytes().expect("S3.543 PE bytes");
+        assert!(pe.len() > 0x200 && pe[0] == b'M' && pe[1] == b'Z');
+        assert!(yoyo_compiler_pe_is_ret_smoke_stub());
         assert!(!yoyo_createprocess_call_site_ready());
         assert!(!yoyo_in_dll_createprocess_compiler_ready());
         assert!(yoyo_in_dll_createprocess_compiler_blockers()
             .iter()
-            .any(|s| s.contains("yoyo_compiler_pe_bytes") || s.contains("None")));
+            .any(|s| s.contains("RET smoke") || s.contains("R→C→W") || s.contains("R->C->W")));
+
+        let dir = temp_work("s543-compiler-smoke");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        assert_eq!(path, dir.join(YOYO_COMPILER_PE_NAME));
+        assert_eq!(std::fs::read(&path).unwrap(), pe);
+
+        let entries = gate_g_recompile_entries().expect("entries");
+        let dll = link_yoyo_in_dll_recompile_dll(&entries).expect("link");
+        // non-TYB input → without compiler PE would fail; with RET smoke → child exit 0
+        std::fs::write(dir.join("input.tyb"), b"not-a-tyb-input").expect("input");
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        assert_eq!(
+            yoyo_sidecar_in_dll_call_time_invoke(&dll, &dir),
+            EXIT_OK,
+            "CreateProcess(exit0 smoke) must return child exit 0"
+        );
+        // honest: smoke stub does not write output.exe
         assert!(
-            include_str!("pe_dll_link.rs").contains("S3.541")
-                && include_str!("pe_dll_link.rs").contains("yoyo_compiler_pe_bytes"),
-            "S3.541 compiler PE ABSENT must stay named"
+            !dir.join(OUTPUT_NAME).exists(),
+            "exit0 smoke must not pretend to compile"
+        );
+        assert!(
+            include_str!("pe_dll_link.rs").contains("S3.543")
+                && include_str!("pe_dll_link.rs").contains("yoyo_compiler_pe_is_ret_smoke_stub"),
+            "S3.543 must stay named"
         );
         let _ = std::fs::remove_dir_all(&dir);
     }
