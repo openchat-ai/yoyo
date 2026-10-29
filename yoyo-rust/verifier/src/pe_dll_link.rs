@@ -576,9 +576,9 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let setret_pe_rel = data.len() as u32;
     data.extend_from_slice(setret_seed);
 
-    // S3.557-559: field-match NOP/GET/INC/ADD — live1; PE still emit-bake
+    // S3.557-560: field-match NOP/GET/INC/ADD/DEC — live1; PE still emit-bake
     let mut fm_pe_meta: Vec<(u8, u32, u32)> = Vec::new(); // (op, pe_off, pe_len)
-    for &op in &[0x00u8, 0x60, 0x66, 0x62] {
+    for &op in &[0x00u8, 0x60, 0x66, 0x62, 0x67] {
         let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
         let pe = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)?.bytes;
         while data.len() % 16 != 0 {
@@ -600,9 +600,11 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let inc_pe_len = fm_pe_meta[2].2;
     let add_pe_off = fm_pe_meta[3].1;
     let add_pe_len = fm_pe_meta[3].2;
+    let dec_pe_off = fm_pe_meta[4].1;
+    let dec_pe_len = fm_pe_meta[4].2;
 
-    // EXTRA skips field-matched ops
-    const EXTRA: [u8; 4] = [0x67, 0x61, 0x64, 0x65];
+    // EXTRA skips field-matched ops (DEC done; SUB/MOV/CMP still memcmp)
+    const EXTRA: [u8; 3] = [0x61, 0x64, 0x65];
 
     // S3.551–555: multi-op chains (2/3/4-op + MOVRR/CMP) beyond single op+RET
     const CHAINS: [&[u8]; 7] = [
@@ -833,6 +835,24 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let jmp_do_write_add = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
+    // S3.560: DEC+RET field-match (op=0x67 argc=1)
+    let try_dec = c.len();
+    c.extend_from_slice(&[0x80, 0x7E, 0x08, 0x67]);
+    let jne_try_extra_notdec = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x80, 0x7E, 0x09, 0x01]);
+    let jne_fail_dec_argc = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x80, 0x7E, 0x10, 0xFF]);
+    let jne_fail_dec_ret = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x49, 0x8D, 0x97]);
+    c.extend_from_slice(&dec_pe_off.to_le_bytes());
+    c.extend_from_slice(&[0x41, 0xB8]);
+    c.extend_from_slice(&dec_pe_len.to_le_bytes());
+    let jmp_do_write_dec = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+
     // extras: memcmp full tyb
     let try_extra = c.len();
     let mut extra_patches: Vec<(usize, usize, usize)> = Vec::new(); // jne1, jne2, jmp_w
@@ -948,12 +968,16 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jcc(&mut c, jne_fail_inc_argc, fail_compile);
     patch_jcc(&mut c, jne_fail_inc_ret, fail_compile);
     patch_jmp(&mut c, jmp_do_write_inc, do_write);
-    patch_jcc(&mut c, jne_try_extra_notadd, try_extra);
+    patch_jcc(&mut c, jne_try_extra_notadd, try_dec);
     patch_jcc(&mut c, jne_fail_add_argc, fail_compile);
     patch_jcc(&mut c, jne_fail_add_slot, fail_compile);
     patch_jcc(&mut c, jne_fail_add_imm, fail_compile);
     patch_jcc(&mut c, jne_fail_add_ret, fail_compile);
     patch_jmp(&mut c, jmp_do_write_add, do_write);
+    patch_jcc(&mut c, jne_try_extra_notdec, try_extra);
+    patch_jcc(&mut c, jne_fail_dec_argc, fail_compile);
+    patch_jcc(&mut c, jne_fail_dec_ret, fail_compile);
+    patch_jmp(&mut c, jmp_do_write_dec, do_write);
     let mut extra_starts: Vec<usize> = Vec::new();
     for &(jne1, _, _) in &extra_patches {
         extra_starts.push(jne1 - 6); // cmp edi,imm32 is 6 bytes
@@ -4308,7 +4332,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.556: child live-compose design (memcmp bake ≠ parse+emit+link).
     // S3.557: live1 field-match NOP+RET (yoyo_live1_c); PE still bake.
     // S3.558: GET+RET field-match.
-    // S3.559: INC+ADD field-match. Next >=10 = DEC/SUB/MOVRR/CMP field-match /
+    // S3.559: INC+ADD field-match.
+    // S3.560: DEC field-match. Next >=10 = SUB/MOVRR/CMP field-match /
     // live emit / M4 flip / OW-RT. Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
@@ -10811,6 +10836,30 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(String::from_utf8_lossy(&yoyo_compiler_pe_bytes().unwrap()).contains("yoyo_live1_c"));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.559"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+
+
+    /// S3.560: DEC+RET field-match (live1); SUB/MOV/CMP still memcmp.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_live1_dec_field_match_pin() {
+        let dir = temp_work("s560-live1-dec");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x67);
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            .expect("emit")
+            .bytes;
+        std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success(), "DEC exit {:?}", st.code());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
+        assert!(include_str!("pe_dll_link.rs").contains("S3.560"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
