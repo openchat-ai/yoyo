@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.587**（586=emit2 CMP disp8；下一刀=emit2 INC/DEC / chains / M4）。
+**默认** 继续 **= S3.588**（587=emit2 INC+DEC；下一刀=emit2 CHAINS field / M4）。
 
 ## 阻塞 / 勿做
 
@@ -159,7 +159,8 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.584** ✅ | 24fccd3 | emit2 ADD+SUB imm-from-TYB widen（alt-imm GREEN） |
 | **S3.585** ✅ | 684fc40 | emit2 GET+MOVRR dst/src disp8 from TYB（alt-slots GREEN） |
 | **S3.586** ✅ | fa43688 | emit2 CMP a/b disp8 from TYB（alt-slots GREEN） |
-| **S3.587** ⏳ | — | **本步**：emit2 INC/DEC / chains / M4 （禁 densify / 假 CLOSED） |
+| **S3.587** ✅ | fc7015e | emit2 INC+DEC slot disp8 from TYB（alt-slot GREEN） |
+| **S3.588** ⏳ | — | **本步**：emit2 CHAINS field / M4 （禁 densify / 假 CLOSED） |
 
 **缺口**：live in-DLL compile **ABSENT**（见 `yoyo_live_in_dll_compile_map`）。生产 flip 仍 ABSENT。bake=362。
 
@@ -195,7 +196,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- 继续 → **S3.587**（emit2 INC/DEC / chains / M4；禁 densify / 假 CLOSED）。S3.586=emit2 CMP。红了记根因停。
+- 继续 → **S3.588**（emit2 CHAINS field / M4；禁 densify / 假 CLOSED）。S3.587=emit2 INC+DEC。红了记根因停。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
