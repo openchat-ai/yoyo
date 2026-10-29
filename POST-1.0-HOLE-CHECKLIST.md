@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.574**（573=emit_x86-in-child cliff；下一刀=emit_x86 seed / M4）。
+**默认** 继续 **= S3.575**（574=emit1 NOP seed；下一刀=emit1 widen / M4）。
 
 ## 阻塞 / 勿做
 
@@ -146,7 +146,8 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.571** ✅ | 814f57b | SET+ADD+SUB / NOP+INC+DEC / SET+MOVRR live2 |
 | **S3.572** ✅ | c8282b2 | all CHAINS multi live2 pe_patch（4-op+CMP+MOV） |
 | **S3.573** ✅ | 61403e8 | emit_x86-in-child cliff（pe_patch≠parse+emit；ready=false） |
-| **S3.574** ⏳ | — | **本步**：emit_x86 seed / M4 （禁 densify / 假 CLOSED） |
+| **S3.574** ✅ | d913d1f | emit1 NOP inline seed（90 C3；yoyo_emit1_c；≠blob） |
+| **S3.575** ⏳ | — | **本步**：emit1 widen / M4 （禁 densify / 假 CLOSED） |
 
 **缺口**：live in-DLL compile **ABSENT**（见 `yoyo_live_in_dll_compile_map`）。生产 flip 仍 ABSENT。bake=362。
 
@@ -182,7 +183,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- 继续 → **S3.574**（emit_x86 seed / M4；禁 densify / 假 CLOSED）。S3.573=emit_x86-in-child cliff。红了记根因停。
+- 继续 → **S3.575**（emit1 widen / M4；禁 densify / 假 CLOSED）。S3.574=emit1 NOP seed。红了记根因停。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
