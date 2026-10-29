@@ -112,11 +112,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.522–525** ✅ | 7c12713 | Gate F mini → sidecar bake → ABSENT cliff → **M1** mutate-after-load |
 | **S3.526–528** ✅ | b6c570a | **M2/M3** H_00+ALT → **M4-prep** flip ABSENT |
 | **S3.529–533** ✅ | 68d7edf | beyond-mini oracle → yoyo.tyb VirtualAlloc → gen4 e2e → live ABSENT cliff → **ALT gate-i** |
-| **S3.534** ✅ | 2efb853 | 近窗收拢 529–533 + `yoyo_live_in_dll_compile_map` |
-| **S3.535** ✅ | 351c2cc | `yoyo_live_compile_slice_ready=false`；densify≠slice；map ABSENT |
-| **S3.536** ✅ | 5beeab3 | 拒羊：slim-cap raise≠live graduation；map 记 CreateProcess 候选 ABSENT |
-| **S3.537** ✅ | 76aa8d9 | CreateProcess YOYO-compiler 实验 ABSENT （blockers；非 CLOSED） |
-| **S3.538** ✅ | 5160946 | in-DLL IAT +CreateProcessA（slot 8）；call sites 仍 ABSENT |
+| **S3.534–538** ✅ | 5160946 | live-compile map → slice_ready=false → sheep-reject → CreateProcess ABSENT → **IAT CreateProcessA** |
 | **S3.539** ⏳ | — | **本步**：CreateProcess call-site / compiler PE 设计 （禁假 CLOSED） |
 
 **缺口**：live in-DLL compile **ABSENT**（见 `yoyo_live_in_dll_compile_map`）。生产 flip 仍 ABSENT。bake=362。

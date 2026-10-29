@@ -3530,6 +3530,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // Not CLOSED. OW-RT remains CUT.
     // S3.538: CreateProcessA added to in-DLL K32 IAT (slot 8); call sites ABSENT.
     // Next >=10 = call-site / compiler PE design / M4 / OW-RT. Not CLOSED. CUT.
+    // S3.539: CreateProcess call-site / compiler PE design (open tip).
+    // Near-window 534–538 folded on board. Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
