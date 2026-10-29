@@ -431,7 +431,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "ALT in-dll-gate-i / gen4 GREEN paths are still oracle lookup, not live emit",
         "production default place_cwd remains Rust (ALT unset)",
         "raising S1_SLIM_MAX_CODE / densify hand-hex ≠ live-compile graduation (sheep)",
-        "CreateProcess compiler PE: fixed10+SET/ADD|GET multi GREEN; yoyo.tyb/full still ABSENT",
+        "CreateProcess compiler PE: fixed10+2/3-op multi GREEN; yoyo.tyb/full still ABSENT",
     ]
 }
 
@@ -553,8 +553,13 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     data.extend_from_slice(setret_seed);
 
     const EXTRA: [u8; 8] = [0x00, 0x60, 0x66, 0x62, 0x67, 0x61, 0x64, 0x65];
-    // S3.551: multi-op beyond single op+RET (SET+ADD / SET+GET + RET)
-    const CHAINS: [&[u8]; 2] = [&[0x30, 0x62], &[0x30, 0x60]];
+    // S3.551/S3.552: multi-op chains (2-op + 3-op) beyond single op+RET
+    const CHAINS: [&[u8]; 4] = [
+        &[0x30, 0x62],       // SET+ADD
+        &[0x30, 0x60],       // SET+GET
+        &[0x30, 0x62, 0x61], // SET+ADD+SUB
+        &[0x00, 0x66, 0x67], // NOP+INC+DEC
+    ];
     let mut extras: Vec<(u32, u32, u32, u32)> = Vec::new();
     let mut bake_row = |tyb: Vec<u8>, extras: &mut Vec<(u32, u32, u32, u32)>, data: &mut Vec<u8>| -> crate::types::IsaResult<()> {
         let pe = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)?.bytes;
@@ -4138,9 +4143,10 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.548: fixed10 op+RET compile-in-child (hand RET/SET + emit extras;
     // marker yoyo_f10_c). S3.549: in-DLL CreateProcess fixed10 smoke.
     // S3.550: M4-prep — fixed10 child GREEN ≠ flip.
-    // S3.551: multi-op SET+ADD/SET+GET+RET emit rows (yoyo_multi_c);
-    // yoyo.tyb/full still ABSENT. Next >=10 = longer chains / yoyo.tyb /
-    // M4 flip / OW-RT. Not CLOSED. OW-RT remains CUT.
+    // S3.551: multi-op SET+ADD/SET+GET+RET emit rows (yoyo_multi_c).
+    // S3.552: longer chains SET+ADD+SUB / NOP+INC+DEC +RET.
+    // yoyo.tyb/full still ABSENT. Next >=10 = yoyo.tyb / M4 flip / OW-RT.
+    // Not CLOSED. OW-RT remains CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -10380,6 +10386,55 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(yoyo_sidecar_in_dll_call_time_invoke(&dll, &dir), EXIT_OK);
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
         assert!(include_str!("pe_dll_link.rs").contains("S3.551"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.552: longer fixed10 chains (3-op + RET) GREEN; yoyo.tyb still ABSENT.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_longer_chain_pin() {
+        let pe = yoyo_compiler_pe_bytes().expect("S3.552");
+        assert!(String::from_utf8_lossy(&pe).contains("yoyo_multi_c"));
+        assert!(!yoyo_m4_production_flip_ready());
+        let dir = temp_work("s552-long");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        let chains: [&[u8]; 2] = [&[0x30, 0x62, 0x61], &[0x00, 0x66, 0x67]];
+        for ops in &chains {
+            let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(ops);
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+                .expect("emit")
+                .bytes;
+            std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+            let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+            let st = std::process::Command::new(&path)
+                .current_dir(&dir)
+                .status()
+                .unwrap();
+            assert!(st.success(), "ops={ops:?} exit {:?}", st.code());
+            assert_eq!(
+                std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
+                expect,
+                "ops={ops:?}"
+            );
+        }
+        // in-DLL SET+ADD+SUB+RET
+        let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x62, 0x61]);
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            .expect("emit")
+            .bytes;
+        std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let entries = gate_g_recompile_entries().expect("e");
+        let dll = link_yoyo_in_dll_recompile_dll(&entries).expect("dll");
+        assert_eq!(yoyo_sidecar_in_dll_call_time_invoke(&dll, &dir), EXIT_OK);
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
+        assert!(
+            yoyo_live_in_dll_compile_map()
+                .iter()
+                .any(|s| s.contains("yoyo.tyb")),
+            "yoyo.tyb cliff still named"
+        );
+        assert!(include_str!("pe_dll_link.rs").contains("S3.552"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
