@@ -535,7 +535,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.632 DONE: in-DLL CreateProcess(yoyo_compiler.exe)+yoyo.tyb GREEN ≡ wide emit; host-mini 1024 ABSENT; ≠ M4",
         "S3.633 cliff: seed_host(yoyo.tyb) ≫≠ child/wide slim RET PE (oracle≠CreateProcess child; full pe_link vs slim)",
         "S3.634 cliff: child-built yoyo.tyb slim PE AV as self-host compiler (0xC0000005); seed_host still runnable Gate I",
-        "today: parse1≈mini +yoyo.tyb child GREEN; slim≠seed_host≠runnable-selfhost; host-mini 1024 / general emit / M4 ABSENT",
+        "S3.635 cliff: seed_host(yoyo.tyb) as raw CreateProcess compiler → EXIT_NO_INPUT(2); child-built AV; Gate I=write-bytes≠run",
+        "today: parse1≈mini +yoyo.tyb child GREEN; neither seed_host nor slim-child is drop-in self-host under child cwd; M4 ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -14988,6 +14989,53 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("592") && s.contains("SET+ADD+SUB+NOP")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.635: seed_host(yoyo.tyb) as raw CreateProcess compiler also ≠ child
+    /// cwd contract — exit EXIT_NO_INPUT(2); child-built AV (S3.634).
+    /// Gate I oracle = write-bytes not run-as-compiler; ready=false; ≠ M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_yoyo_tyb_seed_host_as_compiler_cliff_pin() {
+        assert_eq!(crate::s1_tyb_parser::S1_SLIM_MAX_CODE, 1024);
+        let tyb = std::fs::read(gate_i_yoyo_tyb_path()).expect("yoyo.tyb");
+        let seed = crate::selfhost::seed_host_compile(&tyb).expect("seed_host");
+        let wide = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&tyb)
+            .expect("wide")
+            .bytes;
+        assert!(seed.len() > wide.len() * 4);
+        let dir = temp_work("s635-seed-as-compiler");
+        let seed_exe = dir.join("yoyo_seed_host.exe");
+        std::fs::write(&seed_exe, &seed).unwrap();
+        let tyb_sm = crate::s1_tyb_parser::s3_n_nops_ret_tyb(3);
+        std::fs::write(dir.join("input.tyb"), &tyb_sm).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&seed_exe)
+            .current_dir(&dir)
+            .status()
+            .expect("spawn seed_host PE");
+        assert_eq!(
+            st.code(),
+            Some(EXIT_NO_INPUT),
+            "seed_host as raw compiler → NO_INPUT under child cwd (got {:?})",
+            st.code()
+        );
+        assert!(!dir.join(OUTPUT_NAME).exists());
+        // child-built still AV (S3.634)
+        let child_exe = dir.join("yoyo_child_built.exe");
+        std::fs::write(&child_exe, &wide).unwrap();
+        let st2 = std::process::Command::new(&child_exe)
+            .current_dir(&dir)
+            .status()
+            .expect("spawn child-built");
+        assert_eq!(st2.code(), Some(-1073741819), "child-built still AV");
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("635") && s.contains("seed_host")));
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.635"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
