@@ -4,7 +4,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.621**（620=GET any-slot；下一刀=INC/ADD/… slot>15 / yoyo.tyb / M4）。
+**默认** 继续 **= S3.622**（621=INC/DEC any-slot；下一刀=ADD/SUB/CMP slot>15 / yoyo.tyb / M4）。
 
 | 阻塞 | 说明 |
 | --- | --- |

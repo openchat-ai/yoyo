@@ -2392,6 +2392,14 @@ pub fn s3_get_ret_tyb(dst: u16, src: u16) -> Vec<u8> {
     s3_host_tyb_from_records(&[(0x60, 2, a), (0xFF, 0, [0; 6])])
 }
 
+/// S3.621: INC+RET or DEC+RET TYB. `op`=0x66|0x67; `slot`≤255.
+pub fn s3_incdec_ret_tyb(op: u8, slot: u16) -> Vec<u8> {
+    assert!(op == 0x66 || op == 0x67, "INC/DEC only");
+    let mut a = [0u8; 6];
+    a[0..2].copy_from_slice(&slot.to_le_bytes());
+    s3_host_tyb_from_records(&[(op, 1, a), (0xFF, 0, [0; 6])])
+}
+
 /// S3.602: RAW_BYTE+RET TYB (beyond fixed10). Emits one literal `.text` byte.
 pub fn s3_raw_byte_ret_tyb(byte: u8) -> Vec<u8> {
     let mut a = [0u8; 6];
