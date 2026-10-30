@@ -432,7 +432,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "production default place_cwd remains Rust (ALT unset)",
         "raising S1_SLIM_MAX_CODE / densify hand-hex ≠ live-compile graduation (sheep)",
         "CreateProcess compiler PE: fixed10+all CHAINS multi live2 GREEN; yoyo.tyb/full still ABSENT",
-        "child live compose ABSENT — parse1=…+JMP+CALL+JCC+RAW_BYTES+MCPD+MCPS+STB+ALLOC; emit2 dead; general parse+emit_x86 still ABSENT (S3.582 cliff remains); see design",
+        "child live compose ABSENT — parse1=…+JMP+CALL+JCC+RAW_BYTES+MCPD+MCPS+STB+ALLOC+LOAD; emit2 dead; general parse+emit_x86 still ABSENT (S3.582 cliff remains); see design",
     ]
 }
 
@@ -464,7 +464,7 @@ pub fn yoyo_in_dll_createprocess_compiler_ready() -> bool {
 }
 
 
-/// S3.556–S3.614: design notes for **live compose** inside the child compiler PE.
+/// S3.556–S3.615: design notes for **live compose** inside the child compiler PE.
 ///
 /// Today = parse1 …+JMP/CALL/JCC+label-table. Live = general parse+emit+link.
 /// Non-empty ⇒ slice ABSENT. Clearing ≠ M4 flip / ≠ OW-RT CLOSED. Densify ≠ slice.
@@ -515,8 +515,9 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.612 parse1 DONE: +MEMCPY_STATE 0x85 (n≤4; slots≤15; pair seed loop)",
         "S3.613 parse1 DONE: +STB 0x81 (slots≤15; oo=0/imm8/imm32)",
         "S3.614 parse1 DONE: +ALLOC 0x20 (slim VirtualAlloc prefix+disp32 store)",
-        "today: parse1=…+JMP+CALL+JCC+RAW_BYTES+MCPD+MCPS+STB+ALLOC; emit2 dead; general parse+emit still ABSENT",
-        "live emit of full mini-ISA / yoyo.tyb still ABSENT (LOAD/WRITE/DATA/…)",
+        "S3.615 parse1 DONE: +LOAD_FILE 0x50 (160B slim IAT seed; path+slot poke)",
+        "today: parse1=…+JMP+CALL+JCC+RAW_BYTES+MCPD+MCPS+STB+ALLOC+LOAD; emit2 dead; general parse+emit still ABSENT",
+        "live emit of full mini-ISA / yoyo.tyb still ABSENT (WRITE/DATA/…)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside child .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
         "yoyo.tyb exceeds mini fixed10 ISA — needs host compose / oracle / densify≠",
@@ -1576,6 +1577,9 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x3C, 0x20]); // ALLOC?
     let je_parse1_alloc = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x3C, 0x50]); // LOAD_FILE?
+    let je_parse1_load = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x3C, 0x84]); // MEMCPY_DATA?
     let je_parse1_mcpd = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
@@ -2130,6 +2134,49 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x89, 0x47, 0x25]); // disp32 @+37 (=34+3)
     c.extend_from_slice(&[0x48, 0x83, 0xC7, 0x29]); // rdi += 41
     let jmp_parse1_adv_al = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    // S3.615 LOAD_FILE: argc==2; slot≤255; path<IAT; 160B seed + pokes
+    let parse1_load_lbl = c.len();
+    c.extend_from_slice(&[0x41, 0x80, 0x78, 0x01, 0x02]);
+    let jne_parse1_fail_lf = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x41, 0x0F, 0xB7, 0x40, 0x02]); // slot
+    c.extend_from_slice(&[0x3D, 0x00, 0x01, 0x00, 0x00]);
+    let jae_parse1_fail_lfs = c.len();
+    c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    c.extend_from_slice(&[0x89, 0x44, 0x24, 0x58]); // slot*8
+    c.extend_from_slice(&[0x41, 0x8B, 0x40, 0x04]); // path_off
+    c.extend_from_slice(&[0x3D]);
+    c.extend_from_slice(&crate::s1_tyb_parser::S1_SLIM_IAT_BASE.to_le_bytes());
+    let jae_parse1_fail_lfp = c.len();
+    c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x89, 0x44, 0x24, 0x5C]); // path
+    {
+        let seed = &crate::s1_tyb_parser::S3_LOAD_FILE_BODY_SEED;
+        debug_assert_eq!(seed.len() % 8, 0);
+        let mut off = 0usize;
+        while off < seed.len() {
+            c.extend_from_slice(&[0x48, 0xB8]);
+            c.extend_from_slice(&seed[off..off + 8]);
+            if off == 0 {
+                c.extend_from_slice(&[0x48, 0x89, 0x07]);
+            } else if off < 0x80 {
+                c.extend_from_slice(&[0x48, 0x89, 0x47, off as u8]);
+            } else {
+                c.extend_from_slice(&[0x48, 0x89, 0x87]);
+                c.extend_from_slice(&(off as u32).to_le_bytes());
+            }
+            off += 8;
+        }
+    }
+    // poke path @+9, slot disp @+154
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x5C]);
+    c.extend_from_slice(&[0x89, 0x47, 0x09]);
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x58]);
+    c.extend_from_slice(&[0x89, 0x87, 0x9A, 0x00, 0x00, 0x00]); // @154
+    c.extend_from_slice(&[0x48, 0x81, 0xC7, 0xA0, 0x00, 0x00, 0x00]); // +160
+    let jmp_parse1_adv_lf = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     // S3.611 MEMCPY_DATA: argc==3; slots≤15; 14B seed (src→rsi dst→rdi n→rcx; rep movsb)
     let parse1_mcpd_lbl = c.len();
@@ -3397,6 +3444,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jcc(&mut c, je_parse1_ldb, parse1_ldb_lbl);
     patch_jcc(&mut c, je_parse1_stb, parse1_stb_lbl);
     patch_jcc(&mut c, je_parse1_alloc, parse1_alloc_lbl);
+    patch_jcc(&mut c, je_parse1_load, parse1_load_lbl);
     patch_jcc(&mut c, je_parse1_mcpd, parse1_mcpd_lbl);
     patch_jcc(&mut c, je_parse1_mcps, parse1_mcps_lbl);
     patch_jcc(&mut c, je_parse1_jmp, parse1_jmp_lbl);
@@ -3477,6 +3525,10 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jcc(&mut c, jne_parse1_fail_al, fail_compile);
     patch_jcc(&mut c, jae_parse1_fail_als, fail_compile);
     patch_jmp(&mut c, jmp_parse1_adv_al, parse1_advance);
+    patch_jcc(&mut c, jne_parse1_fail_lf, fail_compile);
+    patch_jcc(&mut c, jae_parse1_fail_lfs, fail_compile);
+    patch_jcc(&mut c, jae_parse1_fail_lfp, fail_compile);
+    patch_jmp(&mut c, jmp_parse1_adv_lf, parse1_advance);
     patch_jcc(&mut c, jne_parse1_fail_md, fail_compile);
     patch_jcc(&mut c, ja_parse1_fail_mdd, fail_compile);
     patch_jcc(&mut c, ja_parse1_fail_mds, fail_compile);
@@ -7094,7 +7146,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.612: parse1 +MEMCPY_STATE 0x85 (n≤4; slots≤15; pair seed loop).
     // S3.613: parse1 +STB 0x81 (slots≤15; oo=0/imm8/imm32).
     // S3.614: parse1 +ALLOC 0x20 (slim VirtualAlloc prefix+disp32 store).
-    // Next >=10 = LOAD/WRITE / DATA / yoyo.tyb / M4 / OW-RT. Not CLOSED. CUT.
+    // S3.615: parse1 +LOAD_FILE 0x50 (160B slim IAT seed; path+slot poke).
+    // Next >=10 = WRITE / DATA / yoyo.tyb / M4 / OW-RT. Not CLOSED. CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -14364,6 +14417,45 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("592") && s.contains("SET+ADD+SUB+NOP")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.615: parse1 +LOAD_FILE; 160B slim seed path+slot poke GREEN; ready=false.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_parse1_load_file_beyond_fixed10_pin() {
+        let pe = yoyo_compiler_pe_bytes().expect("S3.615");
+        assert!(String::from_utf8_lossy(&pe).contains("yoyo_parse1_c"));
+        let dir = temp_work("s615-parse1-load");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        for &(slot, path_off) in &[(0u16, 0u32), (1u16, 0x40u32), (16u16, 0x100u32)] {
+            let tyb = crate::s1_tyb_parser::s3_load_file_ret_tyb(slot, path_off);
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+                .expect("emit load")
+                .bytes;
+            std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+            let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+            let st = std::process::Command::new(&path)
+                .current_dir(&dir)
+                .status()
+                .unwrap();
+            assert!(
+                st.success(),
+                "parse1 LOAD_FILE slot={slot} path={path_off:#x} exit {:?}",
+                st.code()
+            );
+            assert_eq!(
+                std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
+                expect,
+                "parse1 LOAD_FILE slot={slot} path={path_off:#x}"
+            );
+        }
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("615") && s.contains("LOAD_FILE")));
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.615"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
