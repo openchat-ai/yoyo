@@ -569,6 +569,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "compiled-yoyo.tyb via pe_link raw-runs → NO_INPUT under child cwd (S3.635/636) — contract≠",
         "raising S1_SLIM_MAX_CODE / baking seed_host blob ≠ pe_link-in-child (sheep)",
         "S3.642 next: child 3nop→pe_link shape requires retargeting mini_emit expects (S3.641 smoke); ≠ densify",
+        "S3.643: link_emit(3nop)≈225KiB — baking into child = sheep; need minimal pe_link or in-child linker, not seed blob",
     ]
 }
 
@@ -15016,17 +15017,6 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
         let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    /// DIAG S643: measure link_emit(3nop) PE len for bake.
-    #[test]
-    #[cfg(windows)]
-    fn yoyo_s643_link3_len_diag() {
-        let tyb = crate::s1_tyb_parser::s3_n_nops_ret_tyb(3);
-        let linked = crate::s1_tyb_parser::compile_tyb_to_pe_link_emit(&tyb)
-            .expect("link")
-            .bytes;
-        panic!("DIAG link3_len={} tyb_len={}", linked.len(), tyb.len());
     }
 
     /// S3.642: host `compile_tyb_to_pe_link_emit` API GREEN for 3nop;
