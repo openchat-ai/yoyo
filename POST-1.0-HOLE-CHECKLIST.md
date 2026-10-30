@@ -4,7 +4,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.619**（618=parse1≈mini cliff；下一刀=slot>15 lift / yoyo.tyb / M4）。
+**默认** 继续 **= S3.620**（619=SET any-slot；下一刀=other-ops slot>15 / yoyo.tyb / M4）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -38,9 +38,10 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3.606–608** ✅ | `c371eef` | JMP cliff→+JMP/+CALL label table |
 | **S3.609–617** ✅ | `7cb45c2` | parse1 mini 主路径：JCC→RAW_BYTES→MCP→STB→ALLOC→LOAD/WRITE→DATA |
 | **S3.618** ✅ | `7a5f435` | parse1≈mini cliff；yoyo.tyb 仍 ABSENT |
-| **S3.619** ⏳ | — | **本步**：slot>15 lift / yoyo.tyb / M4 |
+| **S3.619** ✅ | — | parse1 SET slot≤255 (disp8\|disp32) |
+| **S3.620** ⏳ | — | **本步**：other-ops slot>15 / yoyo.tyb / M4 |
 
-**缺口**：slot>15·disp32 / yoyo.tyb / M4 flip / general emit_x86 仍 **ABSENT**。`ready=false`。bake=362。
+**缺口**：other-ops slot>15·disp32 / yoyo.tyb / M4 flip / general emit_x86 仍 **ABSENT**。`ready=false`。bake=362。
 
 ---
 
@@ -57,7 +58,7 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 
 ## 对 AI
 
-- 继续 → **S3.619**（slot>15 lift；禁 densify / 假 CLOSED）。S3.618=cliff。红了记根因停。
+- 继续 → **S3.620**（other-ops slot>15；禁 densify / 假 CLOSED）。S3.619=SET any-slot。红了记根因停。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---

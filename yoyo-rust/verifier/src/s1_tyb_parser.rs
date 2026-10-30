@@ -2376,6 +2376,14 @@ pub fn s3_aluv_ret_tyb(op: u8, dst: u16, src: u16) -> Vec<u8> {
     s3_host_tyb_from_records(&[(op, 2, a), (0xFF, 0, [0; 6])])
 }
 
+/// S3.619: SET+RET TYB. `slot`≤255; imm32. Exercises parse1 disp8|disp32 store.
+pub fn s3_set_ret_tyb(slot: u16, imm: u32) -> Vec<u8> {
+    let mut a = [0u8; 6];
+    a[0..2].copy_from_slice(&slot.to_le_bytes());
+    a[2..6].copy_from_slice(&imm.to_le_bytes());
+    s3_host_tyb_from_records(&[(0x30, 2, a), (0xFF, 0, [0; 6])])
+}
+
 /// S3.602: RAW_BYTE+RET TYB (beyond fixed10). Emits one literal `.text` byte.
 pub fn s3_raw_byte_ret_tyb(byte: u8) -> Vec<u8> {
     let mut a = [0u8; 6];

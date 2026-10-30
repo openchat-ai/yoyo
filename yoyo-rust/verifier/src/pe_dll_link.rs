@@ -464,7 +464,7 @@ pub fn yoyo_in_dll_createprocess_compiler_ready() -> bool {
 }
 
 
-/// S3.556–S3.618: design notes for **live compose** inside the child compiler PE.
+/// S3.556–S3.619: design notes for **live compose** inside the child compiler PE.
 ///
 /// Today = parse1 …+JMP/CALL/JCC+label-table. Live = general parse+emit+link.
 /// Non-empty ⇒ slice ABSENT. Clearing ≠ M4 flip / ≠ OW-RT CLOSED. Densify ≠ slice.
@@ -519,8 +519,10 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.616 parse1 DONE: +WRITE_FILE 0x51 (139B slim IAT seed; argc=2|3)",
         "S3.617 parse1 DONE: +DATA/STR/RAW 0x10/12/13 (≤384B → .data @0xA00)",
         "S3.618 cliff: parse1≈mini GREEN; yoyo.tyb still ABSENT (exceeds mini/slot limits)",
-        "today: parse1≈mini (knife-limits); yoyo.tyb/M4 ABSENT; general emit still ABSENT",
-        "live emit of yoyo.tyb / beyond-mini still ABSENT (slot>15·disp32 mix·full compose)",
+        "S3.619 parse1 DONE: SET slot≤255 (disp8|disp32 store)",
+        "S3.620 parse1 DONE: GET/MOVRR slot≤255 (disp8|disp32 load+store)",
+        "today: parse1≈mini +SET/GET any-slot; yoyo.tyb/M4 ABSENT; general emit still ABSENT",
+        "live emit of yoyo.tyb / beyond-mini still ABSENT (other-ops slot>15·full compose)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside child .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
         "yoyo.tyb exceeds mini ISA — needs host compose / oracle / densify≠",
@@ -1702,15 +1704,15 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x48, 0x83, 0xC7, 0x08]);
     let jmp_parse1_adv_g = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-    // SET: 48 B8 imm64 / 49 89 47 SS (14B)
+    // S3.619 SET: slot≤255; 48 B8 imm64 + store disp8(14B) / disp32(17B)
     let parse1_set_lbl = c.len();
     c.extend_from_slice(&[0x41, 0x80, 0x78, 0x01, 0x02]);
     let jne_parse1_fail_sa = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x41, 0x0F, 0xB7, 0x40, 0x02]); // slot
-    c.extend_from_slice(&[0x83, 0xF8, 0x0F]);
-    let ja_parse1_fail_ss = c.len();
-    c.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x3D, 0x00, 0x01, 0x00, 0x00]); // cmp eax, 256
+    let jae_parse1_fail_ss = c.len();
+    c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
     c.extend_from_slice(&[0xC1, 0xE0, 0x03]);
     c.extend_from_slice(&[0x89, 0x44, 0x24, 0x58]); // disp
     c.extend_from_slice(&[0x41, 0x8B, 0x40, 0x04]); // imm32
@@ -1720,11 +1722,24 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xC6, 0x47, 0x01, 0xB8]);
     c.extend_from_slice(&[0x48, 0x8B, 0x44, 0x24, 0x5C]); // rax = imm64
     c.extend_from_slice(&[0x48, 0x89, 0x47, 0x02]); // store imm at [rdi+2]
+    // cmp disp, 0x80 — must be imm32 (81 /7); 83 sign-extends 0x80→−128
+    c.extend_from_slice(&[0x81, 0x7C, 0x24, 0x58, 0x80, 0x00, 0x00, 0x00]);
+    let jae_parse1_set_d32 = c.len();
+    c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    // disp8: 49 89 47 SS (14B total)
     c.extend_from_slice(&[0xC7, 0x47, 0x0A, 0x49, 0x89, 0x47, 0x00]);
     c.extend_from_slice(&[0x8A, 0x44, 0x24, 0x58]);
     c.extend_from_slice(&[0x88, 0x47, 0x0D]); // SS @+13
     c.extend_from_slice(&[0x48, 0x83, 0xC7, 0x0E]); // add rdi, 14
     let jmp_parse1_adv_s = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let parse1_set_d32_lbl = c.len();
+    // disp32: 49 89 87 disp32 (17B total)
+    c.extend_from_slice(&[0xC7, 0x47, 0x0A, 0x49, 0x89, 0x87, 0x00]);
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x58]);
+    c.extend_from_slice(&[0x89, 0x47, 0x0D]); // disp @+13
+    c.extend_from_slice(&[0x48, 0x83, 0xC7, 0x11]); // add rdi, 17
+    let jmp_parse1_adv_s32 = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     // ADD: 49 8B 47 SS / 48 81 C0 imm32 / 49 89 47 SS (15B)
     let parse1_add_lbl = c.len();
@@ -3545,7 +3560,8 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jcc(&mut c, jne_fail_sr_cnt, fail_compile);
     patch_jcc(&mut c, jne_try_extra_notset, try_nop);
     patch_jcc(&mut c, jne_fail_sr_argc, fail_compile);
-    patch_jcc(&mut c, jne_fail_sr_slot, fail_compile);
+    // S3.619: SET+RET slot≠0 → parse1 (any-slot); was fail_compile
+    patch_jcc(&mut c, jne_fail_sr_slot, parse1);
     patch_jcc(&mut c, jne_fail_sr_ret, fail_compile);
     // S3.599: singles → parse1 (emit2 single bodies kept dead)
     patch_jmp(&mut c, jmp_emit2_set, parse1);
@@ -3605,8 +3621,10 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jcc(&mut c, ja_parse1_fail_gs, fail_compile);
     patch_jmp(&mut c, jmp_parse1_adv_g, parse1_advance);
     patch_jcc(&mut c, jne_parse1_fail_sa, fail_compile);
-    patch_jcc(&mut c, ja_parse1_fail_ss, fail_compile);
+    patch_jcc(&mut c, jae_parse1_fail_ss, fail_compile);
+    patch_jcc(&mut c, jae_parse1_set_d32, parse1_set_d32_lbl);
     patch_jmp(&mut c, jmp_parse1_adv_s, parse1_advance);
+    patch_jmp(&mut c, jmp_parse1_adv_s32, parse1_advance);
     patch_jcc(&mut c, jne_parse1_fail_aa, fail_compile);
     patch_jcc(&mut c, ja_parse1_fail_as, fail_compile);
     patch_jmp(&mut c, jmp_parse1_adv_a, parse1_advance);
@@ -7304,7 +7322,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.616: parse1 +WRITE_FILE 0x51 (139B slim IAT seed; argc=2|3).
     // S3.617: parse1 +DATA/STR/RAW 0x10/12/13 (≤384B → .data @0xA00).
     // S3.618: parse1≈mini cliff named — yoyo.tyb still ABSENT (≠ OW CLOSED).
-    // Next >=10 = slot>15 lift / yoyo.tyb / M4 / OW-RT. Not CLOSED. CUT.
+    // S3.619: parse1 SET slot≤255 (disp8|disp32).
+    // S3.620: parse1 GET/MOVRR slot≤255 (disp8|disp32 load+store).
+    // Next >=10 = INC/ADD/… slot>15 / yoyo.tyb / M4 / OW-RT. Not CLOSED. CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -14574,6 +14594,45 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("592") && s.contains("SET+ADD+SUB+NOP")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.619: parse1 SET slot≤255; disp8 + disp32 GREEN; ready=false.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_parse1_set_any_slot_pin() {
+        let pe = yoyo_compiler_pe_bytes().expect("S3.619");
+        assert!(String::from_utf8_lossy(&pe).contains("yoyo_parse1_c"));
+        let dir = temp_work("s619-parse1-set");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        for &(slot, imm) in &[(0u16, 0x11u32), (15u16, 0x22), (16u16, 0x33), (255u16, 0x44)] {
+            let tyb = crate::s1_tyb_parser::s3_set_ret_tyb(slot, imm);
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+                .expect("emit set")
+                .bytes;
+            std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+            let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+            let st = std::process::Command::new(&path)
+                .current_dir(&dir)
+                .status()
+                .unwrap();
+            assert!(
+                st.success(),
+                "parse1 SET slot={slot} imm={imm:#x} exit {:?}",
+                st.code()
+            );
+            assert_eq!(
+                std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
+                expect,
+                "parse1 SET slot={slot}"
+            );
+        }
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("619") && s.contains("SET")));
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.619"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
