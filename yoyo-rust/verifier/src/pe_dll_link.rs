@@ -567,6 +567,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "Win32 PE headers/sections/IAT construction ABSENT in child .text",
         "compiled-yoyo.tyb via pe_link raw-runs → NO_INPUT under child cwd (S3.635/636) — contract≠",
         "raising S1_SLIM_MAX_CODE / baking seed_host blob ≠ pe_link-in-child (sheep)",
+        "S3.642 next: child 3nop→pe_link shape requires retargeting mini_emit expects (S3.641 smoke); ≠ densify",
     ]
 }
 
