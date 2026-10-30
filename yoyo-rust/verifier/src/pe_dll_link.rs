@@ -425,9 +425,9 @@ pub fn yoyo_m4_production_flip_ready() -> bool {
 /// Non-empty ⇒ M4 production flip stays ABSENT. Clearing entries ≠ OW-RT CLOSED.
 pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
     &[
-        "yoyo.tyb child+in-DLL CreateProcess GREEN (S3.631/632); seed_host≠wide (S3.633); host-mini 1024 ABSENT; M4/oracle≠live",
-        "beyond-mini overflow TYB fails mini; today served only via oracle→seed_host",
-        "in-DLL export has no seed_host/bootstrap_compile machine at call-time (CreateProcess child ≠ in-DLL emit)",
+        "yoyo.tyb child+CreateProcess GREEN (S3.631/632/638); seed_host≠wide (S3.633); host-mini 1024 ABSENT; M4/oracle≠live-emit",
+        "beyond-mini overflow TYB fails mini; without compiler PE still oracle→seed_host only",
+        "in-DLL emit of yoyo.tyb ABSENT (CreateProcess child ≠ export emit_x86); host-mini 1024",
         "ALT in-dll-gate-i / gen4 GREEN paths are still oracle lookup, not live emit",
         "production default place_cwd remains Rust (ALT unset)",
         "raising S1_SLIM_MAX_CODE / densify hand-hex ≠ live-compile graduation (sheep)",
@@ -539,7 +539,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.636 cliff: pe_link(executor(yoyo.tyb))≡seed_host; both raw→NO_INPUT; drop-in self-host needs H_00/gen4 not child-cwd",
         "S3.637 DONE: H_00+in-DLL 3nop GREEN; compiled-yoyo.tyb PE same cwd → NO_INPUT (driver≠child-cwd contract)",
         "S3.638 DONE: default-oracle in-DLL recompile + placed compiler + yoyo.tyb GREEN via CreateProcess (no oracle bake)",
-        "today: parse1/CreateProcess yoyo.tyb GREEN; H_00 driver GREEN; compiled-yoyo ≠ drop-in; host-mini/M4 ABSENT",
+        "S3.639 cliff: live in-DLL emit ABSENT — CreateProcess GREEN ≠ export emit_x86; no-compiler-PE still fail-closed",
+        "today: CreateProcess yoyo.tyb GREEN; live emit ABSENT; host-mini 1024 / M4 ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -14993,6 +14994,45 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.639: live in-DLL emit ABSENT cliff — CreateProcess(yoyo.tyb) GREEN
+    /// (S3.638) ≠ export emit_x86; without compiler PE, default-oracle still
+    /// fail-closed (S3.532). Host-mini 1024; ready=false; ≠ M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_live_in_dll_emit_absent_createprocess_ne_emit_cliff_pin() {
+        assert_eq!(crate::s1_tyb_parser::S1_SLIM_MAX_CODE, 1024);
+        let tyb = std::fs::read(gate_i_yoyo_tyb_path()).expect("yoyo.tyb");
+        assert!(
+            crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb).is_err(),
+            "host mini still fails"
+        );
+        // without compiler PE: default oracle omit → fail (S3.532)
+        let dir = temp_work("s639-no-compiler");
+        std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+        assert_eq!(
+            yoyo_sidecar_in_dll_recompile(&dir),
+            EXIT_COMPILE_FAIL,
+            "no compiler PE → fail-closed"
+        );
+        assert!(!dir.join(OUTPUT_NAME).exists());
+        // with compiler PE: CreateProcess GREEN — but map still names emit ABSENT
+        let dir2 = temp_work("s639-with-compiler");
+        let _ = yoyo_place_compiler_pe(&dir2).expect("place");
+        std::fs::write(dir2.join("input.tyb"), &tyb).unwrap();
+        assert_eq!(yoyo_sidecar_in_dll_recompile(&dir2), EXIT_OK);
+        assert!(yoyo_live_in_dll_compile_map()
+            .iter()
+            .any(|s| s.contains("emit") && s.contains("ABSENT")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.639")));
+        assert!(!yoyo_live_compile_slice_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.639"));
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&dir2);
     }
 
     /// S3.638: default-oracle in-DLL recompile + placed yoyo_compiler.exe +
