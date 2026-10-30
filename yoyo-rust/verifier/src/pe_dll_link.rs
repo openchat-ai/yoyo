@@ -432,7 +432,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "production default place_cwd remains Rust (ALT unset)",
         "raising S1_SLIM_MAX_CODE / densify hand-hex ≠ live-compile graduation (sheep)",
         "CreateProcess compiler PE: fixed10+all CHAINS multi live2 GREEN; yoyo.tyb/full still ABSENT",
-        "child live compose ABSENT — parse1=…+JMP+CALL+JCC; emit2 dead; general parse+emit_x86 still ABSENT (S3.582 cliff remains); see design",
+        "child live compose ABSENT — parse1=…+JMP+CALL+JCC+RAW_BYTES; emit2 dead; general parse+emit_x86 still ABSENT (S3.582 cliff remains); see design",
     ]
 }
 
@@ -464,7 +464,7 @@ pub fn yoyo_in_dll_createprocess_compiler_ready() -> bool {
 }
 
 
-/// S3.556–S3.609: design notes for **live compose** inside the child compiler PE.
+/// S3.556–S3.610: design notes for **live compose** inside the child compiler PE.
 ///
 /// Today = parse1 …+JMP/CALL/JCC+label-table. Live = general parse+emit+link.
 /// Non-empty ⇒ slice ABSENT. Clearing ≠ M4 flip / ≠ OW-RT CLOSED. Densify ≠ slice.
@@ -510,7 +510,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.607 parse1 DONE: +JMP + label table (scratch VA; back-edge+forward-ref)",
         "S3.608 parse1 DONE: +CALL (E8; share label/patch table)",
         "S3.609 parse1 DONE: +JCC 0x71..=0x7A (0F cc rel32; share table)",
-        "today: parse1=…+JMP+CALL+JCC; emit2 dead; general parse+emit still ABSENT",
+        "S3.610 parse1 DONE: +RAW_BYTES 0xA1 (argc≤3 low-bytes → .text)",
+        "today: parse1=…+JMP+CALL+JCC+RAW_BYTES; emit2 dead; general parse+emit still ABSENT",
         "live emit of full mini-ISA / yoyo.tyb still ABSENT (ALLOC/LOAD/WRITE/…)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside child .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -1556,6 +1557,9 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x3C, 0xA0]); // RAW_BYTE?
     let je_parse1_rawb = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x3C, 0xA1]); // RAW_BYTES?
+    let je_parse1_raws = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x3C, 0x40]); // LABEL?
     let je_parse1_label = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
@@ -1847,6 +1851,32 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x88, 0x07]); // mov [rdi], al
     c.extend_from_slice(&[0x48, 0xFF, 0xC7]); // inc rdi
     let jmp_parse1_adv_rb = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    // S3.610 RAW_BYTES: argc≤3; emit low-bytes of args[0..argc) to .text
+    let parse1_raws_lbl = c.len();
+    c.extend_from_slice(&[0x41, 0x0F, 0xB6, 0x40, 0x01]); // movzx eax,[r8+1]
+    c.extend_from_slice(&[0x83, 0xF8, 0x03]);
+    let ja_parse1_fail_rs = c.len();
+    c.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]); // ja fail (argc>3)
+    c.extend_from_slice(&[0x85, 0xC0]);
+    let jz_parse1_adv_rs = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]); // jz advance (argc==0)
+    c.extend_from_slice(&[0x41, 0x8A, 0x50, 0x02]); // dl=[r8+2]
+    c.extend_from_slice(&[0x88, 0x17]);
+    c.extend_from_slice(&[0x48, 0xFF, 0xC7]);
+    c.extend_from_slice(&[0x83, 0xF8, 0x01]);
+    let jbe_parse1_adv_rs1 = c.len();
+    c.extend_from_slice(&[0x0F, 0x86, 0, 0, 0, 0]); // jbe advance
+    c.extend_from_slice(&[0x41, 0x8A, 0x50, 0x04]); // dl=[r8+4]
+    c.extend_from_slice(&[0x88, 0x17]);
+    c.extend_from_slice(&[0x48, 0xFF, 0xC7]);
+    c.extend_from_slice(&[0x83, 0xF8, 0x02]);
+    let jbe_parse1_adv_rs2 = c.len();
+    c.extend_from_slice(&[0x0F, 0x86, 0, 0, 0, 0]); // jbe advance
+    c.extend_from_slice(&[0x41, 0x8A, 0x50, 0x06]); // dl=[r8+6]
+    c.extend_from_slice(&[0x88, 0x17]);
+    c.extend_from_slice(&[0x48, 0xFF, 0xC7]);
+    let jmp_parse1_adv_rs = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     // S3.603/607 LABEL: argc==1; record (id,off) in scratch; no .text
     let parse1_label_lbl = c.len();
@@ -3151,6 +3181,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jcc(&mut c, je_parse1_orv, parse1_aluv_lbl);
     patch_jcc(&mut c, je_parse1_subv, parse1_aluv_lbl);
     patch_jcc(&mut c, je_parse1_rawb, parse1_rawb_lbl);
+    patch_jcc(&mut c, je_parse1_raws, parse1_raws_lbl);
     patch_jcc(&mut c, je_parse1_label, parse1_label_lbl);
     patch_jcc(&mut c, je_parse1_ldb, parse1_ldb_lbl);
     patch_jcc(&mut c, je_parse1_jmp, parse1_jmp_lbl);
@@ -3198,6 +3229,11 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jmp(&mut c, jmp_parse1_adv_v, parse1_advance);
     patch_jcc(&mut c, jne_parse1_fail_rb, fail_compile);
     patch_jmp(&mut c, jmp_parse1_adv_rb, parse1_advance);
+    patch_jcc(&mut c, ja_parse1_fail_rs, fail_compile);
+    patch_jcc(&mut c, jz_parse1_adv_rs, parse1_advance);
+    patch_jcc(&mut c, jbe_parse1_adv_rs1, parse1_advance);
+    patch_jcc(&mut c, jbe_parse1_adv_rs2, parse1_advance);
+    patch_jmp(&mut c, jmp_parse1_adv_rs, parse1_advance);
     patch_jcc(&mut c, jne_parse1_fail_lb, fail_compile);
     patch_jcc(&mut c, jae_parse1_fail_lbf, fail_compile);
     patch_jmp(&mut c, jmp_parse1_adv_lb, parse1_advance);
@@ -6813,7 +6849,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.607: parse1 +JMP + label table (scratch VA; back-edge+forward-ref).
     // S3.608: parse1 +CALL (E8; share label/patch table).
     // S3.609: parse1 +JCC 0x71..=0x7A (share label/patch table).
-    // Next >=10 = RAW_BYTES / ALLOC / yoyo.tyb / M4 / OW-RT. Not CLOSED. CUT.
+    // S3.610: parse1 +RAW_BYTES 0xA1 (argc≤3 low-bytes → .text).
+    // Next >=10 = ALLOC/LOAD/WRITE / MEMCPY / DATA / yoyo.tyb / M4 / OW-RT. Not CLOSED. CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -14083,6 +14120,47 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("592") && s.contains("SET+ADD+SUB+NOP")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.610: parse1 +RAW_BYTES; argc 1..=3 low-bytes‖C3 GREEN; ready=false.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_parse1_raw_bytes_beyond_fixed10_pin() {
+        let pe = yoyo_compiler_pe_bytes().expect("S3.610");
+        assert!(String::from_utf8_lossy(&pe).contains("yoyo_parse1_c"));
+        let dir = temp_work("s610-parse1-raws");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        for bytes in [&[0x90u8][..], &[0x90, 0x90][..], &[0xCC, 0xDD, 0xEE][..]] {
+            let tyb = crate::s1_tyb_parser::s3_raw_bytes_ret_tyb(bytes);
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+                .expect("emit raws")
+                .bytes;
+            std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+            let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+            let st = std::process::Command::new(&path)
+                .current_dir(&dir)
+                .status()
+                .unwrap();
+            assert!(
+                st.success(),
+                "parse1 RAW_BYTES argc={} exit {:?}",
+                bytes.len(),
+                st.code()
+            );
+            assert_eq!(
+                std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
+                expect,
+                "parse1 RAW_BYTES {:?}",
+                bytes
+            );
+        }
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("610") && s.contains("RAW_BYTES")));
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.610"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

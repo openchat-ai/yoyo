@@ -2383,6 +2383,16 @@ pub fn s3_raw_byte_ret_tyb(byte: u8) -> Vec<u8> {
     s3_host_tyb_from_records(&[(0xA0, 1, a), (0xFF, 0, [0; 6])])
 }
 
+/// S3.610: RAW_BYTES+RET TYB (beyond fixed10). `bytes.len()` in 1..=3; low-bytes‖C3.
+pub fn s3_raw_bytes_ret_tyb(bytes: &[u8]) -> Vec<u8> {
+    assert!((1..=3).contains(&bytes.len()), "RAW_BYTES argc 1..=3");
+    let mut a = [0u8; 6];
+    for (k, &b) in bytes.iter().enumerate() {
+        a[k * 2] = b;
+    }
+    s3_host_tyb_from_records(&[(0xA1, bytes.len() as u8, a), (0xFF, 0, [0; 6])])
+}
+
 /// S3.606: LABEL + NOP + JMP(same id) + RET — exercises parse1 label table.
 pub fn s3_label_nop_jmp_ret_tyb(label_id: u32) -> Vec<u8> {
     let mut a = [0u8; 6];
