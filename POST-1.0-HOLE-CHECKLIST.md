@@ -4,7 +4,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.612**（611=parse1 +MEMCPY_DATA；下一刀=MEMCPY_STATE / STB / ALLOC / yoyo.tyb / M4）。
+**默认** 继续 **= S3.613**（612=parse1 +MEMCPY_STATE；下一刀=STB / ALLOC / DATA / yoyo.tyb / M4）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -41,9 +41,10 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3.609** ✅ | `46d4e75` | parse1 +JCC 0x71..=0x7A（0F cc share table） |
 | **S3.610** ✅ | `7d66040` | parse1 +RAW_BYTES 0xA1（argc≤3 low-bytes） |
 | **S3.611** ✅ | `0ef3bfa` | parse1 +MEMCPY_DATA 0x84（slots≤15 seed） |
-| **S3.612** ⏳ | — | **本步**：MEMCPY_STATE / STB / ALLOC / yoyo.tyb / M4 |
+| **S3.612** ✅ | `49a8743` | parse1 +MEMCPY_STATE 0x85（n≤4 pair loop） |
+| **S3.613** ⏳ | — | **本步**：STB / ALLOC / DATA / yoyo.tyb / M4 |
 
-**缺口**：MEMCPY_STATE·STB / ALLOC·LOAD·WRITE / DATA / yoyo.tyb / M4 flip 仍 **ABSENT**。`ready=false`。bake=362。
+**缺口**：STB / ALLOC·LOAD·WRITE / DATA / yoyo.tyb / M4 flip 仍 **ABSENT**。`ready=false`。bake=362。
 
 ---
 
@@ -60,7 +61,7 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 
 ## 对 AI
 
-- 继续 → **S3.612**（MEMCPY_STATE；禁 densify / 假 CLOSED）。S3.611=MCPD。红了记根因停。
+- 继续 → **S3.613**（STB；禁 densify / 假 CLOSED）。S3.612=MCPS。红了记根因停。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
