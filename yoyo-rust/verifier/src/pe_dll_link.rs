@@ -1678,32 +1678,63 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x48, 0x83, 0xC7, 0x0B]);
     let jmp_parse1_adv_d = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-    // GET/MOVRR: 49 8B 47 SS_src / 49 89 47 SS_dst (8B)
+    // S3.620 GET/MOVRR: slots≤255; load+store each disp8|disp32 (8/11/14B)
     let parse1_get_lbl = c.len();
     c.extend_from_slice(&[0x41, 0x80, 0x78, 0x01, 0x02]); // argc==2
     let jne_parse1_fail_ga = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x41, 0x0F, 0xB7, 0x40, 0x02]); // dst
-    c.extend_from_slice(&[0x83, 0xF8, 0x0F]);
-    let ja_parse1_fail_gd = c.len();
-    c.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x3D, 0x00, 0x01, 0x00, 0x00]); // cmp eax, 256
+    let jae_parse1_fail_gd = c.len();
+    c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
     c.extend_from_slice(&[0xC1, 0xE0, 0x03]);
     c.extend_from_slice(&[0x89, 0x44, 0x24, 0x58]); // [rsp+0x58]=dst disp
     c.extend_from_slice(&[0x41, 0x0F, 0xB7, 0x40, 0x04]); // src
-    c.extend_from_slice(&[0x83, 0xF8, 0x0F]);
-    let ja_parse1_fail_gs = c.len();
-    c.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x3D, 0x00, 0x01, 0x00, 0x00]);
+    let jae_parse1_fail_gs = c.len();
+    c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
     c.extend_from_slice(&[0xC1, 0xE0, 0x03]);
     c.extend_from_slice(&[0x89, 0x44, 0x24, 0x5C]); // [rsp+0x5C]=src disp
-    c.extend_from_slice(&[0x48, 0xB8, 0x49, 0x8B, 0x47, 0x00, 0x49, 0x89, 0x47, 0x00]);
-    c.extend_from_slice(&[0x48, 0x89, 0x07]);
+    // --- load src ---
+    c.extend_from_slice(&[0x81, 0x7C, 0x24, 0x5C, 0x80, 0x00, 0x00, 0x00]); // cmp src, 0x80
+    let jae_parse1_get_ld32 = c.len();
+    c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    // load disp8: 49 8B 47 SS
+    c.extend_from_slice(&[0xC7, 0x07, 0x49, 0x8B, 0x47, 0x00]);
     c.extend_from_slice(&[0x8A, 0x44, 0x24, 0x5C]);
-    c.extend_from_slice(&[0x88, 0x47, 0x03]); // SS_src @+3
+    c.extend_from_slice(&[0x88, 0x47, 0x03]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC7, 0x04]);
+    let jmp_parse1_get_store = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let parse1_get_ld32_lbl = c.len();
+    // load disp32: 49 8B 87 d32
+    c.extend_from_slice(&[0xC7, 0x07, 0x49, 0x8B, 0x87, 0x00]);
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x5C]);
+    c.extend_from_slice(&[0x89, 0x47, 0x03]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC7, 0x07]);
+    // --- store dst ---
+    let parse1_get_store_lbl = c.len();
+    c.extend_from_slice(&[0x81, 0x7C, 0x24, 0x58, 0x80, 0x00, 0x00, 0x00]); // cmp dst, 0x80
+    let jae_parse1_get_st32 = c.len();
+    c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    // store disp8: 49 89 47 SS
+    c.extend_from_slice(&[0xC7, 0x07, 0x49, 0x89, 0x47, 0x00]);
     c.extend_from_slice(&[0x8A, 0x44, 0x24, 0x58]);
-    c.extend_from_slice(&[0x88, 0x47, 0x07]); // SS_dst @+7
-    c.extend_from_slice(&[0x48, 0x83, 0xC7, 0x08]);
+    c.extend_from_slice(&[0x88, 0x47, 0x03]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC7, 0x04]);
     let jmp_parse1_adv_g = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let parse1_get_st32_lbl = c.len();
+    // store disp32: 49 89 87 d32
+    c.extend_from_slice(&[0xC7, 0x07, 0x49, 0x89, 0x87, 0x00]);
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x58]);
+    c.extend_from_slice(&[0x89, 0x47, 0x03]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC7, 0x07]);
+    let jmp_parse1_adv_g32 = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    // keep old names aliased so later patches compile until rewritten
+    let ja_parse1_fail_gd = jae_parse1_fail_gd;
+    let ja_parse1_fail_gs = jae_parse1_fail_gs;
     // S3.619 SET: slot≤255; 48 B8 imm64 + store disp8(14B) / disp32(17B)
     let parse1_set_lbl = c.len();
     c.extend_from_slice(&[0x41, 0x80, 0x78, 0x01, 0x02]);
@@ -3619,7 +3650,11 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jcc(&mut c, jne_parse1_fail_ga, fail_compile);
     patch_jcc(&mut c, ja_parse1_fail_gd, fail_compile);
     patch_jcc(&mut c, ja_parse1_fail_gs, fail_compile);
+    patch_jcc(&mut c, jae_parse1_get_ld32, parse1_get_ld32_lbl);
+    patch_jmp(&mut c, jmp_parse1_get_store, parse1_get_store_lbl);
+    patch_jcc(&mut c, jae_parse1_get_st32, parse1_get_st32_lbl);
     patch_jmp(&mut c, jmp_parse1_adv_g, parse1_advance);
+    patch_jmp(&mut c, jmp_parse1_adv_g32, parse1_advance);
     patch_jcc(&mut c, jne_parse1_fail_sa, fail_compile);
     patch_jcc(&mut c, jae_parse1_fail_ss, fail_compile);
     patch_jcc(&mut c, jae_parse1_set_d32, parse1_set_d32_lbl);
@@ -3744,8 +3779,9 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jmp(&mut c, jmp_live2_to_write, do_write);
     patch_jcc(&mut c, jne_try_extra_notget, try_inc);
     patch_jcc(&mut c, jne_fail_get_argc, fail_compile);
-    patch_jcc(&mut c, ja_fail_get_dst, fail_compile);
-    patch_jcc(&mut c, ja_fail_get_src, fail_compile);
+    // S3.620: GET+RET slot>15 → parse1 (any-slot); was fail_compile
+    patch_jcc(&mut c, ja_fail_get_dst, parse1);
+    patch_jcc(&mut c, ja_fail_get_src, parse1);
     patch_jcc(&mut c, jne_fail_get_ret, fail_compile);
     patch_jmp(&mut c, jmp_emit2_getmov, parse1);
     patch_jcc(&mut c, je_emit2_getmov_va, fail_wr);
@@ -14594,6 +14630,52 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("592") && s.contains("SET+ADD+SUB+NOP")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.620: parse1 GET/MOVRR slot≤255; disp8|disp32 load+store GREEN; ready=false.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_parse1_get_any_slot_pin() {
+        let pe = yoyo_compiler_pe_bytes().expect("S3.620");
+        assert!(String::from_utf8_lossy(&pe).contains("yoyo_parse1_c"));
+        let dir = temp_work("s620-parse1-get");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        for &(dst, src) in &[
+            (0u16, 1u16),
+            (15, 0),
+            (16, 0),
+            (0, 16),
+            (16, 17),
+            (255, 255),
+        ] {
+            let tyb = crate::s1_tyb_parser::s3_get_ret_tyb(dst, src);
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+                .expect("emit get")
+                .bytes;
+            std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+            let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+            let st = std::process::Command::new(&path)
+                .current_dir(&dir)
+                .status()
+                .unwrap();
+            assert!(
+                st.success(),
+                "parse1 GET dst={dst} src={src} exit {:?}",
+                st.code()
+            );
+            assert_eq!(
+                std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
+                expect,
+                "parse1 GET dst={dst} src={src}"
+            );
+        }
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("620") && s.contains("GET")));
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.620"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
