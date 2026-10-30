@@ -4,7 +4,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.616**（615=parse1 +LOAD_FILE；下一刀=WRITE / DATA / yoyo.tyb / M4）。
+**默认** 继续 **= S3.617**（616=parse1 +WRITE_FILE；下一刀=DATA / yoyo.tyb / M4）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -45,9 +45,10 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3.613** ✅ | `5cce52d` | parse1 +STB 0x81（oo=0/imm8/imm32） |
 | **S3.614** ✅ | `fa9915b` | parse1 +ALLOC 0x20（slim VA prefix+store） |
 | **S3.615** ✅ | `2058f70` | parse1 +LOAD_FILE 0x50（160B slim seed） |
-| **S3.616** ⏳ | — | **本步**：WRITE / DATA / yoyo.tyb / M4 |
+| **S3.616** ✅ | `898ccdf` | parse1 +WRITE_FILE 0x51（139B slim seed） |
+| **S3.617** ⏳ | — | **本步**：DATA / yoyo.tyb / M4 |
 
-**缺口**：WRITE / DATA / yoyo.tyb / M4 flip 仍 **ABSENT**。`ready=false`。bake=362。
+**缺口**：DATA·STR·RAW / yoyo.tyb / M4 flip 仍 **ABSENT**。`ready=false`。bake=362。
 
 ---
 
@@ -64,7 +65,7 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 
 ## 对 AI
 
-- 继续 → **S3.616**（WRITE_FILE；禁 densify / 假 CLOSED）。S3.615=LOAD。红了记根因停。
+- 继续 → **S3.617**（DATA/STR/RAW；禁 densify / 假 CLOSED）。S3.616=WRITE。红了记根因停。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
