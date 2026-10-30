@@ -540,7 +540,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.637 DONE: H_00+in-DLL 3nop GREEN; compiled-yoyo.tyb PE same cwd → NO_INPUT (driver≠child-cwd contract)",
         "S3.638 DONE: default-oracle in-DLL recompile + placed compiler + yoyo.tyb GREEN via CreateProcess (no oracle bake)",
         "S3.639 cliff: live in-DLL emit ABSENT — CreateProcess GREEN ≠ export emit_x86; no-compiler-PE still fail-closed",
-        "today: CreateProcess yoyo.tyb GREEN; live emit ABSENT; host-mini 1024 / M4 ABSENT",
+        "S3.640 cliff: pe_link-in-child ABSENT — parse1→slim RET template ≠ link_pe_win32; see yoyo_pe_link_in_child_blockers",
+        "today: CreateProcess yoyo.tyb GREEN; live emit / pe_link-in-child ABSENT; host-mini 1024 / M4 ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -553,6 +554,24 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
 /// S3.556: live compose inside child ready? Always false while design non-empty.
 pub fn yoyo_child_live_compose_ready() -> bool {
     yoyo_child_live_compose_design().is_empty()
+}
+
+/// S3.640: blockers for **pe_link-in-child** (full Win32 PE from parse1 .text,
+/// not slim RET template). Clearing ≠ live in-DLL emit ≠ M4 ≠ OW-RT CLOSED.
+/// Densify hand-hex of pe_link into child = sheep.
+pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
+    &[
+        "child parse1 emits into slim RET PE template (S3.631 wide); ≠ link_pe_win32",
+        "handler_offsets / HOT table emit ABSENT inside child (seed_host has 788)",
+        "Win32 PE headers/sections/IAT construction ABSENT in child .text",
+        "compiled-yoyo.tyb via pe_link raw-runs → NO_INPUT under child cwd (S3.635/636) — contract≠",
+        "raising S1_SLIM_MAX_CODE / baking seed_host blob ≠ pe_link-in-child (sheep)",
+    ]
+}
+
+/// S3.640: pe_link-in-child ready? Always false while blockers remain.
+pub fn yoyo_pe_link_in_child_ready() -> bool {
+    yoyo_pe_link_in_child_blockers().is_empty()
 }
 
 
@@ -14994,6 +15013,32 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.640: pe_link-in-child ABSENT cliff — blockers non-empty; ready=false;
+    /// child wide ≡ slim RET ≠ seed_host/pe_link; densify≠. ≠ M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_pe_link_in_child_absent_cliff_pin() {
+        assert!(!yoyo_pe_link_in_child_ready());
+        let b = yoyo_pe_link_in_child_blockers();
+        assert!(b.len() >= 4, "honest pe_link-in-child blockers");
+        assert!(b.iter().any(|s| s.contains("link_pe_win32")));
+        assert!(b.iter().any(|s| s.contains("handler") || s.contains("HOT")));
+        assert!(b.iter().any(|s| s.contains("sheep")));
+        let tyb = std::fs::read(gate_i_yoyo_tyb_path()).expect("yoyo.tyb");
+        let wide = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&tyb)
+            .expect("wide")
+            .bytes;
+        let seed = crate::selfhost::seed_host_compile(&tyb).expect("seed");
+        assert_ne!(wide.len(), seed.len());
+        assert_eq!(wide.len() as u32, S3_PARSE1_RET_PE_LEN);
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.640")));
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.640"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_pe_link_in_child_blockers"));
     }
 
     /// S3.639: live in-DLL emit ABSENT cliff — CreateProcess(yoyo.tyb) GREEN
