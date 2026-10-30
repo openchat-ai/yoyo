@@ -2402,6 +2402,16 @@ pub fn s3_memcpy_data_ret_tyb(dst: u16, src: u16, n: u16) -> Vec<u8> {
     s3_host_tyb_from_records(&[(0x84, 3, a), (0xFF, 0, [0; 6])])
 }
 
+/// S3.612: MEMCPY_STATE+RET TYB (beyond fixed10). `n` is slot count (≤4); last slots≤15 for parse1.
+pub fn s3_memcpy_state_ret_tyb(dst: u16, src: u16, n: u16) -> Vec<u8> {
+    assert!(n <= 4, "MEMCPY_STATE n≤4");
+    let mut a = [0u8; 6];
+    a[0..2].copy_from_slice(&dst.to_le_bytes());
+    a[2..4].copy_from_slice(&src.to_le_bytes());
+    a[4..6].copy_from_slice(&n.to_le_bytes());
+    s3_host_tyb_from_records(&[(0x85, 3, a), (0xFF, 0, [0; 6])])
+}
+
 /// S3.606: LABEL + NOP + JMP(same id) + RET — exercises parse1 label table.
 pub fn s3_label_nop_jmp_ret_tyb(label_id: u32) -> Vec<u8> {
     let mut a = [0u8; 6];
