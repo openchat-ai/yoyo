@@ -4,7 +4,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.638**（637=H_00 driver vs compiled-yoyo；下一刀=M4 prep / live emit / pe_link-in-child）。
+**默认** 继续 **= S3.639**（638=in-DLL recompile+CreateProcess yoyo.tyb；下一刀=live in-DLL emit / pe_link-in-child / M4）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -24,7 +24,7 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3** ⏳ | child parse1 扩 ISA · 真自举不排假工期 |
 | **S4/S5** | 全 ISA / 形式化 · 地图 |
 
-**诚实底线**：parse1 child-cwd GREEN；H_00 driver GREEN；compiled-yoyo.tyb ≠ drop-in；M4 ABSENT。
+**诚实底线**：CreateProcess(yoyo.tyb) GREEN ≠ live in-DLL emit ≠ compiled-yoyo drop-in ≠ M4 ≠ OW-* CLOSED。
 
 ### 波段 tip（更早单刀已折）
 
@@ -32,10 +32,11 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | --- | --- | --- |
 | **S3.1–630** ✅ | `3809e18` | fixed10→parse1→any-slot→text4KiB |
 | **S3.631–632** ✅ | `827b853` | yoyo.tyb child + in-DLL CreateProcess GREEN |
-| **S3.633–637** ✅ | — | seed≠wide；AV；NO_INPUT；pe_link≡seed；**H_00 vs compiled** |
-| **S3.638** ⏳ | — | **本步**：M4 prep / live emit / pe_link-in-child |
+| **S3.633–637** ✅ | `59fb29b` | seed≠wide；AV；NO_INPUT；pe_link≡seed；H_00 |
+| **S3.638** ✅ | — | default-oracle in-DLL+compiler PE → yoyo.tyb GREEN |
+| **S3.639** ⏳ | — | **本步**：live in-DLL emit / pe_link-in-child / M4 |
 
-**缺口**：compiled-yoyo ≠ child-cwd self-host；host-mini 1024 禁抬；M4 / general emit **ABSENT**。`ready=false`。bake=362。
+**缺口**：live in-DLL emit ABSENT（CreateProcess≠emit）；host-mini 1024 禁抬；M4 **ABSENT**。`ready=false`。bake=362。
 
 ---
 
@@ -52,9 +53,9 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 
 ## 对 AI
 
-- 继续 → **S3.638**（M4 prep / live emit；禁 densify / 假 CLOSED / 单抬 slim-cap）。S3.637=H_00 vs compiled-yoyo。红了记根因停。
+- 继续 → **S3.639**（live in-DLL emit / pe_link-in-child；禁 densify / 假 CLOSED / 单抬 slim-cap）。S3.638=recompile+CreateProcess yoyo.tyb。红了记根因停。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
 
-*post-v1.0 · 收纳板 · tip S3.638*
+*post-v1.0 · 收纳板 · tip S3.639*

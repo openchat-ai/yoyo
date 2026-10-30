@@ -538,7 +538,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.635 cliff: seed_host(yoyo.tyb) as raw CreateProcess compiler → EXIT_NO_INPUT(2); child-built AV; Gate I=write-bytes≠run",
         "S3.636 cliff: pe_link(executor(yoyo.tyb))≡seed_host; both raw→NO_INPUT; drop-in self-host needs H_00/gen4 not child-cwd",
         "S3.637 DONE: H_00+in-DLL 3nop GREEN; compiled-yoyo.tyb PE same cwd → NO_INPUT (driver≠child-cwd contract)",
-        "today: parse1 yoyo_compiler.exe = child-cwd GREEN; H_00 driver GREEN; compiled-yoyo ≠ either as drop-in; M4 ABSENT",
+        "S3.638 DONE: default-oracle in-DLL recompile + placed compiler + yoyo.tyb GREEN via CreateProcess (no oracle bake)",
+        "today: parse1/CreateProcess yoyo.tyb GREEN; H_00 driver GREEN; compiled-yoyo ≠ drop-in; host-mini/M4 ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -14991,6 +14992,45 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("592") && s.contains("SET+ADD+SUB+NOP")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.638: default-oracle in-DLL recompile + placed yoyo_compiler.exe +
+    /// yoyo.tyb → GREEN ≡ wide (CreateProcess before oracle; no yoyo.tyb bake).
+    /// Host-mini 1024 ABSENT; ready=false; ≠ M4 production flip.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_indll_recompile_yoyo_tyb_via_createprocess_pin() {
+        assert_eq!(crate::s1_tyb_parser::S1_SLIM_MAX_CODE, 1024);
+        let yoyo_tyb = gate_i_yoyo_tyb_path();
+        let tyb = std::fs::read(&yoyo_tyb).expect("read");
+        assert!(
+            crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb).is_err(),
+            "host mini still fails yoyo.tyb"
+        );
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&tyb)
+            .expect("wide")
+            .bytes;
+        // default oracle omits yoyo.tyb
+        let entries = gate_g_recompile_entries().expect("entries");
+        assert!(entries.iter().all(|e| e.input != tyb), "default oracle omit");
+        let dir = temp_work("s638-indll-recompile-cp");
+        let _ = yoyo_place_compiler_pe(&dir).expect("place compiler");
+        std::fs::copy(&yoyo_tyb, dir.join("input.tyb")).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        assert_eq!(
+            yoyo_sidecar_in_dll_recompile(&dir),
+            EXIT_OK,
+            "in-DLL recompile+CreateProcess(yoyo.tyb) must exit 0"
+        );
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.638")));
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_live_compile_slice_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.638"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
