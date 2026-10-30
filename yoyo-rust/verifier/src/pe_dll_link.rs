@@ -408,7 +408,7 @@ pub fn place_cwd_runtime_sidecar(out_path: &Path, rust_dll: &[u8]) -> IsaResult<
 pub fn yoyo_m4_production_flip_blockers() -> &'static [&'static str] {
     &[
         "yoyo.tyb CreateProcess-child GREEN (S3.631/632); live in-DLL emit still ABSENT (mini 1024; ≠ raise slim-cap)",
-        "Gate I gen4+oracle may GREEN; oracle bake ≠ live in-DLL emit (CreateProcess child ≠ export emit)",
+        "Gate I oracle seed_host(yoyo.tyb) ≫≠ child/wide (S3.633); oracle≠CreateProcess child; ≠ live emit",
         "production place_cwd default still Rust (ALT unset)",
         "inventory OW-RT disposition=CUT (closed=0)",
     ]
@@ -425,7 +425,7 @@ pub fn yoyo_m4_production_flip_ready() -> bool {
 /// Non-empty ⇒ M4 production flip stays ABSENT. Clearing entries ≠ OW-RT CLOSED.
 pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
     &[
-        "yoyo.tyb child+in-DLL CreateProcess GREEN (S3.631/632); host-mini S1_SLIM_MAX_CODE=1024 still ABSENT; M4/oracle≠live",
+        "yoyo.tyb child+in-DLL CreateProcess GREEN (S3.631/632); seed_host≠wide (S3.633); host-mini 1024 ABSENT; M4/oracle≠live",
         "beyond-mini overflow TYB fails mini; today served only via oracle→seed_host",
         "in-DLL export has no seed_host/bootstrap_compile machine at call-time (CreateProcess child ≠ in-DLL emit)",
         "ALT in-dll-gate-i / gen4 GREEN paths are still oracle lookup, not live emit",
@@ -533,7 +533,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.630 parse1 DONE: child RET PE .text raw 0x600→0x1000 (cap≈0xFF3; S1_SLIM_MAX_CODE stays 1024; yoyo.tyb 18KiB ABSENT)",
         "S3.631 parse1 DONE: child .text raw→0x5000 + mid-stream RET (yoyo.tyb 788×RET child GREEN; S1_SLIM_MAX_CODE stays 1024)",
         "S3.632 DONE: in-DLL CreateProcess(yoyo_compiler.exe)+yoyo.tyb GREEN ≡ wide emit; host-mini 1024 ABSENT; ≠ M4",
-        "today: parse1≈mini +table1024 +text20KiB +multi-RET; yoyo.tyb child+indll GREEN / host-mini 1024 ABSENT; general parse+emit / M4 ABSENT",
+        "S3.633 cliff: seed_host(yoyo.tyb) ≫≠ child/wide slim RET PE (oracle≠CreateProcess child; full pe_link vs slim)",
+        "today: parse1≈mini +table1024 +text20KiB +multi-RET; yoyo.tyb child+indll GREEN / seed_host≠wide / host-mini 1024 ABSENT; M4 ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -14989,6 +14990,53 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// S3.633: seed_host(yoyo.tyb) ≠ child/wide slim RET PE cliff named.
+    /// Gate I oracle bake ≫ wide (full pe_link); CreateProcess child ≠ oracle;
+    /// host-mini 1024 ABSENT; ready=false; ≠ M4 flip.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_yoyo_tyb_seed_host_ne_wide_cliff_pin() {
+        assert_eq!(crate::s1_tyb_parser::S1_SLIM_MAX_CODE, 1024);
+        let tyb = std::fs::read(gate_i_yoyo_tyb_path()).expect("yoyo.tyb");
+        assert!(
+            crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb).is_err(),
+            "host mini must still fail yoyo.tyb"
+        );
+        let wide = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&tyb)
+            .expect("wide")
+            .bytes;
+        let seed = crate::selfhost::seed_host_compile(&tyb).expect("seed_host");
+        assert_eq!(wide.len() as u32, S3_PARSE1_RET_PE_LEN);
+        assert!(
+            seed.len() > wide.len() * 4,
+            "seed_host PE must dwarf slim wide (got seed={} wide={})",
+            seed.len(),
+            wide.len()
+        );
+        assert_ne!(wide, seed, "seed_host must not ≡ wide/child PE");
+        // child still ≡ wide (S3.631); ≠ seed_host
+        let dir = temp_work("s633-seed-ne-wide");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success(), "child yoyo.tyb exit {:?}", st.code());
+        let child = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+        assert_eq!(child, wide, "child ≡ wide");
+        assert_ne!(child, seed, "child ≠ seed_host");
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("633") && s.contains("seed_host")));
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_live_compile_slice_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.633"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// S3.632: in-DLL CreateProcess(yoyo_compiler.exe)+yoyo.tyb GREEN ≡ wide;
     /// host mini still ≤1024; S1_SLIM_MAX_CODE unchanged; ready=false; ≠ M4.
     #[test]
@@ -17658,7 +17706,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let blockers = yoyo_m4_production_flip_blockers();
         assert!(blockers.len() >= 3, "honest blocker list");
         assert!(blockers.iter().any(|b| b.contains("mini") || b.contains("oracle")));
-        assert!(blockers.iter().any(|b| b.contains("Gate I") && b.contains("ABSENT")));
+        assert!(blockers.iter().any(|b| b.contains("Gate I") && (b.contains("ABSENT") || b.contains("oracle"))));
         assert!(blockers.iter().any(|b| b.contains("CUT") || b.contains("closed=0")));
         // Default path still Rust when env off (this process must not set ALT).
         if matches!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off) {
