@@ -432,7 +432,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "production default place_cwd remains Rust (ALT unset)",
         "raising S1_SLIM_MAX_CODE / densify hand-hex ≠ live-compile graduation (sheep)",
         "CreateProcess compiler PE: fixed10+all CHAINS multi live2 GREEN; yoyo.tyb/full still ABSENT",
-        "child live compose ABSENT — parse1=fixed10+CHAINS+singles; emit2 dead; general parse+emit_x86 still ABSENT (S3.582 cliff remains); see design",
+        "child live compose ABSENT — parse1=fixed10+CHAINS+singles+IMUL; emit2 dead; general parse+emit_x86 still ABSENT (S3.582 cliff remains); see design",
     ]
 }
 
@@ -464,9 +464,9 @@ pub fn yoyo_in_dll_createprocess_compiler_ready() -> bool {
 }
 
 
-/// S3.556–S3.599: design notes for **live compose** inside the child compiler PE.
+/// S3.556–S3.600: design notes for **live compose** inside the child compiler PE.
 ///
-/// Today = parse1 all fixed10+CHAINS+singles. Live = general parse+emit+link.
+/// Today = parse1 fixed10+CHAINS+singles+IMUL. Live = general parse+emit+link.
 /// Non-empty ⇒ slice ABSENT. Clearing ≠ M4 flip / ≠ OW-RT CLOSED. Densify ≠ slice.
 pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
     &[
@@ -500,7 +500,9 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.597 parse1 DONE: +SUB+CMP — all fixed10 in record loop (+SUB+SUB / NOP+CMP)",
         "S3.598 parse1 DONE: absorb all CHAINS (field paths → parse1 loop; emit2 CHAINS dead)",
         "S3.599 parse1 DONE: absorb all fixed10 singles (emit2 singles → parse1)",
-        "today: parse1=all fixed10+CHAINS+singles; emit2 dead; general parse+emit still ABSENT",
+        "S3.600 parse1 DONE: +IMUL beyond-fixed10 (size0x18 unknown→parse1; +IMUL+RET)",
+        "today: parse1=fixed10+CHAINS+singles+IMUL; emit2 dead; general parse+emit still ABSENT",
+        "live emit of full mini-ISA / yoyo.tyb still ABSENT (ALUV/JMP/DATA/…)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside child .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
         "yoyo.tyb exceeds mini fixed10 ISA — needs host compose / oracle / densify≠",
@@ -1500,6 +1502,9 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x3C, 0x65]); // CMP?
     let je_parse1_cmp = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x3C, 0x63]); // IMUL? (beyond-fixed10)
+    let je_parse1_imul = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     let jmp_parse1_fail2 = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // unknown op → fail
     // NOP
@@ -1679,6 +1684,35 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x88, 0x47, 0x07]); // SS_b
     c.extend_from_slice(&[0x48, 0x83, 0xC7, 0x0B]); // add rdi, 11
     let jmp_parse1_adv_c = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    // S3.600 IMUL: 49 8B 47 SS_d / 49 8B 4F SS_s / 48 0F AF C1 / 49 89 47 SS_d (16B)
+    let parse1_imul_lbl = c.len();
+    c.extend_from_slice(&[0x41, 0x80, 0x78, 0x01, 0x02]); // argc==2
+    let jne_parse1_fail_ma = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x41, 0x0F, 0xB7, 0x40, 0x02]); // dst
+    c.extend_from_slice(&[0x83, 0xF8, 0x0F]);
+    let ja_parse1_fail_md = c.len();
+    c.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    c.extend_from_slice(&[0x89, 0x44, 0x24, 0x58]); // [rsp+0x58]=dst disp
+    c.extend_from_slice(&[0x41, 0x0F, 0xB7, 0x40, 0x04]); // src
+    c.extend_from_slice(&[0x83, 0xF8, 0x0F]);
+    let ja_parse1_fail_ms = c.len();
+    c.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    c.extend_from_slice(&[0x89, 0x44, 0x24, 0x5C]); // [rsp+0x5C]=src disp
+    c.extend_from_slice(&[0x48, 0xB8, 0x49, 0x8B, 0x47, 0x00, 0x49, 0x8B, 0x4F, 0x00]);
+    c.extend_from_slice(&[0x48, 0x89, 0x07]); // mov [rdi], rax (load dst/src template)
+    c.extend_from_slice(&[0xC7, 0x47, 0x08, 0x48, 0x0F, 0xAF, 0xC1]); // imul rax, rcx
+    c.extend_from_slice(&[0xC7, 0x47, 0x0C, 0x49, 0x89, 0x47, 0x00]); // store dst
+    c.extend_from_slice(&[0x8A, 0x44, 0x24, 0x58]);
+    c.extend_from_slice(&[0x88, 0x47, 0x03]); // SS_dst @+3
+    c.extend_from_slice(&[0x88, 0x47, 0x0F]); // SS_dst @+15
+    c.extend_from_slice(&[0x8A, 0x44, 0x24, 0x5C]);
+    c.extend_from_slice(&[0x88, 0x47, 0x07]); // SS_src @+7
+    c.extend_from_slice(&[0x48, 0x83, 0xC7, 0x10]); // add rdi, 16
+    let jmp_parse1_adv_m = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     // advance record
     let parse1_advance = c.len();
@@ -2791,6 +2825,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jcc(&mut c, je_parse1_add, parse1_add_lbl);
     patch_jcc(&mut c, je_parse1_sub, parse1_sub_lbl);
     patch_jcc(&mut c, je_parse1_cmp, parse1_cmp_lbl);
+    patch_jcc(&mut c, je_parse1_imul, parse1_imul_lbl);
     patch_jmp(&mut c, jmp_parse1_fail2, fail_compile);
     patch_jcc(&mut c, jne_parse1_fail3, fail_compile);
     patch_jmp(&mut c, jmp_parse1_adv, parse1_advance);
@@ -2817,6 +2852,10 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jcc(&mut c, ja_parse1_fail_c1, fail_compile);
     patch_jcc(&mut c, ja_parse1_fail_c2, fail_compile);
     patch_jmp(&mut c, jmp_parse1_adv_c, parse1_advance);
+    patch_jcc(&mut c, jne_parse1_fail_ma, fail_compile);
+    patch_jcc(&mut c, ja_parse1_fail_md, fail_compile);
+    patch_jcc(&mut c, ja_parse1_fail_ms, fail_compile);
+    patch_jmp(&mut c, jmp_parse1_adv_m, parse1_advance);
     patch_jmp(&mut c, jmp_parse1_loop, parse1_loop);
     patch_jcc(&mut c, jne_parse1_fail4, fail_compile);
     patch_jcc(&mut c, jne_parse1_fail5, fail_compile);
@@ -2882,7 +2921,8 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jmp(&mut c, jmp_emit2_mov, parse1);
     patch_jcc(&mut c, je_emit1_mov_va, fail_wr);
     patch_jmp(&mut c, jmp_emit1_mov_w, do_write);
-    patch_jcc(&mut c, jne_try_extra_notcmp, try_extra);
+    // S3.600: size 0x18 first-op ≠ fixed10 → parse1 (IMUL+RET beyond-fixed10)
+    patch_jcc(&mut c, jne_try_extra_notcmp, parse1);
     patch_jcc(&mut c, jne_fail_cmp_argc, fail_compile);
     patch_jcc(&mut c, ja_fail_cmp_a, fail_compile);
     patch_jcc(&mut c, ja_fail_cmp_b, fail_compile);
@@ -6395,7 +6435,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.597: parse1 +SUB+CMP — all fixed10 in record loop.
     // S3.598: parse1 absorb all CHAINS (emit2 CHAINS → parse1).
     // S3.599: parse1 absorb all fixed10 singles (emit2 singles → parse1).
-    // Next >=10 = beyond-fixed10 / yoyo.tyb / M4 / OW-RT. Not CLOSED. CUT.
+    // S3.600: parse1 +IMUL beyond-fixed10 (size0x18 unknown→parse1).
+    // Next >=10 = ALUV / more mini-ISA / yoyo.tyb / M4 / OW-RT. Not CLOSED. CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -12807,7 +12848,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
     fn yoyo_child_live_emit_cliff_pin() {
         let d = yoyo_child_live_compose_design();
         assert!(d.iter().any(|s| s.contains("live1 DONE") || s.contains("562")));
-        assert!(d.iter().any(|s| s.contains("live emit") && s.contains("ABSENT")));
+        assert!(d.iter().any(|s| s.contains("live emit") && s.contains("ABSENT")
+            || s.contains("general parse+emit") && s.contains("ABSENT")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(!yoyo_live_compile_slice_ready());
         assert!(!yoyo_m4_production_flip_ready());
@@ -12892,7 +12934,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect_inc);
         let d = yoyo_child_live_compose_design();
         assert!(d.iter().any(|s| s.contains("574") && s.contains("emit1")));
-        assert!(d.iter().any(|s| s.contains("live emit") && s.contains("ABSENT")));
+        assert!(d.iter().any(|s| s.contains("live emit") && s.contains("ABSENT")
+            || s.contains("general parse+emit") && s.contains("ABSENT")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(!yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.574"));
@@ -13663,6 +13706,67 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("592") && s.contains("SET+ADD+SUB+NOP")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.600: parse1 +IMUL beyond-fixed10; IMUL+RET + alt slots GREEN; ready=false.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_parse1_imul_beyond_fixed10_pin() {
+        let pe = yoyo_compiler_pe_bytes().expect("S3.600");
+        assert!(String::from_utf8_lossy(&pe).contains("yoyo_parse1_c"));
+        let dir = temp_work("s600-parse1-imul");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        // IMUL dst0←src1 + RET
+        let tyb = crate::s1_tyb_parser::s3_imul_ret_tyb(0, 1);
+        assert_eq!(tyb.len(), 0x18);
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            .expect("emit imul")
+            .bytes;
+        std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success(), "parse1 IMUL+RET exit {:?}", st.code());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
+        // alt slots dst=2 src=3
+        let tyb_alt = crate::s1_tyb_parser::s3_imul_ret_tyb(2, 3);
+        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_alt)
+            .expect("emit alt")
+            .bytes;
+        std::fs::write(dir.join("input.tyb"), &tyb_alt).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success(), "parse1 IMUL alt exit {:?}", st.code());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect_alt);
+        // fixed10 still GREEN (NOP+RET)
+        let tyb_nop = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x00);
+        let expect_nop = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_nop)
+            .expect("emit nop")
+            .bytes;
+        std::fs::write(dir.join("input.tyb"), &tyb_nop).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success(), "NOP still {:?}", st.code());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect_nop);
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("600") && s.contains("IMUL")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("live emit") && s.contains("ABSENT")
+                || s.contains("general parse+emit") && s.contains("ABSENT")));
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.600"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

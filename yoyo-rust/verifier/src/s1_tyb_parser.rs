@@ -2359,6 +2359,14 @@ pub fn s3_fixed10_ret_tyb(op: u8) -> Vec<u8> {
     }
 }
 
+/// S3.600: IMUL+RET TYB (beyond fixed10). `dst`/`src` are disp8 slots (≤15).
+pub fn s3_imul_ret_tyb(dst: u16, src: u16) -> Vec<u8> {
+    let mut a = [0u8; 6];
+    a[0..2].copy_from_slice(&dst.to_le_bytes());
+    a[2..4].copy_from_slice(&src.to_le_bytes());
+    s3_host_tyb_from_records(&[(0x63, 2, a), (0xFF, 0, [0; 6])])
+}
+
 /// S3.551: fixed10 multi-op chain + trailing RET (beyond single op+RET).
 ///
 /// `ops` are non-RET fixed10 opcodes; RET is appended. Empty → RET-only.
