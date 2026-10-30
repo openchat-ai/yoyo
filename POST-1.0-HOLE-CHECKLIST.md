@@ -4,7 +4,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.630**（629=label/patch×1024；下一刀=child .text-cap≥18KiB / M4）。
+**默认** 继续 **= S3.631**（630=child .text≈4KiB；下一刀=text≥18KiB / M4）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -31,18 +31,14 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | 波段 | tip | 一句话 |
 | --- | --- | --- |
 | **S3.1–521** ✅ | `5dd7651` | fixed10→host compose→DATA；禁折 FIXED10 |
-| **S3.522–555** ✅ | `8ea1ee5` | CreateProcess child PE / M4-prep；yoyo.tyb ABSENT |
-| **S3.556–582** ✅ | `7fb0d14` | live1→live2→emit1；≠ general emit_x86 |
-| **S3.583–593** ✅ | `1ab26a8` | emit2 field（imm/disp）· all CHAINS |
-| **S3.594–617** ✅ | `7cb45c2` | parse1 记录环→mini 主路径 |
-| **S3.618** ✅ | `7a5f435` | parse1≈mini cliff |
-| **S3.619–623** ✅ | `267c218` | ALU any-slot≤255 |
-| **S3.624–626** ✅ | `972d78a` | LDB/STB/MCP any-slot≤255 |
-| **S3.627** ✅ | `5ed5cd7` | yoyo.tyb：ISA OK；text-cap+table cliff |
-| **S3.628–629** ✅ | — | label/patch 32→256→1024（788 OK） |
-| **S3.630** ⏳ | — | **本步**：child .text-cap≥18KiB / M4 |
+| **S3.522–555** ✅ | `8ea1ee5` | CreateProcess child PE / M4-prep |
+| **S3.556–618** ✅ | `7a5f435` | live→parse1≈mini cliff |
+| **S3.619–626** ✅ | `972d78a` | ALU+mem any-slot≤255 |
+| **S3.627–629** ✅ | `2e7240f` | yoyo.tyb 诊断；label/patch→1024 |
+| **S3.630** ✅ | — | child .text raw→0x1000（≈4KiB） |
+| **S3.631** ⏳ | — | **本步**：.text≥18KiB / yoyo.tyb / M4 |
 
-**缺口**：yoyo.tyb slim/child .text ~18KiB>1024 / M4 flip / general emit_x86 仍 **ABSENT**。禁单独抬 `S1_SLIM_MAX_CODE`（sheep）；child 模板扩容 ≠ densify。`ready=false`。bake=362。
+**缺口**：yoyo.tyb 需 ~18KiB .text（child≈4KiB）/ M4 flip / general emit_x86 仍 **ABSENT**。`S1_SLIM_MAX_CODE=1024` 禁抬（sheep）。`ready=false`。bake=362。
 
 ---
 
@@ -59,9 +55,9 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 
 ## 对 AI
 
-- 继续 → **S3.630**（child .text-cap；禁 densify / 假 CLOSED / 单抬 slim-cap）。S3.629=table1024。红了记根因停。
+- 继续 → **S3.631**（.text≥18KiB；禁 densify / 假 CLOSED / 单抬 slim-cap）。S3.630=text≈4KiB。红了记根因停。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
 
-*post-v1.0 · 收纳板 · tip S3.630*
+*post-v1.0 · 收纳板 · tip S3.631*

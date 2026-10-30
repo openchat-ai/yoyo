@@ -425,7 +425,7 @@ pub fn yoyo_m4_production_flip_ready() -> bool {
 /// Non-empty ⇒ M4 production flip stays ABSENT. Clearing entries ≠ OW-RT CLOSED.
 pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
     &[
-        "yoyo.tyb: ISA/slot/table OK post-S629; slim text~18KiB>1024 still ABSENT",
+        "yoyo.tyb: ISA/slot/table OK; child text~4KiB (S3.630) still <<18KiB; S1_SLIM_MAX_CODE=1024 sheep-locked",
         "beyond-mini overflow TYB fails mini; today served only via oracle→seed_host",
         "in-DLL export has no seed_host/bootstrap_compile machine at call-time",
         "ALT in-dll-gate-i / gen4 GREEN paths are still oracle lookup, not live emit",
@@ -530,7 +530,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.627 cliff: yoyo.tyb ISA/slot OK post-any-slot; slim text 18KiB>1024 + label/patch table32 ABSENT (≠ raise S1_SLIM_MAX_CODE sheep)",
         "S3.628 parse1 DONE: label/patch tables 32→256 (scratch 0x1100; yoyo.tyb 788 still ABSENT)",
         "S3.629 parse1 DONE: label/patch tables 256→1024 (scratch 0x4100; covers yoyo.tyb 788 LABELs; text-cap ABSENT)",
-        "today: parse1≈mini +table1024; yoyo.tyb slim text-cap ABSENT; general parse+emit still ABSENT",
+        "S3.630 parse1 DONE: child RET PE .text raw 0x600→0x1000 (cap≈0xFF3; S1_SLIM_MAX_CODE stays 1024; yoyo.tyb 18KiB ABSENT)",
+        "today: parse1≈mini +table1024 +text~4KiB; yoyo.tyb 18KiB text-cap ABSENT; general parse+emit still ABSENT",
         "live emit of yoyo.tyb / beyond-mini still ABSENT (full compose / densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside child .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -607,6 +608,14 @@ pub fn yoyo_compiler_pe_is_ret_compile_stub() -> bool {
 
 /// pe_link `.data` user payload starts at this r15 offset (IAT header + scratch pad).
 const YOYO_COMPILER_PE_USER_DATA_OFF: u32 = 0x120;
+
+/// S3.630: expanded RET PE byte length (headers+text1k+data1k).
+#[cfg(windows)]
+const S3_PARSE1_RET_PE_LEN: u32 = 0x2400;
+/// S3.630: parse1 zeros this many .text bytes at +0x40d (was 0x400).
+/// Child can emit past host [`S1_SLIM_MAX_CODE`]=1024 up to 0xFF3; ≠ raising that const.
+#[cfg(windows)]
+const S3_PARSE1_TEXT_ZERO: u32 = 0x1000 - 0xD; // 0xFF3
 
 /// Build fixed10 + multi-op compile-in-child EXE (S3.548/S3.551).
 ///
@@ -766,7 +775,10 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
         data.push(0);
     }
     let ret_pe_rel = data.len() as u32;
-    data.extend_from_slice(ret_seed);
+    // S3.630: bake expanded RET PE (.text raw 0x1000) for parse1 capacity.
+    let ret_pe_expanded = crate::s1_tyb_parser::s3_expand_ret_pe_text_raw1k(ret_seed);
+    assert_eq!(ret_pe_expanded.len() as u32, S3_PARSE1_RET_PE_LEN);
+    data.extend_from_slice(&ret_pe_expanded);
     let setret_pe_rel = data.len() as u32;
     data.extend_from_slice(setret_seed);
 
@@ -1479,10 +1491,12 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
 
 
     // S3.594/595 parse1: walk TYB; NOP|INC|DEC* + RET (record loop; ≠ field table)
+    // S3.630: RET PE len 0x2400; zero .text 0xFF3 bytes (was 0x1A00 / 0x400).
     let parse1 = c.len();
     c.extend_from_slice(&[0x48, 0x89, 0x74, 0x24, 0x50]); // mov [rsp+0x50], rsi
     c.extend_from_slice(&[0x31, 0xC9]);
-    c.extend_from_slice(&[0xBA, 0x00, 0x1A, 0x00, 0x00]);
+    c.extend_from_slice(&[0xBA]); // mov edx, S3_PARSE1_RET_PE_LEN
+    c.extend_from_slice(&S3_PARSE1_RET_PE_LEN.to_le_bytes());
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xB9, 0x04, 0x00, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xFF, 0x97, 0x00, 0x00, 0x00, 0x00]);
@@ -1493,11 +1507,13 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x49, 0x8D, 0xB7]);
     c.extend_from_slice(&ret_pe_off.to_le_bytes());
     c.extend_from_slice(&[0x48, 0x89, 0xDF]);
-    c.extend_from_slice(&[0xB9, 0x00, 0x1A, 0x00, 0x00]);
+    c.extend_from_slice(&[0xB9]); // mov ecx, S3_PARSE1_RET_PE_LEN
+    c.extend_from_slice(&S3_PARSE1_RET_PE_LEN.to_le_bytes());
     c.extend_from_slice(&[0xF3, 0xA4]);
     c.extend_from_slice(&[0x48, 0x8D, 0xBB, 0x0D, 0x04, 0x00, 0x00]);
     c.extend_from_slice(&[0x31, 0xC0]);
-    c.extend_from_slice(&[0xB9, 0x00, 0x04, 0x00, 0x00]);
+    c.extend_from_slice(&[0xB9]); // mov ecx, S3_PARSE1_TEXT_ZERO
+    c.extend_from_slice(&S3_PARSE1_TEXT_ZERO.to_le_bytes());
     c.extend_from_slice(&[0xF3, 0xAA]);
     // S3.607/S3.628/S3.629: scratch VA for label/patch tables (≠ PE image).
     // S3.629: labels/patches 256→1024 (covers yoyo.tyb 788 LABELs).
@@ -1528,9 +1544,10 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x4C, 0x8D, 0x46, 0x08]); // lea r8, [rsi+8]
     c.extend_from_slice(&[0x48, 0x8D, 0xBB, 0x0D, 0x04, 0x00, 0x00]); // lea rdi,[rbx+0x40d]
-    // S3.617/S3.629: data cursor/len in scratch (+0x4030/+0x4038)
+    // S3.617/S3.629/S3.630: data cursor/len in scratch (+0x4030/+0x4038)
+    // S3.630: .data file raw @0x1400 (was 0xA00) after text expand.
     c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]); // r11=scratch
-    c.extend_from_slice(&[0x48, 0x8D, 0x83, 0x00, 0x0A, 0x00, 0x00]);
+    c.extend_from_slice(&[0x48, 0x8D, 0x83, 0x00, 0x14, 0x00, 0x00]); // lea rax,[rbx+0x1400]
     c.extend_from_slice(&[0x49, 0x89, 0x83, 0x30, 0x40, 0x00, 0x00]); // [scratch+0x4030]=cursor
     c.extend_from_slice(&[0x41, 0xC7, 0x83, 0x38, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
     let parse1_loop = c.len();
@@ -2781,7 +2798,8 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     let parse1_go_w = c.len();
     c.extend_from_slice(&[0x48, 0x89, 0xDA]);
-    c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x1A, 0x00, 0x00]);
+    c.extend_from_slice(&[0x41, 0xB8]); // mov r8d, S3_PARSE1_RET_PE_LEN
+    c.extend_from_slice(&S3_PARSE1_RET_PE_LEN.to_le_bytes());
     let jmp_parse1_w = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
@@ -7677,8 +7695,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.627: yoyo.tyb cliff = slim text-cap + label/patch table32 (ISA/slot OK).
     // S3.628: parse1 label/patch tables 32→256 (yoyo.tyb 788 still ABSENT).
     // S3.629: parse1 label/patch tables 256→1024 (788 OK; text-cap ABSENT).
-    // Next >=10 = child .text-cap grow (≠ S1_SLIM_MAX_CODE sheep) / M4 / OW-RT.
-    // Raising S1_SLIM_MAX_CODE alone = sheep (S3.536). Not CLOSED. CUT.
+    // S3.630: child RET PE .text raw→0x1000 (≈0xFF3; ≠ S1_SLIM_MAX_CODE).
+    // Next >=10 = text≥18KiB / M4 / OW-RT. Raising S1_SLIM_MAX_CODE = sheep.
+    // Not CLOSED. CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -14948,6 +14967,67 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("592") && s.contains("SET+ADD+SUB+NOP")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.630: child .text raw→0x1000 (≈0xFF3); 2000×NOP child GREEN;
+    /// host mini still ≤1024; S1_SLIM_MAX_CODE unchanged; yoyo.tyb ABSENT.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_parse1_text_cap_4k_pin() {
+        assert_eq!(crate::s1_tyb_parser::S1_SLIM_MAX_CODE, 1024);
+        assert_eq!(S3_PARSE1_RET_PE_LEN, 0x2400);
+        let pe = yoyo_compiler_pe_bytes().expect("S3.630");
+        assert!(String::from_utf8_lossy(&pe).contains("yoyo_parse1_c"));
+        let dir = temp_work("s630-parse1-text4k");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        // small still matches host mini (both expanded PE)
+        let tyb_sm = crate::s1_tyb_parser::s3_n_nops_ret_tyb(3);
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_sm)
+            .expect("emit 3nop")
+            .bytes;
+        assert_eq!(expect.len() as u32, S3_PARSE1_RET_PE_LEN);
+        std::fs::write(dir.join("input.tyb"), &tyb_sm).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success(), "3nop exit {:?}", st.code());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
+        // host mini refuses 2000 NOPs; child accepts (text zero 0xFF3)
+        let tyb_big = crate::s1_tyb_parser::s3_n_nops_ret_tyb(2000);
+        assert!(
+            crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_big).is_err(),
+            "host mini must still fail 2000 NOPs"
+        );
+        std::fs::write(dir.join("input.tyb"), &tyb_big).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success(), "2000nop child exit {:?}", st.code());
+        let out = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+        assert_eq!(out.len() as u32, S3_PARSE1_RET_PE_LEN);
+        let t0 = crate::s1_tyb_parser::S1_SLIM_TEXT_PAYLOAD_OFF;
+        assert_eq!(&out[t0..t0 + 2000], &vec![0x90u8; 2000][..]);
+        assert_eq!(out[t0 + 2000], 0xC3);
+        // yoyo.tyb still ABSENT (18KiB >> 0xFF3)
+        let yoyo_tyb = gate_i_yoyo_tyb_path();
+        std::fs::copy(&yoyo_tyb, dir.join("input.tyb")).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert_eq!(st.code(), Some(EXIT_COMPILE_FAIL));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("630") && s.contains("0x1000")));
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.630"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

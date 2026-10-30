@@ -2608,6 +2608,16 @@ pub fn s3_n_labels_ret_tyb(n: u32) -> Vec<u8> {
     s3_host_tyb_from_records(&recs)
 }
 
+/// S3.630: N×NOP + RET — stress child `.text` capacity (host mini still ≤1024).
+pub fn s3_n_nops_ret_tyb(n: u32) -> Vec<u8> {
+    let mut recs: Vec<(u8, u8, [u8; 6])> = Vec::with_capacity(n as usize + 1);
+    for _ in 0..n {
+        recs.push((0x00, 0, [0; 6]));
+    }
+    recs.push((0xFF, 0, [0; 6]));
+    s3_host_tyb_from_records(&recs)
+}
+
 /// S3.603: LABEL + trailing ops + RET. `ops` are non-RET opcodes with canonical args
 /// for fixed10 / RAW_BYTE(0x90) / ALUV — used for parse1 LABEL* chains.
 pub fn s3_label_chain_ret_tyb(label_id: u32, ops: &[u8]) -> Vec<u8> {
@@ -10335,6 +10345,33 @@ pub const S3_COMPILE_PE_RET_IMAGE_SEED: &[u8] =
 pub const S3_COMPILE_PE_SET_RET_IMAGE_SEED: &[u8] =
     include_bytes!("../blobs/s3_compile_pe_setret.pe");
 
+/// S3.630: expand RET PE `.text` SizeOfRawData 0x600→0x1000 (match VS).
+/// Moves `.data` file raw forward; RVAs unchanged. Shared by host mini + child.
+#[cfg(windows)]
+pub fn s3_expand_ret_pe_text_raw1k(seed: &[u8]) -> Vec<u8> {
+    assert!(seed.len() >= 0x1A00, "ret seed short");
+    const OLD_TEXT_RS: u32 = 0x600;
+    const NEW_TEXT_RS: u32 = 0x1000;
+    const OLD_DATA_RP: u32 = 0xA00;
+    const NEW_DATA_RP: u32 = 0x1400;
+    const DATA_RS: u32 = 0x1000;
+    let new_len = (NEW_DATA_RP + DATA_RS) as usize;
+    let mut pe = vec![0u8; new_len];
+    pe[..0x400].copy_from_slice(&seed[..0x400]);
+    pe[0x400..0x400 + OLD_TEXT_RS as usize]
+        .copy_from_slice(&seed[0x400..0x400 + OLD_TEXT_RS as usize]);
+    pe[NEW_DATA_RP as usize..NEW_DATA_RP as usize + DATA_RS as usize]
+        .copy_from_slice(&seed[OLD_DATA_RP as usize..OLD_DATA_RP as usize + DATA_RS as usize]);
+    let e_lfanew = u32::from_le_bytes(pe[0x3C..0x40].try_into().unwrap()) as usize;
+    let opt = e_lfanew + 24;
+    pe[opt + 4..opt + 8].copy_from_slice(&NEW_TEXT_RS.to_le_bytes());
+    let size_opt = u16::from_le_bytes(pe[e_lfanew + 20..e_lfanew + 22].try_into().unwrap()) as usize;
+    let sect = e_lfanew + 24 + size_opt;
+    pe[sect + 16..sect + 20].copy_from_slice(&NEW_TEXT_RS.to_le_bytes());
+    pe[sect + 40 + 20..sect + 40 + 24].copy_from_slice(&NEW_DATA_RP.to_le_bytes());
+    pe
+}
+
 /// S3.400/S3.405: patch user `.text`/`.data` into compile PE template (IAT kept).
 #[cfg(windows)]
 fn s3_compile_pe_patch_text(text: &[u8]) -> crate::types::IsaResult<Vec<u8>> {
@@ -10362,20 +10399,23 @@ fn s3_compile_pe_patch_text_data(text: &[u8], data: &[u8]) -> crate::types::IsaR
             ),
         });
     }
-    let mut pe = S3_COMPILE_PE_RET_IMAGE_SEED.to_vec();
+    // S3.630: host mini uses expanded RET PE so child parse1 PE matches.
+    // .data file raw moved 0xA00→0x1400; keep S1_SLIM_DATA_PAYLOAD_OFF=0xA00
+    // for legacy seeds / in-DLL (unchanged).
+    let mut pe = s3_expand_ret_pe_text_raw1k(S3_COMPILE_PE_RET_IMAGE_SEED);
     let t0 = S1_SLIM_TEXT_PAYLOAD_OFF;
     let t_end = t0 + S1_SLIM_MAX_CODE;
     for b in &mut pe[t0..t_end] {
         *b = 0;
     }
     pe[t0..t0 + text.len()].copy_from_slice(text);
-    let d0 = S1_SLIM_DATA_PAYLOAD_OFF;
-    let d_end = d0 + S1_SLIM_IAT_BASE as usize;
-    for b in &mut pe[d0..d_end] {
+    const EXP_DATA_OFF: usize = 0x1400;
+    let d_end = EXP_DATA_OFF + S1_SLIM_IAT_BASE as usize;
+    for b in &mut pe[EXP_DATA_OFF..d_end] {
         *b = 0;
     }
     if !data.is_empty() {
-        pe[d0..d0 + data.len()].copy_from_slice(data);
+        pe[EXP_DATA_OFF..EXP_DATA_OFF + data.len()].copy_from_slice(data);
     }
     Ok(pe)
 }
