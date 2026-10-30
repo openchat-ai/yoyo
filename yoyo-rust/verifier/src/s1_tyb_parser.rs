@@ -2438,6 +2438,25 @@ pub fn s3_load_file_ret_tyb(slot: u16, path_off: u32) -> Vec<u8> {
     s3_host_tyb_from_records(&[(0x50, 2, a), (0xFF, 0, [0; 6])])
 }
 
+/// S3.616: WRITE_FILE+RET TYB argc=2 (sz_slot=0).
+pub fn s3_write_file_ret_tyb(slot: u16, path_off: u32) -> Vec<u8> {
+    assert!(path_off < S1_SLIM_IAT_BASE, "path overlaps IAT");
+    let mut a = [0u8; 6];
+    a[0..2].copy_from_slice(&slot.to_le_bytes());
+    a[2..6].copy_from_slice(&path_off.to_le_bytes());
+    s3_host_tyb_from_records(&[(0x51, 2, a), (0xFF, 0, [0; 6])])
+}
+
+/// S3.616: WRITE_FILE+RET TYB argc=3 (path as u16).
+pub fn s3_write_file3_ret_tyb(slot: u16, path_off: u16, sz_slot: u16) -> Vec<u8> {
+    assert!((path_off as u32) < S1_SLIM_IAT_BASE, "path overlaps IAT");
+    let mut a = [0u8; 6];
+    a[0..2].copy_from_slice(&slot.to_le_bytes());
+    a[2..4].copy_from_slice(&path_off.to_le_bytes());
+    a[4..6].copy_from_slice(&sz_slot.to_le_bytes());
+    s3_host_tyb_from_records(&[(0x51, 3, a), (0xFF, 0, [0; 6])])
+}
+
 /// S3.606: LABEL + NOP + JMP(same id) + RET — exercises parse1 label table.
 pub fn s3_label_nop_jmp_ret_tyb(label_id: u32) -> Vec<u8> {
     let mut a = [0u8; 6];
