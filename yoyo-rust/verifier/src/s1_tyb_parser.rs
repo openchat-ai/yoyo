@@ -2376,6 +2376,13 @@ pub fn s3_aluv_ret_tyb(op: u8, dst: u16, src: u16) -> Vec<u8> {
     s3_host_tyb_from_records(&[(op, 2, a), (0xFF, 0, [0; 6])])
 }
 
+/// S3.602: RAW_BYTE+RET TYB (beyond fixed10). Emits one literal `.text` byte.
+pub fn s3_raw_byte_ret_tyb(byte: u8) -> Vec<u8> {
+    let mut a = [0u8; 6];
+    a[0] = byte;
+    s3_host_tyb_from_records(&[(0xA0, 1, a), (0xFF, 0, [0; 6])])
+}
+
 /// S3.551: fixed10 multi-op chain + trailing RET (beyond single op+RET).
 ///
 /// `ops` are non-RET fixed10 opcodes; RET is appended. Empty → RET-only.
