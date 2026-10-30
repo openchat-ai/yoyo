@@ -4,7 +4,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.617**（616=parse1 +WRITE_FILE；下一刀=DATA / yoyo.tyb / M4）。
+**默认** 继续 **= S3.618**（617=parse1 +DATA；下一刀=yoyo.tyb / M4 — mini-ISA parse1 已齐）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -46,9 +46,10 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3.614** ✅ | `fa9915b` | parse1 +ALLOC 0x20（slim VA prefix+store） |
 | **S3.615** ✅ | `2058f70` | parse1 +LOAD_FILE 0x50（160B slim seed） |
 | **S3.616** ✅ | `898ccdf` | parse1 +WRITE_FILE 0x51（139B slim seed） |
-| **S3.617** ⏳ | — | **本步**：DATA / yoyo.tyb / M4 |
+| **S3.617** ✅ | `7cb45c2` | parse1 +DATA/STR/RAW 0x10/12/13（.data @0xA00） |
+| **S3.618** ⏳ | — | **本步**：yoyo.tyb / M4（parse1≈mini 齐；≠ OW CLOSED） |
 
-**缺口**：DATA·STR·RAW / yoyo.tyb / M4 flip 仍 **ABSENT**。`ready=false`。bake=362。
+**缺口**：yoyo.tyb / M4 flip / general emit_x86 仍 **ABSENT**。`ready=false`。bake=362。parse1 已覆盖 mini 主路径（slots≤15 / n≤4 等刀限仍在）。
 
 ---
 
@@ -65,7 +66,7 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 
 ## 对 AI
 
-- 继续 → **S3.617**（DATA/STR/RAW；禁 densify / 假 CLOSED）。S3.616=WRITE。红了记根因停。
+- 继续 → **S3.618**（yoyo.tyb cliff 先命名/探；禁 densify / 假 CLOSED）。S3.617=DATA。红了记根因停。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
