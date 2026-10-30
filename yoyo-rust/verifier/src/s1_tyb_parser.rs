@@ -2383,6 +2383,15 @@ pub fn s3_raw_byte_ret_tyb(byte: u8) -> Vec<u8> {
     s3_host_tyb_from_records(&[(0xA0, 1, a), (0xFF, 0, [0; 6])])
 }
 
+/// S3.604: LDB+RET TYB (beyond fixed10). `dd`/`ss`/`oo` are u16; parse1 covers ≤15.
+pub fn s3_ldb_ret_tyb(dd: u16, ss: u16, oo: u16) -> Vec<u8> {
+    let mut a = [0u8; 6];
+    a[0..2].copy_from_slice(&dd.to_le_bytes());
+    a[2..4].copy_from_slice(&ss.to_le_bytes());
+    a[4..6].copy_from_slice(&oo.to_le_bytes());
+    s3_host_tyb_from_records(&[(0x80, 3, a), (0xFF, 0, [0; 6])])
+}
+
 /// S3.603: LABEL+RET TYB (beyond fixed10). LABEL emits no `.text`; id is argc=1 u32.
 pub fn s3_label_ret_tyb(label_id: u32) -> Vec<u8> {
     let mut a = [0u8; 6];
