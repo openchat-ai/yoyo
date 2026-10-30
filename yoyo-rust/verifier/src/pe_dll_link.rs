@@ -536,7 +536,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.633 cliff: seed_host(yoyo.tyb) ≫≠ child/wide slim RET PE (oracle≠CreateProcess child; full pe_link vs slim)",
         "S3.634 cliff: child-built yoyo.tyb slim PE AV as self-host compiler (0xC0000005); seed_host still runnable Gate I",
         "S3.635 cliff: seed_host(yoyo.tyb) as raw CreateProcess compiler → EXIT_NO_INPUT(2); child-built AV; Gate I=write-bytes≠run",
-        "today: parse1≈mini +yoyo.tyb child GREEN; neither seed_host nor slim-child is drop-in self-host under child cwd; M4 ABSENT",
+        "S3.636 cliff: pe_link(executor(yoyo.tyb))≡seed_host; both raw→NO_INPUT; drop-in self-host needs H_00/gen4 not child-cwd",
+        "today: parse1 yoyo_compiler.exe = child-cwd GREEN; compiled-yoyo.tyb PE ≠ that contract (NO_INPUT/AV); M4 ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -14989,6 +14990,69 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("592") && s.contains("SET+ADD+SUB+NOP")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.636: pe_link(executor(yoyo.tyb)) ≡ seed_host; both raw-run → NO_INPUT
+    /// under child cwd. Drop-in self-host needs H_00/gen4 (Gate I), not
+    /// CreateProcess(compiled-yoyo)+input.tyb. Hand parse1 yoyo_compiler.exe
+    /// still GREEN for that contract. ready=false; ≠ M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_yoyo_tyb_pe_link_eq_seed_raw_no_input_cliff_pin() {
+        assert_eq!(crate::s1_tyb_parser::S1_SLIM_MAX_CODE, 1024);
+        let tyb = std::fs::read(gate_i_yoyo_tyb_path()).expect("yoyo.tyb");
+        let full = crate::executor::compile_tyb_source(&tyb, crate::platform::PlatformKind::Win32)
+            .expect("exec");
+        let linked = crate::pe_link::link_pe_win32(
+            &full.code,
+            &full.data,
+            &full.handler_offsets,
+        )
+        .expect("link")
+        .bytes;
+        let seed = crate::selfhost::seed_host_compile(&tyb).expect("seed_host");
+        assert_eq!(linked, seed, "pe_link(executor) ≡ seed_host");
+        let dir = temp_work("s636-pe-link-no-input");
+        let tyb_sm = crate::s1_tyb_parser::s3_n_nops_ret_tyb(3);
+        std::fs::write(dir.join("input.tyb"), &tyb_sm).unwrap();
+        for (name, bytes) in [("yoyo_linked.exe", &linked), ("yoyo_seed.exe", &seed)] {
+            let exe = dir.join(name);
+            std::fs::write(&exe, bytes).unwrap();
+            let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+            let st = std::process::Command::new(&exe)
+                .current_dir(&dir)
+                .status()
+                .unwrap();
+            assert_eq!(
+                st.code(),
+                Some(EXIT_NO_INPUT),
+                "{name} raw-run → NO_INPUT (got {:?})",
+                st.code()
+            );
+            assert!(!dir.join(OUTPUT_NAME).exists(), "{name} no output");
+        }
+        // control: hand parse1 yoyo_compiler.exe still GREEN under same cwd
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_sm)
+            .expect("emit 3nop")
+            .bytes;
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success(), "parse1 compiler still GREEN {:?}", st.code());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
+        assert!(
+            yoyo_child_live_compose_design()
+                .iter()
+                .any(|s| s.contains("S3.636")),
+            "design must name S3.636"
+        );
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.636"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

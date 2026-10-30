@@ -4,7 +4,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.636**（635=seed_host raw-run NO_INPUT cliff；下一刀=pe_link shape / runnable self-host / M4）。
+**默认** 继续 **= S3.637**（636=pe_link≡seed raw NO_INPUT；下一刀=H_00/gen4 自举对照 / M4）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -24,19 +24,18 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3** ⏳ | child parse1 扩 ISA · 真自举不排假工期 |
 | **S4/S5** | 全 ISA / 形式化 · 地图 |
 
-**诚实底线**：yoyo.tyb-child GREEN ≠ drop-in self-host（slim AV；seed_host raw→NO_INPUT）≠ OW-* CLOSED。
+**诚实底线**：parse1 `yoyo_compiler.exe` = child-cwd GREEN；compiled-yoyo.tyb PE ≠ 该契约（NO_INPUT/AV）；自举要 H_00/gen4。
 
 ### 波段 tip（更早单刀已折）
 
 | 波段 | tip | 一句话 |
 | --- | --- | --- |
-| **S3.1–521** ✅ | `5dd7651` | fixed10→host compose→DATA |
-| **S3.522–630** ✅ | `3809e18` | CreateProcess→parse1→any-slot→text4KiB |
+| **S3.1–630** ✅ | `3809e18` | fixed10→parse1→any-slot→text4KiB |
 | **S3.631–632** ✅ | `827b853` | yoyo.tyb child + in-DLL CreateProcess GREEN |
-| **S3.633–635** ✅ | — | seed≠wide；slim AV；**seed raw→NO_INPUT** |
-| **S3.636** ⏳ | — | **本步**：pe_link shape / runnable self-host / M4 |
+| **S3.633–636** ✅ | — | seed≠wide；AV；NO_INPUT；**pe_link≡seed** |
+| **S3.637** ⏳ | — | **本步**：H_00/gen4 自举对照 / M4 |
 
-**缺口**：drop-in self-host ABSENT（slim AV / seed_host cwd-contract NO_INPUT）；host-mini 1024 禁抬；M4 / general emit **ABSENT**。`ready=false`。bake=362。
+**缺口**：drop-in self-host under child-cwd ABSENT for compiled-yoyo；H_00/gen4 才是 Gate I 跑法；host-mini 1024 禁抬；M4 **ABSENT**。`ready=false`。bake=362。
 
 ---
 
@@ -53,9 +52,9 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 
 ## 对 AI
 
-- 继续 → **S3.636**（pe_link shape toward runnable；禁 densify / 假 CLOSED / 单抬 slim-cap）。S3.635=seed_host raw NO_INPUT。红了记根因停。
+- 继续 → **S3.637**（H_00/gen4 自举对照；禁 densify / 假 CLOSED / 单抬 slim-cap）。S3.636=pe_link≡seed NO_INPUT。红了记根因停。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
 
-*post-v1.0 · 收纳板 · tip S3.636*
+*post-v1.0 · 收纳板 · tip S3.637*
