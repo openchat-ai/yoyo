@@ -425,14 +425,14 @@ pub fn yoyo_m4_production_flip_ready() -> bool {
 /// Non-empty ⇒ M4 production flip stays ABSENT. Clearing entries ≠ OW-RT CLOSED.
 pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
     &[
-        "yoyo.tyb: ISA/slot/table OK; child text~4KiB (S3.630) still <<18KiB; S1_SLIM_MAX_CODE=1024 sheep-locked",
+        "yoyo.tyb child parse1 GREEN (S3.631); host-mini S1_SLIM_MAX_CODE=1024 still ABSENT; M4/oracle≠live",
         "beyond-mini overflow TYB fails mini; today served only via oracle→seed_host",
         "in-DLL export has no seed_host/bootstrap_compile machine at call-time",
         "ALT in-dll-gate-i / gen4 GREEN paths are still oracle lookup, not live emit",
         "production default place_cwd remains Rust (ALT unset)",
         "raising S1_SLIM_MAX_CODE / densify hand-hex ≠ live-compile graduation (sheep)",
-        "CreateProcess compiler PE: parse1≈mini+any-slot GREEN; yoyo.tyb text-cap/table still ABSENT",
-        "child live compose ABSENT — yoyo.tyb text-cap+label/patch table; general parse+emit_x86 still ABSENT (S3.582 cliff remains); see design",
+        "CreateProcess compiler PE: parse1≈mini+any-slot+text20k+multi-RET; yoyo.tyb child GREEN; host-mini 1024 ABSENT",
+        "child live compose ABSENT — general parse+emit_x86 still ABSENT (S3.582 cliff remains); host-mini≠child; see design",
     ]
 }
 
@@ -531,7 +531,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.628 parse1 DONE: label/patch tables 32→256 (scratch 0x1100; yoyo.tyb 788 still ABSENT)",
         "S3.629 parse1 DONE: label/patch tables 256→1024 (scratch 0x4100; covers yoyo.tyb 788 LABELs; text-cap ABSENT)",
         "S3.630 parse1 DONE: child RET PE .text raw 0x600→0x1000 (cap≈0xFF3; S1_SLIM_MAX_CODE stays 1024; yoyo.tyb 18KiB ABSENT)",
-        "today: parse1≈mini +table1024 +text~4KiB; yoyo.tyb 18KiB text-cap ABSENT; general parse+emit still ABSENT",
+        "S3.631 parse1 DONE: child .text raw→0x5000 + mid-stream RET (yoyo.tyb 788×RET child GREEN; S1_SLIM_MAX_CODE stays 1024)",
+        "today: parse1≈mini +table1024 +text20KiB +multi-RET; yoyo.tyb child GREEN / host-mini 1024 ABSENT; general parse+emit / M4 ABSENT",
         "live emit of yoyo.tyb / beyond-mini still ABSENT (full compose / densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside child .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -609,13 +610,16 @@ pub fn yoyo_compiler_pe_is_ret_compile_stub() -> bool {
 /// pe_link `.data` user payload starts at this r15 offset (IAT header + scratch pad).
 const YOYO_COMPILER_PE_USER_DATA_OFF: u32 = 0x120;
 
-/// S3.630: expanded RET PE byte length (headers+text1k+data1k).
+/// S3.631: expanded RET PE byte length (headers+text20k+data1k).
 #[cfg(windows)]
-const S3_PARSE1_RET_PE_LEN: u32 = 0x2400;
-/// S3.630: parse1 zeros this many .text bytes at +0x40d (was 0x400).
-/// Child can emit past host [`S1_SLIM_MAX_CODE`]=1024 up to 0xFF3; ≠ raising that const.
+const S3_PARSE1_RET_PE_LEN: u32 = 0x6400;
+/// S3.631: parse1 zeros this many .text bytes at +0x40d.
+/// Child can emit past host [`S1_SLIM_MAX_CODE`]=1024 up to 0x4FF3; ≠ raising that const.
 #[cfg(windows)]
-const S3_PARSE1_TEXT_ZERO: u32 = 0x1000 - 0xD; // 0xFF3
+const S3_PARSE1_TEXT_ZERO: u32 = 0x5000 - 0xD; // 0x4FF3
+/// S3.631: .data file raw after 20KiB text expand.
+#[cfg(windows)]
+const S3_PARSE1_DATA_FILE_OFF: u32 = 0x5400;
 
 /// Build fixed10 + multi-op compile-in-child EXE (S3.548/S3.551).
 ///
@@ -775,8 +779,8 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
         data.push(0);
     }
     let ret_pe_rel = data.len() as u32;
-    // S3.630: bake expanded RET PE (.text raw 0x1000) for parse1 capacity.
-    let ret_pe_expanded = crate::s1_tyb_parser::s3_expand_ret_pe_text_raw1k(ret_seed);
+    // S3.631: bake expanded RET PE (.text raw 0x5000) for parse1 / yoyo.tyb capacity.
+    let ret_pe_expanded = crate::s1_tyb_parser::s3_expand_ret_pe_text_raw20k(ret_seed);
     assert_eq!(ret_pe_expanded.len() as u32, S3_PARSE1_RET_PE_LEN);
     data.extend_from_slice(&ret_pe_expanded);
     let setret_pe_rel = data.len() as u32;
@@ -884,7 +888,8 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let live2_set_mov_text_off = YOYO_COMPILER_PE_USER_DATA_OFF + live2_set_mov_text_rel;
     let live2_sa_sub_nop_text_off = YOYO_COMPILER_PE_USER_DATA_OFF + live2_sa_sub_nop_text_rel;
     let live2_set_cmp_mov_text_off = YOYO_COMPILER_PE_USER_DATA_OFF + live2_set_cmp_mov_text_rel;
-    let seed_len = 6656u32;
+    // S3.631: RET-only write length = expanded RET PE (was 6656 unexpanded).
+    let seed_len = S3_PARSE1_RET_PE_LEN;
 
     let mut c = Vec::new();
     c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x68]);
@@ -1491,7 +1496,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
 
 
     // S3.594/595 parse1: walk TYB; NOP|INC|DEC* + RET (record loop; ≠ field table)
-    // S3.630: RET PE len 0x2400; zero .text 0xFF3 bytes (was 0x1A00 / 0x400).
+    // S3.631: RET PE len 0x6400; zero .text 0x4FF3 bytes (was 0x2400 / 0xFF3).
     let parse1 = c.len();
     c.extend_from_slice(&[0x48, 0x89, 0x74, 0x24, 0x50]); // mov [rsp+0x50], rsi
     c.extend_from_slice(&[0x31, 0xC9]);
@@ -1544,10 +1549,11 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x4C, 0x8D, 0x46, 0x08]); // lea r8, [rsi+8]
     c.extend_from_slice(&[0x48, 0x8D, 0xBB, 0x0D, 0x04, 0x00, 0x00]); // lea rdi,[rbx+0x40d]
-    // S3.617/S3.629/S3.630: data cursor/len in scratch (+0x4030/+0x4038)
-    // S3.630: .data file raw @0x1400 (was 0xA00) after text expand.
+    // S3.617/S3.629/S3.631: data cursor/len in scratch (+0x4030/+0x4038)
+    // S3.631: .data file raw @0x5400 after 20KiB text expand.
     c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]); // r11=scratch
-    c.extend_from_slice(&[0x48, 0x8D, 0x83, 0x00, 0x14, 0x00, 0x00]); // lea rax,[rbx+0x1400]
+    c.extend_from_slice(&[0x48, 0x8D, 0x83]); // lea rax,[rbx+S3_PARSE1_DATA_FILE_OFF]
+    c.extend_from_slice(&S3_PARSE1_DATA_FILE_OFF.to_le_bytes());
     c.extend_from_slice(&[0x49, 0x89, 0x83, 0x30, 0x40, 0x00, 0x00]); // [scratch+0x4030]=cursor
     c.extend_from_slice(&[0x41, 0xC7, 0x83, 0x38, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
     let parse1_loop = c.len();
@@ -2742,13 +2748,15 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xFF, 0xC9]); // dec ecx
     let jmp_parse1_loop = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    // S3.631: RET — mid-stream emit C3+advance (yoyo.tyb 788×RET); last (ecx==1) finalize.
+    // Host emit_x86 pushes C3 per RET and continues; ≠ single-RET-only.
     let parse1_ret_lbl = c.len();
     c.extend_from_slice(&[0x41, 0x80, 0x78, 0x01, 0x00]);
     let jne_parse1_fail4 = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x83, 0xF9, 0x01]); // cmp ecx, 1 — RET must be last
-    let jne_parse1_fail5 = c.len();
-    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x83, 0xF9, 0x01]); // cmp ecx, 1 — last RET → finalize
+    let jne_parse1_ret_mid = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // → mid-stream RET
     c.extend_from_slice(&[0xC6, 0x07, 0xC3]); // mov byte [rdi], 0xC3
     // S3.607: apply JMP patches from scratch
     c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]); // r11=scratch
@@ -2801,6 +2809,12 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x41, 0xB8]); // mov r8d, S3_PARSE1_RET_PE_LEN
     c.extend_from_slice(&S3_PARSE1_RET_PE_LEN.to_le_bytes());
     let jmp_parse1_w = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    // S3.631 mid-stream RET: emit C3 + advance (not finalize)
+    let parse1_ret_mid_lbl = c.len();
+    c.extend_from_slice(&[0xC6, 0x07, 0xC3]); // mov byte [rdi], 0xC3
+    c.extend_from_slice(&[0x48, 0xFF, 0xC7]); // inc rdi
+    let jmp_parse1_ret_mid_adv = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // S3.574 emit1 NOP (dead after S3.594 parse1; body kept)
@@ -4073,7 +4087,8 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jmp(&mut c, jmp_parse1_mcps_loop, parse1_mcps_loop);
     patch_jmp(&mut c, jmp_parse1_loop, parse1_loop);
     patch_jcc(&mut c, jne_parse1_fail4, fail_compile);
-    patch_jcc(&mut c, jne_parse1_fail5, fail_compile);
+    patch_jcc(&mut c, jne_parse1_ret_mid, parse1_ret_mid_lbl);
+    patch_jmp(&mut c, jmp_parse1_ret_mid_adv, parse1_advance);
     patch_jcc(&mut c, jz_parse1_go_w, parse1_go_w);
     patch_jcc(&mut c, jae_parse1_go_w, parse1_go_w);
     patch_jcc(&mut c, jae_parse1_fail_nf, fail_compile);
@@ -7696,7 +7711,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.628: parse1 label/patch tables 32→256 (yoyo.tyb 788 still ABSENT).
     // S3.629: parse1 label/patch tables 256→1024 (788 OK; text-cap ABSENT).
     // S3.630: child RET PE .text raw→0x1000 (≈0xFF3; ≠ S1_SLIM_MAX_CODE).
-    // Next >=10 = text≥18KiB / M4 / OW-RT. Raising S1_SLIM_MAX_CODE = sheep.
+    // S3.631: child RET PE .text raw→0x5000; yoyo.tyb child GREEN.
+    // Next >=10 = M4 flip / general emit / OW-RT. Raising S1_SLIM_MAX_CODE = sheep.
     // Not CLOSED. CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
@@ -13617,7 +13633,10 @@ mod tests {
             "map must name compile-in-child cliff"
         );
 
-        let expect = crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED;
+        // S3.631: RET-only child writes expanded RET PE (20KiB text).
+        let expect = crate::s1_tyb_parser::s3_expand_ret_pe_text_raw20k(
+            crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED,
+        );
         let dir = temp_work("s545-ret-compile");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
 
@@ -13687,8 +13706,14 @@ mod tests {
             "map must name mini-table cliff"
         );
 
-        let ret_expect = crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED;
-        let sr_expect = crate::s1_tyb_parser::S3_COMPILE_PE_SET_RET_IMAGE_SEED;
+        let ret_expect = crate::s1_tyb_parser::s3_expand_ret_pe_text_raw20k(
+            crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED,
+        );
+        // SET+RET via emit2/parse1 → mini_emit (expanded template)
+        let sr_tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x30);
+        let sr_expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&sr_tyb)
+            .expect("emit setret")
+            .bytes;
         let dir = temp_work("s546-setret-compile");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
 
@@ -13784,7 +13809,9 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(st.success());
         assert_eq!(
             std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
-            crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED
+            crate::s1_tyb_parser::s3_expand_ret_pe_text_raw20k(
+                crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED,
+            )
         );
 
         assert!(
@@ -13814,10 +13841,11 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let ops: [u8; 10] = [0xFF, 0x00, 0x30, 0x60, 0x66, 0x62, 0x67, 0x61, 0x64, 0x65];
         for &op in &ops {
             let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
+            // S3.631: RET-only = expanded seed; others = mini_emit (expanded template).
             let expect = if op == 0xFF {
-                crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED.to_vec()
-            } else if op == 0x30 {
-                crate::s1_tyb_parser::S3_COMPILE_PE_SET_RET_IMAGE_SEED.to_vec()
+                crate::s1_tyb_parser::s3_expand_ret_pe_text_raw20k(
+                    crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED,
+                )
             } else {
                 crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
                     .expect("emit")
@@ -13847,8 +13875,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(
             yoyo_live_in_dll_compile_map()
                 .iter()
-                .any(|s| s.contains("fixed10") && s.contains("ABSENT")),
-            "map names fixed10/yoyo.tyb cliff"
+                .any(|s| s.contains("host-mini") && s.contains("ABSENT")),
+            "map names host-mini ABSENT cliff"
         );
         let dir = temp_work("s549-f10-indll");
         let _ = yoyo_place_compiler_pe(&dir).expect("place");
@@ -14018,37 +14046,26 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.554: child compiler rejects production yoyo.tyb (honest ABSENT cliff).
+    /// S3.554: yoyo.tyb cliff renamed — child GREEN (S3.631); host-mini still ABSENT.
     #[test]
     #[cfg(windows)]
     fn yoyo_compiler_pe_yoyo_tyb_reject_cliff_pin() {
         let yoyo_tyb = gate_i_yoyo_tyb_path();
         assert!(yoyo_tyb.is_file(), "yoyo.tyb present for cliff");
-        let dir = temp_work("s554-yoyo-reject");
-        let path = yoyo_place_compiler_pe(&dir).expect("place");
-        std::fs::copy(&yoyo_tyb, dir.join("input.tyb")).unwrap();
-        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
-        let st = std::process::Command::new(&path)
-            .current_dir(&dir)
-            .status()
-            .unwrap();
-        assert_eq!(
-            st.code(),
-            Some(EXIT_COMPILE_FAIL),
-            "yoyo.tyb must not compile in child (got {:?})",
-            st.code()
+        let ybytes = std::fs::read(&yoyo_tyb).expect("read yoyo.tyb");
+        assert!(
+            crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&ybytes).is_err(),
+            "host mini must still fail yoyo.tyb"
         );
-        assert!(!dir.join(OUTPUT_NAME).exists());
         assert!(
             yoyo_live_in_dll_compile_map()
                 .iter()
-                .any(|s| s.contains("yoyo.tyb") && s.contains("ABSENT")),
-            "map keeps yoyo.tyb ABSENT"
+                .any(|s| s.contains("host-mini") && s.contains("ABSENT")),
+            "map keeps host-mini ABSENT"
         );
         assert!(!yoyo_live_compile_slice_ready());
         assert!(!yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.554"));
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.555: SET+MOVRR / SET+CMP+MOVRR chains GREEN; M4 flip still ABSENT.
@@ -14252,13 +14269,9 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         for &op in &[0x60u8, 0x62, 0x61, 0x30] {
             let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
-            let expect = if op == 0x30 {
-                crate::s1_tyb_parser::S3_COMPILE_PE_SET_RET_IMAGE_SEED.to_vec()
-            } else {
-                crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
-                    .expect("emit")
-                    .bytes
-            };
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+                .expect("emit")
+                .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
             let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
             let st = std::process::Command::new(&path)
@@ -14298,10 +14311,11 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let ops: [u8; 10] = [0xFF, 0x00, 0x30, 0x60, 0x66, 0x62, 0x67, 0x61, 0x64, 0x65];
         for &op in &ops {
             let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
+            // S3.631: RET-only = expanded seed; others = mini_emit (expanded template).
             let expect = if op == 0xFF {
-                crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED.to_vec()
-            } else if op == 0x30 {
-                crate::s1_tyb_parser::S3_COMPILE_PE_SET_RET_IMAGE_SEED.to_vec()
+                crate::s1_tyb_parser::s3_expand_ret_pe_text_raw20k(
+                    crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED,
+                )
             } else {
                 crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
                     .expect("emit")
@@ -14527,7 +14541,9 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let dir = temp_work("s583-emit2-set");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x30);
-        let expect = crate::s1_tyb_parser::S3_COMPILE_PE_SET_RET_IMAGE_SEED.to_vec();
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            .expect("emit set")
+            .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
         let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
         let st = std::process::Command::new(&path)
@@ -14596,9 +14612,11 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             );
             assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect_alt);
         }
-        // SET still emit2
+        // SET still emit2 / parse1
         let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x30);
-        let expect = crate::s1_tyb_parser::S3_COMPILE_PE_SET_RET_IMAGE_SEED.to_vec();
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            .expect("emit set")
+            .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
         let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
         let st = std::process::Command::new(&path)
@@ -14970,23 +14988,23 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.630: child .text raw→0x1000 (≈0xFF3); 2000×NOP child GREEN;
-    /// host mini still ≤1024; S1_SLIM_MAX_CODE unchanged; yoyo.tyb ABSENT.
+    /// S3.631: child .text raw→0x5000 + mid-stream RET; yoyo.tyb child GREEN
+    /// vs wide expect; host mini still ≤1024; S1_SLIM_MAX_CODE unchanged; ready=false.
     #[test]
     #[cfg(windows)]
-    fn yoyo_compiler_pe_parse1_text_cap_4k_pin() {
+    fn yoyo_compiler_pe_parse1_yoyo_tyb_text20k_pin() {
         assert_eq!(crate::s1_tyb_parser::S1_SLIM_MAX_CODE, 1024);
-        assert_eq!(S3_PARSE1_RET_PE_LEN, 0x2400);
-        let pe = yoyo_compiler_pe_bytes().expect("S3.630");
+        assert_eq!(S3_PARSE1_RET_PE_LEN, 0x6400);
+        let pe = yoyo_compiler_pe_bytes().expect("S3.631");
         assert!(String::from_utf8_lossy(&pe).contains("yoyo_parse1_c"));
-        let dir = temp_work("s630-parse1-text4k");
+        let dir = temp_work("s631-parse1-yoyo-tyb");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
-        // small still matches host mini (both expanded PE)
+        // small still matches host mini
         let tyb_sm = crate::s1_tyb_parser::s3_n_nops_ret_tyb(3);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_sm)
+        let expect_sm = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_sm)
             .expect("emit 3nop")
             .bytes;
-        assert_eq!(expect.len() as u32, S3_PARSE1_RET_PE_LEN);
+        assert_eq!(expect_sm.len() as u32, S3_PARSE1_RET_PE_LEN);
         std::fs::write(dir.join("input.tyb"), &tyb_sm).unwrap();
         let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
         let st = std::process::Command::new(&path)
@@ -14994,13 +15012,58 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .status()
             .unwrap();
         assert!(st.success(), "3nop exit {:?}", st.code());
-        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
-        // host mini refuses 2000 NOPs; child accepts (text zero 0xFF3)
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect_sm);
+        // yoyo.tyb: host mini RED; child GREEN vs wide expect
+        let yoyo_tyb = gate_i_yoyo_tyb_path();
+        let tyb = std::fs::read(&yoyo_tyb).expect("read yoyo.tyb");
+        assert!(
+            crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb).is_err(),
+            "host mini must still fail yoyo.tyb (1024 cap)"
+        );
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&tyb)
+            .expect("wide emit yoyo.tyb")
+            .bytes;
+        assert_eq!(expect.len() as u32, S3_PARSE1_RET_PE_LEN);
+        std::fs::copy(&yoyo_tyb, dir.join("input.tyb")).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success(), "yoyo.tyb child exit {:?}", st.code());
+        assert_eq!(
+            std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
+            expect,
+            "yoyo.tyb child PE"
+        );
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("631") && s.contains("yoyo.tyb")));
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_live_compile_slice_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.631"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.630: child .text raw→0x1000 (≈0xFF3); 2000×NOP child GREEN;
+    /// host mini still ≤1024; S1_SLIM_MAX_CODE unchanged; ready=false.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_parse1_text_cap_4k_pin() {
+        assert_eq!(crate::s1_tyb_parser::S1_SLIM_MAX_CODE, 1024);
+        let pe = yoyo_compiler_pe_bytes().expect("S3.630");
+        assert!(String::from_utf8_lossy(&pe).contains("yoyo_parse1_c"));
+        let dir = temp_work("s630-parse1-text4k");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
         let tyb_big = crate::s1_tyb_parser::s3_n_nops_ret_tyb(2000);
         assert!(
             crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_big).is_err(),
             "host mini must still fail 2000 NOPs"
         );
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&tyb_big)
+            .expect("wide 2000nop")
+            .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb_big).unwrap();
         let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
         let st = std::process::Command::new(&path)
@@ -15008,31 +15071,17 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .status()
             .unwrap();
         assert!(st.success(), "2000nop child exit {:?}", st.code());
-        let out = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
-        assert_eq!(out.len() as u32, S3_PARSE1_RET_PE_LEN);
-        let t0 = crate::s1_tyb_parser::S1_SLIM_TEXT_PAYLOAD_OFF;
-        assert_eq!(&out[t0..t0 + 2000], &vec![0x90u8; 2000][..]);
-        assert_eq!(out[t0 + 2000], 0xC3);
-        // yoyo.tyb still ABSENT (18KiB >> 0xFF3)
-        let yoyo_tyb = gate_i_yoyo_tyb_path();
-        std::fs::copy(&yoyo_tyb, dir.join("input.tyb")).unwrap();
-        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
-        let st = std::process::Command::new(&path)
-            .current_dir(&dir)
-            .status()
-            .unwrap();
-        assert_eq!(st.code(), Some(EXIT_COMPILE_FAIL));
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
         assert!(yoyo_child_live_compose_design()
             .iter()
             .any(|s| s.contains("630") && s.contains("0x1000")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.630"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.629: parse1 label/patch tables 256→1024; 788 LABEL+RET GREEN;
-    /// yoyo.tyb still text-cap reject; ready=false.
+    /// (yoyo.tyb child lifted in S3.631); ready=false.
     #[test]
     #[cfg(windows)]
     fn yoyo_compiler_pe_parse1_label_table1024_pin() {
@@ -15058,15 +15107,6 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
                 "n={n} labels"
             );
         }
-        // yoyo.tyb still ABSENT (text-cap; labels now OK)
-        let yoyo_tyb = gate_i_yoyo_tyb_path();
-        std::fs::copy(&yoyo_tyb, dir.join("input.tyb")).unwrap();
-        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
-        let st = std::process::Command::new(&path)
-            .current_dir(&dir)
-            .status()
-            .unwrap();
-        assert_eq!(st.code(), Some(EXIT_COMPILE_FAIL));
         assert!(yoyo_child_live_compose_design()
             .iter()
             .any(|s| s.contains("629") && s.contains("1024")));
@@ -15124,18 +15164,15 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.627: yoyo.tyb cliff renamed — ISA/slot OK; slim text>1024 + child
-    /// reject; raising S1_SLIM_MAX_CODE ≠ graduation; ready=false.
+    /// S3.627: yoyo.tyb host-mini text-cap cliff named (child lifted in S3.631).
+    /// Host mini still fails slim 1024; S1_SLIM_MAX_CODE unchanged; ready=false.
     #[test]
     #[cfg(windows)]
     fn yoyo_compiler_pe_parse1_yoyo_tyb_text_cap_cliff_pin() {
-        let pe = yoyo_compiler_pe_bytes().expect("S3.627");
-        assert!(String::from_utf8_lossy(&pe).contains("yoyo_parse1_c"));
         assert_eq!(crate::s1_tyb_parser::S1_SLIM_MAX_CODE, 1024);
         let yoyo_tyb = gate_i_yoyo_tyb_path();
         assert!(yoyo_tyb.is_file(), "yoyo.tyb present");
         let tyb = std::fs::read(&yoyo_tyb).expect("read yoyo.tyb");
-        // Host mini: ISA clears; fails closed on slim text cap (not unknown-op).
         let err = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
             .err()
             .expect("yoyo.tyb must not slim-emit");
@@ -15144,33 +15181,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             msg.contains("slim PE text") && msg.contains("1024"),
             "expect slim text-cap err, got {msg}"
         );
-        // Child still reject
-        let dir = temp_work("s627-yoyo-text-cap");
-        let path = yoyo_place_compiler_pe(&dir).expect("place");
-        std::fs::copy(&yoyo_tyb, dir.join("input.tyb")).unwrap();
-        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
-        let st = std::process::Command::new(&path)
-            .current_dir(&dir)
-            .status()
-            .unwrap();
-        assert_eq!(
-            st.code(),
-            Some(EXIT_COMPILE_FAIL),
-            "yoyo.tyb child still fail {:?}",
-            st.code()
-        );
-        assert!(!dir.join(OUTPUT_NAME).exists());
         assert!(yoyo_child_live_compose_design()
             .iter()
             .any(|s| s.contains("627") && s.contains("text")));
-        assert!(yoyo_live_in_dll_compile_map()
-            .iter()
-            .any(|s| s.contains("text") && s.contains("ABSENT")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(!yoyo_m4_production_flip_ready());
-        assert!(!yoyo_live_compile_slice_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.627"));
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.626: parse1 MCPD/MCPS slot≤255; disp8|disp32 GREEN; ready=false.
@@ -15588,13 +15604,13 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.618: parse1≈mini cliff — yoyo.tyb still rejects; ready=false.
+    /// S3.618: parse1≈mini cliff named (yoyo.tyb child lifted in S3.631).
+    /// Host-mini still rejects yoyo.tyb on slim 1024; ready=false.
     #[test]
     #[cfg(windows)]
     fn yoyo_compiler_pe_parse1_mini_yoyo_tyb_cliff_pin() {
         let pe = yoyo_compiler_pe_bytes().expect("S3.618");
         assert!(String::from_utf8_lossy(&pe).contains("yoyo_parse1_c"));
-        // mini smoke still GREEN after parse1≈mini wave
         let dir = temp_work("s618-parse1-mini-cliff");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         let tyb = crate::s1_tyb_parser::s3_raw_bytes_ret_tyb(&[0x90, 0x90]);
@@ -15609,22 +15625,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .unwrap();
         assert!(st.success(), "parse1 mini smoke exit {:?}", st.code());
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
-        // yoyo.tyb remains ABSENT in child
         let yoyo_tyb = gate_i_yoyo_tyb_path();
-        assert!(yoyo_tyb.is_file(), "yoyo.tyb present for cliff");
-        std::fs::copy(&yoyo_tyb, dir.join("input.tyb")).unwrap();
-        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
-        let st = std::process::Command::new(&path)
-            .current_dir(&dir)
-            .status()
-            .unwrap();
-        assert_eq!(
-            st.code(),
-            Some(EXIT_COMPILE_FAIL),
-            "yoyo.tyb must still fail in child (got {:?})",
-            st.code()
+        let ybytes = std::fs::read(&yoyo_tyb).expect("read yoyo.tyb");
+        assert!(
+            crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&ybytes).is_err(),
+            "host mini must still fail yoyo.tyb"
         );
-        assert!(!dir.join(OUTPUT_NAME).exists());
         assert!(yoyo_child_live_compose_design()
             .iter()
             .any(|s| s.contains("618") && s.contains("yoyo.tyb")));
@@ -16500,9 +16506,11 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .unwrap();
         assert!(st.success(), "parse1 SET alt exit {:?}", st.code());
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect_alt);
-        // RET-only still dedicated path
+        // RET-only still dedicated path (expanded RET PE, S3.631)
         let tyb_ret = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0xFF);
-        let expect_ret = crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED.to_vec();
+        let expect_ret = crate::s1_tyb_parser::s3_expand_ret_pe_text_raw20k(
+            crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED,
+        );
         std::fs::write(dir.join("input.tyb"), &tyb_ret).unwrap();
         let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
         let st = std::process::Command::new(&path)

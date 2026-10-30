@@ -10372,6 +10372,58 @@ pub fn s3_expand_ret_pe_text_raw1k(seed: &[u8]) -> Vec<u8> {
     pe
 }
 
+/// S3.631: expand RET PE `.text` to 0x5000 (20KiB) for yoyo.tyb (~18KiB).
+/// Moves `.data` VA 0x2000→0x6000 / file 0xA00→0x5400; relocates import RVAs +0x4000.
+/// Host mini still capped by [`S1_SLIM_MAX_CODE`]; child may emit full capacity.
+#[cfg(windows)]
+pub fn s3_expand_ret_pe_text_raw20k(seed: &[u8]) -> Vec<u8> {
+    assert!(seed.len() >= 0x1A00, "ret seed short");
+    const OLD_TEXT_RS: u32 = 0x600;
+    const NEW_TEXT_RS: u32 = 0x5000;
+    const OLD_DATA_RP: u32 = 0xA00;
+    const NEW_DATA_RP: u32 = 0x5400; // 0x400 headers + 0x5000 text
+    const OLD_DATA_VA: u32 = 0x2000;
+    const NEW_DATA_VA: u32 = 0x6000;
+    const DATA_RS: u32 = 0x1000;
+    const DATA_VS: u32 = 0x1000;
+    const RVA_DELTA: u32 = NEW_DATA_VA - OLD_DATA_VA; // +0x4000
+    let new_len = (NEW_DATA_RP + DATA_RS) as usize;
+    let mut pe = vec![0u8; new_len];
+    pe[..0x400].copy_from_slice(&seed[..0x400]);
+    pe[0x400..0x400 + OLD_TEXT_RS as usize]
+        .copy_from_slice(&seed[0x400..0x400 + OLD_TEXT_RS as usize]);
+    pe[NEW_DATA_RP as usize..NEW_DATA_RP as usize + DATA_RS as usize]
+        .copy_from_slice(&seed[OLD_DATA_RP as usize..OLD_DATA_RP as usize + DATA_RS as usize]);
+    let e_lfanew = u32::from_le_bytes(pe[0x3C..0x40].try_into().unwrap()) as usize;
+    let opt = e_lfanew + 24;
+    // SizeOfCode / SizeOfImage
+    pe[opt + 4..opt + 8].copy_from_slice(&NEW_TEXT_RS.to_le_bytes());
+    let size_of_image = NEW_DATA_VA + DATA_VS; // 0x7000
+    pe[opt + 56..opt + 60].copy_from_slice(&size_of_image.to_le_bytes());
+    // import directory RVA += delta
+    let imp_rva = u32::from_le_bytes(pe[opt + 120..opt + 124].try_into().unwrap());
+    if imp_rva != 0 {
+        pe[opt + 120..opt + 124].copy_from_slice(&(imp_rva + RVA_DELTA).to_le_bytes());
+    }
+    let size_opt = u16::from_le_bytes(pe[e_lfanew + 20..e_lfanew + 22].try_into().unwrap()) as usize;
+    let sect = e_lfanew + 24 + size_opt;
+    // .text VS/RS
+    pe[sect + 8..sect + 12].copy_from_slice(&NEW_TEXT_RS.to_le_bytes());
+    pe[sect + 16..sect + 20].copy_from_slice(&NEW_TEXT_RS.to_le_bytes());
+    // .data VA + PointerToRawData
+    pe[sect + 40 + 12..sect + 40 + 16].copy_from_slice(&NEW_DATA_VA.to_le_bytes());
+    pe[sect + 40 + 20..sect + 40 + 24].copy_from_slice(&NEW_DATA_RP.to_le_bytes());
+    // reloc .data-internal RVAs in 0x2000..0x3000 → +0x4000
+    let data = &mut pe[NEW_DATA_RP as usize..NEW_DATA_RP as usize + DATA_RS as usize];
+    for i in (0..data.len().saturating_sub(3)).step_by(4) {
+        let v = u32::from_le_bytes(data[i..i + 4].try_into().unwrap());
+        if (OLD_DATA_VA..OLD_DATA_VA + DATA_VS).contains(&v) {
+            data[i..i + 4].copy_from_slice(&(v + RVA_DELTA).to_le_bytes());
+        }
+    }
+    pe
+}
+
 /// S3.400/S3.405: patch user `.text`/`.data` into compile PE template (IAT kept).
 #[cfg(windows)]
 fn s3_compile_pe_patch_text(text: &[u8]) -> crate::types::IsaResult<Vec<u8>> {
@@ -10399,17 +10451,16 @@ fn s3_compile_pe_patch_text_data(text: &[u8], data: &[u8]) -> crate::types::IsaR
             ),
         });
     }
-    // S3.630: host mini uses expanded RET PE so child parse1 PE matches.
-    // .data file raw moved 0xA00→0x1400; keep S1_SLIM_DATA_PAYLOAD_OFF=0xA00
-    // for legacy seeds / in-DLL (unchanged).
-    let mut pe = s3_expand_ret_pe_text_raw1k(S3_COMPILE_PE_RET_IMAGE_SEED);
+    // S3.631: host mini uses 20KiB-text RET PE so child parse1 PE matches.
+    // .data file raw @0x5400; keep S1_SLIM_DATA_PAYLOAD_OFF=0xA00 for legacy.
+    let mut pe = s3_expand_ret_pe_text_raw20k(S3_COMPILE_PE_RET_IMAGE_SEED);
     let t0 = S1_SLIM_TEXT_PAYLOAD_OFF;
     let t_end = t0 + S1_SLIM_MAX_CODE;
     for b in &mut pe[t0..t_end] {
         *b = 0;
     }
     pe[t0..t0 + text.len()].copy_from_slice(text);
-    const EXP_DATA_OFF: usize = 0x1400;
+    const EXP_DATA_OFF: usize = 0x5400;
     let d_end = EXP_DATA_OFF + S1_SLIM_IAT_BASE as usize;
     for b in &mut pe[EXP_DATA_OFF..d_end] {
         *b = 0;
@@ -10418,6 +10469,46 @@ fn s3_compile_pe_patch_text_data(text: &[u8], data: &[u8]) -> crate::types::IsaR
         pe[EXP_DATA_OFF..EXP_DATA_OFF + data.len()].copy_from_slice(data);
     }
     Ok(pe)
+}
+
+/// S3.631: patch text into 20KiB RET PE without [`S1_SLIM_MAX_CODE`] cap
+/// (cap = 0x4FF3). For child-expect / yoyo.tyb pins only — ≠ raising slim const.
+#[cfg(windows)]
+pub fn s3_compile_pe_patch_text_wide(text: &[u8]) -> crate::types::IsaResult<Vec<u8>> {
+    const WIDE_CAP: usize = 0x5000 - 0xD;
+    if text.len() > WIDE_CAP {
+        return Err(crate::types::IsaError::PlatformError {
+            msg: format!("wide PE text {} > max {WIDE_CAP}", text.len()),
+        });
+    }
+    let mut pe = s3_expand_ret_pe_text_raw20k(S3_COMPILE_PE_RET_IMAGE_SEED);
+    let t0 = S1_SLIM_TEXT_PAYLOAD_OFF;
+    let t_end = t0 + WIDE_CAP;
+    for b in &mut pe[t0..t_end] {
+        *b = 0;
+    }
+    pe[t0..t0 + text.len()].copy_from_slice(text);
+    Ok(pe)
+}
+
+/// S3.631: mini-validate + emit_x86 + wide PE patch (child-expect / yoyo.tyb).
+/// Does **not** raise [`S1_SLIM_MAX_CODE`]; host mini API stays 1024-capped.
+#[cfg(windows)]
+pub fn compile_tyb_to_pe_wide_emit(tyb: &[u8]) -> crate::types::IsaResult<crate::pe_link::PeImage> {
+    let prog = parse_tyb(tyb).map_err(|e| crate::types::IsaError::ParseError {
+        line: 0,
+        msg: format!("s1 compile_tyb_to_pe_wide_emit: {e}"),
+    })?;
+    validate_tyb_mini(&prog)?;
+    let out = emit_x86(&prog);
+    if !out.data.is_empty() {
+        return Err(crate::types::IsaError::PlatformError {
+            msg: "wide emit: .data payload not supported in this knife".into(),
+        });
+    }
+    Ok(crate::pe_link::PeImage {
+        bytes: s3_compile_pe_patch_text_wide(&out.text)?,
+    })
 }
 
 pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeImage> {
