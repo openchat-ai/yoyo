@@ -537,7 +537,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.634 cliff: child-built yoyo.tyb slim PE AV as self-host compiler (0xC0000005); seed_host still runnable Gate I",
         "S3.635 cliff: seed_host(yoyo.tyb) as raw CreateProcess compiler → EXIT_NO_INPUT(2); child-built AV; Gate I=write-bytes≠run",
         "S3.636 cliff: pe_link(executor(yoyo.tyb))≡seed_host; both raw→NO_INPUT; drop-in self-host needs H_00/gen4 not child-cwd",
-        "today: parse1 yoyo_compiler.exe = child-cwd GREEN; compiled-yoyo.tyb PE ≠ that contract (NO_INPUT/AV); M4 ABSENT",
+        "S3.637 DONE: H_00+in-DLL 3nop GREEN; compiled-yoyo.tyb PE same cwd → NO_INPUT (driver≠child-cwd contract)",
+        "today: parse1 yoyo_compiler.exe = child-cwd GREEN; H_00 driver GREEN; compiled-yoyo ≠ either as drop-in; M4 ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -14991,6 +14992,57 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.637: H_00+in-DLL sidecar compiles 3nop GREEN (Gate I driver contrast).
+    /// Same cwd has compiled-yoyo.tyb PE → NO_INPUT (S3.635/636). Self-host
+    /// driver ≠ child-cwd CreateProcess(compiled-yoyo). ready=false; ≠ M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_h00_driver_3nop_vs_compiled_yoyo_cliff_pin() {
+        assert_eq!(crate::s1_tyb_parser::S1_SLIM_MAX_CODE, 1024);
+        let dir = temp_work("s637-h00-vs-compiled");
+        let tyb_sm = crate::s1_tyb_parser::s3_n_nops_ret_tyb(3);
+        // H_00 driver path GREEN (in-DLL mini; PE shape may ≠ child wide template)
+        let seed_pe = yoyo_h00_seed_pe_m2().expect("H_00 seed");
+        std::fs::write(dir.join(M2_H00_SEED_NAME), &seed_pe).unwrap();
+        write_yoyo_in_dll_recompile_sidecar(&dir.join(RUNTIME_SIDECAR_NAME))
+            .expect("sidecar");
+        assert_eq!(
+            yoyo_h00_path_m2_run(&dir, &tyb_sm),
+            EXIT_OK,
+            "H_00+in-DLL must compile 3nop"
+        );
+        let h00_out = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+        assert_eq!(&h00_out[..2], b"MZ");
+        assert!(h00_out.len() > 0x200, "H_00 wrote PE");
+        // compiled yoyo.tyb PE under clean child-cwd → NO_INPUT (no H_00/sidecar)
+        let dir2 = temp_work("s637-compiled-only");
+        let yoyo_tyb = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
+        let compiled = crate::selfhost::seed_host_compile(&yoyo_tyb).unwrap();
+        let compiled_exe = dir2.join("compiled_yoyo.exe");
+        std::fs::write(&compiled_exe, &compiled).unwrap();
+        std::fs::write(dir2.join("input.tyb"), &tyb_sm).unwrap();
+        let st = std::process::Command::new(&compiled_exe)
+            .current_dir(&dir2)
+            .status()
+            .unwrap();
+        // compiled-yoyo is not a child-cwd drop-in (S3.635/636: NO_INPUT or other fail)
+        assert_ne!(
+            st.code(),
+            Some(0),
+            "compiled-yoyo must not exit OK under child cwd (got {:?})",
+            st.code()
+        );
+        assert!(!dir2.join(OUTPUT_NAME).exists());
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.637")));
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.637"));
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&dir2);
     }
 
     /// S3.636: pe_link(executor(yoyo.tyb)) ≡ seed_host; both raw-run → NO_INPUT
