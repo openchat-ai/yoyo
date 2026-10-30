@@ -2383,6 +2383,35 @@ pub fn s3_raw_byte_ret_tyb(byte: u8) -> Vec<u8> {
     s3_host_tyb_from_records(&[(0xA0, 1, a), (0xFF, 0, [0; 6])])
 }
 
+/// S3.603: LABEL+RET TYB (beyond fixed10). LABEL emits no `.text`; id is argc=1 u32.
+pub fn s3_label_ret_tyb(label_id: u32) -> Vec<u8> {
+    let mut a = [0u8; 6];
+    a[0..4].copy_from_slice(&label_id.to_le_bytes());
+    s3_host_tyb_from_records(&[(0x40, 1, a), (0xFF, 0, [0; 6])])
+}
+
+/// S3.603: LABEL + trailing ops + RET. `ops` are non-RET opcodes with canonical args
+/// for fixed10 / RAW_BYTE(0x90) / ALUV — used for parse1 LABEL* chains.
+pub fn s3_label_chain_ret_tyb(label_id: u32, ops: &[u8]) -> Vec<u8> {
+    let mut a = [0u8; 6];
+    a[0..4].copy_from_slice(&label_id.to_le_bytes());
+    let mut recs: Vec<(u8, u8, [u8; 6])> = vec![(0x40, 1, a)];
+    for &op in ops {
+        match op {
+            0x00 | 0xFF => recs.push((op, 0, [0; 6])),
+            0xA0 => recs.push((0xA0, 1, [0x90, 0, 0, 0, 0, 0])),
+            o if matches!(o, 0x30 | 0x60 | 0x61 | 0x62 | 0x64 | 0x65 | 0x66 | 0x67) => {
+                recs.push(s3_fixed_rec(o));
+            }
+            _ => panic!("s3_label_chain_ret_tyb: unsupported op {op:#x}"),
+        }
+    }
+    if ops.last().copied() != Some(0xFF) {
+        recs.push(s3_fixed_rec(0xFF));
+    }
+    s3_host_tyb_from_records(&recs)
+}
+
 /// S3.551: fixed10 multi-op chain + trailing RET (beyond single op+RET).
 ///
 /// `ops` are non-RET fixed10 opcodes; RET is appended. Empty → RET-only.
