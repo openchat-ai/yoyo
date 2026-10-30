@@ -545,7 +545,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.642 DONE: compile_tyb_to_pe_link_emit host API; child still ≠ link_emit (pe_link-in-child ABSENT)",
         "S3.643 cliff: link_emit(3nop)≈225KiB vs wide 25KiB; bake=sheep; pe_link-in-child needs in-child linker",
         "S3.644 DONE: dissect link_emit(3nop) PE32+ SizeOfImage/sections; compact growth path still ABSENT",
-        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child ABSENT (225KiB; dissected); M4 ABSENT",
+        "S3.645 DONE: host link_pe_win32_compact (no 0x38000 floor); child still ≠ compact emit",
+        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child ABSENT (compact host ready; child slim); M4 ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -572,6 +573,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "raising S1_SLIM_MAX_CODE / baking seed_host blob ≠ pe_link-in-child (sheep)",
         "S3.642 next: child 3nop→pe_link shape requires retargeting mini_emit expects (S3.641 smoke); ≠ densify",
         "S3.643: link_emit(3nop)≈225KiB — baking into child = sheep; need minimal pe_link or in-child linker, not seed blob",
+        "S3.645: host link_pe_win32_compact GREEN (no 0x38000 floor); child emit of compact still ABSENT",
     ]
 }
 
@@ -15018,6 +15020,50 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("592") && s.contains("SET+ADD+SUB+NOP")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.645: host `link_pe_win32_compact` / link_compact_emit GREEN for 3nop;
+    /// size ≪ full link_emit (no 0x38000 floor); child still ≠ compact.
+    /// ready=false; ≠ M4; densify≠.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_pe_link_compact_emit_3nop_child_absent_pin() {
+        assert_eq!(crate::s1_tyb_parser::S1_SLIM_MAX_CODE, 1024);
+        assert!(!yoyo_pe_link_in_child_ready());
+        let tyb = crate::s1_tyb_parser::s3_n_nops_ret_tyb(3);
+        let full = crate::s1_tyb_parser::compile_tyb_to_pe_link_emit(&tyb)
+            .expect("full link")
+            .bytes;
+        let compact = crate::s1_tyb_parser::compile_tyb_to_pe_link_compact_emit(&tyb)
+            .expect("compact")
+            .bytes;
+        let wide = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&tyb)
+            .expect("wide")
+            .bytes;
+        assert!(
+            compact.len() < full.len() / 2,
+            "compact must be ≪ full (compact={} full={})",
+            compact.len(),
+            full.len()
+        );
+        assert!(compact.len() > 0x400 && compact[..2] == *b"MZ");
+        // child still wide RET
+        let dir = temp_work("s645-compact");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), wide);
+        assert_ne!(wide.len(), compact.len());
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.645")));
+        assert!(include_str!("pe_link.rs").contains("link_pe_win32_compact"));
+        assert!(!yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
