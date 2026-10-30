@@ -2409,6 +2409,14 @@ pub fn s3_addsub_ret_tyb(op: u8, slot: u16, imm: u32) -> Vec<u8> {
     s3_host_tyb_from_records(&[(op, 2, a), (0xFF, 0, [0; 6])])
 }
 
+/// S3.623: CMP+RET TYB. `a`/`b`≤255. Exercises parse1 disp8|disp32 dual-load.
+pub fn s3_cmp_ret_tyb(a: u16, b: u16) -> Vec<u8> {
+    let mut args = [0u8; 6];
+    args[0..2].copy_from_slice(&a.to_le_bytes());
+    args[2..4].copy_from_slice(&b.to_le_bytes());
+    s3_host_tyb_from_records(&[(0x65, 2, args), (0xFF, 0, [0; 6])])
+}
+
 /// S3.602: RAW_BYTE+RET TYB (beyond fixed10). Emits one literal `.text` byte.
 pub fn s3_raw_byte_ret_tyb(byte: u8) -> Vec<u8> {
     let mut a = [0u8; 6];
