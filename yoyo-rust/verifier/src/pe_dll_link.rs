@@ -522,7 +522,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.619 parse1 DONE: SET slot≤255 (disp8|disp32 store)",
         "S3.620 parse1 DONE: GET/MOVRR slot≤255 (disp8|disp32 load+store)",
         "S3.621 parse1 DONE: INC/DEC slot≤255 (disp8|disp32 load+inc/dec+store)",
-        "today: parse1≈mini +SET/GET/INC/DEC any-slot; yoyo.tyb/M4 ABSENT; general emit still ABSENT",
+        "S3.622 parse1 DONE: ADD/SUB slot≤255 (disp8|disp32 load+imm32+store)",
+        "today: parse1≈mini +SET/GET/INC/DEC/ADD/SUB any-slot; yoyo.tyb/M4 ABSENT",
         "live emit of yoyo.tyb / beyond-mini still ABSENT (other-ops slot>15·full compose)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside child .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -1802,43 +1803,64 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x48, 0x83, 0xC7, 0x11]); // add rdi, 17
     let jmp_parse1_adv_s32 = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-    // ADD: 49 8B 47 SS / 48 81 C0 imm32 / 49 89 47 SS (15B)
+    // S3.622 ADD: slot≤255; load+add-imm+store disp8(15B)/disp32(20B)
     let parse1_add_lbl = c.len();
     c.extend_from_slice(&[0x41, 0x80, 0x78, 0x01, 0x02]);
     let jne_parse1_fail_aa = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x41, 0x0F, 0xB7, 0x40, 0x02]);
-    c.extend_from_slice(&[0x83, 0xF8, 0x0F]);
+    c.extend_from_slice(&[0x3D, 0x00, 0x01, 0x00, 0x00]);
     let ja_parse1_fail_as = c.len();
-    c.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
     c.extend_from_slice(&[0xC1, 0xE0, 0x03]);
     c.extend_from_slice(&[0x89, 0x44, 0x24, 0x58]);
     c.extend_from_slice(&[0x41, 0x8B, 0x40, 0x04]); // imm32
     c.extend_from_slice(&[0x89, 0x44, 0x24, 0x5C]);
+    c.extend_from_slice(&[0x81, 0x7C, 0x24, 0x58, 0x80, 0x00, 0x00, 0x00]);
+    let jae_parse1_add_d32 = c.len();
+    c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    // disp8: 49 8B 47 SS / 48 81 C0 imm / 49 89 47 SS
     c.extend_from_slice(&[0x48, 0xB8, 0x49, 0x8B, 0x47, 0x00, 0x48, 0x81, 0xC0, 0x00]);
     c.extend_from_slice(&[0x48, 0x89, 0x07]);
     c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x5C]);
-    c.extend_from_slice(&[0x89, 0x47, 0x07]); // imm32 @+7
+    c.extend_from_slice(&[0x89, 0x47, 0x07]);
     c.extend_from_slice(&[0xC7, 0x47, 0x0B, 0x49, 0x89, 0x47, 0x00]);
     c.extend_from_slice(&[0x8A, 0x44, 0x24, 0x58]);
-    c.extend_from_slice(&[0x88, 0x47, 0x03]); // SS load
-    c.extend_from_slice(&[0x88, 0x47, 0x0E]); // SS store
-    c.extend_from_slice(&[0x48, 0x83, 0xC7, 0x0F]); // add rdi, 15
+    c.extend_from_slice(&[0x88, 0x47, 0x03]);
+    c.extend_from_slice(&[0x88, 0x47, 0x0E]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC7, 0x0F]);
     let jmp_parse1_adv_a = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-    // SUB: same as ADD, 48 81 E8 imm32
+    let parse1_add_d32_lbl = c.len();
+    // disp32: 49 8B 87 d32 / 48 81 C0 imm32 / 49 89 87 d32 (21B)
+    c.extend_from_slice(&[0xC7, 0x07, 0x49, 0x8B, 0x87, 0x00]);
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x58]);
+    c.extend_from_slice(&[0x89, 0x47, 0x03]);
+    c.extend_from_slice(&[0xC7, 0x47, 0x07, 0x48, 0x81, 0xC0, 0x00]);
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x5C]);
+    c.extend_from_slice(&[0x89, 0x47, 0x0A]); // imm @+10
+    c.extend_from_slice(&[0xC7, 0x47, 0x0E, 0x49, 0x89, 0x87, 0x00]);
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x58]);
+    c.extend_from_slice(&[0x89, 0x47, 0x11]); // store disp @+17
+    c.extend_from_slice(&[0x48, 0x83, 0xC7, 0x15]); // +21
+    let jmp_parse1_adv_a32 = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    // S3.622 SUB: same, 48 81 E8 imm32
     let parse1_sub_lbl = c.len();
     c.extend_from_slice(&[0x41, 0x80, 0x78, 0x01, 0x02]);
     let jne_parse1_fail_ua = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x41, 0x0F, 0xB7, 0x40, 0x02]);
-    c.extend_from_slice(&[0x83, 0xF8, 0x0F]);
+    c.extend_from_slice(&[0x3D, 0x00, 0x01, 0x00, 0x00]);
     let ja_parse1_fail_us = c.len();
-    c.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
     c.extend_from_slice(&[0xC1, 0xE0, 0x03]);
     c.extend_from_slice(&[0x89, 0x44, 0x24, 0x58]);
     c.extend_from_slice(&[0x41, 0x8B, 0x40, 0x04]);
     c.extend_from_slice(&[0x89, 0x44, 0x24, 0x5C]);
+    c.extend_from_slice(&[0x81, 0x7C, 0x24, 0x58, 0x80, 0x00, 0x00, 0x00]);
+    let jae_parse1_sub_d32 = c.len();
+    c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x48, 0xB8, 0x49, 0x8B, 0x47, 0x00, 0x48, 0x81, 0xE8, 0x00]);
     c.extend_from_slice(&[0x48, 0x89, 0x07]);
     c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x5C]);
@@ -1849,6 +1871,19 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x88, 0x47, 0x0E]);
     c.extend_from_slice(&[0x48, 0x83, 0xC7, 0x0F]);
     let jmp_parse1_adv_u = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let parse1_sub_d32_lbl = c.len();
+    c.extend_from_slice(&[0xC7, 0x07, 0x49, 0x8B, 0x87, 0x00]);
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x58]);
+    c.extend_from_slice(&[0x89, 0x47, 0x03]);
+    c.extend_from_slice(&[0xC7, 0x47, 0x07, 0x48, 0x81, 0xE8, 0x00]);
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x5C]);
+    c.extend_from_slice(&[0x89, 0x47, 0x0A]);
+    c.extend_from_slice(&[0xC7, 0x47, 0x0E, 0x49, 0x89, 0x87, 0x00]);
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x58]);
+    c.extend_from_slice(&[0x89, 0x47, 0x11]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC7, 0x15]); // +21
+    let jmp_parse1_adv_u32 = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     // CMP: 49 8B 47 SS_a / 49 8B 4F SS_b / 48 39 C8 (11B)
     let parse1_cmp_lbl = c.len();
@@ -3696,10 +3731,14 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jmp(&mut c, jmp_parse1_adv_s32, parse1_advance);
     patch_jcc(&mut c, jne_parse1_fail_aa, fail_compile);
     patch_jcc(&mut c, ja_parse1_fail_as, fail_compile);
+    patch_jcc(&mut c, jae_parse1_add_d32, parse1_add_d32_lbl);
     patch_jmp(&mut c, jmp_parse1_adv_a, parse1_advance);
+    patch_jmp(&mut c, jmp_parse1_adv_a32, parse1_advance);
     patch_jcc(&mut c, jne_parse1_fail_ua, fail_compile);
     patch_jcc(&mut c, ja_parse1_fail_us, fail_compile);
+    patch_jcc(&mut c, jae_parse1_sub_d32, parse1_sub_d32_lbl);
     patch_jmp(&mut c, jmp_parse1_adv_u, parse1_advance);
+    patch_jmp(&mut c, jmp_parse1_adv_u32, parse1_advance);
     patch_jcc(&mut c, jne_parse1_fail_ca, fail_compile);
     patch_jcc(&mut c, ja_parse1_fail_c1, fail_compile);
     patch_jcc(&mut c, ja_parse1_fail_c2, fail_compile);
@@ -3830,7 +3869,8 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jmp(&mut c, jmp_emit2_inc_w, do_write);
     patch_jcc(&mut c, jne_try_extra_notadd, try_dec);
     patch_jcc(&mut c, jne_fail_add_argc, fail_compile);
-    patch_jcc(&mut c, jne_fail_add_slot, fail_compile);
+    // S3.622: ADD+RET slot≠0 → parse1
+    patch_jcc(&mut c, jne_fail_add_slot, parse1);
     patch_jcc(&mut c, jne_fail_add_ret, fail_compile);
     patch_jmp(&mut c, jmp_emit2_add, parse1);
     patch_jcc(&mut c, je_emit2_add_va, fail_wr);
@@ -3845,7 +3885,8 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jmp(&mut c, jmp_emit2_dec_w, do_write);
     patch_jcc(&mut c, jne_try_mov_notsub, try_mov);
     patch_jcc(&mut c, jne_fail_sub_argc, fail_compile);
-    patch_jcc(&mut c, jne_fail_sub_slot, fail_compile);
+    // S3.622: SUB+RET slot≠0 → parse1
+    patch_jcc(&mut c, jne_fail_sub_slot, parse1);
     patch_jcc(&mut c, jne_fail_sub_ret, fail_compile);
     patch_jmp(&mut c, jmp_emit2_sub, parse1);
     patch_jcc(&mut c, je_emit2_sub_va, fail_wr);
@@ -7397,7 +7438,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.619: parse1 SET slot≤255 (disp8|disp32).
     // S3.620: parse1 GET/MOVRR slot≤255 (disp8|disp32 load+store).
     // S3.621: parse1 INC/DEC slot≤255 (disp8|disp32).
-    // Next >=10 = ADD/SUB/CMP/… slot>15 / yoyo.tyb / M4 / OW-RT. Not CLOSED. CUT.
+    // S3.622: parse1 ADD/SUB slot≤255 (disp8|disp32 + imm32).
+    // Next >=10 = CMP/ALUV/IMUL slot>15 / yoyo.tyb / M4 / OW-RT. Not CLOSED. CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -14667,6 +14709,47 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("592") && s.contains("SET+ADD+SUB+NOP")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.622: parse1 ADD/SUB slot≤255; disp8|disp32 GREEN; ready=false.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_parse1_addsub_any_slot_pin() {
+        let pe = yoyo_compiler_pe_bytes().expect("S3.622");
+        assert!(String::from_utf8_lossy(&pe).contains("yoyo_parse1_c"));
+        let dir = temp_work("s622-parse1-addsub");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        for &op in &[0x62u8, 0x61] {
+            for &(slot, imm) in &[(0u16, 5u32), (15, 0x11), (16, 0x22), (255, 0x3333)] {
+                let tyb = crate::s1_tyb_parser::s3_addsub_ret_tyb(op, slot, imm);
+                let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+                    .expect("emit addsub")
+                    .bytes;
+                std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+                let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+                let st = std::process::Command::new(&path)
+                    .current_dir(&dir)
+                    .status()
+                    .unwrap();
+                assert!(
+                    st.success(),
+                    "parse1 op={op:#x} slot={slot} imm={imm:#x} exit {:?}",
+                    st.code()
+                );
+                assert_eq!(
+                    std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
+                    expect,
+                    "parse1 op={op:#x} slot={slot}"
+                );
+            }
+        }
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("622") && s.contains("ADD")));
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.622"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

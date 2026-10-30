@@ -2400,6 +2400,15 @@ pub fn s3_incdec_ret_tyb(op: u8, slot: u16) -> Vec<u8> {
     s3_host_tyb_from_records(&[(op, 1, a), (0xFF, 0, [0; 6])])
 }
 
+/// S3.622: ADD+RET or SUB+RET TYB. `op`=0x62|0x61; `slot`≤255; imm32.
+pub fn s3_addsub_ret_tyb(op: u8, slot: u16, imm: u32) -> Vec<u8> {
+    assert!(op == 0x62 || op == 0x61, "ADD/SUB only");
+    let mut a = [0u8; 6];
+    a[0..2].copy_from_slice(&slot.to_le_bytes());
+    a[2..6].copy_from_slice(&imm.to_le_bytes());
+    s3_host_tyb_from_records(&[(op, 2, a), (0xFF, 0, [0; 6])])
+}
+
 /// S3.602: RAW_BYTE+RET TYB (beyond fixed10). Emits one literal `.text` byte.
 pub fn s3_raw_byte_ret_tyb(byte: u8) -> Vec<u8> {
     let mut a = [0u8; 6];
