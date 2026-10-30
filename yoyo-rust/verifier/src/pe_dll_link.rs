@@ -407,8 +407,8 @@ pub fn place_cwd_runtime_sidecar(out_path: &Path, rust_dll: &[u8]) -> IsaResult<
 /// Clearing ≠ OW-RT CLOSED by itself — inventory `closed` is a separate gate.
 pub fn yoyo_m4_production_flip_blockers() -> &'static [&'static str] {
     &[
-        "live in-DLL compile ABSENT for yoyo.tyb (mini/slim fail; needs oracle bake)",
-        "Gate I gen4+oracle may GREEN; live in-DLL compile still ABSENT (oracle != live)",
+        "yoyo.tyb CreateProcess-child GREEN (S3.631/632); live in-DLL emit still ABSENT (mini 1024; ≠ raise slim-cap)",
+        "Gate I gen4+oracle may GREEN; oracle bake ≠ live in-DLL emit (CreateProcess child ≠ export emit)",
         "production place_cwd default still Rust (ALT unset)",
         "inventory OW-RT disposition=CUT (closed=0)",
     ]
@@ -425,13 +425,13 @@ pub fn yoyo_m4_production_flip_ready() -> bool {
 /// Non-empty ⇒ M4 production flip stays ABSENT. Clearing entries ≠ OW-RT CLOSED.
 pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
     &[
-        "yoyo.tyb child parse1 GREEN (S3.631); host-mini S1_SLIM_MAX_CODE=1024 still ABSENT; M4/oracle≠live",
+        "yoyo.tyb child+in-DLL CreateProcess GREEN (S3.631/632); host-mini S1_SLIM_MAX_CODE=1024 still ABSENT; M4/oracle≠live",
         "beyond-mini overflow TYB fails mini; today served only via oracle→seed_host",
-        "in-DLL export has no seed_host/bootstrap_compile machine at call-time",
+        "in-DLL export has no seed_host/bootstrap_compile machine at call-time (CreateProcess child ≠ in-DLL emit)",
         "ALT in-dll-gate-i / gen4 GREEN paths are still oracle lookup, not live emit",
         "production default place_cwd remains Rust (ALT unset)",
         "raising S1_SLIM_MAX_CODE / densify hand-hex ≠ live-compile graduation (sheep)",
-        "CreateProcess compiler PE: parse1≈mini+any-slot+text20k+multi-RET; yoyo.tyb child GREEN; host-mini 1024 ABSENT",
+        "CreateProcess compiler PE: parse1≈mini+any-slot+text20k+multi-RET; yoyo.tyb child+indll GREEN; host-mini 1024 ABSENT",
         "child live compose ABSENT — general parse+emit_x86 still ABSENT (S3.582 cliff remains); host-mini≠child; see design",
     ]
 }
@@ -451,8 +451,8 @@ pub fn yoyo_live_compile_slice_ready() -> bool {
 /// Non-empty ⇒ experiment ABSENT. Clearing ≠ live-compile slice ready by itself.
 pub fn yoyo_in_dll_createprocess_compiler_blockers() -> &'static [&'static str] {
     &[
-        "CreateProcessA/Wait/GetExitCode call-site emitted; PE=fixed10+multi live2 pe_patch ≠ full live",
-        "yoyo_compiler_pe_bytes=Some(fixed10+multi); yoyo.tyb / general compose still ABSENT",
+        "CreateProcessA/Wait/GetExitCode call-site emitted; PE=parse1+yoyo.tyb child GREEN (S3.631/632)",
+        "yoyo_compiler_pe_bytes=Some(parse1); host-mini 1024 / general emit_x86 / M4 still ABSENT",
         "cwd/export re-entrancy + handle inheritance design ABSENT",
         "rows = pe_patch blobs — not live emit_x86 / densify",
         "still would be oracle/host-compose under the hood unless compiler PE is live",
@@ -532,11 +532,12 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.629 parse1 DONE: label/patch tables 256→1024 (scratch 0x4100; covers yoyo.tyb 788 LABELs; text-cap ABSENT)",
         "S3.630 parse1 DONE: child RET PE .text raw 0x600→0x1000 (cap≈0xFF3; S1_SLIM_MAX_CODE stays 1024; yoyo.tyb 18KiB ABSENT)",
         "S3.631 parse1 DONE: child .text raw→0x5000 + mid-stream RET (yoyo.tyb 788×RET child GREEN; S1_SLIM_MAX_CODE stays 1024)",
-        "today: parse1≈mini +table1024 +text20KiB +multi-RET; yoyo.tyb child GREEN / host-mini 1024 ABSENT; general parse+emit / M4 ABSENT",
-        "live emit of yoyo.tyb / beyond-mini still ABSENT (full compose / densify≠)",
-        "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside child .text",
+        "S3.632 DONE: in-DLL CreateProcess(yoyo_compiler.exe)+yoyo.tyb GREEN ≡ wide emit; host-mini 1024 ABSENT; ≠ M4",
+        "today: parse1≈mini +table1024 +text20KiB +multi-RET; yoyo.tyb child+indll GREEN / host-mini 1024 ABSENT; general parse+emit / M4 ABSENT",
+        "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
+        "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
-        "yoyo.tyb: ISA/slot cleared; needs larger .text template + label/patch tables (or host/oracle); densify≠",
+        "yoyo.tyb: child+indll CreateProcess cleared; host-mini 1024 / M4 / general emit still ABSENT; densify≠",
         "hand-hex densify of emit_x86 into child = sheep; not a live-compose slice",
         "finite emit1/imm table growth ≠ graduation; live slice clears this design list",
     ]
@@ -14985,6 +14986,47 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("592") && s.contains("SET+ADD+SUB+NOP")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.632: in-DLL CreateProcess(yoyo_compiler.exe)+yoyo.tyb GREEN ≡ wide;
+    /// host mini still ≤1024; S1_SLIM_MAX_CODE unchanged; ready=false; ≠ M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_indll_createprocess_yoyo_tyb_pin() {
+        assert_eq!(crate::s1_tyb_parser::S1_SLIM_MAX_CODE, 1024);
+        let yoyo_tyb = gate_i_yoyo_tyb_path();
+        let tyb = std::fs::read(&yoyo_tyb).expect("read yoyo.tyb");
+        assert!(
+            crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb).is_err(),
+            "host mini must still fail yoyo.tyb"
+        );
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&tyb)
+            .expect("wide emit yoyo.tyb")
+            .bytes;
+        let dir = temp_work("s632-indll-yoyo-tyb");
+        let _ = yoyo_place_compiler_pe(&dir).expect("place compiler PE");
+        std::fs::copy(&yoyo_tyb, dir.join("input.tyb")).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let entries = gate_g_recompile_entries().expect("entries");
+        let dll = link_yoyo_in_dll_recompile_dll(&entries).expect("link");
+        assert_eq!(
+            yoyo_sidecar_in_dll_call_time_invoke(&dll, &dir),
+            EXIT_OK,
+            "in-DLL CreateProcess(yoyo.tyb) must exit 0"
+        );
+        assert_eq!(
+            std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
+            expect,
+            "in-DLL CreateProcess yoyo.tyb PE ≡ wide"
+        );
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("632") && s.contains("CreateProcess")));
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_live_compile_slice_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.632"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

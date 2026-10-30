@@ -4,7 +4,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.632**（631=yoyo.tyb child GREEN；下一刀=host-mini≠child / M4 / general emit）。
+**默认** 继续 **= S3.633**（632=in-DLL CreateProcess yoyo.tyb GREEN；下一刀=host-mini≠child / M4 / general emit）。
 
 | 阻塞 | 说明 |
 | --- | --- |
