@@ -407,8 +407,8 @@ pub fn place_cwd_runtime_sidecar(out_path: &Path, rust_dll: &[u8]) -> IsaResult<
 /// Clearing ≠ OW-RT CLOSED by itself — inventory `closed` is a separate gate.
 pub fn yoyo_m4_production_flip_blockers() -> &'static [&'static str] {
     &[
-        "yoyo.tyb CreateProcess-child GREEN (S3.631/632); live in-DLL emit still ABSENT (mini 1024; ≠ raise slim-cap)",
-        "Gate I oracle seed_host(yoyo.tyb) ≫≠ child/wide (S3.633); oracle≠CreateProcess child; ≠ live emit",
+        "yoyo.tyb CreateProcess-child GREEN (S3.631/632); child-built slim AV as self-host (S3.634); live in-DLL emit ABSENT",
+        "Gate I oracle seed_host(yoyo.tyb) ≫≠ child/wide (S3.633); child-built ≠ runnable self-host (S3.634); ≠ live emit",
         "production place_cwd default still Rust (ALT unset)",
         "inventory OW-RT disposition=CUT (closed=0)",
     ]
@@ -534,7 +534,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.631 parse1 DONE: child .text raw→0x5000 + mid-stream RET (yoyo.tyb 788×RET child GREEN; S1_SLIM_MAX_CODE stays 1024)",
         "S3.632 DONE: in-DLL CreateProcess(yoyo_compiler.exe)+yoyo.tyb GREEN ≡ wide emit; host-mini 1024 ABSENT; ≠ M4",
         "S3.633 cliff: seed_host(yoyo.tyb) ≫≠ child/wide slim RET PE (oracle≠CreateProcess child; full pe_link vs slim)",
-        "today: parse1≈mini +table1024 +text20KiB +multi-RET; yoyo.tyb child+indll GREEN / seed_host≠wide / host-mini 1024 ABSENT; M4 ABSENT",
+        "S3.634 cliff: child-built yoyo.tyb slim PE AV as self-host compiler (0xC0000005); seed_host still runnable Gate I",
+        "today: parse1≈mini +yoyo.tyb child GREEN; slim≠seed_host≠runnable-selfhost; host-mini 1024 / general emit / M4 ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -14987,6 +14988,63 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("592") && s.contains("SET+ADD+SUB+NOP")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.634: child-built yoyo.tyb slim PE is NOT a runnable self-host compiler.
+    /// Stage1 child GREEN; stage2 run-as-compiler → AV (0xC0000005); no output.
+    /// seed_host PE still the working Gate I artifact; ready=false; ≠ M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_yoyo_tyb_child_built_not_selfhost_cliff_pin() {
+        assert_eq!(crate::s1_tyb_parser::S1_SLIM_MAX_CODE, 1024);
+        let yoyo_tyb = gate_i_yoyo_tyb_path();
+        let tyb = std::fs::read(&yoyo_tyb).expect("read");
+        let wide = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&tyb)
+            .expect("wide")
+            .bytes;
+        let dir = temp_work("s634-not-selfhost");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::copy(&yoyo_tyb, dir.join("input.tyb")).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success(), "stage1 child compile yoyo.tyb {:?}", st.code());
+        let built_bytes = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+        assert_eq!(built_bytes, wide, "stage1 ≡ wide");
+        let built = dir.join("yoyo_built_from_tyb.exe");
+        std::fs::write(&built, &built_bytes).unwrap();
+        // stage2: child-built PE as compiler on 3nop → AV, no output
+        let tyb_sm = crate::s1_tyb_parser::s3_n_nops_ret_tyb(3);
+        std::fs::write(dir.join("input.tyb"), &tyb_sm).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st2 = std::process::Command::new(&built)
+            .current_dir(&dir)
+            .status()
+            .expect("spawn built");
+        // 0xC0000005 STATUS_ACCESS_VIOLATION as signed i32 = -1073741819
+        assert_eq!(
+            st2.code(),
+            Some(-1073741819),
+            "child-built yoyo PE must AV as compiler (got {:?})",
+            st2.code()
+        );
+        assert!(
+            !dir.join(OUTPUT_NAME).exists(),
+            "AV must not write output.exe"
+        );
+        // seed_host still works as runnable (Gate I path)
+        let seed = crate::selfhost::seed_host_compile(&tyb).expect("seed_host");
+        assert!(seed.len() > wide.len() * 4);
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("634") && s.contains("self-host")));
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_live_compile_slice_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.634"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

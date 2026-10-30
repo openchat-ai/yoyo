@@ -4,7 +4,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.634**（633=seed_host≠wide cliff；下一刀=child-built PE 自举 / M4 / general emit）。
+**默认** 继续 **= S3.635**（634=child-built AV self-host cliff；下一刀=seed_host 自举对照 / pe_link toward runnable / M4）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -24,7 +24,7 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3** ⏳ | child parse1 扩 ISA · 真自举不排假工期 |
 | **S4/S5** | 全 ISA / 形式化 · 地图 |
 
-**诚实底线**：fixed10 / parse1 / yoyo.tyb-child 可 GREEN ≠ seed_host ≡ child ≠ OW-* CLOSED。明细 → `git log --grep=S3.`。
+**诚实底线**：yoyo.tyb-child GREEN ≠ runnable self-host ≠ seed_host ≡ child ≠ OW-* CLOSED。明细 → `git log --grep=S3.`。
 
 ### 波段 tip（更早单刀已折）
 
@@ -33,14 +33,12 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3.1–521** ✅ | `5dd7651` | fixed10→host compose→DATA；禁折 FIXED10 |
 | **S3.522–555** ✅ | `8ea1ee5` | CreateProcess child PE / M4-prep |
 | **S3.556–618** ✅ | `7a5f435` | live→parse1≈mini cliff |
-| **S3.619–626** ✅ | `972d78a` | ALU+mem any-slot≤255 |
-| **S3.627–630** ✅ | `3809e18` | yoyo.tyb 诊断；table→1024；text≈4KiB |
-| **S3.631** ✅ | `3e420ab` | text20KiB + mid-RET；yoyo.tyb child GREEN |
-| **S3.632** ✅ | `827b853` | in-DLL CreateProcess(yoyo.tyb) GREEN |
-| **S3.633** ✅ | — | **seed_host ≠ wide/child** cliff |
-| **S3.634** ⏳ | — | **本步**：child-built PE 自举 / M4 |
+| **S3.619–630** ✅ | `3809e18` | any-slot→table1024→text4KiB |
+| **S3.631–632** ✅ | `827b853` | yoyo.tyb child + in-DLL CreateProcess GREEN |
+| **S3.633–634** ✅ | — | seed_host≠wide；**child-built AV as self-host** |
+| **S3.635** ⏳ | — | **本步**：seed_host 自举对照 / pe_link / M4 |
 
-**缺口**：seed_host(yoyo.tyb)≃245KiB ≠ child slim 25KiB；host-mini 1024 禁抬；M4 / general emit **ABSENT**。`ready=false`。bake=362。
+**缺口**：child slim PE AV as compiler；seed_host~245KiB runnable；host-mini 1024 禁抬；M4 / general emit **ABSENT**。`ready=false`。bake=362。
 
 ---
 
@@ -57,9 +55,9 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 
 ## 对 AI
 
-- 继续 → **S3.634**（child-built PE 自举试刀；禁 densify / 假 CLOSED / 单抬 slim-cap）。S3.633=seed_host≠wide。红了记根因停。
+- 继续 → **S3.635**（seed_host 自举对照 GREEN；禁 densify / 假 CLOSED / 单抬 slim-cap）。S3.634=child-built AV。红了记根因停。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
 
-*post-v1.0 · 收纳板 · tip S3.634*
+*post-v1.0 · 收纳板 · tip S3.635*
