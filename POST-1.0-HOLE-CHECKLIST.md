@@ -4,7 +4,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.627**（626=MCP any-slot；下一刀=yoyo.tyb e2e / M4）。
+**默认** 继续 **= S3.628**（627=yoyo.tyb text-cap/table cliff；下一刀=更大 template/tables / M4）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -38,14 +38,12 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3.606–608** ✅ | `c371eef` | JMP cliff→+JMP/+CALL label table |
 | **S3.609–617** ✅ | `7cb45c2` | parse1 mini 主路径：JCC→…→DATA |
 | **S3.618** ✅ | `7a5f435` | parse1≈mini cliff；yoyo.tyb 仍 ABSENT |
-| **S3.619–622** ✅ | `f2740ce` | SET/GET/INC/DEC/ADD/SUB slot≤255 |
-| **S3.623** ✅ | `267c218` | CMP/IMUL/ALUV slot≤255 |
-| **S3.624** ✅ | `9ccfea4` | LDB slot≤255 |
-| **S3.625** ✅ | `7800eb7` | STB slot≤255 |
-| **S3.626** ✅ | — | MCPD/MCPS slot≤255 |
-| **S3.627** ⏳ | — | **本步**：yoyo.tyb e2e probe / M4 |
+| **S3.619–623** ✅ | `267c218` | ALU any-slot≤255 |
+| **S3.624–626** ✅ | `972d78a` | LDB/STB/MCP any-slot≤255 |
+| **S3.627** ✅ | — | yoyo.tyb：ISA/slot OK；text-cap+table cliff |
+| **S3.628** ⏳ | — | **本步**：更大 .text/label·patch tables / M4 |
 
-**缺口**：yoyo.tyb / M4 flip / general emit_x86 仍 **ABSENT**。`ready=false`。bake=362。
+**缺口**：yoyo.tyb slim text~18KiB>1024 · label/patch table32 / M4 flip / general emit_x86 仍 **ABSENT**。禁单独抬 `S1_SLIM_MAX_CODE`（sheep）。`ready=false`。bake=362。
 
 ---
 
@@ -62,9 +60,9 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 
 ## 对 AI
 
-- 继续 → **S3.627**（yoyo.tyb e2e；禁 densify / 假 CLOSED）。S3.626=MCP any-slot。红了记根因停。
+- 继续 → **S3.628**（更大 template/tables；禁 densify / 假 CLOSED / 单抬 slim-cap）。S3.627=text-cap cliff。红了记根因停。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
 
-*post-v1.0 · 收纳板 · tip S3.627*
+*post-v1.0 · 收纳板 · tip S3.628*

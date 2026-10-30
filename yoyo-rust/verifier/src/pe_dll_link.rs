@@ -425,14 +425,14 @@ pub fn yoyo_m4_production_flip_ready() -> bool {
 /// Non-empty ⇒ M4 production flip stays ABSENT. Clearing entries ≠ OW-RT CLOSED.
 pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
     &[
-        "yoyo.tyb exceeds mini/slim ISA — needs full host compose or oracle row",
+        "yoyo.tyb: ISA/slot OK post-any-slot; slim text~18KiB>1024 + child label/patch table32 still ABSENT",
         "beyond-mini overflow TYB fails mini; today served only via oracle→seed_host",
         "in-DLL export has no seed_host/bootstrap_compile machine at call-time",
         "ALT in-dll-gate-i / gen4 GREEN paths are still oracle lookup, not live emit",
         "production default place_cwd remains Rust (ALT unset)",
         "raising S1_SLIM_MAX_CODE / densify hand-hex ≠ live-compile graduation (sheep)",
-        "CreateProcess compiler PE: fixed10+all CHAINS multi live2 GREEN; yoyo.tyb/full still ABSENT",
-        "child live compose ABSENT — parse1≈mini (slot/n knife-limits); yoyo.tyb still ABSENT; general parse+emit_x86 still ABSENT (S3.582 cliff remains); see design",
+        "CreateProcess compiler PE: parse1≈mini+any-slot GREEN; yoyo.tyb text-cap/table still ABSENT",
+        "child live compose ABSENT — yoyo.tyb text-cap+label/patch table; general parse+emit_x86 still ABSENT (S3.582 cliff remains); see design",
     ]
 }
 
@@ -527,11 +527,12 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.624 parse1 DONE: LDB slot≤255 (disp8|disp32 load±oo+movzx+store)",
         "S3.625 parse1 DONE: STB slot≤255 (disp8|disp32 dual-load±oo+store-cl)",
         "S3.626 parse1 DONE: MCPD/MCPS slot≤255 (disp8|disp32; MCPS n≤4)",
-        "today: parse1≈mini +mem any-slot; yoyo.tyb/M4 ABSENT; general parse+emit still ABSENT",
+        "S3.627 cliff: yoyo.tyb ISA/slot OK post-any-slot; slim text 18KiB>1024 + label/patch table32 ABSENT (≠ raise S1_SLIM_MAX_CODE sheep)",
+        "today: parse1≈mini +mem any-slot; yoyo.tyb text-cap/table ABSENT; general parse+emit still ABSENT",
         "live emit of yoyo.tyb / beyond-mini still ABSENT (full compose / densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside child .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
-        "yoyo.tyb exceeds mini ISA — needs host compose / oracle / densify≠",
+        "yoyo.tyb: ISA/slot cleared; needs larger .text template + label/patch tables (or host/oracle); densify≠",
         "hand-hex densify of emit_x86 into child = sheep; not a live-compose slice",
         "finite emit1/imm table growth ≠ graduation; live slice clears this design list",
     ]
@@ -7670,7 +7671,9 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.624: parse1 LDB slot≤255 (disp8|disp32 load±oo+movzx+store).
     // S3.625: parse1 STB slot≤255 (disp8|disp32 dual-load±oo+store-cl).
     // S3.626: parse1 MCPD/MCPS slot≤255 (disp8|disp32; MCPS n≤4).
-    // Next >=10 = yoyo.tyb / M4 / OW-RT. Not CLOSED. CUT.
+    // S3.627: yoyo.tyb cliff = slim text-cap + label/patch table32 (ISA/slot OK).
+    // Next >=10 = larger template/tables / M4 / OW-RT. Not CLOSED. CUT.
+    // Raising S1_SLIM_MAX_CODE alone = sheep (S3.536).
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -14940,6 +14943,55 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("592") && s.contains("SET+ADD+SUB+NOP")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.627: yoyo.tyb cliff renamed — ISA/slot OK; slim text>1024 + child
+    /// reject; raising S1_SLIM_MAX_CODE ≠ graduation; ready=false.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_parse1_yoyo_tyb_text_cap_cliff_pin() {
+        let pe = yoyo_compiler_pe_bytes().expect("S3.627");
+        assert!(String::from_utf8_lossy(&pe).contains("yoyo_parse1_c"));
+        assert_eq!(crate::s1_tyb_parser::S1_SLIM_MAX_CODE, 1024);
+        let yoyo_tyb = gate_i_yoyo_tyb_path();
+        assert!(yoyo_tyb.is_file(), "yoyo.tyb present");
+        let tyb = std::fs::read(&yoyo_tyb).expect("read yoyo.tyb");
+        // Host mini: ISA clears; fails closed on slim text cap (not unknown-op).
+        let err = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            .err()
+            .expect("yoyo.tyb must not slim-emit");
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("slim PE text") && msg.contains("1024"),
+            "expect slim text-cap err, got {msg}"
+        );
+        // Child still reject
+        let dir = temp_work("s627-yoyo-text-cap");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::copy(&yoyo_tyb, dir.join("input.tyb")).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert_eq!(
+            st.code(),
+            Some(EXIT_COMPILE_FAIL),
+            "yoyo.tyb child still fail {:?}",
+            st.code()
+        );
+        assert!(!dir.join(OUTPUT_NAME).exists());
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("627") && s.contains("text")));
+        assert!(yoyo_live_in_dll_compile_map()
+            .iter()
+            .any(|s| s.contains("text") && s.contains("ABSENT")));
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_live_compile_slice_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.627"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
