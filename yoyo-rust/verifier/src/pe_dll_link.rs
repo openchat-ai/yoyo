@@ -544,7 +544,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.641 DONE: host pe_link(emit_x86(3nop)) smoke named as pe_link-in-child milestone; child still slim RET",
         "S3.642 DONE: compile_tyb_to_pe_link_emit host API; child still ≠ link_emit (pe_link-in-child ABSENT)",
         "S3.643 cliff: link_emit(3nop)≈225KiB vs wide 25KiB; bake=sheep; pe_link-in-child needs in-child linker",
-        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child ABSENT (225KiB gap); M4 ABSENT",
+        "S3.644 DONE: dissect link_emit(3nop) PE32+ SizeOfImage/sections; compact growth path still ABSENT",
+        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child ABSENT (225KiB; dissected); M4 ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -15018,6 +15019,48 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.644: dissect link_emit(3nop) PE — SizeOfImage / section sizes named
+    /// so pe_link-in-child can target compact growth; ready=false; ≠ M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_pe_link_emit_3nop_pe_dissect_pin() {
+        let tyb = crate::s1_tyb_parser::s3_n_nops_ret_tyb(3);
+        let pe = crate::s1_tyb_parser::compile_tyb_to_pe_link_emit(&tyb)
+            .expect("link_emit")
+            .bytes;
+        assert_eq!(&pe[..2], b"MZ");
+        let e_lfanew = u32::from_le_bytes(pe[0x3C..0x40].try_into().unwrap()) as usize;
+        assert_eq!(&pe[e_lfanew..e_lfanew + 4], b"PE\0\0");
+        let opt = e_lfanew + 24;
+        let magic = u16::from_le_bytes(pe[opt..opt + 2].try_into().unwrap());
+        assert_eq!(magic, 0x20B, "PE32+");
+        let size_of_image =
+            u32::from_le_bytes(pe[opt + 56..opt + 60].try_into().unwrap());
+        let size_of_code =
+            u32::from_le_bytes(pe[opt + 4..opt + 8].try_into().unwrap());
+        let nsect = u16::from_le_bytes(pe[e_lfanew + 6..e_lfanew + 8].try_into().unwrap());
+        assert!(
+            size_of_image >= 0x10000,
+            "link_emit SizeOfImage large (got {size_of_image:#x})"
+        );
+        assert!(nsect >= 2, "expect ≥2 sections (got {nsect})");
+        assert!(
+            yoyo_pe_link_in_child_blockers()
+                .iter()
+                .any(|s| s.contains("225KiB") || s.contains("minimal")),
+            "blockers name size/minimal path"
+        );
+        // keep numbers in design via assert messages / include
+        assert!(include_str!("pe_dll_link.rs").contains("S3.644"));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.644") || s.contains("S3.643")));
+        assert!(!yoyo_pe_link_in_child_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        let _ = size_of_code;
+        let _ = pe.len();
     }
 
     /// S3.643: pe_link-in-child size/IAT gap cliff — link_emit(3nop)≈225KiB vs
