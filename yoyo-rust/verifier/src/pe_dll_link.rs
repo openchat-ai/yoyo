@@ -543,7 +543,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.640 cliff: pe_link-in-child ABSENT — parse1→slim RET template ≠ link_pe_win32; see yoyo_pe_link_in_child_blockers",
         "S3.641 DONE: host pe_link(emit_x86(3nop)) smoke named as pe_link-in-child milestone; child still slim RET",
         "S3.642 DONE: compile_tyb_to_pe_link_emit host API; child still ≠ link_emit (pe_link-in-child ABSENT)",
-        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child ABSENT (host link_emit ≠ child); M4 ABSENT",
+        "S3.643 cliff: link_emit(3nop)≈225KiB vs wide 25KiB; bake=sheep; pe_link-in-child needs in-child linker",
+        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child ABSENT (225KiB gap); M4 ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -15017,6 +15018,43 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.643: pe_link-in-child size/IAT gap cliff — link_emit(3nop)≈225KiB vs
+    /// child wide 25KiB; baking link_emit = sheep; need in-child linker.
+    /// ready=false; ≠ M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_pe_link_in_child_size_iat_gap_cliff_pin() {
+        assert_eq!(crate::s1_tyb_parser::S1_SLIM_MAX_CODE, 1024);
+        assert!(!yoyo_pe_link_in_child_ready());
+        let tyb = crate::s1_tyb_parser::s3_n_nops_ret_tyb(3);
+        let wide = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&tyb)
+            .expect("wide")
+            .bytes;
+        let linked = crate::s1_tyb_parser::compile_tyb_to_pe_link_emit(&tyb)
+            .expect("link_emit")
+            .bytes;
+        assert_eq!(wide.len() as u32, S3_PARSE1_RET_PE_LEN); // 0x6400 = 25600
+        assert!(
+            linked.len() > wide.len() * 4,
+            "link_emit must dwarf wide (got linked={} wide={})",
+            linked.len(),
+            wide.len()
+        );
+        assert!(
+            linked.len() > 200_000,
+            "link_emit(3nop)≈225KiB class (got {})",
+            linked.len()
+        );
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("225KiB") || s.contains("minimal pe_link")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.643") || s.contains("S3.642")));
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.643"));
     }
 
     /// S3.642: host `compile_tyb_to_pe_link_emit` API GREEN for 3nop;
