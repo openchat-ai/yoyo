@@ -2393,6 +2393,15 @@ pub fn s3_raw_bytes_ret_tyb(bytes: &[u8]) -> Vec<u8> {
     s3_host_tyb_from_records(&[(0xA1, bytes.len() as u8, a), (0xFF, 0, [0; 6])])
 }
 
+/// S3.611: MEMCPY_DATA+RET TYB (beyond fixed10). `dst`/`src`/`n` are slot ids (≤15 for parse1).
+pub fn s3_memcpy_data_ret_tyb(dst: u16, src: u16, n: u16) -> Vec<u8> {
+    let mut a = [0u8; 6];
+    a[0..2].copy_from_slice(&dst.to_le_bytes());
+    a[2..4].copy_from_slice(&src.to_le_bytes());
+    a[4..6].copy_from_slice(&n.to_le_bytes());
+    s3_host_tyb_from_records(&[(0x84, 3, a), (0xFF, 0, [0; 6])])
+}
+
 /// S3.606: LABEL + NOP + JMP(same id) + RET — exercises parse1 label table.
 pub fn s3_label_nop_jmp_ret_tyb(label_id: u32) -> Vec<u8> {
     let mut a = [0u8; 6];
