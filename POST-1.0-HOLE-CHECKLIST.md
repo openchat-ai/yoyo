@@ -4,7 +4,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.607**（606=JMP+label-table cliff；下一刀=JMP seed / yoyo.tyb / M4）。
+**默认** 继续 **= S3.608**（607=JMP+label-table seed；下一刀=CALL / JCC / yoyo.tyb / M4）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -35,10 +35,11 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3.556–582** ✅ | `7fb0d14` | live1→live2→emit1；≠ general emit_x86 |
 | **S3.583–593** ✅ | `1ab26a8` | emit2 field（imm/disp）· all CHAINS |
 | **S3.594–605** ✅ | `50f3c56` | parse1 记录环：fixed10→beyond（IMUL/ALUV/RAW/LABEL/LDB）+ any-size |
-| **S3.606** ✅ | `ae2b8a5` | JMP+label-table **cliff**（LABEL skip；JMP RED） |
-| **S3.607** ⏳ | — | **本步**：JMP+label-table seed / yoyo.tyb / M4 |
+| **S3.606** ✅ | `ae2b8a5` | JMP+label-table cliff |
+| **S3.607** ✅ | `5f68893` | parse1 +JMP + label table（scratch VA） |
+| **S3.608** ⏳ | — | **本步**：CALL / JCC / yoyo.tyb / M4 |
 
-**缺口**：general parse+emit / yoyo.tyb / M4 flip 仍 **ABSENT**。`ready=false`。bake=362。
+**缺口**：CALL/JCC / yoyo.tyb / M4 flip 仍 **ABSENT**。`ready=false`。bake=362。
 
 ---
 
@@ -55,7 +56,7 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 
 ## 对 AI
 
-- 继续 → **S3.607**（JMP seed；禁 densify / 假 CLOSED）。红了记根因停。
+- 继续 → **S3.608**（CALL / JCC；禁 densify / 假 CLOSED）。S3.607=JMP seed。红了记根因停。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
