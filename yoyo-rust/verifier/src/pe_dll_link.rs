@@ -432,7 +432,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "production default place_cwd remains Rust (ALT unset)",
         "raising S1_SLIM_MAX_CODE / densify hand-hex ≠ live-compile graduation (sheep)",
         "CreateProcess compiler PE: fixed10+all CHAINS multi live2 GREEN; yoyo.tyb/full still ABSENT",
-        "child live compose ABSENT — parse1=…+JMP+CALL+JCC+RAW_BYTES+MCPD+MCPS+STB+ALLOC+LOAD+WRITE+DATA; emit2 dead; general parse+emit_x86 still ABSENT (S3.582 cliff remains); see design",
+        "child live compose ABSENT — parse1≈mini (slot/n knife-limits); yoyo.tyb still ABSENT; general parse+emit_x86 still ABSENT (S3.582 cliff remains); see design",
     ]
 }
 
@@ -464,7 +464,7 @@ pub fn yoyo_in_dll_createprocess_compiler_ready() -> bool {
 }
 
 
-/// S3.556–S3.617: design notes for **live compose** inside the child compiler PE.
+/// S3.556–S3.618: design notes for **live compose** inside the child compiler PE.
 ///
 /// Today = parse1 …+JMP/CALL/JCC+label-table. Live = general parse+emit+link.
 /// Non-empty ⇒ slice ABSENT. Clearing ≠ M4 flip / ≠ OW-RT CLOSED. Densify ≠ slice.
@@ -518,11 +518,12 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.615 parse1 DONE: +LOAD_FILE 0x50 (160B slim IAT seed; path+slot poke)",
         "S3.616 parse1 DONE: +WRITE_FILE 0x51 (139B slim IAT seed; argc=2|3)",
         "S3.617 parse1 DONE: +DATA/STR/RAW 0x10/12/13 (≤384B → .data @0xA00)",
-        "today: parse1=…+JMP+CALL+JCC+RAW_BYTES+MCPD+MCPS+STB+ALLOC+LOAD+WRITE+DATA; emit2 dead; general parse+emit still ABSENT",
-        "live emit of full mini-ISA / yoyo.tyb still ABSENT (compose beyond mini…)",
+        "S3.618 cliff: parse1≈mini GREEN; yoyo.tyb still ABSENT (exceeds mini/slot limits)",
+        "today: parse1≈mini (knife-limits); yoyo.tyb/M4 ABSENT; general emit still ABSENT",
+        "live emit of yoyo.tyb / beyond-mini still ABSENT (slot>15·disp32 mix·full compose)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside child .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
-        "yoyo.tyb exceeds mini fixed10 ISA — needs host compose / oracle / densify≠",
+        "yoyo.tyb exceeds mini ISA — needs host compose / oracle / densify≠",
         "hand-hex densify of emit_x86 into child = sheep; not a live-compose slice",
         "finite emit1/imm table growth ≠ graduation; live slice clears this design list",
     ]
@@ -7302,7 +7303,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.615: parse1 +LOAD_FILE 0x50 (160B slim IAT seed; path+slot poke).
     // S3.616: parse1 +WRITE_FILE 0x51 (139B slim IAT seed; argc=2|3).
     // S3.617: parse1 +DATA/STR/RAW 0x10/12/13 (≤384B → .data @0xA00).
-    // Next >=10 = yoyo.tyb / M4 / OW-RT. Not CLOSED. CUT.
+    // S3.618: parse1≈mini cliff named — yoyo.tyb still ABSENT (≠ OW CLOSED).
+    // Next >=10 = slot>15 lift / yoyo.tyb / M4 / OW-RT. Not CLOSED. CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -14572,6 +14574,52 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("592") && s.contains("SET+ADD+SUB+NOP")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.618: parse1≈mini cliff — yoyo.tyb still rejects; ready=false.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_parse1_mini_yoyo_tyb_cliff_pin() {
+        let pe = yoyo_compiler_pe_bytes().expect("S3.618");
+        assert!(String::from_utf8_lossy(&pe).contains("yoyo_parse1_c"));
+        // mini smoke still GREEN after parse1≈mini wave
+        let dir = temp_work("s618-parse1-mini-cliff");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        let tyb = crate::s1_tyb_parser::s3_raw_bytes_ret_tyb(&[0x90, 0x90]);
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            .expect("emit mini")
+            .bytes;
+        std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success(), "parse1 mini smoke exit {:?}", st.code());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
+        // yoyo.tyb remains ABSENT in child
+        let yoyo_tyb = gate_i_yoyo_tyb_path();
+        assert!(yoyo_tyb.is_file(), "yoyo.tyb present for cliff");
+        std::fs::copy(&yoyo_tyb, dir.join("input.tyb")).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert_eq!(
+            st.code(),
+            Some(EXIT_COMPILE_FAIL),
+            "yoyo.tyb must still fail in child (got {:?})",
+            st.code()
+        );
+        assert!(!dir.join(OUTPUT_NAME).exists());
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("618") && s.contains("yoyo.tyb")));
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.618"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
