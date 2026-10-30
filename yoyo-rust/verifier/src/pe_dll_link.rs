@@ -15018,6 +15018,17 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// DIAG S643: measure link_emit(3nop) PE len for bake.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_s643_link3_len_diag() {
+        let tyb = crate::s1_tyb_parser::s3_n_nops_ret_tyb(3);
+        let linked = crate::s1_tyb_parser::compile_tyb_to_pe_link_emit(&tyb)
+            .expect("link")
+            .bytes;
+        panic!("DIAG link3_len={} tyb_len={}", linked.len(), tyb.len());
+    }
+
     /// S3.642: host `compile_tyb_to_pe_link_emit` API GREEN for 3nop;
     /// child still slim RET ≠ link_emit (pe_link-in-child ABSENT). ready=false.
     #[test]
