@@ -2383,6 +2383,29 @@ pub fn s3_raw_byte_ret_tyb(byte: u8) -> Vec<u8> {
     s3_host_tyb_from_records(&[(0xA0, 1, a), (0xFF, 0, [0; 6])])
 }
 
+/// S3.606: LABEL + NOP + JMP(same id) + RET — exercises parse1 label table.
+pub fn s3_label_nop_jmp_ret_tyb(label_id: u32) -> Vec<u8> {
+    let mut a = [0u8; 6];
+    a[0..4].copy_from_slice(&label_id.to_le_bytes());
+    s3_host_tyb_from_records(&[
+        (0x40, 1, a),
+        (0x00, 0, [0; 6]),
+        (0x70, 1, a),
+        (0xFF, 0, [0; 6]),
+    ])
+}
+
+/// S3.606: JMP + LABEL(same id) + RET — forward-ref patch.
+pub fn s3_jmp_label_ret_tyb(label_id: u32) -> Vec<u8> {
+    let mut a = [0u8; 6];
+    a[0..4].copy_from_slice(&label_id.to_le_bytes());
+    s3_host_tyb_from_records(&[
+        (0x70, 1, a),
+        (0x40, 1, a),
+        (0xFF, 0, [0; 6]),
+    ])
+}
+
 /// S3.604: LDB+RET TYB (beyond fixed10). `dd`/`ss`/`oo` are u16; parse1 covers ≤15.
 pub fn s3_ldb_ret_tyb(dd: u16, ss: u16, oo: u16) -> Vec<u8> {
     let mut a = [0u8; 6];

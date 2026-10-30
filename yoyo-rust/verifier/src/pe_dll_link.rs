@@ -464,9 +464,9 @@ pub fn yoyo_in_dll_createprocess_compiler_ready() -> bool {
 }
 
 
-/// S3.556–S3.605: design notes for **live compose** inside the child compiler PE.
+/// S3.556–S3.606: design notes for **live compose** inside the child compiler PE.
 ///
-/// Today = parse1 fixed10+…+LDB + any-size. Live = general parse+emit+link.
+/// Today = parse1 fixed10+…+LDB+any-size. JMP+label-table still ABSENT. Live = general parse+emit+link.
 /// Non-empty ⇒ slice ABSENT. Clearing ≠ M4 flip / ≠ OW-RT CLOSED. Densify ≠ slice.
 pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
     &[
@@ -506,8 +506,9 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.603 parse1 DONE: +LABEL beyond-fixed10 (no .text; skip+advance; no label table yet)",
         "S3.604 parse1 DONE: +LDB beyond-fixed10 (oo=0/≠0; slots≤15)",
         "S3.605 parse1 DONE: any-size fallback (beyond 0x18/20/28/30 size table)",
+        "S3.606 cliff: JMP+label-table ABSENT (LABEL skip-only; no rel32 patch yet)",
         "today: parse1=fixed10+…+LDB+any-size; emit2 dead; general parse+emit still ABSENT",
-        "live emit of full mini-ISA / yoyo.tyb still ABSENT (JMP/CALL/label-table/ALLOC/…)",
+        "live emit of full mini-ISA / yoyo.tyb still ABSENT (JMP/CALL/JCC/ALLOC/…)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside child .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
         "yoyo.tyb exceeds mini fixed10 ISA — needs host compose / oracle / densify≠",
@@ -6618,7 +6619,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.603: parse1 +LABEL (no .text; skip; label table still ABSENT).
     // S3.604: parse1 +LDB (oo=0/≠0; slots≤15).
     // S3.605: parse1 any-size fallback (beyond size table).
-    // Next >=10 = JMP+label-table / yoyo.tyb / M4 / OW-RT. Not CLOSED. CUT.
+    // S3.606: JMP+label-table cliff named (LABEL skip-only; rel32 ABSENT).
+    // Next >=10 = JMP+label-table seed / CALL/JCC / yoyo.tyb / M4 / OW-RT. Not CLOSED. CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -13888,6 +13890,49 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("592") && s.contains("SET+ADD+SUB+NOP")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.606: JMP+label-table cliff — LABEL skip-only; JMP TYB fails (exit≠0); ready=false.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_parse1_jmp_label_table_cliff_pin() {
+        let pe = yoyo_compiler_pe_bytes().expect("S3.606");
+        assert!(String::from_utf8_lossy(&pe).contains("yoyo_parse1_c"));
+        let dir = temp_work("s606-jmp-cliff");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        // LABEL+RET still GREEN (skip-only)
+        let tyb_l = crate::s1_tyb_parser::s3_label_ret_tyb(1);
+        let expect_l = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_l)
+            .expect("emit label")
+            .bytes;
+        std::fs::write(dir.join("input.tyb"), &tyb_l).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success(), "LABEL+RET still {:?}", st.code());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect_l);
+        // JMP+LABEL+RET must FAIL (no JMP handler yet)
+        let tyb_j = crate::s1_tyb_parser::s3_jmp_label_ret_tyb(7);
+        assert!(
+            crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_j).is_ok(),
+            "host can emit JMP"
+        );
+        std::fs::write(dir.join("input.tyb"), &tyb_j).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(!st.success(), "JMP must fail until label-table seed");
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("606") && s.contains("JMP") && s.contains("ABSENT")));
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.606"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
