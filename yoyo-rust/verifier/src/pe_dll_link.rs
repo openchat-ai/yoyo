@@ -542,7 +542,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.639 cliff: live in-DLL emit ABSENT — CreateProcess GREEN ≠ export emit_x86; no-compiler-PE still fail-closed",
         "S3.640 cliff: pe_link-in-child ABSENT — parse1→slim RET template ≠ link_pe_win32; see yoyo_pe_link_in_child_blockers",
         "S3.641 DONE: host pe_link(emit_x86(3nop)) smoke named as pe_link-in-child milestone; child still slim RET",
-        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child ABSENT (host 3nop linked ≠ child); M4 ABSENT",
+        "S3.642 DONE: compile_tyb_to_pe_link_emit host API; child still ≠ link_emit (pe_link-in-child ABSENT)",
+        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child ABSENT (host link_emit ≠ child); M4 ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -15014,6 +15015,45 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("592") && s.contains("SET+ADD+SUB+NOP")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.642: host `compile_tyb_to_pe_link_emit` API GREEN for 3nop;
+    /// child still slim RET ≠ link_emit (pe_link-in-child ABSENT). ready=false.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_pe_link_emit_api_3nop_child_absent_pin() {
+        assert_eq!(crate::s1_tyb_parser::S1_SLIM_MAX_CODE, 1024);
+        assert!(!yoyo_pe_link_in_child_ready());
+        let tyb = crate::s1_tyb_parser::s3_n_nops_ret_tyb(3);
+        let linked = crate::s1_tyb_parser::compile_tyb_to_pe_link_emit(&tyb)
+            .expect("link_emit 3nop")
+            .bytes;
+        assert!(linked.len() > 0x200 && linked[..2] == *b"MZ");
+        let wide = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&tyb)
+            .expect("wide")
+            .bytes;
+        assert_ne!(linked.len(), wide.len(), "link_emit ≠ wide RET template");
+        let dir = temp_work("s642-link-emit-api");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success());
+        let child = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+        assert_eq!(child, wide, "child still wide/slim RET");
+        assert_ne!(child, linked, "child ≠ link_emit yet");
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("S3.642") || s.contains("slim RET")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.642")));
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.642"));
+        assert!(include_str!("s1_tyb_parser.rs").contains("compile_tyb_to_pe_link_emit"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

@@ -10511,6 +10511,19 @@ pub fn compile_tyb_to_pe_wide_emit(tyb: &[u8]) -> crate::types::IsaResult<crate:
     })
 }
 
+/// S3.642: mini-validate + emit_x86 + [`crate::pe_link::link_pe_win32`] (empty handlers).
+/// Host pe_link-in-child milestone expect. Does **not** raise [`S1_SLIM_MAX_CODE`].
+#[cfg(windows)]
+pub fn compile_tyb_to_pe_link_emit(tyb: &[u8]) -> crate::types::IsaResult<crate::pe_link::PeImage> {
+    let prog = parse_tyb(tyb).map_err(|e| crate::types::IsaError::ParseError {
+        line: 0,
+        msg: format!("s1 compile_tyb_to_pe_link_emit: {e}"),
+    })?;
+    validate_tyb_mini(&prog)?;
+    let out = emit_x86(&prog);
+    crate::pe_link::link_pe_win32(&out.text, &out.data, &[])
+}
+
 pub fn try_compile_tyb_via_yoyo_table(tyb: &[u8]) -> Option<crate::pe_link::PeImage> {
     let prog = parse_tyb(tyb).ok()?;
     validate_tyb_mini(&prog).ok()?;

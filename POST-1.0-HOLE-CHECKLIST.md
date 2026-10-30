@@ -4,7 +4,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.642**（641=host pe_link 3nop smoke；下一刀=child emit linked-PE for 3nop / M4）。
+**默认** 继续 **= S3.643**（642=host link_emit API；下一刀=child 3nop→link_emit / pe_link-in-child / M4）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -32,10 +32,10 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | --- | --- | --- |
 | **S3.1–630** ✅ | `3809e18` | fixed10→parse1→any-slot→text4KiB |
 | **S3.631–638** ✅ | `3227356` | yoyo.tyb child→CreateProcess GREEN |
-| **S3.639–641** ✅ | — | live emit≠CP；pe_link map；**host 3nop linked smoke** |
-| **S3.642** ⏳ | — | **本步**：child emit linked-PE for 3nop（禁 densify） |
+| **S3.639–642** ✅ | — | live emit≠CP；pe_link map；**host link_emit API** |
+| **S3.643** ⏳ | — | **本步**：child 3nop→link_emit（retarget expects） |
 
-**缺口**：child still slim RET ≠ host pe_link(3nop)；live emit ABSENT；M4 **ABSENT**。`ready=false`。bake=362。
+**缺口**：child still ≠ `compile_tyb_to_pe_link_emit`；live emit ABSENT；M4 **ABSENT**。`ready=false`。bake=362。
 
 ---
 
@@ -52,9 +52,9 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 
 ## 对 AI
 
-- 继续 → **S3.642**（child 对 3nop 产出 pe_link 形 PE；禁 densify / 假 CLOSED / 单抬 slim-cap）。S3.641=host smoke。红了记根因停。
+- 继续 → **S3.643**（child 3nop→link_emit；禁 densify / 假 CLOSED / 单抬 slim-cap）。S3.642=host link_emit API。红了记根因停。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
 
-*post-v1.0 · 收纳板 · tip S3.642*
+*post-v1.0 · 收纳板 · tip S3.643*
