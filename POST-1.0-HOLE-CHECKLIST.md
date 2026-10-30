@@ -4,7 +4,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.625**（624=LDB any-slot；下一刀=STB any-slot / yoyo.tyb / M4）。
+**默认** 继续 **= S3.626**（625=STB any-slot；下一刀=MCP any-slot / yoyo.tyb / M4）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -39,11 +39,12 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3.609–617** ✅ | `7cb45c2` | parse1 mini 主路径：JCC→…→DATA |
 | **S3.618** ✅ | `7a5f435` | parse1≈mini cliff；yoyo.tyb 仍 ABSENT |
 | **S3.619–622** ✅ | `f2740ce` | SET/GET/INC/DEC/ADD/SUB slot≤255 |
-| **S3.623** ✅ | `267c218` | CMP/IMUL/ALUV slot≤255 (disp8\|disp32) |
-| **S3.624** ✅ | — | LDB slot≤255 (disp8\|disp32 ±oo) |
-| **S3.625** ⏳ | — | **本步**：STB any-slot / yoyo.tyb / M4 |
+| **S3.623** ✅ | `267c218` | CMP/IMUL/ALUV slot≤255 |
+| **S3.624** ✅ | `9ccfea4` | LDB slot≤255 (disp8\|disp32 ±oo) |
+| **S3.625** ✅ | — | STB slot≤255 (disp8\|disp32 ±oo) |
+| **S3.626** ⏳ | — | **本步**：MCP any-slot / yoyo.tyb / M4 |
 
-**缺口**：STB/MCP slot>15·disp32 / yoyo.tyb / M4 flip / general emit_x86 仍 **ABSENT**。`ready=false`。bake=362。
+**缺口**：MCP slot>15·disp32 / yoyo.tyb / M4 flip / general emit_x86 仍 **ABSENT**。`ready=false`。bake=362。
 
 ---
 
@@ -60,9 +61,9 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 
 ## 对 AI
 
-- 继续 → **S3.625**（STB any-slot；禁 densify / 假 CLOSED）。S3.624=LDB any-slot。红了记根因停。
+- 继续 → **S3.626**（MCP any-slot；禁 densify / 假 CLOSED）。S3.625=STB any-slot。红了记根因停。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
 
-*post-v1.0 · 收纳板 · tip S3.625*
+*post-v1.0 · 收纳板 · tip S3.626*
