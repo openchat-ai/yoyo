@@ -432,7 +432,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "production default place_cwd remains Rust (ALT unset)",
         "raising S1_SLIM_MAX_CODE / densify hand-hex ≠ live-compile graduation (sheep)",
         "CreateProcess compiler PE: fixed10+all CHAINS multi live2 GREEN; yoyo.tyb/full still ABSENT",
-        "child live compose ABSENT — parse1=fixed10+…+JMP/label-table; emit2 dead; general parse+emit_x86 still ABSENT (S3.582 cliff remains); see design",
+        "child live compose ABSENT — parse1=…+JMP+CALL; emit2 dead; general parse+emit_x86 still ABSENT (S3.582 cliff remains); see design",
     ]
 }
 
@@ -464,9 +464,9 @@ pub fn yoyo_in_dll_createprocess_compiler_ready() -> bool {
 }
 
 
-/// S3.556–S3.607: design notes for **live compose** inside the child compiler PE.
+/// S3.556–S3.608: design notes for **live compose** inside the child compiler PE.
 ///
-/// Today = parse1 fixed10+…+LDB+any-size+JMP/label-table. Live = general parse+emit+link.
+/// Today = parse1 …+JMP/CALL+label-table. Live = general parse+emit+link.
 /// Non-empty ⇒ slice ABSENT. Clearing ≠ M4 flip / ≠ OW-RT CLOSED. Densify ≠ slice.
 pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
     &[
@@ -508,8 +508,9 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.605 parse1 DONE: any-size fallback (beyond 0x18/20/28/30 size table)",
         "S3.606 cliff: JMP+label-table ABSENT (LABEL skip-only; no rel32 patch yet)",
         "S3.607 parse1 DONE: +JMP + label table (scratch VA; back-edge+forward-ref)",
-        "today: parse1=fixed10+…+LDB+any-size+JMP; emit2 dead; general parse+emit still ABSENT",
-        "live emit of full mini-ISA / yoyo.tyb still ABSENT (CALL/JCC/ALLOC/…)",
+        "S3.608 parse1 DONE: +CALL (E8; share label/patch table)",
+        "today: parse1=…+JMP+CALL; emit2 dead; general parse+emit still ABSENT",
+        "live emit of full mini-ISA / yoyo.tyb still ABSENT (JCC/ALLOC/…)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside child .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
         "yoyo.tyb exceeds mini fixed10 ISA — needs host compose / oracle / densify≠",
@@ -1558,6 +1559,9 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x3C, 0x70]); // JMP?
     let je_parse1_jmp = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x3C, 0x41]); // CALL?
+    let je_parse1_call = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     let jmp_parse1_fail2 = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // unknown op → fail
     // NOP
@@ -1852,12 +1856,22 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x41, 0xFF, 0x03]); // inc nlabels
     let jmp_parse1_adv_lb = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-    // S3.607 JMP: argc==1; E9 + deferred patch in scratch+0x110
+    // S3.607/608 JMP/CALL: argc==1; opcode in [rsp+0x60] (E9/E8); deferred patch
     let parse1_jmp_lbl = c.len();
     c.extend_from_slice(&[0x41, 0x80, 0x78, 0x01, 0x01]);
     let jne_parse1_fail_jp = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0xC6, 0x07, 0xE9]);
+    c.extend_from_slice(&[0xC6, 0x44, 0x24, 0x60, 0xE9]); // JMP opcode
+    let jmp_parse1_jccall = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let parse1_call_lbl = c.len();
+    c.extend_from_slice(&[0x41, 0x80, 0x78, 0x01, 0x01]);
+    let jne_parse1_fail_cl = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0xC6, 0x44, 0x24, 0x60, 0xE8]); // CALL opcode
+    let parse1_jccall_emit = c.len();
+    c.extend_from_slice(&[0x8A, 0x44, 0x24, 0x60]);
+    c.extend_from_slice(&[0x88, 0x07]); // [rdi]=E9/E8
     c.extend_from_slice(&[0xC7, 0x47, 0x01, 0x00, 0x00, 0x00, 0x00]);
     c.extend_from_slice(&[0x48, 0x89, 0xF8]);
     c.extend_from_slice(&[0x48, 0x2B, 0xC3]);
@@ -3094,6 +3108,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jcc(&mut c, je_parse1_label, parse1_label_lbl);
     patch_jcc(&mut c, je_parse1_ldb, parse1_ldb_lbl);
     patch_jcc(&mut c, je_parse1_jmp, parse1_jmp_lbl);
+    patch_jcc(&mut c, je_parse1_call, parse1_call_lbl);
     patch_jmp(&mut c, jmp_parse1_fail2, fail_compile);
     patch_jcc(&mut c, jne_parse1_fail3, fail_compile);
     patch_jmp(&mut c, jmp_parse1_adv, parse1_advance);
@@ -3138,6 +3153,8 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jcc(&mut c, jae_parse1_fail_lbf, fail_compile);
     patch_jmp(&mut c, jmp_parse1_adv_lb, parse1_advance);
     patch_jcc(&mut c, jne_parse1_fail_jp, fail_compile);
+    patch_jmp(&mut c, jmp_parse1_jccall, parse1_jccall_emit);
+    patch_jcc(&mut c, jne_parse1_fail_cl, fail_compile);
     patch_jcc(&mut c, jae_parse1_fail_jpf, fail_compile);
     patch_jmp(&mut c, jmp_parse1_adv_jp, parse1_advance);
     patch_jcc(&mut c, jne_parse1_fail_ld, fail_compile);
@@ -6742,7 +6759,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.605: parse1 any-size fallback (beyond size table).
     // S3.606: JMP+label-table cliff named (LABEL skip-only; rel32 ABSENT).
     // S3.607: parse1 +JMP + label table (scratch VA; back-edge+forward-ref).
-    // Next >=10 = CALL/JCC / yoyo.tyb / M4 / OW-RT. Not CLOSED. CUT.
+    // S3.608: parse1 +CALL (E8; share label/patch table).
+    // Next >=10 = JCC / yoyo.tyb / M4 / OW-RT. Not CLOSED. CUT.
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
     // write_out · handler guards · mt dispatch. Densify hand-disp32 = sheep.
@@ -14012,6 +14030,60 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("592") && s.contains("SET+ADD+SUB+NOP")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.608: parse1 +CALL; back-edge + forward-ref GREEN; ready=false.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_parse1_call_label_table_pin() {
+        let pe = yoyo_compiler_pe_bytes().expect("S3.608");
+        assert!(String::from_utf8_lossy(&pe).contains("yoyo_parse1_c"));
+        let dir = temp_work("s608-parse1-call");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        let tyb = crate::s1_tyb_parser::s3_label_nop_call_ret_tyb(1);
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            .expect("emit back")
+            .bytes;
+        std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success(), "parse1 LABEL+NOP+CALL exit {:?}", st.code());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
+        let tyb2 = crate::s1_tyb_parser::s3_call_label_ret_tyb(7);
+        let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb2)
+            .expect("emit fwd")
+            .bytes;
+        std::fs::write(dir.join("input.tyb"), &tyb2).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success(), "parse1 CALL+LABEL exit {:?}", st.code());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect2);
+        // JMP still GREEN
+        let tyb3 = crate::s1_tyb_parser::s3_jmp_label_ret_tyb(2);
+        let expect3 = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb3)
+            .expect("emit jmp")
+            .bytes;
+        std::fs::write(dir.join("input.tyb"), &tyb3).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success(), "JMP still {:?}", st.code());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect3);
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("608") && s.contains("CALL")));
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.608"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
