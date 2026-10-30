@@ -2595,6 +2595,19 @@ pub fn s3_label_ret_tyb(label_id: u32) -> Vec<u8> {
     s3_host_tyb_from_records(&[(0x40, 1, a), (0xFF, 0, [0; 6])])
 }
 
+/// S3.628: N distinct LABEL ids + RET — stress parse1 label table capacity.
+/// `n` labels with ids `0..n`; emits no `.text` besides trailing RET.
+pub fn s3_n_labels_ret_tyb(n: u32) -> Vec<u8> {
+    let mut recs: Vec<(u8, u8, [u8; 6])> = Vec::with_capacity(n as usize + 1);
+    for id in 0..n {
+        let mut a = [0u8; 6];
+        a[0..4].copy_from_slice(&id.to_le_bytes());
+        recs.push((0x40, 1, a));
+    }
+    recs.push((0xFF, 0, [0; 6]));
+    s3_host_tyb_from_records(&recs)
+}
+
 /// S3.603: LABEL + trailing ops + RET. `ops` are non-RET opcodes with canonical args
 /// for fixed10 / RAW_BYTE(0x90) / ALUV — used for parse1 LABEL* chains.
 pub fn s3_label_chain_ret_tyb(label_id: u32, ops: &[u8]) -> Vec<u8> {

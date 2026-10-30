@@ -425,7 +425,7 @@ pub fn yoyo_m4_production_flip_ready() -> bool {
 /// Non-empty ⇒ M4 production flip stays ABSENT. Clearing entries ≠ OW-RT CLOSED.
 pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
     &[
-        "yoyo.tyb: ISA/slot OK post-any-slot; slim text~18KiB>1024 + child label/patch table32 still ABSENT",
+        "yoyo.tyb: ISA/slot OK; slim text~18KiB>1024 + 788 labels > child table256 still ABSENT",
         "beyond-mini overflow TYB fails mini; today served only via oracle→seed_host",
         "in-DLL export has no seed_host/bootstrap_compile machine at call-time",
         "ALT in-dll-gate-i / gen4 GREEN paths are still oracle lookup, not live emit",
@@ -528,7 +528,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.625 parse1 DONE: STB slot≤255 (disp8|disp32 dual-load±oo+store-cl)",
         "S3.626 parse1 DONE: MCPD/MCPS slot≤255 (disp8|disp32; MCPS n≤4)",
         "S3.627 cliff: yoyo.tyb ISA/slot OK post-any-slot; slim text 18KiB>1024 + label/patch table32 ABSENT (≠ raise S1_SLIM_MAX_CODE sheep)",
-        "today: parse1≈mini +mem any-slot; yoyo.tyb text-cap/table ABSENT; general parse+emit still ABSENT",
+        "S3.628 parse1 DONE: label/patch tables 32→256 (scratch 0x1100; yoyo.tyb 788 still ABSENT)",
+        "today: parse1≈mini +table256; yoyo.tyb text-cap+788labels ABSENT; general parse+emit still ABSENT",
         "live emit of yoyo.tyb / beyond-mini still ABSENT (full compose / densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside child .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -1497,11 +1498,12 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x31, 0xC0]);
     c.extend_from_slice(&[0xB9, 0x00, 0x04, 0x00, 0x00]);
     c.extend_from_slice(&[0xF3, 0xAA]);
-    // S3.607: scratch VA for label/patch tables (≠ PE image; avoids corrupt output)
-    // layout: +0 nlabels, +4 npatches, +0x10 labels[32×8], +0x110 patches[32×8]
-    // +0x220 JCC cc[10], +0x230 data_cursor, +0x238 data_len (S3.617)
+    // S3.607/S3.628: scratch VA for label/patch tables (≠ PE image).
+    // S3.628: labels/patches 32→256.
+    // layout: +0 nlabels, +4 npatches, +0x10 labels[256×8], +0x810 patches[256×8]
+    // +0x1020 JCC cc[10], +0x1030 data_cursor, +0x1038 data_len
     c.extend_from_slice(&[0x31, 0xC9]);
-    c.extend_from_slice(&[0xBA, 0x00, 0x03, 0x00, 0x00]); // 0x300
+    c.extend_from_slice(&[0xBA, 0x00, 0x11, 0x00, 0x00]); // 0x1100
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xB9, 0x04, 0x00, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xFF, 0x97, 0x00, 0x00, 0x00, 0x00]);
@@ -1511,13 +1513,13 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x48, 0x89, 0x44, 0x24, 0x48]); // [rsp+0x48]=scratch
     c.extend_from_slice(&[0x48, 0x89, 0xC7]);
     c.extend_from_slice(&[0x31, 0xC0]);
-    c.extend_from_slice(&[0xB9, 0x00, 0x03, 0x00, 0x00]);
+    c.extend_from_slice(&[0xB9, 0x00, 0x11, 0x00, 0x00]);
     c.extend_from_slice(&[0xF3, 0xAA]); // zero scratch
-    // S3.609: JCC cc table at scratch+0x220
+    // S3.609/S3.628: JCC cc table at scratch+0x1020
     c.extend_from_slice(&[0x48, 0x8B, 0x44, 0x24, 0x48]);
-    c.extend_from_slice(&[0xC7, 0x80, 0x20, 0x02, 0x00, 0x00, 0x84, 0x85, 0x8C, 0x8D]);
-    c.extend_from_slice(&[0xC7, 0x80, 0x24, 0x02, 0x00, 0x00, 0x8E, 0x8F, 0x82, 0x83]);
-    c.extend_from_slice(&[0x66, 0xC7, 0x80, 0x28, 0x02, 0x00, 0x00, 0x86, 0x87]);
+    c.extend_from_slice(&[0xC7, 0x80, 0x20, 0x10, 0x00, 0x00, 0x84, 0x85, 0x8C, 0x8D]);
+    c.extend_from_slice(&[0xC7, 0x80, 0x24, 0x10, 0x00, 0x00, 0x8E, 0x8F, 0x82, 0x83]);
+    c.extend_from_slice(&[0x66, 0xC7, 0x80, 0x28, 0x10, 0x00, 0x00, 0x86, 0x87]);
     c.extend_from_slice(&[0x48, 0x8B, 0x74, 0x24, 0x50]); // rsi = TYB
     c.extend_from_slice(&[0x0F, 0xB7, 0x4E, 0x06]); // movzx ecx, word [rsi+6]
     c.extend_from_slice(&[0x85, 0xC9]);
@@ -1525,11 +1527,11 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x4C, 0x8D, 0x46, 0x08]); // lea r8, [rsi+8]
     c.extend_from_slice(&[0x48, 0x8D, 0xBB, 0x0D, 0x04, 0x00, 0x00]); // lea rdi,[rbx+0x40d]
-    // S3.617: data cursor/len in scratch (+0x230/+0x238); frame is only 0x68
+    // S3.617/S3.628: data cursor/len in scratch (+0x1030/+0x1038)
     c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]); // r11=scratch
     c.extend_from_slice(&[0x48, 0x8D, 0x83, 0x00, 0x0A, 0x00, 0x00]);
-    c.extend_from_slice(&[0x49, 0x89, 0x83, 0x30, 0x02, 0x00, 0x00]); // [scratch+0x230]=cursor
-    c.extend_from_slice(&[0x41, 0xC7, 0x83, 0x38, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x49, 0x89, 0x83, 0x30, 0x10, 0x00, 0x00]); // [scratch+0x1030]=cursor
+    c.extend_from_slice(&[0x41, 0xC7, 0x83, 0x38, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
     let parse1_loop = c.len();
     c.extend_from_slice(&[0x85, 0xC9]);
     let jz_parse1_fail1 = c.len();
@@ -2142,15 +2144,15 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let ja_parse1_fail_da2 = c.len();
     c.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]); // r11=scratch
-    c.extend_from_slice(&[0x41, 0x01, 0x83, 0x38, 0x02, 0x00, 0x00]); // data_len += argc
-    c.extend_from_slice(&[0x41, 0x81, 0xBB, 0x38, 0x02, 0x00, 0x00]);
+    c.extend_from_slice(&[0x41, 0x01, 0x83, 0x38, 0x10, 0x00, 0x00]); // data_len += argc
+    c.extend_from_slice(&[0x41, 0x81, 0xBB, 0x38, 0x10, 0x00, 0x00]);
     c.extend_from_slice(&(crate::s1_tyb_parser::S1_MINI_DATA_MAX as u32).to_le_bytes());
     let ja_parse1_fail_dam = c.len();
     c.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x85, 0xC0]);
     let jz_parse1_adv_da = c.len();
     c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x4D, 0x8B, 0x8B, 0x30, 0x02, 0x00, 0x00]); // r9=cursor
+    c.extend_from_slice(&[0x4D, 0x8B, 0x8B, 0x30, 0x10, 0x00, 0x00]); // r9=cursor
     c.extend_from_slice(&[0x41, 0x8A, 0x50, 0x02]);
     c.extend_from_slice(&[0x41, 0x88, 0x11]);
     c.extend_from_slice(&[0x49, 0xFF, 0xC1]);
@@ -2167,7 +2169,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x41, 0x88, 0x11]);
     c.extend_from_slice(&[0x49, 0xFF, 0xC1]);
     let parse1_data_done = c.len();
-    c.extend_from_slice(&[0x4D, 0x89, 0x8B, 0x30, 0x02, 0x00, 0x00]); // save cursor
+    c.extend_from_slice(&[0x4D, 0x89, 0x8B, 0x30, 0x10, 0x00, 0x00]); // save cursor
     let jmp_parse1_adv_da = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     // S3.603/607 LABEL: argc==1; record (id,off) in scratch; no .text
@@ -2182,7 +2184,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x41, 0x8B, 0x40, 0x02]); // eax=id
     c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]); // r11=scratch
     c.extend_from_slice(&[0x45, 0x8B, 0x13]); // r10d=nlabels
-    c.extend_from_slice(&[0x41, 0x83, 0xFA, 0x20]);
+    c.extend_from_slice(&[0x41, 0x81, 0xFA, 0x00, 0x01, 0x00, 0x00]); // cmp r10d, 256
     let jae_parse1_fail_lbf = c.len();
     c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x41, 0xC1, 0xE2, 0x03]); // r10*=8
@@ -2218,11 +2220,11 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x41, 0x8B, 0x40, 0x02]); // id
     c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]); // r11=scratch
     c.extend_from_slice(&[0x45, 0x8B, 0x53, 0x04]); // r10d=npatches
-    c.extend_from_slice(&[0x41, 0x83, 0xFA, 0x20]);
+    c.extend_from_slice(&[0x41, 0x81, 0xFA, 0x00, 0x01, 0x00, 0x00]); // cmp r10d, 256
     let jae_parse1_fail_jpf = c.len();
     c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x41, 0xC1, 0xE2, 0x03]);
-    c.extend_from_slice(&[0x4D, 0x8D, 0x8B, 0x10, 0x01, 0x00, 0x00]); // r9=scratch+0x110
+    c.extend_from_slice(&[0x4D, 0x8D, 0x8B, 0x10, 0x08, 0x00, 0x00]); // r9=scratch+0x810
     c.extend_from_slice(&[0x4D, 0x01, 0xD1]);
     c.extend_from_slice(&[0x41, 0x89, 0x11]); // [r9]=pos
     c.extend_from_slice(&[0x41, 0x89, 0x41, 0x04]); // [r9+4]=id
@@ -2230,7 +2232,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x48, 0x83, 0xC7, 0x05]);
     let jmp_parse1_adv_jp = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-    // S3.609 JCC: argc==1; 0F cc rel32; patch at +2; cc from scratch+0x220
+    // S3.609/S3.628 JCC: argc==1; 0F cc rel32; patch at +2; cc from scratch+0x1020
     let parse1_jcc_lbl = c.len();
     c.extend_from_slice(&[0x41, 0x80, 0x78, 0x01, 0x01]);
     let jne_parse1_fail_jc = c.len();
@@ -2238,7 +2240,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x41, 0x0F, 0xB6, 0x00]); // movzx eax, [r8] op
     c.extend_from_slice(&[0x83, 0xE8, 0x71]); // -0x71
     c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]); // r11=scratch
-    c.extend_from_slice(&[0x41, 0x0F, 0xB6, 0x84, 0x03, 0x20, 0x02, 0x00, 0x00]); // al=[r11+rax+0x220]
+    c.extend_from_slice(&[0x41, 0x0F, 0xB6, 0x84, 0x03, 0x20, 0x10, 0x00, 0x00]); // al=[r11+rax+0x1020]
     c.extend_from_slice(&[0xC6, 0x07, 0x0F]);
     c.extend_from_slice(&[0x88, 0x47, 0x01]); // cc
     c.extend_from_slice(&[0xC7, 0x47, 0x02, 0x00, 0x00, 0x00, 0x00]);
@@ -2249,11 +2251,11 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x89, 0xC2]);
     c.extend_from_slice(&[0x41, 0x8B, 0x40, 0x02]); // id
     c.extend_from_slice(&[0x45, 0x8B, 0x53, 0x04]); // npatches
-    c.extend_from_slice(&[0x41, 0x83, 0xFA, 0x20]);
+    c.extend_from_slice(&[0x41, 0x81, 0xFA, 0x00, 0x01, 0x00, 0x00]); // cmp r10d, 256
     let jae_parse1_fail_jcf = c.len();
     c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x41, 0xC1, 0xE2, 0x03]);
-    c.extend_from_slice(&[0x4D, 0x8D, 0x8B, 0x10, 0x01, 0x00, 0x00]);
+    c.extend_from_slice(&[0x4D, 0x8D, 0x8B, 0x10, 0x08, 0x00, 0x00]); // patches @+0x810
     c.extend_from_slice(&[0x4D, 0x01, 0xD1]);
     c.extend_from_slice(&[0x41, 0x89, 0x11]);
     c.extend_from_slice(&[0x41, 0x89, 0x41, 0x04]);
@@ -2743,7 +2745,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x89, 0xF0]);
     c.extend_from_slice(&[0xC1, 0xE0, 0x03]);
-    c.extend_from_slice(&[0x4D, 0x8D, 0x8B, 0x10, 0x01, 0x00, 0x00]);
+    c.extend_from_slice(&[0x4D, 0x8D, 0x8B, 0x10, 0x08, 0x00, 0x00]); // patches @+0x810
     c.extend_from_slice(&[0x49, 0x01, 0xC1]); // r9 += i*8
     c.extend_from_slice(&[0x41, 0x8B, 0x11]); // edx=pos
     c.extend_from_slice(&[0x41, 0x8B, 0x41, 0x04]); // eax=id
@@ -7672,7 +7674,8 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     // S3.625: parse1 STB slot≤255 (disp8|disp32 dual-load±oo+store-cl).
     // S3.626: parse1 MCPD/MCPS slot≤255 (disp8|disp32; MCPS n≤4).
     // S3.627: yoyo.tyb cliff = slim text-cap + label/patch table32 (ISA/slot OK).
-    // Next >=10 = larger template/tables / M4 / OW-RT. Not CLOSED. CUT.
+    // S3.628: parse1 label/patch tables 32→256 (yoyo.tyb 788 still ABSENT).
+    // Next >=10 = text-cap grow / table≥788 / M4 / OW-RT. Not CLOSED. CUT.
     // Raising S1_SLIM_MAX_CODE alone = sheep (S3.536).
     // S3.479: post-finish-memcpy map — code+data finish memcpy seeds done;
     // trail-C3+pass-2+push_patch seeded. Remaining: template RIP (419 cliff) ·
@@ -14943,6 +14946,64 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("592") && s.contains("SET+ADD+SUB+NOP")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.628: parse1 label/patch tables 32→256; 40/200 LABEL+RET GREEN;
+    /// yoyo.tyb still reject; ready=false.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_compiler_pe_parse1_label_table256_pin() {
+        let pe = yoyo_compiler_pe_bytes().expect("S3.628");
+        assert!(String::from_utf8_lossy(&pe).contains("yoyo_parse1_c"));
+        let dir = temp_work("s628-parse1-labels");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        for &n in &[1u32, 32, 40, 200] {
+            let tyb = crate::s1_tyb_parser::s3_n_labels_ret_tyb(n);
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+                .expect("emit labels")
+                .bytes;
+            std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+            let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+            let st = std::process::Command::new(&path)
+                .current_dir(&dir)
+                .status()
+                .unwrap();
+            assert!(st.success(), "n={n} labels exit {:?}", st.code());
+            assert_eq!(
+                std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
+                expect,
+                "n={n} labels"
+            );
+        }
+        // prior 33-label cliff now GREEN (was table32)
+        let tyb33 = crate::s1_tyb_parser::s3_n_labels_ret_tyb(33);
+        let expect33 = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb33)
+            .expect("emit 33")
+            .bytes;
+        std::fs::write(dir.join("input.tyb"), &tyb33).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success(), "n=33 exit {:?}", st.code());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect33);
+        // yoyo.tyb still ABSENT (788 labels + text-cap)
+        let yoyo_tyb = gate_i_yoyo_tyb_path();
+        std::fs::copy(&yoyo_tyb, dir.join("input.tyb")).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert_eq!(st.code(), Some(EXIT_COMPILE_FAIL));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("628") && s.contains("256")));
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.628"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
