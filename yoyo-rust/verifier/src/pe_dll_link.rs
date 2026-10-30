@@ -541,7 +541,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.638 DONE: default-oracle in-DLL recompile + placed compiler + yoyo.tyb GREEN via CreateProcess (no oracle bake)",
         "S3.639 cliff: live in-DLL emit ABSENT — CreateProcess GREEN ≠ export emit_x86; no-compiler-PE still fail-closed",
         "S3.640 cliff: pe_link-in-child ABSENT — parse1→slim RET template ≠ link_pe_win32; see yoyo_pe_link_in_child_blockers",
-        "today: CreateProcess yoyo.tyb GREEN; live emit / pe_link-in-child ABSENT; host-mini 1024 / M4 ABSENT",
+        "S3.641 DONE: host pe_link(emit_x86(3nop)) smoke named as pe_link-in-child milestone; child still slim RET",
+        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child ABSENT (host 3nop linked ≠ child); M4 ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -15012,6 +15013,47 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("592") && s.contains("SET+ADD+SUB+NOP")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.641: host pe_link(emit_x86(3nop)) smoke — target shape for
+    /// pe_link-in-child first milestone; child still slim RET (ABSENT).
+    /// ready=false; ≠ M4; densify≠.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_pe_link_host_3nop_smoke_child_absent_pin() {
+        assert!(!yoyo_pe_link_in_child_ready());
+        let tyb = crate::s1_tyb_parser::s3_n_nops_ret_tyb(3);
+        let prog = crate::s1_tyb_parser::parse_tyb(&tyb).unwrap();
+        let s1 = crate::s1_tyb_parser::emit_x86(&prog);
+        assert!(s1.text.ends_with(&[0x90, 0x90, 0x90, 0xC3]) || s1.text.ends_with(&[0xC3]));
+        let linked = crate::pe_link::link_pe_win32(&s1.text, &s1.data, &[])
+            .expect("link 3nop")
+            .bytes;
+        assert!(linked.len() > 0x200 && linked[..2] == *b"MZ");
+        // child still emits slim RET template (≠ linked)
+        let dir = temp_work("s641-pe-link-3nop");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        let child_expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            .expect("mini")
+            .bytes;
+        std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success());
+        let child = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+        assert_eq!(child, child_expect);
+        assert_ne!(child.len(), linked.len(), "child slim ≠ host pe_link");
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("slim RET")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.641")));
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.641"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

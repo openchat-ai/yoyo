@@ -4,7 +4,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.641**（640=pe_link-in-child ABSENT map；下一刀=pe_link seed in child / live emit / M4）。
+**默认** 继续 **= S3.642**（641=host pe_link 3nop smoke；下一刀=child emit linked-PE for 3nop / M4）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -24,18 +24,18 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3** ⏳ | child parse1 扩 ISA · 真自举不排假工期 |
 | **S4/S5** | 全 ISA / 形式化 · 地图 |
 
-**诚实底线**：CreateProcess(yoyo.tyb) GREEN ≠ pe_link-in-child ≠ live emit ≠ M4 ≠ OW-* CLOSED。
+**诚实底线**：CreateProcess(yoyo.tyb) GREEN ≠ pe_link-in-child ≠ M4 ≠ OW-* CLOSED。
 
 ### 波段 tip（更早单刀已折）
 
 | 波段 | tip | 一句话 |
 | --- | --- | --- |
 | **S3.1–630** ✅ | `3809e18` | fixed10→parse1→any-slot→text4KiB |
-| **S3.631–638** ✅ | `3227356` | yoyo.tyb child→CreateProcess→recompile GREEN |
-| **S3.639–640** ✅ | — | live emit≠CP；**pe_link-in-child ABSENT map** |
-| **S3.641** ⏳ | — | **本步**：pe_link seed in child（禁 densify sheep） |
+| **S3.631–638** ✅ | `3227356` | yoyo.tyb child→CreateProcess GREEN |
+| **S3.639–641** ✅ | — | live emit≠CP；pe_link map；**host 3nop linked smoke** |
+| **S3.642** ⏳ | — | **本步**：child emit linked-PE for 3nop（禁 densify） |
 
-**缺口**：`yoyo_pe_link_in_child_blockers` 非空；live emit ABSENT；host-mini 1024 禁抬；M4 **ABSENT**。`ready=false`。bake=362。
+**缺口**：child still slim RET ≠ host pe_link(3nop)；live emit ABSENT；M4 **ABSENT**。`ready=false`。bake=362。
 
 ---
 
@@ -52,9 +52,9 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 
 ## 对 AI
 
-- 继续 → **S3.641**（pe_link-in-child 真刀：headers/IAT seed；禁 densify / 假 CLOSED / 单抬 slim-cap）。S3.640=blockers map。红了记根因停。
+- 继续 → **S3.642**（child 对 3nop 产出 pe_link 形 PE；禁 densify / 假 CLOSED / 单抬 slim-cap）。S3.641=host smoke。红了记根因停。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
 
-*post-v1.0 · 收纳板 · tip S3.641*
+*post-v1.0 · 收纳板 · tip S3.642*
