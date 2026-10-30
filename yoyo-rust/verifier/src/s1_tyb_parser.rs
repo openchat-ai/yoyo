@@ -2429,6 +2429,30 @@ pub fn s3_call_label_ret_tyb(label_id: u32) -> Vec<u8> {
     ])
 }
 
+/// S3.609: LABEL + JCC(0x71..=0x7A) + RET — back-edge.
+pub fn s3_label_jcc_ret_tyb(jcc: u8, label_id: u32) -> Vec<u8> {
+    assert!((0x71..=0x7A).contains(&jcc), "not JCC {jcc:#x}");
+    let mut a = [0u8; 6];
+    a[0..4].copy_from_slice(&label_id.to_le_bytes());
+    s3_host_tyb_from_records(&[
+        (0x40, 1, a),
+        (jcc, 1, a),
+        (0xFF, 0, [0; 6]),
+    ])
+}
+
+/// S3.609: JCC + LABEL + RET — forward-ref.
+pub fn s3_jcc_label_ret_tyb(jcc: u8, label_id: u32) -> Vec<u8> {
+    assert!((0x71..=0x7A).contains(&jcc), "not JCC {jcc:#x}");
+    let mut a = [0u8; 6];
+    a[0..4].copy_from_slice(&label_id.to_le_bytes());
+    s3_host_tyb_from_records(&[
+        (jcc, 1, a),
+        (0x40, 1, a),
+        (0xFF, 0, [0; 6]),
+    ])
+}
+
 /// S3.604: LDB+RET TYB (beyond fixed10). `dd`/`ss`/`oo` are u16; parse1 covers ≤15.
 pub fn s3_ldb_ret_tyb(dd: u16, ss: u16, oo: u16) -> Vec<u8> {
     let mut a = [0u8; 6];
