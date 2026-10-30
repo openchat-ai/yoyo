@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.603**（602=parse1 +RAW_BYTE；下一刀=LABEL/LDB / yoyo.tyb / M4）。
+**默认** 继续 **= S3.604**（603=parse1 +LABEL；下一刀=LDB / JMP+label-table / yoyo.tyb / M4）。
 
 ## 阻塞 / 勿做
 
@@ -175,7 +175,8 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.600** ✅ | b64a3c3 | parse1 +IMUL beyond-fixed10（size0x18→parse1） |
 | **S3.601** ✅ | 2f139ad | parse1 +ALUV ADDV/ORV/SUBV beyond-fixed10 |
 | **S3.602** ✅ | 32759a5 | parse1 +RAW_BYTE beyond-fixed10 |
-| **S3.603** ⏳ | — | **本步**：LABEL/LDB / yoyo.tyb / M4 （禁 densify / 假 CLOSED） |
+| **S3.603** ✅ | 1593b2a | parse1 +LABEL beyond-fixed10（no .text；table ABSENT） |
+| **S3.604** ⏳ | — | **本步**：LDB / JMP+label-table / yoyo.tyb / M4 （禁 densify / 假 CLOSED） |
 
 **缺口**：live in-DLL compile **ABSENT**（见 `yoyo_live_in_dll_compile_map`）。生产 flip 仍 ABSENT。bake=362。
 
@@ -211,7 +212,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- 继续 → **S3.603**（LABEL/LDB / yoyo.tyb / M4；禁 densify / 假 CLOSED）。S3.602=parse1 +RAW_BYTE。红了记根因停。
+- 继续 → **S3.604**（LDB / JMP+label-table / yoyo.tyb / M4；禁 densify / 假 CLOSED）。S3.603=parse1 +LABEL。红了记根因停。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
