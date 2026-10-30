@@ -2457,6 +2457,17 @@ pub fn s3_write_file3_ret_tyb(slot: u16, path_off: u16, sz_slot: u16) -> Vec<u8>
     s3_host_tyb_from_records(&[(0x51, 3, a), (0xFF, 0, [0; 6])])
 }
 
+/// S3.617: DATA/STR/RAW +RET TYB (beyond fixed10). `op`∈{0x10,0x12,0x13}; bytes.len()∈1..=3.
+pub fn s3_data_ret_tyb(op: u8, bytes: &[u8]) -> Vec<u8> {
+    assert!(matches!(op, 0x10 | 0x12 | 0x13), "not DATA/STR/RAW");
+    assert!((1..=3).contains(&bytes.len()), "argc 1..=3");
+    let mut a = [0u8; 6];
+    for (k, &b) in bytes.iter().enumerate() {
+        a[k * 2] = b;
+    }
+    s3_host_tyb_from_records(&[(op, bytes.len() as u8, a), (0xFF, 0, [0; 6])])
+}
+
 /// S3.606: LABEL + NOP + JMP(same id) + RET — exercises parse1 label table.
 pub fn s3_label_nop_jmp_ret_tyb(label_id: u32) -> Vec<u8> {
     let mut a = [0u8; 6];
