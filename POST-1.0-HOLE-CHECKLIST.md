@@ -6,7 +6,7 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 
 > tag `v1.0.0` · Lock `0275802d…` · `closed=0 cut=7`。长杆 = **OW-RT**（S3）。REL-FULLTEXT **永不** CLOSED。
 
-**默认** 继续 **= S3.599**（598=parse1 absorb CHAINS；下一刀=parse1 absorb singles / M4）。
+**默认** 继续 **= S3.600**（599=parse1 absorb singles；下一刀=beyond-fixed10 / yoyo.tyb / M4）。
 
 ## 阻塞 / 勿做
 
@@ -171,7 +171,8 @@ YOYO v1.0 已毕业（`ACTIVE=0` · `COMPLETED=1`）。ROADMAP 止于 Stage 16�
 | **S3.596** ✅ | b6271fa | parse1 +GET/MOV/SET/ADD（fixed8；+NOP+GET/SET+NOP/ADD+ADD） |
 | **S3.597** ✅ | 218dce4 | parse1 +SUB+CMP（all fixed10；+SUB+SUB/NOP+CMP） |
 | **S3.598** ✅ | 0bb533f | parse1 absorb all CHAINS（7 chains→parse1） |
-| **S3.599** ⏳ | — | **本步**：parse1 absorb singles / M4 （禁 densify / 假 CLOSED） |
+| **S3.599** ✅ | c6522bd | parse1 absorb all fixed10 singles（emit2 dead） |
+| **S3.600** ⏳ | — | **本步**：beyond-fixed10 / yoyo.tyb / M4 （禁 densify / 假 CLOSED） |
 
 **缺口**：live in-DLL compile **ABSENT**（见 `yoyo_live_in_dll_compile_map`）。生产 flip 仍 ABSENT。bake=362。
 
@@ -207,7 +208,7 @@ cd F:\yoyo\yoyo-rust\verifier; cargo run -- test ddc
 
 ## 对 AI / 负责人
 
-- 继续 → **S3.599**（parse1 absorb singles / M4；禁 densify / 假 CLOSED）。S3.598=parse1 absorb CHAINS。红了记根因停。
+- 继续 → **S3.600**（beyond-fixed10 / yoyo.tyb / M4；禁 densify / 假 CLOSED）。S3.599=parse1 absorb singles。红了记根因停。
 - OW-* GREEN ≠ CLOSED；`closed=0`；本地先绿；2 次红 CI 停推。
 - AUTO `ACTIVE=0`；每刀可回滚；证伪则停并记根因。
 
