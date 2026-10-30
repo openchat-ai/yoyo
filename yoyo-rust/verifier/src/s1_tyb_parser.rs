@@ -2367,6 +2367,15 @@ pub fn s3_imul_ret_tyb(dst: u16, src: u16) -> Vec<u8> {
     s3_host_tyb_from_records(&[(0x63, 2, a), (0xFF, 0, [0; 6])])
 }
 
+/// S3.601: ALUV+RET TYB (ADDV=0x68 / ORV=0x69 / SUBV=0x6A). Beyond fixed10.
+pub fn s3_aluv_ret_tyb(op: u8, dst: u16, src: u16) -> Vec<u8> {
+    assert!(matches!(op, 0x68 | 0x69 | 0x6A), "not ALUV op {op:#x}");
+    let mut a = [0u8; 6];
+    a[0..2].copy_from_slice(&dst.to_le_bytes());
+    a[2..4].copy_from_slice(&src.to_le_bytes());
+    s3_host_tyb_from_records(&[(op, 2, a), (0xFF, 0, [0; 6])])
+}
+
 /// S3.551: fixed10 multi-op chain + trailing RET (beyond single op+RET).
 ///
 /// `ops` are non-RET fixed10 opcodes; RET is appended. Empty → RET-only.
