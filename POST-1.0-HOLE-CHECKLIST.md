@@ -4,7 +4,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.647**（646=child 3nop→compact；下一刀=general parse1→compact / in-child linker / M4）。
+**默认** 继续 **= S3.648**（647=parse1→compact gate=4；下一刀=widen compact cap / .data / in-child linker / M4）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -24,7 +24,7 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3** ⏳ | child parse1 扩 ISA · 真自举不排假工期 |
 | **S4/S5** | 全 ISA / 形式化 · 地图 |
 
-**诚实底线**：CreateProcess(yoyo.tyb) GREEN ≠ pe_link-in-child ≠ M4。3nop compact bake ≠ general in-child linker。
+**诚实底线**：CreateProcess(yoyo.tyb) GREEN ≠ pe_link-in-child ≠ M4。parse1→compact gate=4 ≠ full in-child linker。
 
 ### 波段 tip（更早单刀已折）
 
@@ -32,10 +32,10 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | --- | --- | --- |
 | **S3.1–630** ✅ | `3809e18` | fixed10→parse1→any-slot→text4KiB |
 | **S3.631–638** ✅ | `3227356` | yoyo.tyb child→CreateProcess GREEN |
-| **S3.639–646** ✅ | — | pe_link map→compact host→**child 3nop compact** |
-| **S3.647** ⏳ | — | **本步**：general parse1→compact / in-child linker |
+| **S3.639–647** ✅ | — | pe_link map→compact→**parse1→compact gate=4** |
+| **S3.648** ⏳ | — | **本步**：widen compact cap / .data / in-child linker |
 
-**缺口**：parse1 general still wide RET；M4 **ABSENT**。`ready=false`。bake=362。
+**缺口**：compact gate 仍 text_len==4；M4 **ABSENT**。`ready=false`。bake=362。
 
 ---
 
@@ -52,9 +52,9 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 
 ## 对 AI
 
-- 继续 → **S3.647**（general compact / in-child linker；禁 densify / 假 CLOSED / 单抬 slim-cap / 225KiB bake）。S3.646=child 3nop compact。红了记根因停。
+- 继续 → **S3.648**（widen compact / in-child linker；禁 densify / 假 CLOSED / 单抬 slim-cap / 225KiB bake）。S3.647=parse1→compact gate=4。红了记根因停。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
 
-*post-v1.0 · 收纳板 · tip S3.647*
+*post-v1.0 · 收纳板 · tip S3.648*

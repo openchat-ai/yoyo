@@ -547,7 +547,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.644 DONE: dissect link_emit(3nop) PE32+ SizeOfImage/sections; compact growth path still ABSENT",
         "S3.645 DONE: host link_pe_win32_compact (no 0x38000 floor); child still ≠ compact emit",
         "S3.646 DONE: child 3nop→compact pe_link bake special-case (9728≪225KiB); parse1 general still wide RET",
-        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child ABSENT (3nop compact only; parse1 wide); M4 ABSENT",
+        "S3.647 DONE: parse1 finalize→compact tmpl patch (text_len==4 gate); early 3nop bake removed; cap widen ABSENT",
+        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child ABSENT (parse1→compact gate=4; yoyo wide); M4 ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -576,7 +577,8 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.642 next: child 3nop→pe_link shape requires retargeting mini_emit expects (S3.641 smoke); ≠ densify",
         "S3.643: link_emit(3nop)≈225KiB — baking into child = sheep; need minimal pe_link or in-child linker, not seed blob",
         "S3.645: host link_pe_win32_compact GREEN (no 0x38000 floor)",
-        "S3.646: child 3nop→compact bake DONE; general parse1 still slim RET / ≠ in-child linker",
+        "S3.646: child 3nop→compact bake DONE",
+        "S3.647: parse1→compact tmpl patch gate=text_len==4 DONE; widen cap / .data / in-child linker ABSENT",
     ]
 }
 
@@ -658,6 +660,15 @@ const S3_PARSE1_TEXT_ZERO: u32 = 0x5000 - 0xD; // 0x4FF3
 /// S3.631: .data file raw after 20KiB text expand.
 #[cfg(windows)]
 const S3_PARSE1_DATA_FILE_OFF: u32 = 0x5400;
+/// S3.647: compact pe_link template — `.text` raw @0x400, user code @+0x40D (startup 13).
+#[cfg(windows)]
+const S3_COMPACT_TEXT_PAYLOAD_OFF: u32 = 0x40D;
+/// S3.647: compact `.text` raw size 0x200 − startup 13 → user cap.
+#[cfg(windows)]
+const S3_COMPACT_TEXT_CAP: u32 = 0x200 - 13; // 0x1F3
+/// S3.647 gate: only text_len==4 (3nop) takes parse1→compact; widen later.
+#[cfg(windows)]
+const S3_COMPACT_GATE_TEXT_LEN: u32 = 4;
 
 /// Build fixed10 + multi-op compile-in-child EXE (S3.548/S3.551).
 ///
@@ -823,23 +834,30 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     data.extend_from_slice(&ret_pe_expanded);
     let setret_pe_rel = data.len() as u32;
     data.extend_from_slice(setret_seed);
-    // S3.646: bake compact pe_link(3nop) — child special-case (≪225KiB full; < wide RET).
-    // ≠ densify of full link_emit; ≠ general pe_link-in-child.
+    // S3.647: bake compact pe_link *template* (ret-only) for parse1 finalize patch.
+    // S3.646 baked finished 3nop PE; now parse1 emits text then patches template.
     while data.len() % 16 != 0 {
         data.push(0);
     }
-    let compact_3nop_tyb = crate::s1_tyb_parser::s3_n_nops_ret_tyb(3);
-    let compact_3nop_pe =
-        crate::s1_tyb_parser::compile_tyb_to_pe_link_compact_emit(&compact_3nop_tyb)?.bytes;
+    let compact_tmpl = crate::pe_link::link_pe_win32_compact(&[0xC3], &[], &[])?.bytes;
     assert!(
-        compact_3nop_pe.len() < S3_PARSE1_RET_PE_LEN as usize
-            && compact_3nop_pe.len() < 0x10000
-            && compact_3nop_pe[..2] == *b"MZ",
-        "S3.646 compact 3nop bake bounds (got {})",
-        compact_3nop_pe.len()
+        compact_tmpl.len() < S3_PARSE1_RET_PE_LEN as usize
+            && compact_tmpl.len() < 0x10000
+            && compact_tmpl[..2] == *b"MZ",
+        "S3.647 compact tmpl bounds (got {})",
+        compact_tmpl.len()
     );
-    let compact_3nop_pe_rel = data.len() as u32;
-    data.extend_from_slice(&compact_3nop_pe);
+    assert_eq!(
+        compact_tmpl.len(),
+        crate::s1_tyb_parser::compile_tyb_to_pe_link_compact_emit(
+            &crate::s1_tyb_parser::s3_n_nops_ret_tyb(3)
+        )?
+        .bytes
+        .len(),
+        "ret-only tmpl len ≡ 3nop compact (same floors)"
+    );
+    let compact_tmpl_rel = data.len() as u32;
+    data.extend_from_slice(&compact_tmpl);
     data.extend_from_slice(b"yoyo_compact3_c\0");
 
     // S3.557-560: field-match NOP/GET/INC/ADD/DEC — live1; PE still emit-bake
@@ -928,8 +946,8 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let output_off = YOYO_COMPILER_PE_USER_DATA_OFF + output_rel;
     let ret_pe_off = YOYO_COMPILER_PE_USER_DATA_OFF + ret_pe_rel;
     let setret_pe_off = YOYO_COMPILER_PE_USER_DATA_OFF + setret_pe_rel;
-    let compact_3nop_pe_off = YOYO_COMPILER_PE_USER_DATA_OFF + compact_3nop_pe_rel;
-    let compact_3nop_pe_len = compact_3nop_pe.len() as u32;
+    let compact_tmpl_off = YOYO_COMPILER_PE_USER_DATA_OFF + compact_tmpl_rel;
+    let compact_tmpl_len = compact_tmpl.len() as u32;
     let live2_nop_text_off = YOYO_COMPILER_PE_USER_DATA_OFF + live2_nop_text_rel;
     let live2_inc_text_off = YOYO_COMPILER_PE_USER_DATA_OFF + live2_inc_text_rel;
     let live2_dec_text_off = YOYO_COMPILER_PE_USER_DATA_OFF + live2_dec_text_rel;
@@ -1350,8 +1368,8 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x80, 0x7E, 0x09, 0x00]);
     let jne_fail_nid_a0 = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x80, 0x7E, 0x10, 0x66]); // INC?
-    let jne_try_3nop = c.len(); // S3.646: else try 3×NOP+RET → compact
+    c.extend_from_slice(&[0x80, 0x7E, 0x10, 0x66]); // INC
+    let jne_try_extra_notnid2 = c.len(); // S3.647: 3nop→parse1 (finalize compact); was early bake
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x80, 0x7E, 0x11, 0x01]);
     let jne_fail_nid_a1 = c.len();
@@ -1372,33 +1390,6 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let jne_fail_nid_ret = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
     let jmp_emit2_nid = c.len();
-    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-    // S3.646: size0x28 + NOP*3+RET → compact pe_link bake (≠ wide RET; ≠225KiB)
-    // Entry: size/TYB/count==4/op0==NOP already checked via try_sas28→try_nid.
-    let try_3nop = c.len();
-    c.extend_from_slice(&[0x80, 0x7E, 0x10, 0x00]); // op1 NOP
-    let jne_try_3nop_not = c.len();
-    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x80, 0x7E, 0x11, 0x00]); // argc1==0
-    let jne_fail_3nop_a1 = c.len();
-    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x80, 0x7E, 0x18, 0x00]); // op2 NOP
-    let jne_try_3nop_not2 = c.len();
-    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x80, 0x7E, 0x19, 0x00]);
-    let jne_fail_3nop_a2 = c.len();
-    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x80, 0x7E, 0x20, 0xFF]); // RET
-    let jne_try_3nop_not3 = c.len();
-    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x80, 0x7E, 0x21, 0x00]);
-    let jne_fail_3nop_aret = c.len();
-    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x49, 0x8D, 0x97]); // lea rdx, [r15+compact]
-    c.extend_from_slice(&compact_3nop_pe_off.to_le_bytes());
-    c.extend_from_slice(&[0x41, 0xB8]); // mov r8d, len
-    c.extend_from_slice(&compact_3nop_pe_len.to_le_bytes());
-    let jmp_3nop_write = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     // S3.592: SET+ADD+SUB+NOP+RET size 0x30
     let try_sasn30 = c.len();
@@ -2843,6 +2834,13 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let jne_parse1_ret_mid = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]); // → mid-stream RET
     c.extend_from_slice(&[0xC6, 0x07, 0xC3]); // mov byte [rdi], 0xC3
+    // S3.647: save text_len before patch loop clobbers rdi
+    c.extend_from_slice(&[0x48, 0x8D, 0x83]); // lea rax,[rbx+0x40d]
+    c.extend_from_slice(&S3_COMPACT_TEXT_PAYLOAD_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x48, 0x89, 0xF9]); // mov rcx, rdi
+    c.extend_from_slice(&[0x48, 0x29, 0xC1]); // sub rcx, rax
+    c.extend_from_slice(&[0x48, 0xFF, 0xC1]); // inc rcx
+    c.extend_from_slice(&[0x89, 0x4C, 0x24, 0x60]); // mov [rsp+0x60], ecx = text_len
     // S3.607: apply JMP patches from scratch
     c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]); // r11=scratch
     c.extend_from_slice(&[0x45, 0x8B, 0x53, 0x04]); // r10d=npatches
@@ -2890,10 +2888,59 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let jmp_parse1_find_loop = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     let parse1_go_w = c.len();
-    c.extend_from_slice(&[0x48, 0x89, 0xDA]);
-    c.extend_from_slice(&[0x41, 0xB8]); // mov r8d, S3_PARSE1_RET_PE_LEN
-    c.extend_from_slice(&S3_PARSE1_RET_PE_LEN.to_le_bytes());
+    // S3.647: data_len==0 && text_len==GATE → patch compact tmpl; else wide RET
+    c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]); // r11=scratch
+    c.extend_from_slice(&[0x41, 0x83, 0xBB, 0x38, 0x40, 0x00, 0x00, 0x00]); // cmp [scratch+0x4038],0
+    let jne_parse1_wide_w = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x60]); // mov eax,[rsp+0x60] text_len
+    c.extend_from_slice(&[0x3D]); // cmp eax, GATE
+    c.extend_from_slice(&S3_COMPACT_GATE_TEXT_LEN.to_le_bytes());
+    let jne_parse1_wide_w2 = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    // save wide pe*; text_len already at [rsp+0x60]
+    c.extend_from_slice(&[0x48, 0x89, 0x5C, 0x24, 0x50]); // mov [rsp+0x50], rbx
+    c.extend_from_slice(&[0x31, 0xC9]); // xor ecx,ecx
+    c.extend_from_slice(&[0xBA]); // mov edx, compact_len
+    c.extend_from_slice(&compact_tmpl_len.to_le_bytes());
+    c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
+    c.extend_from_slice(&[0x41, 0xB9, 0x04, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x41, 0xFF, 0x97, 0x00, 0x00, 0x00, 0x00]); // VirtualAlloc
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
+    let je_parse1_compact_va = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x89, 0xC3]); // rbx = new pe
+    c.extend_from_slice(&[0x49, 0x8D, 0xB7]); // lea rsi,[r15+tmpl]
+    c.extend_from_slice(&compact_tmpl_off.to_le_bytes());
+    c.extend_from_slice(&[0x48, 0x89, 0xDF]); // rdi = new pe
+    c.extend_from_slice(&[0xB9]); // mov ecx, compact_len
+    c.extend_from_slice(&compact_tmpl_len.to_le_bytes());
+    c.extend_from_slice(&[0xF3, 0xA4]); // rep movsb template
+    // zero user .text payload
+    c.extend_from_slice(&[0x48, 0x8D, 0xBB]); // lea rdi,[rbx+0x40d]
+    c.extend_from_slice(&S3_COMPACT_TEXT_PAYLOAD_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x31, 0xC0]);
+    c.extend_from_slice(&[0xB9]); // mov ecx, CAP
+    c.extend_from_slice(&S3_COMPACT_TEXT_CAP.to_le_bytes());
+    c.extend_from_slice(&[0xF3, 0xAA]);
+    // copy emitted text from wide pe
+    c.extend_from_slice(&[0x48, 0x8B, 0x74, 0x24, 0x50]); // rsi = wide pe*
+    c.extend_from_slice(&[0x48, 0x81, 0xC6]); // add rsi, 0x40d
+    c.extend_from_slice(&S3_COMPACT_TEXT_PAYLOAD_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x48, 0x8D, 0xBB]); // lea rdi,[rbx+0x40d]
+    c.extend_from_slice(&S3_COMPACT_TEXT_PAYLOAD_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x8B, 0x4C, 0x24, 0x60]); // ecx = text_len
+    c.extend_from_slice(&[0xF3, 0xA4]);
+    c.extend_from_slice(&[0x48, 0x89, 0xDA]); // rdx = compact pe
+    c.extend_from_slice(&[0x41, 0xB8]); // r8d = compact_len
+    c.extend_from_slice(&compact_tmpl_len.to_le_bytes());
     let jmp_parse1_w = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let parse1_wide_w = c.len();
+    c.extend_from_slice(&[0x48, 0x89, 0xDA]);
+    c.extend_from_slice(&[0x41, 0xB8]); // mov r8d, wide len
+    c.extend_from_slice(&S3_PARSE1_RET_PE_LEN.to_le_bytes());
+    let jmp_parse1_w2 = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     // S3.631 mid-stream RET: emit C3 + advance (not finalize)
     let parse1_ret_mid_lbl = c.len();
@@ -4176,6 +4223,10 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jmp(&mut c, jmp_parse1_ret_mid_adv, parse1_advance);
     patch_jcc(&mut c, jz_parse1_go_w, parse1_go_w);
     patch_jcc(&mut c, jae_parse1_go_w, parse1_go_w);
+    patch_jcc(&mut c, jne_parse1_wide_w, parse1_wide_w);
+    patch_jcc(&mut c, jne_parse1_wide_w2, parse1_wide_w);
+    patch_jcc(&mut c, je_parse1_compact_va, fail_wr);
+    patch_jmp(&mut c, jmp_parse1_w2, do_write);
     patch_jcc(&mut c, jae_parse1_fail_nf, fail_compile);
     patch_jcc(&mut c, jne_parse1_find_next, parse1_find_next_lbl);
     patch_jmp(&mut c, jmp_parse1_patch_loop, parse1_patch_loop);
@@ -4342,14 +4393,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jmp(&mut c, jmp_emit2_scm_w, do_write);
     patch_jcc(&mut c, jne_try_extra_notnid, try_extra_mem);
     patch_jcc(&mut c, jne_fail_nid_a0, fail_compile);
-    patch_jcc(&mut c, jne_try_3nop, try_3nop);
-    patch_jcc(&mut c, jne_try_3nop_not, try_extra_mem);
-    patch_jcc(&mut c, jne_fail_3nop_a1, fail_compile);
-    patch_jcc(&mut c, jne_try_3nop_not2, try_extra_mem);
-    patch_jcc(&mut c, jne_fail_3nop_a2, fail_compile);
-    patch_jcc(&mut c, jne_try_3nop_not3, try_extra_mem);
-    patch_jcc(&mut c, jne_fail_3nop_aret, fail_compile);
-    patch_jmp(&mut c, jmp_3nop_write, do_write);
+    patch_jcc(&mut c, jne_try_extra_notnid2, try_extra_mem);
     patch_jcc(&mut c, jne_fail_nid_a1, fail_compile);
     patch_jcc(&mut c, ja_fail_nid_s1, fail_compile);
     patch_jcc(&mut c, jne_try_extra_notnid3, try_extra_mem);
@@ -15131,7 +15175,57 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("S3.646")));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_compact3_c"));
-        assert!(include_str!("pe_dll_link.rs").contains("try_3nop"));
+        assert!(!yoyo_m4_production_flip_ready());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.647: parse1 finalize→compact template patch (text_len==4 gate);
+    /// early 3nop bake removed; yoyo.tyb still wide; ready=false; ≠ M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_pe_link_parse1_finalize_compact_gate4_pin() {
+        assert_eq!(S3_COMPACT_TEXT_PAYLOAD_OFF, 0x40D);
+        assert_eq!(S3_COMPACT_TEXT_CAP, 0x1F3);
+        assert_eq!(S3_COMPACT_GATE_TEXT_LEN, 4);
+        assert!(!yoyo_pe_link_in_child_ready());
+        let tyb = crate::s1_tyb_parser::s3_n_nops_ret_tyb(3);
+        let compact = crate::s1_tyb_parser::compile_tyb_to_pe_link_compact_emit(&tyb)
+            .expect("compact")
+            .bytes;
+        let dir = temp_work("s647-parse1-compact");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success());
+        assert_eq!(
+            std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
+            compact,
+            "parse1→compact gate=4 ≡ host compact"
+        );
+        // 2nop still wide (text_len=3 ≠ gate)
+        let tyb2 = crate::s1_tyb_parser::s3_n_nops_ret_tyb(2);
+        let wide2 = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&tyb2)
+            .expect("wide2")
+            .bytes;
+        std::fs::write(dir.join("input.tyb"), &tyb2).unwrap();
+        let st2 = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st2.success());
+        assert_eq!(
+            std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
+            wide2,
+            "2nop text_len≠4 stays wide"
+        );
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.647")));
+        assert!(include_str!("pe_dll_link.rs").contains("S3_COMPACT_GATE_TEXT_LEN"));
+        assert!(include_str!("pe_dll_link.rs").contains("parse1_wide_w"));
         assert!(!yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
