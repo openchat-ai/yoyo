@@ -541,18 +541,20 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.638 DONE: default-oracle in-DLL recompile + placed compiler + yoyo.tyb GREEN via CreateProcess (no oracle bake)",
         "S3.639 cliff: live in-DLL emit ABSENT — CreateProcess GREEN ≠ export emit_x86; no-compiler-PE still fail-closed",
         "S3.640 cliff: pe_link-in-child ABSENT — parse1→slim RET template ≠ link_pe_win32; see yoyo_pe_link_in_child_blockers",
-        "S3.641 DONE: host pe_link(emit_x86(3nop)) smoke named as pe_link-in-child milestone; child still slim RET",
+        "S3.641 DONE: host pe_link(emit_x86(3nop)) smoke named as pe_link-in-child milestone; child 3nop→compact (S3.646)",
         "S3.642 DONE: compile_tyb_to_pe_link_emit host API; child still ≠ link_emit (pe_link-in-child ABSENT)",
         "S3.643 cliff: link_emit(3nop)≈225KiB vs wide 25KiB; bake=sheep; pe_link-in-child needs in-child linker",
         "S3.644 DONE: dissect link_emit(3nop) PE32+ SizeOfImage/sections; compact growth path still ABSENT",
         "S3.645 DONE: host link_pe_win32_compact (no 0x38000 floor); child still ≠ compact emit",
-        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child ABSENT (compact host ready; child slim); M4 ABSENT",
+        "S3.646 DONE: child 3nop→compact pe_link bake special-case (9728≪225KiB); parse1 general still wide RET",
+        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child ABSENT (3nop compact only; parse1 wide); M4 ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
         "yoyo.tyb: child+indll CreateProcess cleared; host-mini 1024 / M4 / general emit still ABSENT; densify≠",
         "hand-hex densify of emit_x86 into child = sheep; not a live-compose slice",
         "finite emit1/imm table growth ≠ graduation; live slice clears this design list",
+        "general parse+emit still ABSENT — 3nop compact bake ≠ live emit_x86+pe_link in child",
     ]
 }
 
@@ -573,7 +575,8 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "raising S1_SLIM_MAX_CODE / baking seed_host blob ≠ pe_link-in-child (sheep)",
         "S3.642 next: child 3nop→pe_link shape requires retargeting mini_emit expects (S3.641 smoke); ≠ densify",
         "S3.643: link_emit(3nop)≈225KiB — baking into child = sheep; need minimal pe_link or in-child linker, not seed blob",
-        "S3.645: host link_pe_win32_compact GREEN (no 0x38000 floor); child emit of compact still ABSENT",
+        "S3.645: host link_pe_win32_compact GREEN (no 0x38000 floor)",
+        "S3.646: child 3nop→compact bake DONE; general parse1 still slim RET / ≠ in-child linker",
     ]
 }
 
@@ -820,6 +823,24 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     data.extend_from_slice(&ret_pe_expanded);
     let setret_pe_rel = data.len() as u32;
     data.extend_from_slice(setret_seed);
+    // S3.646: bake compact pe_link(3nop) — child special-case (≪225KiB full; < wide RET).
+    // ≠ densify of full link_emit; ≠ general pe_link-in-child.
+    while data.len() % 16 != 0 {
+        data.push(0);
+    }
+    let compact_3nop_tyb = crate::s1_tyb_parser::s3_n_nops_ret_tyb(3);
+    let compact_3nop_pe =
+        crate::s1_tyb_parser::compile_tyb_to_pe_link_compact_emit(&compact_3nop_tyb)?.bytes;
+    assert!(
+        compact_3nop_pe.len() < S3_PARSE1_RET_PE_LEN as usize
+            && compact_3nop_pe.len() < 0x10000
+            && compact_3nop_pe[..2] == *b"MZ",
+        "S3.646 compact 3nop bake bounds (got {})",
+        compact_3nop_pe.len()
+    );
+    let compact_3nop_pe_rel = data.len() as u32;
+    data.extend_from_slice(&compact_3nop_pe);
+    data.extend_from_slice(b"yoyo_compact3_c\0");
 
     // S3.557-560: field-match NOP/GET/INC/ADD/DEC — live1; PE still emit-bake
     let mut fm_pe_meta: Vec<(u8, u32, u32)> = Vec::new(); // (op, pe_off, pe_len)
@@ -907,6 +928,8 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let output_off = YOYO_COMPILER_PE_USER_DATA_OFF + output_rel;
     let ret_pe_off = YOYO_COMPILER_PE_USER_DATA_OFF + ret_pe_rel;
     let setret_pe_off = YOYO_COMPILER_PE_USER_DATA_OFF + setret_pe_rel;
+    let compact_3nop_pe_off = YOYO_COMPILER_PE_USER_DATA_OFF + compact_3nop_pe_rel;
+    let compact_3nop_pe_len = compact_3nop_pe.len() as u32;
     let live2_nop_text_off = YOYO_COMPILER_PE_USER_DATA_OFF + live2_nop_text_rel;
     let live2_inc_text_off = YOYO_COMPILER_PE_USER_DATA_OFF + live2_inc_text_rel;
     let live2_dec_text_off = YOYO_COMPILER_PE_USER_DATA_OFF + live2_dec_text_rel;
@@ -1327,8 +1350,8 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x80, 0x7E, 0x09, 0x00]);
     let jne_fail_nid_a0 = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    c.extend_from_slice(&[0x80, 0x7E, 0x10, 0x66]); // INC
-    let jne_try_extra_notnid2 = c.len();
+    c.extend_from_slice(&[0x80, 0x7E, 0x10, 0x66]); // INC?
+    let jne_try_3nop = c.len(); // S3.646: else try 3×NOP+RET → compact
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x80, 0x7E, 0x11, 0x01]);
     let jne_fail_nid_a1 = c.len();
@@ -1349,6 +1372,33 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let jne_fail_nid_ret = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
     let jmp_emit2_nid = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    // S3.646: size0x28 + NOP*3+RET → compact pe_link bake (≠ wide RET; ≠225KiB)
+    // Entry: size/TYB/count==4/op0==NOP already checked via try_sas28→try_nid.
+    let try_3nop = c.len();
+    c.extend_from_slice(&[0x80, 0x7E, 0x10, 0x00]); // op1 NOP
+    let jne_try_3nop_not = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x80, 0x7E, 0x11, 0x00]); // argc1==0
+    let jne_fail_3nop_a1 = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x80, 0x7E, 0x18, 0x00]); // op2 NOP
+    let jne_try_3nop_not2 = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x80, 0x7E, 0x19, 0x00]);
+    let jne_fail_3nop_a2 = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x80, 0x7E, 0x20, 0xFF]); // RET
+    let jne_try_3nop_not3 = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x80, 0x7E, 0x21, 0x00]);
+    let jne_fail_3nop_aret = c.len();
+    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x49, 0x8D, 0x97]); // lea rdx, [r15+compact]
+    c.extend_from_slice(&compact_3nop_pe_off.to_le_bytes());
+    c.extend_from_slice(&[0x41, 0xB8]); // mov r8d, len
+    c.extend_from_slice(&compact_3nop_pe_len.to_le_bytes());
+    let jmp_3nop_write = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     // S3.592: SET+ADD+SUB+NOP+RET size 0x30
     let try_sasn30 = c.len();
@@ -4292,7 +4342,14 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jmp(&mut c, jmp_emit2_scm_w, do_write);
     patch_jcc(&mut c, jne_try_extra_notnid, try_extra_mem);
     patch_jcc(&mut c, jne_fail_nid_a0, fail_compile);
-    patch_jcc(&mut c, jne_try_extra_notnid2, try_extra_mem);
+    patch_jcc(&mut c, jne_try_3nop, try_3nop);
+    patch_jcc(&mut c, jne_try_3nop_not, try_extra_mem);
+    patch_jcc(&mut c, jne_fail_3nop_a1, fail_compile);
+    patch_jcc(&mut c, jne_try_3nop_not2, try_extra_mem);
+    patch_jcc(&mut c, jne_fail_3nop_a2, fail_compile);
+    patch_jcc(&mut c, jne_try_3nop_not3, try_extra_mem);
+    patch_jcc(&mut c, jne_fail_3nop_aret, fail_compile);
+    patch_jmp(&mut c, jmp_3nop_write, do_write);
     patch_jcc(&mut c, jne_fail_nid_a1, fail_compile);
     patch_jcc(&mut c, ja_fail_nid_s1, fail_compile);
     patch_jcc(&mut c, jne_try_extra_notnid3, try_extra_mem);
@@ -15023,8 +15080,64 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// S3.646: child 3nop → compact pe_link bake (9728≪225KiB); yoyo.tyb
+    /// still wide RET; general pe_link-in-child ABSENT. ready=false; ≠ M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_pe_link_child_3nop_compact_emit_pin() {
+        assert_eq!(crate::s1_tyb_parser::S1_SLIM_MAX_CODE, 1024);
+        assert!(!yoyo_pe_link_in_child_ready());
+        let tyb = crate::s1_tyb_parser::s3_n_nops_ret_tyb(3);
+        let compact = crate::s1_tyb_parser::compile_tyb_to_pe_link_compact_emit(&tyb)
+            .expect("compact")
+            .bytes;
+        let wide = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&tyb)
+            .expect("wide")
+            .bytes;
+        let full = crate::s1_tyb_parser::compile_tyb_to_pe_link_emit(&tyb)
+            .expect("full")
+            .bytes;
+        assert!(compact.len() < wide.len() && compact.len() < full.len() / 2);
+        assert!(compact.len() < 0x10000);
+        let dir = temp_work("s646-compact3");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success(), "child 3nop compact exit");
+        let child = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+        assert_eq!(child, compact, "child 3nop ≡ compact pe_link");
+        assert_ne!(child, wide, "child 3nop ≠ wide RET");
+        assert_ne!(child, full, "child 3nop ≠ full 225KiB link_emit");
+        // yoyo.tyb still wide (special-case ≠ general pe_link-in-child)
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).expect("yoyo.tyb");
+        let yoyo_wide = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&yoyo)
+            .expect("yoyo wide")
+            .bytes;
+        std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
+        let st2 = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st2.success(), "yoyo.tyb still child GREEN");
+        assert_eq!(
+            std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
+            yoyo_wide,
+            "yoyo.tyb still wide RET"
+        );
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.646")));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_compact3_c"));
+        assert!(include_str!("pe_dll_link.rs").contains("try_3nop"));
+        assert!(!yoyo_m4_production_flip_ready());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// S3.645: host `link_pe_win32_compact` / link_compact_emit GREEN for 3nop;
-    /// size ≪ full link_emit (no 0x38000 floor); child still ≠ compact.
+    /// size ≪ full link_emit (no 0x38000 floor). Child 3nop→compact = S3.646.
     /// ready=false; ≠ M4; densify≠.
     #[test]
     #[cfg(windows)]
@@ -15048,23 +15161,19 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             full.len()
         );
         assert!(compact.len() > 0x400 && compact[..2] == *b"MZ");
-        // child still wide RET
-        let dir = temp_work("s645-compact");
-        let path = yoyo_place_compiler_pe(&dir).expect("place");
-        std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
-        let st = std::process::Command::new(&path)
-            .current_dir(&dir)
-            .status()
-            .unwrap();
-        assert!(st.success());
-        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), wide);
-        assert_ne!(wide.len(), compact.len());
+        // compact bake-viable: ≪64KiB and < wide RET (S3.646 uses this)
+        assert!(
+            compact.len() < 0x10000 && compact.len() < wide.len(),
+            "compact should be <64KiB and <wide (compact={} wide={})",
+            compact.len(),
+            wide.len()
+        );
         assert!(yoyo_child_live_compose_design()
             .iter()
             .any(|s| s.contains("S3.645")));
         assert!(include_str!("pe_link.rs").contains("link_pe_win32_compact"));
         assert!(!yoyo_m4_production_flip_ready());
-        let _ = std::fs::remove_dir_all(&dir);
+        let _ = (full, wide);
     }
 
     /// S3.644: dissect link_emit(3nop) PE — SizeOfImage / section sizes named
@@ -15147,7 +15256,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
     }
 
     /// S3.642: host `compile_tyb_to_pe_link_emit` API GREEN for 3nop;
-    /// child still slim RET ≠ link_emit (pe_link-in-child ABSENT). ready=false.
+    /// child 3nop→compact (S3.646) ≠ full link_emit. ready=false.
     #[test]
     #[cfg(windows)]
     fn yoyo_pe_link_emit_api_3nop_child_absent_pin() {
@@ -15161,6 +15270,9 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let wide = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&tyb)
             .expect("wide")
             .bytes;
+        let compact = crate::s1_tyb_parser::compile_tyb_to_pe_link_compact_emit(&tyb)
+            .expect("compact")
+            .bytes;
         assert_ne!(linked.len(), wide.len(), "link_emit ≠ wide RET template");
         let dir = temp_work("s642-link-emit-api");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
@@ -15171,8 +15283,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .unwrap();
         assert!(st.success());
         let child = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
-        assert_eq!(child, wide, "child still wide/slim RET");
-        assert_ne!(child, linked, "child ≠ link_emit yet");
+        assert_eq!(child, compact, "child 3nop ≡ compact (S3.646)");
+        assert_ne!(child, linked, "child ≠ full link_emit");
         assert!(yoyo_pe_link_in_child_blockers()
             .iter()
             .any(|s| s.contains("S3.642") || s.contains("slim RET")));
@@ -15186,8 +15298,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
     }
 
     /// S3.641: host pe_link(emit_x86(3nop)) smoke — target shape for
-    /// pe_link-in-child first milestone; child still slim RET (ABSENT).
-    /// ready=false; ≠ M4; densify≠.
+    /// pe_link-in-child; child 3nop→compact (S3.646) ≠ full link. ready=false.
     #[test]
     #[cfg(windows)]
     fn yoyo_pe_link_host_3nop_smoke_child_absent_pin() {
@@ -15200,12 +15311,11 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .expect("link 3nop")
             .bytes;
         assert!(linked.len() > 0x200 && linked[..2] == *b"MZ");
-        // child still emits slim RET template (≠ linked)
+        let compact = crate::s1_tyb_parser::compile_tyb_to_pe_link_compact_emit(&tyb)
+            .expect("compact")
+            .bytes;
         let dir = temp_work("s641-pe-link-3nop");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
-        let child_expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
-            .expect("mini")
-            .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
         let st = std::process::Command::new(&path)
             .current_dir(&dir)
@@ -15213,8 +15323,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .unwrap();
         assert!(st.success());
         let child = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
-        assert_eq!(child, child_expect);
-        assert_ne!(child.len(), linked.len(), "child slim ≠ host pe_link");
+        assert_eq!(child, compact, "child 3nop ≡ compact (S3.646)");
+        assert_ne!(child.len(), linked.len(), "child compact ≠ full pe_link");
         assert!(yoyo_pe_link_in_child_blockers()
             .iter()
             .any(|s| s.contains("slim RET")));
@@ -15421,9 +15531,10 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             assert!(!dir.join(OUTPUT_NAME).exists(), "{name} no output");
         }
         // control: hand parse1 yoyo_compiler.exe still GREEN under same cwd
+        // S3.646: 3nop → compact (≠ mini/wide RET)
         let path = yoyo_place_compiler_pe(&dir).expect("place");
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_sm)
-            .expect("emit 3nop")
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_link_compact_emit(&tyb_sm)
+            .expect("compact 3nop")
             .bytes;
         let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
         let st = std::process::Command::new(&path)
@@ -15647,12 +15758,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(String::from_utf8_lossy(&pe).contains("yoyo_parse1_c"));
         let dir = temp_work("s631-parse1-yoyo-tyb");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
-        // small still matches host mini
+        // S3.646: 3nop → compact pe_link (≠ wide RET mini)
         let tyb_sm = crate::s1_tyb_parser::s3_n_nops_ret_tyb(3);
-        let expect_sm = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_sm)
-            .expect("emit 3nop")
+        let expect_sm = crate::s1_tyb_parser::compile_tyb_to_pe_link_compact_emit(&tyb_sm)
+            .expect("compact 3nop")
             .bytes;
-        assert_eq!(expect_sm.len() as u32, S3_PARSE1_RET_PE_LEN);
+        assert!(expect_sm.len() < S3_PARSE1_RET_PE_LEN as usize);
         std::fs::write(dir.join("input.tyb"), &tyb_sm).unwrap();
         let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
         let st = std::process::Command::new(&path)
