@@ -10539,13 +10539,13 @@ pub fn compile_tyb_to_pe_link_compact_emit(
     crate::pe_link::link_pe_win32_compact(&out.text, &out.data, &[])
 }
 
-/// S3.648/650/653: child CreateProcess expect — compact when
-/// `text_len ≤ 0xFB3` (mid-grow) and `data_len ≤ 0xEE0`; else wide/mini.
+/// S3.648/650/653/655: child CreateProcess expect — compact when
+/// `text_len ≤ 0x4FF3` (full-grow) and `data_len ≤ 0xEE0`; else wide/mini.
 #[cfg(windows)]
 pub fn compile_tyb_to_pe_child_expect(
     tyb: &[u8],
 ) -> crate::types::IsaResult<crate::pe_link::PeImage> {
-    const COMPACT_MID_CAP: usize = 0x1000 - 13 - 0x40; // ≡ S3_COMPACT_MID_GROW_CAP
+    const COMPACT_FULL_CAP: usize = 0x5000 - 0xD; // ≡ S3_COMPACT_FULL_GROW_CAP
     const COMPACT_DATA_CAP: usize = 0x1000 - 0x120; // ≡ S3_COMPACT_DATA_USER_CAP
     let prog = parse_tyb(tyb).map_err(|e| crate::types::IsaError::ParseError {
         line: 0,
@@ -10554,12 +10554,12 @@ pub fn compile_tyb_to_pe_child_expect(
     validate_tyb_mini(&prog)?;
     let out = emit_x86(&prog);
     if !out.text.is_empty()
-        && out.text.len() <= COMPACT_MID_CAP
+        && out.text.len() <= COMPACT_FULL_CAP
         && out.data.len() <= COMPACT_DATA_CAP
     {
         return crate::pe_link::link_pe_win32_compact(&out.text, &out.data, &[]);
     }
-    // large text (yoyo.tyb) → wide; else mini
+    // oversized .data / beyond full-grow → wide/mini
     if out.text.len() > S1_SLIM_MAX_CODE {
         compile_tyb_to_pe_wide_emit(tyb)
     } else {

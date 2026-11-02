@@ -554,8 +554,9 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.651 cliff: in-child linker / yoyo→compact ABSENT — yoyo text ≫ CAP 0x1F3; tmpl patch ≠ growing pe_link",
         "S3.652 DONE: host compact grows (yoyo≈27KiB≪243KiB); child grow design named; child still wide for >CAP",
         "S3.653 DONE: child mid-grow pe_link (text≤0xFB3); yoyo full-grow ABSENT",
-        "S3.654 cliff: full-grow (text_vs expand + RVA reloc) ABSENT; host compact(yoyo)≈27KiB named",
-        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child ABSENT (mid-grow; yoyo wide); M4 ABSENT",
+        "S3.654 cliff: full-grow named (text_vs/lea/IDT); S3.655 implements",
+        "S3.655 DONE: child full-grow pe_link (text≤0x4FF3); yoyo→compact≈27KiB; HOT/M4 ABSENT",
+        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child empty-handler compact DONE; HOT/M4 ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -592,7 +593,8 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.651: in-child linker ABSENT — yoyo text ≫ compact CAP; need growing pe_link not tmpl patch",
         "S3.652: host compact(yoyo)≈27KiB ≪243KiB full; child grow ABSENT — see yoyo_pe_link_grow_in_child_design",
         "S3.653: mid-grow ≤0xFB3 DONE; yoyo full-grow / text_vs expand ABSENT",
-        "S3.654: full-grow ABSENT — see grow design (text_vs/data_rva/lea/IDT reloc)",
+        "S3.654: full-grow cliff named",
+        "S3.655: full-grow DONE (yoyo→compact); handler_offsets/HOT still ABSENT — ≠ M4",
     ]
 }
 
@@ -608,9 +610,8 @@ pub fn yoyo_pe_link_grow_in_child_design() -> &'static [&'static str] {
         "host: link_pe_win32_compact grows — ≤0x1F3→9728; yoyo text≈18KiB→≈27648 ≪ full≈249KiB",
         "child today: text≤CAP → patch fixed tmpl; text>CAP → wide RET 0x6400 (≠ pe_link IAT shape)",
         "S3.653 DONE: mid-grow text∈(CAP,0xFB3] — expand code_raw, shift .data; text_vs stays 0x1000",
-        "S3.654 cliff: full-grow ABSENT — yoyo needs text_vs≥0x5000, data_rva≠0x2000, lea r15 + import RVA reloc",
-        "full-grow recipe: text_vs=align(code+0x40,0x1000); data_rva=0x1000+text_vs; delta=data_rva-0x2000; patch lea+IDT+data dwords",
-        "host compact(yoyo)≈27648 proves size class; child full-grow ≠ bake blob ≠ densify",
+        "S3.654 cliff: full-grow named — text_vs/data_rva/lea/IDT",
+        "S3.655 DONE: full-grow text∈(MID,FULL] — text_vs+RVA reloc; IAT-prefix reloc; yoyo→compact≈27KiB",
         "handlers/HOT still ABSENT after grow (seed_host 788) — grow ≠ M4",
     ]
 }
@@ -711,17 +712,97 @@ const S3_COMPACT_DATA_USER_CAP: u32 = 0x1000 - 0x120; // 0xEE0
 /// S3.653: mid-grow max text while `.text` VS stays 0x1000 (code+13+0x40≤0x1000).
 #[cfg(windows)]
 const S3_COMPACT_MID_GROW_CAP: u32 = 0x1000 - 13 - 0x40; // 0xFB3
-/// S3.653: fixed tmpl `.data` PointerToRawData / raw size.
+/// S3.655: full-grow max = parse1 wide text zero cap (covers yoyo ≈18KiB).
+#[cfg(windows)]
+const S3_COMPACT_FULL_GROW_CAP: u32 = S3_PARSE1_TEXT_ZERO; // 0x4FF3
+/// S3.653: fixed tmpl `.data` PointerToRawData / raw size / VA.
 #[cfg(windows)]
 const S3_COMPACT_TMPL_DATA_RP: u32 = 0x600;
 #[cfg(windows)]
 const S3_COMPACT_TMPL_DATA_RAW: u32 = 0x2000;
+#[cfg(windows)]
+const S3_COMPACT_TMPL_DATA_VA: u32 = 0x2000;
+/// S3.650: IAT/user split inside compact `.data` (reloc only this prefix).
+#[cfg(windows)]
+const S3_COMPACT_IAT_PREFIX: u32 = 0x120;
 #[cfg(windows)]
 const S3_COMPACT_HEADERS: u32 = 0x400;
 #[cfg(windows)]
 const S3_COMPACT_PE_OPT: u32 = 0x98;
 #[cfg(windows)]
 const S3_COMPACT_PE_SECT_TEXT: u32 = 0x188;
+
+/// S3.655 host recipe: grow compact tmpl → full PE (text_vs/data_rva/lea/IDT).
+/// Relocates only IAT prefix dwords in `[TMPL_DATA_VA, TMPL_DATA_VA+TMPL_DATA_RAW)`.
+/// Must byte-match [`crate::pe_link::link_pe_win32_compact`] for same text/data.
+#[cfg(windows)]
+fn s3_compact_full_grow_from_tmpl(tmpl: &[u8], user_text: &[u8], user_data: &[u8]) -> Vec<u8> {
+    assert!(user_text.len() as u32 <= S3_COMPACT_FULL_GROW_CAP);
+    assert!(user_data.len() as u32 <= S3_COMPACT_DATA_USER_CAP);
+    assert!(tmpl.len() >= (S3_COMPACT_TMPL_DATA_RP + S3_COMPACT_TMPL_DATA_RAW) as usize);
+    let align_up = |v: u32, a: u32| (v + a - 1) & !(a - 1);
+    let text_len = user_text.len() as u32;
+    let code_raw = align_up(text_len + 13, 0x200);
+    let text_vs = align_up(text_len + 13 + 0x40, 0x1000);
+    let data_rva = 0x1000 + text_vs;
+    let data_rp = S3_COMPACT_HEADERS + code_raw;
+    let total = data_rp + S3_COMPACT_TMPL_DATA_RAW;
+    let delta = data_rva - S3_COMPACT_TMPL_DATA_VA;
+    let mut img = vec![0u8; total as usize];
+    img[..S3_COMPACT_HEADERS as usize]
+        .copy_from_slice(&tmpl[..S3_COMPACT_HEADERS as usize]);
+    img[S3_COMPACT_HEADERS as usize..S3_COMPACT_TEXT_PAYLOAD_OFF as usize].copy_from_slice(
+        &tmpl[S3_COMPACT_HEADERS as usize..S3_COMPACT_TEXT_PAYLOAD_OFF as usize],
+    );
+    let t0 = S3_COMPACT_TEXT_PAYLOAD_OFF as usize;
+    img[t0..t0 + user_text.len()].copy_from_slice(user_text);
+    let dst_data = data_rp as usize;
+    let src_data = S3_COMPACT_TMPL_DATA_RP as usize;
+    img[dst_data..dst_data + S3_COMPACT_TMPL_DATA_RAW as usize]
+        .copy_from_slice(&tmpl[src_data..src_data + S3_COMPACT_TMPL_DATA_RAW as usize]);
+    // reloc IAT prefix only (before user overlay)
+    let mut off = 0usize;
+    while off < S3_COMPACT_IAT_PREFIX as usize {
+        let o = dst_data + off;
+        let v = u32::from_le_bytes(img[o..o + 4].try_into().unwrap());
+        if v >= S3_COMPACT_TMPL_DATA_VA && v < S3_COMPACT_TMPL_DATA_VA + S3_COMPACT_TMPL_DATA_RAW {
+            img[o..o + 4].copy_from_slice(&(v + delta).to_le_bytes());
+        }
+        off += 4;
+    }
+    if !user_data.is_empty() {
+        let u = dst_data + S3_COMPACT_IAT_PREFIX as usize;
+        img[u..u + user_data.len()].copy_from_slice(user_data);
+    }
+    let write_u32 = |img: &mut [u8], at: usize, v: u32| {
+        img[at..at + 4].copy_from_slice(&v.to_le_bytes());
+    };
+    write_u32(&mut img, (S3_COMPACT_PE_OPT + 4) as usize, code_raw); // SizeOfCode
+    write_u32(
+        &mut img,
+        (S3_COMPACT_PE_SECT_TEXT + 16) as usize,
+        code_raw,
+    ); // .text RS
+    write_u32(&mut img, (S3_COMPACT_PE_SECT_TEXT + 8) as usize, text_vs); // .text VS
+    write_u32(
+        &mut img,
+        (S3_COMPACT_PE_SECT_TEXT + 40 + 12) as usize,
+        data_rva,
+    ); // .data VA
+    write_u32(
+        &mut img,
+        (S3_COMPACT_PE_SECT_TEXT + 40 + 20) as usize,
+        data_rp,
+    ); // .data RP
+    let soi = align_up(data_rva + S3_COMPACT_TMPL_DATA_RAW, 0x1000);
+    write_u32(&mut img, (S3_COMPACT_PE_OPT + 56) as usize, soi); // SizeOfImage
+    let lea_disp = (data_rva as i32) - 0x1007;
+    write_u32(&mut img, 0x403, lea_disp as u32);
+    let imp_at = (S3_COMPACT_PE_OPT + 120) as usize;
+    let imp = u32::from_le_bytes(img[imp_at..imp_at + 4].try_into().unwrap()).wrapping_add(delta);
+    write_u32(&mut img, imp_at, imp);
+    img
+}
 
 /// Build fixed10 + multi-op compile-in-child EXE (S3.548/S3.551).
 ///
@@ -1021,7 +1102,9 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let seed_len = S3_PARSE1_RET_PE_LEN;
 
     let mut c = Vec::new();
-    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x68]);
+    // S3.655: grow frame 0x68→0x78 for full-grow temps at 0x70/0x74/0x78-safe 0x70/74
+    // (0x48=scratch qword — never touch 0x4C; 0x60=text_len; 0x64 reused by parse1 ops)
+    c.extend_from_slice(&[0x48, 0x83, 0xEC, 0x78]);
 
     c.extend_from_slice(&[0x49, 0x8D, 0x8F]);
     c.extend_from_slice(&input_off.to_le_bytes());
@@ -1579,7 +1662,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     // patch extra fallthroughs → parse1_any (S3.605); see below
 
     c.extend_from_slice(&[0xB8, 0x01, 0x00, 0x00, 0x00]);
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x68]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x78]);
     c.extend_from_slice(&[0xC3]);
 
     let do_write = c.len();
@@ -1611,16 +1694,16 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x48, 0x89, 0xD9]);
     c.extend_from_slice(&[0x41, 0xFF, 0x97, 0x20, 0x00, 0x00, 0x00]);
     c.extend_from_slice(&[0x31, 0xC0]);
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x68]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x78]);
     c.extend_from_slice(&[0xC3]);
 
     let fail_no = c.len();
     c.extend_from_slice(&[0xB8, 0x02, 0x00, 0x00, 0x00]);
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x68]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x78]);
     c.extend_from_slice(&[0xC3]);
     let fail_wr = c.len();
     c.extend_from_slice(&[0xB8, 0x03, 0x00, 0x00, 0x00]);
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x68]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x78]);
     c.extend_from_slice(&[0xC3]);
 
 
@@ -3006,8 +3089,8 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x60]); // eax=text_len
     c.extend_from_slice(&[0x3D]); // cmp eax, MID
     c.extend_from_slice(&S3_COMPACT_MID_GROW_CAP.to_le_bytes());
-    let ja_parse1_wide_from_mid = c.len();
-    c.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]); // ja wide
+    let ja_parse1_full_grow = c.len();
+    c.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]); // ja full-grow (S3.655)
     c.extend_from_slice(&[0x48, 0x89, 0x5C, 0x24, 0x50]); // save wide pe*
     // code_raw = align_up(text_len+13, 0x200)
     c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x60]);
@@ -3090,6 +3173,147 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x48, 0x89, 0xDA]);
     c.extend_from_slice(&[0x44, 0x8B, 0x44, 0x24, 0x5C]); // r8d=total
     let jmp_parse1_grow_w = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    // --- S3.655 full-grow: MID < text ≤ FULL; text_vs/data_rva/lea/IDT reloc ---
+    // frame 0x78: 48=scratch qword, 50=wide*, 54=data_rp, 58=code_raw, 5C=total,
+    //             60=text_len, 6C=delta, 70=text_vs, 74=data_rva
+    // NEVER write [rsp+0x4C] (hi half of scratch).
+    let parse1_full_grow = c.len();
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x60]);
+    c.extend_from_slice(&[0x3D]);
+    c.extend_from_slice(&S3_COMPACT_FULL_GROW_CAP.to_le_bytes());
+    let ja_parse1_wide_from_full = c.len();
+    c.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x89, 0x5C, 0x24, 0x50]);
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x60]);
+    c.extend_from_slice(&[0x83, 0xC0, 0x0D]);
+    c.extend_from_slice(&[0x05, 0xFF, 0x01, 0x00, 0x00]);
+    c.extend_from_slice(&[0x25, 0x00, 0xFE, 0xFF, 0xFF]);
+    c.extend_from_slice(&[0x89, 0x44, 0x24, 0x58]); // code_raw
+    // text_vs@0x70 data_rva@0x74 delta@0x6C — above legacy 0x68 locals
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x60]);
+    c.extend_from_slice(&[0x05, 0x4D, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x05, 0xFF, 0x0F, 0x00, 0x00]);
+    c.extend_from_slice(&[0x25, 0x00, 0xF0, 0xFF, 0xFF]);
+    c.extend_from_slice(&[0x89, 0x44, 0x24, 0x70]); // text_vs
+    c.extend_from_slice(&[0x05, 0x00, 0x10, 0x00, 0x00]);
+    c.extend_from_slice(&[0x89, 0x44, 0x24, 0x74]); // data_rva
+    c.extend_from_slice(&[0x2D]);
+    c.extend_from_slice(&S3_COMPACT_TMPL_DATA_VA.to_le_bytes());
+    c.extend_from_slice(&[0x89, 0x44, 0x24, 0x6C]); // delta
+    // total = 0x400+code_raw+0x2000 (same as mid); edx=total for VirtualAlloc
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x58]);
+    c.extend_from_slice(&[0x8D, 0x90]);
+    c.extend_from_slice(&((S3_COMPACT_HEADERS + S3_COMPACT_TMPL_DATA_RAW) as u32).to_le_bytes());
+    c.extend_from_slice(&[0x89, 0x54, 0x24, 0x5C]);
+    c.extend_from_slice(&[0x31, 0xC9]);
+    c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
+    c.extend_from_slice(&[0x41, 0xB9, 0x04, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x41, 0xFF, 0x97, 0x00, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
+    let je_parse1_full_va = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x89, 0xC3]);
+    c.extend_from_slice(&[0x49, 0x8D, 0xB7]);
+    c.extend_from_slice(&compact_tmpl_off.to_le_bytes());
+    c.extend_from_slice(&[0x48, 0x89, 0xDF]);
+    c.extend_from_slice(&[0xB9]);
+    c.extend_from_slice(&S3_COMPACT_HEADERS.to_le_bytes());
+    c.extend_from_slice(&[0xF3, 0xA4]);
+    c.extend_from_slice(&[0x49, 0x8D, 0xB7]);
+    c.extend_from_slice(&tmpl_text_off.to_le_bytes());
+    c.extend_from_slice(&[0x48, 0x8D, 0xBB]);
+    c.extend_from_slice(&S3_COMPACT_HEADERS.to_le_bytes());
+    c.extend_from_slice(&[0xB9, 0x0D, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0xF3, 0xA4]);
+    c.extend_from_slice(&[0x48, 0x8B, 0x74, 0x24, 0x50]);
+    c.extend_from_slice(&[0x48, 0x81, 0xC6]);
+    c.extend_from_slice(&S3_COMPACT_TEXT_PAYLOAD_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x48, 0x8D, 0xBB]);
+    c.extend_from_slice(&S3_COMPACT_TEXT_PAYLOAD_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x8B, 0x4C, 0x24, 0x60]);
+    c.extend_from_slice(&[0xF3, 0xA4]);
+    // data_rp = 0x400+code_raw; copy tmpl .data
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x58]);
+    c.extend_from_slice(&[0x05]);
+    c.extend_from_slice(&S3_COMPACT_HEADERS.to_le_bytes());
+    c.extend_from_slice(&[0x89, 0x44, 0x24, 0x54]);
+    c.extend_from_slice(&[0x49, 0x8D, 0xB7]);
+    c.extend_from_slice(&tmpl_data_off.to_le_bytes());
+    c.extend_from_slice(&[0x48, 0x8D, 0x3C, 0x03]);
+    c.extend_from_slice(&[0xB9]);
+    c.extend_from_slice(&S3_COMPACT_TMPL_DATA_RAW.to_le_bytes());
+    c.extend_from_slice(&[0xF3, 0xA4]);
+    // reloc IAT prefix using delta @0x6C
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x54]);
+    c.extend_from_slice(&[0x48, 0x8D, 0x3C, 0x03]);
+    c.extend_from_slice(&[0xB9]);
+    c.extend_from_slice(&(S3_COMPACT_IAT_PREFIX / 4).to_le_bytes());
+    let full_reloc_loop = c.len();
+    c.extend_from_slice(&[0x85, 0xC9]);
+    let jz_full_reloc_done = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x8B, 0x07]);
+    c.extend_from_slice(&[0x3D]);
+    c.extend_from_slice(&S3_COMPACT_TMPL_DATA_VA.to_le_bytes());
+    let jb_full_reloc_next = c.len();
+    c.extend_from_slice(&[0x0F, 0x82, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x3D]);
+    c.extend_from_slice(&(S3_COMPACT_TMPL_DATA_VA + S3_COMPACT_TMPL_DATA_RAW).to_le_bytes());
+    let jae_full_reloc_next = c.len();
+    c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x03, 0x44, 0x24, 0x6C]); // add eax, delta
+    c.extend_from_slice(&[0x89, 0x07]);
+    let full_reloc_next = c.len();
+    c.extend_from_slice(&[0x48, 0x83, 0xC7, 0x04]);
+    c.extend_from_slice(&[0xFF, 0xC9]);
+    let jmp_full_reloc_loop = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    let full_reloc_done = c.len();
+    c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]);
+    c.extend_from_slice(&[0x41, 0x8B, 0x8B, 0x38, 0x40, 0x00, 0x00]);
+    c.extend_from_slice(&[0x85, 0xC9]);
+    let jz_parse1_full_nodata = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x8B, 0x74, 0x24, 0x50]);
+    c.extend_from_slice(&[0x48, 0x81, 0xC6]);
+    c.extend_from_slice(&S3_PARSE1_DATA_FILE_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x54]);
+    c.extend_from_slice(&[0x05]);
+    c.extend_from_slice(&S3_COMPACT_IAT_PREFIX.to_le_bytes());
+    c.extend_from_slice(&[0x48, 0x8D, 0x3C, 0x03]);
+    c.extend_from_slice(&[0xF3, 0xA4]);
+    let parse1_full_patch = c.len();
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x58]);
+    c.extend_from_slice(&[0x89, 0x83]);
+    c.extend_from_slice(&(S3_COMPACT_PE_OPT + 4).to_le_bytes());
+    c.extend_from_slice(&[0x89, 0x83]);
+    c.extend_from_slice(&(S3_COMPACT_PE_SECT_TEXT + 16).to_le_bytes());
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x70]); // text_vs
+    c.extend_from_slice(&[0x89, 0x83]);
+    c.extend_from_slice(&(S3_COMPACT_PE_SECT_TEXT + 8).to_le_bytes());
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x74]); // data_rva
+    c.extend_from_slice(&[0x89, 0x83]);
+    c.extend_from_slice(&(S3_COMPACT_PE_SECT_TEXT + 40 + 12).to_le_bytes());
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x54]);
+    c.extend_from_slice(&[0x89, 0x83]);
+    c.extend_from_slice(&(S3_COMPACT_PE_SECT_TEXT + 40 + 20).to_le_bytes());
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x74]);
+    c.extend_from_slice(&[0x05]);
+    c.extend_from_slice(&S3_COMPACT_TMPL_DATA_RAW.to_le_bytes());
+    c.extend_from_slice(&[0x05, 0xFF, 0x0F, 0x00, 0x00]);
+    c.extend_from_slice(&[0x25, 0x00, 0xF0, 0xFF, 0xFF]);
+    c.extend_from_slice(&[0x89, 0x83]);
+    c.extend_from_slice(&(S3_COMPACT_PE_OPT + 56).to_le_bytes());
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x74]);
+    c.extend_from_slice(&[0x2D, 0x07, 0x10, 0x00, 0x00]);
+    c.extend_from_slice(&[0x89, 0x83, 0x03, 0x04, 0x00, 0x00]);
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x6C]);
+    c.extend_from_slice(&[0x01, 0x83]);
+    c.extend_from_slice(&(S3_COMPACT_PE_OPT + 120).to_le_bytes());
+    c.extend_from_slice(&[0x48, 0x89, 0xDA]);
+    c.extend_from_slice(&[0x44, 0x8B, 0x44, 0x24, 0x5C]);
+    let jmp_parse1_full_w = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     let parse1_wide_w = c.len();
     c.extend_from_slice(&[0x48, 0x89, 0xDA]);
@@ -4380,12 +4604,20 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jcc(&mut c, jae_parse1_go_w, parse1_go_w);
     patch_jcc(&mut c, jne_parse1_wide_w, parse1_wide_w);
     patch_jcc(&mut c, ja_parse1_mid_grow, parse1_mid_grow);
-    patch_jcc(&mut c, ja_parse1_wide_from_mid, parse1_wide_w);
+    patch_jcc(&mut c, ja_parse1_full_grow, parse1_full_grow);
+    patch_jcc(&mut c, ja_parse1_wide_from_full, parse1_wide_w);
     patch_jcc(&mut c, je_parse1_compact_va, fail_wr);
     patch_jcc(&mut c, jz_parse1_compact_nodata, parse1_compact_go_wr);
     patch_jcc(&mut c, je_parse1_grow_va, fail_wr);
     patch_jcc(&mut c, jz_parse1_grow_nodata, parse1_grow_patch);
     patch_jmp(&mut c, jmp_parse1_grow_w, do_write);
+    patch_jcc(&mut c, je_parse1_full_va, fail_wr);
+    patch_jcc(&mut c, jz_full_reloc_done, full_reloc_done);
+    patch_jcc(&mut c, jb_full_reloc_next, full_reloc_next);
+    patch_jcc(&mut c, jae_full_reloc_next, full_reloc_next);
+    patch_jmp(&mut c, jmp_full_reloc_loop, full_reloc_loop);
+    patch_jcc(&mut c, jz_parse1_full_nodata, parse1_full_patch);
+    patch_jmp(&mut c, jmp_parse1_full_w, do_write);
     patch_jmp(&mut c, jmp_parse1_w2, do_write);
     patch_jcc(&mut c, jae_parse1_fail_nf, fail_compile);
     patch_jcc(&mut c, jne_parse1_find_next, parse1_find_next_lbl);
@@ -4689,7 +4921,7 @@ fn yoyo_compiler_passthrough_pe_link() -> crate::types::IsaResult<crate::pe_link
 
     // exit 0
     c.extend_from_slice(&[0x31, 0xC0]);
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x68]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x78]);
     c.extend_from_slice(&[0xC3]);
 
     let patch_jcc = |code: &mut Vec<u8>, at: usize, target: usize| {
@@ -4700,12 +4932,12 @@ fn yoyo_compiler_passthrough_pe_link() -> crate::types::IsaResult<crate::pe_link
     // EXIT_NO_INPUT = 2
     let fail_no = c.len();
     c.extend_from_slice(&[0xB8, 0x02, 0x00, 0x00, 0x00]);
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x68]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x78]);
     c.extend_from_slice(&[0xC3]);
     // EXIT_WRITE_FAIL = 3
     let fail_wr = c.len();
     c.extend_from_slice(&[0xB8, 0x03, 0x00, 0x00, 0x00]);
-    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x68]);
+    c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x78]);
     c.extend_from_slice(&[0xC3]);
 
     patch_jcc(&mut c, je_no_input, fail_no);
@@ -15284,50 +15516,85 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.654: full-grow cliff — host compact(yoyo)≈27KiB; child still wide;
-    /// need text_vs expand + lea/IDT reloc (mid-grow insufficient). ready=false.
+    /// S3.655: host full-grow recipe ≡ link_pe_win32_compact (yoyo + mid).
     #[test]
     #[cfg(windows)]
-    fn yoyo_pe_link_full_grow_yoyo_absent_cliff_pin() {
-        assert_eq!(S3_COMPACT_MID_GROW_CAP, 0xFB3);
-        assert!(!yoyo_pe_link_grow_in_child_ready());
-        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
-        let prog = crate::s1_tyb_parser::parse_tyb(&yoyo).unwrap();
-        let out = crate::s1_tyb_parser::emit_x86(&prog);
-        assert!(out.text.len() as u32 > S3_COMPACT_MID_GROW_CAP);
-        let compact = crate::pe_link::link_pe_win32_compact(&out.text, &out.data, &[])
+    fn yoyo_pe_link_full_grow_host_recipe_matches_compact_pin() {
+        assert_eq!(S3_COMPACT_FULL_GROW_CAP, 0x4FF3);
+        let tmpl = crate::pe_link::link_pe_win32_compact(&[0xC3], &[], &[])
             .unwrap()
             .bytes;
-        assert!(compact.len() > 20_000 && compact.len() < 40_000);
+        // mid-range text
+        let mid = crate::s1_tyb_parser::s3_n_nops_ret_tyb(0x400);
+        let mid_out = crate::s1_tyb_parser::emit_x86(
+            &crate::s1_tyb_parser::parse_tyb(&mid).unwrap(),
+        );
+        assert!(mid_out.text.len() as u32 > S3_COMPACT_TEXT_CAP);
+        assert!(mid_out.text.len() as u32 <= S3_COMPACT_MID_GROW_CAP);
+        let mid_expect = crate::pe_link::link_pe_win32_compact(&mid_out.text, &mid_out.data, &[])
+            .unwrap()
+            .bytes;
+        let mid_got = s3_compact_full_grow_from_tmpl(&tmpl, &mid_out.text, &mid_out.data);
+        assert_eq!(mid_got, mid_expect, "mid recipe ≡ compact");
+        // yoyo full-grow
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
+        let yout = crate::s1_tyb_parser::emit_x86(
+            &crate::s1_tyb_parser::parse_tyb(&yoyo).unwrap(),
+        );
+        assert!(yout.text.len() as u32 > S3_COMPACT_MID_GROW_CAP);
+        assert!(yout.text.len() as u32 <= S3_COMPACT_FULL_GROW_CAP);
+        assert!(yout.data.len() as u32 <= S3_COMPACT_DATA_USER_CAP);
+        let y_expect = crate::pe_link::link_pe_win32_compact(&yout.text, &yout.data, &[])
+            .unwrap()
+            .bytes;
+        let y_got = s3_compact_full_grow_from_tmpl(&tmpl, &yout.text, &yout.data);
+        assert_eq!(y_got.len(), y_expect.len());
+        assert_eq!(y_got, y_expect, "yoyo recipe ≡ compact");
+    }
+
+    /// S3.655: child full-grow — yoyo.tyb → compact≈27KiB ≡ host.
+    /// ready=false (HOT/M4 ABSENT); densify≠.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_pe_link_full_grow_yoyo_compact_pin() {
+        assert_eq!(S3_COMPACT_MID_GROW_CAP, 0xFB3);
+        assert_eq!(S3_COMPACT_FULL_GROW_CAP, 0x4FF3);
+        assert!(!yoyo_pe_link_grow_in_child_ready());
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&yoyo)
+            .expect("child expect yoyo")
+            .bytes;
+        assert!(expect.len() > 20_000 && expect.len() < 40_000);
         let wide = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&yoyo)
             .unwrap()
             .bytes;
-        let dir = temp_work("s654-full-grow");
+        assert_ne!(expect.len(), wide.len());
+        let dir = temp_work("s655-full-grow");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
-        assert!(std::process::Command::new(&path)
+        let st = std::process::Command::new(&path)
             .current_dir(&dir)
             .status()
-            .unwrap()
-            .success());
+            .unwrap();
+        assert!(st.success(), "full-grow exit {:?}", st.code());
         assert_eq!(
             std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
-            wide,
-            "yoyo still wide — full-grow ABSENT"
+            expect,
+            "yoyo child ≡ host compact (full-grow)"
         );
-        assert_ne!(wide.len(), compact.len());
+        let _ = wide;
         assert!(yoyo_pe_link_grow_in_child_design()
             .iter()
-            .any(|s| s.contains("S3.654") || s.contains("full-grow")));
+            .any(|s| s.contains("S3.655")));
         assert!(yoyo_child_live_compose_design()
             .iter()
-            .any(|s| s.contains("S3.654")));
+            .any(|s| s.contains("S3.655")));
+        assert!(include_str!("pe_dll_link.rs").contains("parse1_full_grow"));
         assert!(!yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.653: child mid-grow pe_link for text∈(CAP,0xFB3]; yoyo still wide.
-    /// ready=false; ≠ M4; densify≠.
+    /// S3.653: child mid-grow pe_link for text∈(CAP,0xFB3]. ready=false; ≠ M4.
     #[test]
     #[cfg(windows)]
     fn yoyo_pe_link_child_mid_grow_compact_pin() {
@@ -15357,18 +15624,6 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             expect,
             "child mid-grow ≡ host compact"
         );
-        // yoyo still wide
-        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
-        let wide = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&yoyo)
-            .unwrap()
-            .bytes;
-        std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
-        assert!(std::process::Command::new(&path)
-            .current_dir(&dir)
-            .status()
-            .unwrap()
-            .success());
-        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), wide);
         assert!(yoyo_child_live_compose_design()
             .iter()
             .any(|s| s.contains("S3.653")));
@@ -15377,8 +15632,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.652: host compact **grows** with text (yoyo compact≈27KiB ≪ 243KiB full);
-    /// child mid-grow = S3.653; yoyo full-grow still ABSENT. ready=false; ≠ M4.
+    /// S3.652: host compact **grows** with text (yoyo compact≈27KiB ≪ 243KiB full).
+    /// S3.655: child yoyo→compact. ready=false; ≠ M4.
     #[test]
     #[cfg(windows)]
     fn yoyo_pe_link_host_compact_grows_yoyo_child_grow_absent_pin() {
@@ -15396,7 +15651,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .unwrap()
             .bytes;
         assert!(pe200.len() > pe_cap.len(), "0x200 text must grow file");
-        // yoyo: compact ≪ full; bake of either still ≠ in-child grow
+        // yoyo: compact ≪ full
         let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
         let prog = crate::s1_tyb_parser::parse_tyb(&yoyo).unwrap();
         let out = crate::s1_tyb_parser::emit_x86(&prog);
@@ -15414,11 +15669,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             full.len()
         );
         assert!(compact.len() > 20_000, "yoyo compact > floor tmpl");
-        // child yoyo still wide RET (grow ABSENT)
-        let wide = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&yoyo)
-            .expect("wide")
-            .bytes;
-        let dir = temp_work("s652-grow-absent");
+        // S3.655: child yoyo ≡ compact
+        let dir = temp_work("s652-grow-map");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
         let st = std::process::Command::new(&path)
@@ -15427,8 +15679,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .unwrap();
         assert!(st.success());
         let child = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
-        assert_eq!(child, wide, "child yoyo still wide (grow ABSENT)");
-        assert_ne!(child.len(), compact.len());
+        assert_eq!(child, compact, "child yoyo ≡ compact (S3.655)");
         assert!(yoyo_pe_link_in_child_blockers()
             .iter()
             .any(|s| s.contains("S3.652") || s.contains("grow")));
@@ -15437,13 +15688,13 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("S3.652")));
         assert!(yoyo_pe_link_grow_in_child_design()
             .iter()
-            .any(|s| s.contains("text_vs") || s.contains("data_rva") || s.contains("mid-grow")));
+            .any(|s| s.contains("text_vs") || s.contains("data_rva") || s.contains("mid-grow") || s.contains("full-grow")));
         assert!(!yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.651: in-child linker / yoyo→compact ABSENT — yoyo.tyb text ≫
-    /// compact CAP 0x1F3; template patch ≠ growing pe_link. ready=false; ≠ M4.
+    /// S3.651 cliff history: yoyo text ≫ CAP 0x1F3. S3.655: now compact.
+    /// ready=false (HOT); ≠ M4.
     #[test]
     #[cfg(windows)]
     fn yoyo_pe_link_in_child_linker_yoyo_compact_absent_cliff_pin() {
@@ -15454,6 +15705,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .expect("wide")
             .bytes;
         assert_eq!(wide.len() as u32, S3_PARSE1_RET_PE_LEN);
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&yoyo)
+            .expect("child expect")
+            .bytes;
+        // compact≈27KiB can exceed wide RET 0x6400; shape ≠ size
+        assert_ne!(expect, wide);
+        assert!(expect.len() > 20_000 && expect.len() < 40_000);
         let prog = crate::s1_tyb_parser::parse_tyb(&yoyo).unwrap();
         let out = crate::s1_tyb_parser::emit_x86(&prog);
         assert!(
@@ -15462,7 +15719,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             out.text.len(),
             S3_COMPACT_TEXT_CAP
         );
-        let dir = temp_work("s651-yoyo-wide");
+        let dir = temp_work("s651-yoyo-grow");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
         let st = std::process::Command::new(&path)
@@ -15472,8 +15729,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(st.success());
         assert_eq!(
             std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
-            wide,
-            "yoyo.tyb still wide RET (not compact)"
+            expect,
+            "yoyo.tyb → compact (S3.655 supersedes 651 cliff)"
         );
         assert!(yoyo_pe_link_in_child_blockers()
             .iter()
@@ -15530,8 +15787,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.646: child 3nop → compact pe_link bake (9728≪225KiB); yoyo.tyb
-    /// still wide RET; general pe_link-in-child ABSENT. ready=false; ≠ M4.
+    /// S3.646: child 3nop → compact pe_link bake (9728≪225KiB).
+    /// S3.655: yoyo also compact. HOT/M4 ABSENT. ready=false; ≠ M4.
     #[test]
     #[cfg(windows)]
     fn yoyo_pe_link_child_3nop_compact_emit_pin() {
@@ -15561,21 +15818,21 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(child, compact, "child 3nop ≡ compact pe_link");
         assert_ne!(child, wide, "child 3nop ≠ wide RET");
         assert_ne!(child, full, "child 3nop ≠ full 225KiB link_emit");
-        // yoyo.tyb still wide (special-case ≠ general pe_link-in-child)
+        // S3.655: yoyo → compact
         let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).expect("yoyo.tyb");
-        let yoyo_wide = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&yoyo)
-            .expect("yoyo wide")
+        let yoyo_expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&yoyo)
+            .expect("yoyo expect")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
         let st2 = std::process::Command::new(&path)
             .current_dir(&dir)
             .status()
             .unwrap();
-        assert!(st2.success(), "yoyo.tyb still child GREEN");
+        assert!(st2.success(), "yoyo.tyb child GREEN");
         assert_eq!(
             std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
-            yoyo_wide,
-            "yoyo.tyb still wide RET"
+            yoyo_expect,
+            "yoyo.tyb → compact (S3.655)"
         );
         assert!(yoyo_child_live_compose_design()
             .iter()
