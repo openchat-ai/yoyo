@@ -552,7 +552,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.649 cliff: .data→compact ABSENT — parse1 cursor @0x5400 ≠ compact IAT/data_rp; DATA child still wide",
         "S3.650 DONE: IAT-aware compact .data copy (@0x720; cap 0xEE0); yoyo.tyb still wide; in-child linker ABSENT",
         "S3.651 cliff: in-child linker / yoyo→compact ABSENT — yoyo text ≫ CAP 0x1F3; tmpl patch ≠ growing pe_link",
-        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child ABSENT (compact≤CAP; yoyo wide); M4 ABSENT",
+        "S3.652 DONE: host compact grows (yoyo≈27KiB≪243KiB); child grow design named; child still wide for >CAP",
+        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child ABSENT (compact≤CAP; grow design; yoyo wide); M4 ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -587,12 +588,32 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.649: .data layout gap named (0x5400≠0x600/0x720)",
         "S3.650: small .data→compact DONE; yoyo.tyb / oversized still wide",
         "S3.651: in-child linker ABSENT — yoyo text ≫ compact CAP; need growing pe_link not tmpl patch",
+        "S3.652: host compact(yoyo)≈27KiB ≪243KiB full; child grow ABSENT — see yoyo_pe_link_grow_in_child_design",
     ]
 }
 
 /// S3.640: pe_link-in-child ready? Always false while blockers remain.
 pub fn yoyo_pe_link_in_child_ready() -> bool {
     yoyo_pe_link_in_child_blockers().is_empty()
+}
+
+/// S3.652: design steps for **growing** pe_link-in-child (beyond fixed 9728 tmpl).
+/// Non-empty ⇒ grow ABSENT. Baking compact(yoyo) blob = sheep; densify≠.
+pub fn yoyo_pe_link_grow_in_child_design() -> &'static [&'static str] {
+    &[
+        "host: link_pe_win32_compact grows — ≤0x1F3→9728; yoyo text≈18KiB→≈27648 ≪ full≈249KiB",
+        "child today: text≤CAP → patch fixed tmpl; text>CAP → wide RET 0x6400 (≠ pe_link IAT shape)",
+        "grow need: code_raw=align(text+13,0x200); text_vs=align(code+0x40,0x1000); data_rp=0x400+code_raw",
+        "grow need: rewrite SizeOfCode/SizeOfImage/.text RS/VS; move .data + fix import RVAs by delta",
+        "grow need: copy IAT from tmpl .data; write user text @0x40D; user data @data_rp+0x120",
+        "yoyo.tyb first target once grow GREEN; ≠ seed_host / ≠ 225KiB bake / ≠ raise slim-cap",
+        "handlers/HOT still ABSENT after grow (seed_host 788) — grow ≠ M4",
+    ]
+}
+
+/// S3.652: grow-in-child ready? Always false while design non-empty.
+pub fn yoyo_pe_link_grow_in_child_ready() -> bool {
+    yoyo_pe_link_grow_in_child_design().is_empty()
 }
 
 
@@ -15151,6 +15172,71 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("592") && s.contains("SET+ADD+SUB+NOP")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.652: host compact **grows** with text (yoyo compact≈27KiB ≪ 243KiB full);
+    /// child grow ABSENT — still wide RET for text>CAP. ready=false; ≠ M4; densify≠.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_pe_link_host_compact_grows_yoyo_child_grow_absent_pin() {
+        assert!(!yoyo_pe_link_in_child_ready());
+        assert_eq!(S3_COMPACT_TEXT_CAP, 0x1F3);
+        // floor: text≤CAP → 9728
+        let pe_cap = crate::pe_link::link_pe_win32_compact(&[0x90, 0xC3], &[], &[])
+            .unwrap()
+            .bytes;
+        assert_eq!(pe_cap.len(), 9728);
+        // grows past CAP
+        let mut text200 = vec![0x90u8; 0x1FF];
+        text200.push(0xC3);
+        let pe200 = crate::pe_link::link_pe_win32_compact(&text200, &[], &[])
+            .unwrap()
+            .bytes;
+        assert!(pe200.len() > pe_cap.len(), "0x200 text must grow file");
+        // yoyo: compact ≪ full; bake of either still ≠ in-child grow
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
+        let prog = crate::s1_tyb_parser::parse_tyb(&yoyo).unwrap();
+        let out = crate::s1_tyb_parser::emit_x86(&prog);
+        assert!(out.text.len() as u32 > S3_COMPACT_TEXT_CAP);
+        let compact = crate::pe_link::link_pe_win32_compact(&out.text, &out.data, &[])
+            .expect("compact yoyo")
+            .bytes;
+        let full = crate::pe_link::link_pe_win32(&out.text, &out.data, &[])
+            .expect("full yoyo")
+            .bytes;
+        assert!(
+            compact.len() < 40_000 && compact.len() < full.len() / 4,
+            "yoyo compact≈27KiB class (got compact={} full={})",
+            compact.len(),
+            full.len()
+        );
+        assert!(compact.len() > 20_000, "yoyo compact > floor tmpl");
+        // child yoyo still wide RET (grow ABSENT)
+        let wide = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&yoyo)
+            .expect("wide")
+            .bytes;
+        let dir = temp_work("s652-grow-absent");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success());
+        let child = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+        assert_eq!(child, wide, "child yoyo still wide (grow ABSENT)");
+        assert_ne!(child.len(), compact.len());
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("S3.652") || s.contains("grow")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.652")));
+        assert!(yoyo_pe_link_grow_in_child_design()
+            .iter()
+            .any(|s| s.contains("SizeOfImage") || s.contains("data_rp")));
+        assert!(!yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
