@@ -554,6 +554,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.651 cliff: in-child linker / yoyo→compact ABSENT — yoyo text ≫ CAP 0x1F3; tmpl patch ≠ growing pe_link",
         "S3.652 DONE: host compact grows (yoyo≈27KiB≪243KiB); child grow design named; child still wide for >CAP",
         "S3.653 DONE: child mid-grow pe_link (text≤0xFB3); yoyo full-grow ABSENT",
+        "S3.654 cliff: full-grow (text_vs expand + RVA reloc) ABSENT; host compact(yoyo)≈27KiB named",
         "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child ABSENT (mid-grow; yoyo wide); M4 ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
@@ -591,6 +592,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.651: in-child linker ABSENT — yoyo text ≫ compact CAP; need growing pe_link not tmpl patch",
         "S3.652: host compact(yoyo)≈27KiB ≪243KiB full; child grow ABSENT — see yoyo_pe_link_grow_in_child_design",
         "S3.653: mid-grow ≤0xFB3 DONE; yoyo full-grow / text_vs expand ABSENT",
+        "S3.654: full-grow ABSENT — see grow design (text_vs/data_rva/lea/IDT reloc)",
     ]
 }
 
@@ -606,8 +608,9 @@ pub fn yoyo_pe_link_grow_in_child_design() -> &'static [&'static str] {
         "host: link_pe_win32_compact grows — ≤0x1F3→9728; yoyo text≈18KiB→≈27648 ≪ full≈249KiB",
         "child today: text≤CAP → patch fixed tmpl; text>CAP → wide RET 0x6400 (≠ pe_link IAT shape)",
         "S3.653 DONE: mid-grow text∈(CAP,0xFB3] — expand code_raw, shift .data; text_vs stays 0x1000",
-        "grow need (yoyo): text_vs=align(code+0x40,0x1000); data_rva=0x1000+text_vs; fix import RVAs + lea r15",
-        "yoyo.tyb (~18KiB) still ABSENT — needs full grow beyond mid; ≠ seed_host / ≠ 225KiB bake",
+        "S3.654 cliff: full-grow ABSENT — yoyo needs text_vs≥0x5000, data_rva≠0x2000, lea r15 + import RVA reloc",
+        "full-grow recipe: text_vs=align(code+0x40,0x1000); data_rva=0x1000+text_vs; delta=data_rva-0x2000; patch lea+IDT+data dwords",
+        "host compact(yoyo)≈27648 proves size class; child full-grow ≠ bake blob ≠ densify",
         "handlers/HOT still ABSENT after grow (seed_host 788) — grow ≠ M4",
     ]
 }
@@ -15278,6 +15281,48 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("592") && s.contains("SET+ADD+SUB+NOP")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.654: full-grow cliff — host compact(yoyo)≈27KiB; child still wide;
+    /// need text_vs expand + lea/IDT reloc (mid-grow insufficient). ready=false.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_pe_link_full_grow_yoyo_absent_cliff_pin() {
+        assert_eq!(S3_COMPACT_MID_GROW_CAP, 0xFB3);
+        assert!(!yoyo_pe_link_grow_in_child_ready());
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
+        let prog = crate::s1_tyb_parser::parse_tyb(&yoyo).unwrap();
+        let out = crate::s1_tyb_parser::emit_x86(&prog);
+        assert!(out.text.len() as u32 > S3_COMPACT_MID_GROW_CAP);
+        let compact = crate::pe_link::link_pe_win32_compact(&out.text, &out.data, &[])
+            .unwrap()
+            .bytes;
+        assert!(compact.len() > 20_000 && compact.len() < 40_000);
+        let wide = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&yoyo)
+            .unwrap()
+            .bytes;
+        let dir = temp_work("s654-full-grow");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
+        assert!(std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap()
+            .success());
+        assert_eq!(
+            std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
+            wide,
+            "yoyo still wide — full-grow ABSENT"
+        );
+        assert_ne!(wide.len(), compact.len());
+        assert!(yoyo_pe_link_grow_in_child_design()
+            .iter()
+            .any(|s| s.contains("S3.654") || s.contains("full-grow")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.654")));
+        assert!(!yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 

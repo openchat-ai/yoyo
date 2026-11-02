@@ -4,7 +4,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.654**（653=mid-grow≤0xFB3；下一刀=full grow / yoyo→compact / M4）。
+**默认** 继续 **= S3.655**（654=full-grow cliff；下一刀=implement text_vs expand + RVA reloc / yoyo compact）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -24,7 +24,7 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3** ⏳ | child parse1 扩 ISA · 真自举不排假工期 |
 | **S4/S5** | 全 ISA / 形式化 · 地图 |
 
-**诚实底线**：CreateProcess(yoyo.tyb) GREEN ≠ pe_link-in-child ≠ M4。mid-grow ≤0xFB3 ≠ yoyo full-grow。
+**诚实底线**：CreateProcess(yoyo.tyb) GREEN ≠ pe_link-in-child ≠ M4。mid-grow ≠ full-grow（yoyo）。
 
 ### 波段 tip（更早单刀已折）
 
@@ -32,10 +32,10 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | --- | --- | --- |
 | **S3.1–630** ✅ | `3809e18` | fixed10→parse1→any-slot→text4KiB |
 | **S3.631–638** ✅ | `3227356` | yoyo.tyb child→CreateProcess GREEN |
-| **S3.639–653** ✅ | — | compact→**mid-grow≤0xFB3** |
-| **S3.654** ⏳ | — | **本步**：full grow / yoyo→compact |
+| **S3.639–654** ✅ | — | compact→mid-grow→**full-grow cliff** |
+| **S3.655** ⏳ | — | **本步**：full-grow implement（text_vs+RVA） |
 
-**缺口**：yoyo full-grow **ABSENT**（text_vs expand）；M4 **ABSENT**。`ready=false`。bake=362。
+**缺口**：full-grow **ABSENT**；M4 **ABSENT**。`ready=false`。bake=362。
 
 ---
 
@@ -52,9 +52,9 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 
 ## 对 AI
 
-- 继续 → **S3.654**（full grow / yoyo compact；禁 densify / 假 CLOSED / 单抬 slim-cap / 225KiB bake）。S3.653=mid-grow。红了记根因停。
+- 继续 → **S3.655**（full-grow implement；禁 densify / 假 CLOSED / 单抬 slim-cap / 225KiB bake）。S3.654=cliff。红了记根因停。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
 
-*post-v1.0 · 收纳板 · tip S3.654*
+*post-v1.0 · 收纳板 · tip S3.655*
