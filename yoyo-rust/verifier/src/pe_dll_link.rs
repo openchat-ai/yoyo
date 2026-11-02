@@ -568,6 +568,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.665 DONE: child need_h00 scan (H_20/H_21); H00 emit ABSENT (falls compact)",
         "S3.666 DONE: H_20 off captured @[rsp+0x68]; H00 emit ABSENT",
         "S3.667 cliff: H00 emit = 0x38000 data floor + h00_main + entry JMP (≠ compact grow)",
+        "S3.668 DONE: host H00 PE len recipe; child alloc/emit ABSENT",
         "today: CreateProcess yoyo.tyb GREEN; empty-handler compact DONE; H00 PE/M4/in-DLL live ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
@@ -619,6 +620,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.665: child need_h00 scan DONE; H00 emit ABSENT — ≠ M4",
         "S3.666: H_20 off capture DONE; H00 emit ABSENT — ≠ M4",
         "S3.667: H00 emit cliff (0x38000 floor + h00_main) — ≠ M4",
+        "S3.668: host H00 PE len DONE; child alloc/emit ABSENT — ≠ M4",
     ]
 }
 
@@ -626,6 +628,15 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
 /// Child H00 emit must allocate ≥ this — not mid/full-grow compact.
 #[cfg(windows)]
 pub const S3_H00_DATA_FLOOR: u32 = 0x38000;
+
+/// S3.668: host sizing — H00 PE byte length ≡ `s3_h00_pe_recipe` / seed.
+/// Child VirtualAlloc for need_h00 must use this (not compact mid/full total).
+#[cfg(windows)]
+pub fn s3_h00_pe_len(code: &[u8], data: &[u8], handler_offsets: &[(u16, u32, u32)]) -> usize {
+    s3_h00_pe_recipe(code, data, handler_offsets)
+        .map(|b| b.len())
+        .unwrap_or(0)
+}
 
 /// S3.640: pe_link-in-child ready? Always false while blockers remain.
 pub fn yoyo_pe_link_in_child_ready() -> bool {
@@ -691,7 +702,8 @@ pub fn yoyo_h00_in_child_design() -> &'static [&'static str] {
         "S3.665 DONE: child scans scratch HOT for H_20/H_21 → [rsp+0x64] need_h00; emit still ABSENT",
         "S3.666 DONE: capture H_20 off → [rsp+0x68] during scan; H00 emit still ABSENT",
         "S3.667 cliff: H00 emit needs OUTPUT_DATA_NEED(0x38000) floor + h00_main append + entry JMP; ≠ compact",
-        "child must: need_h00 → H00 link using h20_off (asm ≡ s3_h00_pe_recipe); today → compact_gate",
+        "S3.668 DONE: host s3_h00_pe_len ≡ seed.len(); child VirtualAlloc size known; emit ABSENT",
+        "child must: need_h00 → alloc s3_h00_pe_len + fill ≡ s3_h00_pe_recipe; today → compact_gate",
         "baking seed_host PE / densify h00_main hex = sheep; ≠ raise slim-cap",
         "S3.663 cliff: H00-in-child emit ABSENT — empty compact ≠ seed parity ≠ M4",
     ]
@@ -15812,6 +15824,48 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let y_got = s3_compact_full_grow_from_tmpl(&tmpl, &yout.text, &yout.data);
         assert_eq!(y_got.len(), y_expect.len());
         assert_eq!(y_got, y_expect, "yoyo recipe ≡ compact");
+    }
+
+    /// S3.668: host s3_h00_pe_len ≡ seed.len(); child still empty-handler.
+    /// ready=false; ≠ M4; densify≠; bake≠.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_h00_pe_len_recipe_pin() {
+        assert!(!yoyo_h00_in_child_ready());
+        assert!(yoyo_h00_in_child_design()
+            .iter()
+            .any(|s| s.contains("S3.668")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.668")));
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("S3.668")));
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
+        let out = crate::executor::compile_tyb_source(
+            &yoyo,
+            crate::platform::PlatformKind::Win32,
+        )
+        .expect("compile");
+        let seed = crate::selfhost::seed_host_compile(&yoyo).expect("seed");
+        let n = s3_h00_pe_len(&out.code, &out.data, &out.handler_offsets);
+        assert_eq!(n, seed.len(), "s3_h00_pe_len ≡ seed");
+        assert!(n as u32 >= S3_H00_DATA_FLOOR);
+        let empty = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&yoyo)
+            .unwrap()
+            .bytes;
+        assert_ne!(n, empty.len());
+        let dir = temp_work("s668-h00-len");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
+        assert!(std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap()
+            .success());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        assert!(!yoyo_m4_production_flip_ready());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.667: H00 emit cliff — seed uses 0x38000 data floor; compact ≪ seed;
