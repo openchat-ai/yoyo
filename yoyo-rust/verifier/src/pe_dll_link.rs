@@ -559,7 +559,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.656 cliff: HOT/handler_offsets emit ABSENT — child compact ≡ empty handlers; seed_host has HOT/H00",
         "S3.657 DONE: dissect HOT gap (yoyo handlers+H_20/H_21; seed≫compact); emit still ABSENT",
         "S3.658 cliff: HOT wire format named (build_hot); emit ABSENT",
-        "S3.659 cliff: parse1 scratch has no handler_offsets region (still 0x4100 labels/patches)",
+        "S3.659 cliff: parse1 scratch had no handler region",
+        "S3.660 DONE: scratch→0x6000 + HOT @0x4040 reserved; collect/emit ABSENT",
         "today: CreateProcess yoyo.tyb GREEN; empty-handler compact DONE; HOT/M4/in-DLL live ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
@@ -603,6 +604,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.657: HOT gap dissected (handlers+H_20/H_21 named); emit ABSENT",
         "S3.658: HOT wire format (build_hot) named; emit ABSENT",
         "S3.659: parse1 scratch handler_offsets region ABSENT",
+        "S3.660: scratch→0x6000 + HOT@0x4040 reserved; collect ABSENT",
     ]
 }
 
@@ -638,8 +640,10 @@ pub fn yoyo_hot_in_child_design() -> &'static [&'static str] {
         "seed_host_compile(yoyo) emits HOT/H_00 (H_20/H_21 markers); size/shape ≠ empty-handler compact",
         "S3.657 DONE: dissect — yoyo handler_offsets non-empty + H_20/H_21; seed PE ≫ empty compact",
         "S3.658 cliff: HOT wire format = build_hot — per entry u16 hh + u32 off + u16 len; term 0xFFFF",
-        "S3.659 cliff: parse1 scratch 0x4100 has labels/patches/data_len — no handler_offsets region",
-        "HOT emit needs: scratch slot for (hh,off,len)[] + collect during parse1 + pe_link H00 or equiv",
+        "S3.659 cliff: parse1 scratch 0x4100 had no handler region",
+        "S3.660 DONE: scratch 0x4100→0x6000; HOT region @+0x4040 reserved (collect still ABSENT)",
+        "yoyo ≈788 handlers → HOT ≈6306B (n*8+2); fits 0x6000-0x4040",
+        "HOT emit needs: collect (hh,off,len) into scratch+0x4040 during parse1 + pe_link H00 or equiv",
         "baking seed_host blob into child = sheep; densify≠; HOT ≠ raise slim-cap",
         "S3.656 cliff: HOT-in-child ABSENT — empty-handler compact ≠ M4",
     ]
@@ -760,6 +764,12 @@ const S3_COMPACT_HEADERS: u32 = 0x400;
 const S3_COMPACT_PE_OPT: u32 = 0x98;
 #[cfg(windows)]
 const S3_COMPACT_PE_SECT_TEXT: u32 = 0x188;
+/// S3.660: parse1 scratch size — was 0x4100 (labels/patches); +HOT room.
+#[cfg(windows)]
+const S3_PARSE1_SCRATCH_LEN: u32 = 0x6000;
+/// S3.660: handler_offsets table in scratch — n @+0, entries[hh,u32 off,u16 len] @+8.
+#[cfg(windows)]
+const S3_PARSE1_HOT_SCRATCH_OFF: u32 = 0x4040;
 
 /// S3.655 host recipe: grow compact tmpl → full PE (text_vs/data_rva/lea/IDT).
 /// Relocates only IAT prefix dwords in `[TMPL_DATA_VA, TMPL_DATA_VA+TMPL_DATA_RAW)`.
@@ -1761,12 +1771,14 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xB9]); // mov ecx, S3_PARSE1_TEXT_ZERO
     c.extend_from_slice(&S3_PARSE1_TEXT_ZERO.to_le_bytes());
     c.extend_from_slice(&[0xF3, 0xAA]);
-    // S3.607/S3.628/S3.629: scratch VA for label/patch tables (≠ PE image).
+    // S3.607/S3.628/S3.629/S3.660: scratch VA for label/patch (+ HOT room).
     // S3.629: labels/patches 256→1024 (covers yoyo.tyb 788 LABELs).
     // layout: +0 nlabels, +4 npatches, +0x10 labels[1024×8], +0x2010 patches[1024×8]
     // +0x4020 JCC cc[10], +0x4030 data_cursor, +0x4038 data_len
+    // S3.660: +0x4040 nhot, +0x4048 handlers[] (room for ~788×8+2; collect ABSENT)
     c.extend_from_slice(&[0x31, 0xC9]);
-    c.extend_from_slice(&[0xBA, 0x00, 0x41, 0x00, 0x00]); // 0x4100
+    c.extend_from_slice(&[0xBA]); // mov edx, S3_PARSE1_SCRATCH_LEN
+    c.extend_from_slice(&S3_PARSE1_SCRATCH_LEN.to_le_bytes());
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xB9, 0x04, 0x00, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xFF, 0x97, 0x00, 0x00, 0x00, 0x00]);
@@ -1776,13 +1788,18 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x48, 0x89, 0x44, 0x24, 0x48]); // [rsp+0x48]=scratch
     c.extend_from_slice(&[0x48, 0x89, 0xC7]);
     c.extend_from_slice(&[0x31, 0xC0]);
-    c.extend_from_slice(&[0xB9, 0x00, 0x41, 0x00, 0x00]);
+    c.extend_from_slice(&[0xB9]); // mov ecx, S3_PARSE1_SCRATCH_LEN
+    c.extend_from_slice(&S3_PARSE1_SCRATCH_LEN.to_le_bytes());
     c.extend_from_slice(&[0xF3, 0xAA]); // zero scratch
     // S3.609/S3.629: JCC cc table at scratch+0x4020
     c.extend_from_slice(&[0x48, 0x8B, 0x44, 0x24, 0x48]);
     c.extend_from_slice(&[0xC7, 0x80, 0x20, 0x40, 0x00, 0x00, 0x84, 0x85, 0x8C, 0x8D]);
     c.extend_from_slice(&[0xC7, 0x80, 0x24, 0x40, 0x00, 0x00, 0x8E, 0x8F, 0x82, 0x83]);
     c.extend_from_slice(&[0x66, 0xC7, 0x80, 0x28, 0x40, 0x00, 0x00, 0x86, 0x87]);
+    // S3.660: nhot=0 at HOT region (collect ABSENT)
+    c.extend_from_slice(&[0xC7, 0x80]); // mov dword [rax+HOT_OFF], 0
+    c.extend_from_slice(&S3_PARSE1_HOT_SCRATCH_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]);
     c.extend_from_slice(&[0x48, 0x8B, 0x74, 0x24, 0x50]); // rsi = TYB
     c.extend_from_slice(&[0x0F, 0xB7, 0x4E, 0x06]); // movzx ecx, word [rsi+6]
     c.extend_from_slice(&[0x85, 0xC9]);
@@ -15581,42 +15598,29 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(y_got, y_expect, "yoyo recipe ≡ compact");
     }
 
-    /// S3.659: parse1 scratch has no handler_offsets region (0x4100 =
-    /// labels/patches/data only). HOT collect ABSENT. ready=false; ≠ M4.
+    /// S3.660: scratch grown 0x4100→0x6000; HOT region @0x4040 reserved.
+    /// Collect still ABSENT; child empty-handler. ready=false; ≠ M4.
     #[test]
     #[cfg(windows)]
-    fn yoyo_hot_parse1_scratch_handlers_absent_cliff_pin() {
+    fn yoyo_hot_parse1_scratch_grow_hot_region_pin() {
+        assert_eq!(S3_PARSE1_SCRATCH_LEN, 0x6000);
+        assert_eq!(S3_PARSE1_HOT_SCRATCH_OFF, 0x4040);
+        assert!(S3_PARSE1_HOT_SCRATCH_OFF + 6306 < S3_PARSE1_SCRATCH_LEN);
         assert!(!yoyo_hot_in_child_ready());
         let src = include_str!("pe_dll_link.rs");
-        assert!(src.contains("0x4100") || src.contains("BA, 0x00, 0x41"));
-        assert!(src.contains("0x4038"), "data_len at scratch+0x4038");
-        // marker concat so this assert text ≠ the real const name
-        let marker = ["S3_PARSE1_", "HOT_SCRATCH_OFF"].concat();
-        assert!(!src.contains(&marker), "no HOT scratch const yet");
-        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
-        let out = crate::executor::compile_tyb_source(
-            &yoyo,
-            crate::platform::PlatformKind::Win32,
-        )
-        .unwrap();
-        let hot_need = out.handler_offsets.len() * 8 + 2;
-        // yoyo ≈788 handlers → HOT ≈6306B; needs scratch grow past 0x4100
-        assert!(
-            hot_need > 0x1000 && hot_need < 0x4000,
-            "HOT bytes need scratch expand (got {hot_need}; n={})",
-            out.handler_offsets.len()
-        );
+        assert!(src.contains("S3_PARSE1_SCRATCH_LEN"));
+        assert!(src.contains("S3_PARSE1_HOT_SCRATCH_OFF"));
         assert!(yoyo_hot_in_child_design()
             .iter()
-            .any(|s| s.contains("S3.659") || s.contains("scratch")));
+            .any(|s| s.contains("S3.660")));
         assert!(yoyo_child_live_compose_design()
             .iter()
-            .any(|s| s.contains("S3.659")));
-        // child still empty-handler compact
+            .any(|s| s.contains("S3.660")));
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
         let empty = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&yoyo)
             .unwrap()
             .bytes;
-        let dir = temp_work("s659-hot-scratch");
+        let dir = temp_work("s660-scratch-grow");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
         assert!(std::process::Command::new(&path)
@@ -15625,8 +15629,32 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .unwrap()
             .success());
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        // mid-grow still OK
+        let mid = crate::s1_tyb_parser::s3_n_nops_ret_tyb(0x400);
+        let mid_e = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&mid)
+            .unwrap()
+            .bytes;
+        std::fs::write(dir.join("input.tyb"), &mid).unwrap();
+        assert!(std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap()
+            .success());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), mid_e);
         assert!(!yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.659: historical — scratch once had no HOT region (superseded by S660).
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_hot_parse1_scratch_handlers_absent_cliff_pin() {
+        assert!(!yoyo_hot_in_child_ready());
+        assert!(yoyo_hot_in_child_design()
+            .iter()
+            .any(|s| s.contains("S3.659")));
+        assert!(include_str!("pe_dll_link.rs").contains("S3_PARSE1_HOT_SCRATCH_OFF"));
+        assert!(!yoyo_m4_production_flip_ready());
     }
 
     /// S3.658: HOT wire format cliff — `build_hot` layout named (hh/off/len +
