@@ -548,7 +548,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.645 DONE: host link_pe_win32_compact (no 0x38000 floor); child still ≠ compact emit",
         "S3.646 DONE: child 3nop→compact pe_link bake special-case (9728≪225KiB); parse1 general still wide RET",
         "S3.647 DONE: parse1 finalize→compact tmpl patch (text_len==4 gate); early 3nop bake removed; cap widen ABSENT",
-        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child ABSENT (parse1→compact gate=4; yoyo wide); M4 ABSENT",
+        "S3.648 DONE: parse1→compact gate widened to CAP(≤0x1F3); child_expect helper; yoyo.tyb still wide; .data→wide",
+        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child ABSENT (parse1→compact ≤CAP; yoyo/.data wide); M4 ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -578,7 +579,8 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.643: link_emit(3nop)≈225KiB — baking into child = sheep; need minimal pe_link or in-child linker, not seed blob",
         "S3.645: host link_pe_win32_compact GREEN (no 0x38000 floor)",
         "S3.646: child 3nop→compact bake DONE",
-        "S3.647: parse1→compact tmpl patch gate=text_len==4 DONE; widen cap / .data / in-child linker ABSENT",
+        "S3.647: parse1→compact tmpl patch gate=text_len==4 DONE",
+        "S3.648: gate→CAP DONE; .data programs still wide RET; full in-child linker / M4 ABSENT",
     ]
 }
 
@@ -666,9 +668,9 @@ const S3_COMPACT_TEXT_PAYLOAD_OFF: u32 = 0x40D;
 /// S3.647: compact `.text` raw size 0x200 − startup 13 → user cap.
 #[cfg(windows)]
 const S3_COMPACT_TEXT_CAP: u32 = 0x200 - 13; // 0x1F3
-/// S3.647 gate: only text_len==4 (3nop) takes parse1→compact; widen later.
+/// S3.648: parse1→compact when `data_len==0 && text_len≤CAP` (was gate==4 in S3.647).
 #[cfg(windows)]
-const S3_COMPACT_GATE_TEXT_LEN: u32 = 4;
+const S3_COMPACT_GATE_TEXT_LEN: u32 = S3_COMPACT_TEXT_CAP;
 
 /// Build fixed10 + multi-op compile-in-child EXE (S3.548/S3.551).
 ///
@@ -864,7 +866,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let mut fm_pe_meta: Vec<(u8, u32, u32)> = Vec::new(); // (op, pe_off, pe_len)
     for &op in &[0x00u8, 0x60, 0x66, 0x62, 0x67, 0x61, 0x64, 0x65] {
         let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
-        let pe = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)?.bytes;
+        let pe = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)?.bytes;
         while data.len() % 16 != 0 {
             data.push(0);
         }
@@ -908,7 +910,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     ];
     let mut extras: Vec<(u32, u32, u32, u32)> = Vec::new();
     let mut bake_row = |tyb: Vec<u8>, extras: &mut Vec<(u32, u32, u32, u32)>, data: &mut Vec<u8>| -> crate::types::IsaResult<()> {
-        let pe = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)?.bytes;
+        let pe = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)?.bytes;
         while data.len() % 16 != 0 {
             data.push(0);
         }
@@ -2894,10 +2896,10 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let jne_parse1_wide_w = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x60]); // mov eax,[rsp+0x60] text_len
-    c.extend_from_slice(&[0x3D]); // cmp eax, GATE
+    c.extend_from_slice(&[0x3D]); // cmp eax, CAP
     c.extend_from_slice(&S3_COMPACT_GATE_TEXT_LEN.to_le_bytes());
     let jne_parse1_wide_w2 = c.len();
-    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]); // ja wide (S3.648: ≤CAP → compact)
     // save wide pe*; text_len already at [rsp+0x60]
     c.extend_from_slice(&[0x48, 0x89, 0x5C, 0x24, 0x50]); // mov [rsp+0x50], rbx
     c.extend_from_slice(&[0x31, 0xC9]); // xor ecx,ecx
@@ -13847,7 +13849,7 @@ mod tests {
         );
         // SET+RET via emit2/parse1 → mini_emit (expanded template)
         let sr_tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x30);
-        let sr_expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&sr_tyb)
+        let sr_expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&sr_tyb)
             .expect("emit setret")
             .bytes;
         let dir = temp_work("s546-setret-compile");
@@ -13983,7 +13985,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
                     crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED,
                 )
             } else {
-                crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+                crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                     .expect("emit")
                     .bytes
             };
@@ -14020,7 +14022,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let dll = link_yoyo_in_dll_recompile_dll(&entries).expect("dll");
         for &op in &[0x00u8, 0x60u8] {
             let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14073,7 +14075,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let chains: [&[u8]; 2] = [&[0x30, 0x62], &[0x30, 0x60]];
         for ops in &chains {
             let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(ops);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14091,7 +14093,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         }
         // in-DLL CreateProcess SET+ADD+RET
         let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x62]);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14116,7 +14118,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let chains: [&[u8]; 2] = [&[0x30, 0x62, 0x61], &[0x00, 0x66, 0x67]];
         for ops in &chains {
             let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(ops);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14134,7 +14136,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         }
         // in-DLL SET+ADD+SUB+RET
         let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x62, 0x61]);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14161,7 +14163,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         let ops: &[u8] = &[0x30, 0x62, 0x61, 0x00];
         let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(ops);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14213,7 +14215,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let chains: [&[u8]; 2] = [&[0x30, 0x64], &[0x30, 0x65, 0x64]];
         for ops in &chains {
             let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(ops);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14280,7 +14282,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let dir = temp_work("s568-multi-absent");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x62]);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14322,7 +14324,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let dir = temp_work("s574-emit1-nop");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x00);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14335,7 +14337,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
         // INC also emit1 (S3.575) — still GREEN vs emit-bake
         let tyb_inc = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x66);
-        let expect_inc = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_inc)
+        let expect_inc = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb_inc)
             .expect("emit")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb_inc).unwrap();
@@ -14364,7 +14366,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         for &op in &[0x66u8, 0x67] {
             let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14378,7 +14380,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         }
         // ADD now emit1 (S3.576) — still GREEN
         let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x62);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14405,7 +14407,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         for &op in &[0x60u8, 0x62, 0x61, 0x30] {
             let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14419,7 +14421,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         }
         // MOV now emit1 (S3.577) — still GREEN
         let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x64);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14453,7 +14455,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
                     crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED,
                 )
             } else {
-                crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+                crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                     .expect("emit")
                     .bytes
             };
@@ -14468,7 +14470,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         }
         // SET+ADD now emit1 (S3.578) — still GREEN
         let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x62]);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14494,7 +14496,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let dir = temp_work("s578-emit1-sa");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x62]);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14507,7 +14509,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
         // SET+GET now emit1 (S3.579) — still GREEN
         let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x60]);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14534,7 +14536,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         for ops in [&[0x30u8, 0x62][..], &[0x30, 0x60][..]] {
             let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(ops);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14548,7 +14550,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         }
         // 3-op now emit1 (S3.580) — still GREEN
         let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x62, 0x61]);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14575,7 +14577,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         for ops in [&[0x30u8, 0x62, 0x61][..], &[0x00, 0x66, 0x67][..]] {
             let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(ops);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14589,7 +14591,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         }
         // 4-op now emit1 (S3.581) — still GREEN
         let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x62, 0x61, 0x00]);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14625,7 +14627,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         ];
         for ops in &chains {
             let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(ops);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14677,7 +14679,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let dir = temp_work("s583-emit2-set");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x30);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit set")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14690,7 +14692,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
         let mut tyb_alt = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x30);
         tyb_alt[0x0C..0x10].copy_from_slice(&0x1234_5678u32.to_le_bytes());
-        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_alt)
+        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb_alt)
             .expect("emit")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb_alt).unwrap();
@@ -14719,7 +14721,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         for &op in &[0x62u8, 0x61u8] {
             let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14732,7 +14734,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
             let mut tyb_alt = tyb.clone();
             tyb_alt[0x0C..0x10].copy_from_slice(&0x1234_5678u32.to_le_bytes());
-            let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_alt)
+            let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb_alt)
                 .expect("emit alt")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb_alt).unwrap();
@@ -14750,7 +14752,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         }
         // SET still emit2 / parse1
         let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x30);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit set")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14779,7 +14781,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         for &op in &[0x60u8, 0x64u8] {
             let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14794,7 +14796,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             let mut tyb_alt = tyb.clone();
             tyb_alt[0x0A..0x0C].copy_from_slice(&2u16.to_le_bytes());
             tyb_alt[0x0C..0x0E].copy_from_slice(&3u16.to_le_bytes());
-            let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_alt)
+            let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb_alt)
                 .expect("emit alt")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb_alt).unwrap();
@@ -14827,7 +14829,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let dir = temp_work("s586-emit2-cmp");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x65);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14841,7 +14843,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let mut tyb_alt = tyb.clone();
         tyb_alt[0x0A..0x0C].copy_from_slice(&2u16.to_le_bytes());
         tyb_alt[0x0C..0x0E].copy_from_slice(&5u16.to_le_bytes());
-        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_alt)
+        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb_alt)
             .expect("emit alt")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb_alt).unwrap();
@@ -14870,7 +14872,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         for &op in &[0x66u8, 0x67u8] {
             let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14883,7 +14885,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
             let mut tyb_alt = tyb.clone();
             tyb_alt[0x0A..0x0C].copy_from_slice(&4u16.to_le_bytes());
-            let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_alt)
+            let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb_alt)
                 .expect("emit alt")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb_alt).unwrap();
@@ -14916,7 +14918,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let dir = temp_work("s588-emit2-sa");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x62]);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         assert_eq!(tyb.len(), 0x20);
@@ -14931,7 +14933,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let mut tyb_alt = tyb.clone();
         tyb_alt[0x0C..0x10].copy_from_slice(&0x1111_2222u32.to_le_bytes());
         tyb_alt[0x14..0x18].copy_from_slice(&0x3333_4444u32.to_le_bytes());
-        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_alt)
+        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb_alt)
             .expect("emit alt")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb_alt).unwrap();
@@ -14959,7 +14961,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let dir = temp_work("s589-emit2-sg");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x60]);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -14974,7 +14976,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         tyb_alt[0x0C..0x10].copy_from_slice(&0x0A0B_0C0Du32.to_le_bytes());
         tyb_alt[0x12..0x14].copy_from_slice(&2u16.to_le_bytes()); // dst
         tyb_alt[0x14..0x16].copy_from_slice(&3u16.to_le_bytes()); // src
-        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_alt)
+        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb_alt)
             .expect("emit alt")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb_alt).unwrap();
@@ -15002,7 +15004,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let dir = temp_work("s590-emit2-sas");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x62, 0x61]);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         assert_eq!(tyb.len(), 0x28);
@@ -15018,7 +15020,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         tyb_alt[0x0C..0x10].copy_from_slice(&0xAAAAu32.to_le_bytes());
         tyb_alt[0x14..0x18].copy_from_slice(&0xBBBBu32.to_le_bytes());
         tyb_alt[0x1C..0x20].copy_from_slice(&0xCCCCu32.to_le_bytes());
-        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_alt)
+        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb_alt)
             .expect("emit alt")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb_alt).unwrap();
@@ -15046,7 +15048,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let dir = temp_work("s591-emit2-nid");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x00, 0x66, 0x67]);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         assert_eq!(tyb.len(), 0x28);
@@ -15061,7 +15063,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let mut tyb_alt = tyb.clone();
         tyb_alt[0x12..0x14].copy_from_slice(&3u16.to_le_bytes()); // INC slot
         tyb_alt[0x1A..0x1C].copy_from_slice(&5u16.to_le_bytes()); // DEC slot
-        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_alt)
+        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb_alt)
             .expect("emit alt")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb_alt).unwrap();
@@ -15089,7 +15091,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let dir = temp_work("s592-emit2-sasn");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x62, 0x61, 0x00]);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         assert_eq!(tyb.len(), 0x30);
@@ -15105,7 +15107,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         tyb_alt[0x0C..0x10].copy_from_slice(&0x1111u32.to_le_bytes());
         tyb_alt[0x14..0x18].copy_from_slice(&0x2222u32.to_le_bytes());
         tyb_alt[0x1C..0x20].copy_from_slice(&0x3333u32.to_le_bytes());
-        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_alt)
+        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb_alt)
             .expect("emit alt")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb_alt).unwrap();
@@ -15179,14 +15181,14 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.647: parse1 finalize→compact template patch (text_len==4 gate);
-    /// early 3nop bake removed; yoyo.tyb still wide; ready=false; ≠ M4.
+    /// S3.647/648: parse1 finalize→compact template patch; S648 widens gate
+    /// to CAP (≤0x1F3); yoyo.tyb still wide; ready=false; ≠ M4.
     #[test]
     #[cfg(windows)]
     fn yoyo_pe_link_parse1_finalize_compact_gate4_pin() {
         assert_eq!(S3_COMPACT_TEXT_PAYLOAD_OFF, 0x40D);
         assert_eq!(S3_COMPACT_TEXT_CAP, 0x1F3);
-        assert_eq!(S3_COMPACT_GATE_TEXT_LEN, 4);
+        assert_eq!(S3_COMPACT_GATE_TEXT_LEN, S3_COMPACT_TEXT_CAP);
         assert!(!yoyo_pe_link_in_child_ready());
         let tyb = crate::s1_tyb_parser::s3_n_nops_ret_tyb(3);
         let compact = crate::s1_tyb_parser::compile_tyb_to_pe_link_compact_emit(&tyb)
@@ -15203,12 +15205,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(
             std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
             compact,
-            "parse1→compact gate=4 ≡ host compact"
+            "parse1→compact ≡ host compact"
         );
-        // 2nop still wide (text_len=3 ≠ gate)
+        // S3.648: 2nop also compact (text_len=3 ≤ CAP)
         let tyb2 = crate::s1_tyb_parser::s3_n_nops_ret_tyb(2);
-        let wide2 = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&tyb2)
-            .expect("wide2")
+        let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb2)
+            .expect("child expect 2nop")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb2).unwrap();
         let st2 = std::process::Command::new(&path)
@@ -15218,14 +15220,15 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(st2.success());
         assert_eq!(
             std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
-            wide2,
-            "2nop text_len≠4 stays wide"
+            expect2,
+            "2nop ≤CAP → compact"
         );
         assert!(yoyo_child_live_compose_design()
             .iter()
-            .any(|s| s.contains("S3.647")));
+            .any(|s| s.contains("S3.647") || s.contains("S3.648")));
         assert!(include_str!("pe_dll_link.rs").contains("S3_COMPACT_GATE_TEXT_LEN"));
         assert!(include_str!("pe_dll_link.rs").contains("parse1_wide_w"));
+        assert!(include_str!("s1_tyb_parser.rs").contains("compile_tyb_to_pe_child_expect"));
         assert!(!yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -15944,7 +15947,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         for &n in &[256u32, 788, 1024] {
             let tyb = crate::s1_tyb_parser::s3_n_labels_ret_tyb(n);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit labels")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -15980,7 +15983,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         for &n in &[1u32, 32, 40, 200] {
             let tyb = crate::s1_tyb_parser::s3_n_labels_ret_tyb(n);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit labels")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -15997,7 +16000,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             );
         }
         let tyb33 = crate::s1_tyb_parser::s3_n_labels_ret_tyb(33);
-        let expect33 = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb33)
+        let expect33 = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb33)
             .expect("emit 33")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb33).unwrap();
@@ -16059,7 +16062,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             (255, 16, 0),
         ] {
             let tyb = crate::s1_tyb_parser::s3_memcpy_data_ret_tyb(dst, src, n);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit mcpd")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -16088,7 +16091,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             (252, 0, 4),
         ] {
             let tyb = crate::s1_tyb_parser::s3_memcpy_state_ret_tyb(dst, src, n);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit mcps")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -16136,7 +16139,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             (16, 255, 0),
         ] {
             let tyb = crate::s1_tyb_parser::s3_stb_ret_tyb(val, base, oo);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit stb")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -16184,7 +16187,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             (16, 255, 0),
         ] {
             let tyb = crate::s1_tyb_parser::s3_ldb_ret_tyb(dd, ss, oo);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit ldb")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -16223,7 +16226,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         for &(a, b) in &[(0u16, 1u16), (15, 14), (16, 0), (255, 16)] {
             let tyb = crate::s1_tyb_parser::s3_cmp_ret_tyb(a, b);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit cmp")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -16241,7 +16244,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         }
         for &(d, s) in &[(0u16, 1u16), (15, 2), (16, 3), (255, 0)] {
             let tyb = crate::s1_tyb_parser::s3_imul_ret_tyb(d, s);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit imul")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -16260,7 +16263,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         for &op in &[0x68u8, 0x69, 0x6A] {
             for &(d, s) in &[(0u16, 1u16), (16, 15), (255, 16)] {
                 let tyb = crate::s1_tyb_parser::s3_aluv_ret_tyb(op, d, s);
-                let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+                let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                     .expect("emit aluv")
                     .bytes;
                 std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -16301,7 +16304,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         for &op in &[0x62u8, 0x61] {
             for &(slot, imm) in &[(0u16, 5u32), (15, 0x11), (16, 0x22), (255, 0x3333)] {
                 let tyb = crate::s1_tyb_parser::s3_addsub_ret_tyb(op, slot, imm);
-                let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+                let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                     .expect("emit addsub")
                     .bytes;
                 std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -16342,7 +16345,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         for &op in &[0x66u8, 0x67] {
             for &slot in &[0u16, 15, 16, 255] {
                 let tyb = crate::s1_tyb_parser::s3_incdec_ret_tyb(op, slot);
-                let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+                let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                     .expect("emit incdec")
                     .bytes;
                 std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -16389,7 +16392,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             (255, 255),
         ] {
             let tyb = crate::s1_tyb_parser::s3_get_ret_tyb(dst, src);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit get")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -16428,7 +16431,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         for &(slot, imm) in &[(0u16, 0x11u32), (15u16, 0x22), (16u16, 0x33), (255u16, 0x44)] {
             let tyb = crate::s1_tyb_parser::s3_set_ret_tyb(slot, imm);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit set")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -16467,7 +16470,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let dir = temp_work("s618-parse1-mini-cliff");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         let tyb = crate::s1_tyb_parser::s3_raw_bytes_ret_tyb(&[0x90, 0x90]);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit mini")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -16507,7 +16510,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             (0x13u8, &[0xDE, 0xAD, 0xBE][..]),
         ] {
             let tyb = crate::s1_tyb_parser::s3_data_ret_tyb(op, bytes);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit data")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -16557,7 +16560,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
                 None => crate::s1_tyb_parser::s3_write_file_ret_tyb(slot, path_off),
                 Some(z) => crate::s1_tyb_parser::s3_write_file3_ret_tyb(slot, path_off as u16, z),
             };
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit write")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -16596,7 +16599,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         for &(slot, path_off) in &[(0u16, 0u32), (1u16, 0x40u32), (16u16, 0x100u32)] {
             let tyb = crate::s1_tyb_parser::s3_load_file_ret_tyb(slot, path_off);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit load")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -16635,7 +16638,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         for &(slot, size) in &[(0u16, 0x1000u32), (1u16, 0x100u32), (16u16, 0x20u32)] {
             let tyb = crate::s1_tyb_parser::s3_alloc_ret_tyb(slot, size);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit alloc")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -16674,7 +16677,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         for &(val, base, oo) in &[(0u16, 1u16, 0u16), (2u16, 3u16, 5u16), (4u16, 5u16, 200u16)] {
             let tyb = crate::s1_tyb_parser::s3_stb_ret_tyb(val, base, oo);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit stb")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -16713,7 +16716,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         for &(dst, src, n) in &[(0u16, 4u16, 1u16), (1u16, 8u16, 2u16), (0u16, 4u16, 4u16)] {
             let tyb = crate::s1_tyb_parser::s3_memcpy_state_ret_tyb(dst, src, n);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit mcps")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -16752,7 +16755,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         for &(dst, src, n) in &[(0u16, 1u16, 2u16), (3u16, 5u16, 7u16)] {
             let tyb = crate::s1_tyb_parser::s3_memcpy_data_ret_tyb(dst, src, n);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit mcpd")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -16791,7 +16794,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         for bytes in [&[0x90u8][..], &[0x90, 0x90][..], &[0xCC, 0xDD, 0xEE][..]] {
             let tyb = crate::s1_tyb_parser::s3_raw_bytes_ret_tyb(bytes);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit raws")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -16832,7 +16835,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         for &jcc in &[0x71u8, 0x72, 0x7A] {
             let tyb = crate::s1_tyb_parser::s3_label_jcc_ret_tyb(jcc, 1);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit back")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -16848,7 +16851,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
                 "JCC {jcc:#x} back"
             );
             let tyb2 = crate::s1_tyb_parser::s3_jcc_label_ret_tyb(jcc, 3);
-            let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb2)
+            let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb2)
                 .expect("emit fwd")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb2).unwrap();
@@ -16882,7 +16885,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let dir = temp_work("s608-parse1-call");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         let tyb = crate::s1_tyb_parser::s3_label_nop_call_ret_tyb(1);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit back")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -16894,7 +16897,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(st.success(), "parse1 LABEL+NOP+CALL exit {:?}", st.code());
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
         let tyb2 = crate::s1_tyb_parser::s3_call_label_ret_tyb(7);
-        let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb2)
+        let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb2)
             .expect("emit fwd")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb2).unwrap();
@@ -16907,7 +16910,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect2);
         // JMP still GREEN
         let tyb3 = crate::s1_tyb_parser::s3_jmp_label_ret_tyb(2);
-        let expect3 = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb3)
+        let expect3 = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb3)
             .expect("emit jmp")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb3).unwrap();
@@ -16937,7 +16940,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         // LABEL+NOP+JMP+RET (back-edge)
         let tyb = crate::s1_tyb_parser::s3_label_nop_jmp_ret_tyb(1);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit back")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -16950,7 +16953,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
         // JMP+LABEL+RET (forward-ref)
         let tyb2 = crate::s1_tyb_parser::s3_jmp_label_ret_tyb(7);
-        let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb2)
+        let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb2)
             .expect("emit fwd")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb2).unwrap();
@@ -16963,7 +16966,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect2);
         // LABEL-only still GREEN
         let tyb3 = crate::s1_tyb_parser::s3_label_ret_tyb(3);
-        let expect3 = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb3)
+        let expect3 = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb3)
             .expect("emit label")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb3).unwrap();
@@ -16994,7 +16997,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         // 5×NOP+RET = size 0x38 (beyond size table)
         let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x00, 0x00, 0x00, 0x00, 0x00]);
         assert_eq!(tyb.len(), 0x38);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit 5nop")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -17008,7 +17011,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         // SET+ADD+SUB+NOP+INC+RET size 0x38 mixed
         let tyb2 = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x62, 0x61, 0x00, 0x66]);
         assert_eq!(tyb2.len(), 0x38);
-        let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb2)
+        let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb2)
             .expect("emit mix")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb2).unwrap();
@@ -17021,7 +17024,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect2);
         // size 0x18 still GREEN
         let tyb3 = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x00);
-        let expect3 = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb3)
+        let expect3 = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb3)
             .expect("emit nop")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb3).unwrap();
@@ -17052,7 +17055,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         // LDB dd0 ss0 oo0 + RET
         let tyb = crate::s1_tyb_parser::s3_ldb_ret_tyb(0, 0, 0);
         assert_eq!(tyb.len(), 0x18);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit ldb0")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -17065,7 +17068,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
         // LDB dd1 ss2 oo5
         let tyb2 = crate::s1_tyb_parser::s3_ldb_ret_tyb(1, 2, 5);
-        let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb2)
+        let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb2)
             .expect("emit ldb oo")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb2).unwrap();
@@ -17078,7 +17081,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect2);
         // LABEL still GREEN
         let tyb_l = crate::s1_tyb_parser::s3_label_ret_tyb(3);
-        let expect_l = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_l)
+        let expect_l = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb_l)
             .expect("emit label")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb_l).unwrap();
@@ -17109,7 +17112,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         // LABEL+RET → .text = C3 only
         let tyb = crate::s1_tyb_parser::s3_label_ret_tyb(7);
         assert_eq!(tyb.len(), 0x18);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit label")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -17123,7 +17126,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         // LABEL+NOP+RET (size 0x20)
         let tyb2 = crate::s1_tyb_parser::s3_label_chain_ret_tyb(1, &[0x00]);
         assert_eq!(tyb2.len(), 0x20);
-        let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb2)
+        let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb2)
             .expect("emit ln")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb2).unwrap();
@@ -17136,7 +17139,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect2);
         // LABEL+RAW_BYTE+RET
         let tyb3 = crate::s1_tyb_parser::s3_label_chain_ret_tyb(2, &[0xA0]);
-        let expect3 = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb3)
+        let expect3 = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb3)
             .expect("emit lr")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb3).unwrap();
@@ -17171,7 +17174,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             // 0xC3 as RAW_BYTE before RET → .text = C3 C3 (RAW then RET)
             let tyb = crate::s1_tyb_parser::s3_raw_byte_ret_tyb(b);
             assert_eq!(tyb.len(), 0x18);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit rawb")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -17207,7 +17210,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         for &op in &[0x68u8, 0x69, 0x6A] {
             let tyb = crate::s1_tyb_parser::s3_aluv_ret_tyb(op, 0, 1);
             assert_eq!(tyb.len(), 0x18);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit aluv")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -17225,7 +17228,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         }
         // alt slots ADDV dst=2 src=4
         let tyb_alt = crate::s1_tyb_parser::s3_aluv_ret_tyb(0x68, 2, 4);
-        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_alt)
+        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb_alt)
             .expect("emit alt")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb_alt).unwrap();
@@ -17238,7 +17241,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect_alt);
         // IMUL still GREEN
         let tyb_i = crate::s1_tyb_parser::s3_imul_ret_tyb(0, 1);
-        let expect_i = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_i)
+        let expect_i = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb_i)
             .expect("emit imul")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb_i).unwrap();
@@ -17269,7 +17272,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         // IMUL dst0←src1 + RET
         let tyb = crate::s1_tyb_parser::s3_imul_ret_tyb(0, 1);
         assert_eq!(tyb.len(), 0x18);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit imul")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -17282,7 +17285,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
         // alt slots dst=2 src=3
         let tyb_alt = crate::s1_tyb_parser::s3_imul_ret_tyb(2, 3);
-        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_alt)
+        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb_alt)
             .expect("emit alt")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb_alt).unwrap();
@@ -17295,7 +17298,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect_alt);
         // fixed10 still GREEN (NOP+RET)
         let tyb_nop = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x00);
-        let expect_nop = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_nop)
+        let expect_nop = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb_nop)
             .expect("emit nop")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb_nop).unwrap();
@@ -17329,7 +17332,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         for &op in &[0x00u8, 0x30, 0x60, 0x61, 0x62, 0x64, 0x65, 0x66, 0x67] {
             let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -17348,7 +17351,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         // SET alt imm
         let mut tyb_alt = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x30);
         tyb_alt[0x0C..0x10].copy_from_slice(&0xCAFEBABEu32.to_le_bytes());
-        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_alt)
+        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb_alt)
             .expect("emit alt")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb_alt).unwrap();
@@ -17399,7 +17402,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         ];
         for ops in &chains {
             let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(ops);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -17419,7 +17422,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let mut tyb_alt = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x62]);
         tyb_alt[0x0C..0x10].copy_from_slice(&0x1111_2222u32.to_le_bytes());
         tyb_alt[0x14..0x18].copy_from_slice(&0x3333_4444u32.to_le_bytes());
-        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_alt)
+        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb_alt)
             .expect("emit alt")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb_alt).unwrap();
@@ -17448,7 +17451,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         // SUB+SUB+RET
         let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x61, 0x61]);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         assert_eq!(tyb.len(), 0x20);
@@ -17462,7 +17465,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
         // NOP+CMP+RET
         let tyb2 = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x00, 0x65]);
-        let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb2)
+        let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb2)
             .expect("emit nc")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb2).unwrap();
@@ -17475,7 +17478,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect2);
         // CMP+GET+RET
         let tyb3 = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x65, 0x60]);
-        let expect3 = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb3)
+        let expect3 = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb3)
             .expect("emit cg")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb3).unwrap();
@@ -17488,7 +17491,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect3);
         // single CMP+RET still emit2
         let tyb4 = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x65);
-        let expect4 = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb4)
+        let expect4 = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb4)
             .expect("emit cmp")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb4).unwrap();
@@ -17520,7 +17523,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         // NOP+GET+RET
         let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x00, 0x60]);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         assert_eq!(tyb.len(), 0x20);
@@ -17534,7 +17537,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
         // SET+NOP+RET (size 0x20 SET+≠ADD/GET/MOV → parse1)
         let tyb2 = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x00]);
-        let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb2)
+        let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb2)
             .expect("emit sn")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb2).unwrap();
@@ -17547,7 +17550,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect2);
         // ADD+ADD+RET
         let tyb3 = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x62, 0x62]);
-        let expect3 = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb3)
+        let expect3 = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb3)
             .expect("emit aa")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb3).unwrap();
@@ -17560,7 +17563,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect3);
         // SET+ADD still emit2
         let tyb4 = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x62]);
-        let expect4 = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb4)
+        let expect4 = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb4)
             .expect("emit sa")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb4).unwrap();
@@ -17589,7 +17592,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         // INC+DEC+RET — beyond field table (size 0x20 non-SET)
         let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x66, 0x67]);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         assert_eq!(tyb.len(), 0x20);
@@ -17605,7 +17608,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let mut tyb_alt = tyb.clone();
         tyb_alt[0x0A..0x0C].copy_from_slice(&2u16.to_le_bytes());
         tyb_alt[0x12..0x14].copy_from_slice(&3u16.to_le_bytes());
-        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_alt)
+        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb_alt)
             .expect("emit alt")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb_alt).unwrap();
@@ -17618,7 +17621,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect_alt);
         // NOP+INC+RET
         let tyb2 = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x00, 0x66]);
-        let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb2)
+        let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb2)
             .expect("emit ni")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb2).unwrap();
@@ -17631,7 +17634,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect2);
         // NOP+NOP+RET still
         let tyb3 = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x00, 0x00]);
-        let expect3 = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb3)
+        let expect3 = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb3)
             .expect("emit nn")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb3).unwrap();
@@ -17660,7 +17663,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         // NOP+RET (was emit1; now parse1 loop)
         let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x00);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -17673,7 +17676,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
         // NOP+NOP+RET — beyond finite field table (size 0x20 non-SET)
         let tyb2 = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x00, 0x00]);
-        let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb2)
+        let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb2)
             .expect("emit nn")
             .bytes;
         assert_eq!(tyb2.len(), 0x20);
@@ -17687,7 +17690,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect2);
         // SET+ADD still emit2 (size 0x20 first=SET)
         let tyb3 = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x62]);
-        let expect3 = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb3)
+        let expect3 = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb3)
             .expect("emit sa")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb3).unwrap();
@@ -17721,7 +17724,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         // SET+MOVRR
         let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x64]);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -17736,7 +17739,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         tyb_alt[0x0C..0x10].copy_from_slice(&0xABCD_EF01u32.to_le_bytes());
         tyb_alt[0x12..0x14].copy_from_slice(&2u16.to_le_bytes());
         tyb_alt[0x14..0x16].copy_from_slice(&4u16.to_le_bytes());
-        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_alt)
+        let expect_alt = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb_alt)
             .expect("emit alt")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb_alt).unwrap();
@@ -17749,7 +17752,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect_alt);
         // SET+CMP+MOVRR
         let tyb2 = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x65, 0x64]);
-        let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb2)
+        let expect2 = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb2)
             .expect("emit")
             .bytes;
         assert_eq!(tyb2.len(), 0x28);
@@ -17767,7 +17770,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         tyb2_alt[0x14..0x16].copy_from_slice(&3u16.to_le_bytes());
         tyb2_alt[0x1A..0x1C].copy_from_slice(&2u16.to_le_bytes());
         tyb2_alt[0x1C..0x1E].copy_from_slice(&0u16.to_le_bytes());
-        let expect2_alt = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb2_alt)
+        let expect2_alt = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb2_alt)
             .expect("emit alt2")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb2_alt).unwrap();
@@ -17793,7 +17796,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let dir = temp_work("s569-live2-sa");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x62]);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         assert_eq!(tyb.len(), 0x20);
@@ -17821,7 +17824,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let dir = temp_work("s570-live2-sg");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x60]);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -17847,7 +17850,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let cases: [&[u8]; 3] = [&[0x30, 0x62, 0x61], &[0x00, 0x66, 0x67], &[0x30, 0x64]];
         for ops in cases {
             let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(ops);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -17874,7 +17877,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let cases: [&[u8]; 2] = [&[0x30, 0x62, 0x61, 0x00], &[0x30, 0x65, 0x64]];
         for ops in cases {
             let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(ops);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -17904,7 +17907,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let dir = temp_work("s564-live2-nop");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x00);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -17934,7 +17937,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         for &op in &[0x66u8, 0x67] {
             let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -17964,7 +17967,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         for &op in &[0x60u8, 0x62, 0x61, 0x30] {
             let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -17994,7 +17997,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         for &op in &[0x64u8, 0x65] {
             let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -18031,7 +18034,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let dir = temp_work("s557-live1-nop");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x00);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -18062,7 +18065,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let dir = temp_work("s558-live1-get");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x60);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -18093,7 +18096,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         for &op in &[0x66u8, 0x62u8] {
             let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -18124,7 +18127,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let dir = temp_work("s560-live1-dec");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x67);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -18149,7 +18152,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         for &op in &[0x64u8, 0x65] {
             let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
-            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+            let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                 .expect("emit")
                 .bytes;
             std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -18178,7 +18181,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let dir = temp_work("s562-live1-sub");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x61);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb)
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("emit")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
