@@ -551,7 +551,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.648 DONE: parse1→compact gate widened to CAP(≤0x1F3); child_expect helper; yoyo.tyb still wide; .data→wide",
         "S3.649 cliff: .data→compact ABSENT — parse1 cursor @0x5400 ≠ compact IAT/data_rp; DATA child still wide",
         "S3.650 DONE: IAT-aware compact .data copy (@0x720; cap 0xEE0); yoyo.tyb still wide; in-child linker ABSENT",
-        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child ABSENT (compact≤CAP+data; yoyo wide); M4 ABSENT",
+        "S3.651 cliff: in-child linker / yoyo→compact ABSENT — yoyo text ≫ CAP 0x1F3; tmpl patch ≠ growing pe_link",
+        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child ABSENT (compact≤CAP; yoyo wide); M4 ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -584,7 +585,8 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.647: parse1→compact tmpl patch gate=text_len==4 DONE",
         "S3.648: gate→CAP DONE; .data programs still wide RET",
         "S3.649: .data layout gap named (0x5400≠0x600/0x720)",
-        "S3.650: small .data→compact DONE; yoyo.tyb / oversized still wide; full in-child linker ABSENT",
+        "S3.650: small .data→compact DONE; yoyo.tyb / oversized still wide",
+        "S3.651: in-child linker ABSENT — yoyo text ≫ compact CAP; need growing pe_link not tmpl patch",
     ]
 }
 
@@ -15149,6 +15151,49 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("592") && s.contains("SET+ADD+SUB+NOP")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.651: in-child linker / yoyo→compact ABSENT — yoyo.tyb text ≫
+    /// compact CAP 0x1F3; template patch ≠ growing pe_link. ready=false; ≠ M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_pe_link_in_child_linker_yoyo_compact_absent_cliff_pin() {
+        assert!(!yoyo_pe_link_in_child_ready());
+        assert_eq!(S3_COMPACT_TEXT_CAP, 0x1F3);
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).expect("yoyo.tyb");
+        let wide = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&yoyo)
+            .expect("wide")
+            .bytes;
+        assert_eq!(wide.len() as u32, S3_PARSE1_RET_PE_LEN);
+        let prog = crate::s1_tyb_parser::parse_tyb(&yoyo).unwrap();
+        let out = crate::s1_tyb_parser::emit_x86(&prog);
+        assert!(
+            out.text.len() as u32 > S3_COMPACT_TEXT_CAP,
+            "yoyo text must exceed compact CAP (got {} > {})",
+            out.text.len(),
+            S3_COMPACT_TEXT_CAP
+        );
+        let dir = temp_work("s651-yoyo-wide");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success());
+        assert_eq!(
+            std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
+            wide,
+            "yoyo.tyb still wide RET (not compact)"
+        );
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("S3.651") || s.contains("in-child linker")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.651")));
+        assert!(!yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
