@@ -566,6 +566,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.663 cliff: H00-in-child ABSENT — see yoyo_h00_in_child_design; seed≠compact",
         "S3.664 DONE: host H00 recipe+gate named; child H00 emit ABSENT",
         "S3.665 DONE: child need_h00 scan (H_20/H_21); H00 emit ABSENT (falls compact)",
+        "S3.666 DONE: H_20 off captured @[rsp+0x68]; H00 emit ABSENT",
         "today: CreateProcess yoyo.tyb GREEN; empty-handler compact DONE; H00 PE/M4/in-DLL live ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
@@ -615,6 +616,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.663: H00-in-child ABSENT — see yoyo_h00_in_child_design; ≠ M4",
         "S3.664: host H00 recipe+gate DONE; child H00 emit ABSENT — ≠ M4",
         "S3.665: child need_h00 scan DONE; H00 emit ABSENT — ≠ M4",
+        "S3.666: H_20 off capture DONE; H00 emit ABSENT — ≠ M4",
     ]
 }
 
@@ -680,7 +682,8 @@ pub fn yoyo_h00_in_child_design() -> &'static [&'static str] {
         "S661/662: scratch has (hh,off,len)+term; finalize never reads them for PE shape",
         "S3.664 DONE: host gate s3_handlers_need_h00 + s3_h00_pe_recipe ≡ seed_host; child emit ABSENT",
         "S3.665 DONE: child scans scratch HOT for H_20/H_21 → [rsp+0x64] need_h00; emit still ABSENT",
-        "child must: need_h00 → H00 link (asm ≡ s3_h00_pe_recipe); today falls into compact_gate",
+        "S3.666 DONE: capture H_20 off → [rsp+0x68] during scan; H00 emit still ABSENT",
+        "child must: need_h00 → H00 link using h20_off (asm ≡ s3_h00_pe_recipe); today → compact_gate",
         "baking seed_host PE / densify h00_main hex = sheep; ≠ raise slim-cap",
         "S3.663 cliff: H00-in-child emit ABSENT — empty compact ≠ seed parity ≠ M4",
     ]
@@ -3231,6 +3234,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x4D, 0x8D, 0x8B]); // lea r9,[r11+ENTRIES]
     c.extend_from_slice(&S3_PARSE1_HOT_ENTRIES_OFF.to_le_bytes());
     c.extend_from_slice(&[0x31, 0xC0]); // eax=flags
+    c.extend_from_slice(&[0xC7, 0x44, 0x24, 0x68, 0x00, 0x00, 0x00, 0x00]); // [rsp+0x68]=h20_off
     let parse1_h00_scan_loop = c.len();
     c.extend_from_slice(&[0x85, 0xD2]); // test edx, edx
     let jz_parse1_h00_scan_done = c.len();
@@ -3240,7 +3244,11 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let jne_parse1_h00_chk21 = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
     c.extend_from_slice(&[0x83, 0xC8, 0x01]); // or eax, 1
+    // S3.666: capture H_20 text off (build_hot row +2) → [rsp+0x68]
+    c.extend_from_slice(&[0x41, 0x8B, 0x49, 0x02]); // mov ecx, [r9+2]
+    c.extend_from_slice(&[0x89, 0x4C, 0x24, 0x68]); // [rsp+0x68]=h20_off
     let parse1_h00_chk21 = c.len();
+    c.extend_from_slice(&[0x41, 0x0F, 0xB7, 0x09]); // reload hh (ecx clobbered)
     c.extend_from_slice(&[0x66, 0x83, 0xF9, 0x21]); // cmp cx, 0x21
     let jne_parse1_h00_next = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
@@ -3255,7 +3263,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x0F, 0x94, 0xC0]); // sete al
     c.extend_from_slice(&[0x0F, 0xB6, 0xC0]); // movzx eax, al
     c.extend_from_slice(&[0x89, 0x44, 0x24, 0x64]); // [rsp+0x64]=need_h00
-    // need_h00 → H00-absent stub (S666+ fills); today falls into compact gate
+    // need_h00 → H00-absent stub (emit ABSENT); h20_off ready at [rsp+0x68]
     c.extend_from_slice(&[0x83, 0x7C, 0x24, 0x64, 0x00]); // cmp dword [rsp+0x64], 0
     let jne_parse1_h00_abs = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
@@ -3412,7 +3420,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     // --- S3.655 full-grow: MID < text ≤ FULL; text_vs/data_rva/lea/IDT reloc ---
     // frame 0x78: 48=scratch qword, 50=wide*, 54=data_rp, 58=code_raw, 5C=total,
-    //             60=text_len, 6C=delta, 70=text_vs, 74=data_rva
+    //             60=text_len, 64=need_h00, 68=h20_off, 6C=delta, 70=text_vs, 74=data_rva
     // NEVER write [rsp+0x4C] (hi half of scratch).
     let parse1_full_grow = c.len();
     c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x60]);
@@ -15796,6 +15804,53 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let y_got = s3_compact_full_grow_from_tmpl(&tmpl, &yout.text, &yout.data);
         assert_eq!(y_got.len(), y_expect.len());
         assert_eq!(y_got, y_expect, "yoyo recipe ≡ compact");
+    }
+
+    /// S3.666: H_20 off captured during need_h00 scan ([rsp+0x68]); host
+    /// H_20 off matches; emit still ABSENT. ready=false; ≠ M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_h00_child_h20_off_capture_pin() {
+        assert!(!yoyo_h00_in_child_ready());
+        assert!(yoyo_h00_in_child_design()
+            .iter()
+            .any(|s| s.contains("S3.666")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.666")));
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("S3.666")));
+        let src = include_str!("pe_dll_link.rs");
+        assert!(src.contains("[rsp+0x68]"));
+        assert!(src.contains("h20_off"));
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
+        let out = crate::executor::compile_tyb_source(
+            &yoyo,
+            crate::platform::PlatformKind::Win32,
+        )
+        .expect("compile");
+        let h20 = out
+            .handler_offsets
+            .iter()
+            .find(|(h, _, _)| *h == 0x20)
+            .map(|(_, o, _)| *o)
+            .expect("H_20");
+        assert!(h20 > 0, "H_20 off should be nonzero");
+        let empty = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&yoyo)
+            .unwrap()
+            .bytes;
+        let dir = temp_work("s666-h20-off");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
+        assert!(std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap()
+            .success());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        assert!(!yoyo_m4_production_flip_ready());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.665: child scans scratch HOT for H_20/H_21 → need_h00; still

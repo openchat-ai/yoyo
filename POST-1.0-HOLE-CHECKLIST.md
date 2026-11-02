@@ -4,7 +4,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.666**（665=child need_h00 scan；下一刀=H00 emit 分支填空）。
+**默认** 继续 **= S3.667**（666=H_20 off capture；下一刀=H00 emit / h00_main）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -24,7 +24,7 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3** ⏳ | child parse1 扩 ISA · 真自举不排假工期 |
 | **S4/S5** | 全 ISA / 形式化 · 地图 |
 
-**诚实底线**：empty-handler compact(yoyo) GREEN ≠ seed H00 ≠ M4 ≠ in-DLL live emit。need_h00 scan ≠ H00 emit。
+**诚实底线**：empty-handler compact(yoyo) GREEN ≠ seed H00 ≠ M4 ≠ in-DLL live emit。h20_off ≠ H00 emit。
 
 ### 波段 tip（更早单刀已折）
 
@@ -33,10 +33,10 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3.1–630** ✅ | `3809e18` | fixed10→parse1→any-slot→text4KiB |
 | **S3.631–638** ✅ | `3227356` | yoyo.tyb child→CreateProcess GREEN |
 | **S3.639–655** ✅ | `7f27b15` | compact→mid-grow→**full-grow / yoyo≈27KiB** |
-| **S3.656–665** ✅ | — | HOT→…→**child need_h00 scan** |
-| **S3.666** ⏳ | — | **本步**：H00 emit 分支 |
+| **S3.656–666** ✅ | — | HOT→collect→wire→gate→scan→**H_20 off** |
+| **S3.667** ⏳ | — | **本步**：H00 emit / h00_main |
 
-**缺口**：H00 emit **ABSENT**（scan DONE）；M4 **ABSENT**；in-DLL live emit **ABSENT**。`ready=false`。bake=362。
+**缺口**：H00 emit **ABSENT**（need_h00+h20_off DONE）；M4 **ABSENT**；in-DLL live emit **ABSENT**。`ready=false`。bake=362。
 
 ---
 
@@ -53,9 +53,9 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 
 ## 对 AI
 
-- 继续 → **S3.666**（H00 emit 分支；禁 densify / 假 CLOSED / 单抬 slim-cap / bake seed）。S3.665=need_h00 scan。红了记根因停。
+- 继续 → **S3.667**（H00 emit/h00_main；禁 densify / 假 CLOSED / 单抬 slim-cap / bake seed）。S3.666=h20_off。红了记根因停。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
 
-*post-v1.0 · 收纳板 · tip S3.666*
+*post-v1.0 · 收纳板 · tip S3.667*
