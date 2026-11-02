@@ -549,7 +549,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.646 DONE: child 3nop→compact pe_link bake special-case (9728≪225KiB); parse1 general still wide RET",
         "S3.647 DONE: parse1 finalize→compact tmpl patch (text_len==4 gate); early 3nop bake removed; cap widen ABSENT",
         "S3.648 DONE: parse1→compact gate widened to CAP(≤0x1F3); child_expect helper; yoyo.tyb still wide; .data→wide",
-        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child ABSENT (parse1→compact ≤CAP; yoyo/.data wide); M4 ABSENT",
+        "S3.649 cliff: .data→compact ABSENT — parse1 cursor @0x5400 ≠ compact IAT/data_rp; DATA child still wide",
+        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child ABSENT (no-.data compact; .data/yoyo wide); M4 ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -580,7 +581,8 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.645: host link_pe_win32_compact GREEN (no 0x38000 floor)",
         "S3.646: child 3nop→compact bake DONE",
         "S3.647: parse1→compact tmpl patch gate=text_len==4 DONE",
-        "S3.648: gate→CAP DONE; .data programs still wide RET; full in-child linker / M4 ABSENT",
+        "S3.648: gate→CAP DONE; .data programs still wide RET",
+        "S3.649: .data→compact ABSENT — wide data_rp 0x5400 ≠ compact IAT layout; in-child linker ABSENT",
     ]
 }
 
@@ -15123,6 +15125,56 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("592") && s.contains("SET+ADD+SUB+NOP")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.592"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.649: .data→compact ABSENT cliff — parse1 data cursor @wide 0x5400 ≠
+    /// compact IAT+data_rp; DATA/STR child still wide RET. ready=false; ≠ M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_pe_link_parse1_data_to_compact_absent_cliff_pin() {
+        assert!(!yoyo_pe_link_in_child_ready());
+        assert_eq!(S3_PARSE1_DATA_FILE_OFF, 0x5400);
+        let pe = crate::pe_link::link_pe_win32_compact(&[0xC3], &[], &[])
+            .expect("tmpl")
+            .bytes;
+        let e = u32::from_le_bytes(pe[0x3C..0x40].try_into().unwrap()) as usize;
+        let size_opt = u16::from_le_bytes(pe[e + 20..e + 22].try_into().unwrap()) as usize;
+        let sect = e + 24 + size_opt;
+        let data_rp = u32::from_le_bytes(pe[sect + 40 + 20..sect + 40 + 24].try_into().unwrap());
+        let data_va = u32::from_le_bytes(pe[sect + 40 + 12..sect + 40 + 16].try_into().unwrap());
+        assert_ne!(
+            data_rp, S3_PARSE1_DATA_FILE_OFF,
+            "compact data_rp ({data_rp:#x}) ≠ wide 0x5400 — layout gap"
+        );
+        assert!(data_va >= 0x2000, "compact data VA ({data_va:#x})");
+        // child DATA+RET still wide (data_len≠0 → no compact finalize)
+        let tyb = crate::s1_tyb_parser::s3_data_ret_tyb(0x10, b"hi");
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
+            .expect("child expect data")
+            .bytes;
+        assert_eq!(
+            expect.len() as u32,
+            S3_PARSE1_RET_PE_LEN,
+            "DATA child expect still wide RET"
+        );
+        let dir = temp_work("s649-data-compact");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+        let st = std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("S3.649") || s.contains(".data")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.649")));
+        assert!(!yoyo_m4_production_flip_ready());
+        let _ = (data_rp, pe.len());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
