@@ -558,6 +558,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.655 DONE: child full-grow pe_link (text≤0x4FF3); yoyo→compact≈27KiB; HOT/M4 ABSENT",
         "S3.656 cliff: HOT/handler_offsets emit ABSENT — child compact ≡ empty handlers; seed_host has HOT/H00",
         "S3.657 DONE: dissect HOT gap (yoyo handlers+H_20/H_21; seed≫compact); emit still ABSENT",
+        "S3.658 cliff: HOT wire format named (build_hot); emit ABSENT",
         "today: CreateProcess yoyo.tyb GREEN; empty-handler compact DONE; HOT/M4/in-DLL live ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
@@ -599,6 +600,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.655: full-grow DONE (yoyo→compact); handler_offsets/HOT still ABSENT — ≠ M4",
         "S3.656: HOT/handler_offsets emit ABSENT — see yoyo_hot_in_child_design",
         "S3.657: HOT gap dissected (handlers+H_20/H_21 named); emit ABSENT",
+        "S3.658: HOT wire format (build_hot) named; emit ABSENT",
     ]
 }
 
@@ -633,6 +635,7 @@ pub fn yoyo_hot_in_child_design() -> &'static [&'static str] {
         "child compact(yoyo) ≡ link_pe_win32_compact(text,data,&[]) — handler_offsets empty",
         "seed_host_compile(yoyo) emits HOT/H_00 (H_20/H_21 markers); size/shape ≠ empty-handler compact",
         "S3.657 DONE: dissect — yoyo handler_offsets non-empty + H_20/H_21; seed PE ≫ empty compact",
+        "S3.658 cliff: HOT wire format = build_hot — per entry u16 hh + u32 off + u16 len; term 0xFFFF",
         "parse1 finalize never builds handler_offsets table / never calls H00 selfhost path",
         "HOT emit needs: collect handler RVAs during parse1 + pe_link H00 path or equiv in child",
         "baking seed_host blob into child = sheep; densify≠; HOT ≠ raise slim-cap",
@@ -15574,6 +15577,50 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let y_got = s3_compact_full_grow_from_tmpl(&tmpl, &yout.text, &yout.data);
         assert_eq!(y_got.len(), y_expect.len());
         assert_eq!(y_got, y_expect, "yoyo recipe ≡ compact");
+    }
+
+    /// S3.658: HOT wire format cliff — `build_hot` layout named (hh/off/len +
+    /// 0xFFFF); child still empty-handler. ready=false; ≠ M4; densify≠.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_hot_wire_format_build_hot_absent_cliff_pin() {
+        assert!(!yoyo_hot_in_child_ready());
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
+        let out = crate::executor::compile_tyb_source(
+            &yoyo,
+            crate::platform::PlatformKind::Win32,
+        )
+        .expect("compile");
+        let hot = crate::selfhost::build_hot(&out.handler_offsets);
+        assert_eq!(hot.len(), out.handler_offsets.len() * 8 + 2);
+        assert_eq!(&hot[hot.len() - 2..], &0xFFFFu16.to_le_bytes());
+        // first entry layout
+        let (hh, off, len) = out.handler_offsets[0];
+        assert_eq!(u16::from_le_bytes(hot[0..2].try_into().unwrap()), hh);
+        assert_eq!(u32::from_le_bytes(hot[2..6].try_into().unwrap()), off);
+        assert_eq!(u16::from_le_bytes(hot[6..8].try_into().unwrap()), len as u16);
+        assert!(yoyo_hot_in_child_design()
+            .iter()
+            .any(|s| s.contains("S3.658") || s.contains("build_hot")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.658")));
+        assert!(include_str!("selfhost.rs").contains("fn build_hot"));
+        // child still empty
+        let empty = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&yoyo)
+            .unwrap()
+            .bytes;
+        let dir = temp_work("s658-hot-wire");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
+        assert!(std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap()
+            .success());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        assert!(!yoyo_m4_production_flip_ready());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.657: dissect HOT gap — yoyo.tyb handler_offsets non-empty + H_20/H_21;
