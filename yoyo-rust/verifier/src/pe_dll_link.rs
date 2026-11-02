@@ -562,7 +562,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.659 cliff: parse1 scratch had no handler region",
         "S3.660 DONE: scratch→0x6000 + HOT @0x4040 reserved; collect/emit ABSENT",
         "S3.661 DONE: parse1 collect (hh,off,len)→scratch+0x4040 on LABEL+finalize; pe_link H00/emit ABSENT",
-        "today: CreateProcess yoyo.tyb GREEN; empty-handler compact DONE; HOT emit/M4/in-DLL live ABSENT",
+        "S3.662 DONE: scratch HOT wire = build_hot rows + 0xFFFF term; PE H00/emit ABSENT",
+        "today: CreateProcess yoyo.tyb GREEN; empty-handler compact DONE; HOT PE-emit/M4/in-DLL live ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -607,6 +608,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.659: parse1 scratch handler_offsets region ABSENT",
         "S3.660: scratch→0x6000 + HOT@0x4040 reserved; collect ABSENT",
         "S3.661: collect DONE into scratch+0x4040; pe_link H00 / HOT emit ABSENT — ≠ M4",
+        "S3.662: scratch HOT wire (build_hot+term) DONE; PE H00/emit ABSENT — compact refuses H00; ≠ M4",
     ]
 }
 
@@ -645,10 +647,12 @@ pub fn yoyo_hot_in_child_design() -> &'static [&'static str] {
         "S3.659 cliff: parse1 scratch 0x4100 had no handler region",
         "S3.660 DONE: scratch 0x4100→0x6000; HOT region @+0x4040 reserved (collect still ABSENT)",
         "S3.661 DONE: parse1 collect (hh,off,len) on LABEL+last-RET → scratch+0x4040 (nhot/entries)",
+        "S3.662 DONE: finalize writes build_hot 0xFFFF term at entries+nhot*8 (wire in scratch)",
         "yoyo ≈788 handlers → HOT ≈6306B (n*8+2); fits 0x6000-0x4040",
-        "HOT emit still needs: pe_link H00 (or equiv) reading scratch HOT → PE; collect≠emit",
+        "S3.662 cliff: PE HOT/H00 emit ABSENT — link_pe_win32_compact refuses H00; seed=link_pe_h00_runtime",
+        "HOT PE emit needs: child H00 path (or equiv) reading scratch HOT → PE; wire≠emit; densify≠",
         "baking seed_host blob into child = sheep; densify≠; HOT ≠ raise slim-cap",
-        "S3.656 cliff: HOT-in-child emit ABSENT — empty-handler compact ≠ M4 (collect≠emit)",
+        "S3.656 cliff: HOT-in-child PE emit ABSENT — empty-handler compact ≠ M4 (wire≠emit)",
     ]
 }
 
@@ -3111,6 +3115,14 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&S3_PARSE1_HOT_CUR_HH_OFF.to_le_bytes());
     c.extend_from_slice(&[0xFF, 0xFF, 0x00, 0x00]);
     let parse1_hot_fin_done = c.len();
+    // S3.662: materialize build_hot terminator at entries+nhot*8 (even if nhot=0)
+    c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]); // r11=scratch
+    c.extend_from_slice(&[0x41, 0x8B, 0x83]); // eax=nhot
+    c.extend_from_slice(&S3_PARSE1_HOT_SCRATCH_OFF.to_le_bytes());
+    c.extend_from_slice(&[0xC1, 0xE0, 0x03]); // *8
+    c.extend_from_slice(&[0x4D, 0x8D, 0x8B]); // lea r9,[r11+ENTRIES]
+    c.extend_from_slice(&S3_PARSE1_HOT_ENTRIES_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x66, 0x41, 0xC7, 0x04, 0x01, 0xFF, 0xFF]); // mov word [r9+rax], 0xFFFF
     // S3.607: apply JMP patches from scratch
     c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]); // r11=scratch
     c.extend_from_slice(&[0x45, 0x8B, 0x53, 0x04]); // r10d=npatches
@@ -15688,6 +15700,67 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let y_got = s3_compact_full_grow_from_tmpl(&tmpl, &yout.text, &yout.data);
         assert_eq!(y_got.len(), y_expect.len());
         assert_eq!(y_got, y_expect, "yoyo recipe ≡ compact");
+    }
+
+    /// S3.662: scratch HOT wire = build_hot rows + 0xFFFF term; compact
+    /// refuses H00; PE emit ABSENT; child still empty. ready=false; ≠ M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_hot_scratch_wire_term_h00_emit_absent_cliff_pin() {
+        assert!(!yoyo_hot_in_child_ready());
+        assert!(yoyo_hot_in_child_design()
+            .iter()
+            .any(|s| s.contains("S3.662")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.662")));
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("S3.662")));
+        let src = include_str!("pe_dll_link.rs");
+        assert!(src.contains("0xFFFF")); // term write in finalize
+        assert!(src.contains("S3.662"));
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
+        let out = crate::executor::compile_tyb_source(
+            &yoyo,
+            crate::platform::PlatformKind::Win32,
+        )
+        .expect("compile");
+        let hot = crate::selfhost::build_hot(&out.handler_offsets);
+        assert_eq!(hot.len(), out.handler_offsets.len() * 8 + 2);
+        assert_eq!(&hot[hot.len() - 2..], &0xFFFFu16.to_le_bytes());
+        // compact refuses H00 handler sets (seed path ≠ compact)
+        assert!(
+            out.handler_offsets.iter().any(|(h, _, _)| *h == 0x20)
+                && out.handler_offsets.iter().any(|(h, _, _)| *h == 0x21)
+        );
+        let compact_refuse = crate::pe_link::link_pe_win32_compact(
+            &out.code,
+            &out.data,
+            &out.handler_offsets,
+        );
+        assert!(
+            compact_refuse.is_err(),
+            "compact must refuse H_00 handler sets"
+        );
+        let seed = crate::selfhost::seed_host_compile(&yoyo).expect("seed");
+        let empty = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&yoyo)
+            .unwrap()
+            .bytes;
+        assert!(seed.len() > empty.len());
+        assert_ne!(seed, empty);
+        // child still empty-handler (wire≠PE emit)
+        let dir = temp_work("s662-hot-wire-term");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
+        assert!(std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap()
+            .success());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        assert!(!yoyo_m4_production_flip_ready());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.661: parse1 collects (hh,off,len) into scratch+0x4040 on LABEL +
