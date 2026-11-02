@@ -569,7 +569,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.666 DONE: H_20 off captured @[rsp+0x68]; H00 emit ABSENT",
         "S3.667 cliff: H00 emit = 0x38000 data floor + h00_main + entry JMP (≠ compact grow)",
         "S3.668 DONE: host H00 PE len recipe; child alloc/emit ABSENT",
-        "today: CreateProcess yoyo.tyb GREEN; empty-handler compact DONE; H00 PE/M4/in-DLL live ABSENT",
+        "S3.669 DONE: child need_h00 VirtualAlloc → scratch+0x4010; fill/emit ABSENT",
+        "today: CreateProcess yoyo.tyb GREEN; empty-handler compact DONE; H00 fill/M4/in-DLL live ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -621,6 +622,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.666: H_20 off capture DONE; H00 emit ABSENT — ≠ M4",
         "S3.667: H00 emit cliff (0x38000 floor + h00_main) — ≠ M4",
         "S3.668: host H00 PE len DONE; child alloc/emit ABSENT — ≠ M4",
+        "S3.669: child need_h00 VirtualAlloc DONE; fill/WriteFile ABSENT — ≠ M4",
     ]
 }
 
@@ -637,6 +639,14 @@ pub fn s3_h00_pe_len(code: &[u8], data: &[u8], handler_offsets: &[(u16, u32, u32
         .map(|b| b.len())
         .unwrap_or(0)
 }
+
+/// S3.669: scratch qword for need_h00 VirtualAlloc PE buffer (emit still ABSENT).
+/// Lives in gap after patches@0x2010..0x4010, before JCC@0x4020.
+#[cfg(windows)]
+const S3_PARSE1_H00_PE_PTR_OFF: u32 = 0x4010;
+/// S3.669: over-alloc pad beyond text_len+DATA_FLOOR (headers/h00_main/align).
+#[cfg(windows)]
+const S3_H00_ALLOC_PAD: u32 = 0x10000;
 
 /// S3.640: pe_link-in-child ready? Always false while blockers remain.
 pub fn yoyo_pe_link_in_child_ready() -> bool {
@@ -703,7 +713,8 @@ pub fn yoyo_h00_in_child_design() -> &'static [&'static str] {
         "S3.666 DONE: capture H_20 off → [rsp+0x68] during scan; H00 emit still ABSENT",
         "S3.667 cliff: H00 emit needs OUTPUT_DATA_NEED(0x38000) floor + h00_main append + entry JMP; ≠ compact",
         "S3.668 DONE: host s3_h00_pe_len ≡ seed.len(); child VirtualAlloc size known; emit ABSENT",
-        "child must: need_h00 → alloc s3_h00_pe_len + fill ≡ s3_h00_pe_recipe; today → compact_gate",
+        "S3.669 DONE: need_h00 → VirtualAlloc(text_len+0x38000+pad) → scratch+0x4010; fill/WriteFile ABSENT",
+        "child must: fill H00 PE ≡ s3_h00_pe_recipe into alloc + WriteFile; today still → compact_gate",
         "baking seed_host PE / densify h00_main hex = sheep; ≠ raise slim-cap",
         "S3.663 cliff: H00-in-child emit ABSENT — empty compact ≠ seed parity ≠ M4",
     ]
@@ -3283,7 +3294,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x0F, 0x94, 0xC0]); // sete al
     c.extend_from_slice(&[0x0F, 0xB6, 0xC0]); // movzx eax, al
     c.extend_from_slice(&[0x89, 0x44, 0x24, 0x64]); // [rsp+0x64]=need_h00
-    // need_h00 → H00-absent stub (emit ABSENT); h20_off ready at [rsp+0x68]
+    // need_h00 → S3.669 alloc (fill ABSENT); h20_off ready at [rsp+0x68]
     c.extend_from_slice(&[0x83, 0x7C, 0x24, 0x64, 0x00]); // cmp dword [rsp+0x64], 0
     let jne_parse1_h00_abs = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
@@ -3585,6 +3596,25 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&S3_PARSE1_RET_PE_LEN.to_le_bytes());
     let jmp_parse1_w2 = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
+    // S3.669: need_h00 → VirtualAlloc(H00-sized); save ptr; still → compact (fill ABSENT)
+    let parse1_h00_alloc = c.len();
+    c.extend_from_slice(&[0x8B, 0x54, 0x24, 0x60]); // edx=text_len
+    c.extend_from_slice(&[0x81, 0xC2]); // add edx, DATA_FLOOR
+    c.extend_from_slice(&S3_H00_DATA_FLOOR.to_le_bytes());
+    c.extend_from_slice(&[0x81, 0xC2]); // add edx, PAD
+    c.extend_from_slice(&S3_H00_ALLOC_PAD.to_le_bytes());
+    c.extend_from_slice(&[0x31, 0xC9]); // rcx=NULL
+    c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]); // r8d=COMMIT|RESERVE
+    c.extend_from_slice(&[0x41, 0xB9, 0x04, 0x00, 0x00, 0x00]); // r9d=PAGE_READWRITE
+    c.extend_from_slice(&[0x41, 0xFF, 0x97, 0x00, 0x00, 0x00, 0x00]); // call [r15+0] VirtualAlloc
+    c.extend_from_slice(&[0x48, 0x85, 0xC0]);
+    let je_parse1_h00_va = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]); // → fail_wr
+    c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]); // r11=scratch
+    c.extend_from_slice(&[0x49, 0x89, 0x83]); // [r11+H00_PE_PTR]=rax
+    c.extend_from_slice(&S3_PARSE1_H00_PE_PTR_OFF.to_le_bytes());
+    let jmp_parse1_h00_to_compact = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // → compact_gate (emit ABSENT)
     // S3.631 mid-stream RET: emit C3 + advance (not finalize)
     let parse1_ret_mid_lbl = c.len();
     c.extend_from_slice(&[0xC6, 0x07, 0xC3]); // mov byte [rdi], 0xC3
@@ -4874,8 +4904,10 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jcc(&mut c, jne_parse1_h00_chk21, parse1_h00_chk21);
     patch_jcc(&mut c, jne_parse1_h00_next, parse1_h00_next);
     patch_jmp(&mut c, jmp_parse1_h00_scan, parse1_h00_scan_loop);
-    // S3.665: need_h00 still → compact_gate (H00 emit ABSENT; S666+ retarget)
-    patch_jcc(&mut c, jne_parse1_h00_abs, parse1_compact_gate);
+    // S3.669: need_h00 → alloc then compact_gate (fill ABSENT)
+    patch_jcc(&mut c, jne_parse1_h00_abs, parse1_h00_alloc);
+    patch_jcc(&mut c, je_parse1_h00_va, fail_wr);
+    patch_jmp(&mut c, jmp_parse1_h00_to_compact, parse1_compact_gate);
     patch_jcc(&mut c, jne_parse1_wide_w, parse1_wide_w);
     patch_jcc(&mut c, ja_parse1_mid_grow, parse1_mid_grow);
     patch_jcc(&mut c, ja_parse1_full_grow, parse1_full_grow);
@@ -15824,6 +15856,68 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let y_got = s3_compact_full_grow_from_tmpl(&tmpl, &yout.text, &yout.data);
         assert_eq!(y_got.len(), y_expect.len());
         assert_eq!(y_got, y_expect, "yoyo recipe ≡ compact");
+    }
+
+    /// S3.669: need_h00 → VirtualAlloc(text+floor+pad) @scratch+0x4010;
+    /// still WriteFile empty-handler compact (fill ABSENT). ready=false; ≠M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_h00_child_virtual_alloc_pin() {
+        assert_eq!(S3_PARSE1_H00_PE_PTR_OFF, 0x4010);
+        assert_eq!(S3_H00_ALLOC_PAD, 0x10000);
+        assert!(!yoyo_h00_in_child_ready());
+        assert!(yoyo_h00_in_child_design()
+            .iter()
+            .any(|s| s.contains("S3.669")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.669")));
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("S3.669")));
+        let src = include_str!("pe_dll_link.rs");
+        assert!(src.contains("S3_PARSE1_H00_PE_PTR_OFF"));
+        assert!(src.contains("parse1_h00_alloc"));
+        assert!(src.contains("S3_H00_DATA_FLOOR"));
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
+        let out = crate::executor::compile_tyb_source(
+            &yoyo,
+            crate::platform::PlatformKind::Win32,
+        )
+        .expect("compile");
+        assert!(s3_handlers_need_h00(&out.handler_offsets));
+        let alloc_floor =
+            out.code.len() as u32 + S3_H00_DATA_FLOOR + S3_H00_ALLOC_PAD;
+        assert!(
+            alloc_floor as usize >= s3_h00_pe_len(&out.code, &out.data, &out.handler_offsets),
+            "over-alloc must cover seed len"
+        );
+        let empty = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&yoyo)
+            .unwrap()
+            .bytes;
+        let dir = temp_work("s669-h00-valloc");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
+        assert!(std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap()
+            .success());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        // non-H00 mid still OK (no alloc path)
+        let mid = crate::s1_tyb_parser::s3_n_nops_ret_tyb(0x400);
+        let mid_e = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&mid)
+            .unwrap()
+            .bytes;
+        std::fs::write(dir.join("input.tyb"), &mid).unwrap();
+        assert!(std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap()
+            .success());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), mid_e);
+        assert!(!yoyo_m4_production_flip_ready());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.668: host s3_h00_pe_len ≡ seed.len(); child still empty-handler.
