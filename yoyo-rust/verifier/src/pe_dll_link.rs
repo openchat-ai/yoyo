@@ -571,6 +571,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.668 DONE: host H00 PE len recipe; child alloc/emit ABSENT",
         "S3.669 DONE: child need_h00 VirtualAlloc → scratch+0x4010; fill/emit ABSENT",
         "S3.670 cliff: H00 fill ABSENT — see yoyo_h00_fill_in_child_design",
+        "S3.671 DONE: H00 alloc zero-fill prep; PE fill/WriteFile ABSENT",
         "today: CreateProcess yoyo.tyb GREEN; empty-handler compact DONE; H00 fill/M4/in-DLL live ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
@@ -625,6 +626,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.668: host H00 PE len DONE; child alloc/emit ABSENT — ≠ M4",
         "S3.669: child need_h00 VirtualAlloc DONE; fill/WriteFile ABSENT — ≠ M4",
         "S3.670: H00 fill ABSENT — see yoyo_h00_fill_in_child_design; ≠ M4",
+        "S3.671: H00 alloc zero-fill DONE; PE fill/WriteFile ABSENT — ≠ M4",
     ]
 }
 
@@ -717,6 +719,7 @@ pub fn yoyo_h00_in_child_design() -> &'static [&'static str] {
         "S3.668 DONE: host s3_h00_pe_len ≡ seed.len(); child VirtualAlloc size known; emit ABSENT",
         "S3.669 DONE: need_h00 → VirtualAlloc(text_len+0x38000+pad) → scratch+0x4010; fill/WriteFile ABSENT",
         "S3.670 cliff: H00 fill ABSENT — ordered steps in yoyo_h00_fill_in_child_design",
+        "S3.671 DONE: zero-fill H00 alloc after VirtualAlloc; PE bytes/WriteFile still ABSENT",
         "child must: fill H00 PE ≡ s3_h00_pe_recipe into alloc + WriteFile; today still → compact_gate",
         "baking seed_host PE / densify h00_main hex = sheep; ≠ raise slim-cap",
         "S3.663 cliff: H00-in-child emit ABSENT — empty compact ≠ seed parity ≠ M4",
@@ -732,7 +735,7 @@ pub fn yoyo_h00_fill_in_child_design() -> &'static [&'static str] {
         "3. patch user code[0]=JMP rel32 → h00_main; NOP pad [5..18)",
         "4. .data = prepend_win32_io_iat + STR_TABLE (input.tyb/ky/output.exe) + append_h00_runtime_data",
         "5. WriteFile([scratch+0x4010], s3_h00_pe_len) — not compact full-grow path",
-        "S669: alloc DONE; S670: fill/WriteFile ABSENT; densify≠; bake seed=sheep",
+        "S669: alloc DONE; S671: zero-fill prep DONE; S670: PE fill/WriteFile ABSENT; densify≠",
     ]
 }
 
@@ -3634,8 +3637,15 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]); // r11=scratch
     c.extend_from_slice(&[0x49, 0x89, 0x83]); // [r11+H00_PE_PTR]=rax
     c.extend_from_slice(&S3_PARSE1_H00_PE_PTR_OFF.to_le_bytes());
+    // S3.671: zero-fill alloc (writable prep); H00 PE bytes still ABSENT
+    c.extend_from_slice(&[0x48, 0x89, 0xC7]); // rdi=alloc
+    c.extend_from_slice(&[0x8B, 0x4C, 0x24, 0x60]); // ecx=text_len
+    c.extend_from_slice(&[0x81, 0xC1]); // add ecx, DATA_FLOOR+PAD
+    c.extend_from_slice(&(S3_H00_DATA_FLOOR.wrapping_add(S3_H00_ALLOC_PAD)).to_le_bytes());
+    c.extend_from_slice(&[0x31, 0xC0]); // al=0
+    c.extend_from_slice(&[0xF3, 0xAA]); // rep stosb
     let jmp_parse1_h00_to_compact = c.len();
-    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // → compact_gate (emit ABSENT)
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // → compact_gate (WriteFile still empty compact)
     // S3.631 mid-stream RET: emit C3 + advance (not finalize)
     let parse1_ret_mid_lbl = c.len();
     c.extend_from_slice(&[0xC6, 0x07, 0xC3]); // mov byte [rdi], 0xC3
@@ -15877,6 +15887,44 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let y_got = s3_compact_full_grow_from_tmpl(&tmpl, &yout.text, &yout.data);
         assert_eq!(y_got.len(), y_expect.len());
         assert_eq!(y_got, y_expect, "yoyo recipe ≡ compact");
+    }
+
+    /// S3.671: H00 alloc zero-filled after VirtualAlloc; WriteFile still
+    /// empty compact (PE fill ABSENT). ready=false; ≠ M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_h00_alloc_zero_fill_prep_pin() {
+        assert!(!yoyo_h00_fill_in_child_ready());
+        assert!(yoyo_h00_in_child_design()
+            .iter()
+            .any(|s| s.contains("S3.671")));
+        assert!(yoyo_h00_fill_in_child_design()
+            .iter()
+            .any(|s| s.contains("S671") || s.contains("zero-fill")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.671")));
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("S3.671")));
+        let src = include_str!("pe_dll_link.rs");
+        assert!(src.contains("rep stosb") || src.contains("0xF3, 0xAA"));
+        assert!(src.contains("S3.671"));
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
+        let empty = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&yoyo)
+            .unwrap()
+            .bytes;
+        let dir = temp_work("s671-h00-zero");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
+        assert!(std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap()
+            .success());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        assert!(!yoyo_m4_production_flip_ready());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.670: H00 fill cliff — ordered steps named; alloc DONE; WriteFile
