@@ -10539,23 +10539,28 @@ pub fn compile_tyb_to_pe_link_compact_emit(
     crate::pe_link::link_pe_win32_compact(&out.text, &out.data, &[])
 }
 
-/// S3.648: child CreateProcess expect — compact when no `.data` and
-/// `text_len ≤ 0x1F3` (parse1 finalize gate); else wide RET / mini patch.
+/// S3.648/650: child CreateProcess expect — compact when
+/// `text_len ≤ 0x1F3` and `data_len ≤ 0xEE0` (parse1 finalize gate);
+/// else wide RET / mini patch.
 #[cfg(windows)]
 pub fn compile_tyb_to_pe_child_expect(
     tyb: &[u8],
 ) -> crate::types::IsaResult<crate::pe_link::PeImage> {
     const COMPACT_TEXT_CAP: usize = 0x200 - 13; // ≡ S3_COMPACT_TEXT_CAP
+    const COMPACT_DATA_CAP: usize = 0x1000 - 0x120; // ≡ S3_COMPACT_DATA_USER_CAP
     let prog = parse_tyb(tyb).map_err(|e| crate::types::IsaError::ParseError {
         line: 0,
         msg: format!("s1 compile_tyb_to_pe_child_expect: {e}"),
     })?;
     validate_tyb_mini(&prog)?;
     let out = emit_x86(&prog);
-    if out.data.is_empty() && !out.text.is_empty() && out.text.len() <= COMPACT_TEXT_CAP {
+    if !out.text.is_empty()
+        && out.text.len() <= COMPACT_TEXT_CAP
+        && out.data.len() <= COMPACT_DATA_CAP
+    {
         return crate::pe_link::link_pe_win32_compact(&out.text, &out.data, &[]);
     }
-    // large text (yoyo.tyb) or .data → wide/mini template
+    // large text (yoyo.tyb) → wide; else mini
     if out.text.len() > S1_SLIM_MAX_CODE {
         compile_tyb_to_pe_wide_emit(tyb)
     } else {

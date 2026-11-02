@@ -550,7 +550,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.647 DONE: parse1 finalize→compact tmpl patch (text_len==4 gate); early 3nop bake removed; cap widen ABSENT",
         "S3.648 DONE: parse1→compact gate widened to CAP(≤0x1F3); child_expect helper; yoyo.tyb still wide; .data→wide",
         "S3.649 cliff: .data→compact ABSENT — parse1 cursor @0x5400 ≠ compact IAT/data_rp; DATA child still wide",
-        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child ABSENT (no-.data compact; .data/yoyo wide); M4 ABSENT",
+        "S3.650 DONE: IAT-aware compact .data copy (@0x720; cap 0xEE0); yoyo.tyb still wide; in-child linker ABSENT",
+        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child ABSENT (compact≤CAP+data; yoyo wide); M4 ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -582,7 +583,8 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.646: child 3nop→compact bake DONE",
         "S3.647: parse1→compact tmpl patch gate=text_len==4 DONE",
         "S3.648: gate→CAP DONE; .data programs still wide RET",
-        "S3.649: .data→compact ABSENT — wide data_rp 0x5400 ≠ compact IAT layout; in-child linker ABSENT",
+        "S3.649: .data layout gap named (0x5400≠0x600/0x720)",
+        "S3.650: small .data→compact DONE; yoyo.tyb / oversized still wide; full in-child linker ABSENT",
     ]
 }
 
@@ -670,9 +672,15 @@ const S3_COMPACT_TEXT_PAYLOAD_OFF: u32 = 0x40D;
 /// S3.647: compact `.text` raw size 0x200 − startup 13 → user cap.
 #[cfg(windows)]
 const S3_COMPACT_TEXT_CAP: u32 = 0x200 - 13; // 0x1F3
-/// S3.648: parse1→compact when `data_len==0 && text_len≤CAP` (was gate==4 in S3.647).
+/// S3.648: parse1→compact when `text_len≤CAP` (was gate==4 in S3.647).
 #[cfg(windows)]
 const S3_COMPACT_GATE_TEXT_LEN: u32 = S3_COMPACT_TEXT_CAP;
+/// S3.650: compact `.data` user payload file off = data_rp(0x600)+IAT(0x120).
+#[cfg(windows)]
+const S3_COMPACT_DATA_USER_FILE_OFF: u32 = 0x720;
+/// S3.650: max user `.data` bytes into compact (section 0x1000 − IAT 0x120).
+#[cfg(windows)]
+const S3_COMPACT_DATA_USER_CAP: u32 = 0x1000 - 0x120; // 0xEE0
 
 /// Build fixed10 + multi-op compile-in-child EXE (S3.548/S3.551).
 ///
@@ -2892,16 +2900,18 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let jmp_parse1_find_loop = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
     let parse1_go_w = c.len();
-    // S3.647: data_len==0 && text_len==GATE → patch compact tmpl; else wide RET
+    // S3.647/648/650: text≤CAP && data_len≤DATA_CAP → compact tmpl patch; else wide
     c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]); // r11=scratch
-    c.extend_from_slice(&[0x41, 0x83, 0xBB, 0x38, 0x40, 0x00, 0x00, 0x00]); // cmp [scratch+0x4038],0
+    c.extend_from_slice(&[0x41, 0x8B, 0x83, 0x38, 0x40, 0x00, 0x00]); // mov eax,[scratch+0x4038]
+    c.extend_from_slice(&[0x3D]); // cmp eax, DATA_CAP
+    c.extend_from_slice(&S3_COMPACT_DATA_USER_CAP.to_le_bytes());
     let jne_parse1_wide_w = c.len();
-    c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]); // ja wide
     c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x60]); // mov eax,[rsp+0x60] text_len
     c.extend_from_slice(&[0x3D]); // cmp eax, CAP
     c.extend_from_slice(&S3_COMPACT_GATE_TEXT_LEN.to_le_bytes());
     let jne_parse1_wide_w2 = c.len();
-    c.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]); // ja wide (S3.648: ≤CAP → compact)
+    c.extend_from_slice(&[0x0F, 0x87, 0, 0, 0, 0]); // ja wide
     // save wide pe*; text_len already at [rsp+0x60]
     c.extend_from_slice(&[0x48, 0x89, 0x5C, 0x24, 0x50]); // mov [rsp+0x50], rbx
     c.extend_from_slice(&[0x31, 0xC9]); // xor ecx,ecx
@@ -2935,6 +2945,19 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&S3_COMPACT_TEXT_PAYLOAD_OFF.to_le_bytes());
     c.extend_from_slice(&[0x8B, 0x4C, 0x24, 0x60]); // ecx = text_len
     c.extend_from_slice(&[0xF3, 0xA4]);
+    // S3.650: copy user .data from wide+0x5400 → compact+0x720 (after IAT)
+    c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]); // r11=scratch
+    c.extend_from_slice(&[0x41, 0x8B, 0x8B, 0x38, 0x40, 0x00, 0x00]); // ecx=data_len
+    c.extend_from_slice(&[0x85, 0xC9]);
+    let jz_parse1_compact_nodata = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x48, 0x8B, 0x74, 0x24, 0x50]); // rsi=wide pe*
+    c.extend_from_slice(&[0x48, 0x81, 0xC6]); // add rsi, 0x5400
+    c.extend_from_slice(&S3_PARSE1_DATA_FILE_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x48, 0x8D, 0xBB]); // lea rdi,[rbx+0x720]
+    c.extend_from_slice(&S3_COMPACT_DATA_USER_FILE_OFF.to_le_bytes());
+    c.extend_from_slice(&[0xF3, 0xA4]);
+    let parse1_compact_go_wr = c.len();
     c.extend_from_slice(&[0x48, 0x89, 0xDA]); // rdx = compact pe
     c.extend_from_slice(&[0x41, 0xB8]); // r8d = compact_len
     c.extend_from_slice(&compact_tmpl_len.to_le_bytes());
@@ -4230,6 +4253,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jcc(&mut c, jne_parse1_wide_w, parse1_wide_w);
     patch_jcc(&mut c, jne_parse1_wide_w2, parse1_wide_w);
     patch_jcc(&mut c, je_parse1_compact_va, fail_wr);
+    patch_jcc(&mut c, jz_parse1_compact_nodata, parse1_compact_go_wr);
     patch_jmp(&mut c, jmp_parse1_w2, do_write);
     patch_jcc(&mut c, jae_parse1_fail_nf, fail_compile);
     patch_jcc(&mut c, jne_parse1_find_next, parse1_find_next_lbl);
@@ -15128,13 +15152,15 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.649: .data→compact ABSENT cliff — parse1 data cursor @wide 0x5400 ≠
-    /// compact IAT+data_rp; DATA/STR child still wide RET. ready=false; ≠ M4.
+    /// S3.649/650: layout cliff named (0x5400≠0x600); S650 small DATA→compact
+    /// via IAT-aware copy @0x720. ready=false; ≠ M4.
     #[test]
     #[cfg(windows)]
     fn yoyo_pe_link_parse1_data_to_compact_absent_cliff_pin() {
         assert!(!yoyo_pe_link_in_child_ready());
         assert_eq!(S3_PARSE1_DATA_FILE_OFF, 0x5400);
+        assert_eq!(S3_COMPACT_DATA_USER_FILE_OFF, 0x720);
+        assert_eq!(S3_COMPACT_DATA_USER_CAP, 0xEE0);
         let pe = crate::pe_link::link_pe_win32_compact(&[0xC3], &[], &[])
             .expect("tmpl")
             .bytes;
@@ -15142,21 +15168,17 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let size_opt = u16::from_le_bytes(pe[e + 20..e + 22].try_into().unwrap()) as usize;
         let sect = e + 24 + size_opt;
         let data_rp = u32::from_le_bytes(pe[sect + 40 + 20..sect + 40 + 24].try_into().unwrap());
-        let data_va = u32::from_le_bytes(pe[sect + 40 + 12..sect + 40 + 16].try_into().unwrap());
-        assert_ne!(
-            data_rp, S3_PARSE1_DATA_FILE_OFF,
-            "compact data_rp ({data_rp:#x}) ≠ wide 0x5400 — layout gap"
-        );
-        assert!(data_va >= 0x2000, "compact data VA ({data_va:#x})");
-        // child DATA+RET still wide (data_len≠0 → no compact finalize)
+        assert_ne!(data_rp, S3_PARSE1_DATA_FILE_OFF);
+        assert_eq!(data_rp + 0x120, S3_COMPACT_DATA_USER_FILE_OFF);
+        // S3.650: small DATA+RET → compact
         let tyb = crate::s1_tyb_parser::s3_data_ret_tyb(0x10, b"hi");
         let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
             .expect("child expect data")
             .bytes;
-        assert_eq!(
-            expect.len() as u32,
-            S3_PARSE1_RET_PE_LEN,
-            "DATA child expect still wide RET"
+        assert!(
+            expect.len() < S3_PARSE1_RET_PE_LEN as usize,
+            "DATA child expect compact (got {})",
+            expect.len()
         );
         let dir = temp_work("s649-data-compact");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
@@ -15167,14 +15189,11 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .unwrap();
         assert!(st.success());
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
-        assert!(yoyo_pe_link_in_child_blockers()
-            .iter()
-            .any(|s| s.contains("S3.649") || s.contains(".data")));
         assert!(yoyo_child_live_compose_design()
             .iter()
-            .any(|s| s.contains("S3.649")));
+            .any(|s| s.contains("S3.649") || s.contains("S3.650")));
         assert!(!yoyo_m4_production_flip_ready());
-        let _ = (data_rp, pe.len());
+        let _ = pe.len();
         let _ = std::fs::remove_dir_all(&dir);
     }
 
