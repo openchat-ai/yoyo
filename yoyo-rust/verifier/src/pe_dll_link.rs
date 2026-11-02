@@ -572,6 +572,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.669 DONE: child need_h00 VirtualAlloc → scratch+0x4010; fill/emit ABSENT",
         "S3.670 cliff: H00 fill ABSENT — see yoyo_h00_fill_in_child_design",
         "S3.671 DONE: H00 alloc zero-fill prep; PE fill/WriteFile ABSENT",
+        "S3.672 DONE: host H00 PE layout dissect; child fill ABSENT",
         "today: CreateProcess yoyo.tyb GREEN; empty-handler compact DONE; H00 fill/M4/in-DLL live ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
@@ -627,6 +628,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.669: child need_h00 VirtualAlloc DONE; fill/WriteFile ABSENT — ≠ M4",
         "S3.670: H00 fill ABSENT — see yoyo_h00_fill_in_child_design; ≠ M4",
         "S3.671: H00 alloc zero-fill DONE; PE fill/WriteFile ABSENT — ≠ M4",
+        "S3.672: host H00 PE layout dissect DONE; child fill ABSENT — ≠ M4",
     ]
 }
 
@@ -720,6 +722,7 @@ pub fn yoyo_h00_in_child_design() -> &'static [&'static str] {
         "S3.669 DONE: need_h00 → VirtualAlloc(text_len+0x38000+pad) → scratch+0x4010; fill/WriteFile ABSENT",
         "S3.670 cliff: H00 fill ABSENT — ordered steps in yoyo_h00_fill_in_child_design",
         "S3.671 DONE: zero-fill H00 alloc after VirtualAlloc; PE bytes/WriteFile still ABSENT",
+        "S3.672 DONE: host s3_h00_pe_layout dissect (SOI/code/text_vs/data); child fill ABSENT",
         "child must: fill H00 PE ≡ s3_h00_pe_recipe into alloc + WriteFile; today still → compact_gate",
         "baking seed_host PE / densify h00_main hex = sheep; ≠ raise slim-cap",
         "S3.663 cliff: H00-in-child emit ABSENT — empty compact ≠ seed parity ≠ M4",
@@ -735,13 +738,70 @@ pub fn yoyo_h00_fill_in_child_design() -> &'static [&'static str] {
         "3. patch user code[0]=JMP rel32 → h00_main; NOP pad [5..18)",
         "4. .data = prepend_win32_io_iat + STR_TABLE (input.tyb/ky/output.exe) + append_h00_runtime_data",
         "5. WriteFile([scratch+0x4010], s3_h00_pe_len) — not compact full-grow path",
-        "S669: alloc DONE; S671: zero-fill prep DONE; S670: PE fill/WriteFile ABSENT; densify≠",
+        "S669: alloc DONE; S671: zero-fill prep DONE; S672: layout dissect DONE; fill/WriteFile ABSENT",
     ]
 }
 
 /// S3.670: H00 fill ready? Always false while design non-empty.
 pub fn yoyo_h00_fill_in_child_ready() -> bool {
     yoyo_h00_fill_in_child_design().is_empty()
+}
+
+/// S3.672: host dissect of H00 seed PE layout (fill targets for child).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct S3H00PeLayout {
+    pub size_of_image: u32,
+    pub size_of_headers: u32,
+    pub size_of_code: u32,
+    pub address_of_entry: u32,
+    pub base_of_code: u32,
+    pub text_vs: u32,
+    pub text_raw: u32,
+    pub data_va: u32,
+    pub data_raw: u32,
+}
+
+/// S3.672: parse PE32+ layout fields from an H00 seed image.
+#[cfg(windows)]
+pub fn s3_h00_pe_layout(pe: &[u8]) -> Option<S3H00PeLayout> {
+    if pe.len() < 0x200 {
+        return None;
+    }
+    let e_lfanew = u32::from_le_bytes(pe[0x3C..0x40].try_into().ok()?) as usize;
+    if pe.len() < e_lfanew + 0x18 + 0xF0 {
+        return None;
+    }
+    let opt = e_lfanew + 0x18;
+    if u16::from_le_bytes(pe[opt..opt + 2].try_into().ok()?) != 0x20B {
+        return None; // PE32+
+    }
+    let size_of_code = u32::from_le_bytes(pe[opt + 4..opt + 8].try_into().ok()?);
+    let address_of_entry = u32::from_le_bytes(pe[opt + 16..opt + 20].try_into().ok()?);
+    let base_of_code = u32::from_le_bytes(pe[opt + 20..opt + 24].try_into().ok()?);
+    let size_of_image = u32::from_le_bytes(pe[opt + 56..opt + 60].try_into().ok()?);
+    let size_of_headers = u32::from_le_bytes(pe[opt + 60..opt + 64].try_into().ok()?);
+    // first section header @ opt + 0xF0 for PE32+ with 16 data dirs? 
+    // NumberOfRvaAndSizes at opt+108; section table after optional header.
+    let num_rva = u32::from_le_bytes(pe[opt + 108..opt + 112].try_into().ok()?) as usize;
+    let sect = opt + 112 + num_rva * 8;
+    if pe.len() < sect + 40 * 2 {
+        return None;
+    }
+    let text_vs = u32::from_le_bytes(pe[sect + 8..sect + 12].try_into().ok()?);
+    let text_raw = u32::from_le_bytes(pe[sect + 16..sect + 20].try_into().ok()?);
+    let data_va = u32::from_le_bytes(pe[sect + 40 + 12..sect + 40 + 16].try_into().ok()?);
+    let data_raw = u32::from_le_bytes(pe[sect + 40 + 16..sect + 40 + 20].try_into().ok()?);
+    Some(S3H00PeLayout {
+        size_of_image,
+        size_of_headers,
+        size_of_code,
+        address_of_entry,
+        base_of_code,
+        text_vs,
+        text_raw,
+        data_va,
+        data_raw,
+    })
 }
 
 /// S3.663: H00-in-child ready? Always false while design non-empty.
@@ -15887,6 +15947,56 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let y_got = s3_compact_full_grow_from_tmpl(&tmpl, &yout.text, &yout.data);
         assert_eq!(y_got.len(), y_expect.len());
         assert_eq!(y_got, y_expect, "yoyo recipe ≡ compact");
+    }
+
+    /// S3.672: host s3_h00_pe_layout on seed — SOI≥floor, text/data sections;
+    /// child still empty compact. ready=false; ≠ M4; densify≠.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_h00_pe_layout_dissect_pin() {
+        assert!(!yoyo_h00_fill_in_child_ready());
+        assert!(yoyo_h00_in_child_design()
+            .iter()
+            .any(|s| s.contains("S3.672")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.672")));
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("S3.672")));
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
+        let seed = crate::selfhost::seed_host_compile(&yoyo).expect("seed");
+        let lay = s3_h00_pe_layout(&seed).expect("layout");
+        assert!(
+            lay.size_of_image >= S3_H00_DATA_FLOOR,
+            "SOI {:#x} < floor",
+            lay.size_of_image
+        );
+        assert!(lay.size_of_code > 0);
+        assert_eq!(lay.base_of_code, 0x1000);
+        assert!(lay.text_vs >= 0x1000);
+        assert!(lay.text_raw > 0);
+        assert!(lay.data_va > lay.base_of_code);
+        assert!(lay.data_raw >= S3_H00_DATA_FLOOR);
+        // file raw = headers + text_raw + data_raw
+        assert_eq!(
+            seed.len() as u32,
+            lay.size_of_headers + lay.text_raw + lay.data_raw
+        );
+        let empty = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&yoyo)
+            .unwrap()
+            .bytes;
+        let dir = temp_work("s672-h00-layout");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
+        assert!(std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap()
+            .success());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        assert!(!yoyo_m4_production_flip_ready());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.671: H00 alloc zero-filled after VirtualAlloc; WriteFile still
