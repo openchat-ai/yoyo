@@ -4,7 +4,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.659**（658=HOT wire format；下一刀=parse1 collect handler_offsets / HOT emit）。
+**默认** 继续 **= S3.660**（659=scratch 无 handler 区；下一刀=扩 scratch / collect handler_offsets）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -33,8 +33,8 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3.1–630** ✅ | `3809e18` | fixed10→parse1→any-slot→text4KiB |
 | **S3.631–638** ✅ | `3227356` | yoyo.tyb child→CreateProcess GREEN |
 | **S3.639–655** ✅ | `7f27b15` | compact→mid-grow→**full-grow / yoyo≈27KiB** |
-| **S3.656–658** ✅ | — | HOT cliff→dissect→**wire format** |
-| **S3.659** ⏳ | — | **本步**：HOT emit / collect handlers |
+| **S3.656–659** ✅ | — | HOT cliff→dissect→wire→**scratch gap** |
+| **S3.660** ⏳ | — | **本步**：scratch 扩 / collect handlers |
 
 **缺口**：HOT emit **ABSENT**；M4 **ABSENT**；in-DLL live emit **ABSENT**。`ready=false`。bake=362。
 
@@ -53,9 +53,9 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 
 ## 对 AI
 
-- 继续 → **S3.659**（HOT emit 前序；禁 densify / 假 CLOSED / 单抬 slim-cap / 225KiB bake）。S3.658=wire format。红了记根因停。
+- 继续 → **S3.660**（scratch 扩或 collect；禁 densify / 假 CLOSED / 单抬 slim-cap / 225KiB bake）。S3.659=scratch gap。红了记根因停。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
 
-*post-v1.0 · 收纳板 · tip S3.659*
+*post-v1.0 · 收纳板 · tip S3.660*

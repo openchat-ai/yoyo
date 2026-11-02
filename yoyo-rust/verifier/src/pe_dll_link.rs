@@ -559,6 +559,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.656 cliff: HOT/handler_offsets emit ABSENT — child compact ≡ empty handlers; seed_host has HOT/H00",
         "S3.657 DONE: dissect HOT gap (yoyo handlers+H_20/H_21; seed≫compact); emit still ABSENT",
         "S3.658 cliff: HOT wire format named (build_hot); emit ABSENT",
+        "S3.659 cliff: parse1 scratch has no handler_offsets region (still 0x4100 labels/patches)",
         "today: CreateProcess yoyo.tyb GREEN; empty-handler compact DONE; HOT/M4/in-DLL live ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
@@ -601,6 +602,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.656: HOT/handler_offsets emit ABSENT — see yoyo_hot_in_child_design",
         "S3.657: HOT gap dissected (handlers+H_20/H_21 named); emit ABSENT",
         "S3.658: HOT wire format (build_hot) named; emit ABSENT",
+        "S3.659: parse1 scratch handler_offsets region ABSENT",
     ]
 }
 
@@ -636,8 +638,8 @@ pub fn yoyo_hot_in_child_design() -> &'static [&'static str] {
         "seed_host_compile(yoyo) emits HOT/H_00 (H_20/H_21 markers); size/shape ≠ empty-handler compact",
         "S3.657 DONE: dissect — yoyo handler_offsets non-empty + H_20/H_21; seed PE ≫ empty compact",
         "S3.658 cliff: HOT wire format = build_hot — per entry u16 hh + u32 off + u16 len; term 0xFFFF",
-        "parse1 finalize never builds handler_offsets table / never calls H00 selfhost path",
-        "HOT emit needs: collect handler RVAs during parse1 + pe_link H00 path or equiv in child",
+        "S3.659 cliff: parse1 scratch 0x4100 has labels/patches/data_len — no handler_offsets region",
+        "HOT emit needs: scratch slot for (hh,off,len)[] + collect during parse1 + pe_link H00 or equiv",
         "baking seed_host blob into child = sheep; densify≠; HOT ≠ raise slim-cap",
         "S3.656 cliff: HOT-in-child ABSENT — empty-handler compact ≠ M4",
     ]
@@ -15577,6 +15579,54 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let y_got = s3_compact_full_grow_from_tmpl(&tmpl, &yout.text, &yout.data);
         assert_eq!(y_got.len(), y_expect.len());
         assert_eq!(y_got, y_expect, "yoyo recipe ≡ compact");
+    }
+
+    /// S3.659: parse1 scratch has no handler_offsets region (0x4100 =
+    /// labels/patches/data only). HOT collect ABSENT. ready=false; ≠ M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_hot_parse1_scratch_handlers_absent_cliff_pin() {
+        assert!(!yoyo_hot_in_child_ready());
+        let src = include_str!("pe_dll_link.rs");
+        assert!(src.contains("0x4100") || src.contains("BA, 0x00, 0x41"));
+        assert!(src.contains("0x4038"), "data_len at scratch+0x4038");
+        // marker concat so this assert text ≠ the real const name
+        let marker = ["S3_PARSE1_", "HOT_SCRATCH_OFF"].concat();
+        assert!(!src.contains(&marker), "no HOT scratch const yet");
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
+        let out = crate::executor::compile_tyb_source(
+            &yoyo,
+            crate::platform::PlatformKind::Win32,
+        )
+        .unwrap();
+        let hot_need = out.handler_offsets.len() * 8 + 2;
+        // yoyo ≈788 handlers → HOT ≈6306B; needs scratch grow past 0x4100
+        assert!(
+            hot_need > 0x1000 && hot_need < 0x4000,
+            "HOT bytes need scratch expand (got {hot_need}; n={})",
+            out.handler_offsets.len()
+        );
+        assert!(yoyo_hot_in_child_design()
+            .iter()
+            .any(|s| s.contains("S3.659") || s.contains("scratch")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.659")));
+        // child still empty-handler compact
+        let empty = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&yoyo)
+            .unwrap()
+            .bytes;
+        let dir = temp_work("s659-hot-scratch");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
+        assert!(std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap()
+            .success());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        assert!(!yoyo_m4_production_flip_ready());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.658: HOT wire format cliff — `build_hot` layout named (hh/off/len +
