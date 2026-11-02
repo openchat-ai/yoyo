@@ -564,6 +564,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.661 DONE: parse1 collect (hh,off,len)→scratch+0x4040 on LABEL+finalize; pe_link H00/emit ABSENT",
         "S3.662 DONE: scratch HOT wire = build_hot rows + 0xFFFF term; PE H00/emit ABSENT",
         "S3.663 cliff: H00-in-child ABSENT — see yoyo_h00_in_child_design; seed≠compact",
+        "S3.664 DONE: host H00 recipe+gate named; child H00 emit ABSENT",
         "today: CreateProcess yoyo.tyb GREEN; empty-handler compact DONE; H00 PE/M4/in-DLL live ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
@@ -611,6 +612,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.661: collect DONE into scratch+0x4040; pe_link H00 / HOT emit ABSENT — ≠ M4",
         "S3.662: scratch HOT wire (build_hot+term) DONE; PE H00/emit ABSENT — compact refuses H00; ≠ M4",
         "S3.663: H00-in-child ABSENT — see yoyo_h00_in_child_design; ≠ M4",
+        "S3.664: host H00 recipe+gate DONE; child H00 emit ABSENT — ≠ M4",
     ]
 }
 
@@ -674,15 +676,39 @@ pub fn yoyo_h00_in_child_design() -> &'static [&'static str] {
         "H00 needs: append gen_h00_selfhost_main; patch code[0]=JMP h00_main; string table; OUTPUT_DATA_NEED floor",
         "H00 uses handler_offsets for H_20 off (not build_hot bytes — HOT wire = --selfhost path)",
         "S661/662: scratch has (hh,off,len)+term; finalize never reads them for PE shape",
-        "child must: scan scratch for H_20/H_21 → branch H00 link (asm or host recipe equiv)",
+        "S3.664 DONE: host gate s3_handlers_need_h00 + s3_h00_pe_recipe ≡ seed_host; child emit ABSENT",
+        "child must: scan scratch for H_20/H_21 → branch H00 link (asm ≡ s3_h00_pe_recipe)",
         "baking seed_host PE / densify h00_main hex = sheep; ≠ raise slim-cap",
-        "S3.663 cliff: H00-in-child ABSENT — empty compact ≠ seed parity ≠ M4",
+        "S3.663 cliff: H00-in-child emit ABSENT — empty compact ≠ seed parity ≠ M4",
     ]
 }
 
 /// S3.663: H00-in-child ready? Always false while design non-empty.
 pub fn yoyo_h00_in_child_ready() -> bool {
     yoyo_h00_in_child_design().is_empty()
+}
+
+/// S3.664: H_20∧H_21 gate — same predicate as `pe_link::should_h00_selfhost`.
+/// Child finalize must branch on this once scratch handlers are scanned.
+pub fn s3_handlers_need_h00(handler_offsets: &[(u16, u32, u32)]) -> bool {
+    let has_load = handler_offsets.iter().any(|(h, _, _)| *h == 0x20);
+    let has_write = handler_offsets.iter().any(|(h, _, _)| *h == 0x21);
+    has_load && has_write
+}
+
+/// S3.664: host recipe — H00 PE ≡ `seed_host_compile` / `link_pe_win32` H00 path.
+/// Target for child finalize when [`s3_handlers_need_h00`]. Baking seed blob = sheep.
+#[cfg(windows)]
+pub fn s3_h00_pe_recipe(
+    code: &[u8],
+    data: &[u8],
+    handler_offsets: &[(u16, u32, u32)],
+) -> crate::types::IsaResult<Vec<u8>> {
+    assert!(
+        s3_handlers_need_h00(handler_offsets),
+        "s3_h00_pe_recipe: need H_20∧H_21"
+    );
+    Ok(crate::pe_link::link_pe_win32(code, data, handler_offsets)?.bytes)
 }
 
 
@@ -15724,6 +15750,60 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let y_got = s3_compact_full_grow_from_tmpl(&tmpl, &yout.text, &yout.data);
         assert_eq!(y_got.len(), y_expect.len());
         assert_eq!(y_got, y_expect, "yoyo recipe ≡ compact");
+    }
+
+    /// S3.664: host H00 recipe ≡ seed_host; gate H_20∧H_21; child still
+    /// empty-handler compact. ready=false; ≠ M4; densify≠; bake≠.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_h00_host_recipe_gate_pin() {
+        assert!(!yoyo_h00_in_child_ready());
+        assert!(yoyo_h00_in_child_design()
+            .iter()
+            .any(|s| s.contains("S3.664")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.664")));
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("S3.664")));
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
+        let out = crate::executor::compile_tyb_source(
+            &yoyo,
+            crate::platform::PlatformKind::Win32,
+        )
+        .expect("compile");
+        assert!(s3_handlers_need_h00(&out.handler_offsets));
+        assert!(!s3_handlers_need_h00(&[]));
+        assert!(!s3_handlers_need_h00(&[(0x20, 0, 1)])); // missing H_21
+        let recipe = s3_h00_pe_recipe(&out.code, &out.data, &out.handler_offsets)
+            .expect("recipe");
+        let seed = crate::selfhost::seed_host_compile(&yoyo).expect("seed");
+        assert_eq!(recipe, seed, "s3_h00_pe_recipe ≡ seed_host_compile");
+        // non-H00 program: gate false; compact OK
+        let small = crate::s1_tyb_parser::s3_n_nops_ret_tyb(4);
+        let sout = crate::executor::compile_tyb_source(
+            &small,
+            crate::platform::PlatformKind::Win32,
+        )
+        .expect("small");
+        assert!(!s3_handlers_need_h00(&sout.handler_offsets));
+        // child still empty for yoyo
+        let empty = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&yoyo)
+            .unwrap()
+            .bytes;
+        assert_ne!(recipe, empty);
+        let dir = temp_work("s664-h00-recipe");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
+        assert!(std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap()
+            .success());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        assert!(!yoyo_m4_production_flip_ready());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.663: H00-in-child cliff — seed=link_pe_h00_runtime; compact refuses;
