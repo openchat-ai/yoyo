@@ -4,7 +4,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.661**（660=scratch→0x6000+HOT@0x4040；下一刀=collect handler_offsets）。
+**默认** 继续 **= S3.662**（661=collect→scratch+0x4040；下一刀=pe_link H00 / HOT emit）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -24,7 +24,7 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3** ⏳ | child parse1 扩 ISA · 真自举不排假工期 |
 | **S4/S5** | 全 ISA / 形式化 · 地图 |
 
-**诚实底线**：empty-handler compact(yoyo) GREEN ≠ HOT/H00 ≠ M4 ≠ in-DLL live emit。
+**诚实底线**：empty-handler compact(yoyo) GREEN ≠ HOT/H00 ≠ M4 ≠ in-DLL live emit。collect≠emit。
 
 ### 波段 tip（更早单刀已折）
 
@@ -33,10 +33,10 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3.1–630** ✅ | `3809e18` | fixed10→parse1→any-slot→text4KiB |
 | **S3.631–638** ✅ | `3227356` | yoyo.tyb child→CreateProcess GREEN |
 | **S3.639–655** ✅ | `7f27b15` | compact→mid-grow→**full-grow / yoyo≈27KiB** |
-| **S3.656–660** ✅ | — | HOT cliff→…→**scratch 0x6000 + HOT@0x4040** |
-| **S3.661** ⏳ | — | **本步**：collect handler_offsets |
+| **S3.656–661** ✅ | — | HOT cliff→…→**collect (hh,off,len)@0x4040** |
+| **S3.662** ⏳ | — | **本步**：pe_link H00 / HOT emit |
 
-**缺口**：HOT collect/emit **ABSENT**；M4 **ABSENT**；in-DLL live emit **ABSENT**。`ready=false`。bake=362。
+**缺口**：HOT emit / H00 **ABSENT**（collect DONE）；M4 **ABSENT**；in-DLL live emit **ABSENT**。`ready=false`。bake=362。
 
 ---
 
@@ -53,9 +53,9 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 
 ## 对 AI
 
-- 继续 → **S3.661**（collect handlers；禁 densify / 假 CLOSED / 单抬 slim-cap / 225KiB bake）。S3.660=scratch grow。红了记根因停。
+- 继续 → **S3.662**（H00/HOT emit；禁 densify / 假 CLOSED / 单抬 slim-cap / 225KiB bake）。S3.661=collect。红了记根因停。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
 
-*post-v1.0 · 收纳板 · tip S3.661*
+*post-v1.0 · 收纳板 · tip S3.662*

@@ -561,7 +561,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.658 cliff: HOT wire format named (build_hot); emit ABSENT",
         "S3.659 cliff: parse1 scratch had no handler region",
         "S3.660 DONE: scratch→0x6000 + HOT @0x4040 reserved; collect/emit ABSENT",
-        "today: CreateProcess yoyo.tyb GREEN; empty-handler compact DONE; HOT/M4/in-DLL live ABSENT",
+        "S3.661 DONE: parse1 collect (hh,off,len)→scratch+0x4040 on LABEL+finalize; pe_link H00/emit ABSENT",
+        "today: CreateProcess yoyo.tyb GREEN; empty-handler compact DONE; HOT emit/M4/in-DLL live ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -605,6 +606,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.658: HOT wire format (build_hot) named; emit ABSENT",
         "S3.659: parse1 scratch handler_offsets region ABSENT",
         "S3.660: scratch→0x6000 + HOT@0x4040 reserved; collect ABSENT",
+        "S3.661: collect DONE into scratch+0x4040; pe_link H00 / HOT emit ABSENT — ≠ M4",
     ]
 }
 
@@ -642,10 +644,11 @@ pub fn yoyo_hot_in_child_design() -> &'static [&'static str] {
         "S3.658 cliff: HOT wire format = build_hot — per entry u16 hh + u32 off + u16 len; term 0xFFFF",
         "S3.659 cliff: parse1 scratch 0x4100 had no handler region",
         "S3.660 DONE: scratch 0x4100→0x6000; HOT region @+0x4040 reserved (collect still ABSENT)",
+        "S3.661 DONE: parse1 collect (hh,off,len) on LABEL+last-RET → scratch+0x4040 (nhot/entries)",
         "yoyo ≈788 handlers → HOT ≈6306B (n*8+2); fits 0x6000-0x4040",
-        "HOT emit needs: collect (hh,off,len) into scratch+0x4040 during parse1 + pe_link H00 or equiv",
+        "HOT emit still needs: pe_link H00 (or equiv) reading scratch HOT → PE; collect≠emit",
         "baking seed_host blob into child = sheep; densify≠; HOT ≠ raise slim-cap",
-        "S3.656 cliff: HOT-in-child ABSENT — empty-handler compact ≠ M4",
+        "S3.656 cliff: HOT-in-child emit ABSENT — empty-handler compact ≠ M4 (collect≠emit)",
     ]
 }
 
@@ -767,9 +770,22 @@ const S3_COMPACT_PE_SECT_TEXT: u32 = 0x188;
 /// S3.660: parse1 scratch size — was 0x4100 (labels/patches); +HOT room.
 #[cfg(windows)]
 const S3_PARSE1_SCRATCH_LEN: u32 = 0x6000;
-/// S3.660: handler_offsets table in scratch — n @+0, entries[hh,u32 off,u16 len] @+8.
+/// S3.660/661: HOT region in scratch — nhot @+0, current_hh @+4, entries @+8.
+/// Entry = u16 hh + u32 off + u16 len (≡ `build_hot` row). Cap 1024.
 #[cfg(windows)]
 const S3_PARSE1_HOT_SCRATCH_OFF: u32 = 0x4040;
+/// S3.661: current open handler hh (u32; 0xFFFF = none).
+#[cfg(windows)]
+const S3_PARSE1_HOT_CUR_HH_OFF: u32 = 0x4044;
+/// S3.661: open handler start text_off (u32). Lives in gap after data_len@0x4038.
+#[cfg(windows)]
+const S3_PARSE1_HOT_START_OFF: u32 = 0x403C;
+/// S3.661: handler_offsets entries base (nhot×8).
+#[cfg(windows)]
+const S3_PARSE1_HOT_ENTRIES_OFF: u32 = 0x4048;
+/// S3.661: max handlers collected (= label table cap).
+#[cfg(windows)]
+const S3_PARSE1_HOT_CAP: u32 = 1024;
 
 /// S3.655 host recipe: grow compact tmpl → full PE (text_vs/data_rva/lea/IDT).
 /// Relocates only IAT prefix dwords in `[TMPL_DATA_VA, TMPL_DATA_VA+TMPL_DATA_RAW)`.
@@ -1774,8 +1790,8 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     // S3.607/S3.628/S3.629/S3.660: scratch VA for label/patch (+ HOT room).
     // S3.629: labels/patches 256→1024 (covers yoyo.tyb 788 LABELs).
     // layout: +0 nlabels, +4 npatches, +0x10 labels[1024×8], +0x2010 patches[1024×8]
-    // +0x4020 JCC cc[10], +0x4030 data_cursor, +0x4038 data_len
-    // S3.660: +0x4040 nhot, +0x4048 handlers[] (room for ~788×8+2; collect ABSENT)
+    // +0x4020 JCC cc[10], +0x4030 data_cursor, +0x4038 data_len, +0x403C hot_start
+    // S3.660/661: +0x4040 nhot, +0x4044 cur_hh, +0x4048 handlers[] (collect on LABEL)
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0xBA]); // mov edx, S3_PARSE1_SCRATCH_LEN
     c.extend_from_slice(&S3_PARSE1_SCRATCH_LEN.to_le_bytes());
@@ -1796,10 +1812,13 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xC7, 0x80, 0x20, 0x40, 0x00, 0x00, 0x84, 0x85, 0x8C, 0x8D]);
     c.extend_from_slice(&[0xC7, 0x80, 0x24, 0x40, 0x00, 0x00, 0x8E, 0x8F, 0x82, 0x83]);
     c.extend_from_slice(&[0x66, 0xC7, 0x80, 0x28, 0x40, 0x00, 0x00, 0x86, 0x87]);
-    // S3.660: nhot=0 at HOT region (collect ABSENT)
+    // S3.660/661: nhot=0; cur_hh=0xFFFF (no open handler)
     c.extend_from_slice(&[0xC7, 0x80]); // mov dword [rax+HOT_OFF], 0
     c.extend_from_slice(&S3_PARSE1_HOT_SCRATCH_OFF.to_le_bytes());
     c.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]);
+    c.extend_from_slice(&[0xC7, 0x80]); // mov dword [rax+CUR_HH], 0xFFFF
+    c.extend_from_slice(&S3_PARSE1_HOT_CUR_HH_OFF.to_le_bytes());
+    c.extend_from_slice(&[0xFF, 0xFF, 0x00, 0x00]);
     c.extend_from_slice(&[0x48, 0x8B, 0x74, 0x24, 0x50]); // rsi = TYB
     c.extend_from_slice(&[0x0F, 0xB7, 0x4E, 0x06]); // movzx ecx, word [rsi+6]
     c.extend_from_slice(&[0x85, 0xC9]);
@@ -2454,7 +2473,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x4D, 0x89, 0x8B, 0x30, 0x40, 0x00, 0x00]); // save cursor
     let jmp_parse1_adv_da = c.len();
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
-    // S3.603/607 LABEL: argc==1; record (id,off) in scratch; no .text
+    // S3.603/607/661 LABEL: argc==1; record (id,off); collect prior handler into HOT
     let parse1_label_lbl = c.len();
     c.extend_from_slice(&[0x41, 0x80, 0x78, 0x01, 0x01]); // argc==1
     let jne_parse1_fail_lb = c.len();
@@ -2465,6 +2484,43 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x89, 0xC2]); // edx=text_off
     c.extend_from_slice(&[0x41, 0x8B, 0x40, 0x02]); // eax=id
     c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]); // r11=scratch
+    // S3.661: close previous handler if cur_hh != 0xFFFF
+    c.extend_from_slice(&[0x89, 0x44, 0x24, 0x58]); // [rsp+0x58]=id
+    c.extend_from_slice(&[0x89, 0x54, 0x24, 0x5C]); // [rsp+0x5C]=off
+    c.extend_from_slice(&[0x41, 0x8B, 0x93]); // mov edx,[r11+CUR_HH]
+    c.extend_from_slice(&S3_PARSE1_HOT_CUR_HH_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x81, 0xFA, 0xFF, 0xFF, 0x00, 0x00]); // cmp edx, 0xFFFF
+    let je_parse1_hot_open = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]); // je open_new
+    c.extend_from_slice(&[0x45, 0x8B, 0x93]); // mov r10d,[r11+nhot]
+    c.extend_from_slice(&S3_PARSE1_HOT_SCRATCH_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x41, 0x81, 0xFA]); // cmp r10d, HOT_CAP
+    c.extend_from_slice(&S3_PARSE1_HOT_CAP.to_le_bytes());
+    let jae_parse1_fail_hot = c.len();
+    c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]); // jae fail
+    c.extend_from_slice(&[0x44, 0x89, 0xD0]); // eax=r10d
+    c.extend_from_slice(&[0xC1, 0xE0, 0x03]); // eax=nhot*8
+    c.extend_from_slice(&[0x4D, 0x8D, 0x8B]); // lea r9,[r11+ENTRIES]
+    c.extend_from_slice(&S3_PARSE1_HOT_ENTRIES_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x49, 0x01, 0xC1]); // r9+=nhot*8
+    c.extend_from_slice(&[0x66, 0x41, 0x89, 0x11]); // [r9]=hh (u16; edx=cur_hh)
+    c.extend_from_slice(&[0x41, 0x8B, 0x83]); // mov eax,[r11+START]
+    c.extend_from_slice(&S3_PARSE1_HOT_START_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x41, 0x89, 0x41, 0x02]); // [r9+2]=off
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x5C]); // eax=new_off
+    c.extend_from_slice(&[0x41, 0x2B, 0x41, 0x02]); // len = new_off - start
+    c.extend_from_slice(&[0x66, 0x41, 0x89, 0x41, 0x06]); // [r9+6]=len u16
+    c.extend_from_slice(&[0x41, 0xFF, 0xC2]); // inc r10d
+    c.extend_from_slice(&[0x45, 0x89, 0x93]); // [r11+nhot]=r10d
+    c.extend_from_slice(&S3_PARSE1_HOT_SCRATCH_OFF.to_le_bytes());
+    let parse1_hot_open = c.len();
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x58]); // eax=id
+    c.extend_from_slice(&[0x41, 0x89, 0x83]); // [r11+CUR_HH]=id
+    c.extend_from_slice(&S3_PARSE1_HOT_CUR_HH_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x8B, 0x54, 0x24, 0x5C]); // edx=off
+    c.extend_from_slice(&[0x41, 0x89, 0x93]); // [r11+START]=off
+    c.extend_from_slice(&S3_PARSE1_HOT_START_OFF.to_le_bytes());
+    // label table push (unchanged)
     c.extend_from_slice(&[0x45, 0x8B, 0x13]); // r10d=nlabels
     c.extend_from_slice(&[0x41, 0x81, 0xFA, 0x00, 0x04, 0x00, 0x00]); // cmp r10d, 1024
     let jae_parse1_fail_lbf = c.len();
@@ -3023,6 +3079,38 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x48, 0x29, 0xC1]); // sub rcx, rax
     c.extend_from_slice(&[0x48, 0xFF, 0xC1]); // inc rcx
     c.extend_from_slice(&[0x89, 0x4C, 0x24, 0x60]); // mov [rsp+0x60], ecx = text_len
+    // S3.661: close last open handler into HOT (end = text_len)
+    c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]); // r11=scratch
+    c.extend_from_slice(&[0x41, 0x8B, 0x93]); // mov edx,[r11+CUR_HH]
+    c.extend_from_slice(&S3_PARSE1_HOT_CUR_HH_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x81, 0xFA, 0xFF, 0xFF, 0x00, 0x00]); // cmp edx, 0xFFFF
+    let je_parse1_hot_fin_skip = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x45, 0x8B, 0x93]); // r10d=[r11+nhot]
+    c.extend_from_slice(&S3_PARSE1_HOT_SCRATCH_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x41, 0x81, 0xFA]); // cmp r10d, HOT_CAP
+    c.extend_from_slice(&S3_PARSE1_HOT_CAP.to_le_bytes());
+    let jae_parse1_fail_hot2 = c.len();
+    c.extend_from_slice(&[0x0F, 0x83, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x44, 0x89, 0xD0]); // eax=r10d
+    c.extend_from_slice(&[0xC1, 0xE0, 0x03]);
+    c.extend_from_slice(&[0x4D, 0x8D, 0x8B]); // lea r9,[r11+ENTRIES]
+    c.extend_from_slice(&S3_PARSE1_HOT_ENTRIES_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x49, 0x01, 0xC1]);
+    c.extend_from_slice(&[0x66, 0x41, 0x89, 0x11]); // [r9]=hh
+    c.extend_from_slice(&[0x41, 0x8B, 0x83]); // eax=[r11+START]
+    c.extend_from_slice(&S3_PARSE1_HOT_START_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x41, 0x89, 0x41, 0x02]); // [r9+2]=off
+    c.extend_from_slice(&[0x8B, 0x44, 0x24, 0x60]); // eax=text_len
+    c.extend_from_slice(&[0x41, 0x2B, 0x41, 0x02]); // len
+    c.extend_from_slice(&[0x66, 0x41, 0x89, 0x41, 0x06]);
+    c.extend_from_slice(&[0x41, 0xFF, 0xC2]); // inc r10d
+    c.extend_from_slice(&[0x45, 0x89, 0x93]); // [r11+nhot]=r10d
+    c.extend_from_slice(&S3_PARSE1_HOT_SCRATCH_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x41, 0xC7, 0x83]); // [r11+CUR_HH]=0xFFFF
+    c.extend_from_slice(&S3_PARSE1_HOT_CUR_HH_OFF.to_le_bytes());
+    c.extend_from_slice(&[0xFF, 0xFF, 0x00, 0x00]);
+    let parse1_hot_fin_done = c.len();
     // S3.607: apply JMP patches from scratch
     c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]); // r11=scratch
     c.extend_from_slice(&[0x45, 0x8B, 0x53, 0x04]); // r10d=npatches
@@ -4572,6 +4660,8 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jcc(&mut c, jbe_parse1_adv_da2, parse1_data_done);
     patch_jmp(&mut c, jmp_parse1_adv_da, parse1_advance);
     patch_jcc(&mut c, jne_parse1_fail_lb, fail_compile);
+    patch_jcc(&mut c, je_parse1_hot_open, parse1_hot_open);
+    patch_jcc(&mut c, jae_parse1_fail_hot, fail_compile);
     patch_jcc(&mut c, jae_parse1_fail_lbf, fail_compile);
     patch_jmp(&mut c, jmp_parse1_adv_lb, parse1_advance);
     patch_jcc(&mut c, jne_parse1_fail_jp, fail_compile);
@@ -4646,6 +4736,8 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jcc(&mut c, jne_parse1_fail4, fail_compile);
     patch_jcc(&mut c, jne_parse1_ret_mid, parse1_ret_mid_lbl);
     patch_jmp(&mut c, jmp_parse1_ret_mid_adv, parse1_advance);
+    patch_jcc(&mut c, je_parse1_hot_fin_skip, parse1_hot_fin_done);
+    patch_jcc(&mut c, jae_parse1_fail_hot2, fail_compile);
     patch_jcc(&mut c, jz_parse1_go_w, parse1_go_w);
     patch_jcc(&mut c, jae_parse1_go_w, parse1_go_w);
     patch_jcc(&mut c, jne_parse1_wide_w, parse1_wide_w);
@@ -15596,6 +15688,87 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let y_got = s3_compact_full_grow_from_tmpl(&tmpl, &yout.text, &yout.data);
         assert_eq!(y_got.len(), y_expect.len());
         assert_eq!(y_got, y_expect, "yoyo recipe ≡ compact");
+    }
+
+    /// S3.661: parse1 collects (hh,off,len) into scratch+0x4040 on LABEL +
+    /// last-RET. Host label→handlers ≡ seed; child PE still empty-handler
+    /// (emit/H00 ABSENT). ready=false; ≠ M4; densify≠.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_hot_parse1_collect_handlers_scratch_pin() {
+        assert_eq!(S3_PARSE1_HOT_SCRATCH_OFF, 0x4040);
+        assert_eq!(S3_PARSE1_HOT_CUR_HH_OFF, 0x4044);
+        assert_eq!(S3_PARSE1_HOT_START_OFF, 0x403C);
+        assert_eq!(S3_PARSE1_HOT_ENTRIES_OFF, 0x4048);
+        assert_eq!(S3_PARSE1_HOT_CAP, 1024);
+        assert!(!yoyo_hot_in_child_ready());
+        assert!(yoyo_hot_in_child_design()
+            .iter()
+            .any(|s| s.contains("S3.661")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.661")));
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("S3.661")));
+        let src = include_str!("pe_dll_link.rs");
+        assert!(src.contains("S3_PARSE1_HOT_ENTRIES_OFF"));
+        assert!(src.contains("S3_PARSE1_HOT_CUR_HH_OFF"));
+        // host: label-ordered handlers ≡ seed (algorithm pin for asm collect)
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
+        let out = crate::executor::compile_tyb_source(
+            &yoyo,
+            crate::platform::PlatformKind::Win32,
+        )
+        .expect("compile");
+        assert!(!out.handler_offsets.is_empty());
+        let mut labels: Vec<(u16, u32)> = out
+            .handler_offsets
+            .iter()
+            .map(|(h, o, _)| (*h, *o))
+            .collect();
+        // rebuild lens from consecutive offs + text_len
+        let text_len = out.code.len() as u32;
+        let mut rebuilt = Vec::new();
+        for i in 0..labels.len() {
+            let (hh, off) = labels[i];
+            let end = if i + 1 < labels.len() {
+                labels[i + 1].1
+            } else {
+                text_len
+            };
+            rebuilt.push((hh, off, end - off));
+        }
+        assert_eq!(rebuilt, out.handler_offsets);
+        assert!(rebuilt.len() <= S3_PARSE1_HOT_CAP as usize);
+        // child still empty-handler compact (collect≠emit)
+        let empty = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&yoyo)
+            .unwrap()
+            .bytes;
+        let dir = temp_work("s661-hot-collect");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
+        assert!(std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap()
+            .success());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        // small LABEL chain still GREEN
+        let mid = crate::s1_tyb_parser::s3_n_nops_ret_tyb(0x400);
+        let mid_e = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&mid)
+            .unwrap()
+            .bytes;
+        std::fs::write(dir.join("input.tyb"), &mid).unwrap();
+        assert!(std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap()
+            .success());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), mid_e);
+        assert!(!yoyo_m4_production_flip_ready());
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = labels;
     }
 
     /// S3.660: scratch grown 0x4100→0x6000; HOT region @0x4040 reserved.
