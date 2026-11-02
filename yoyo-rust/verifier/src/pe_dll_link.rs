@@ -556,7 +556,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.653 DONE: child mid-grow pe_link (text≤0xFB3); yoyo full-grow ABSENT",
         "S3.654 cliff: full-grow named (text_vs/lea/IDT); S3.655 implements",
         "S3.655 DONE: child full-grow pe_link (text≤0x4FF3); yoyo→compact≈27KiB; HOT/M4 ABSENT",
-        "today: CreateProcess yoyo.tyb GREEN; pe_link-in-child empty-handler compact DONE; HOT/M4 ABSENT",
+        "S3.656 cliff: HOT/handler_offsets emit ABSENT — child compact ≡ empty handlers; seed_host has HOT/H00",
+        "today: CreateProcess yoyo.tyb GREEN; empty-handler compact DONE; HOT/M4/in-DLL live ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -595,6 +596,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.653: mid-grow ≤0xFB3 DONE; yoyo full-grow / text_vs expand ABSENT",
         "S3.654: full-grow cliff named",
         "S3.655: full-grow DONE (yoyo→compact); handler_offsets/HOT still ABSENT — ≠ M4",
+        "S3.656: HOT/handler_offsets emit ABSENT — see yoyo_hot_in_child_design",
     ]
 }
 
@@ -619,6 +621,25 @@ pub fn yoyo_pe_link_grow_in_child_design() -> &'static [&'static str] {
 /// S3.652: grow-in-child ready? Always false while design non-empty.
 pub fn yoyo_pe_link_grow_in_child_ready() -> bool {
     yoyo_pe_link_grow_in_child_design().is_empty()
+}
+
+/// S3.656: design for **HOT / handler_offsets** emit inside child.
+/// Child compact today = `link_pe_win32_compact(..., &[])` — empty handlers.
+/// seed_host_compile carries HOT/H_00 (H_20/H_21). Clearing ≠ M4 ≠ densify.
+pub fn yoyo_hot_in_child_design() -> &'static [&'static str] {
+    &[
+        "child compact(yoyo) ≡ link_pe_win32_compact(text,data,&[]) — handler_offsets empty",
+        "seed_host_compile(yoyo) emits HOT/H_00 (H_20/H_21 markers); size/shape ≠ empty-handler compact",
+        "parse1 finalize never builds handler_offsets table / never calls H00 selfhost path",
+        "HOT emit needs: collect handler RVAs during parse1 + pe_link H00 path or equiv in child",
+        "baking seed_host blob into child = sheep; densify≠; HOT ≠ raise slim-cap",
+        "S3.656 cliff: HOT-in-child ABSENT — empty-handler compact ≠ M4",
+    ]
+}
+
+/// S3.656: HOT-in-child ready? Always false while design non-empty.
+pub fn yoyo_hot_in_child_ready() -> bool {
+    yoyo_hot_in_child_design().is_empty()
 }
 
 
@@ -15550,6 +15571,55 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let y_got = s3_compact_full_grow_from_tmpl(&tmpl, &yout.text, &yout.data);
         assert_eq!(y_got.len(), y_expect.len());
         assert_eq!(y_got, y_expect, "yoyo recipe ≡ compact");
+    }
+
+    /// S3.656: HOT/handlers cliff — child compact(yoyo) ≡ empty handlers;
+    /// seed_host has HOT/H00 and differs. ready=false; ≠ M4; densify≠.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_hot_in_child_absent_cliff_pin() {
+        assert!(!yoyo_hot_in_child_ready());
+        assert!(!yoyo_pe_link_in_child_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
+        let child_expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&yoyo)
+            .expect("child expect")
+            .bytes;
+        let empty = crate::s1_tyb_parser::compile_tyb_to_pe_link_compact_emit(&yoyo)
+            .expect("compact empty handlers")
+            .bytes;
+        assert_eq!(child_expect, empty, "child path ≡ empty-handler compact");
+        let seed = crate::selfhost::seed_host_compile(&yoyo).expect("seed_host");
+        assert_ne!(
+            seed.len(),
+            empty.len(),
+            "seed_host (HOT) size ≠ empty compact"
+        );
+        assert_ne!(seed, empty, "seed_host bytes ≠ empty compact");
+        let dir = temp_work("s656-hot-cliff");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
+        assert!(std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap()
+            .success());
+        assert_eq!(
+            std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
+            empty,
+            "child still empty-handler compact (HOT ABSENT)"
+        );
+        assert!(yoyo_hot_in_child_design()
+            .iter()
+            .any(|s| s.contains("HOT") || s.contains("handler_offsets")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.656")));
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("HOT") || s.contains("handler")));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_hot_in_child_design"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.655: child full-grow — yoyo.tyb → compact≈27KiB ≡ host.
