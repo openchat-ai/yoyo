@@ -563,7 +563,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.660 DONE: scratch→0x6000 + HOT @0x4040 reserved; collect/emit ABSENT",
         "S3.661 DONE: parse1 collect (hh,off,len)→scratch+0x4040 on LABEL+finalize; pe_link H00/emit ABSENT",
         "S3.662 DONE: scratch HOT wire = build_hot rows + 0xFFFF term; PE H00/emit ABSENT",
-        "today: CreateProcess yoyo.tyb GREEN; empty-handler compact DONE; HOT PE-emit/M4/in-DLL live ABSENT",
+        "S3.663 cliff: H00-in-child ABSENT — see yoyo_h00_in_child_design; seed≠compact",
+        "today: CreateProcess yoyo.tyb GREEN; empty-handler compact DONE; H00 PE/M4/in-DLL live ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -609,6 +610,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.660: scratch→0x6000 + HOT@0x4040 reserved; collect ABSENT",
         "S3.661: collect DONE into scratch+0x4040; pe_link H00 / HOT emit ABSENT — ≠ M4",
         "S3.662: scratch HOT wire (build_hot+term) DONE; PE H00/emit ABSENT — compact refuses H00; ≠ M4",
+        "S3.663: H00-in-child ABSENT — see yoyo_h00_in_child_design; ≠ M4",
     ]
 }
 
@@ -649,16 +651,38 @@ pub fn yoyo_hot_in_child_design() -> &'static [&'static str] {
         "S3.661 DONE: parse1 collect (hh,off,len) on LABEL+last-RET → scratch+0x4040 (nhot/entries)",
         "S3.662 DONE: finalize writes build_hot 0xFFFF term at entries+nhot*8 (wire in scratch)",
         "yoyo ≈788 handlers → HOT ≈6306B (n*8+2); fits 0x6000-0x4040",
-        "S3.662 cliff: PE HOT/H00 emit ABSENT — link_pe_win32_compact refuses H00; seed=link_pe_h00_runtime",
-        "HOT PE emit needs: child H00 path (or equiv) reading scratch HOT → PE; wire≠emit; densify≠",
+        "S3.662 DONE: scratch HOT wire + 0xFFFF term; PE emit still ABSENT",
+        "S3.663 cliff: H00-in-child ABSENT — compact refuses H00; seed=link_pe_h00_runtime; see yoyo_h00_in_child_design",
         "baking seed_host blob into child = sheep; densify≠; HOT ≠ raise slim-cap",
-        "S3.656 cliff: HOT-in-child PE emit ABSENT — empty-handler compact ≠ M4 (wire≠emit)",
+        "S3.656 cliff: HOT/H00-in-child PE ABSENT — empty-handler compact ≠ M4 (wire≠emit)",
     ]
 }
 
 /// S3.656: HOT-in-child ready? Always false while design non-empty.
 pub fn yoyo_hot_in_child_ready() -> bool {
     yoyo_hot_in_child_design().is_empty()
+}
+
+/// S3.663: design for **H00 pe_link-in-child** (seed_host parity path).
+/// seed = `link_pe_win32` → `link_pe_h00_runtime` when H_20∧H_21; compact refuses.
+/// Scratch has handlers (S661) + wire term (S662); finalize still empty-compact.
+/// Clearing ≠ M4 ≠ densify ≠ bake seed blob.
+pub fn yoyo_h00_in_child_design() -> &'static [&'static str] {
+    &[
+        "seed_host_compile(yoyo) = link_pe_h00_runtime (H_20/H_21 gate); ≫ empty-handler compact",
+        "link_pe_win32_compact refuses H_00 handler sets — child cannot reach seed via compact+HOT",
+        "H00 needs: append gen_h00_selfhost_main; patch code[0]=JMP h00_main; string table; OUTPUT_DATA_NEED floor",
+        "H00 uses handler_offsets for H_20 off (not build_hot bytes — HOT wire = --selfhost path)",
+        "S661/662: scratch has (hh,off,len)+term; finalize never reads them for PE shape",
+        "child must: scan scratch for H_20/H_21 → branch H00 link (asm or host recipe equiv)",
+        "baking seed_host PE / densify h00_main hex = sheep; ≠ raise slim-cap",
+        "S3.663 cliff: H00-in-child ABSENT — empty compact ≠ seed parity ≠ M4",
+    ]
+}
+
+/// S3.663: H00-in-child ready? Always false while design non-empty.
+pub fn yoyo_h00_in_child_ready() -> bool {
+    yoyo_h00_in_child_design().is_empty()
 }
 
 
@@ -15700,6 +15724,90 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let y_got = s3_compact_full_grow_from_tmpl(&tmpl, &yout.text, &yout.data);
         assert_eq!(y_got.len(), y_expect.len());
         assert_eq!(y_got, y_expect, "yoyo recipe ≡ compact");
+    }
+
+    /// S3.663: H00-in-child cliff — seed=link_pe_h00_runtime; compact refuses;
+    /// scratch handlers present but finalize→empty compact; h00_main sized.
+    /// ready=false; ≠ M4; densify≠.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_h00_in_child_absent_cliff_pin() {
+        assert!(!yoyo_h00_in_child_ready());
+        assert!(!yoyo_hot_in_child_ready());
+        assert!(yoyo_h00_in_child_design().len() >= 4);
+        assert!(yoyo_h00_in_child_design()
+            .iter()
+            .any(|s| s.contains("S3.663")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.663")));
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("S3.663")));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_h00_in_child_design"));
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
+        let out = crate::executor::compile_tyb_source(
+            &yoyo,
+            crate::platform::PlatformKind::Win32,
+        )
+        .expect("compile");
+        let h20 = out
+            .handler_offsets
+            .iter()
+            .find(|(h, _, _)| *h == 0x20)
+            .map(|(_, o, _)| *o);
+        let h21 = out
+            .handler_offsets
+            .iter()
+            .find(|(h, _, _)| *h == 0x21)
+            .map(|(_, o, _)| *o);
+        assert!(h20.is_some() && h21.is_some(), "yoyo needs H_20/H_21");
+        // compact refuses; seed H00 succeeds and is larger
+        assert!(crate::pe_link::link_pe_win32_compact(
+            &out.code,
+            &out.data,
+            &out.handler_offsets
+        )
+        .is_err());
+        let seed = crate::selfhost::seed_host_compile(&yoyo).expect("seed");
+        let empty = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&yoyo)
+            .unwrap()
+            .bytes;
+        assert!(seed.len() > empty.len());
+        // h00_main probe length > 0 (child must eventually emit equiv)
+        let probe = crate::win32_selfhost::gen_h00_selfhost_main(
+            &crate::win32_selfhost::SelfhostMeta {
+                temp_name_rva: 0,
+                export_name_rva: 0,
+                dll_embed_rva: 0,
+                dll_embed_size: 0,
+                iat_rva: 0,
+                import_dir_rva: 0,
+                import_dir_size: 0,
+            },
+            0,
+            0x1000,
+            13,
+            out.code.len() as u32,
+            h20.unwrap(),
+        );
+        assert!(
+            probe.len() > 32,
+            "h00_main probe too small ({})",
+            probe.len()
+        );
+        // child still empty-handler compact
+        let dir = temp_work("s663-h00-cliff");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
+        assert!(std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap()
+            .success());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        assert!(!yoyo_m4_production_flip_ready());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.662: scratch HOT wire = build_hot rows + 0xFFFF term; compact
