@@ -657,7 +657,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.686 DONE: M4/live map = CreateProcess≡live-compose; production default still Rust",
         "S3.687 DONE: M4 flip prep named (default stays Off/Rust; inventory CUT blocks flip)",
         "S3.688 DONE: remaining gates named (inventory CUT + host-mini sheep); flip still ABSENT",
-        "today: CreateProcess≡live-compose GREEN; parse1≡exec; M4 flip ABSENT (CUT+default Rust)",
+        "S3.689 DONE: host emit_x86 LDB oo imm8 (≡exec/parse1); slim-cap stays 1024; ≠M4 flip",
+        "today: CreateProcess≡live-compose GREEN; parse1≡exec; host LDB≡exec; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
         "yoyo.tyb: child+indll CreateProcess compose GREEN; M4 production flip ABSENT; densify≠",
@@ -728,6 +729,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.686: M4/live map refreshed (CreateProcess≡live-compose); production flip ABSENT — ≠ M4",
         "S3.687: M4 flip prep named; default Off/Rust; inventory CUT — ≠ M4",
         "S3.688: remaining gates named (CUT + host-mini sheep); flip ABSENT — ≠ M4",
+        "S3.689: host LDB oo imm8 DONE; slim-cap/M4 flip ABSENT — ≠ M4",
     ]
 }
 
@@ -16390,6 +16392,66 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .unwrap()
             .success());
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), seed);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.689: host emit_x86 LDB oo imm8 when oo∈1..=127 (≡exec/parse1).
+    /// S1_SLIM_MAX_CODE stays 1024; ≠M4 flip; densify≠.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_host_emit_ldb_oo_imm8_pin() {
+        assert_eq!(crate::s1_tyb_parser::S1_SLIM_MAX_CODE, 1024);
+        // oo=5 → imm8 form present, imm32 form absent in slim text
+        let tyb = crate::s1_tyb_parser::s3_ldb_ret_tyb(1, 2, 5);
+        let slim = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
+            .expect("slim ldb")
+            .bytes;
+        let has = |m: &[u8]| slim.windows(m.len()).any(|w| w == m);
+        assert!(has(&[0x48, 0x83, 0xC0, 0x05]), "host LDB oo=5 imm8");
+        assert!(
+            !has(&[0x48, 0x81, 0xC0, 0x05, 0x00, 0x00, 0x00]),
+            "host LDB oo=5 not imm32"
+        );
+        // oo=0x100 → imm32
+        let tyb2 = crate::s1_tyb_parser::s3_ldb_ret_tyb(0, 16, 0x100);
+        let slim2 = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb2)
+            .expect("slim ldb i32")
+            .bytes;
+        assert!(
+            slim2
+                .windows(7)
+                .any(|w| w == [0x48, 0x81, 0xC0, 0x00, 0x01, 0x00, 0x00]),
+            "host LDB oo=0x100 imm32"
+        );
+        // parse1 still ≡ win32 for oo=5
+        let pe = yoyo_compiler_pe_bytes().expect("pe");
+        let dir = temp_work("s689-host-ldb");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        let out = crate::executor::compile_tyb_source(
+            &tyb,
+            crate::platform::PlatformKind::Win32,
+        )
+        .unwrap();
+        let expect = crate::pe_link::link_pe_win32_compact(&out.code, &out.data, &[])
+            .unwrap()
+            .bytes;
+        std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+        assert!(std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap()
+            .success());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
+        let _ = pe;
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.689")));
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("S3.689")));
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.689"));
+        assert!(include_str!("s1_tyb_parser.rs").contains("S3.689"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

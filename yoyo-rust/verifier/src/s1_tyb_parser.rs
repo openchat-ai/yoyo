@@ -348,11 +348,16 @@ fn emit_rep_movsb(out: &mut Vec<u8>) {
 }
 
 /// LDB dd ss oo — load byte from mem[state[ss]+oo] into state[dd] (zero-extend).
-/// Matches `emit.rs::emit_ldb` / platform default.
+/// S3.689: oo∈1..=127 → imm8 (`48 83 C0`) ≡exec/`emit.rs`/parse1; else imm32.
 fn emit_ldb(out: &mut Vec<u8>, dd: u16, ss: u16, oo: u16) {
     emit_load_state(out, ss, Reg::Rax);
     if oo != 0 {
-        emit_add_imm(out, Reg::Rax, oo as u32);
+        if oo <= 127 {
+            let rex = rex_wrxb(true, false, false, Reg::Rax.rex_bit());
+            out.extend_from_slice(&[rex, 0x83, 0xC0 | Reg::Rax.low3(), oo as u8]);
+        } else {
+            emit_add_imm(out, Reg::Rax, oo as u32);
+        }
     }
     emit_movzx_rax_byte_rax(out);
     emit_store_state(out, dd, Reg::Rax);
