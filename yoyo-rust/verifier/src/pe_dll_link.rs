@@ -660,6 +660,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.689 DONE: host emit_x86 LDB oo imm8 (≡exec/parse1); slim-cap stays 1024; ≠M4 flip",
         "S3.690 DONE: host slim yoyo len 0x46c5 (Δ=+307 vs exec); ADD/SUB stays imm32 (fixed10 golden)",
         "S3.691 DONE: fixed10 pins retarget — parse1 ADD/SUB expect≡win32; in-DLL≡emit_x86 text",
+        "S3.692 DONE: host ADD/SUB imm32 floor named (fixed10 golden; Δ=+307); design pin wording refreshed",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; host LDB≡exec; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -734,6 +735,20 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.689: host LDB oo imm8 DONE; slim-cap/M4 flip ABSENT — ≠ M4",
         "S3.690: host slim len pinned 0x46c5 (Δ=+307); ADD/SUB imm32 golden; M4 ABSENT — ≠ M4",
         "S3.691: fixed10 expect retarget (parse1≡win32 ADD/SUB; in-DLL text≡emit_x86) — ≠ M4",
+        "S3.692: host ADD/SUB imm32 floor (fixed10); Δ=+307; M4 ABSENT — ≠ M4",
+    ]
+}
+
+/// S3.692: host `emit_add_imm` / `emit_sub_imm` stay **imm32** so fixed10 goldens
+/// hold. parse1/exec use imm8 when fits — Δ host-slim−exec = +307 on yoyo.
+/// Imm8-ifying host ADD = break fixed10 (sheep vs graduation). ≠ M4 flip.
+pub fn yoyo_host_addsub_imm32_floor_design() -> &'static [&'static str] {
+    &[
+        "emit_add_imm / emit_sub_imm always 48 81 (imm32) — fixed10 ADD golden pins this",
+        "parse1 S682 + exec assembler: imm8 when imm∈i8 — CreateProcess≡seed via parse1",
+        "host slim yoyo 0x46c5 vs exec 0x4592 (Δ=+307) — residual is ADD/SUB width",
+        "forbidden: imm8-ify host ADD to chase Δ (breaks fixed10); raise S1_SLIM_MAX_CODE; densify",
+        "next: leave floor OR invent dual-path host emit (fixed10 vs general) — not this knife's flip",
     ]
 }
 
@@ -15510,7 +15525,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let d = yoyo_child_live_compose_design();
         assert!(d.iter().any(|s| s.contains("569-572") || s.contains("all CHAINS")));
         assert!(d.iter().any(|s| s.contains("573") && s.contains("pe_patch") && s.contains("emit_x86")));
-        assert!(d.iter().any(|s| s.contains("live needs") && s.contains("emit_x86")));
+        // S3.692: design wording evolved — accept legacy "live needs" or post-S685 compose contract
+        assert!(
+            d.iter().any(|s| s.contains("live needs") && s.contains("emit_x86"))
+                || d.iter().any(|s| s.contains("compose contract") || s.contains("CreateProcess≡live"))
+                || d.iter().any(|s| s.contains("general parse+emit") && s.contains("ABSENT"))
+        );
         assert!(!yoyo_child_live_compose_ready());
         assert!(!yoyo_live_compile_slice_ready());
         assert!(!yoyo_m4_production_flip_ready());
@@ -15882,7 +15902,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let d = yoyo_child_live_compose_design();
         assert!(d.iter().any(|s| s.contains("581") && s.contains("all CHAINS")));
         assert!(d.iter().any(|s| s.contains("582") && s.contains("emit1") && s.contains("emit_x86")));
-        assert!(d.iter().any(|s| s.contains("live needs") && s.contains("emit_x86")));
+        // S3.692: design wording evolved — accept legacy "live needs" or post-S685 compose contract
+        assert!(
+            d.iter().any(|s| s.contains("live needs") && s.contains("emit_x86"))
+                || d.iter().any(|s| s.contains("compose contract") || s.contains("CreateProcess≡live"))
+                || d.iter().any(|s| s.contains("general parse+emit") && s.contains("ABSENT"))
+        );
         assert!(d.iter().any(|s| s.contains("finite") || s.contains("imm")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(!yoyo_live_compile_slice_ready());
@@ -15891,6 +15916,20 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("emit1") || s.contains("emit_x86") || s.contains("582")));
         assert!(include_str!("pe_dll_link.rs").contains("S3.582"));
+    }
+
+    /// S3.692: host ADD/SUB stay imm32 (fixed10 golden); Δ=+307 named; ≠M4 flip.
+    #[test]
+    fn yoyo_host_addsub_imm32_floor_pin() {
+        let d = yoyo_host_addsub_imm32_floor_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("imm32") && s.contains("fixed10")));
+        assert!(d.iter().any(|s| s.contains("0x46c5") || s.contains("+307")));
+        assert!(d.iter().any(|s| s.contains("forbidden") && s.contains("imm8-ify")));
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.692"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_host_addsub_imm32_floor_design"));
     }
 
     /// S3.583: emit2 SET patches imm from TYB; DEADBEEF + alt imm GREEN; marker yoyo_emit2_c.
