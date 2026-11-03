@@ -407,10 +407,11 @@ pub fn place_cwd_runtime_sidecar(out_path: &Path, rust_dll: &[u8]) -> IsaResult<
 /// Clearing ≠ OW-RT CLOSED by itself — inventory `closed` is a separate gate.
 pub fn yoyo_m4_production_flip_blockers() -> &'static [&'static str] {
     &[
-        "yoyo.tyb CreateProcess-child GREEN (S3.631/632); child-built slim AV as self-host (S3.634); live in-DLL emit ABSENT",
-        "Gate I oracle seed_host(yoyo.tyb) ≫≠ child/wide (S3.633); child-built ≠ runnable self-host (S3.634); ≠ live emit",
-        "production place_cwd default still Rust (ALT unset)",
-        "inventory OW-RT disposition=CUT (closed=0)",
+        // S3.686: CreateProcess(compiler)≡live-compose (S685 A / S683 ≡seed); densify export-local≠required
+        "S3.683/685: child+indll CreateProcess(compiler)≡live-compose GREEN; densify export-local = sheep (optional ABSENT)",
+        "production place_cwd default still Rust (ALT unset) — flip target = YOYO CreateProcess path",
+        "inventory OW-RT disposition=CUT (closed=0) — flip ≠ OW-RT CLOSED",
+        "Gate I ALT oracle / gen4 paths still oracle-lookup when no compiler PE — fail-closed OK",
     ]
 }
 
@@ -426,14 +427,14 @@ pub fn yoyo_m4_production_flip_ready() -> bool {
 pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
     &[
         "S3.683 DONE: child CreateProcess(yoyo)≡seed via live parse1 (Win32 I/O+imm8+LDB oo); bake-text gone",
-        "in-DLL export still CreateProcess(compiler PE) — ≠ export-local emit_x86/pe_link; densify parse1 into DLL=sheep",
-        "beyond-mini overflow TYB fails mini; without compiler PE still oracle→seed_host only",
-        "ALT in-dll-gate-i / gen4 GREEN paths are still oracle lookup, not export-local live emit",
-        "production default place_cwd remains Rust (ALT unset); M4 flip ABSENT",
+        "S3.685/686: CreateProcess(compiler)=compose contract (A) — counts as live-compose; densify export-local=sheep",
+        "beyond-mini overflow TYB fails mini; without compiler PE still oracle→seed_host / fail-closed",
+        "ALT in-dll-gate-i / gen4 still oracle when no compiler PE — ≠ contract A",
+        "production default place_cwd remains Rust (ALT unset); M4 flip ABSENT — see yoyo_m4_production_flip_blockers",
         "raising S1_SLIM_MAX_CODE / densify hand-hex ≠ live-compile graduation (sheep)",
-        "host emit_x86 still slim (fixed10 goldens); parse1 child ≡exec; host-mini 1024 stays",
-        "S3.684 cliff: export-local live emit ABSENT — see yoyo_indll_export_live_emit_design",
-        "S3.685 DONE: CreateProcess-as-compose-contract (A) picked; densify=sheep; M4 map refresh next",
+        "host-mini 1024 ABSENT (S1_SLIM_MAX_CODE stays); parse1 child ≡exec; host emit_x86 still slim",
+        "S3.684: export-local densify optional ABSENT (contract A); see yoyo_indll_export_live_emit_design",
+        "child live compose via CreateProcess GREEN (yoyo_child_live_compose); densify≠graduation",
     ]
 }
 
@@ -449,8 +450,8 @@ pub fn yoyo_indll_export_live_emit_design() -> &'static [&'static str] {
         "near path: accept CreateProcess(compiler) as compose contract (child≡seed S683); ≠ densify",
         "far path: shared parse1 .text dual-packaged (DLL+EXE) — infra, not this knife",
         "forbidden: hand-hex/densify parse1 into export; raise S1_SLIM_MAX_CODE alone; bake-sole-WF",
-        "next: refresh M4/live map for CreateProcess≡live-compose honesty — ≠ export-local densify",
-        "ready=false (M4); densify≠; bake-sole-seed-WF≠",
+        "S3.686 DONE: M4/live map refreshed — CreateProcess≡live-compose; densify export-local optional ABSENT",
+        "ready=false (M4 production flip); densify≠; bake-sole-seed-WF≠",
     ]
 }
 
@@ -621,7 +622,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.683 DONE: LDB oo imm8 + stage live parse1 .text (drop bake); CreateProcess≡seed via live",
         "S3.684 cliff: export-local live emit ABSENT — see yoyo_indll_export_live_emit_design; densify≠",
         "S3.685 DONE: non-sheep path = CreateProcess-as-compose-contract (A); densify=sheep; shared-text=far",
-        "today: child CreateProcess≡seed via live; parse1≡exec; M4 flip still ABSENT (map refresh next)",
+        "S3.686 DONE: M4/live map = CreateProcess≡live-compose; production default still Rust",
+        "today: CreateProcess≡live-compose GREEN; parse1≡exec; M4 production flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
         "yoyo.tyb: child+indll CreateProcess compose GREEN; M4 production flip ABSENT; densify≠",
@@ -689,6 +691,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.683: LDB oo imm8 + stage live text DONE (drop bake); M4/in-DLL live ABSENT — ≠ M4",
         "S3.684: export-local live emit ABSENT — CreateProcess child ≠ export emit; densify≠ — ≠ M4",
         "S3.685: CreateProcess-as-contract dissected (A); M4 map refresh ABSENT — ≠ M4",
+        "S3.686: M4/live map refreshed (CreateProcess≡live-compose); production flip ABSENT — ≠ M4",
     ]
 }
 
@@ -16352,6 +16355,33 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .success());
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), seed);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.686: M4/live map refreshed — CreateProcess≡live-compose (contract A);
+    /// production default still Rust; inventory CUT. densify≠. ready=false.
+    #[test]
+    fn yoyo_m4_live_compose_map_refresh_pin() {
+        let b = yoyo_m4_production_flip_blockers();
+        assert!(b.len() >= 3);
+        assert!(b.iter().any(|s| s.contains("CreateProcess") && s.contains("live-compose")));
+        assert!(b.iter().any(|s| s.contains("place_cwd") && s.contains("Rust")));
+        assert!(b.iter().any(|s| s.contains("CUT") || s.contains("closed=0")));
+        assert!(!b.iter().any(|s| s.contains("live in-DLL emit ABSENT")));
+        let m = yoyo_live_in_dll_compile_map();
+        assert!(m.iter().any(|s| s.contains("S3.685/686") || s.contains("contract (A)")));
+        assert!(m.iter().any(|s| s.contains("host-mini") && s.contains("ABSENT")));
+        assert!(yoyo_indll_export_live_emit_design()
+            .iter()
+            .any(|s| s.contains("S3.686")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.686")));
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("S3.686")));
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_live_compile_slice_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.686"));
     }
 
     /// S3.685: non-sheep paths dissected; pick A=CreateProcess-as-compose-contract.
