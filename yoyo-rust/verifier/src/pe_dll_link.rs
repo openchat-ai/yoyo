@@ -412,7 +412,26 @@ pub fn yoyo_m4_production_flip_blockers() -> &'static [&'static str] {
         "production place_cwd default still Rust (ALT unset) — flip target = YOYO CreateProcess path",
         "inventory OW-RT disposition=CUT (closed=0) — flip ≠ OW-RT CLOSED",
         "Gate I ALT oracle / gen4 paths still oracle-lookup when no compiler PE — fail-closed OK",
+        "S3.687: flip prep named — see yoyo_m4_production_flip_prep_design; default remains Off/Rust",
     ]
+}
+
+/// S3.687: **M4 production flip prep** — what flip would change (not flipping yet).
+/// Flip while inventory CUT = fake-CLOSED adjacent. densify≠. ready=false.
+pub fn yoyo_m4_production_flip_prep_design() -> &'static [&'static str] {
+    &[
+        "today: ALT_SIDECAR unset → AltSidecarMode::Off → place_cwd writes caller Rust bytes",
+        "flip candidate: default Off→InDll (CreateProcess-compiler contract A) when inventory allows",
+        "flip ≠ CLOSED: inventory OW-RT still CUT (closed=0); flip alone never graduates OW-RT",
+        "preflight GREEN: CreateProcess≡seed (S683); contract A (S685); map honesty (S686)",
+        "still ABSENT: inventory disposition change; production default code change; densify≠path",
+        "forbidden now: change default while CUT; densify; bake-sole-WF; claim CLOSED",
+    ]
+}
+
+/// S3.687: flip prep ready when design empty (still not the flip itself).
+pub fn yoyo_m4_production_flip_prep_ready() -> bool {
+    yoyo_m4_production_flip_prep_design().is_empty()
 }
 
 /// S3.528 / M4-prep: production flip ready? Always `false` while blockers remain.
@@ -623,7 +642,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.684 cliff: export-local live emit ABSENT — see yoyo_indll_export_live_emit_design; densify≠",
         "S3.685 DONE: non-sheep path = CreateProcess-as-compose-contract (A); densify=sheep; shared-text=far",
         "S3.686 DONE: M4/live map = CreateProcess≡live-compose; production default still Rust",
-        "today: CreateProcess≡live-compose GREEN; parse1≡exec; M4 production flip ABSENT",
+        "S3.687 DONE: M4 flip prep named (default stays Off/Rust; inventory CUT blocks flip)",
+        "today: CreateProcess≡live-compose GREEN; parse1≡exec; M4 flip ABSENT (prep named)",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
         "yoyo.tyb: child+indll CreateProcess compose GREEN; M4 production flip ABSENT; densify≠",
@@ -692,6 +712,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.684: export-local live emit ABSENT — CreateProcess child ≠ export emit; densify≠ — ≠ M4",
         "S3.685: CreateProcess-as-contract dissected (A); M4 map refresh ABSENT — ≠ M4",
         "S3.686: M4/live map refreshed (CreateProcess≡live-compose); production flip ABSENT — ≠ M4",
+        "S3.687: M4 flip prep named; default Off/Rust; inventory CUT — ≠ M4",
     ]
 }
 
@@ -16355,6 +16376,33 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .success());
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), seed);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.687: M4 flip prep named — default ALT Off/Rust; inventory CUT blocks
+    /// flip; CreateProcess≡live-compose preflight GREEN. densify≠. ready=false.
+    #[test]
+    fn yoyo_m4_production_flip_prep_pin() {
+        assert!(!yoyo_m4_production_flip_prep_ready());
+        let d = yoyo_m4_production_flip_prep_design();
+        assert!(d.iter().any(|s| s.contains("Off") && s.contains("Rust")));
+        assert!(d.iter().any(|s| s.contains("CUT") || s.contains("closed=0")));
+        assert!(d.iter().any(|s| s.contains("forbidden") && s.contains("CUT")));
+        assert!(yoyo_m4_production_flip_blockers()
+            .iter()
+            .any(|s| s.contains("S3.687")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.687")));
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("S3.687")));
+        // default still Off
+        assert!(matches!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off));
+        assert!(!yoyo_alt_sidecar_enabled());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_parse1_equiv_exec_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_m4_production_flip_prep_design"));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.687"));
     }
 
     /// S3.686: M4/live map refreshed — CreateProcess≡live-compose (contract A);
