@@ -473,6 +473,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.699: compose/self-host preflight complete; graduation hard gate=inventory CUT",
         "S3.700: inventory-facing CUT honest (SCOPE-CUT ow-rt); G CLOSED still ABSENT",
         "S3.701: dual-path host ADD optional ABSENT; leave-floor Δ=+307 stands",
+        "S3.702: nested CreateProcess optional ABSENT; single-shot contract stands",
     ]
 }
 
@@ -677,6 +678,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.699 DONE: S3 compose/self-host preflight named complete — remaining = inventory CUT + optional probes",
         "S3.700 DONE: inventory-facing map (CUT honest pick A); flip≠CLOSED; see yoyo_ow_rt_inventory_facing_design",
         "S3.701 DONE: dual-path host ADD probe pick A (leave-floor stands); dual-path ABSENT",
+        "S3.702 DONE: nested CreateProcess probe pick A (optional ABSENT); single-shot stands",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -761,6 +763,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.699: compose/self-host preflight complete; hard gate=inventory CUT — ≠ M4",
         "S3.700: inventory-facing CUT map pick A; flip≠CLOSED — ≠ M4",
         "S3.701: dual-path host ADD optional ABSENT (leave-floor stands) — ≠ M4",
+        "S3.702: nested CP probe pick A (optional ABSENT); single-shot stands — ≠ M4",
     ]
 }
 
@@ -1099,7 +1102,7 @@ pub fn yoyo_export_createprocess_reentrancy_design() -> &'static [&'static str] 
         "B mid/optional: probe nested CreateProcess (child loads same DLL export) + concurrent same-cwd",
         "C far: handle-inheritance TRUE path / explicit child curdir — not needed for contract A",
         "sheep: densify locks into export; raise slim; flip while CUT; claim CLOSED",
-        "S698 pick: A — re-entrancy deep tests optional ABSENT; update blockers; ≠ M4",
+        "S698 pick A STANDS; S702: nested probe pick A — nested remains optional ABSENT",
     ]
 }
 
@@ -1115,6 +1118,23 @@ pub fn yoyo_export_createprocess_reentrancy_paths() -> &'static [&'static str] {
 
 pub fn yoyo_export_createprocess_reentrancy_ready() -> bool {
     yoyo_export_createprocess_reentrancy_design().is_empty()
+}
+
+/// S3.702: **nested CreateProcess** optional probe (export→child→same export).
+/// Single-shot contract A (S698) stands. Nested ≠ graduation. ready=false.
+pub fn yoyo_nested_createprocess_probe_design() -> &'static [&'static str] {
+    &[
+        "scenario: in-DLL export CreateProcess(compiler) whose TYB somehow re-enters same export",
+        "today: single-shot GREEN; inherit=FALSE; no lock; nested path untested (S698 optional ABSENT)",
+        "A near: leave nested ABSENT — compose/self-host preflight does not require nested",
+        "B mid/optional: stress pin spawn child that LoadLibrary+call export (expect fail-closed or skip)",
+        "C sheep: densify re-entrancy locks; flip while CUT; claim CLOSED because nested GREEN",
+        "S702 pick: A — nested stays optional ABSENT; tip = inventory wait / stop code sheep",
+    ]
+}
+
+pub fn yoyo_nested_createprocess_probe_ready() -> bool {
+    yoyo_nested_createprocess_probe_design().is_empty()
 }
 
 /// S3.699: **S3 compose/self-host preflight** status (honest).
@@ -21797,6 +21817,22 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_ow_rt_inventory_facing_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.701"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_host_addsub_dual_path_probe_design"));
+    }
+
+    /// S3.702: nested CreateProcess optional probe; pick A leave ABSENT; ≠ M4.
+    #[test]
+    fn yoyo_nested_createprocess_probe_pick_a_pin() {
+        let d = yoyo_nested_createprocess_probe_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("nested")));
+        assert!(d.iter().any(|s| s.contains("S702 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("single-shot") || s.contains("S698")));
+        assert!(!yoyo_nested_createprocess_probe_ready());
+        assert!(!yoyo_export_createprocess_reentrancy_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_ow_rt_inventory_facing_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.702"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_nested_createprocess_probe_design"));
     }
 
     /// H_00 + yoyo.tyb ≡ seed_host. Default unset still Rust. M4 flip ABSENT.

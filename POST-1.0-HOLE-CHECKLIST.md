@@ -4,13 +4,13 @@
 
 | | |
 | --- | --- |
-| **tip** | **S3.702** ⏳ 可选探针 nested CP / 停在 inventory（≠flip） |
+| **tip** | **S3.703** ⏳ inventory 等待 / 禁 sheep 空转（≠flip） |
 | **主线** | S1✅ S2✅ **S3⏳** · S4/S5 未开 |
-| **已站住** | CreateProcess≡live · parse1≡exec · Gate I≡self-host · leave-floor · **single-shot CP** |
+| **已站住** | live-compose · parse1≡exec · Gate I≡self-host · single-shot CP · leave-floor · inventory CUT 诚实 |
 | **硬闸** | M4 flip **ABSENT**（inventory CUT · `closed=0 cut=7`）· `ready=false` |
 | **禁** | flip / densify / raise slim / host ADD imm8 / 假 CLOSED |
-| **近刀** | 691–701 ✅（…→inventory→**dual-path leave**） |
-| **git** | S701 收工 → tip **S3.702** · **未 push** · bake=362 |
+| **近刀** | 691–702 ✅（…→dual-path→**nested leave**） |
+| **git** | S702 收工 → tip **S3.703** · **未 push** · bake=362 |
 
 ---
 
@@ -18,7 +18,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.702**（701=dual-path leave-floor stands；下一刀=nested CP 可选或停；禁 flip）。
+**默认** 继续 **= S3.703**（702=nested CP leave optional；下一刀=inventory 等待·禁空转 sheep；禁 flip）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -60,9 +60,10 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3.699** ✅ | — | compose/self-host **preflight complete**（硬闸=CUT） |
 | **S3.700** ✅ | — | inventory-facing **CUT map** pick A（≠flip/CLOSED） |
 | **S3.701** ✅ | — | dual-path probe **pick A**（leave-floor stands） |
-| **S3.702** ⏳ | — | **本步**：nested CP 可选 / 停在 inventory |
+| **S3.702** ✅ | — | nested CP probe **pick A**（optional ABSENT） |
+| **S3.703** ⏳ | — | **本步**：inventory 等待 / 禁 sheep 空转 |
 
-**缺口**：inventory **CUT**（G CLOSED ABSENT）；dual-path ABSENT；nested CP 可选。`ready=false`。bake=362。
+**缺口**：inventory **CUT**（G CLOSED ABSENT）；可选探针均 leave。`ready=false`。bake=362。
 
 ---
 
@@ -80,9 +81,9 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 ## 对 AI
 
 - **每刀结束 / 用户说继续**：先扫本文件「一眼进度」；收工时**同步更新** tip·近刀·缺口·git 行（用户不必另问进度）。
-- 继续 → **S3.702**（非 sheep；**禁** flip / raise slim / host ADD imm8 / densify / 假 CLOSED）。遇红自动修推进。S3.701=dual-path leave。
+- 继续 → **S3.703**（非 sheep；**禁** flip / densify / 假 CLOSED / 无增量空转）。遇红自动修。S3.702=nested leave。硬闸=inventory。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
 
-*post-v1.0 · 收纳板 · tip S3.702 · 一眼进度置顶*
+*post-v1.0 · 收纳板 · tip S3.703 · 一眼进度置顶*
