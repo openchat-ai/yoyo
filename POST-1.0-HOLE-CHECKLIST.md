@@ -4,13 +4,13 @@
 
 | | |
 | --- | --- |
-| **tip** | **S3.700** ⏳ 可选探针 / inventory-facing（≠flip） |
+| **tip** | **S3.701** ⏳ 可选探针（dual-path / nested CP）（≠flip） |
 | **主线** | S1✅ S2✅ **S3⏳** · S4/S5 未开 |
 | **已站住** | CreateProcess≡live · parse1≡exec · Gate I≡self-host · leave-floor · **single-shot CP** |
 | **硬闸** | M4 flip **ABSENT**（inventory CUT · `closed=0 cut=7`）· `ready=false` |
 | **禁** | flip / densify / raise slim / host ADD imm8 / 假 CLOSED |
-| **近刀** | 691–699 ✅（…→re-entrancy→**preflight complete**） |
-| **git** | S699 收工 → tip **S3.700** · **未 push** · bake=362 |
+| **近刀** | 691–700 ✅（…→preflight→**inventory CUT map**） |
+| **git** | S700 收工 → tip **S3.701** · **未 push** · bake=362 |
 
 ---
 
@@ -18,7 +18,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.700**（699=compose/self-host preflight complete；下一刀=可选探针或 inventory；禁 flip）。
+**默认** 继续 **= S3.701**（700=inventory CUT map pick A；下一刀=可选探针；禁 flip）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -58,9 +58,10 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3.697** ✅ | `d710e3b` | CreateProcess blockers/call-site 刷新；stale 红修 |
 | **S3.698** ✅ | — | re-entrancy **pick A**（single-shot；nested optional） |
 | **S3.699** ✅ | — | compose/self-host **preflight complete**（硬闸=CUT） |
-| **S3.700** ⏳ | — | **本步**：可选探针 / inventory-facing（≠flip） |
+| **S3.700** ✅ | — | inventory-facing **CUT map** pick A（≠flip/CLOSED） |
+| **S3.701** ⏳ | — | **本步**：可选探针（dual-path / nested CP） |
 
-**缺口**：M4/inventory **CUT** 硬闸；可选：nested CP / dual-path / host-mini。`ready=false`。bake=362。
+**缺口**：inventory **CUT**（G CLOSED ABSENT）；可选探针 dual-path/nested。`ready=false`。bake=362。
 
 ---
 
@@ -78,9 +79,9 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 ## 对 AI
 
 - **每刀结束 / 用户说继续**：先扫本文件「一眼进度」；收工时**同步更新** tip·近刀·缺口·git 行（用户不必另问进度）。
-- 继续 → **S3.700**（非 sheep；**禁** flip / raise slim / host ADD imm8 / densify / 假 CLOSED）。遇红自动修推进。S3.699=preflight complete。
+- 继续 → **S3.701**（非 sheep；**禁** flip / raise slim / host ADD imm8 / densify / 假 CLOSED）。遇红自动修推进。S3.700=inventory CUT map。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
 
-*post-v1.0 · 收纳板 · tip S3.700 · 一眼进度置顶*
+*post-v1.0 · 收纳板 · tip S3.701 · 一眼进度置顶*

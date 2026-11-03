@@ -471,6 +471,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.695: Gate I (H_00+sidecar) ≡ self-host contract; child-cwd drop-in optional ABSENT (S694 cliff)",
         "S3.698: single-shot CreateProcess re-entrancy contract A; nested optional ABSENT",
         "S3.699: compose/self-host preflight complete; graduation hard gate=inventory CUT",
+        "S3.700: inventory-facing CUT honest (SCOPE-CUT ow-rt); G CLOSED still ABSENT",
     ]
 }
 
@@ -672,8 +673,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.696 DONE: M4 flip prep/gates refreshed — hard gate=inventory CUT; preflight compose+self-host GREEN",
         "S3.697 DONE: CreateProcess blockers+call-site design refreshed; re-entrancy residual; stale pins fixed",
         "S3.698 DONE: re-entrancy pick A (single-shot CreateProcess); nested optional ABSENT; blockers refreshed",
-        "S3.698 DONE: re-entrancy pick A (single-shot CreateProcess); nested optional ABSENT",
         "S3.699 DONE: S3 compose/self-host preflight named complete — remaining = inventory CUT + optional probes",
+        "S3.700 DONE: inventory-facing map (CUT honest pick A); flip≠CLOSED; see yoyo_ow_rt_inventory_facing_design",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -756,6 +757,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.697: CreateProcess-compiler blockers refreshed; re-entrancy ABSENT — ≠ M4",
         "S3.698: re-entrancy pick A (single-shot); nested optional ABSENT — ≠ M4",
         "S3.699: compose/self-host preflight complete; hard gate=inventory CUT — ≠ M4",
+        "S3.700: inventory-facing CUT map pick A; flip≠CLOSED — ≠ M4",
     ]
 }
 
@@ -1111,6 +1113,33 @@ pub fn yoyo_s3_compose_selfhost_preflight_design() -> &'static [&'static str] {
 pub fn yoyo_s3_compose_selfhost_preflight_ready() -> bool {
     // Never true while inventory CUT — design stays non-empty by construction.
     false
+}
+
+/// S3.700: **inventory-facing** map (OW-RT still CUT). Code flip ≠ CLOSED.
+/// Doc: `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`. ready=false.
+pub fn yoyo_ow_rt_inventory_facing_design() -> &'static [&'static str] {
+    &[
+        "doc: SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md — disposition=CUT; closed=0; production_default=RUST",
+        "G CLOSED needs: production H_00 uses YOYO-built compile sidecar; Rust yoyo_runtime gone from trust path",
+        "today GREEN ≠ G CLOSED: CreateProcess compose + Gate I self-host = preflight; default ALT still Off/Rust",
+        "inventory change alone ≠ CLOSED — need fail-closed evidence (stage17-ow-rt + no Rust sidecar trust)",
+        "A near/honest: keep CUT; code stays ready=false; optional probes only (dual-path/nested/host-mini)",
+        "B forbidden now: edit disposition to CLOSED without evidence; flip default while CUT; densify; invent Stage",
+        "S700 pick: A — tip next = optional probe OR stay inventory-honest; ≠ M4 flip",
+    ]
+}
+
+pub fn yoyo_ow_rt_inventory_facing_paths() -> &'static [&'static str] {
+    &[
+        "A near: stay CUT-honest; preflight GREEN; no silent flip",
+        "B sheep: claim CLOSED / flip default / densify / raise slim / imm8-ify host ADD",
+        "C far: inventory disposition change + stage17 evidence pack — human/docs gate, not this knife",
+        "S700 pick: A — next optional = dual-path host ADD dissect OR nested CP probe",
+    ]
+}
+
+pub fn yoyo_ow_rt_inventory_facing_ready() -> bool {
+    false // CUT by construction until inventory+evidence
 }
 
 
@@ -21703,6 +21732,34 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("S3.699") && s.contains("preflight")));
         assert!(include_str!("pe_dll_link.rs").contains("S3.699"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_s3_compose_selfhost_preflight_design"));
+    }
+
+    /// S3.700: inventory-facing CUT map; pick A stay honest; ≠ flip/CLOSED.
+    #[test]
+    fn yoyo_ow_rt_inventory_facing_cut_pin() {
+        let d = yoyo_ow_rt_inventory_facing_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("SCOPE-CUT") && s.contains("CUT")));
+        assert!(d.iter().any(|s| s.contains("G CLOSED") || s.contains("yoyo_runtime")));
+        assert!(d.iter().any(|s| s.contains("S700 pick") && s.contains("A")));
+        let p = yoyo_ow_rt_inventory_facing_paths();
+        assert!(p.iter().any(|s| s.contains("S700 pick") && s.contains("A")));
+        assert!(!yoyo_ow_rt_inventory_facing_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_s3_compose_selfhost_preflight_ready());
+        // inventory doc must remain reachable from repo root relative path named in design
+        assert!(
+            std::path::Path::new("../SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md").exists()
+                || std::path::Path::new("../../SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md").exists()
+                || std::path::Path::new("SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md").exists()
+                || include_str!("pe_dll_link.rs").contains("SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md"),
+            "SCOPE-CUT ow-rt doc must stay named"
+        );
+        assert!(yoyo_live_in_dll_compile_map()
+            .iter()
+            .any(|s| s.contains("S3.700")));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.700"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_ow_rt_inventory_facing_design"));
     }
 
     /// H_00 + yoyo.tyb ≡ seed_host. Default unset still Rust. M4 flip ABSENT.
