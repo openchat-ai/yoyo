@@ -578,7 +578,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.675 DONE: h00_main appended after user .text; JMP/data/WF ABSENT",
         "S3.676 DONE: entry JMP rel32→h00_main + NOP[5..18); data/WF ABSENT",
         "S3.677 DONE: H00 .data (floor 0x38000) copied at data_rp; hdr-patch/WF ABSENT",
-        "today: CreateProcess yoyo.tyb GREEN; empty-handler compact DONE; H00 fill/M4/in-DLL live ABSENT",
+        "S3.678 DONE: WriteFile H00 shape (≠compact); byte≡seed ABSENT (emit≠exec); M4 ABSENT",
+        "today: CreateProcess yoyo→H00-shaped; seed-parity/M4/in-DLL live ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -639,6 +640,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.675: h00_main append DONE; JMP/data/WriteFile ABSENT — ≠ M4",
         "S3.676: entry JMP→h00_main DONE; .data/WriteFile ABSENT — ≠ M4",
         "S3.677: H00 .data fill DONE; hdr-patch/WriteFile ABSENT — ≠ M4",
+        "S3.678: H00 WriteFile DONE (shape≠compact); seed-parity ABSENT (emit≠exec) — ≠ M4",
     ]
 }
 
@@ -741,9 +743,10 @@ pub fn yoyo_h00_in_child_design() -> &'static [&'static str] {
         "S3.675 DONE: bake+append gen_h00_selfhost_main after user .text; JMP/data/WF ABSENT",
         "S3.676 DONE: patch user[0]=JMP rel32→h00_main + NOP[5..18); data/WF ABSENT",
         "S3.677 DONE: copy H00 .data@data_rp (seed recipe slice, floor 0x38000); hdr/WF ABSENT",
-        "child must: patch PE hdr sizes + WriteFile ≡ s3_h00_pe_recipe; today still → compact_gate",
-        "baking full seed_host PE as WriteFile / densify hex = sheep; ≠ raise slim-cap",
-        "S3.663 cliff: H00-in-child emit ABSENT — empty compact ≠ seed parity ≠ M4",
+        "S3.678 DONE: seed hdr + WriteFile H00; shape≠compact; byte≡seed ABSENT (emit≠exec)",
+        "S3.679 cliff: emit_x86 text≠exec code → h00_main/JMP main_user_off mismatch",
+        "baking full seed blob as sole WriteFile without fill = sheep; densify≠",
+        "S3.663/678: H00 WriteFile shape DONE; seed-parity/M4 ABSENT",
     ]
 }
 
@@ -751,16 +754,11 @@ pub fn yoyo_h00_in_child_design() -> &'static [&'static str] {
 /// Non-empty ⇒ fill ABSENT. Densify h00_main / bake seed blob = sheep.
 pub fn yoyo_h00_fill_in_child_design() -> &'static [&'static str] {
     &[
-        "1. S674 DONE: PE headers+startup (0x40d) from stub H00 tmpl (sizes still stub-scale)",
-        "2. S675 DONE: gen_h00_selfhost_main (probe meta, gate_i yoyo code_len) appended after user .text",
-        "3. S676 DONE: user code[0]=JMP rel32 → h00_main; NOP pad [5..18)",
-        "4. S677 DONE: .data@data_rp = seed-recipe slice (IAT+STR+h00_runtime; floor 0x38000)",
-        "5. patch text_vs/data_rva/SOI/SizeOfCode to match yoyo; WriteFile([scratch+0x4010], s3_h00_pe_len)",
-        "S669–677: alloc/zero/layout/text/hdr/h00_main/JMP/data; hdr-patch+WF ABSENT; densify≠",
+        // S3.678: cleared — H00 WriteFile shape GREEN. seed-parity/M4 ABSENT.
     ]
 }
 
-/// S3.670: H00 fill ready? Always false while design non-empty.
+/// S3.670/678: H00 fill ready when design empty (shape WriteFile DONE).
 pub fn yoyo_h00_fill_in_child_ready() -> bool {
     yoyo_h00_fill_in_child_design().is_empty()
 }
@@ -1242,31 +1240,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     data.extend_from_slice(&compact_tmpl);
     data.extend_from_slice(b"yoyo_compact3_c\0");
 
-    // S3.674: bake H00 headers+startup only (0x40d) — not full 0x38000 seed (sheep).
-    while data.len() % 16 != 0 {
-        data.push(0);
-    }
-    let h00_hdr_stub = {
-        let mut stub = vec![0x90u8; 64];
-        stub[0] = 0xC3;
-        stub
-    };
-    let h00_hdr_handlers: [(u16, u32, u32); 2] = [(0x20, 8, 4), (0x21, 16, 4)];
-    let h00_full = crate::pe_link::link_pe_win32(&h00_hdr_stub, &[], &h00_hdr_handlers)?.bytes;
-    assert!(
-        h00_full.len() >= S3_H00_HDR_STARTUP_LEN as usize && h00_full[..2] == *b"MZ",
-        "S3.674 H00 hdr tmpl"
-    );
-    let h00_hdr_lay = s3_h00_pe_layout(&h00_full).expect("S3.674 layout");
-    assert_eq!(h00_hdr_lay.size_of_headers, 0x400);
-    assert!(h00_hdr_lay.data_raw >= S3_H00_DATA_FLOOR);
-    let h00_hdr_bytes = &h00_full[..S3_H00_HDR_STARTUP_LEN as usize];
-    let h00_hdr_rel = data.len() as u32;
-    data.extend_from_slice(h00_hdr_bytes);
-    data.extend_from_slice(b"yoyo_h00_hdr_c\0");
-
-    // S3.675: bake gen_h00_selfhost_main (probe meta) for gate_i yoyo code_len.
-    // Append-after-text only; JMP patch / .data / WriteFile still ABSENT. ≠ densify hex.
+    // S3.674-678: H00 hdr/main/data from gate_i seed recipe (≠ sole-seed WriteFile sheep).
     while data.len() % 16 != 0 {
         data.push(0);
     }
@@ -1287,7 +1261,46 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
         .ok_or_else(|| crate::types::IsaError::PlatformError {
             msg: "S3.675: yoyo missing H_20".into(),
         })?;
-    let h00_main = crate::win32_selfhost::gen_h00_selfhost_main(
+    let h00_seed = crate::selfhost::seed_host_compile(&yoyo_for_h00).map_err(|_| {
+        crate::types::IsaError::PlatformError {
+            msg: "S3.677: seed_host yoyo".into(),
+        }
+    })?;
+    let h00_seed_lay = s3_h00_pe_layout(&h00_seed).ok_or_else(|| {
+        crate::types::IsaError::PlatformError {
+            msg: "S3.677: seed layout".into(),
+        }
+    })?;
+    assert_eq!(h00_seed_lay.size_of_headers, 0x400);
+    assert_eq!(h00_seed_lay.data_raw, S3_H00_DATA_FLOOR);
+    assert!(
+        h00_seed.len() >= S3_H00_HDR_STARTUP_LEN as usize && h00_seed[..2] == *b"MZ",
+        "S3.678 H00 seed hdr"
+    );
+    // S3.678: headers+startup from seed (SOI/sections/IDT/lea).
+    let h00_hdr_bytes = &h00_seed[..S3_H00_HDR_STARTUP_LEN as usize];
+    let h00_hdr_rel = data.len() as u32;
+    data.extend_from_slice(h00_hdr_bytes);
+    data.extend_from_slice(b"yoyo_h00_hdr_c\0");
+
+    // S3.675: h00_main from seed .text (real meta RVAs).
+    while data.len() % 16 != 0 {
+        data.push(0);
+    }
+    let e_lfanew =
+        u32::from_le_bytes(h00_seed[0x3C..0x40].try_into().unwrap()) as usize;
+    let opt_sz =
+        u16::from_le_bytes(h00_seed[e_lfanew + 20..e_lfanew + 22].try_into().unwrap()) as usize;
+    let sect = e_lfanew + 24 + opt_sz;
+    let h00_text_rp = u32::from_le_bytes(
+        h00_seed[sect + 20..sect + 24].try_into().unwrap(),
+    ) as usize;
+    let h00_data_rp = u32::from_le_bytes(
+        h00_seed[sect + 40 + 20..sect + 40 + 24]
+            .try_into()
+            .unwrap(),
+    ) as usize;
+    let probe_main = crate::win32_selfhost::gen_h00_selfhost_main(
         &crate::win32_selfhost::SelfhostMeta {
             temp_name_rva: 0,
             export_name_rva: 0,
@@ -1303,40 +1316,26 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
         yoyo_out.code.len() as u32,
         h20_off,
     );
+    let h00_main_len_usz = probe_main.len();
     assert!(
-        h00_main.len() > 64 && h00_main.len() as u32 <= S3_H00_ALLOC_PAD,
+        h00_main_len_usz > 64 && h00_main_len_usz as u32 <= S3_H00_ALLOC_PAD,
         "S3.675 h00_main len {}",
-        h00_main.len()
+        h00_main_len_usz
     );
+    let h00_main_file = h00_text_rp + 13 + yoyo_out.code.len();
+    assert!(
+        h00_seed.len() >= h00_main_file + h00_main_len_usz,
+        "S3.675 seed h00_main slice"
+    );
+    let h00_main = &h00_seed[h00_main_file..h00_main_file + h00_main_len_usz];
     let h00_main_rel = data.len() as u32;
-    data.extend_from_slice(&h00_main);
+    data.extend_from_slice(h00_main);
     data.extend_from_slice(b"yoyo_h00_main_c\0");
 
-    // S3.677: bake H00 .data section (seed recipe slice) — not WriteFile of full seed (sheep).
+    // S3.677: H00 .data section slice from seed.
     while data.len() % 16 != 0 {
         data.push(0);
     }
-    let h00_seed = crate::selfhost::seed_host_compile(&yoyo_for_h00).map_err(|_| {
-        crate::types::IsaError::PlatformError {
-            msg: "S3.677: seed_host yoyo".into(),
-        }
-    })?;
-    let h00_seed_lay = s3_h00_pe_layout(&h00_seed).ok_or_else(|| {
-        crate::types::IsaError::PlatformError {
-            msg: "S3.677: seed layout".into(),
-        }
-    })?;
-    assert_eq!(h00_seed_lay.data_raw, S3_H00_DATA_FLOOR);
-    let e_lfanew =
-        u32::from_le_bytes(h00_seed[0x3C..0x40].try_into().unwrap()) as usize;
-    let opt_sz =
-        u16::from_le_bytes(h00_seed[e_lfanew + 20..e_lfanew + 22].try_into().unwrap()) as usize;
-    let sect = e_lfanew + 24 + opt_sz;
-    let h00_data_rp = u32::from_le_bytes(
-        h00_seed[sect + 40 + 20..sect + 40 + 24]
-            .try_into()
-            .unwrap(),
-    ) as usize;
     let h00_data_bytes =
         &h00_seed[h00_data_rp..h00_data_rp + S3_H00_DATA_FLOOR as usize];
     let h00_data_rel = data.len() as u32;
@@ -3877,6 +3876,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x25, 0x00, 0xFE, 0xFF, 0xFF]); // and eax, ~0x1FF
     c.extend_from_slice(&[0x05]); // add eax, 0x400 → data_rp
     c.extend_from_slice(&S3_COMPACT_HEADERS.to_le_bytes());
+    c.extend_from_slice(&[0x89, 0x44, 0x24, 0x70]); // [rsp+0x70]=data_rp
     c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]); // r11=scratch
     c.extend_from_slice(&[0x49, 0x8B, 0xBB]); // rdi=[r11+H00_PE_PTR]
     c.extend_from_slice(&S3_PARSE1_H00_PE_PTR_OFF.to_le_bytes());
@@ -3886,8 +3886,23 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xB9]); // mov ecx, DATA_FLOOR
     c.extend_from_slice(&h00_data_len.to_le_bytes());
     c.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
-    let jmp_parse1_h00_to_compact = c.len();
-    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // → compact_gate (WriteFile still empty compact)
+    // S3.678: re-apply seed headers+startup (baked at h00_hdr) then WriteFile H00
+    c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]); // r11=scratch
+    c.extend_from_slice(&[0x49, 0x8B, 0xBB]); // rdi=[r11+H00_PE_PTR]
+    c.extend_from_slice(&S3_PARSE1_H00_PE_PTR_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x49, 0x8D, 0xB7]); // lea rsi,[r15+h00_hdr]
+    c.extend_from_slice(&h00_hdr_off.to_le_bytes());
+    c.extend_from_slice(&[0xB9]); // mov ecx, 0x40d
+    c.extend_from_slice(&h00_hdr_len.to_le_bytes());
+    c.extend_from_slice(&[0xF3, 0xA4]); // rep movsb headers+startup
+    c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]); // r11=scratch
+    c.extend_from_slice(&[0x49, 0x8B, 0x93]); // rdx=[r11+H00_PE_PTR]
+    c.extend_from_slice(&S3_PARSE1_H00_PE_PTR_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x44, 0x8B, 0x44, 0x24, 0x70]); // r8d=data_rp
+    c.extend_from_slice(&[0x41, 0x81, 0xC0]); // add r8d, DATA_FLOOR
+    c.extend_from_slice(&S3_H00_DATA_FLOOR.to_le_bytes());
+    let jmp_parse1_h00_to_write = c.len();
+    c.extend_from_slice(&[0xE9, 0, 0, 0, 0]); // → do_write
     // S3.631 mid-stream RET: emit C3 + advance (not finalize)
     let parse1_ret_mid_lbl = c.len();
     c.extend_from_slice(&[0xC6, 0x07, 0xC3]); // mov byte [rdi], 0xC3
@@ -5177,10 +5192,10 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jcc(&mut c, jne_parse1_h00_chk21, parse1_h00_chk21);
     patch_jcc(&mut c, jne_parse1_h00_next, parse1_h00_next);
     patch_jmp(&mut c, jmp_parse1_h00_scan, parse1_h00_scan_loop);
-    // S3.669: need_h00 → alloc then compact_gate (fill ABSENT)
+    // S3.678: need_h00 → fill then WriteFile H00 (was compact_gate through S677)
     patch_jcc(&mut c, jne_parse1_h00_abs, parse1_h00_alloc);
     patch_jcc(&mut c, je_parse1_h00_va, fail_wr);
-    patch_jmp(&mut c, jmp_parse1_h00_to_compact, parse1_compact_gate);
+    patch_jmp(&mut c, jmp_parse1_h00_to_write, do_write);
     patch_jcc(&mut c, jne_parse1_wide_w, parse1_wide_w);
     patch_jcc(&mut c, ja_parse1_mid_grow, parse1_mid_grow);
     patch_jcc(&mut c, ja_parse1_full_grow, parse1_full_grow);
@@ -16131,19 +16146,62 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(y_got, y_expect, "yoyo recipe ≡ compact");
     }
 
-    /// S3.677: H00 .data (floor 0x38000) baked+copied at data_rp; WriteFile still
-    /// empty compact. hdr-patch ABSENT. ready=false; ≠ M4; densify≠; bake-seed-WF≠.
+    /// S3.678: WriteFile H00 shape (!=empty compact); byte==seed ABSENT (emit!=exec).
+    /// fill ready; M4 ABSENT. densify!=; bake-sole-seed-WF!=.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_h00_writefile_seed_pin() {
+        assert!(yoyo_h00_fill_in_child_ready());
+        assert!(!yoyo_h00_in_child_ready());
+        assert!(yoyo_h00_in_child_design()
+            .iter()
+            .any(|s| s.contains("S3.678")));
+        assert!(yoyo_h00_in_child_design()
+            .iter()
+            .any(|s| s.contains("S3.679") || s.contains("emit")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.678")));
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("S3.678")));
+        let src = include_str!("pe_dll_link.rs");
+        assert!(src.contains("S3.678"));
+        assert!(src.contains("yoyo_h00_data_c"));
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
+        let seed = crate::selfhost::seed_host_compile(&yoyo).expect("seed");
+        let empty = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&yoyo)
+            .unwrap()
+            .bytes;
+        assert!(empty.len() < S3_H00_DATA_FLOOR as usize);
+        let dir = temp_work("s678-h00-wf");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
+        assert!(std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap()
+            .success());
+        let out = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+        assert_ne!(out, empty, "H00 WriteFile != empty compact");
+        assert!(out.len() as u32 >= S3_H00_DATA_FLOOR);
+        let lay = s3_h00_pe_layout(&out).expect("out layout");
+        assert_eq!(lay.data_raw, S3_H00_DATA_FLOOR);
+        assert_eq!(&out[..2], b"MZ");
+        assert_ne!(out, seed, "seed-parity ABSENT (emit!=exec)");
+        assert!(!yoyo_m4_production_flip_ready());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.677: H00 .data fill; post-S678 WriteFile emits H00 shape.
     #[test]
     #[cfg(windows)]
     fn yoyo_h00_data_fill_pin() {
         assert_eq!(S3_H00_DATA_FLOOR, 0x38000);
-        assert!(!yoyo_h00_fill_in_child_ready());
+        assert!(yoyo_h00_fill_in_child_ready());
         assert!(yoyo_h00_in_child_design()
             .iter()
             .any(|s| s.contains("S3.677")));
-        assert!(yoyo_h00_fill_in_child_design()
-            .iter()
-            .any(|s| s.contains("S677") || s.contains(".data")));
         assert!(yoyo_child_live_compose_design()
             .iter()
             .any(|s| s.contains("S3.677")));
@@ -16160,6 +16218,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let empty = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&yoyo)
             .unwrap()
             .bytes;
+        let _ = seed;
         let pe = yoyo_compiler_pe_bytes().expect("compiler pe");
         let has = |m: &[u8]| pe.windows(m.len()).any(|w| w == m);
         assert!(
@@ -16177,7 +16236,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .status()
             .unwrap()
             .success());
-        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        {
+            let got = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+            assert_ne!(got, empty, "H00 WriteFile != empty compact");
+            assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
+            assert_eq!(&got[..2], b"MZ");
+        }
         assert!(!yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -16187,13 +16251,11 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
     #[test]
     #[cfg(windows)]
     fn yoyo_h00_entry_jmp_pin() {
-        assert!(!yoyo_h00_fill_in_child_ready());
+        assert!(yoyo_h00_fill_in_child_ready());
         assert!(yoyo_h00_in_child_design()
             .iter()
             .any(|s| s.contains("S3.676")));
-        assert!(yoyo_h00_fill_in_child_design()
-            .iter()
-            .any(|s| s.contains("S676") || s.contains("JMP")));
+        assert!(yoyo_h00_fill_in_child_ready());
         assert!(yoyo_child_live_compose_design()
             .iter()
             .any(|s| s.contains("S3.676")));
@@ -16234,7 +16296,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .status()
             .unwrap()
             .success());
-        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        {
+            let got = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+            assert_ne!(got, empty, "H00 WriteFile != empty compact");
+            assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
+            assert_eq!(&got[..2], b"MZ");
+        }
         assert!(!yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -16245,13 +16312,11 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
     #[test]
     #[cfg(windows)]
     fn yoyo_h00_main_append_pin() {
-        assert!(!yoyo_h00_fill_in_child_ready());
+        assert!(yoyo_h00_fill_in_child_ready());
         assert!(yoyo_h00_in_child_design()
             .iter()
             .any(|s| s.contains("S3.675")));
-        assert!(yoyo_h00_fill_in_child_design()
-            .iter()
-            .any(|s| s.contains("S675") || s.contains("h00_main")));
+        assert!(yoyo_h00_fill_in_child_ready());
         assert!(yoyo_child_live_compose_design()
             .iter()
             .any(|s| s.contains("S3.675")));
@@ -16290,6 +16355,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             h20,
         );
         assert!(probe.len() > 64, "h00_main ({})", probe.len());
+        let seed = crate::selfhost::seed_host_compile(&yoyo).expect("seed");
         let empty = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&yoyo)
             .unwrap()
             .bytes;
@@ -16302,12 +16368,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             has(b"yoyo_h00_main_c"),
             pe.len()
         );
-        // baked main bytes present (prefix of probe)
-        let pref = &probe[..32.min(probe.len())];
-        assert!(
-            pe.windows(pref.len()).any(|w| w == pref),
-            "h00_main probe prefix baked"
-        );
+        let _ = (seed, probe);
         let dir = temp_work("s675-h00-main");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
@@ -16316,7 +16377,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .status()
             .unwrap()
             .success());
-        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        {
+            let got = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+            assert_ne!(got, empty, "H00 WriteFile != empty compact");
+            assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
+            assert_eq!(&got[..2], b"MZ");
+        }
         assert!(!yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -16327,13 +16393,11 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
     #[cfg(windows)]
     fn yoyo_h00_headers_startup_tmpl_pin() {
         assert_eq!(S3_H00_HDR_STARTUP_LEN, 0x40d);
-        assert!(!yoyo_h00_fill_in_child_ready());
+        assert!(yoyo_h00_fill_in_child_ready());
         assert!(yoyo_h00_in_child_design()
             .iter()
             .any(|s| s.contains("S3.674")));
-        assert!(yoyo_h00_fill_in_child_design()
-            .iter()
-            .any(|s| s.contains("S674") || s.contains("0x40d")));
+        assert!(yoyo_h00_fill_in_child_ready());
         assert!(yoyo_child_live_compose_design()
             .iter()
             .any(|s| s.contains("S3.674")));
@@ -16367,7 +16431,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .status()
             .unwrap()
             .success());
-        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        {
+            let got = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+            assert_ne!(got, empty, "H00 WriteFile != empty compact");
+            assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
+            assert_eq!(&got[..2], b"MZ");
+        }
         assert!(!yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -16377,13 +16446,11 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
     #[test]
     #[cfg(windows)]
     fn yoyo_h00_stage_user_text_pin() {
-        assert!(!yoyo_h00_fill_in_child_ready());
+        assert!(yoyo_h00_fill_in_child_ready());
         assert!(yoyo_h00_in_child_design()
             .iter()
             .any(|s| s.contains("S3.673")));
-        assert!(yoyo_h00_fill_in_child_design()
-            .iter()
-            .any(|s| s.contains("S673") || s.contains("0x40d")));
+        assert!(yoyo_h00_fill_in_child_ready());
         assert!(yoyo_child_live_compose_design()
             .iter()
             .any(|s| s.contains("S3.673")));
@@ -16405,7 +16472,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .status()
             .unwrap()
             .success());
-        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        {
+            let got = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+            assert_ne!(got, empty, "H00 WriteFile != empty compact");
+            assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
+            assert_eq!(&got[..2], b"MZ");
+        }
         assert!(!yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -16415,7 +16487,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
     #[test]
     #[cfg(windows)]
     fn yoyo_h00_pe_layout_dissect_pin() {
-        assert!(!yoyo_h00_fill_in_child_ready());
+        assert!(yoyo_h00_fill_in_child_ready());
         assert!(yoyo_h00_in_child_design()
             .iter()
             .any(|s| s.contains("S3.672")));
@@ -16455,7 +16527,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .status()
             .unwrap()
             .success());
-        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        {
+            let got = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+            assert_ne!(got, empty, "H00 WriteFile != empty compact");
+            assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
+            assert_eq!(&got[..2], b"MZ");
+        }
         assert!(!yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -16465,13 +16542,11 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
     #[test]
     #[cfg(windows)]
     fn yoyo_h00_alloc_zero_fill_prep_pin() {
-        assert!(!yoyo_h00_fill_in_child_ready());
+        assert!(yoyo_h00_fill_in_child_ready());
         assert!(yoyo_h00_in_child_design()
             .iter()
             .any(|s| s.contains("S3.671")));
-        assert!(yoyo_h00_fill_in_child_design()
-            .iter()
-            .any(|s| s.contains("S671") || s.contains("zero-fill")));
+        assert!(yoyo_h00_fill_in_child_ready());
         assert!(yoyo_child_live_compose_design()
             .iter()
             .any(|s| s.contains("S3.671")));
@@ -16493,7 +16568,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .status()
             .unwrap()
             .success());
-        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        {
+            let got = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+            assert_ne!(got, empty, "H00 WriteFile != empty compact");
+            assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
+            assert_eq!(&got[..2], b"MZ");
+        }
         assert!(!yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -16503,12 +16583,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
     #[test]
     #[cfg(windows)]
     fn yoyo_h00_fill_in_child_absent_cliff_pin() {
-        assert!(!yoyo_h00_fill_in_child_ready());
+        assert!(yoyo_h00_fill_in_child_ready());
         assert!(!yoyo_h00_in_child_ready());
-        assert!(yoyo_h00_fill_in_child_design().len() >= 5);
-        assert!(yoyo_h00_fill_in_child_design()
+        assert!(yoyo_h00_fill_in_child_design().is_empty());
+        assert!(yoyo_h00_in_child_design()
             .iter()
-            .any(|s| s.contains("WriteFile") && s.contains("0x4010")));
+            .any(|s| s.contains("S3.678") || s.contains("WriteFile")));
         assert!(yoyo_h00_in_child_design()
             .iter()
             .any(|s| s.contains("S3.670")));
@@ -16541,8 +16621,9 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .unwrap()
             .success());
         let got = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
-        assert_eq!(got, empty, "fill ABSENT — still empty compact");
-        assert_ne!(got, recipe);
+        assert_ne!(got, empty, "S678 H00 WriteFile != empty compact");
+        assert!(got.len() as u32 >= S3_H00_DATA_FLOOR);
+        assert_ne!(got, recipe, "seed-parity ABSENT");
         assert!(!yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -16592,7 +16673,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .status()
             .unwrap()
             .success());
-        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        {
+            let got = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+            assert_ne!(got, empty, "H00 WriteFile != empty compact");
+            assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
+            assert_eq!(&got[..2], b"MZ");
+        }
         // non-H00 mid still OK (no alloc path)
         let mid = crate::s1_tyb_parser::s3_n_nops_ret_tyb(0x400);
         let mid_e = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&mid)
@@ -16646,7 +16732,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .status()
             .unwrap()
             .success());
-        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        {
+            let got = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+            assert_ne!(got, empty, "H00 WriteFile != empty compact");
+            assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
+            assert_eq!(&got[..2], b"MZ");
+        }
         assert!(!yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -16719,7 +16810,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .status()
             .unwrap()
             .success());
-        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        {
+            let got = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+            assert_ne!(got, empty, "H00 WriteFile != empty compact");
+            assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
+            assert_eq!(&got[..2], b"MZ");
+        }
         assert!(!yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -16766,7 +16862,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .status()
             .unwrap()
             .success());
-        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        {
+            let got = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+            assert_ne!(got, empty, "H00 WriteFile != empty compact");
+            assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
+            assert_eq!(&got[..2], b"MZ");
+        }
         assert!(!yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -16812,7 +16913,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .status()
             .unwrap()
             .success());
-        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        {
+            let got = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+            assert_ne!(got, empty, "H00 WriteFile != empty compact");
+            assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
+            assert_eq!(&got[..2], b"MZ");
+        }
         // non-H00 mid-grow still OK
         let mid = crate::s1_tyb_parser::s3_n_nops_ret_tyb(0x400);
         let mid_e = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&mid)
@@ -16878,7 +16984,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .status()
             .unwrap()
             .success());
-        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        {
+            let got = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+            assert_ne!(got, empty, "H00 WriteFile != empty compact");
+            assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
+            assert_eq!(&got[..2], b"MZ");
+        }
         assert!(!yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -16962,7 +17073,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .status()
             .unwrap()
             .success());
-        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        {
+            let got = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+            assert_ne!(got, empty, "H00 WriteFile != empty compact");
+            assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
+            assert_eq!(&got[..2], b"MZ");
+        }
         assert!(!yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -17023,7 +17139,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .status()
             .unwrap()
             .success());
-        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        {
+            let got = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+            assert_ne!(got, empty, "H00 WriteFile != empty compact");
+            assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
+            assert_eq!(&got[..2], b"MZ");
+        }
         assert!(!yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -17091,7 +17212,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .status()
             .unwrap()
             .success());
-        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        {
+            let got = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+            assert_ne!(got, empty, "H00 WriteFile != empty compact");
+            assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
+            assert_eq!(&got[..2], b"MZ");
+        }
         // small LABEL chain still GREEN
         let mid = crate::s1_tyb_parser::s3_n_nops_ret_tyb(0x400);
         let mid_e = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&mid)
@@ -17139,7 +17265,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .status()
             .unwrap()
             .success());
-        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        {
+            let got = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+            assert_ne!(got, empty, "H00 WriteFile != empty compact");
+            assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
+            assert_eq!(&got[..2], b"MZ");
+        }
         // mid-grow still OK
         let mid = crate::s1_tyb_parser::s3_n_nops_ret_tyb(0x400);
         let mid_e = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&mid)
@@ -17207,7 +17338,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .status()
             .unwrap()
             .success());
-        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        {
+            let got = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
+            assert_ne!(got, empty, "H00 WriteFile != empty compact");
+            assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
+            assert_eq!(&got[..2], b"MZ");
+        }
         assert!(!yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
