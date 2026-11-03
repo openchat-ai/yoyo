@@ -467,6 +467,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "host-mini 1024 ABSENT (S1_SLIM_MAX_CODE stays); parse1 child ≡exec; host emit_x86 still slim",
         "S3.684: export-local densify optional ABSENT (contract A); see yoyo_indll_export_live_emit_design",
         "child live compose via CreateProcess GREEN (yoyo_child_live_compose); densify≠graduation",
+"S3.695: Gate I (H_00+sidecar) ≡ self-host contract; child-cwd drop-in optional ABSENT (S694 cliff)",
     ]
 }
 
@@ -663,6 +664,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.692 DONE: host ADD/SUB imm32 floor named (fixed10 golden; Δ=+307); design pin wording refreshed",
         "S3.693 DONE: leave-floor pick A; S634/5 retarget stage1≡seed stage2→NO_INPUT (AV cleared); dual-path ABSENT",
 "S3.694 DONE: drop-in self-host NO_INPUT cliff dissected — see yoyo_dropin_selfhost_no_input_design; ≠M4",
+"S3.695 DONE: pick A Gate I≡self-host; child-cwd drop-in optional ABSENT; map refreshed; ≠M4",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; host LDB≡exec; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -740,6 +742,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.692: host ADD/SUB imm32 floor (fixed10); Δ=+307; M4 ABSENT — ≠ M4",
         "S3.693: leave-floor + S634/5 NO_INPUT retarget (AV cleared); dual-path ABSENT — ≠ M4",
 "S3.694: drop-in self-host NO_INPUT cliff named; Gate I loop ≠ child-cwd drop-in — ≠ M4",
+"S3.695: Gate I≡self-host pick A; child-cwd drop-in optional; M4 ABSENT — ≠ M4",
     ]
 }
 
@@ -773,19 +776,30 @@ pub fn yoyo_host_addsub_imm32_floor_paths() -> &'static [&'static str] {
 /// Clearing ≠ M4 flip / ≠ densify. ready=false.
 pub fn yoyo_dropin_selfhost_no_input_design() -> &'static [&'static str] {
     &[
+        "S3.695 DONE pick A: Gate I loop (H_00+sidecar) IS the self-host contract — ≠ child-cwd drop-in",
         "today: CreateProcess(yoyo_compiler.exe)+input.tyb GREEN; output ≡ seed (S683/693)",
-        "cliff: CreateProcess(that output)+input.tyb under child cwd → EXIT_NO_INPUT(2); no output.exe",
-        "why: seed/H00 PE entry = Gate I / H_00 driver contract (heap/sidecar), ≠ child-cwd ReadFile(input.tyb)",
-        "A near: keep Gate I loop (H_00+sidecar) as self-host — already GREEN for oracle/3nop; document ≠ child-cwd drop-in",
-        "B mid: teach H00/seed PE a child-cwd input.tyb→output.exe path (parse1-compiler shape) — real ISA/driver work",
-        "C far: shared-text dual package (DLL export + compiler PE) — infra",
-        "sheep: densify yoyo_compiler into yoyo.tyb blob; raise slim; claim CLOSED",
-        "S694: dissect only — pick deferred; ≠ M4 flip while CUT",
+        "child-cwd CreateProcess(compiled-yoyo)→NO_INPUT remains optional ABSENT (same class as export-local densify)",
+        "why NO_INPUT: seed/H00 entry = Gate I/H_00 driver (heap/sidecar), ≠ child-cwd ReadFile(input.tyb)",
+        "B mid ABSENT optional: teach H00 child-cwd input.tyb→output.exe — not required for contract A",
+        "C far ABSENT: shared-text dual package — infra",
+        "sheep: densify yoyo_compiler into yoyo.tyb; raise slim; flip while CUT; claim CLOSED",
+        "ready=false (M4 production flip / inventory CUT); Gate I≡self-host ≠ OW-RT CLOSED",
     ]
 }
 
 pub fn yoyo_dropin_selfhost_no_input_ready() -> bool {
     yoyo_dropin_selfhost_no_input_design().is_empty()
+}
+
+/// S3.695: pick record for drop-in self-host (post-S694 dissect).
+pub fn yoyo_dropin_selfhost_no_input_paths() -> &'static [&'static str] {
+    &[
+        "A near/non-sheep: Gate I (H_00+sidecar) = self-host contract — child-cwd drop-in optional ABSENT",
+        "B mid/optional: H00 learns child-cwd input.tyb→output.exe (parse1-compiler shape)",
+        "C far: shared-text dual package",
+        "sheep: densify / raise slim / flip-while-CUT / fake CLOSED",
+        "S695 pick: A — next = refresh live/M4 map honesty OR inventory-facing knife; ≠ flip now",
+    ]
 }
 
 /// S3.667: Win32 H00 `.data` floor (`pe_link::OUTPUT_DATA_NEED`). Compact uses 0x1000.
@@ -15983,19 +15997,26 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_host_addsub_imm32_floor_paths"));
     }
 
-    /// S3.694: drop-in self-host NO_INPUT cliff named; ready=false; ≠ M4.
+    /// S3.694/S3.695: drop-in NO_INPUT cliff; pick A Gate I≡self-host; ready=false; ≠ M4.
     #[test]
     fn yoyo_dropin_selfhost_no_input_cliff_pin() {
         let d = yoyo_dropin_selfhost_no_input_design();
         assert!(!d.is_empty());
-        assert!(d.iter().any(|s| s.contains("EXIT_NO_INPUT") || s.contains("NO_INPUT")));
+        assert!(d.iter().any(|s| s.contains("S3.695") && s.contains("pick A")));
         assert!(d.iter().any(|s| s.contains("Gate I") || s.contains("H_00")));
+        assert!(d.iter().any(|s| s.contains("optional ABSENT") || s.contains("NO_INPUT")));
         assert!(d.iter().any(|s| s.contains("sheep")));
+        let p = yoyo_dropin_selfhost_no_input_paths();
+        assert!(p.iter().any(|s| s.contains("S695 pick") && s.contains("A")));
         assert!(!yoyo_dropin_selfhost_no_input_ready());
         assert!(!yoyo_m4_production_flip_ready());
         assert!(!yoyo_child_live_compose_ready());
+        assert!(yoyo_live_in_dll_compile_map()
+            .iter()
+            .any(|s| s.contains("S3.695") && s.contains("Gate I")));
         assert!(include_str!("pe_dll_link.rs").contains("S3.694"));
-        assert!(include_str!("pe_dll_link.rs").contains("yoyo_dropin_selfhost_no_input_design"));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.695"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_dropin_selfhost_no_input_paths"));
     }
 
     /// S3.583: emit2 SET patches imm from TYB; DEADBEEF + alt imm GREEN; marker yoyo_emit2_c.
