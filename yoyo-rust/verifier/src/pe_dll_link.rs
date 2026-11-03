@@ -580,7 +580,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.677 DONE: H00 .data (floor 0x38000) copied at data_rp; hdr-patch/WF ABSENT",
         "S3.678 DONE: WriteFile H00 shape (≠compact); byte≡seed ABSENT (emit≠exec); M4 ABSENT",
         "S3.679 DONE: stage seed exec user .text (≠parse1 slim-IAT); CreateProcess(yoyo)≡seed",
-        "today: CreateProcess yoyo≡seed_host H00; M4/in-DLL live emit ABSENT",
+        "S3.680 cliff: parse1≡exec ABSENT — see yoyo_parse1_equiv_exec_design (I/O+imm8); bake-text remains",
+        "today: CreateProcess yoyo≡seed_host H00; parse1≠exec; M4/in-DLL live emit ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
@@ -643,6 +644,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.677: H00 .data fill DONE; hdr-patch/WriteFile ABSENT — ≠ M4",
         "S3.678: H00 WriteFile DONE (shape≠compact); seed-parity ABSENT (emit≠exec) — ≠ M4",
         "S3.679: seed-parity DONE (bake exec user text); M4/in-DLL live ABSENT — ≠ M4",
+        "S3.680: parse1≡exec ABSENT — Win32 I/O + ADD/SUB imm8; bake-text remains — ≠ M4",
     ]
 }
 
@@ -747,9 +749,30 @@ pub fn yoyo_h00_in_child_design() -> &'static [&'static str] {
         "S3.677 DONE: copy H00 .data@data_rp (seed recipe slice, floor 0x38000); hdr/WF ABSENT",
         "S3.678 DONE: seed hdr + WriteFile H00; shape≠compact; byte≡seed ABSENT (emit≠exec)",
         "S3.679 DONE: bake+stage seed exec user .text (parse1 still slim-IAT; HOT scan only)",
+        "S3.680 cliff: parse1≡exec ABSENT — I/O slim≠win32 + ADD/SUB imm32≠imm8; bake remains",
         "baking full seed blob as sole WriteFile without fill = sheep; densify≠",
-        "S3.663/679: H00 CreateProcess(yoyo)≡seed DONE; M4/in-DLL live ABSENT",
+        "S3.663/679: H00 CreateProcess(yoyo)≡seed DONE; parse1≠exec; M4/in-DLL live ABSENT",
     ]
+}
+
+/// S3.680: gaps for **parse1≡exec** (drop bake user text).
+/// Host proof: slim `emit_x86(yoyo)` len 0x474f ≠ win32 exec 0x4592 (Δ=+445).
+/// After Win32 I/O replace + ADD/SUB imm8 rewrite → len match; live rel32 needs emit-time.
+/// Clearing + stage live text ⇒ drop `yoyo_h00_text_c`. ≠ M4 ≠ densify ≠ bake-sole-WF.
+pub fn yoyo_parse1_equiv_exec_design() -> &'static [&'static str] {
+    &[
+        "parse1 ALLOC/LOAD/WRITE = slim IAT@0xF00 + slim LOAD/WRITE blobs; exec = Win32 IAT@0 + platform_io blobs (path=STR_TABLE 0x10000+idx*64)",
+        "parse1/emit_x86 ADD/SUB always imm32 (48 81); exec assembler uses imm8 (48 83) when imm∈[-128,127] (~54 ops · ~162B)",
+        "yoyo.tyb: 1×ALLOC+1×LOAD+1×WRITE; I/O blob Δ≈+28B; imm8 Δ≈+162B; remainder=rel32 cascade from longer bodies",
+        "S679 bake+stage seed exec user .text masks the gap — CreateProcess≡seed ≠ parse1≡exec",
+        "next: parse1 Win32 I/O → ADD/SUB imm8 → stage live text / drop yoyo_h00_text_c",
+        "baking seed blob / densify ≠; raising S1_SLIM_MAX_CODE ≠; ready=false (M4)",
+    ]
+}
+
+/// S3.680: parse1≡exec ready when design empty (live text stages; bake-text gone).
+pub fn yoyo_parse1_equiv_exec_ready() -> bool {
+    yoyo_parse1_equiv_exec_design().is_empty()
 }
 
 /// S3.670: ordered **H00 fill** steps into scratch+0x4010 alloc (S669).
@@ -16166,6 +16189,51 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let y_got = s3_compact_full_grow_from_tmpl(&tmpl, &yout.text, &yout.data);
         assert_eq!(y_got.len(), y_expect.len());
         assert_eq!(y_got, y_expect, "yoyo recipe ≡ compact");
+    }
+
+    /// S3.680: parse1≡exec ABSENT cliff — slim emit_x86(yoyo) ≠ win32 exec;
+    /// gaps in yoyo_parse1_equiv_exec_design (Win32 I/O + ADD/SUB imm8).
+    /// CreateProcess still ≡seed via S679 bake. ready=false; ≠M4; densify≠.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_parse1_equiv_exec_absent_cliff_pin() {
+        assert!(!yoyo_parse1_equiv_exec_ready());
+        let d = yoyo_parse1_equiv_exec_design();
+        assert!(d.iter().any(|s| s.contains("slim IAT") && s.contains("Win32")));
+        assert!(d.iter().any(|s| s.contains("imm8") || s.contains("imm32")));
+        assert!(d.iter().any(|s| s.contains("bake") && s.contains("S679")));
+        assert!(yoyo_h00_in_child_design()
+            .iter()
+            .any(|s| s.contains("S3.680")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.680")));
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("S3.680")));
+        let src = include_str!("pe_dll_link.rs");
+        assert!(src.contains("yoyo_parse1_equiv_exec_design"));
+        assert!(src.contains("S3.680"));
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
+        let win = crate::executor::compile_tyb_source(
+            &yoyo,
+            crate::platform::PlatformKind::Win32,
+        )
+        .unwrap();
+        let prog = crate::s1_tyb_parser::parse_tyb(&yoyo).unwrap();
+        let slim = crate::s1_tyb_parser::emit_x86(&prog);
+        assert_ne!(
+            slim.text.len(),
+            win.code.len(),
+            "S680 parse1/slim emit ≠ exec len ({} vs {})",
+            slim.text.len(),
+            win.code.len()
+        );
+        assert_eq!(slim.text.len(), 0x474f, "S680 slim yoyo text len");
+        assert_eq!(win.code.len(), 0x4592, "S680 exec yoyo text len");
+        // S679 bake still carries CreateProcess≡seed
+        assert!(yoyo_h00_fill_in_child_ready());
+        assert!(!yoyo_m4_production_flip_ready());
     }
 
     /// S3.679: CreateProcess(yoyo)≡seed_host (bake exec user text; parse1≠emit IAT).
