@@ -433,19 +433,36 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "raising S1_SLIM_MAX_CODE / densify hand-hex ≠ live-compile graduation (sheep)",
         "host emit_x86 still slim (fixed10 goldens); parse1 child ≡exec; host-mini 1024 stays",
         "S3.684 cliff: export-local live emit ABSENT — see yoyo_indll_export_live_emit_design",
+        "S3.685 DONE: CreateProcess-as-compose-contract (A) picked; densify=sheep; M4 map refresh next",
     ]
 }
 
 /// S3.684: gaps for **export-local** live emit (≠ CreateProcess child; ≠ densify).
-/// Child parse1≡exec + H00 live DONE (S683). Clearing ⇒ in-DLL export emits
-/// without spawning compiler PE. ≠ M4 ≠ bake-sole-WF ≠ raise slim-cap.
+/// Child parse1≡exec + H00 live DONE (S683). S685: non-sheep path dissected —
+/// **CreateProcess-as-compose-contract** (near); shared-text (far); densify=sheep.
+/// Clearing export-local remains optional if contract accepted → M4 flip path.
 pub fn yoyo_indll_export_live_emit_design() -> &'static [&'static str] {
     &[
         "export .text has CreateProcessA+Wait+GetExitCode call-site (S542); gates on cwd yoyo_compiler.exe",
         "no parse1 / emit_x86 / pe_link machine inside export body — child PE is the compose engine",
-        "embedding child parse1 into DLL export = densify sheep unless thin trampoline + shared code",
-        "next: dissect non-sheep path (shared text? trampoline? keep CreateProcess as contract?) — ≠ M4",
+        "S3.685 DONE: non-sheep paths dissected — see yoyo_indll_export_live_emit_paths",
+        "near path: accept CreateProcess(compiler) as compose contract (child≡seed S683); ≠ densify",
+        "far path: shared parse1 .text dual-packaged (DLL+EXE) — infra, not this knife",
+        "forbidden: hand-hex/densify parse1 into export; raise S1_SLIM_MAX_CODE alone; bake-sole-WF",
+        "next: refresh M4/live map for CreateProcess≡live-compose honesty — ≠ export-local densify",
         "ready=false (M4); densify≠; bake-sole-seed-WF≠",
+    ]
+}
+
+/// S3.685: dissected **non-sheep** options for in-DLL compose (post-S683/684).
+/// Pick near = CreateProcess-as-contract. Densify export-local = sheep.
+pub fn yoyo_indll_export_live_emit_paths() -> &'static [&'static str] {
+    &[
+        "A near/non-sheep: CreateProcess(yoyo_compiler.exe) IS the compose contract — export stays trampoline; child parse1≡exec+H00 live (S683) already ≡seed",
+        "B far/non-sheep: one parse1 machine image linked into both DLL export + compiler PE (shared .text) — build-system work; not densify-by-hand",
+        "C sheep: copy/densify parse1 asm into export .text / raise slim-cap / bake seed blob as sole emit",
+        "D reject: LoadLibrary(EXE) / map-and-call compiler PE entry — fragile Win32, not a slice",
+        "S685 pick: A — next knife refreshes M4 blockers + live map (CreateProcess≡live-compose); export-local emit stays optional ABSENT",
     ]
 }
 
@@ -603,10 +620,11 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.682 DONE: parse1 ADD/SUB imm8 when imm∈i8 (≡exec assembler); bake-text remains",
         "S3.683 DONE: LDB oo imm8 + stage live parse1 .text (drop bake); CreateProcess≡seed via live",
         "S3.684 cliff: export-local live emit ABSENT — see yoyo_indll_export_live_emit_design; densify≠",
-        "today: child CreateProcess≡seed via live; parse1≡exec; export-local emit/M4 ABSENT",
-        "export-local needs: parse+emit+pe_link in export .text (≠ CreateProcess child; densify≠)",
-        "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
-        "yoyo.tyb: child CreateProcess GREEN; indll still CreateProcess-compiler; M4 ABSENT; densify≠",
+        "S3.685 DONE: non-sheep path = CreateProcess-as-compose-contract (A); densify=sheep; shared-text=far",
+        "today: child CreateProcess≡seed via live; parse1≡exec; M4 flip still ABSENT (map refresh next)",
+        "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
+        "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
+        "yoyo.tyb: child+indll CreateProcess compose GREEN; M4 production flip ABSENT; densify≠",
         "hand-hex densify of emit_x86 into child = sheep; not a live-compose slice",
         "finite emit1/imm table growth ≠ graduation; live slice clears this design list",
         "general parse+emit still ABSENT — 3nop compact bake ≠ live emit_x86+pe_link in child",
@@ -670,6 +688,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.682: parse1 ADD/SUB imm8 DONE; stage live text / drop bake ABSENT — ≠ M4",
         "S3.683: LDB oo imm8 + stage live text DONE (drop bake); M4/in-DLL live ABSENT — ≠ M4",
         "S3.684: export-local live emit ABSENT — CreateProcess child ≠ export emit; densify≠ — ≠ M4",
+        "S3.685: CreateProcess-as-contract dissected (A); M4 map refresh ABSENT — ≠ M4",
     ]
 }
 
@@ -16333,6 +16352,34 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .success());
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), seed);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.685: non-sheep paths dissected; pick A=CreateProcess-as-compose-contract.
+    /// densify=sheep; shared-text=far; M4 map refresh next. ready=false.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_indll_export_live_emit_paths_pin() {
+        let p = yoyo_indll_export_live_emit_paths();
+        assert!(p.iter().any(|s| s.starts_with("A near") && s.contains("CreateProcess")));
+        assert!(p.iter().any(|s| s.starts_with("B far") && s.contains("shared")));
+        assert!(p.iter().any(|s| s.starts_with("C sheep") && s.contains("densify")));
+        assert!(p.iter().any(|s| s.contains("S685 pick") && s.contains("A")));
+        assert!(yoyo_indll_export_live_emit_design()
+            .iter()
+            .any(|s| s.contains("S3.685")));
+        assert!(yoyo_live_in_dll_compile_map()
+            .iter()
+            .any(|s| s.contains("S3.685")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.685")));
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("S3.685")));
+        assert!(!yoyo_indll_export_live_emit_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_indll_export_live_emit_paths"));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.685"));
     }
 
     /// S3.680/683: parse1≡exec ready after Win32 I/O + imm8 + live stage.
