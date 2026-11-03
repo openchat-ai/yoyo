@@ -4,7 +4,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.693**（692=host ADD/SUB imm32 floor；下一刀=dual-path dissect 或 leave-floor；禁 flip / 禁 imm8-ify host ADD）。
+**默认** 继续 **= S3.694**（693=leave-floor + S634/5 NO_INPUT retarget；下一刀=drop-in self-host 合同；禁 flip / 禁 imm8-ify host ADD）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -24,7 +24,7 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3** ⏳ | child parse1 扩 ISA · 真自举不排假工期 |
 | **S4/S5** | 全 ISA / 形式化 · 地图 |
 
-**诚实底线**：CreateProcess≡live-compose；parse1 ADD/SUB≡exec；host ADD/SUB **imm32**（fixed10 golden）；M4 flip **禁** while CUT。
+**诚实底线**：CreateProcess≡live-compose；parse1 ADD/SUB≡exec；host ADD/SUB **imm32**（fixed10 golden / leave-floor）；M4 flip **禁** while CUT。
 
 ### 波段 tip（更早单刀已折）
 
@@ -37,9 +37,10 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3.684–690** ✅ | — | cliff→contract→map→prep→gates→LDB→**slim len** |
 | **S3.691** ✅ | — | fixed10 expect **retarget**（parse1≡win32；in-DLL≡emit_x86） |
 | **S3.692** ✅ | — | host ADD/SUB **imm32 floor** named；design pin wording |
-| **S3.693** ⏳ | — | **本步**：dual-path host emit dissect / leave-floor |
+| **S3.693** ✅ | — | **leave-floor**；S634/5 stage1≡seed stage2→**NO_INPUT**（AV cleared） |
+| **S3.694** ⏳ | — | **本步**：drop-in self-host NO_INPUT 合同 dissect |
 
-**缺口**：host ADD/SUB imm32 floor（Δ=+307）；dual-path ABSENT；M4 flip **ABSENT**（CUT）。`ready=false`（M4）。bake=362。
+**缺口**：drop-in self-host（child-cwd compiled-yoyo→NO_INPUT）；host Δ=+307 leave-floor；M4 flip **ABSENT**（CUT）。`ready=false`（M4）。bake=362。
 
 ---
 
@@ -56,9 +57,9 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 
 ## 对 AI
 
-- 继续 → **S3.693**（非 sheep；**禁** flip / raise slim / host ADD imm8 / densify / 假 CLOSED）。遇红自动修推进。S3.692=imm32 floor。
+- 继续 → **S3.694**（非 sheep；**禁** flip / raise slim / host ADD imm8 / densify / 假 CLOSED）。遇红自动修推进。S3.693=leave-floor+NO_INPUT retarget。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
 
-*post-v1.0 · 收纳板 · tip S3.693*
+*post-v1.0 · 收纳板 · tip S3.694*

@@ -601,9 +601,9 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.630 parse1 DONE: child RET PE .text raw 0x600→0x1000 (cap≈0xFF3; S1_SLIM_MAX_CODE stays 1024; yoyo.tyb 18KiB ABSENT)",
         "S3.631 parse1 DONE: child .text raw→0x5000 + mid-stream RET (yoyo.tyb 788×RET child GREEN; S1_SLIM_MAX_CODE stays 1024)",
         "S3.632 DONE: in-DLL CreateProcess(yoyo_compiler.exe)+yoyo.tyb GREEN ≡ wide emit; host-mini 1024 ABSENT; ≠ M4",
-        "S3.633 cliff: seed_host(yoyo.tyb) ≫≠ child/wide slim RET PE (oracle≠CreateProcess child; full pe_link vs slim)",
-        "S3.634 cliff: child-built yoyo.tyb slim PE AV as self-host compiler (0xC0000005); seed_host still runnable Gate I",
-        "S3.635 cliff: seed_host(yoyo.tyb) as raw CreateProcess compiler → EXIT_NO_INPUT(2); child-built AV; Gate I=write-bytes≠run",
+        "S3.633 cliff: seed_host(yoyo.tyb) ≫≠ wide slim RET (hist); S683 child≡seed supersedes child≡wide",
+        "S3.634 cliff(hist): child-built slim AV as self-host; S693: stage1≡seed, stage2→NO_INPUT (AV cleared)",
+        "S3.635 cliff: seed_host raw CreateProcess → EXIT_NO_INPUT(2); S693 child-built(=seed) same NO_INPUT (≠AV)",
         "S3.636 cliff: pe_link(executor(yoyo.tyb))≡seed_host; both raw→NO_INPUT; drop-in self-host needs H_00/gen4 not child-cwd",
         "S3.637 DONE: H_00+in-DLL 3nop GREEN; compiled-yoyo.tyb PE same cwd → NO_INPUT (driver≠child-cwd contract)",
         "S3.638 DONE: default-oracle in-DLL recompile + placed compiler + yoyo.tyb GREEN via CreateProcess (no oracle bake)",
@@ -661,13 +661,14 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.690 DONE: host slim yoyo len 0x46c5 (Δ=+307 vs exec); ADD/SUB stays imm32 (fixed10 golden)",
         "S3.691 DONE: fixed10 pins retarget — parse1 ADD/SUB expect≡win32; in-DLL≡emit_x86 text",
         "S3.692 DONE: host ADD/SUB imm32 floor named (fixed10 golden; Δ=+307); design pin wording refreshed",
+        "S3.693 DONE: leave-floor pick A; S634/5 retarget stage1≡seed stage2→NO_INPUT (AV cleared); dual-path ABSENT",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; host LDB≡exec; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
-        "yoyo.tyb: child+indll CreateProcess compose GREEN; M4 production flip ABSENT; densify≠",
+        "yoyo.tyb: child+indll CreateProcess compose GREEN ≡seed; raw compiled-yoyo→NO_INPUT under child cwd",
         "hand-hex densify of emit_x86 into child = sheep; not a live-compose slice",
         "finite emit1/imm table growth ≠ graduation; live slice clears this design list",
-        "general parse+emit still ABSENT — 3nop compact bake ≠ live emit_x86+pe_link in child",
+        "drop-in self-host ABSENT — child-cwd CreateProcess(compiled-yoyo)→NO_INPUT (needs Gate I/H_00 driver)",
     ]
 }
 
@@ -736,19 +737,32 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.690: host slim len pinned 0x46c5 (Δ=+307); ADD/SUB imm32 golden; M4 ABSENT — ≠ M4",
         "S3.691: fixed10 expect retarget (parse1≡win32 ADD/SUB; in-DLL text≡emit_x86) — ≠ M4",
         "S3.692: host ADD/SUB imm32 floor (fixed10); Δ=+307; M4 ABSENT — ≠ M4",
+        "S3.693: leave-floor + S634/5 NO_INPUT retarget (AV cleared); dual-path ABSENT — ≠ M4",
     ]
 }
 
-/// S3.692: host `emit_add_imm` / `emit_sub_imm` stay **imm32** so fixed10 goldens
-/// hold. parse1/exec use imm8 when fits — Δ host-slim−exec = +307 on yoyo.
-/// Imm8-ifying host ADD = break fixed10 (sheep vs graduation). ≠ M4 flip.
+/// S3.692/S3.693: host `emit_add_imm` / `emit_sub_imm` stay **imm32** so fixed10
+/// goldens hold. S693 pick **A leave floor** (Δ=+307 accepted). Dual-path = optional
+/// far. Imm8-ifying host ADD = sheep. ≠ M4 flip.
 pub fn yoyo_host_addsub_imm32_floor_design() -> &'static [&'static str] {
     &[
         "emit_add_imm / emit_sub_imm always 48 81 (imm32) — fixed10 ADD golden pins this",
         "parse1 S682 + exec assembler: imm8 when imm∈i8 — CreateProcess≡seed via parse1",
         "host slim yoyo 0x46c5 vs exec 0x4592 (Δ=+307) — residual is ADD/SUB width",
         "forbidden: imm8-ify host ADD to chase Δ (breaks fixed10); raise S1_SLIM_MAX_CODE; densify",
-        "next: leave floor OR invent dual-path host emit (fixed10 vs general) — not this knife's flip",
+        "S3.693 pick A: leave floor (Δ=+307 accepted); dual-path host emit = optional far ABSENT",
+        "next cliff: drop-in self-host (child-cwd compiled-yoyo→NO_INPUT) — Gate I/H_00 driver ≠ flip",
+    ]
+}
+
+/// S3.693: paths for host ADD/SUB width after floor named.
+/// Pick A = leave floor. B dual-path optional. C imm8-ify host = sheep.
+pub fn yoyo_host_addsub_imm32_floor_paths() -> &'static [&'static str] {
+    &[
+        "A near/non-sheep: leave floor — host stays imm32; CreateProcess child already ≡exec; Δ=+307 residual OK",
+        "B far/optional: dual-path host emit (fixed10→imm32; general/yoyo→imm8) — shrinks slim; ≠graduation",
+        "C sheep: imm8-ify emit_add_imm globally + retarget fixed10 goldens",
+        "S693 pick: A — next knife = drop-in self-host NO_INPUT contract (≠ dual-path; ≠ M4 flip)",
     ]
 }
 
@@ -15932,6 +15946,21 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_host_addsub_imm32_floor_design"));
     }
 
+    /// S3.693: leave-floor pick A; dual-path optional; drop-in self-host next.
+    #[test]
+    fn yoyo_host_addsub_imm32_floor_paths_pin() {
+        let p = yoyo_host_addsub_imm32_floor_paths();
+        assert!(p.iter().any(|s| s.contains("leave floor")));
+        assert!(p.iter().any(|s| s.contains("dual-path")));
+        assert!(p.iter().any(|s| s.contains("sheep") && s.contains("imm8-ify")));
+        assert!(p.iter().any(|s| s.contains("S693 pick") && s.contains("A")));
+        let d = yoyo_host_addsub_imm32_floor_design();
+        assert!(d.iter().any(|s| s.contains("leave floor") || s.contains("S3.693 pick A")));
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.693"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_host_addsub_imm32_floor_paths"));
+    }
+
     /// S3.583: emit2 SET patches imm from TYB; DEADBEEF + alt imm GREEN; marker yoyo_emit2_c.
     #[test]
     #[cfg(windows)]
@@ -18607,8 +18636,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_dir_all(&dir2);
     }
 
-    /// S3.638: default-oracle in-DLL recompile + placed yoyo_compiler.exe +
-    /// yoyo.tyb → GREEN ≡ wide (CreateProcess before oracle; no yoyo.tyb bake).
+    /// S3.638/S3.693: default-oracle in-DLL recompile + placed yoyo_compiler.exe +
+    /// yoyo.tyb → GREEN ≡ seed (CreateProcess before oracle; no yoyo.tyb bake).
     /// Host-mini 1024 ABSENT; ready=false; ≠ M4 production flip.
     #[test]
     #[cfg(windows)]
@@ -18620,9 +18649,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb).is_err(),
             "host mini still fails yoyo.tyb"
         );
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&tyb)
-            .expect("wide")
-            .bytes;
+        let expect = crate::selfhost::seed_host_compile(&tyb).expect("seed");
         // default oracle omits yoyo.tyb
         let entries = gate_g_recompile_entries().expect("entries");
         assert!(entries.iter().all(|e| e.input != tyb), "default oracle omit");
@@ -18635,7 +18662,11 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             EXIT_OK,
             "in-DLL recompile+CreateProcess(yoyo.tyb) must exit 0"
         );
-        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
+        assert_eq!(
+            std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
+            expect,
+            "S693: CreateProcess yoyo.tyb ≡ seed"
+        );
         assert!(yoyo_child_live_compose_design()
             .iter()
             .any(|s| s.contains("S3.638")));
@@ -18643,6 +18674,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_m4_production_flip_ready());
         assert!(!yoyo_live_compile_slice_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.638"));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.693"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -18761,9 +18793,9 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.635: seed_host(yoyo.tyb) as raw CreateProcess compiler also ≠ child
-    /// cwd contract — exit EXIT_NO_INPUT(2); child-built AV (S3.634).
-    /// Gate I oracle = write-bytes not run-as-compiler; ready=false; ≠ M4.
+    /// S3.635/S3.693: seed_host + child-built(=seed) as raw CreateProcess under
+    /// child cwd → EXIT_NO_INPUT(2). AV cleared post-S683. Gate I = write-bytes
+    /// ≠ run-as-compiler. ready=false; ≠ M4.
     #[test]
     #[cfg(windows)]
     fn yoyo_compiler_pe_yoyo_tyb_seed_host_as_compiler_cliff_pin() {
@@ -18791,35 +18823,43 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             st.code()
         );
         assert!(!dir.join(OUTPUT_NAME).exists());
-        // child-built still AV (S3.634)
+        // S3.693: seed-shaped child-built → same NO_INPUT (AV cleared)
         let child_exe = dir.join("yoyo_child_built.exe");
-        std::fs::write(&child_exe, &wide).unwrap();
+        std::fs::write(&child_exe, &seed).unwrap();
         let st2 = std::process::Command::new(&child_exe)
             .current_dir(&dir)
             .status()
             .expect("spawn child-built");
-        assert_eq!(st2.code(), Some(-1073741819), "child-built still AV");
+        assert_eq!(
+            st2.code(),
+            Some(EXIT_NO_INPUT),
+            "S693: seed-shaped child-built → NO_INPUT (not AV); got {:?}",
+            st2.code()
+        );
         assert!(yoyo_child_live_compose_design()
             .iter()
             .any(|s| s.contains("635") && s.contains("seed_host")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(!yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.635"));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.693"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.634: child-built yoyo.tyb slim PE is NOT a runnable self-host compiler.
-    /// Stage1 child GREEN; stage2 run-as-compiler → AV (0xC0000005); no output.
-    /// seed_host PE still the working Gate I artifact; ready=false; ≠ M4.
+    /// S3.634/S3.693: child-built yoyo.tyb PE as self-host compiler cliff.
+    /// Post-S683 stage1 ≡ seed (not wide). Stage2 under child cwd → EXIT_NO_INPUT
+    /// (AV cleared — same contract cliff as seed_host S635). ready=false; ≠ M4.
     #[test]
     #[cfg(windows)]
     fn yoyo_compiler_pe_yoyo_tyb_child_built_not_selfhost_cliff_pin() {
         assert_eq!(crate::s1_tyb_parser::S1_SLIM_MAX_CODE, 1024);
         let yoyo_tyb = gate_i_yoyo_tyb_path();
         let tyb = std::fs::read(&yoyo_tyb).expect("read");
+        let seed = crate::selfhost::seed_host_compile(&tyb).expect("seed_host");
         let wide = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&tyb)
             .expect("wide")
             .bytes;
+        assert!(seed.len() > wide.len() * 4);
         let dir = temp_work("s634-not-selfhost");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         std::fs::copy(&yoyo_tyb, dir.join("input.tyb")).unwrap();
@@ -18830,10 +18870,11 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .unwrap();
         assert!(st.success(), "stage1 child compile yoyo.tyb {:?}", st.code());
         let built_bytes = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
-        assert_eq!(built_bytes, wide, "stage1 ≡ wide");
+        // S3.693: post-S683 CreateProcess≡seed — stage1 ≡ seed, not wide
+        assert_eq!(built_bytes, seed, "stage1 ≡ seed (post-S683 live H00)");
         let built = dir.join("yoyo_built_from_tyb.exe");
         std::fs::write(&built, &built_bytes).unwrap();
-        // stage2: child-built PE as compiler on 3nop → AV, no output
+        // stage2: seed-shaped PE as compiler on 3nop → NO_INPUT (≠ AV; ≠ OK+output)
         let tyb_sm = crate::s1_tyb_parser::s3_n_nops_ret_tyb(3);
         std::fs::write(dir.join("input.tyb"), &tyb_sm).unwrap();
         let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
@@ -18841,32 +18882,31 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .current_dir(&dir)
             .status()
             .expect("spawn built");
-        // 0xC0000005 STATUS_ACCESS_VIOLATION as signed i32 = -1073741819
         assert_eq!(
             st2.code(),
-            Some(-1073741819),
-            "child-built yoyo PE must AV as compiler (got {:?})",
+            Some(EXIT_NO_INPUT),
+            "S693: child-built(=seed) as compiler → NO_INPUT under child cwd (got {:?})",
             st2.code()
         );
         assert!(
             !dir.join(OUTPUT_NAME).exists(),
-            "AV must not write output.exe"
+            "NO_INPUT must not write output.exe"
         );
-        // seed_host still works as runnable (Gate I path)
-        let seed = crate::selfhost::seed_host_compile(&tyb).expect("seed_host");
-        assert!(seed.len() > wide.len() * 4);
         assert!(yoyo_child_live_compose_design()
             .iter()
-            .any(|s| s.contains("634") && s.contains("self-host")));
+            .any(|s| s.contains("634") || (s.contains("693") && s.contains("NO_INPUT"))));
+        assert!(yoyo_host_addsub_imm32_floor_design()
+            .iter()
+            .any(|s| s.contains("leave floor") || s.contains("imm32")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(!yoyo_m4_production_flip_ready());
         assert!(!yoyo_live_compile_slice_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.634"));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.693"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.633: seed_host(yoyo.tyb) ≠ child/wide slim RET PE cliff named.
-    /// Gate I oracle bake ≫ wide (full pe_link); CreateProcess child ≠ oracle;
+    /// S3.633/S3.693: seed_host ≫≠ wide slim RET (hist). Post-S683 child≡seed.
     /// host-mini 1024 ABSENT; ready=false; ≠ M4 flip.
     #[test]
     #[cfg(windows)]
@@ -18888,8 +18928,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             seed.len(),
             wide.len()
         );
-        assert_ne!(wide, seed, "seed_host must not ≡ wide/child PE");
-        // child still ≡ wide (S3.631); ≠ seed_host
+        assert_ne!(wide, seed, "seed_host must not ≡ wide slim RET");
+        // S3.693: child CreateProcess ≡ seed (live H00); ≠ wide
         let dir = temp_work("s633-seed-ne-wide");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -18900,8 +18940,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .unwrap();
         assert!(st.success(), "child yoyo.tyb exit {:?}", st.code());
         let child = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
-        assert_eq!(child, wide, "child ≡ wide");
-        assert_ne!(child, seed, "child ≠ seed_host");
+        assert_eq!(child, seed, "S693: child ≡ seed (post-S683)");
+        assert_ne!(child, wide, "child ≠ wide slim RET");
         assert!(yoyo_child_live_compose_design()
             .iter()
             .any(|s| s.contains("633") && s.contains("seed_host")));
@@ -18909,10 +18949,11 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_m4_production_flip_ready());
         assert!(!yoyo_live_compile_slice_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.633"));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.693"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.632: in-DLL CreateProcess(yoyo_compiler.exe)+yoyo.tyb GREEN ≡ wide;
+    /// S3.632/S3.693: in-DLL CreateProcess(yoyo_compiler.exe)+yoyo.tyb GREEN ≡ seed;
     /// host mini still ≤1024; S1_SLIM_MAX_CODE unchanged; ready=false; ≠ M4.
     #[test]
     #[cfg(windows)]
@@ -18924,9 +18965,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb).is_err(),
             "host mini must still fail yoyo.tyb"
         );
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&tyb)
-            .expect("wide emit yoyo.tyb")
-            .bytes;
+        let expect = crate::selfhost::seed_host_compile(&tyb).expect("seed");
         let dir = temp_work("s632-indll-yoyo-tyb");
         let _ = yoyo_place_compiler_pe(&dir).expect("place compiler PE");
         std::fs::copy(&yoyo_tyb, dir.join("input.tyb")).unwrap();
@@ -18941,7 +18980,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(
             std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
             expect,
-            "in-DLL CreateProcess yoyo.tyb PE ≡ wide"
+            "S693: in-DLL CreateProcess yoyo.tyb PE ≡ seed"
         );
         assert!(yoyo_child_live_compose_design()
             .iter()
@@ -18950,6 +18989,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_m4_production_flip_ready());
         assert!(!yoyo_live_compile_slice_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.632"));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.693"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -18978,17 +19018,15 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .unwrap();
         assert!(st.success(), "3nop exit {:?}", st.code());
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect_sm);
-        // yoyo.tyb: host mini RED; child GREEN vs wide expect
+        // yoyo.tyb: host mini RED; child GREEN ≡ seed (S693 post-S683 live H00)
         let yoyo_tyb = gate_i_yoyo_tyb_path();
         let tyb = std::fs::read(&yoyo_tyb).expect("read yoyo.tyb");
         assert!(
             crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb).is_err(),
             "host mini must still fail yoyo.tyb (1024 cap)"
         );
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&tyb)
-            .expect("wide emit yoyo.tyb")
-            .bytes;
-        assert_eq!(expect.len() as u32, S3_PARSE1_RET_PE_LEN);
+        let expect = crate::selfhost::seed_host_compile(&tyb).expect("seed");
+        assert!(expect.len() as u32 > S3_PARSE1_RET_PE_LEN);
         std::fs::copy(&yoyo_tyb, dir.join("input.tyb")).unwrap();
         let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
         let st = std::process::Command::new(&path)
@@ -18999,7 +19037,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(
             std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
             expect,
-            "yoyo.tyb child PE"
+            "S693: yoyo.tyb child PE ≡ seed"
         );
         assert!(yoyo_child_live_compose_design()
             .iter()
