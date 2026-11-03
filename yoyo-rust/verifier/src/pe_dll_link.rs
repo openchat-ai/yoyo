@@ -470,6 +470,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "child live compose via CreateProcess GREEN (yoyo_child_live_compose); densify≠graduation",
         "S3.695: Gate I (H_00+sidecar) ≡ self-host contract; child-cwd drop-in optional ABSENT (S694 cliff)",
         "S3.698: single-shot CreateProcess re-entrancy contract A; nested optional ABSENT",
+        "S3.699: compose/self-host preflight complete; graduation hard gate=inventory CUT",
     ]
 }
 
@@ -671,13 +672,15 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.696 DONE: M4 flip prep/gates refreshed — hard gate=inventory CUT; preflight compose+self-host GREEN",
         "S3.697 DONE: CreateProcess blockers+call-site design refreshed; re-entrancy residual; stale pins fixed",
         "S3.698 DONE: re-entrancy pick A (single-shot CreateProcess); nested optional ABSENT; blockers refreshed",
-        "today: CreateProcess≡live-compose GREEN; parse1≡exec; host LDB≡exec; M4 flip ABSENT",
+        "S3.698 DONE: re-entrancy pick A (single-shot CreateProcess); nested optional ABSENT",
+        "S3.699 DONE: S3 compose/self-host preflight named complete — remaining = inventory CUT + optional probes",
+        "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
-        "yoyo.tyb: child+indll CreateProcess compose GREEN ≡seed; raw compiled-yoyo→NO_INPUT under child cwd",
-        "hand-hex densify of emit_x86 into child = sheep; not a live-compose slice",
-        "finite emit1/imm table growth ≠ graduation; live slice clears this design list",
-        "drop-in self-host ABSENT — child-cwd CreateProcess(compiled-yoyo)→NO_INPUT (needs Gate I/H_00 driver)",
+        "yoyo.tyb: child+indll CreateProcess compose GREEN ≡seed; Gate I loop = self-host (S695)",
+        "hand-hex densify / raise slim / imm8-ify host ADD / flip-while-CUT = sheep",
+        "optional ABSENT: nested re-entrancy; dual-path host ADD; host-mini 1024; child-cwd drop-in",
+        "graduation hard gate: inventory OW-RT disposition≠CUT — code flip alone ≠ CLOSED",
     ]
 }
 
@@ -747,10 +750,12 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.691: fixed10 expect retarget (parse1≡win32 ADD/SUB; in-DLL text≡emit_x86) — ≠ M4",
         "S3.692: host ADD/SUB imm32 floor (fixed10); Δ=+307; M4 ABSENT — ≠ M4",
         "S3.693: leave-floor + S634/5 NO_INPUT retarget (AV cleared); dual-path ABSENT — ≠ M4",
-"S3.694: drop-in self-host NO_INPUT cliff named; Gate I loop ≠ child-cwd drop-in — ≠ M4",
-"S3.695: Gate I≡self-host pick A; child-cwd drop-in optional; M4 ABSENT — ≠ M4",
-"S3.696: M4 prep/gates refreshed (inventory CUT hard gate); flip ABSENT — ≠ M4",
-"S3.697: CreateProcess-compiler blockers refreshed; re-entrancy ABSENT — ≠ M4",
+        "S3.694: drop-in self-host NO_INPUT cliff named; Gate I loop ≠ child-cwd drop-in — ≠ M4",
+        "S3.695: Gate I≡self-host pick A; child-cwd drop-in optional; M4 ABSENT — ≠ M4",
+        "S3.696: M4 prep/gates refreshed (inventory CUT hard gate); flip ABSENT — ≠ M4",
+        "S3.697: CreateProcess-compiler blockers refreshed; re-entrancy ABSENT — ≠ M4",
+        "S3.698: re-entrancy pick A (single-shot); nested optional ABSENT — ≠ M4",
+        "S3.699: compose/self-host preflight complete; hard gate=inventory CUT — ≠ M4",
     ]
 }
 
@@ -1088,6 +1093,24 @@ pub fn yoyo_export_createprocess_reentrancy_paths() -> &'static [&'static str] {
 
 pub fn yoyo_export_createprocess_reentrancy_ready() -> bool {
     yoyo_export_createprocess_reentrancy_design().is_empty()
+}
+
+/// S3.699: **S3 compose/self-host preflight** status (honest).
+/// GREEN contracts do not clear inventory CUT. ready=false; ≠ CLOSED.
+pub fn yoyo_s3_compose_selfhost_preflight_design() -> &'static [&'static str] {
+    &[
+        "GREEN: CreateProcess≡live-compose (S685/683); parse1≡exec; Gate I≡self-host (S695)",
+        "GREEN: single-shot CP re-entrancy contract A (S698); inherit=FALSE; leave-floor Δ=+307 (S693)",
+        "ABSENT hard: inventory OW-RT disposition=CUT — flip≠CLOSED; production default still Rust",
+        "optional ABSENT: nested CP; dual-path host ADD; host-mini raise; child-cwd drop-in; shared-text",
+        "forbidden: flip while CUT; densify; raise S1_SLIM_MAX_CODE alone; imm8-ify host ADD; invent Stage",
+        "S699: preflight named — next code knives = optional probes OR inventory-facing doc; ≠ fake CLOSED",
+    ]
+}
+
+pub fn yoyo_s3_compose_selfhost_preflight_ready() -> bool {
+    // Never true while inventory CUT — design stays non-empty by construction.
+    false
 }
 
 
@@ -21661,6 +21684,25 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("S3.698")));
         assert!(include_str!("pe_dll_link.rs").contains("S3.698"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_export_createprocess_reentrancy_design"));
+    }
+
+    /// S3.699: compose/self-host preflight named; inventory CUT hard gate; ≠ CLOSED.
+    #[test]
+    fn yoyo_s3_compose_selfhost_preflight_pin() {
+        let d = yoyo_s3_compose_selfhost_preflight_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("CreateProcess≡live-compose") || s.contains("live-compose")));
+        assert!(d.iter().any(|s| s.contains("Gate I") && s.contains("self-host")));
+        assert!(d.iter().any(|s| s.contains("inventory") && s.contains("CUT")));
+        assert!(d.iter().any(|s| s.contains("S699")));
+        assert!(!yoyo_s3_compose_selfhost_preflight_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.699") && s.contains("preflight")));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.699"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_s3_compose_selfhost_preflight_design"));
     }
 
     /// H_00 + yoyo.tyb ≡ seed_host. Default unset still Rust. M4 flip ABSENT.
