@@ -423,9 +423,10 @@ pub fn yoyo_m4_production_flip_prep_design() -> &'static [&'static str] {
         "today: ALT_SIDECAR unset → AltSidecarMode::Off → place_cwd writes caller Rust bytes",
         "flip candidate: default Off→InDll (CreateProcess-compiler contract A) when inventory allows",
         "flip ≠ CLOSED: inventory OW-RT still CUT (closed=0); flip alone never graduates OW-RT",
-        "preflight GREEN: CreateProcess≡seed (S683); contract A (S685); map honesty (S686)",
+        "preflight GREEN: CreateProcess≡seed (S683); contract A (S685); map (S686); Gate I≡self-host (S695)",
+        "S3.696: remaining hard gate = inventory disposition change — code flip while CUT = fake-CLOSED adjacent",
         "still ABSENT: inventory disposition change; production default code change; densify≠path",
-        "forbidden now: change default while CUT; densify; bake-sole-WF; claim CLOSED",
+        "forbidden now: change default while CUT; densify; bake-sole-WF; claim CLOSED; imm8-ify host ADD",
     ]
 }
 
@@ -441,9 +442,9 @@ pub fn yoyo_post_flip_prep_remaining_gates() -> &'static [&'static str] {
     &[
         "inventory: SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md disposition=CUT (closed=0) — flip≠CLOSED",
         "host-mini: S1_SLIM_MAX_CODE=1024 ABSENT for yoyo-sized host emit; raise alone=sheep (parse1 child already covers)",
-        "production default: ALT Off/Rust until inventory allows (S687 prep); no silent flip",
-        "densify export-local / bake-sole-WF / invent Stage = sheep",
-        "S3.688: gates named — next knives need inventory change OR non-sheep host-mini slice; ≠ M4 flip now",
+        "production default: ALT Off/Rust until inventory allows (S687/S696 prep); no silent flip",
+        "densify export-local / bake-sole-WF / invent Stage / imm8-ify host ADD = sheep",
+        "S3.696: preflight complete (compose+self-host contracts); only inventory+default remain — ≠ flip now",
     ]
 }
 
@@ -467,7 +468,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "host-mini 1024 ABSENT (S1_SLIM_MAX_CODE stays); parse1 child ≡exec; host emit_x86 still slim",
         "S3.684: export-local densify optional ABSENT (contract A); see yoyo_indll_export_live_emit_design",
         "child live compose via CreateProcess GREEN (yoyo_child_live_compose); densify≠graduation",
-"S3.695: Gate I (H_00+sidecar) ≡ self-host contract; child-cwd drop-in optional ABSENT (S694 cliff)",
+        "S3.695: Gate I (H_00+sidecar) ≡ self-host contract; child-cwd drop-in optional ABSENT (S694 cliff)",
     ]
 }
 
@@ -665,6 +666,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.693 DONE: leave-floor pick A; S634/5 retarget stage1≡seed stage2→NO_INPUT (AV cleared); dual-path ABSENT",
 "S3.694 DONE: drop-in self-host NO_INPUT cliff dissected — see yoyo_dropin_selfhost_no_input_design; ≠M4",
 "S3.695 DONE: pick A Gate I≡self-host; child-cwd drop-in optional ABSENT; map refreshed; ≠M4",
+"S3.696 DONE: M4 flip prep/gates refreshed — hard gate=inventory CUT; preflight compose+self-host GREEN",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; host LDB≡exec; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -743,6 +745,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.693: leave-floor + S634/5 NO_INPUT retarget (AV cleared); dual-path ABSENT — ≠ M4",
 "S3.694: drop-in self-host NO_INPUT cliff named; Gate I loop ≠ child-cwd drop-in — ≠ M4",
 "S3.695: Gate I≡self-host pick A; child-cwd drop-in optional; M4 ABSENT — ≠ M4",
+"S3.696: M4 prep/gates refreshed (inventory CUT hard gate); flip ABSENT — ≠ M4",
     ]
 }
 
@@ -16019,6 +16022,21 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_dropin_selfhost_no_input_paths"));
     }
 
+    /// S3.696: M4 flip prep/gates refreshed post-S695; inventory CUT hard gate; ≠ flip.
+    #[test]
+    fn yoyo_m4_flip_prep_post_selfhost_refresh_pin() {
+        let d = yoyo_m4_production_flip_prep_design();
+        assert!(d.iter().any(|s| s.contains("S3.696") && s.contains("inventory")));
+        assert!(d.iter().any(|s| s.contains("Gate I≡self-host") || s.contains("S695")));
+        let g = yoyo_post_flip_prep_remaining_gates();
+        assert!(g.iter().any(|s| s.contains("S3.696") && s.contains("preflight")));
+        assert!(g.iter().any(|s| s.contains("inventory") && s.contains("CUT")));
+        assert!(!yoyo_m4_production_flip_prep_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_child_live_compose_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.696"));
+    }
+
     /// S3.583: emit2 SET patches imm from TYB; DEADBEEF + alt imm GREEN; marker yoyo_emit2_c.
     #[test]
     #[cfg(windows)]
@@ -16619,7 +16637,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let g = yoyo_post_flip_prep_remaining_gates();
         assert!(g.iter().any(|s| s.contains("CUT") && s.contains("SCOPE-CUT")));
         assert!(g.iter().any(|s| s.contains("host-mini") && s.contains("sheep")));
-        assert!(g.iter().any(|s| s.contains("S3.688")));
+        assert!(g.iter().any(|s| s.contains("S3.688") || s.contains("S3.696")));
         assert!(yoyo_child_live_compose_design()
             .iter()
             .any(|s| s.contains("S3.688")));

@@ -4,7 +4,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.696**（695=Gate I≡self-host pick A；下一刀=非 sheep；禁 flip / densify / imm8-ify host ADD）。
+**默认** 继续 **= S3.697**（696=M4 prep 刷新·inventory CUT 硬闸；下一刀=非 sheep；禁 flip）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -40,7 +40,8 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3.693** ✅ | — | **leave-floor**；S634/5 stage1≡seed stage2→**NO_INPUT**（AV cleared） |
 | **S3.694** ✅ | — | drop-in self-host **NO_INPUT** cliff dissected（Gate I≠child-cwd） |
 | **S3.695** ✅ | — | **pick A** Gate I≡self-host；child-cwd drop-in optional |
-| **S3.696** ⏳ | — | **本步**：非 sheep 下一片（≠flip） |
+| **S3.696** ✅ | — | M4 prep/gates **刷新**（硬闸=inventory CUT） |
+| **S3.697** ⏳ | — | **本步**：非 sheep 下一片（≠flip） |
 
 **缺口**：M4 flip **ABSENT**（CUT）；host Δ=+307 leave-floor；child-cwd drop-in optional。`ready=false`（M4）。bake=362。
 
@@ -59,9 +60,9 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 
 ## 对 AI
 
-- 继续 → **S3.696**（非 sheep；**禁** flip / raise slim / host ADD imm8 / densify / 假 CLOSED）。遇红自动修推进。S3.695=Gate I≡self-host。
+- 继续 → **S3.697**（非 sheep；**禁** flip / raise slim / host ADD imm8 / densify / 假 CLOSED）。遇红自动修推进。S3.696=M4 prep refresh。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
 
-*post-v1.0 · 收纳板 · tip S3.696*
+*post-v1.0 · 收纳板 · tip S3.697*
