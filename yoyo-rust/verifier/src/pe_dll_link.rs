@@ -469,6 +469,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.684: export-local densify optional ABSENT (contract A); see yoyo_indll_export_live_emit_design",
         "child live compose via CreateProcess GREEN (yoyo_child_live_compose); densify≠graduation",
         "S3.695: Gate I (H_00+sidecar) ≡ self-host contract; child-cwd drop-in optional ABSENT (S694 cliff)",
+        "S3.698: single-shot CreateProcess re-entrancy contract A; nested optional ABSENT",
     ]
 }
 
@@ -521,11 +522,11 @@ pub fn yoyo_live_compile_slice_ready() -> bool {
 /// Non-empty ⇒ experiment ABSENT. Clearing ≠ live-compile slice ready by itself.
 pub fn yoyo_in_dll_createprocess_compiler_blockers() -> &'static [&'static str] {
     &[
-        // S3.697: refreshed — CreateProcess path GREEN (S632/683/693); residual honest
-        "CreateProcessA+WaitForSingleObject+GetExitCode call-site emitted; PE=parse1 child GREEN ≡seed (S683/693)",
-        "yoyo_compiler_pe_bytes=Some(parse1); host-mini 1024 ABSENT; M4 production flip ABSENT (CUT)",
-        "cwd/export re-entrancy + handle inheritance design ABSENT — nested CreateProcess wiring untested",
-        "S3.697: live compiler PE path GREEN; remaining = re-entrancy + host-mini + M4; densify≠",
+        // S3.698: re-entrancy pick A — single-shot OK; nested optional ABSENT
+        "CreateProcessA+WaitForSingleObject+GetExitCode call-site emitted; compiler PE=parse1 child GREEN ≡seed (S683/693)",
+        "yoyo_compiler_pe_bytes=Some(parse1); yoyo.tyb+fixed10 CreateProcess GREEN; host-mini 1024 ABSENT; M4 flip ABSENT (CUT)",
+        "S3.697→S3.698: single-shot CreateProcess contract A; inherit=FALSE; nested re-entrancy optional ABSENT",
+        "cwd/export nested CreateProcess wiring untested (optional) — see yoyo_export_createprocess_reentrancy_design",
         "Gate I≡self-host (S695); child-cwd drop-in optional ABSENT; ≠ OW-RT CLOSED",
     ]
 }
@@ -665,10 +666,11 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.691 DONE: fixed10 pins retarget — parse1 ADD/SUB expect≡win32; in-DLL≡emit_x86 text",
         "S3.692 DONE: host ADD/SUB imm32 floor named (fixed10 golden; Δ=+307); design pin wording refreshed",
         "S3.693 DONE: leave-floor pick A; S634/5 retarget stage1≡seed stage2→NO_INPUT (AV cleared); dual-path ABSENT",
-"S3.694 DONE: drop-in self-host NO_INPUT cliff dissected — see yoyo_dropin_selfhost_no_input_design; ≠M4",
-"S3.695 DONE: pick A Gate I≡self-host; child-cwd drop-in optional ABSENT; map refreshed; ≠M4",
-"S3.696 DONE: M4 flip prep/gates refreshed — hard gate=inventory CUT; preflight compose+self-host GREEN",
-"S3.697 DONE: CreateProcess blockers+call-site design refreshed; re-entrancy residual; stale pins fixed",
+        "S3.694 DONE: drop-in self-host NO_INPUT cliff dissected — see yoyo_dropin_selfhost_no_input_design; ≠M4",
+        "S3.695 DONE: pick A Gate I≡self-host; child-cwd drop-in optional ABSENT; map refreshed; ≠M4",
+        "S3.696 DONE: M4 flip prep/gates refreshed — hard gate=inventory CUT; preflight compose+self-host GREEN",
+        "S3.697 DONE: CreateProcess blockers+call-site design refreshed; re-entrancy residual; stale pins fixed",
+        "S3.698 DONE: re-entrancy pick A (single-shot CreateProcess); nested optional ABSENT; blockers refreshed",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; host LDB≡exec; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -1044,8 +1046,8 @@ pub fn yoyo_createprocess_call_site_design() -> &'static [&'static str] {
         "compiler PE must ReadFile input.tyb and WriteFile output.exe (same exit 0/1/2/3)",
         "compiler PE provenance = YOYO parse1 child (S683) — CreateProcess≡seed; Rust runtime ABSENT",
         "in-DLL emits CreateProcessA+WaitForSingleObject+GetExitCode call-site (S3.542) GREEN",
-        "S3.697: call-site DONE; residual = cwd/export re-entrancy + handle inheritance ABSENT",
-        "re-entrancy: export must not hold locks across CreateProcess (still ABSENT design)",
+        "S3.697: call-site DONE; inherit=FALSE emitted",
+        "S3.698: re-entrancy pick A (single-shot); nested optional ABSENT — see yoyo_export_createprocess_reentrancy_design",
     ]
 }
 
@@ -1056,6 +1058,36 @@ pub fn yoyo_createprocess_call_site_ready() -> bool {
 /// S3.542: export body contains CreateProcessA+Wait+GetExitCode path (gated on PE file).
 pub fn yoyo_createprocess_call_site_emitted() -> bool {
     true
+}
+
+/// S3.698: **cwd/export re-entrancy** dissect (post-S697 residual).
+/// Single-shot CreateProcess(compiler) GREEN; nested/concurrent ABSENT.
+/// inherit=FALSE already emitted (S542). ≠ M4 flip. ready=false.
+pub fn yoyo_export_createprocess_reentrancy_design() -> &'static [&'static str] {
+    &[
+        "today: export CreateProcessA+Wait+GetExitCode GREEN; inherit handles=FALSE; curdir=NULL (parent cwd)",
+        "pre-CP: input file CloseHandle DONE; heap INPUT_PTR kept on export stack across Wait",
+        "post-CP: CloseHandle(hThread/hProcess); exitcode → epilogue — serial parent/child on same cwd files",
+        "A near/non-sheep: accept single-shot CreateProcess contract — no nested export→child→export required",
+        "B mid/optional: probe nested CreateProcess (child loads same DLL export) + concurrent same-cwd",
+        "C far: handle-inheritance TRUE path / explicit child curdir — not needed for contract A",
+        "sheep: densify locks into export; raise slim; flip while CUT; claim CLOSED",
+        "S698 pick: A — re-entrancy deep tests optional ABSENT; update blockers; ≠ M4",
+    ]
+}
+
+pub fn yoyo_export_createprocess_reentrancy_paths() -> &'static [&'static str] {
+    &[
+        "A near: single-shot CreateProcess = compose contract; inherit=FALSE already; nested untested OK",
+        "B optional: nested/concurrent probes — stress, not graduation",
+        "C far: inherit TRUE / explicit lpCurrentDirectory",
+        "sheep: densify / flip-while-CUT / fake CLOSED",
+        "S698 pick: A — next knife refreshes CP blockers (re-entrancy optional ABSENT)",
+    ]
+}
+
+pub fn yoyo_export_createprocess_reentrancy_ready() -> bool {
+    yoyo_export_createprocess_reentrancy_design().is_empty()
 }
 
 
@@ -21551,7 +21583,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(b.len() >= 3);
         assert!(b.iter().any(|s| s.contains("CreateProcessA")));
         assert!(b.iter().any(|s| s.contains("WaitForSingleObject")));
-        assert!(b.iter().any(|s| s.contains("S3.697")));
+        assert!(b.iter().any(|s| s.contains("S3.697") || s.contains("S3.698")));
         assert!(b.iter().any(|s| s.contains("re-entrancy")));
         let d = yoyo_createprocess_call_site_design();
         assert!(d.iter().any(|s| s.contains("WaitForSingleObject")));
@@ -21608,6 +21640,29 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
 
 
 /// S3.533: `YOYO_OW_RT_ALT_SIDECAR=in-dll-gate-i` → place Gate I oracle DLL;
+    /// S3.698: re-entrancy pick A (single-shot); nested optional; inherit=FALSE; ≠ M4.
+    #[test]
+    fn yoyo_export_createprocess_reentrancy_pick_a_pin() {
+        let d = yoyo_export_createprocess_reentrancy_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("inherit") && s.contains("FALSE")));
+        assert!(d.iter().any(|s| s.contains("S698 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("nested") || s.contains("optional")));
+        let p = yoyo_export_createprocess_reentrancy_paths();
+        assert!(p.iter().any(|s| s.contains("S698 pick") && s.contains("A")));
+        assert!(!yoyo_export_createprocess_reentrancy_ready());
+        let b = yoyo_in_dll_createprocess_compiler_blockers();
+        assert!(b.iter().any(|s| s.contains("S3.698") && s.contains("single-shot")));
+        assert!(b.iter().any(|s| s.contains("WaitForSingleObject")));
+        assert!(!yoyo_in_dll_createprocess_compiler_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_live_in_dll_compile_map()
+            .iter()
+            .any(|s| s.contains("S3.698")));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.698"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_export_createprocess_reentrancy_design"));
+    }
+
     /// H_00 + yoyo.tyb ≡ seed_host. Default unset still Rust. M4 flip ABSENT.
     #[test]
     #[cfg(windows)]

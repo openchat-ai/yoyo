@@ -4,13 +4,13 @@
 
 | | |
 | --- | --- |
-| **tip** | **S3.698** ⏳ re-entrancy dissect / 非 sheep |
+| **tip** | **S3.699** ⏳ 非 sheep 下一片（≠flip） |
 | **主线** | S1✅ S2✅ **S3⏳** · S4/S5 未开 |
-| **已站住** | CreateProcess≡live-compose · parse1≡exec · Gate I≡self-host · leave-floor Δ=+307 |
+| **已站住** | CreateProcess≡live · parse1≡exec · Gate I≡self-host · leave-floor · **single-shot CP** |
 | **硬闸** | M4 flip **ABSENT**（inventory CUT · `closed=0 cut=7`）· `ready=false` |
 | **禁** | flip / densify / raise slim / host ADD imm8 / 假 CLOSED |
-| **近刀** | 691–697 ✅（retarget→floor→leave→drop-in→Gate I→M4 prep→CP blockers） |
-| **git** | tip `d710e3b` · ahead ~795 · **未 push** · bake=362 |
+| **近刀** | 691–698 ✅（…→CP blockers→**re-entrancy pick A**） |
+| **git** | S698 收工 → tip **S3.699** · **未 push** · bake=362 |
 
 ---
 
@@ -18,7 +18,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.698**（697=CreateProcess blockers/call-site 刷新；下一刀=re-entrancy；禁 flip）。
+**默认** 继续 **= S3.699**（698=re-entrancy pick A single-shot；下一刀=非 sheep；禁 flip）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -56,9 +56,10 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3.695** ✅ | — | **pick A** Gate I≡self-host；child-cwd drop-in optional |
 | **S3.696** ✅ | — | M4 prep/gates **刷新**（硬闸=inventory CUT） |
 | **S3.697** ✅ | `d710e3b` | CreateProcess blockers/call-site 刷新；stale 红修 |
-| **S3.698** ⏳ | — | **本步**：re-entrancy dissect 或非 sheep |
+| **S3.698** ✅ | — | re-entrancy **pick A**（single-shot；nested optional） |
+| **S3.699** ⏳ | — | **本步**：非 sheep 下一片（≠flip） |
 
-**缺口**：M4 flip **ABSENT**（CUT）；cwd/export re-entrancy ABSENT；host Δ=+307 leave-floor。`ready=false`（M4）。bake=362。
+**缺口**：M4 flip **ABSENT**（CUT）；nested re-entrancy optional；host Δ=+307 leave-floor。`ready=false`（M4）。bake=362。
 
 ---
 
@@ -76,9 +77,9 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 ## 对 AI
 
 - **每刀结束 / 用户说继续**：先扫本文件「一眼进度」；收工时**同步更新** tip·近刀·缺口·git 行（用户不必另问进度）。
-- 继续 → **S3.698**（非 sheep；**禁** flip / raise slim / host ADD imm8 / densify / 假 CLOSED）。遇红自动修推进。S3.697=CP blockers refresh。
+- 继续 → **S3.699**（非 sheep；**禁** flip / raise slim / host ADD imm8 / densify / 假 CLOSED）。遇红自动修推进。S3.698=re-entrancy pick A。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
 
-*post-v1.0 · 收纳板 · tip S3.698 · 一眼进度置顶*
+*post-v1.0 · 收纳板 · tip S3.699 · 一眼进度置顶*
