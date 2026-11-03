@@ -4,7 +4,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.681**（680=parse1≡exec cliff：Win32 I/O + ADD/SUB imm8；下一刀=parse1 Win32 I/O）。
+**默认** 继续 **= S3.682**（681=parse1 Win32 I/O；下一刀=parse1 ADD/SUB imm8）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -34,10 +34,11 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3.631–638** ✅ | `3227356` | yoyo.tyb child→CreateProcess GREEN |
 | **S3.639–655** ✅ | `7f27b15` | compact→mid-grow→**full-grow / yoyo≈27KiB** |
 | **S3.656–679** ✅ | — | HOT→…→**H00 WriteFile≡seed**（bake text） |
-| **S3.680** ✅ | — | parse1≡exec **cliff**（I/O+imm8；bake remains） |
-| **S3.681** ⏳ | — | **本步**：parse1 Win32 I/O（IAT@0 + platform_io blobs） |
+| **S3.680** ✅ | — | parse1≡exec **cliff**（I/O+imm8） |
+| **S3.681** ✅ | — | parse1 **Win32 I/O**（IAT@0 + platform_io） |
+| **S3.682** ⏳ | — | **本步**：parse1 ADD/SUB imm8（→len≡exec） |
 
-**缺口**：parse1≡exec **ABSENT**（仍 bake exec text）；M4 **ABSENT**；in-DLL live emit **ABSENT**。`ready=false`（M4）。bake=362。
+**缺口**：parse1≡exec **ABSENT**（imm8 + bake text）；M4 **ABSENT**；in-DLL live emit **ABSENT**。`ready=false`（M4）。bake=362。
 
 ---
 
@@ -45,7 +46,7 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 
 ```powershell
 cd F:\yoyo\yoyo-rust\verifier
-cargo test --lib -- yoyo_parse1_equiv_exec_absent_cliff_pin --test-threads=1
+cargo test --lib -- yoyo_compiler_pe_parse1_alloc_beyond_fixed10_pin yoyo_h00_writefile_seed_pin --test-threads=1
 ```
 
 path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（见 `scripts/`）。
@@ -54,9 +55,9 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 
 ## 对 AI
 
-- 继续 → **S3.681**（parse1 Win32 I/O；禁 densify / 假 CLOSED / bake-sole-seed-WF）。S3.680=cliff。红了记根因停。
+- 继续 → **S3.682**（parse1 ADD/SUB imm8；禁 densify / 假 CLOSED / bake-sole-seed-WF）。S3.681=Win32 I/O。红了记根因停。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
 
-*post-v1.0 · 收纳板 · tip S3.681*
+*post-v1.0 · 收纳板 · tip S3.682*
