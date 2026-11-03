@@ -659,6 +659,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.688 DONE: remaining gates named (inventory CUT + host-mini sheep); flip still ABSENT",
         "S3.689 DONE: host emit_x86 LDB oo imm8 (≡exec/parse1); slim-cap stays 1024; ≠M4 flip",
         "S3.690 DONE: host slim yoyo len 0x46c5 (Δ=+307 vs exec); ADD/SUB stays imm32 (fixed10 golden)",
+        "S3.691 DONE: fixed10 pins retarget — parse1 ADD/SUB expect≡win32; in-DLL≡emit_x86 text",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; host LDB≡exec; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -732,6 +733,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.688: remaining gates named (CUT + host-mini sheep); flip ABSENT — ≠ M4",
         "S3.689: host LDB oo imm8 DONE; slim-cap/M4 flip ABSENT — ≠ M4",
         "S3.690: host slim len pinned 0x46c5 (Δ=+307); ADD/SUB imm32 golden; M4 ABSENT — ≠ M4",
+        "S3.691: fixed10 expect retarget (parse1≡win32 ADD/SUB; in-DLL text≡emit_x86) — ≠ M4",
     ]
 }
 
@@ -15174,10 +15176,20 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         for &op in &ops {
             let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
             // S3.631: RET-only = expanded seed; others = mini_emit (expanded template).
+            // S3.691: ADD/SUB (0x62/0x61) parse1≡exec imm8 — expect win32 compact, not slim imm32.
             let expect = if op == 0xFF {
                 crate::s1_tyb_parser::s3_expand_ret_pe_text_raw20k(
                     crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED,
                 )
+            } else if op == 0x61 || op == 0x62 {
+                let out = crate::executor::compile_tyb_source(
+                    &tyb,
+                    crate::platform::PlatformKind::Win32,
+                )
+                .expect("win32 addsub");
+                crate::pe_link::link_pe_win32_compact(&out.code, &out.data, &[])
+                    .expect("compact")
+                    .bytes
             } else {
                 crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                     .expect("emit")
@@ -15197,6 +15209,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
                 && include_str!("pe_dll_link.rs").contains("yoyo_f10_c"),
             "S3.548 named"
         );
+        assert!(include_str!("pe_dll_link.rs").contains("S3.691"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -15644,10 +15657,20 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         for &op in &ops {
             let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
             // S3.631: RET-only = expanded seed; others = mini_emit (expanded template).
+            // S3.691: ADD/SUB parse1≡exec imm8 → win32 compact expect (not slim imm32).
             let expect = if op == 0xFF {
                 crate::s1_tyb_parser::s3_expand_ret_pe_text_raw20k(
                     crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED,
                 )
+            } else if op == 0x61 || op == 0x62 {
+                let out = crate::executor::compile_tyb_source(
+                    &tyb,
+                    crate::platform::PlatformKind::Win32,
+                )
+                .expect("win32 addsub");
+                crate::pe_link::link_pe_win32_compact(&out.code, &out.data, &[])
+                    .expect("compact")
+                    .bytes
             } else {
                 crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
                     .expect("emit")
@@ -15662,10 +15685,15 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             assert!(st.success(), "op={op:#x} exit {:?}", st.code());
             assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect, "op={op:#x}");
         }
-        // SET+ADD now emit1 (S3.578) — still GREEN
+        // SET+ADD — S3.691: ADD imm8 in parse1 → win32 compact
         let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x30, 0x62]);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
-            .expect("emit")
+        let out_sa = crate::executor::compile_tyb_source(
+            &tyb,
+            crate::platform::PlatformKind::Win32,
+        )
+        .expect("win32 set+add");
+        let expect = crate::pe_link::link_pe_win32_compact(&out_sa.code, &out_sa.data, &[])
+            .expect("compact")
             .bytes;
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
         let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
@@ -15680,6 +15708,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("577") && s.contains("MOV")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.577"));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.691"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -20519,10 +20548,15 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(String::from_utf8_lossy(&pe).contains("yoyo_parse1_c"));
         let dir = temp_work("s597-parse1-sub-cmp");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
-        // SUB+SUB+RET
+        // SUB+SUB+RET — S3.691: parse1≡exec imm8; expect win32 compact (not slim imm32)
         let tyb = crate::s1_tyb_parser::s3_fixed10_chain_ret_tyb(&[0x61, 0x61]);
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
-            .expect("emit")
+        let out_ss = crate::executor::compile_tyb_source(
+            &tyb,
+            crate::platform::PlatformKind::Win32,
+        )
+        .expect("win32 sub");
+        let expect = crate::pe_link::link_pe_win32_compact(&out_ss.code, &out_ss.data, &[])
+            .expect("compact")
             .bytes;
         assert_eq!(tyb.len(), 0x20);
         std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
@@ -21607,14 +21641,16 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.410/S3.411: in-DLL all fixed10+RET ≡ host `compile_tyb_to_pe` (shared
-    /// PE template seed S3.407). Mini still emits; not OW-RT CLOSED.
+    /// S3.410/S3.411/S3.691: in-DLL fixed10+RET text ≡ host `emit_x86`.
+    /// PE container stays 6656 slim bake (host `compile_tyb_to_pe` is 20k expanded
+    /// — not the in-DLL contract). Mini still emits; not OW-RT CLOSED.
     #[test]
     #[cfg(windows)]
     fn yoyo_sidecar_in_dll_fixed10_ret_matches_host_compile_pin() {
         let ops = [
             0xFFu8, 0x00, 0x30, 0x60, 0x66, 0x62, 0x67, 0x61, 0x64, 0x65,
         ];
+        let text_off = crate::s1_tyb_parser::S1_SLIM_TEXT_PAYLOAD_OFF;
         for &op in &ops {
             let dir = temp_work(&format!("in-dll-s411-{op:02x}"));
             let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(op);
@@ -21625,14 +21661,22 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
                 "op={op:#x}"
             );
             let out = std::fs::read(dir.join(OUTPUT_NAME)).expect("out");
-            let host = crate::s1_tyb_parser::compile_tyb_to_pe(&tyb).unwrap();
+            assert_eq!(out.len(), 0x1A00, "S3.411 in-DLL slim PE len op={op:#x}");
+            let slim = crate::s1_tyb_parser::emit_x86(
+                &crate::s1_tyb_parser::parse_tyb(&tyb).unwrap(),
+            );
+            assert!(
+                out.len() >= text_off + slim.text.len(),
+                "S3.411 text fits op={op:#x}"
+            );
             assert_eq!(
-                out.as_slice(),
-                host.bytes.as_slice(),
-                "S3.411 in-DLL ≡ host compile op={op:#x}"
+                &out[text_off..text_off + slim.text.len()],
+                slim.text.as_slice(),
+                "S3.411 in-DLL text ≡ emit_x86 op={op:#x}"
             );
             let _ = std::fs::remove_dir_all(&dir);
         }
+        assert!(include_str!("pe_dll_link.rs").contains("S3.691"));
     }
 
     /// S3.30/S3.409/S3.414: RET → skip mini, memcpy compile seed; PE ≡ seed.

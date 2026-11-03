@@ -10587,15 +10587,22 @@ pub fn compile_tyb_to_pe_child_expect(
         msg: format!("s1 compile_tyb_to_pe_child_expect: {e}"),
     })?;
     validate_tyb_mini(&prog)?;
-    let out = emit_x86(&prog);
-    if !out.text.is_empty()
-        && out.text.len() <= COMPACT_FULL_CAP
-        && out.data.len() <= COMPACT_DATA_CAP
-    {
-        return crate::pe_link::link_pe_win32_compact(&out.text, &out.data, &[]);
+    // S3.691: ADD/SUB → parse1≡exec imm8; expect must use Win32 text (not slim imm32).
+    let (text, data) = if prog.records.iter().any(|r| r.op == 0x61 || r.op == 0x62) {
+        let win = crate::executor::compile_tyb_source(
+            tyb,
+            crate::platform::PlatformKind::Win32,
+        )?;
+        (win.code, win.data)
+    } else {
+        let out = emit_x86(&prog);
+        (out.text, out.data)
+    };
+    if !text.is_empty() && text.len() <= COMPACT_FULL_CAP && data.len() <= COMPACT_DATA_CAP {
+        return crate::pe_link::link_pe_win32_compact(&text, &data, &[]);
     }
-    // oversized .data / beyond full-grow → wide/mini
-    if out.text.len() > S1_SLIM_MAX_CODE {
+    // oversized .data / beyond full-grow → wide/mini (slim path; ADD/SUB already handled)
+    if text.len() > S1_SLIM_MAX_CODE {
         compile_tyb_to_pe_wide_emit(tyb)
     } else {
         compile_tyb_to_pe_mini_emit(tyb)
