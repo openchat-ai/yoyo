@@ -16653,7 +16653,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let got = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
         assert_ne!(got, empty, "S678 H00 WriteFile != empty compact");
         assert!(got.len() as u32 >= S3_H00_DATA_FLOOR);
-        assert_ne!(got, recipe, "seed-parity ABSENT");
+        assert_eq!(got, recipe, "S679 CreateProcess(yoyo)==recipe/seed");
         assert!(!yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
