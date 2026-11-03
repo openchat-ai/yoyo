@@ -4,7 +4,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.675**（674=H00 headers+startup；下一刀=h00_main append）。
+**默认** 继续 **= S3.676**（675=h00_main append；下一刀=entry JMP→h00_main）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -24,7 +24,7 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3** ⏳ | child parse1 扩 ISA · 真自举不排假工期 |
 | **S4/S5** | 全 ISA / 形式化 · 地图 |
 
-**诚实底线**：empty-handler compact(yoyo) GREEN ≠ seed H00 ≠ M4 ≠ in-DLL live emit。hdr tmpl ≠ h00_main/WF。
+**诚实底线**：empty-handler compact(yoyo) GREEN ≠ seed H00 ≠ M4 ≠ in-DLL live emit。h00_main append ≠ JMP/data/WF。
 
 ### 波段 tip（更早单刀已折）
 
@@ -33,10 +33,10 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3.1–630** ✅ | `3809e18` | fixed10→parse1→any-slot→text4KiB |
 | **S3.631–638** ✅ | `3227356` | yoyo.tyb child→CreateProcess GREEN |
 | **S3.639–655** ✅ | `7f27b15` | compact→mid-grow→**full-grow / yoyo≈27KiB** |
-| **S3.656–674** ✅ | — | HOT→…→**H00 headers+startup** |
-| **S3.675** ⏳ | — | **本步**：h00_main append |
+| **S3.656–675** ✅ | — | HOT→…→**h00_main append** |
+| **S3.676** ⏳ | — | **本步**：entry JMP→h00_main |
 
-**缺口**：h00_main / .data / WriteFile **ABSENT**；M4 **ABSENT**；in-DLL live emit **ABSENT**。`ready=false`。bake=362。
+**缺口**：JMP / .data / WriteFile **ABSENT**；M4 **ABSENT**；in-DLL live emit **ABSENT**。`ready=false`。bake=362。
 
 ---
 
@@ -53,9 +53,9 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 
 ## 对 AI
 
-- 继续 → **S3.675**（h00_main；禁 densify / 假 CLOSED / bake full seed）。S3.674=headers。红了记根因停。
+- 继续 → **S3.676**（entry JMP；禁 densify / 假 CLOSED / bake full seed）。S3.675=h00_main。红了记根因停。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
 
-*post-v1.0 · 收纳板 · tip S3.675*
+*post-v1.0 · 收纳板 · tip S3.676*
