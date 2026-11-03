@@ -4,7 +4,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.684**（683=stage live text / 去 bake；下一刀=in-DLL live emit cliff / M4 仍 ABSENT）。
+**默认** 继续 **= S3.685**（684=export-local live emit cliff；下一刀=dissect 非 densify 路径 / 禁把 parse1 塞进 DLL）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -24,7 +24,7 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3** ⏳ | child parse1 扩 ISA · 真自举不排假工期 |
 | **S4/S5** | 全 ISA / 形式化 · 地图 |
 
-**诚实底线**：CreateProcess(yoyo)≡seed ≠ M4 ≠ in-DLL live emit。parse1 child ≡exec（live stage）；host emit_x86 仍 slim。
+**诚实底线**：child CreateProcess≡seed via live ≠ export-local emit ≠ M4。parse1≡exec；host emit_x86 仍 slim。
 
 ### 波段 tip（更早单刀已折）
 
@@ -37,10 +37,11 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3.680** ✅ | — | parse1≡exec **cliff** |
 | **S3.681** ✅ | — | parse1 **Win32 I/O** |
 | **S3.682** ✅ | — | parse1 **ADD/SUB imm8** |
-| **S3.683** ✅ | — | LDB oo imm8 + **stage live text** / 去 bake |
-| **S3.684** ⏳ | — | **本步**：in-DLL live emit cliff（M4 ABSENT） |
+| **S3.683** ✅ | — | LDB oo imm8 + **stage live** / 去 bake |
+| **S3.684** ✅ | — | **export-local live emit cliff** |
+| **S3.685** ⏳ | — | **本步**：dissect 非 densify 路径（≠ 塞 parse1 进 DLL） |
 
-**缺口**：in-DLL live emit **ABSENT**；M4 **ABSENT**。CreateProcess≡seed via live；parse1≡exec ready。`ready=false`（M4）。bake=362。
+**缺口**：export-local live emit **ABSENT**；M4 **ABSENT**。child≡seed via live；parse1≡exec ready。`ready=false`（M4）。bake=362。
 
 ---
 
@@ -48,7 +49,7 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 
 ```powershell
 cd F:\yoyo\yoyo-rust\verifier
-cargo test --lib -- yoyo_h00_writefile_seed_pin yoyo_parse1_equiv_exec_absent_cliff_pin --test-threads=1
+cargo test --lib -- yoyo_indll_export_live_emit_absent_cliff_pin yoyo_h00_writefile_seed_pin --test-threads=1
 ```
 
 path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（见 `scripts/`）。
@@ -57,9 +58,9 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 
 ## 对 AI
 
-- 继续 → **S3.684**（in-DLL live emit；禁 densify / 假 CLOSED / bake-sole-seed-WF）。S3.683=live stage。红了记根因停。
+- 继续 → **S3.685**（dissect export-local 非 densify；禁 densify / 假 CLOSED / bake-sole-seed-WF）。S3.684=cliff。红了记根因停。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
 
-*post-v1.0 · 收纳板 · tip S3.684*
+*post-v1.0 · 收纳板 · tip S3.685*

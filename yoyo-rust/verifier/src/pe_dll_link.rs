@@ -425,15 +425,33 @@ pub fn yoyo_m4_production_flip_ready() -> bool {
 /// Non-empty ⇒ M4 production flip stays ABSENT. Clearing entries ≠ OW-RT CLOSED.
 pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
     &[
-        "yoyo.tyb child+CreateProcess GREEN (S3.631/632/638); seed_host≠wide (S3.633); host-mini 1024 ABSENT; M4/oracle≠live-emit",
+        "S3.683 DONE: child CreateProcess(yoyo)≡seed via live parse1 (Win32 I/O+imm8+LDB oo); bake-text gone",
+        "in-DLL export still CreateProcess(compiler PE) — ≠ export-local emit_x86/pe_link; densify parse1 into DLL=sheep",
         "beyond-mini overflow TYB fails mini; without compiler PE still oracle→seed_host only",
-        "in-DLL emit of yoyo.tyb ABSENT (CreateProcess child ≠ export emit_x86); host-mini 1024",
-        "ALT in-dll-gate-i / gen4 GREEN paths are still oracle lookup, not live emit",
-        "production default place_cwd remains Rust (ALT unset)",
+        "ALT in-dll-gate-i / gen4 GREEN paths are still oracle lookup, not export-local live emit",
+        "production default place_cwd remains Rust (ALT unset); M4 flip ABSENT",
         "raising S1_SLIM_MAX_CODE / densify hand-hex ≠ live-compile graduation (sheep)",
-        "CreateProcess compiler PE: parse1≈mini+any-slot+text20k+multi-RET; yoyo.tyb child+indll GREEN; host-mini 1024 ABSENT",
-        "child live compose ABSENT — general parse+emit_x86 still ABSENT (S3.582 cliff remains); host-mini≠child; see design",
+        "host emit_x86 still slim (fixed10 goldens); parse1 child ≡exec; host-mini 1024 stays",
+        "S3.684 cliff: export-local live emit ABSENT — see yoyo_indll_export_live_emit_design",
     ]
+}
+
+/// S3.684: gaps for **export-local** live emit (≠ CreateProcess child; ≠ densify).
+/// Child parse1≡exec + H00 live DONE (S683). Clearing ⇒ in-DLL export emits
+/// without spawning compiler PE. ≠ M4 ≠ bake-sole-WF ≠ raise slim-cap.
+pub fn yoyo_indll_export_live_emit_design() -> &'static [&'static str] {
+    &[
+        "export .text has CreateProcessA+Wait+GetExitCode call-site (S542); gates on cwd yoyo_compiler.exe",
+        "no parse1 / emit_x86 / pe_link machine inside export body — child PE is the compose engine",
+        "embedding child parse1 into DLL export = densify sheep unless thin trampoline + shared code",
+        "next: dissect non-sheep path (shared text? trampoline? keep CreateProcess as contract?) — ≠ M4",
+        "ready=false (M4); densify≠; bake-sole-seed-WF≠",
+    ]
+}
+
+/// S3.684: export-local live emit ready when design empty.
+pub fn yoyo_indll_export_live_emit_ready() -> bool {
+    yoyo_indll_export_live_emit_design().is_empty()
 }
 
 
@@ -584,11 +602,11 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.681 DONE: parse1 ALLOC/LOAD/WRITE → Win32 IAT@0 + platform_io blobs (str_idx→STR_TABLE)",
         "S3.682 DONE: parse1 ADD/SUB imm8 when imm∈i8 (≡exec assembler); bake-text remains",
         "S3.683 DONE: LDB oo imm8 + stage live parse1 .text (drop bake); CreateProcess≡seed via live",
-        "today: CreateProcess yoyo≡seed_host H00 via live text; parse1≡exec; M4 ABSENT",
-        "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
-        "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
+        "S3.684 cliff: export-local live emit ABSENT — see yoyo_indll_export_live_emit_design; densify≠",
+        "today: child CreateProcess≡seed via live; parse1≡exec; export-local emit/M4 ABSENT",
+        "export-local needs: parse+emit+pe_link in export .text (≠ CreateProcess child; densify≠)",
         "child PE has no Rust runtime — compose machine must be YOYO/asm or seed",
-        "yoyo.tyb: child+indll CreateProcess cleared; host-mini 1024 / M4 / general emit still ABSENT; densify≠",
+        "yoyo.tyb: child CreateProcess GREEN; indll still CreateProcess-compiler; M4 ABSENT; densify≠",
         "hand-hex densify of emit_x86 into child = sheep; not a live-compose slice",
         "finite emit1/imm table growth ≠ graduation; live slice clears this design list",
         "general parse+emit still ABSENT — 3nop compact bake ≠ live emit_x86+pe_link in child",
@@ -651,6 +669,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.681: parse1 Win32 I/O DONE; ADD/SUB imm8 ABSENT; bake-text remains — ≠ M4",
         "S3.682: parse1 ADD/SUB imm8 DONE; stage live text / drop bake ABSENT — ≠ M4",
         "S3.683: LDB oo imm8 + stage live text DONE (drop bake); M4/in-DLL live ABSENT — ≠ M4",
+        "S3.684: export-local live emit ABSENT — CreateProcess child ≠ export emit; densify≠ — ≠ M4",
     ]
 }
 
@@ -16273,6 +16292,47 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let y_got = s3_compact_full_grow_from_tmpl(&tmpl, &yout.text, &yout.data);
         assert_eq!(y_got.len(), y_expect.len());
         assert_eq!(y_got, y_expect, "yoyo recipe ≡ compact");
+    }
+
+    /// S3.684: export-local live emit ABSENT cliff — child CreateProcess≡seed
+    /// via live parse1 (S683); export still CreateProcess(compiler) ≠ emit_x86.
+    /// densify≠; ready=false (M4).
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_indll_export_live_emit_absent_cliff_pin() {
+        assert!(!yoyo_indll_export_live_emit_ready());
+        let d = yoyo_indll_export_live_emit_design();
+        assert!(d.iter().any(|s| s.contains("CreateProcess")));
+        assert!(d.iter().any(|s| s.contains("densify") || s.contains("sheep")));
+        assert!(yoyo_live_in_dll_compile_map()
+            .iter()
+            .any(|s| s.contains("S3.684")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.684")));
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("S3.684")));
+        assert!(yoyo_parse1_equiv_exec_ready());
+        assert!(yoyo_h00_fill_in_child_ready());
+        assert!(!yoyo_live_compile_slice_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        let src = include_str!("pe_dll_link.rs");
+        assert!(src.contains("yoyo_indll_export_live_emit_design"));
+        assert!(src.contains("S3.684"));
+        // child path still ≡seed (S683 baseline)
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
+        let seed = crate::selfhost::seed_host_compile(&yoyo).expect("seed");
+        let dir = temp_work("s684-cliff-child");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
+        assert!(std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap()
+            .success());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), seed);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.680/683: parse1≡exec ready after Win32 I/O + imm8 + live stage.
