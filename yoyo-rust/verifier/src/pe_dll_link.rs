@@ -434,6 +434,19 @@ pub fn yoyo_m4_production_flip_prep_ready() -> bool {
     yoyo_m4_production_flip_prep_design().is_empty()
 }
 
+/// S3.688: remaining **external / sheep** gates after flip prep (S687).
+/// Inventory CUT lives in SCOPE-CUT docs — code flip ≠ CLOSED.
+/// host-mini 1024 raise alone = sheep. ≠ densify ≠ bake-sole-WF.
+pub fn yoyo_post_flip_prep_remaining_gates() -> &'static [&'static str] {
+    &[
+        "inventory: SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md disposition=CUT (closed=0) — flip≠CLOSED",
+        "host-mini: S1_SLIM_MAX_CODE=1024 ABSENT for yoyo-sized host emit; raise alone=sheep (parse1 child already covers)",
+        "production default: ALT Off/Rust until inventory allows (S687 prep); no silent flip",
+        "densify export-local / bake-sole-WF / invent Stage = sheep",
+        "S3.688: gates named — next knives need inventory change OR non-sheep host-mini slice; ≠ M4 flip now",
+    ]
+}
+
 /// S3.528 / M4-prep: production flip ready? Always `false` while blockers remain.
 pub fn yoyo_m4_production_flip_ready() -> bool {
     yoyo_m4_production_flip_blockers().is_empty()
@@ -643,7 +656,8 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.685 DONE: non-sheep path = CreateProcess-as-compose-contract (A); densify=sheep; shared-text=far",
         "S3.686 DONE: M4/live map = CreateProcess≡live-compose; production default still Rust",
         "S3.687 DONE: M4 flip prep named (default stays Off/Rust; inventory CUT blocks flip)",
-        "today: CreateProcess≡live-compose GREEN; parse1≡exec; M4 flip ABSENT (prep named)",
+        "S3.688 DONE: remaining gates named (inventory CUT + host-mini sheep); flip still ABSENT",
+        "today: CreateProcess≡live-compose GREEN; parse1≡exec; M4 flip ABSENT (CUT+default Rust)",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
         "yoyo.tyb: child+indll CreateProcess compose GREEN; M4 production flip ABSENT; densify≠",
@@ -713,6 +727,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.685: CreateProcess-as-contract dissected (A); M4 map refresh ABSENT — ≠ M4",
         "S3.686: M4/live map refreshed (CreateProcess≡live-compose); production flip ABSENT — ≠ M4",
         "S3.687: M4 flip prep named; default Off/Rust; inventory CUT — ≠ M4",
+        "S3.688: remaining gates named (CUT + host-mini sheep); flip ABSENT — ≠ M4",
     ]
 }
 
@@ -16376,6 +16391,28 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .success());
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), seed);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.688: remaining gates after flip prep — inventory CUT + host-mini
+    /// raise=sheep; no flip. ready=false (M4).
+    #[test]
+    fn yoyo_post_flip_prep_remaining_gates_pin() {
+        let g = yoyo_post_flip_prep_remaining_gates();
+        assert!(g.iter().any(|s| s.contains("CUT") && s.contains("SCOPE-CUT")));
+        assert!(g.iter().any(|s| s.contains("host-mini") && s.contains("sheep")));
+        assert!(g.iter().any(|s| s.contains("S3.688")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.688")));
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("S3.688")));
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_m4_production_flip_prep_ready());
+        assert!(matches!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off));
+        assert_eq!(crate::s1_tyb_parser::S1_SLIM_MAX_CODE, 1024);
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_post_flip_prep_remaining_gates"));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.688"));
     }
 
     /// S3.687: M4 flip prep named — default ALT Off/Rust; inventory CUT blocks
