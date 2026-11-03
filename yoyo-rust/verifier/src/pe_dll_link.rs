@@ -658,6 +658,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.687 DONE: M4 flip prep named (default stays Off/Rust; inventory CUT blocks flip)",
         "S3.688 DONE: remaining gates named (inventory CUT + host-mini sheep); flip still ABSENT",
         "S3.689 DONE: host emit_x86 LDB oo imm8 (≡exec/parse1); slim-cap stays 1024; ≠M4 flip",
+        "S3.690 DONE: host slim yoyo len 0x46c5 (Δ=+307 vs exec); ADD/SUB stays imm32 (fixed10 golden)",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; host LDB≡exec; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -730,6 +731,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.687: M4 flip prep named; default Off/Rust; inventory CUT — ≠ M4",
         "S3.688: remaining gates named (CUT + host-mini sheep); flip ABSENT — ≠ M4",
         "S3.689: host LDB oo imm8 DONE; slim-cap/M4 flip ABSENT — ≠ M4",
+        "S3.690: host slim len pinned 0x46c5 (Δ=+307); ADD/SUB imm32 golden; M4 ABSENT — ≠ M4",
     ]
 }
 
@@ -16587,17 +16589,24 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         .unwrap();
         let prog = crate::s1_tyb_parser::parse_tyb(&yoyo).unwrap();
         let slim = crate::s1_tyb_parser::emit_x86(&prog);
-        assert_ne!(
-            slim.text.len(),
-            win.code.len(),
-            "host slim emit_x86 ≠ win32 exec ({} vs {})",
-            slim.text.len(),
-            win.code.len()
-        );
-        assert_eq!(slim.text.len(), 0x474f, "host slim yoyo text len");
+        // S3.689/690: host LDB oo imm8 → slim 0x46c5 (was 0x474f); Δ=+307 vs exec
+        // remaining = host ADD/SUB imm32 (fixed10 golden; emit_add_imm stays imm32)
+        assert_eq!(slim.text.len(), 0x46c5, "host slim yoyo text len (post-LDB-imm8)");
         assert_eq!(win.code.len(), 0x4592, "win32 exec yoyo text len");
+        assert_eq!(
+            slim.text.len() as i64 - win.code.len() as i64,
+            0x133,
+            "Δ host-slim − exec (+307; ADD/SUB imm32 golden)"
+        );
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.690")));
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("S3.690")));
         assert!(yoyo_h00_fill_in_child_ready());
         assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.690"));
     }
 
     /// S3.683: CreateProcess(yoyo)≡seed_host via live parse1 text (no bake-text).
