@@ -521,11 +521,12 @@ pub fn yoyo_live_compile_slice_ready() -> bool {
 /// Non-empty ⇒ experiment ABSENT. Clearing ≠ live-compile slice ready by itself.
 pub fn yoyo_in_dll_createprocess_compiler_blockers() -> &'static [&'static str] {
     &[
-        "CreateProcessA/Wait/GetExitCode call-site emitted; PE=parse1+yoyo.tyb child GREEN (S3.631/632)",
-        "yoyo_compiler_pe_bytes=Some(parse1); host-mini 1024 / general emit_x86 / M4 still ABSENT",
-        "cwd/export re-entrancy + handle inheritance design ABSENT",
-        "rows = pe_patch blobs — not live emit_x86 / densify",
-        "still would be oracle/host-compose under the hood unless compiler PE is live",
+        // S3.697: refreshed — CreateProcess path GREEN (S632/683/693); residual honest
+        "CreateProcessA+WaitForSingleObject+GetExitCode call-site emitted; PE=parse1 child GREEN ≡seed (S683/693)",
+        "yoyo_compiler_pe_bytes=Some(parse1); host-mini 1024 ABSENT; M4 production flip ABSENT (CUT)",
+        "cwd/export re-entrancy + handle inheritance design ABSENT — nested CreateProcess wiring untested",
+        "S3.697: live compiler PE path GREEN; remaining = re-entrancy + host-mini + M4; densify≠",
+        "Gate I≡self-host (S695); child-cwd drop-in optional ABSENT; ≠ OW-RT CLOSED",
     ]
 }
 
@@ -667,6 +668,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
 "S3.694 DONE: drop-in self-host NO_INPUT cliff dissected — see yoyo_dropin_selfhost_no_input_design; ≠M4",
 "S3.695 DONE: pick A Gate I≡self-host; child-cwd drop-in optional ABSENT; map refreshed; ≠M4",
 "S3.696 DONE: M4 flip prep/gates refreshed — hard gate=inventory CUT; preflight compose+self-host GREEN",
+"S3.697 DONE: CreateProcess blockers+call-site design refreshed; re-entrancy residual; stale pins fixed",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; host LDB≡exec; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -746,6 +748,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
 "S3.694: drop-in self-host NO_INPUT cliff named; Gate I loop ≠ child-cwd drop-in — ≠ M4",
 "S3.695: Gate I≡self-host pick A; child-cwd drop-in optional; M4 ABSENT — ≠ M4",
 "S3.696: M4 prep/gates refreshed (inventory CUT hard gate); flip ABSENT — ≠ M4",
+"S3.697: CreateProcess-compiler blockers refreshed; re-entrancy ABSENT — ≠ M4",
     ]
 }
 
@@ -1039,14 +1042,13 @@ pub fn yoyo_createprocess_call_site_design() -> &'static [&'static str] {
         "lpApplicationName = cwd YOYO_COMPILER_PE_NAME (not gen4; gen4 needs sidecar)",
         "lpCommandLine = NULL; inherit handles=FALSE; cwd = export work_dir",
         "compiler PE must ReadFile input.tyb and WriteFile output.exe (same exit 0/1/2/3)",
-        "compiler PE provenance = YOYO-built (seed_host/gen chain) — Rust runtime ABSENT",
-        "in-DLL emits CreateProcessA+Wait+GetExitCode call-site (S3.542); needs compiler PE bytes",
-        "re-entrancy: export must not hold locks across CreateProcess",
+        "compiler PE provenance = YOYO parse1 child (S683) — CreateProcess≡seed; Rust runtime ABSENT",
+        "in-DLL emits CreateProcessA+WaitForSingleObject+GetExitCode call-site (S3.542) GREEN",
+        "S3.697: call-site DONE; residual = cwd/export re-entrancy + handle inheritance ABSENT",
+        "re-entrancy: export must not hold locks across CreateProcess (still ABSENT design)",
     ]
 }
 
-/// S3.539: call-site design ready to emit? Always false until design notes cleared
-/// **and** a real compiler PE bytes path exists.
 pub fn yoyo_createprocess_call_site_ready() -> bool {
     false
 }
@@ -21515,7 +21517,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_in_dll_createprocess_compiler_ready());
         assert!(yoyo_in_dll_createprocess_compiler_blockers()
             .iter()
-            .any(|s| s.contains("call sites") || s.contains("wiring")));
+            .any(|s| s.contains("call-site") || s.contains("wiring") || s.contains("re-entrancy")));
         assert!(
             include_str!("pe_dll_link.rs").contains("S3.538"),
             "S3.538 must stay named"
@@ -21541,6 +21543,24 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         );
     }
 
+
+    /// S3.697: CreateProcess blockers+call-site refreshed; re-entrancy residual; ≠ M4.
+    #[test]
+    fn yoyo_in_dll_createprocess_blockers_post_live_refresh_pin() {
+        let b = yoyo_in_dll_createprocess_compiler_blockers();
+        assert!(b.len() >= 3);
+        assert!(b.iter().any(|s| s.contains("CreateProcessA")));
+        assert!(b.iter().any(|s| s.contains("WaitForSingleObject")));
+        assert!(b.iter().any(|s| s.contains("S3.697")));
+        assert!(b.iter().any(|s| s.contains("re-entrancy")));
+        let d = yoyo_createprocess_call_site_design();
+        assert!(d.iter().any(|s| s.contains("WaitForSingleObject")));
+        assert!(d.iter().any(|s| s.contains("S3.697") || s.contains("re-entrancy")));
+        assert!(!yoyo_in_dll_createprocess_compiler_ready());
+        assert!(!yoyo_createprocess_call_site_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.697"));
+    }
 
 /// S3.536: S1_SLIM_MAX_CODE stays 1024; raising it ≠ slice ready; sheep named.
     #[test]
