@@ -574,6 +574,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.671 DONE: H00 alloc zero-fill prep; PE fill/WriteFile ABSENT",
         "S3.672 DONE: host H00 PE layout dissect; child fill ABSENT",
         "S3.673 DONE: H00 alloc staged user .text@+0x40d; headers/h00/data/WF ABSENT",
+        "S3.674 DONE: H00 headers+startup (0x40d) copied; h00_main/data/WF ABSENT",
         "today: CreateProcess yoyo.tyb GREEN; empty-handler compact DONE; H00 fill/M4/in-DLL live ABSENT",
         "live in-DLL emit of yoyo.tyb still ABSENT (CreateProcess child ≠ in-DLL emit_x86; densify≠)",
         "live needs: parse TYB + emit_x86 + pe_link (or equiv) inside in-DLL export .text",
@@ -631,6 +632,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.671: H00 alloc zero-fill DONE; PE fill/WriteFile ABSENT — ≠ M4",
         "S3.672: host H00 PE layout dissect DONE; child fill ABSENT — ≠ M4",
         "S3.673: H00 user-text stage DONE; headers/h00_main/data/WF ABSENT — ≠ M4",
+        "S3.674: H00 headers+startup DONE; h00_main/data/WF ABSENT — ≠ M4",
     ]
 }
 
@@ -655,6 +657,9 @@ const S3_PARSE1_H00_PE_PTR_OFF: u32 = 0x4010;
 /// S3.669: over-alloc pad beyond text_len+DATA_FLOOR (headers/h00_main/align).
 #[cfg(windows)]
 const S3_H00_ALLOC_PAD: u32 = 0x10000;
+/// S3.674: H00 headers (0x400) + PE startup (13) — file off of user .text.
+#[cfg(windows)]
+const S3_H00_HDR_STARTUP_LEN: u32 = 0x40d;
 
 /// S3.640: pe_link-in-child ready? Always false while blockers remain.
 pub fn yoyo_pe_link_in_child_ready() -> bool {
@@ -726,8 +731,9 @@ pub fn yoyo_h00_in_child_design() -> &'static [&'static str] {
         "S3.671 DONE: zero-fill H00 alloc after VirtualAlloc; PE bytes/WriteFile still ABSENT",
         "S3.672 DONE: host s3_h00_pe_layout dissect (SOI/code/text_vs/data); child fill ABSENT",
         "S3.673 DONE: stage user .text → H00 alloc+0x40d; headers/h00_main/data/WriteFile ABSENT",
-        "child must: headers+h00_main+data + WriteFile ≡ s3_h00_pe_recipe; today still → compact_gate",
-        "baking seed_host PE / densify h00_main hex = sheep; ≠ raise slim-cap",
+        "S3.674 DONE: bake+copy H00 headers+startup (0x40d); h00_main/data/WriteFile ABSENT",
+        "child must: h00_main+data + WriteFile ≡ s3_h00_pe_recipe; today still → compact_gate",
+        "baking full seed_host PE / densify h00_main hex = sheep; ≠ raise slim-cap",
         "S3.663 cliff: H00-in-child emit ABSENT — empty compact ≠ seed parity ≠ M4",
     ]
 }
@@ -736,12 +742,12 @@ pub fn yoyo_h00_in_child_design() -> &'static [&'static str] {
 /// Non-empty ⇒ fill ABSENT. Densify h00_main / bake seed blob = sheep.
 pub fn yoyo_h00_fill_in_child_design() -> &'static [&'static str] {
     &[
-        "1. PE headers with text_vs/data_rva for code+h00_main; data floor 0x38000 (≠ compact 0x1000)",
-        "2. .text = startup(13) + user code + gen_h00_selfhost_main(meta,h20_off)",
+        "1. S674 DONE: PE headers+startup (0x40d) from stub H00 tmpl (sizes still stub-scale)",
+        "2. .text user staged (S673); still need gen_h00_selfhost_main(meta,h20_off) append",
         "3. patch user code[0]=JMP rel32 → h00_main; NOP pad [5..18)",
-        "4. .data = prepend_win32_io_iat + STR_TABLE (input.tyb/ky/output.exe) + append_h00_runtime_data",
-        "5. WriteFile([scratch+0x4010], s3_h00_pe_len) — not compact full-grow path",
-        "S669 alloc; S671 zero; S672 layout; S673 user-text staged@+0x40d; headers/h00/data/WF ABSENT",
+        "4. .data = prepend_win32_io_iat + STR_TABLE + append_h00_runtime_data (floor 0x38000)",
+        "5. patch text_vs/data_rva/SOI to match yoyo; WriteFile([scratch+0x4010], s3_h00_pe_len)",
+        "S669–674: alloc/zero/layout/text/hdr; h00_main+data+WF ABSENT; densify≠",
     ]
 }
 
@@ -1227,6 +1233,29 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     data.extend_from_slice(&compact_tmpl);
     data.extend_from_slice(b"yoyo_compact3_c\0");
 
+    // S3.674: bake H00 headers+startup only (0x40d) — not full 0x38000 seed (sheep).
+    while data.len() % 16 != 0 {
+        data.push(0);
+    }
+    let h00_hdr_stub = {
+        let mut stub = vec![0x90u8; 64];
+        stub[0] = 0xC3;
+        stub
+    };
+    let h00_hdr_handlers: [(u16, u32, u32); 2] = [(0x20, 8, 4), (0x21, 16, 4)];
+    let h00_full = crate::pe_link::link_pe_win32(&h00_hdr_stub, &[], &h00_hdr_handlers)?.bytes;
+    assert!(
+        h00_full.len() >= S3_H00_HDR_STARTUP_LEN as usize && h00_full[..2] == *b"MZ",
+        "S3.674 H00 hdr tmpl"
+    );
+    let h00_hdr_lay = s3_h00_pe_layout(&h00_full).expect("S3.674 layout");
+    assert_eq!(h00_hdr_lay.size_of_headers, 0x400);
+    assert!(h00_hdr_lay.data_raw >= S3_H00_DATA_FLOOR);
+    let h00_hdr_bytes = &h00_full[..S3_H00_HDR_STARTUP_LEN as usize];
+    let h00_hdr_rel = data.len() as u32;
+    data.extend_from_slice(h00_hdr_bytes);
+    data.extend_from_slice(b"yoyo_h00_hdr_c\0");
+
     // S3.557-560: field-match NOP/GET/INC/ADD/DEC — live1; PE still emit-bake
     let mut fm_pe_meta: Vec<(u8, u32, u32)> = Vec::new(); // (op, pe_off, pe_len)
     for &op in &[0x00u8, 0x60, 0x66, 0x62, 0x67, 0x61, 0x64, 0x65] {
@@ -1315,6 +1344,8 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let setret_pe_off = YOYO_COMPILER_PE_USER_DATA_OFF + setret_pe_rel;
     let compact_tmpl_off = YOYO_COMPILER_PE_USER_DATA_OFF + compact_tmpl_rel;
     let compact_tmpl_len = compact_tmpl.len() as u32;
+    let h00_hdr_off = YOYO_COMPILER_PE_USER_DATA_OFF + h00_hdr_rel;
+    let h00_hdr_len = S3_H00_HDR_STARTUP_LEN;
     let live2_nop_text_off = YOYO_COMPILER_PE_USER_DATA_OFF + live2_nop_text_rel;
     let live2_inc_text_off = YOYO_COMPILER_PE_USER_DATA_OFF + live2_inc_text_rel;
     let live2_dec_text_off = YOYO_COMPILER_PE_USER_DATA_OFF + live2_dec_text_rel;
@@ -3707,7 +3738,16 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&(S3_H00_DATA_FLOOR.wrapping_add(S3_H00_ALLOC_PAD)).to_le_bytes());
     c.extend_from_slice(&[0x31, 0xC0]); // al=0
     c.extend_from_slice(&[0xF3, 0xAA]); // rep stosb
-    // S3.673: stage user .text into H00 alloc @+0x40d (headers/h00_main/data ABSENT)
+    // S3.674: copy H00 headers+startup (0x40d) from baked tmpl
+    c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]); // r11=scratch
+    c.extend_from_slice(&[0x49, 0x8B, 0xBB]); // rdi=[r11+H00_PE_PTR]
+    c.extend_from_slice(&S3_PARSE1_H00_PE_PTR_OFF.to_le_bytes());
+    c.extend_from_slice(&[0x49, 0x8D, 0xB7]); // lea rsi,[r15+h00_hdr]
+    c.extend_from_slice(&h00_hdr_off.to_le_bytes());
+    c.extend_from_slice(&[0xB9]); // mov ecx, 0x40d
+    c.extend_from_slice(&h00_hdr_len.to_le_bytes());
+    c.extend_from_slice(&[0xF3, 0xA4]); // rep movsb
+    // S3.673: stage user .text into H00 alloc @+0x40d (h00_main/data/WF ABSENT)
     c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]); // r11=scratch
     c.extend_from_slice(&[0x49, 0x8B, 0xBB]); // rdi=[r11+H00_PE_PTR]
     c.extend_from_slice(&S3_PARSE1_H00_PE_PTR_OFF.to_le_bytes());
@@ -15960,6 +16000,57 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let y_got = s3_compact_full_grow_from_tmpl(&tmpl, &yout.text, &yout.data);
         assert_eq!(y_got.len(), y_expect.len());
         assert_eq!(y_got, y_expect, "yoyo recipe ≡ compact");
+    }
+
+    /// S3.674: H00 headers+startup (0x40d) baked+copied into alloc; WriteFile
+    /// still empty compact. ready=false; ≠ M4; densify≠; bake-full-seed≠.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_h00_headers_startup_tmpl_pin() {
+        assert_eq!(S3_H00_HDR_STARTUP_LEN, 0x40d);
+        assert!(!yoyo_h00_fill_in_child_ready());
+        assert!(yoyo_h00_in_child_design()
+            .iter()
+            .any(|s| s.contains("S3.674")));
+        assert!(yoyo_h00_fill_in_child_design()
+            .iter()
+            .any(|s| s.contains("S674") || s.contains("0x40d")));
+        assert!(yoyo_child_live_compose_design()
+            .iter()
+            .any(|s| s.contains("S3.674")));
+        assert!(yoyo_pe_link_in_child_blockers()
+            .iter()
+            .any(|s| s.contains("S3.674")));
+        let src = include_str!("pe_dll_link.rs");
+        assert!(src.contains("yoyo_h00_hdr_c"));
+        assert!(src.contains("S3_H00_HDR_STARTUP_LEN"));
+        assert!(src.contains("S3.674"));
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
+        let empty = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&yoyo)
+            .unwrap()
+            .bytes;
+        // marker in linked compiler image (before place/CreateProcess)
+        let pe = yoyo_compiler_pe_bytes().expect("compiler pe");
+        let has = |m: &[u8]| pe.windows(m.len()).any(|w| w == m);
+        assert!(
+            has(b"yoyo_ret_c") && has(b"yoyo_compact3_c") && has(b"yoyo_h00_hdr_c"),
+            "markers ret={} compact3={} h00={} pe={}B",
+            has(b"yoyo_ret_c"),
+            has(b"yoyo_compact3_c"),
+            has(b"yoyo_h00_hdr_c"),
+            pe.len()
+        );
+        let dir = temp_work("s674-h00-hdr");
+        let path = yoyo_place_compiler_pe(&dir).expect("place");
+        std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
+        assert!(std::process::Command::new(&path)
+            .current_dir(&dir)
+            .status()
+            .unwrap()
+            .success());
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), empty);
+        assert!(!yoyo_m4_production_flip_ready());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.673: stage user .text into H00 alloc@+0x40d; WriteFile still empty
