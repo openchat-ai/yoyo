@@ -277,8 +277,15 @@ fn emit_load_state(out: &mut Vec<u8>, slot: u16, dest: Reg) {
     }
 }
 
+/// True when `imm` sign-extends from i8 (parse1/exec `movsx` test).
+fn imm_fits_i8(imm: u32) -> bool {
+    let v = imm as i32;
+    v == i32::from(v as i8)
+}
+
 /// add reg, imm32 → REX.W 81 /0.
-/// (imm8 form is STB-only — fixed10 ADD golden pins imm32; do not change this.)
+/// Fixed10 ADD golden / host-table seed / STB·LDB oo>127 fallback — always imm32.
+/// General ADD opcode uses [`emit_add_imm_compact`] (S3.705 dual-path).
 fn emit_add_imm(out: &mut Vec<u8>, reg: Reg, imm: u32) {
     let rex = rex_wrxb(true, false, false, reg.rex_bit());
     out.extend_from_slice(&[rex, 0x81, 0xC0 | reg.low3()]);
@@ -286,10 +293,34 @@ fn emit_add_imm(out: &mut Vec<u8>, reg: Reg, imm: u32) {
 }
 
 /// sub reg, imm32 → REX.W 81 /5. Was wrongly /4 (E0) before S1.2.
+/// Fixed10 SUB golden — always imm32. General SUB → [`emit_sub_imm_compact`].
 fn emit_sub_imm(out: &mut Vec<u8>, reg: Reg, imm: u32) {
     let rex = rex_wrxb(true, false, false, reg.rex_bit());
     out.extend_from_slice(&[rex, 0x81, 0xE8 | reg.low3()]);
     out.extend_from_slice(&imm.to_le_bytes());
+}
+
+/// S3.705 dual-path compact ADD: imm∈i8 → `48 83 /0 ib`; else imm32 (`48 81`).
+/// Used by `emit_x86` ADD opcode. Fixed10 seed/table stay on [`emit_add_imm`].
+fn emit_add_imm_compact(out: &mut Vec<u8>, reg: Reg, imm: u32) {
+    let rex = rex_wrxb(true, false, false, reg.rex_bit());
+    if imm_fits_i8(imm) {
+        out.extend_from_slice(&[rex, 0x83, 0xC0 | reg.low3(), imm as u8]);
+    } else {
+        out.extend_from_slice(&[rex, 0x81, 0xC0 | reg.low3()]);
+        out.extend_from_slice(&imm.to_le_bytes());
+    }
+}
+
+/// S3.705 dual-path compact SUB: imm∈i8 → `48 83 /5 ib`; else imm32.
+fn emit_sub_imm_compact(out: &mut Vec<u8>, reg: Reg, imm: u32) {
+    let rex = rex_wrxb(true, false, false, reg.rex_bit());
+    if imm_fits_i8(imm) {
+        out.extend_from_slice(&[rex, 0x83, 0xE8 | reg.low3(), imm as u8]);
+    } else {
+        out.extend_from_slice(&[rex, 0x81, 0xE8 | reg.low3()]);
+        out.extend_from_slice(&imm.to_le_bytes());
+    }
 }
 
 /// inc reg → REX.W FF /0.
@@ -486,13 +517,15 @@ pub fn emit_x86(prog: &TybProgram) -> CodegenOutput {
                 }
             }
             // --- SUB / ADD slot, imm ---
+            // S3.705: compact (imm8 when ∈i8) on general emit_x86 path.
+            // Fixed10 host-table seed stays imm32 via emit_add/sub_imm (≠ this).
             0x61 | 0x62 => {
                 if let Some((slot, imm)) = arg_slot_imm(rec) {
                     emit_load_state(&mut text, slot, Reg::Rax);
                     if rec.op == 0x61 {
-                        emit_sub_imm(&mut text, Reg::Rax, imm);
+                        emit_sub_imm_compact(&mut text, Reg::Rax, imm);
                     } else {
-                        emit_add_imm(&mut text, Reg::Rax, imm);
+                        emit_add_imm_compact(&mut text, Reg::Rax, imm);
                     }
                     emit_store_state(&mut text, slot, Reg::Rax);
                 } else {
@@ -11839,7 +11872,7 @@ mod tests {
 
     #[test]
     fn emit_x86_ldb_with_offset() {
-        // LDB dd=0 ss=1 oo=5 → load + add imm32 5 + movzx + store
+        // S3.689: LDB dd=0 ss=1 oo=5 → load + add imm8 5 + movzx + store
         let prog = TybProgram {
             rec_cnt: 1,
             records: vec![TybRecord {
@@ -11852,10 +11885,10 @@ mod tests {
         assert_eq!(
             &out.text,
             &[
-                0x49, 0x8B, 0x47, 0x08,                         // load ss=1
-                0x48, 0x81, 0xC0, 0x05, 0x00, 0x00, 0x00,       // add rax, 5
-                0x48, 0x0F, 0xB6, 0x00,                         // movzx
-                0x49, 0x89, 0x47, 0x00,                         // store dd=0
+                0x49, 0x8B, 0x47, 0x08, // load ss=1
+                0x48, 0x83, 0xC0, 0x05, // add rax, imm8 5
+                0x48, 0x0F, 0xB6, 0x00, // movzx
+                0x49, 0x89, 0x47, 0x00, // store dd=0
                 0xC3,
             ]
         );
@@ -12744,14 +12777,32 @@ mod tests {
         );
     }
 
-    /// S3.359: gap1 — template body seed = own-ISA object code; ≡ live emit_x86.
-    /// Prod OnceLock no longer calls emit_x86; seed is the trust root YOYO copies.
+    /// S3.359: template body seed = own-ISA object code.
+    /// S3.705 dual-path: ADD/SUB seed stays **imm32** golden; live `emit_x86`
+    /// uses compact imm8 — intentional diverge (≠ sheep C retarget seed).
+    /// Other ops: seed ≡ live emit_x86. Prod copies seed (not live emit).
     #[test]
     fn s3_fixed10_body_seed_pin() {
         assert_eq!(S3_FIXED10_BODY_SEED.len(), S3_FIXED10_OPS.len());
         let total: usize = S3_FIXED10_BODY_SEED.iter().map(|s| s.len()).sum();
         assert_eq!(total, 95, "fixed10 body bytes stay 95");
         for (i, &op) in S3_FIXED10_OPS.iter().enumerate() {
+            if op == 0x61 || op == 0x62 {
+                // dual-path: seed imm32; live emit_x86 compact imm8
+                let seed = S3_FIXED10_BODY_SEED[i];
+                assert!(
+                    seed.windows(3).any(|w| w == [0x48, 0x81, if op == 0x62 { 0xC0 } else { 0xE8 }]),
+                    "fixed10 seed {op:#x} stays imm32"
+                );
+                let live = s3_compute_fixed_body(op);
+                assert!(
+                    live.windows(3).any(|w| w == [0x48, 0x83, if op == 0x62 { 0xC0 } else { 0xE8 }]),
+                    "live emit_x86 {op:#x} uses compact imm8"
+                );
+                assert_ne!(seed, live.as_slice(), "dual-path diverge {op:#x}");
+                assert_eq!(s3_fixed_row(op), seed);
+                continue;
+            }
             assert_eq!(
                 S3_FIXED10_BODY_SEED[i],
                 s3_compute_fixed_body(op).as_slice(),
@@ -20651,6 +20702,15 @@ mod tests {
         for &op in &S3_FIXED10_OPS {
             if op == 0xFF {
                 continue; // RET is whole emit; body_of strips trailing C3
+            }
+            // S3.705: ADD/SUB dual-path — body_of=compact; fixed_row=imm32 seed
+            if op == 0x61 || op == 0x62 {
+                assert_ne!(
+                    s3_host_body_of(op).as_slice(),
+                    s3_fixed_row(op),
+                    "dual-path diverge body_of≠seed {op:#x}"
+                );
+                continue;
             }
             assert_eq!(
                 s3_host_body_of(op),

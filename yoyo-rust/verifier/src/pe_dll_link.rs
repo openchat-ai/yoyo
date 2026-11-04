@@ -426,7 +426,7 @@ pub fn yoyo_m4_production_flip_prep_design() -> &'static [&'static str] {
         "preflight GREEN: CreateProcess≡seed (S683); contract A (S685); map (S686); Gate I≡self-host (S695)",
         "S3.696: remaining hard gate = inventory disposition change — code flip while CUT = fake-CLOSED adjacent",
         "still ABSENT: inventory disposition change; production default code change; densify≠path",
-        "forbidden now: change default while CUT; densify; bake-sole-WF; claim CLOSED; imm8-ify host ADD",
+        "forbidden now: change default while CUT; densify; bake-sole-WF; claim CLOSED; retarget fixed10 ADD",
     ]
 }
 
@@ -443,7 +443,7 @@ pub fn yoyo_post_flip_prep_remaining_gates() -> &'static [&'static str] {
         "inventory: SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md disposition=CUT (closed=0) — flip≠CLOSED",
         "host-mini: S1_SLIM_MAX_CODE=1024 ABSENT for yoyo-sized host emit; raise alone=sheep (parse1 child already covers)",
         "production default: ALT Off/Rust until inventory allows (S687/S696 prep); no silent flip",
-        "densify export-local / bake-sole-WF / invent Stage / imm8-ify host ADD = sheep",
+        "densify export-local / bake-sole-WF / invent Stage / retarget fixed10 ADD = sheep",
         "S3.696: preflight complete (compose+self-host contracts); only inventory+default remain — ≠ flip now",
     ]
 }
@@ -472,10 +472,11 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.698: single-shot CreateProcess re-entrancy contract A; nested optional ABSENT",
         "S3.699: compose/self-host preflight complete; graduation hard gate=inventory CUT",
         "S3.700: inventory-facing CUT honest (SCOPE-CUT ow-rt); G CLOSED still ABSENT",
-        "S3.701: dual-path host ADD optional ABSENT; leave-floor Δ=+307 stands",
+        "S3.701: dual-path host ADD probe pick A (ABSENT at probe); leave-floor stood",
         "S3.702: nested CreateProcess optional ABSENT; single-shot contract stands",
         "S3.703: CP call-site wording ≡GREEN; SCOPE-CUT still CUT (preflight noted)",
         "S3.704: stage17+SCOPE evidence surface pinned; yoyo.tyb doc ABSENT claim removed",
+        "S3.705 DONE: dual-path host ADD/SUB compact (fixed10 seed imm32); slim 0x45ae Δ=+28",
     ]
 }
 
@@ -668,10 +669,10 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.687 DONE: M4 flip prep named (default stays Off/Rust; inventory CUT blocks flip)",
         "S3.688 DONE: remaining gates named (inventory CUT + host-mini sheep); flip still ABSENT",
         "S3.689 DONE: host emit_x86 LDB oo imm8 (≡exec/parse1); slim-cap stays 1024; ≠M4 flip",
-        "S3.690 DONE: host slim yoyo len 0x46c5 (Δ=+307 vs exec); ADD/SUB stays imm32 (fixed10 golden)",
+        "S3.690 DONE: host slim yoyo len 0x46c5 (Δ=+307 vs exec); ADD/SUB stayed imm32 then",
         "S3.691 DONE: fixed10 pins retarget — parse1 ADD/SUB expect≡win32; in-DLL≡emit_x86 text",
-        "S3.692 DONE: host ADD/SUB imm32 floor named (fixed10 golden; Δ=+307); design pin wording refreshed",
-        "S3.693 DONE: leave-floor pick A; S634/5 retarget stage1≡seed stage2→NO_INPUT (AV cleared); dual-path ABSENT",
+        "S3.692 DONE: host ADD/SUB imm32 floor named (fixed10 golden; Δ=+307 then)",
+        "S3.693 DONE: leave-floor pick A; S634/5 retarget stage1≡seed stage2→NO_INPUT (AV cleared)",
         "S3.694 DONE: drop-in self-host NO_INPUT cliff dissected — see yoyo_dropin_selfhost_no_input_design; ≠M4",
         "S3.695 DONE: pick A Gate I≡self-host; child-cwd drop-in optional ABSENT; map refreshed; ≠M4",
         "S3.696 DONE: M4 flip prep/gates refreshed — hard gate=inventory CUT; preflight compose+self-host GREEN",
@@ -679,16 +680,17 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.698 DONE: re-entrancy pick A (single-shot CreateProcess); nested optional ABSENT; blockers refreshed",
         "S3.699 DONE: S3 compose/self-host preflight named complete — remaining = inventory CUT + optional probes",
         "S3.700 DONE: inventory-facing map (CUT honest pick A); flip≠CLOSED; see yoyo_ow_rt_inventory_facing_design",
-        "S3.701 DONE: dual-path host ADD probe pick A (leave-floor stands); dual-path ABSENT",
+        "S3.701 DONE: dual-path host ADD probe pick A (leave then); dual-path stayed ABSENT at probe",
         "S3.702 DONE: nested CreateProcess probe pick A (optional ABSENT); single-shot stands",
         "S3.703 DONE: truth-repair CP call-site ABSENT wording; SCOPE-CUT notes S3 preflight; still CUT",
         "S3.704 DONE: yoyo.tyb ABSENT doc repair + stage17/SCOPE evidence surface; still CUT",
+        "S3.705 DONE: dual-path B — emit_add/sub_compact on emit_x86; fixed10 seed imm32; slim 0x45ae Δ=+28",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
         "yoyo.tyb: child+indll CreateProcess compose GREEN ≡seed; Gate I loop = self-host (S695)",
-        "hand-hex densify / raise slim / imm8-ify host ADD / flip-while-CUT = sheep",
-        "optional ABSENT: nested re-entrancy; dual-path host ADD; host-mini 1024; child-cwd drop-in",
+        "hand-hex densify / raise slim / retarget fixed10 ADD golden / flip-while-CUT = sheep",
+        "optional ABSENT: nested re-entrancy; host-mini 1024; child-cwd drop-in; shared-text",
         "graduation hard gate: inventory OW-RT disposition≠CUT — code flip alone ≠ CLOSED",
     ]
 }
@@ -755,10 +757,10 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.687: M4 flip prep named; default Off/Rust; inventory CUT — ≠ M4",
         "S3.688: remaining gates named (CUT + host-mini sheep); flip ABSENT — ≠ M4",
         "S3.689: host LDB oo imm8 DONE; slim-cap/M4 flip ABSENT — ≠ M4",
-        "S3.690: host slim len pinned 0x46c5 (Δ=+307); ADD/SUB imm32 golden; M4 ABSENT — ≠ M4",
+        "S3.690: host slim len pinned 0x46c5 (Δ=+307 then); ADD/SUB imm32; M4 ABSENT — ≠ M4",
         "S3.691: fixed10 expect retarget (parse1≡win32 ADD/SUB; in-DLL text≡emit_x86) — ≠ M4",
-        "S3.692: host ADD/SUB imm32 floor (fixed10); Δ=+307; M4 ABSENT — ≠ M4",
-        "S3.693: leave-floor + S634/5 NO_INPUT retarget (AV cleared); dual-path ABSENT — ≠ M4",
+        "S3.692: host ADD/SUB imm32 floor (fixed10); Δ=+307 then; M4 ABSENT — ≠ M4",
+        "S3.693: leave-floor + S634/5 NO_INPUT retarget (AV cleared) — ≠ M4",
         "S3.694: drop-in self-host NO_INPUT cliff named; Gate I loop ≠ child-cwd drop-in — ≠ M4",
         "S3.695: Gate I≡self-host pick A; child-cwd drop-in optional; M4 ABSENT — ≠ M4",
         "S3.696: M4 prep/gates refreshed (inventory CUT hard gate); flip ABSENT — ≠ M4",
@@ -766,48 +768,43 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.698: re-entrancy pick A (single-shot); nested optional ABSENT — ≠ M4",
         "S3.699: compose/self-host preflight complete; hard gate=inventory CUT — ≠ M4",
         "S3.700: inventory-facing CUT map pick A; flip≠CLOSED — ≠ M4",
-        "S3.701: dual-path host ADD optional ABSENT (leave-floor stands) — ≠ M4",
+        "S3.701: dual-path host ADD probe pick A (ABSENT at probe) — ≠ M4",
         "S3.702: nested CP probe pick A (optional ABSENT); single-shot stands — ≠ M4",
         "S3.703: stale call-site ABSENT wording repaired; inventory CUT stands — ≠ M4",
         "S3.704: compiler-PE doc honesty + inventory evidence surface; CUT stands — ≠ M4",
+        "S3.705: dual-path B DONE (compact emit_x86; fixed10 seed imm32); slim 0x45ae Δ=+28 — ≠ M4",
     ]
 }
 
-/// S3.692/S3.693: host `emit_add_imm` / `emit_sub_imm` stay **imm32** so fixed10
-/// goldens hold. S693 pick **A leave floor** (Δ=+307 accepted). Dual-path = optional
-/// far. Imm8-ifying host ADD = sheep. ≠ M4 flip.
+/// S3.692/S3.693/S3.705: fixed10 `emit_add_imm` / `emit_sub_imm` stay **imm32**.
+/// S705 dual-path B: `emit_*_compact` on general `emit_x86` ADD/SUB.
+/// Retargeting fixed10 goldens = sheep. ≠ M4 flip.
 pub fn yoyo_host_addsub_imm32_floor_design() -> &'static [&'static str] {
     &[
-        "emit_add_imm / emit_sub_imm always 48 81 (imm32) — fixed10 ADD golden pins this",
-        "parse1 S682 + exec assembler: imm8 when imm∈i8 — CreateProcess≡seed via parse1",
-        "host slim yoyo 0x46c5 vs exec 0x4592 (Δ=+307) — residual is ADD/SUB width",
-        "forbidden: imm8-ify host ADD to chase Δ (breaks fixed10); raise S1_SLIM_MAX_CODE; densify",
-        "S3.693 pick A: leave floor (Δ=+307 accepted); dual-path host emit = optional far ABSENT",
-        "S701: dual-path probe pick A — leave-floor stands; inventory CUT hard gate ≠ dual-path",
+        "emit_add_imm / emit_sub_imm always 48 81 (imm32) — fixed10 ADD golden / host-table seed",
+        "S3.705: emit_add/sub_imm_compact on emit_x86 ADD/SUB — imm8 when ∈i8 (≡exec/parse1)",
+        "host slim yoyo 0x45ae vs exec 0x4592 (Δ=+28) — residual after dual-path; ≠graduation",
+        "forbidden: retarget fixed10 seed to imm8; raise S1_SLIM_MAX_CODE; densify; flip-while-CUT",
+        "S3.693 leave-floor stood; S705 picked B dual-path (non-sheep optional); inventory CUT hard gate",
     ]
 }
 
-/// S3.693: paths for host ADD/SUB width after floor named.
-/// Pick A = leave floor. B dual-path optional. C imm8-ify host = sheep.
+/// S3.693/S705: paths for host ADD/SUB width.
+/// A leave floor. B dual-path (S705 DONE). C retarget fixed10 = sheep.
 pub fn yoyo_host_addsub_imm32_floor_paths() -> &'static [&'static str] {
     &[
-        "A near/non-sheep: leave floor — host stays imm32; CreateProcess child already ≡exec; Δ=+307 residual OK",
-        "B far/optional: dual-path host emit (fixed10→imm32; general/yoyo→imm8) — shrinks slim; ≠graduation",
+        "A near/non-sheep: leave floor — fixed10 stays imm32; CreateProcess child already ≡exec",
+        "B mid/optional DONE S705: dual-path (fixed10 seed imm32; emit_x86 compact) — slim 0x45ae Δ=+28",
         "C sheep: imm8-ify emit_add_imm globally + retarget fixed10 goldens",
-        "S693 pick A STANDS; S701: dual-path remains optional ABSENT — see yoyo_host_addsub_dual_path_probe_design",
+        "S705 pick: B — dual-path GREEN; inventory CUT remains hard gate; ≠ flip",
     ]
 }
 
-/// S3.701: **dual-path host ADD/SUB** optional probe (post-S693 leave-floor).
-/// Not required for compose/self-host preflight. ≠ M4. ready=false.
+/// S3.701 probe / S3.705 implement: **dual-path host ADD/SUB**.
+/// Cleared when compact emit_x86 + fixed10 seed imm32 stand. ≠ M4.
 pub fn yoyo_host_addsub_dual_path_probe_design() -> &'static [&'static str] {
     &[
-        "goal: host emit_add/sub imm8 when imm∈i8 on general/yoyo path; fixed10 keeps imm32 golden",
-        "today: emit_add_imm/emit_sub_imm always 48 81; STB/LDB already inline imm8 for oo; ADD opcode≠",
-        "A near: leave floor stands (S693) — Δ=+307 accepted; dual-path not needed for graduation",
-        "B mid/optional: split emit_add_imm_fixed10 vs emit_add_imm_compact; retarget only non-fixed10 len pins",
-        "C sheep: imm8-ify emit_add_imm globally; break fixed10; raise slim to hide Δ",
-        "S701 pick: A — dual-path ABSENT; inventory CUT remains hard gate; ≠ flip",
+        // S3.705: cleared — emit_*_compact on emit_x86; fixed10 seed stays imm32; slim 0x45ae.
     ]
 }
 
@@ -1135,7 +1132,7 @@ pub fn yoyo_nested_createprocess_probe_design() -> &'static [&'static str] {
         "A near: leave nested ABSENT — compose/self-host preflight does not require nested",
         "B mid/optional: stress pin spawn child that LoadLibrary+call export (expect fail-closed or skip)",
         "C sheep: densify re-entrancy locks; flip while CUT; claim CLOSED because nested GREEN",
-        "S702 pick: A — nested stays optional ABSENT; tip = inventory wait / stop code sheep",
+        "S702 pick: A — nested stays optional ABSENT; S705 dual-path DONE; next = nested B OR inventory evidence",
     ]
 }
 
@@ -1176,11 +1173,11 @@ pub fn yoyo_s3_704_inventory_evidence_surface_ready() -> bool {
 pub fn yoyo_s3_compose_selfhost_preflight_design() -> &'static [&'static str] {
     &[
         "GREEN: CreateProcess≡live-compose (S685/683); parse1≡exec; Gate I≡self-host (S695)",
-        "GREEN: single-shot CP re-entrancy contract A (S698); inherit=FALSE; leave-floor Δ=+307 (S693)",
+        "GREEN: single-shot CP re-entrancy contract A (S698); inherit=FALSE; dual-path host ADD (S705)",
         "ABSENT hard: inventory OW-RT disposition=CUT — flip≠CLOSED; production default still Rust",
-        "optional ABSENT: nested CP; dual-path host ADD; host-mini raise; child-cwd drop-in; shared-text",
-        "forbidden: flip while CUT; densify; raise S1_SLIM_MAX_CODE alone; imm8-ify host ADD; invent Stage",
-        "S699: preflight named — next code knives = optional probes OR inventory-facing doc; ≠ fake CLOSED",
+        "optional ABSENT: nested CP; host-mini raise; child-cwd drop-in; shared-text; residual slim Δ=+28",
+        "forbidden: flip while CUT; densify; raise S1_SLIM_MAX_CODE alone; retarget fixed10 ADD; invent Stage",
+        "S699/S705: preflight + dual-path DONE — next = nested probe OR inventory-facing evidence; ≠ fake CLOSED",
     ]
 }
 
@@ -1197,18 +1194,18 @@ pub fn yoyo_ow_rt_inventory_facing_design() -> &'static [&'static str] {
         "G CLOSED needs: production H_00 uses YOYO-built compile sidecar; Rust yoyo_runtime gone from trust path",
         "today GREEN ≠ G CLOSED: CreateProcess compose + Gate I self-host = preflight; default ALT still Off/Rust",
         "inventory change alone ≠ CLOSED — need fail-closed evidence (stage17-ow-rt + no Rust sidecar trust)",
-        "A near/honest: keep CUT; code stays ready=false; optional probes only (dual-path/nested/host-mini)",
+        "A near/honest: keep CUT; code stays ready=false; optional probes (nested/host-mini; dual-path DONE S705)",
         "B forbidden now: edit disposition to CLOSED without evidence; flip default while CUT; densify; invent Stage",
-        "S700 pick: A — tip next = optional probe OR stay inventory-honest; ≠ M4 flip",
+        "S700 pick: A — tip next = nested probe OR inventory evidence pack; ≠ M4 flip",
     ]
 }
 
 pub fn yoyo_ow_rt_inventory_facing_paths() -> &'static [&'static str] {
     &[
         "A near: stay CUT-honest; preflight GREEN; no silent flip",
-        "B sheep: claim CLOSED / flip default / densify / raise slim / imm8-ify host ADD",
+        "B sheep: claim CLOSED / flip default / densify / raise slim / retarget fixed10 ADD",
         "C far: inventory disposition change + stage17 evidence pack — human/docs gate, not this knife",
-        "S700 pick: A — next optional = dual-path host ADD dissect OR nested CP probe",
+        "S700/S705: dual-path DONE; next optional = nested CP probe OR inventory evidence",
     ]
 }
 
@@ -16131,32 +16128,32 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(include_str!("pe_dll_link.rs").contains("S3.582"));
     }
 
-    /// S3.692: host ADD/SUB stay imm32 (fixed10 golden); Δ=+307 named; ≠M4 flip.
+    /// S3.692/S705: fixed10 emit_add/sub_imm stay imm32; dual-path slim 0x45ae; ≠M4.
     #[test]
     fn yoyo_host_addsub_imm32_floor_pin() {
         let d = yoyo_host_addsub_imm32_floor_design();
         assert!(!d.is_empty());
         assert!(d.iter().any(|s| s.contains("imm32") && s.contains("fixed10")));
-        assert!(d.iter().any(|s| s.contains("0x46c5") || s.contains("+307")));
-        assert!(d.iter().any(|s| s.contains("forbidden") && s.contains("imm8-ify")));
+        assert!(d.iter().any(|s| s.contains("0x45ae") || s.contains("+28")));
+        assert!(d.iter().any(|s| s.contains("forbidden") && s.contains("fixed10")));
         assert!(!yoyo_m4_production_flip_ready());
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.692"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_host_addsub_imm32_floor_design"));
     }
 
-    /// S3.693: leave-floor pick A; dual-path optional; drop-in self-host next.
+    /// S3.693/S705: paths — B dual-path DONE; sheep = retarget fixed10.
     #[test]
     fn yoyo_host_addsub_imm32_floor_paths_pin() {
         let p = yoyo_host_addsub_imm32_floor_paths();
         assert!(p.iter().any(|s| s.contains("leave floor")));
-        assert!(p.iter().any(|s| s.contains("dual-path")));
-        assert!(p.iter().any(|s| s.contains("sheep") && s.contains("imm8-ify")));
-        assert!(p.iter().any(|s| s.contains("S693 pick") && s.contains("A")));
+        assert!(p.iter().any(|s| s.contains("dual-path") && s.contains("DONE")));
+        assert!(p.iter().any(|s| s.contains("sheep") && s.contains("fixed10")));
+        assert!(p.iter().any(|s| s.contains("S705 pick") && s.contains("B")));
         let d = yoyo_host_addsub_imm32_floor_design();
-        assert!(d.iter().any(|s| s.contains("leave floor") || s.contains("S3.693 pick A")));
+        assert!(d.iter().any(|s| s.contains("S705") || s.contains("compact")));
         assert!(!yoyo_m4_production_flip_ready());
-        assert!(include_str!("pe_dll_link.rs").contains("S3.693"));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.705"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_host_addsub_imm32_floor_paths"));
     }
 
@@ -16922,24 +16919,24 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         .unwrap();
         let prog = crate::s1_tyb_parser::parse_tyb(&yoyo).unwrap();
         let slim = crate::s1_tyb_parser::emit_x86(&prog);
-        // S3.689/690: host LDB oo imm8 → slim 0x46c5 (was 0x474f); Δ=+307 vs exec
-        // remaining = host ADD/SUB imm32 (fixed10 golden; emit_add_imm stays imm32)
-        assert_eq!(slim.text.len(), 0x46c5, "host slim yoyo text len (post-LDB-imm8)");
+        // S3.705: dual-path host ADD/SUB compact → slim 0x45ae (was 0x46c5); Δ=+28 vs exec
+        // fixed10 seed/table stays imm32; residual ≠ graduation
+        assert_eq!(slim.text.len(), 0x45ae, "host slim yoyo text len (post-dual-path)");
         assert_eq!(win.code.len(), 0x4592, "win32 exec yoyo text len");
         assert_eq!(
             slim.text.len() as i64 - win.code.len() as i64,
-            0x133,
-            "Δ host-slim − exec (+307; ADD/SUB imm32 golden)"
+            0x1c,
+            "Δ host-slim − exec (+28; dual-path residual)"
         );
         assert!(yoyo_child_live_compose_design()
             .iter()
-            .any(|s| s.contains("S3.690")));
+            .any(|s| s.contains("S3.705")));
         assert!(yoyo_pe_link_in_child_blockers()
             .iter()
-            .any(|s| s.contains("S3.690")));
+            .any(|s| s.contains("S3.705")));
         assert!(yoyo_h00_fill_in_child_ready());
         assert!(!yoyo_m4_production_flip_ready());
-        assert!(include_str!("pe_dll_link.rs").contains("S3.690"));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.705"));
     }
 
     /// S3.683: CreateProcess(yoyo)≡seed_host via live parse1 text (no bake-text).
@@ -21836,21 +21833,28 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_ow_rt_inventory_facing_design"));
     }
 
-    /// S3.701: dual-path host ADD optional probe; pick A leave-floor stands; ≠ M4.
+    /// S3.705: dual-path host ADD/SUB DONE (compact emit_x86; fixed10 seed imm32); ≠ M4.
     #[test]
     fn yoyo_host_addsub_dual_path_probe_pick_a_pin() {
-        let d = yoyo_host_addsub_dual_path_probe_design();
-        assert!(!d.is_empty());
-        assert!(d.iter().any(|s| s.contains("imm8") && s.contains("fixed10")));
-        assert!(d.iter().any(|s| s.contains("S701 pick") && s.contains("A")));
-        assert!(d.iter().any(|s| s.contains("leave floor") || s.contains("leave-floor")));
+        assert!(yoyo_host_addsub_dual_path_probe_design().is_empty());
+        assert!(yoyo_host_addsub_dual_path_probe_ready());
         let p = yoyo_host_addsub_imm32_floor_paths();
-        assert!(p.iter().any(|s| s.contains("S701") || s.contains("dual-path")));
-        assert!(!yoyo_host_addsub_dual_path_probe_ready());
+        assert!(p.iter().any(|s| s.contains("S705 pick") && s.contains("B")));
+        assert!(p.iter().any(|s| s.contains("0x45ae") || s.contains("+28")));
+        // live emit_x86 ADD imm=5 → compact; fixed10 seed stays imm32
+        let live = crate::s1_tyb_parser::emit_x86(
+            &crate::s1_tyb_parser::parse_tyb(&crate::s1_tyb_parser::s3_fixed10_ret_tyb(0x62))
+                .unwrap(),
+        );
+        assert!(
+            live.text.windows(4).any(|w| w == [0x48, 0x83, 0xC0, 0x05]),
+            "emit_x86 ADD uses imm8 compact"
+        );
         assert!(!yoyo_m4_production_flip_ready());
         assert!(!yoyo_ow_rt_inventory_facing_ready());
-        assert!(include_str!("pe_dll_link.rs").contains("S3.701"));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.705"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_host_addsub_dual_path_probe_design"));
+        assert!(include_str!("s1_tyb_parser.rs").contains("emit_add_imm_compact"));
     }
 
     /// S3.702: nested CreateProcess optional probe; pick A leave ABSENT; ≠ M4.
