@@ -501,6 +501,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.727 DONE: Host-I/O follow-on cliff map — CreateFile/ReadFile/VA; leave ABSENT",
         "S3.728 DONE: REL-FULLTEXT+REL-STUBOS cliffs mapped — never graduation alone; leave ABSENT",
         "S3.729 DONE: E3 stage17 fail-closed scaffolding ARMED — DispositionClaim=CUT; ≠flip",
+        "S3.730 DONE: E1 production sidecar candidate named — in-dll-recompile shape; default still Rust",
     ]
 }
 
@@ -733,6 +734,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.727 DONE: Host-I/O cliff pick A — mapped; blocked on OW-RT; leave ABSENT",
         "S3.728 DONE: REL cliffs pick A — FULLTEXT never-grad; STUBOS until prod I/O; ABSENT",
         "S3.729 DONE: E3 stage17 scaffolding ARMED (CUT claim; CLOSED would fail-closed)",
+        "S3.730 DONE: E1 candidate sidecar shape pinned; place_cwd default still Rust; ≠flip",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -845,6 +847,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.727: Host-I/O follow-on cliff ABSENT (CreateFile/RF/VA) — ≠ M4",
         "S3.728: REL-FULLTEXT+REL-STUBOS cliffs ABSENT (never-grad alone) — ≠ M4",
         "S3.729: E3 stage17 fail-closed scaffolding ARMED (still CUT) — ≠ M4",
+        "S3.730: E1 candidate sidecar shape named (default still Rust) — ≠ M4",
     ]
 }
 
@@ -1675,12 +1678,31 @@ pub fn yoyo_e3_stage17_fail_closed_scaffold_design() -> &'static [&'static str] 
         "CLOSED branch: throw if rust_sidecar PRESENT (E2) or missing E1 evidence",
         "A near/non-sheep: keep ARMED+CUT; human lands E1/E2 before ever setting CLOSED",
         "B sheep: set DispositionClaim=CLOSED without E1/E2; silent ALT flip; claim CLOSED",
-        "S729 pick: A — scaffolding ARMED; still CUT; next = human E1/E2/E4 production landing",
+        "S729 pick: A — scaffolding ARMED; S730 E1 candidate named; next = E2 scaffold OR human E1/E2/E4",
     ]
 }
 
 pub fn yoyo_e3_stage17_fail_closed_scaffold_ready() -> bool {
     yoyo_e3_stage17_fail_closed_scaffold_design().is_empty()
+}
+
+/// S3.730: **E1 production sidecar candidate** — YOYO-built shape for future H_00 load.
+/// Candidate today = in-dll-recompile / CreateProcess-compiler trampoline DLL
+/// ([`write_yoyo_in_dll_recompile_sidecar`]). ≠ production default (still Rust).
+/// Naming candidate ≠ flipping place_cwd. ready=false.
+pub fn yoyo_e1_production_sidecar_candidate_design() -> &'static [&'static str] {
+    &[
+        "E1 candidate: YOYO pe_dll with export yoyo_runtime_selfhost_main + CreateProcess(compiler) path",
+        "today bytes: write_yoyo_in_dll_recompile_sidecar → marker yoyo_in_dll_recompile + CreateProcessA",
+        "honest: Gate G slice oracle ≠ full compiler; candidate shape for contract A compose path",
+        "A near/non-sheep: name+pin candidate; keep place_cwd Off→Rust; human wires H_00 later",
+        "B sheep: flip place_cwd default while CUT; claim E1 CLOSED; densify; invent Stage",
+        "S730 pick: A — candidate named; default still Rust; next = E2 scaffold OR human landing",
+    ]
+}
+
+pub fn yoyo_e1_production_sidecar_candidate_ready() -> bool {
+    yoyo_e1_production_sidecar_candidate_design().is_empty()
 }
 
 /// S3.548/S3.551/S3.704: YOYO-built parse1 compiler PE for [`YOYO_COMPILER_PE_NAME`].
@@ -17226,6 +17248,36 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.729"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_e3_stage17_fail_closed_scaffold_design"));
+    }
+
+    /// S3.730: E1 production sidecar candidate shape; default still Rust; ≠flip; ≠M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_e1_production_sidecar_candidate_pin() {
+        let d = yoyo_e1_production_sidecar_candidate_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S730 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("candidate") || s.contains("E1")));
+        assert!(d.iter().any(|s| s.contains("sheep")));
+        assert!(!yoyo_e1_production_sidecar_candidate_ready());
+        let dir = temp_work("s730-e1-cand");
+        let dll = write_yoyo_in_dll_recompile_sidecar(&dir.join(RUNTIME_SIDECAR_NAME))
+            .expect("candidate sidecar");
+        let ascii = String::from_utf8_lossy(&dll);
+        assert!(ascii.contains("yoyo_in_dll_recompile"));
+        assert!(ascii.contains("CreateProcessA"));
+        assert!(ascii.contains(RUNTIME_EXPORT_NAME) || ascii.contains("yoyo_runtime_selfhost_main"));
+        // production default still Rust
+        assert_eq!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off);
+        let rustish = b"RUST_S730 ".to_vec();
+        let kind = place_cwd_runtime_sidecar(&dir.join("rust-default.dll"), &rustish)
+            .expect("place default");
+        assert_eq!(kind, CwdSidecarKind::Rust);
+        assert!(!yoyo_g_closed_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.730"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_e1_production_sidecar_candidate_design"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.696: M4 flip prep/gates refreshed post-S695; inventory CUT hard gate; ≠ flip.
