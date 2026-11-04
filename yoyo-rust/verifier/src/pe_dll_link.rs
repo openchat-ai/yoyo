@@ -498,6 +498,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.724 DONE: OW-SEED follow-on cliff map — Rust yoyo.exe emitter; leave ABSENT",
         "S3.725 DONE: retarget fixed10 ADD sheep floor — emit_add_imm imm32 stays; dual-path stands",
         "S3.726 DONE: OW-STUB/OW-H00 follow-on cliff map — leave ABSENT; after OW-RT",
+        "S3.727 DONE: Host-I/O follow-on cliff map — CreateFile/ReadFile/VA; leave ABSENT",
     ]
 }
 
@@ -727,6 +728,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.724 DONE: OW-SEED cliff pick A — mapped; blocked on OW-RT; leave ABSENT",
         "S3.725 DONE: retarget fixed10 sheep floor pick A — imm32 seed; compact on emit_x86",
         "S3.726 DONE: OW-STUB/H00 cliff pick A — mapped; blocked on OW-RT G CLOSED",
+        "S3.727 DONE: Host-I/O cliff pick A — mapped; blocked on OW-RT; leave ABSENT",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -836,6 +838,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.724: OW-SEED follow-on cliff ABSENT (Rust yoyo.exe emitter) — ≠ M4",
         "S3.725: retarget fixed10 ADD sheep floor (imm32 seed stays) — ≠ M4",
         "S3.726: OW-STUB/OW-H00 follow-on cliff ABSENT (after OW-RT) — ≠ M4",
+        "S3.727: Host-I/O follow-on cliff ABSENT (CreateFile/RF/VA) — ≠ M4",
     ]
 }
 
@@ -1612,12 +1615,30 @@ pub fn yoyo_ow_stub_h00_followon_cliff_design() -> &'static [&'static str] {
         "blocker: OW-RT G CLOSED (E1–E4) first — STUB/H00 before CLOSED = wrong pole / sheep",
         "A near/non-sheep: map cliff; leave ABSENT; human lands E1–E4 first",
         "B sheep: claim OW-STUB/H00 CLOSED; densify; invent Stage; flip while CUT",
-        "S726 pick: A — OW-STUB/H00 stays ABSENT; next = human E1–E4 production evidence",
+        "S726 pick: A — OW-STUB/H00 stays ABSENT; S727 Host-I/O mapped; next = human E1–E4",
     ]
 }
 
 pub fn yoyo_ow_stub_h00_followon_cliff_ready() -> bool {
     yoyo_ow_stub_h00_followon_cliff_design().is_empty()
+}
+
+/// S3.727: **Host I/O follow-on cliff** (SCOPE-CUT remaining after OW-RT).
+/// CreateFile / ReadFile / VirtualAlloc (or Linux syscalls). Leave ABSENT now.
+/// ready=false.
+pub fn yoyo_host_io_followon_cliff_design() -> &'static [&'static str] {
+    &[
+        "doc: SCOPE-CUT Host I/O — CreateFile/ReadFile/VirtualAlloc (or Linux syscalls) after OW-RT",
+        "today: child parse1 Win32 I/O GREEN (S681); host slim I/O residual Δ=+28 leave (S708)",
+        "blocker: OW-RT G CLOSED first — Host-I/O graduation before CLOSED = wrong pole",
+        "A near/non-sheep: map cliff; leave ABSENT; human lands E1–E4 first",
+        "B sheep: claim Host-I/O CLOSED; densify; invent Stage; flip while CUT",
+        "S727 pick: A — Host-I/O stays ABSENT; next = REL-FULLTEXT/REL-STUBOS map OR human E1–E4",
+    ]
+}
+
+pub fn yoyo_host_io_followon_cliff_ready() -> bool {
+    yoyo_host_io_followon_cliff_design().is_empty()
 }
 
 /// S3.548/S3.551/S3.704: YOYO-built parse1 compiler PE for [`YOYO_COMPILER_PE_NAME`].
@@ -17103,6 +17124,24 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.726"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_ow_stub_h00_followon_cliff_design"));
+    }
+
+    /// S3.727: Host-I/O follow-on cliff mapped; leave ABSENT; ≠M4.
+    #[test]
+    fn yoyo_host_io_followon_cliff_pin() {
+        let d = yoyo_host_io_followon_cliff_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S727 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("CreateFile") || s.contains("Host I/O") || s.contains("VirtualAlloc")));
+        assert!(d.iter().any(|s| s.contains("OW-RT") && s.contains("CLOSED")));
+        assert!(d.iter().any(|s| s.contains("sheep")));
+        assert!(!yoyo_host_io_followon_cliff_ready());
+        let scope = include_str!("../../../SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md");
+        assert!(scope.contains("Host I/O") || scope.contains("CreateFile"));
+        assert!(!yoyo_g_closed_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.727"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_host_io_followon_cliff_design"));
     }
 
     /// S3.696: M4 flip prep/gates refreshed post-S695; inventory CUT hard gate; ≠ flip.
