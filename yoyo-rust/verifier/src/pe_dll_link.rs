@@ -479,6 +479,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.705 DONE: dual-path host ADD/SUB compact (fixed10 seed imm32); slim 0x45ae Δ=+28",
         "S3.706 DONE: nested CP stress B — serial×2 GREEN; concurrent same-cwd both-exit; ≠graduation",
         "S3.707 DONE: inventory evidence pack — emit-rt-sidecar in-dll-recompile GREEN; disposition=CUT",
+        "S3.708 DONE: host slim residual I/O floor — Δ=+28 = LOAD_FILE/IAT layout ≠ ADD; leave; ≠raise slim",
     ]
 }
 
@@ -689,12 +690,13 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.705 DONE: dual-path B — emit_add/sub_compact on emit_x86; fixed10 seed imm32; slim 0x45ae Δ=+28",
         "S3.706 DONE: nested CP stress B — serial×2 CreateProcess GREEN; concurrent same-cwd both-exit pinned",
         "S3.707 DONE: inventory evidence pack (emit-rt-sidecar + SCOPE/stage17 text); disposition=CUT stands",
+        "S3.708 DONE: slim residual I/O floor named (Δ=+28 LOAD_FILE); host-mini raise still sheep; child-cwd ABSENT",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
         "yoyo.tyb: child+indll CreateProcess compose GREEN ≡seed; Gate I loop = self-host (S695)",
         "hand-hex densify / raise slim / retarget fixed10 ADD golden / flip-while-CUT = sheep",
-        "optional ABSENT: host-mini 1024; child-cwd drop-in; shared-text; densify export-local",
+        "optional ABSENT: host-mini raise; child-cwd drop-in; shared-text; densify export-local; slim I/O residual left",
         "graduation hard gate: inventory OW-RT disposition≠CUT — code flip alone ≠ CLOSED",
     ]
 }
@@ -779,6 +781,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.705: dual-path B DONE (compact emit_x86; fixed10 seed imm32); slim 0x45ae Δ=+28 — ≠ M4",
         "S3.706: nested CP stress B DONE (serial×2 + concurrent same-cwd); ≠graduation — ≠ M4",
         "S3.707: inventory evidence pack DONE (in-dll-recompile GREEN; disposition=CUT) — ≠ M4",
+        "S3.708: slim residual I/O floor DONE (Δ=+28 leave); raise S1_SLIM_MAX_CODE sheep — ≠ M4",
     ]
 }
 
@@ -816,6 +819,25 @@ pub fn yoyo_host_addsub_dual_path_probe_design() -> &'static [&'static str] {
 
 pub fn yoyo_host_addsub_dual_path_probe_ready() -> bool {
     yoyo_host_addsub_dual_path_probe_design().is_empty()
+}
+
+/// S3.708: **host slim residual** after dual-path (Δ=+28 vs exec).
+/// Class = slim LOAD_FILE / IAT layout (push rbx/rsi + `sub rsp,0x38` + IAT@0xF08)
+/// vs win32 (`sub rsp,0x28` + IAT@low) — **not** ADD imm width. ≠ raise `S1_SLIM_MAX_CODE`.
+pub fn yoyo_host_slim_residual_io_floor_design() -> &'static [&'static str] {
+    &[
+        "today: host emit_x86(yoyo) 0x45ae vs win32 exec 0x4592 (Δ=+28) after S705 dual-path",
+        "residual class: slim LOAD_FILE body (S3_LOAD_FILE_BODY_SEED) ≠ win32 platform I/O encoding",
+        "A near/non-sheep: leave residual — CreateProcess child parse1≡exec already; Δ≠graduation",
+        "B far: retarget slim I/O to ≡win32 LOAD/WRITE — densify-class; not this knife",
+        "C sheep: raise S1_SLIM_MAX_CODE / densify hand-hex / flip-while-CUT / claim CLOSED",
+        "S708 pick: A — host-mini raise still sheep; child-cwd drop-in still ABSENT; inventory CUT stands",
+    ]
+}
+
+pub fn yoyo_host_slim_residual_io_floor_ready() -> bool {
+    // Floor named; residual accepted — ready=false (≠ graduation / ≠ M4)
+    false
 }
 
 /// S3.694: **drop-in self-host** cliff — child-cwd CreateProcess(compiled-yoyo.tyb PE)
@@ -1180,7 +1202,7 @@ pub fn yoyo_s3_707_inventory_evidence_pack_design() -> &'static [&'static str] {
         "SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md disposition CUT; S3 preflight through S706 noted",
         "S3 preflight GREEN (compose/self-host/dual-path/nested) ≠ inventory CLOSED",
         "forbidden: flip disposition to CLOSED; flip ALT default; densify; invent Stage",
-        "S707 next: far optional (host-mini/child-cwd) OR human G CLOSED evidence — ≠ empty wait",
+        "S707/S708: evidence + slim residual floor DONE; next = child-cwd far OR human G CLOSED — ≠ empty wait",
     ]
 }
 
@@ -1198,7 +1220,7 @@ pub fn yoyo_s3_compose_selfhost_preflight_design() -> &'static [&'static str] {
         "ABSENT hard: inventory OW-RT disposition=CUT — flip≠CLOSED; production default still Rust",
         "optional ABSENT: host-mini raise; child-cwd drop-in; shared-text; residual slim Δ=+28",
         "forbidden: flip while CUT; densify; raise S1_SLIM_MAX_CODE alone; retarget fixed10 ADD; invent Stage",
-        "S699/S707: preflight + dual-path + nested + evidence pack DONE — next = far optional OR human G CLOSED; ≠ fake CLOSED",
+        "S699/S708: preflight + evidence + slim I/O residual floor DONE — next = child-cwd far OR human G CLOSED; ≠ fake CLOSED",
     ]
 }
 
@@ -16940,24 +16962,27 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         .unwrap();
         let prog = crate::s1_tyb_parser::parse_tyb(&yoyo).unwrap();
         let slim = crate::s1_tyb_parser::emit_x86(&prog);
-        // S3.705: dual-path host ADD/SUB compact → slim 0x45ae (was 0x46c5); Δ=+28 vs exec
-        // fixed10 seed/table stays imm32; residual ≠ graduation
+        // S3.705 dual-path → 0x45ae; S3.708: residual Δ=+28 = slim LOAD_FILE/IAT ≠ ADD
         assert_eq!(slim.text.len(), 0x45ae, "host slim yoyo text len (post-dual-path)");
         assert_eq!(win.code.len(), 0x4592, "win32 exec yoyo text len");
         assert_eq!(
             slim.text.len() as i64 - win.code.len() as i64,
             0x1c,
-            "Δ host-slim − exec (+28; dual-path residual)"
+            "Δ host-slim − exec (+28; I/O residual floor)"
         );
+        let floor = yoyo_host_slim_residual_io_floor_design();
+        assert!(floor.iter().any(|s| s.contains("LOAD_FILE")));
+        assert!(floor.iter().any(|s| s.contains("S708 pick") && s.contains("A")));
+        assert!(!yoyo_host_slim_residual_io_floor_ready());
         assert!(yoyo_child_live_compose_design()
             .iter()
-            .any(|s| s.contains("S3.705")));
+            .any(|s| s.contains("S3.708")));
         assert!(yoyo_pe_link_in_child_blockers()
             .iter()
-            .any(|s| s.contains("S3.705")));
+            .any(|s| s.contains("S3.708")));
         assert!(yoyo_h00_fill_in_child_ready());
         assert!(!yoyo_m4_production_flip_ready());
-        assert!(include_str!("pe_dll_link.rs").contains("S3.705"));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.708"));
     }
 
     /// S3.683: CreateProcess(yoyo)≡seed_host via live parse1 text (no bake-text).
@@ -21980,6 +22005,25 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         );
         assert!(src.contains("S3.704"));
         assert!(src.contains("yoyo_s3_704_inventory_evidence_surface_design"));
+    }
+
+    /// S3.708: host slim residual I/O floor; Δ=+28 leave; ≠ raise slim; ≠ M4.
+    #[test]
+    fn yoyo_host_slim_residual_io_floor_pin() {
+        let d = yoyo_host_slim_residual_io_floor_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("0x45ae") && s.contains("+28")));
+        assert!(d.iter().any(|s| s.contains("LOAD_FILE")));
+        assert!(d.iter().any(|s| s.contains("S708 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("sheep") && s.contains("S1_SLIM_MAX_CODE")));
+        assert!(!yoyo_host_slim_residual_io_floor_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_ow_rt_inventory_facing_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.708"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_host_slim_residual_io_floor_design"));
+        // seed body still has push rbx/rsi + sub rsp,0x38 (slim I/O shape)
+        assert!(crate::s1_tyb_parser::S3_LOAD_FILE_BODY_SEED[..6]
+            == [0x53, 0x56, 0x48, 0x83, 0xec, 0x38]);
     }
 
     /// S3.707: inventory evidence pack — stage17/SCOPE text + in-dll-recompile GREEN; still CUT; ≠flip.
