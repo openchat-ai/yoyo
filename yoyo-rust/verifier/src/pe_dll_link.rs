@@ -484,6 +484,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.710 DONE: G CLOSED blockers named (ALT/Rust trust + SCOPE CUT); ≠flip; ≠claim CLOSED",
         "S3.711 DONE: shared-text dual-package probe — parse1 in compiler PE only; export trampoline; leave ABSENT",
         "S3.712 DONE: teach-H00 child-cwd cliff map — seed PE=Gate I driver; teach ABSENT; pick A",
+        "S3.713 DONE: host-mini raise sheep floor — S1_SLIM_MAX_CODE=1024 stays; raise alone=sheep",
     ]
 }
 
@@ -699,12 +700,13 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.710 DONE: G CLOSED blocker map (Rust sidecar trust + disposition CUT); human evidence remains",
         "S3.711 DONE: shared-text probe pick A — parse1≢export body; dual-pack ABSENT; contract A stands",
         "S3.712 DONE: teach-H00 cliff pick A — Gate I≡self-host stands; teach child-cwd ABSENT",
+        "S3.713 DONE: host-mini raise sheep floor pick A — 1024 stays; parse1 child covers; Δ=+28 leave",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
         "yoyo.tyb: child+indll CreateProcess compose GREEN ≡seed; Gate I loop = self-host (S695)",
         "hand-hex densify / raise slim / retarget fixed10 ADD golden / flip-while-CUT = sheep",
-        "optional ABSENT: host-mini raise; densify export-local; shared-text left ABSENT; teach-H00 left ABSENT",
+        "optional ABSENT: densify export-local; shared-text/teach-H00 left ABSENT; host-mini raise left sheep",
         "graduation hard gate: inventory OW-RT disposition≠CUT — code flip alone ≠ CLOSED",
     ]
 }
@@ -794,6 +796,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.710: G CLOSED blockers named; Rust trust path remains — ≠ M4",
         "S3.711: shared-text dual-pack ABSENT (parse1 in child PE only) — ≠ M4",
         "S3.712: teach-H00 child-cwd cliff ABSENT (seed=Gate I ≠ compiler) — ≠ M4",
+        "S3.713: host-mini raise sheep floor (S1_SLIM_MAX_CODE=1024 stays) — ≠ M4",
     ]
 }
 
@@ -1229,7 +1232,7 @@ pub fn yoyo_s3_compose_selfhost_preflight_design() -> &'static [&'static str] {
         "GREEN: single-shot CP re-entrancy contract A (S698); inherit=FALSE; dual-path host ADD (S705)",
         "GREEN: nested/concurrent CP stress B (S706) — serial×2 OK; concurrent same-cwd both-exit; ≠graduation",
         "ABSENT hard: inventory OW-RT disposition=CUT — flip≠CLOSED; production default still Rust",
-        "optional ABSENT: host-mini raise; densify export-local; teach-H00/shared-text left ABSENT; residual Δ=+28 leave",
+        "optional ABSENT: densify export-local; teach-H00/shared-text left ABSENT; host-mini sheep floor; residual Δ=+28 leave",
         "forbidden: flip while CUT; densify; raise S1_SLIM_MAX_CODE alone; retarget fixed10 ADD; invent Stage",
         "S699/S708: preflight + evidence + slim I/O residual floor DONE — next = child-cwd far OR human G CLOSED; ≠ fake CLOSED",
     ]
@@ -1313,12 +1316,30 @@ pub fn yoyo_teach_h00_child_cwd_design() -> &'static [&'static str] {
         "A near/non-sheep: leave teach ABSENT — Gate I (H_00+sidecar) already ≡ self-host; graduation ≠ teach",
         "B far: rewrite H00 entry / pe_link path into child-cwd parse1-compiler (mega; not this knife)",
         "C sheep: densify yoyo_compiler into yoyo.tyb; raise slim; flip-while-CUT; claim CLOSED",
-        "S712 pick: A — teach-H00 stays ABSENT; next = human G CLOSED evidence OR host-mini sheep floor",
+        "S712 pick: A — teach-H00 stays ABSENT; S713 host-mini sheep floor DONE; next = densify ABSENT OR human G CLOSED",
     ]
 }
 
 pub fn yoyo_teach_h00_child_cwd_ready() -> bool {
     yoyo_teach_h00_child_cwd_design().is_empty()
+}
+
+/// S3.713: **host-mini raise sheep floor** — `S1_SLIM_MAX_CODE` stays 1024.
+/// yoyo.tyb overflows mini; parse1 child already covers. Raise alone ≠ graduation.
+/// Residual slim Δ=+28 leave (S708). ready=false.
+pub fn yoyo_host_mini_raise_sheep_floor_design() -> &'static [&'static str] {
+    &[
+        "today: S1_SLIM_MAX_CODE=1024; compile_tyb_to_pe_mini(yoyo.tyb) fail-closes (overflow)",
+        "parse1 child CreateProcess already ≡exec/seed — host-mini raise not required for compose",
+        "residual: host emit_x86(yoyo) 0x45ae vs exec 0x4592 (Δ=+28) leave — ≠ raise slim",
+        "A near/non-sheep: leave 1024; document raise alone = sheep; inventory CUT stands",
+        "B sheep: raise S1_SLIM_MAX_CODE / densify hand-hex / flip-while-CUT / claim CLOSED",
+        "S713 pick: A — host-mini raise stays sheep; next = densify export-local ABSENT OR human G CLOSED",
+    ]
+}
+
+pub fn yoyo_host_mini_raise_sheep_floor_ready() -> bool {
+    yoyo_host_mini_raise_sheep_floor_design().is_empty()
 }
 
 /// S3.548/S3.551/S3.704: YOYO-built parse1 compiler PE for [`YOYO_COMPILER_PE_NAME`].
@@ -16424,6 +16445,40 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(include_str!("pe_dll_link.rs").contains("S3.712"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_teach_h00_child_cwd_design"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.713: host-mini raise sheep floor — 1024 stays; mini(yoyo) fails; raise alone=sheep; ≠M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_host_mini_raise_sheep_floor_pin() {
+        let d = yoyo_host_mini_raise_sheep_floor_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S713 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("1024") && s.contains("S1_SLIM_MAX_CODE")));
+        assert!(d.iter().any(|s| s.contains("sheep")));
+        assert!(d.iter().any(|s| s.contains("+28") || s.contains("0x45ae")));
+        assert!(!yoyo_host_mini_raise_sheep_floor_ready());
+        assert_eq!(
+            crate::s1_tyb_parser::S1_SLIM_MAX_CODE,
+            1024,
+            "raise alone=sheep: const must stay 1024"
+        );
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
+        assert!(
+            crate::s1_tyb_parser::compile_tyb_to_pe_mini(&yoyo).is_err(),
+            "yoyo.tyb must overflow mini at 1024 — proves raise would be the sheep path"
+        );
+        // residual floor still stands (S708)
+        let prog = crate::s1_tyb_parser::parse_tyb(&yoyo).expect("parse");
+        let slim = crate::s1_tyb_parser::emit_x86(&prog);
+        assert_eq!(slim.text.len(), 0x45ae, "host slim yoyo text len post-dual-path");
+        assert!(yoyo_post_flip_prep_remaining_gates()
+            .iter()
+            .any(|s| s.contains("host-mini") && s.contains("sheep")));
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_g_closed_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.713"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_host_mini_raise_sheep_floor_design"));
     }
 
     /// S3.696: M4 flip prep/gates refreshed post-S695; inventory CUT hard gate; ≠ flip.
