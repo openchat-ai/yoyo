@@ -491,6 +491,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.717 DONE: G CLOSED evidence checklist named — fail-closed items; still CUT; ≠flip",
         "S3.718 DONE: ALT silent-flip sheep floor — default Off/Rust while CUT; flip alone=sheep",
         "S3.719 DONE: E3 stage17 fail-closed design named — checks listed; still CUT; ≠implement flip",
+        "S3.720 DONE: E1 YOYO-built production sidecar design — H_00 path named; still ABSENT",
     ]
 }
 
@@ -713,6 +714,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.717 DONE: G CLOSED evidence checklist pick A — items named; human evidence remains",
         "S3.718 DONE: ALT silent-flip sheep floor pick A — Off/Rust default; flip-while-CUT=sheep",
         "S3.719 DONE: E3 stage17 fail-closed design pick A — named; human implements with E1/E2",
+        "S3.720 DONE: E1 YOYO-built sidecar design pick A — named; production H_00 still Rust",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -815,6 +817,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.717: G CLOSED evidence checklist named (still CUT; human evidence) — ≠ M4",
         "S3.718: ALT silent-flip sheep floor (Off/Rust default while CUT) — ≠ M4",
         "S3.719: E3 stage17 fail-closed design named (still CUT) — ≠ M4",
+        "S3.720: E1 YOYO-built production sidecar design named (still ABSENT) — ≠ M4",
     ]
 }
 
@@ -1464,12 +1467,30 @@ pub fn yoyo_e3_stage17_fail_closed_design() -> &'static [&'static str] {
         "check C: Gate G slice PRESENT alone never upgrades disposition (oracle ≠ full compiler)",
         "A near/non-sheep: name checks; leave stage17 CUT; human implements with E1/E2 evidence",
         "B sheep: flip disposition in script without E1/E2; silent ALT flip; claim CLOSED",
-        "S719 pick: A — E3 design named; stage17 stays CUT; next = human E1–E4 production evidence",
+        "S719 pick: A — E3 design named; S720 E1 design DONE; next = E2 design OR human evidence",
     ]
 }
 
 pub fn yoyo_e3_stage17_fail_closed_ready() -> bool {
     yoyo_e3_stage17_fail_closed_design().is_empty()
+}
+
+/// S3.720: **E1 YOYO-built production sidecar design** — H_00 must load YOYO compile DLL.
+/// Today: production place_cwd default = Rust bytes; Gate G slice = oracle ≠ full compiler.
+/// Naming ≠ shipping. ready=false.
+pub fn yoyo_e1_yoyo_built_production_sidecar_design() -> &'static [&'static str] {
+    &[
+        "E1 goal: production H_00 loads YOYO-built compile sidecar (ordinal-0 yoyo_runtime_selfhost_main)",
+        "today: place_cwd default writes Rust yoyo_runtime; ALT Off; Gate G slice = in-dll-recompile oracle",
+        "need: YOYO compile sidecar shape that H_00 can manual-map (CreateProcess-compiler contract A candidate)",
+        "A near/non-sheep: name E1; leave production Rust; human ships with E2/E3/E4",
+        "B sheep: flip ALT default while CUT; densify oracle into full compiler claim; claim CLOSED",
+        "S720 pick: A — E1 named ABSENT; next = E2 default-no-Rust design OR human evidence",
+    ]
+}
+
+pub fn yoyo_e1_yoyo_built_production_sidecar_ready() -> bool {
+    yoyo_e1_yoyo_built_production_sidecar_design().is_empty()
 }
 
 /// S3.548/S3.551/S3.704: YOYO-built parse1 compiler PE for [`YOYO_COMPILER_PE_NAME`].
@@ -16798,6 +16819,26 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.719"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_e3_stage17_fail_closed_design"));
+    }
+
+    /// S3.720: E1 YOYO-built production sidecar design named; still ABSENT; ≠flip; ≠M4.
+    #[test]
+    fn yoyo_e1_yoyo_built_production_sidecar_design_pin() {
+        let d = yoyo_e1_yoyo_built_production_sidecar_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S720 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("E1") && s.contains("YOYO-built")));
+        assert!(d.iter().any(|s| s.contains("H_00") || s.contains("production")));
+        assert!(d.iter().any(|s| s.contains("sheep")));
+        assert!(!yoyo_e1_yoyo_built_production_sidecar_ready());
+        assert_eq!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off);
+        assert!(yoyo_g_closed_evidence_checklist()
+            .iter()
+            .any(|s| s.starts_with("E1:") && s.contains("YOYO-built")));
+        assert!(!yoyo_g_closed_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.720"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_e1_yoyo_built_production_sidecar_design"));
     }
 
     /// S3.696: M4 flip prep/gates refreshed post-S695; inventory CUT hard gate; ≠ flip.

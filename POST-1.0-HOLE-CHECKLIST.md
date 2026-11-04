@@ -4,31 +4,32 @@
 
 | | |
 | --- | --- |
-| **tip** | **S3.720** ⏳ **人审 G CLOSED E1–E4**（自动设计刀已折尽） |
+| **tip** | **S3.721** ⏳ **E2 default-no-Rust 设计** · 或人审 **G CLOSED** |
 | **主线** | S1✅ S2✅ **S3⏳** · S4/S5 未开 |
-| **已站住** | … ALT sheep · **E3 fail-closed design** |
+| **已站住** | … E3 design · **E1 design** |
 | **硬闸** | M4 / G CLOSED **ABSENT**（inventory CUT）· `ready=false` |
-| **禁** | silent flip / densify / 假 CLOSED / 空转 |
-| **近刀** | 705–719 ✅ |
-| **git** | S719 → tip **S3.720** · **未 push** · bake=362 |
+| **禁** | silent flip / densify / 假 CLOSED |
+| **近刀** | 705–720 ✅ |
+| **git** | S720 → tip **S3.721** · **未 push** · bake=362 |
 
-继续 = 人审交 E1–E4；代码侧命名/ABSENT/sheep 已折尽。
+继续 = 做 tip；遇红自动修。
 
 ## 下一刀
 
 | tip | 做什么 | 禁 |
 | --- | --- | --- |
-| **S3.720 人审** | E1 YOYO-built sidecar 进 H_00；E2 默认不写 Rust；E3 按设计改 stage17 fail-closed；E4 才动 disposition | 静默 flip · 假 CLOSED |
+| **S3.721** | E2：place_cwd 默认不再写 Rust 的设计钉死（仍 Off；不 flip） | 静默 flip · 假 CLOSED |
+| **人审** | E1–E4 production 证据 | 空转 |
 
-**缺口**：G CLOSED ABSENT（E1–E4 无人证）。
+**缺口**：G CLOSED ABSENT。
 
 ## 验收
 
 ```powershell
 cd F:\yoyo\yoyo-rust\verifier
-cargo test --lib -- yoyo_e3_stage17_fail_closed_design_pin yoyo_alt_silent_flip_sheep_floor_pin --test-threads=1
+cargo test --lib -- yoyo_e1_yoyo_built_production_sidecar_design_pin yoyo_e3_stage17_fail_closed_design_pin --test-threads=1
 ```
 
 ---
 
-*post-v1.0 · tip S3.720*
+*post-v1.0 · tip S3.721*
