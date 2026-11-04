@@ -184,6 +184,16 @@ if ($IsWin) {
 } else {
     Write-Host "OW_RT_SPIKE yoyo_in_dll_recompile_smoke=SKIP (non-Windows; use local Win)"
 }
+# S3.729: E3 fail-closed scaffolding (still CUT). Arm checks that would reject
+# a premature CLOSED claim. Do NOT set $DispositionClaim = "CLOSED" without E1–E4.
+$DispositionClaim = "CUT"
+if ($DispositionClaim -eq "CLOSED") {
+    if ($RuntimeDll) {
+        throw "E3 fail-closed: disposition=CLOSED but rust_sidecar still PRESENT — need E2"
+    }
+    throw "E3 fail-closed: disposition=CLOSED requires E1 YOYO-built production sidecar evidence"
+}
+Write-Host "OW_RT_SPIKE e3_fail_closed=ARMED disposition_claim=$DispositionClaim (≠CLOSED without E1-E4)"
 Write-Host "OW_RT_SPIKE yoyo_built=IN_DLL_RECOMPILE yoyo_in_dll_recompile=PRESENT disposition=CUT"
 Write-Host "OW_RT_SPIKE note=Gate_G_slice_in_dll_recompile; oracle table not full YOYO compiler; CLOSED requires production drop Rust yoyo_rt.dll host trust"
 Write-Host "OW_RT_SPIKE status=GREEN doc=SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md"

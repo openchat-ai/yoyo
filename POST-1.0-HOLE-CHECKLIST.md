@@ -4,31 +4,31 @@
 
 | | |
 | --- | --- |
-| **tip** | **S3.729** ⏳ **人审落地 E1–E4** → **G CLOSED** |
+| **tip** | **S3.730** ⏳ **人审落地 E1/E2/E4**（E3 scaffolding 已 ARMED） |
 | **主线** | S1✅ S2✅ **S3⏳** · S4/S5 未开 |
-| **已站住** | compose…E1–E4 designs · sheep floors · **SCOPE follow-ons 全映射 ABSENT** |
+| **已站住** | … REL cliffs · **E3 stage17 ARMED** |
 | **硬闸** | M4 / G CLOSED **ABSENT**（inventory CUT）· `ready=false` |
-| **禁** | silent flip / densify / 假 CLOSED / 抢 follow-on |
-| **近刀** | 705–728 ✅ |
-| **git** | S728 → tip **S3.729** · **未 push** · bake=362 |
+| **禁** | silent flip / densify / 假 CLOSED / 设 DispositionClaim=CLOSED 无证据 |
+| **近刀** | 705–729 ✅ |
+| **git** | S729 → tip **S3.730** · **未 push** · bake=362 |
 
-自动命名/ABSENT/sheep/follow-on 映射刀已折尽。继续 = **人审落地 E1–E4**。
+继续 = 人审落地 E1/E2/E4。
 
 ## 下一刀
 
 | tip | 做什么 | 禁 |
 | --- | --- | --- |
-| **S3.729 人审** | E1 YOYO-built sidecar → E2 default-no-Rust → E3 stage17 fail-closed → E4 disposition | 静默 flip · 假 CLOSED |
+| **S3.730 人审** | E1 YOYO-built production sidecar；E2 default-no-Rust；E4 disposition（E3 已 ARMED） | 静默 flip · 假 CLOSED |
 
-**缺口**：G CLOSED ABSENT（无人证落地）。
+**缺口**：G CLOSED ABSENT（E1/E2/E4 无人证落地）。
 
 ## 验收
 
 ```powershell
 cd F:\yoyo\yoyo-rust\verifier
-cargo test --lib -- yoyo_rel_fulltext_stubos_cliff_pin yoyo_g_closed_evidence_checklist_pin --test-threads=1
+cargo test --lib -- yoyo_e3_stage17_fail_closed_scaffold_pin yoyo_g_closed_evidence_checklist_pin --test-threads=1
 ```
 
 ---
 
-*post-v1.0 · tip S3.729*
+*post-v1.0 · tip S3.730*

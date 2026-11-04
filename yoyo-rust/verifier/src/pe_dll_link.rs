@@ -500,6 +500,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.726 DONE: OW-STUB/OW-H00 follow-on cliff map — leave ABSENT; after OW-RT",
         "S3.727 DONE: Host-I/O follow-on cliff map — CreateFile/ReadFile/VA; leave ABSENT",
         "S3.728 DONE: REL-FULLTEXT+REL-STUBOS cliffs mapped — never graduation alone; leave ABSENT",
+        "S3.729 DONE: E3 stage17 fail-closed scaffolding ARMED — DispositionClaim=CUT; ≠flip",
     ]
 }
 
@@ -731,6 +732,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.726 DONE: OW-STUB/H00 cliff pick A — mapped; blocked on OW-RT G CLOSED",
         "S3.727 DONE: Host-I/O cliff pick A — mapped; blocked on OW-RT; leave ABSENT",
         "S3.728 DONE: REL cliffs pick A — FULLTEXT never-grad; STUBOS until prod I/O; ABSENT",
+        "S3.729 DONE: E3 stage17 scaffolding ARMED (CUT claim; CLOSED would fail-closed)",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -842,6 +844,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.726: OW-STUB/OW-H00 follow-on cliff ABSENT (after OW-RT) — ≠ M4",
         "S3.727: Host-I/O follow-on cliff ABSENT (CreateFile/RF/VA) — ≠ M4",
         "S3.728: REL-FULLTEXT+REL-STUBOS cliffs ABSENT (never-grad alone) — ≠ M4",
+        "S3.729: E3 stage17 fail-closed scaffolding ARMED (still CUT) — ≠ M4",
     ]
 }
 
@@ -1484,14 +1487,14 @@ pub fn yoyo_alt_silent_flip_sheep_floor_ready() -> bool {
 /// ready=false.
 pub fn yoyo_e3_stage17_fail_closed_design() -> &'static [&'static str] {
     &[
-        "today: stage17 prints disposition=CUT + production_default=RUST + rust_sidecar=PRESENT/NOT_BUILT",
+        "today: stage17 E3 scaffolding ARMED; DispositionClaim=CUT; CLOSED path throws without E1/E2",
         "E3 goal: gate must FAIL if Rust yoyo_runtime still on production H_00 trust path after claimed CLOSED",
         "check A: if disposition claims CLOSED then rust_sidecar must be ABSENT from place_cwd default",
         "check B: if disposition claims CLOSED then YOYO-built compile sidecar must be PRESENT and loaded",
         "check C: Gate G slice PRESENT alone never upgrades disposition (oracle ≠ full compiler)",
         "A near/non-sheep: name checks; leave stage17 CUT; human implements with E1/E2 evidence",
         "B sheep: flip disposition in script without E1/E2; silent ALT flip; claim CLOSED",
-        "S719 pick: A — E3 design named; S720 E1 design DONE; next = E2 design OR human evidence",
+        "S719/S729: E3 design+scaffolding ARMED; next = human E1/E2/E4 landing",
     ]
 }
 
@@ -1654,12 +1657,30 @@ pub fn yoyo_rel_fulltext_stubos_cliff_design() -> &'static [&'static str] {
         "blocker: OW-RT G CLOSED first; REL-FULLTEXT alone never graduates; STUBOS needs prod I/O",
         "A near/non-sheep: map both; leave ABSENT; human lands E1–E4; SCOPE follow-ons complete map",
         "B sheep: claim REL CLOSED; densify; invent Stage; flip while CUT; treat FULLTEXT as graduation",
-        "S728 pick: A — REL cliffs stay ABSENT; next = human E1–E4 (all SCOPE follow-ons mapped)",
+        "S728 pick: A — REL cliffs ABSENT; S729 E3 scaffolding ARMED; next = human E1/E2/E4 landing",
     ]
 }
 
 pub fn yoyo_rel_fulltext_stubos_cliff_ready() -> bool {
     yoyo_rel_fulltext_stubos_cliff_design().is_empty()
+}
+
+/// S3.729: **E3 stage17 fail-closed scaffolding** armed in
+/// `scripts/stage17-ow-rt-yoyo-runtime.ps1`.
+/// `$DispositionClaim = "CUT"`; CLOSED branch throws without E1/E2.
+/// ≠ flipping disposition. ready=false.
+pub fn yoyo_e3_stage17_fail_closed_scaffold_design() -> &'static [&'static str] {
+    &[
+        "today: stage17 prints e3_fail_closed=ARMED; DispositionClaim=CUT; disposition=CUT line stands",
+        "CLOSED branch: throw if rust_sidecar PRESENT (E2) or missing E1 evidence",
+        "A near/non-sheep: keep ARMED+CUT; human lands E1/E2 before ever setting CLOSED",
+        "B sheep: set DispositionClaim=CLOSED without E1/E2; silent ALT flip; claim CLOSED",
+        "S729 pick: A — scaffolding ARMED; still CUT; next = human E1/E2/E4 production landing",
+    ]
+}
+
+pub fn yoyo_e3_stage17_fail_closed_scaffold_ready() -> bool {
+    yoyo_e3_stage17_fail_closed_scaffold_design().is_empty()
 }
 
 /// S3.548/S3.551/S3.704: YOYO-built parse1 compiler PE for [`YOYO_COMPILER_PE_NAME`].
@@ -17183,6 +17204,28 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.728"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_rel_fulltext_stubos_cliff_design"));
+    }
+
+    /// S3.729: E3 stage17 fail-closed scaffolding ARMED; DispositionClaim=CUT; ≠flip; ≠M4.
+    #[test]
+    fn yoyo_e3_stage17_fail_closed_scaffold_pin() {
+        let d = yoyo_e3_stage17_fail_closed_scaffold_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S729 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("ARMED") || s.contains("scaffolding")));
+        assert!(d.iter().any(|s| s.contains("sheep")));
+        assert!(!yoyo_e3_stage17_fail_closed_scaffold_ready());
+        let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
+        assert!(stage17.contains("e3_fail_closed=ARMED"));
+        assert!(stage17.contains("$DispositionClaim = "));
+        assert!(stage17.contains("DispositionClaim") && stage17.contains("CUT"));
+        assert!(stage17.contains("E3 fail-closed: disposition=CLOSED but rust_sidecar still PRESENT"));
+        assert!(stage17.contains("disposition=CUT"));
+        assert!(stage17.contains("production_default=RUST"));
+        assert!(!yoyo_g_closed_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.729"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_e3_stage17_fail_closed_scaffold_design"));
     }
 
     /// S3.696: M4 flip prep/gates refreshed post-S695; inventory CUT hard gate; ≠ flip.
