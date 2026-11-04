@@ -486,6 +486,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.712 DONE: teach-H00 child-cwd cliff map — seed PE=Gate I driver; teach ABSENT; pick A",
         "S3.713 DONE: host-mini raise sheep floor — S1_SLIM_MAX_CODE=1024 stays; raise alone=sheep",
         "S3.714 DONE: densify export-local ABSENT lock — CreateProcess contract A; export≠parse1",
+        "S3.715 DONE: bake-sole-WF sheep floor — live parse1≡seed; bake-text gone; sole-WF=sheep",
     ]
 }
 
@@ -703,6 +704,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.712 DONE: teach-H00 cliff pick A — Gate I≡self-host stands; teach child-cwd ABSENT",
         "S3.713 DONE: host-mini raise sheep floor pick A — 1024 stays; parse1 child covers; Δ=+28 leave",
         "S3.714 DONE: densify export-local ABSENT pick A — trampoline export; child=compose engine",
+        "S3.715 DONE: bake-sole-WF sheep floor pick A — parse1≡exec ready; drop bake stands",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -800,6 +802,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.712: teach-H00 child-cwd cliff ABSENT (seed=Gate I ≠ compiler) — ≠ M4",
         "S3.713: host-mini raise sheep floor (S1_SLIM_MAX_CODE=1024 stays) — ≠ M4",
         "S3.714: densify export-local ABSENT (CreateProcess contract A stands) — ≠ M4",
+        "S3.715: bake-sole-WF sheep floor (live parse1; bake-text gone) — ≠ M4",
     ]
 }
 
@@ -1355,12 +1358,30 @@ pub fn yoyo_densify_export_local_absent_design() -> &'static [&'static str] {
         "A near/non-sheep: leave densify ABSENT; keep trampoline; child parse1≡exec stands",
         "B sheep: hand-hex/densify parse1 into export .text / raise slim / bake-sole-WF / claim CLOSED",
         "C far (≠densify): shared-text dual-pack — already ABSENT (S711)",
-        "S714 pick: A — densify export-local stays ABSENT; next = human G CLOSED OR bake-sole-WF sheep floor",
+        "S714 pick: A — densify export-local stays ABSENT; S715 bake-sole-WF sheep DONE; next = invent-Stage sheep OR human G CLOSED",
     ]
 }
 
 pub fn yoyo_densify_export_local_absent_ready() -> bool {
     yoyo_densify_export_local_absent_design().is_empty()
+}
+
+/// S3.715: **bake-sole-WF sheep floor** — baking seed blob as sole WriteFile = sheep.
+/// S683 dropped bake user text; live parse1 stages ≡seed. Reintroducing bake-sole = sheep.
+/// ready=false (≠ M4 / ≠ G CLOSED).
+pub fn yoyo_bake_sole_wf_sheep_floor_design() -> &'static [&'static str] {
+    &[
+        "today: parse1≡exec ready (S683); CreateProcess(yoyo)≡seed via live stage; bake-text gone",
+        "sheep: bake full seed_host blob as sole WriteFile without live fill/stage",
+        "A near/non-sheep: leave bake-sole ABSENT; keep live parse1 stage path",
+        "B sheep: reintroduce bake-text / sole-WF seed blob / densify / flip-while-CUT / claim CLOSED",
+        "evidence: yoyo_parse1_equiv_exec_ready(); compiler CP ≡ seed_host_compile(yoyo)",
+        "S715 pick: A — bake-sole-WF stays sheep; next = invent-Stage sheep floor OR human G CLOSED",
+    ]
+}
+
+pub fn yoyo_bake_sole_wf_sheep_floor_ready() -> bool {
+    yoyo_bake_sole_wf_sheep_floor_design().is_empty()
 }
 
 /// S3.548/S3.551/S3.704: YOYO-built parse1 compiler PE for [`YOYO_COMPILER_PE_NAME`].
@@ -16532,6 +16553,46 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_g_closed_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.714"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_densify_export_local_absent_design"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.715: bake-sole-WF sheep floor — live parse1≡seed; bake-text gone; pick A; ≠M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_bake_sole_wf_sheep_floor_pin() {
+        let d = yoyo_bake_sole_wf_sheep_floor_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S715 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("bake-sole") || s.contains("sole WriteFile")));
+        assert!(d.iter().any(|s| s.contains("sheep")));
+        assert!(d.iter().any(|s| s.contains("live parse1") || s.contains("bake-text gone")));
+        assert!(!yoyo_bake_sole_wf_sheep_floor_ready());
+        assert!(
+            yoyo_parse1_equiv_exec_ready(),
+            "live parse1≡exec must stay ready (bake-text gone)"
+        );
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
+        let seed = crate::selfhost::seed_host_compile(&yoyo).expect("seed");
+        let dir = temp_work("s715-bake-sole");
+        let cpath = yoyo_place_compiler_pe(&dir).expect("place compiler");
+        std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        assert!(
+            std::process::Command::new(&cpath)
+                .current_dir(&dir)
+                .status()
+                .unwrap()
+                .success(),
+            "compiler CP must GREEN via live parse1"
+        );
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), seed);
+        let src = include_str!("pe_dll_link.rs");
+        assert!(src.contains("drop bake") || src.contains("stage live parse1"));
+        assert!(src.contains("baking full seed blob as sole WriteFile"));
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_g_closed_ready());
+        assert!(src.contains("S3.715"));
+        assert!(src.contains("yoyo_bake_sole_wf_sheep_floor_design"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
