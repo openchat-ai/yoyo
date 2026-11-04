@@ -480,6 +480,8 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.706 DONE: nested CP stress B — serial×2 GREEN; concurrent same-cwd both-exit; ≠graduation",
         "S3.707 DONE: inventory evidence pack — emit-rt-sidecar in-dll-recompile GREEN; disposition=CUT",
         "S3.708 DONE: host slim residual I/O floor — Δ=+28 = LOAD_FILE/IAT layout ≠ ADD; leave; ≠raise slim",
+        "S3.709 DONE: child-cwd drop-in stress — seed PE→NO_INPUT; compiler CP GREEN; pick A stands",
+        "S3.710 DONE: G CLOSED blockers named (ALT/Rust trust + SCOPE CUT); ≠flip; ≠claim CLOSED",
     ]
 }
 
@@ -690,13 +692,15 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.705 DONE: dual-path B — emit_add/sub_compact on emit_x86; fixed10 seed imm32; slim 0x45ae Δ=+28",
         "S3.706 DONE: nested CP stress B — serial×2 CreateProcess GREEN; concurrent same-cwd both-exit pinned",
         "S3.707 DONE: inventory evidence pack (emit-rt-sidecar + SCOPE/stage17 text); disposition=CUT stands",
-        "S3.708 DONE: slim residual I/O floor named (Δ=+28 LOAD_FILE); host-mini raise still sheep; child-cwd ABSENT",
+        "S3.708 DONE: slim residual I/O floor named (Δ=+28 LOAD_FILE); host-mini raise still sheep",
+        "S3.709 DONE: child-cwd drop-in stress pin (seed→NO_INPUT; Gate I/compiler GREEN); B teach-H00 ABSENT",
+        "S3.710 DONE: G CLOSED blocker map (Rust sidecar trust + disposition CUT); human evidence remains",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
         "yoyo.tyb: child+indll CreateProcess compose GREEN ≡seed; Gate I loop = self-host (S695)",
         "hand-hex densify / raise slim / retarget fixed10 ADD golden / flip-while-CUT = sheep",
-        "optional ABSENT: host-mini raise; child-cwd drop-in; shared-text; densify export-local; slim I/O residual left",
+        "optional ABSENT: host-mini raise; child-cwd teach-H00 (B); shared-text; densify export-local",
         "graduation hard gate: inventory OW-RT disposition≠CUT — code flip alone ≠ CLOSED",
     ]
 }
@@ -782,6 +786,8 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.706: nested CP stress B DONE (serial×2 + concurrent same-cwd); ≠graduation — ≠ M4",
         "S3.707: inventory evidence pack DONE (in-dll-recompile GREEN; disposition=CUT) — ≠ M4",
         "S3.708: slim residual I/O floor DONE (Δ=+28 leave); raise S1_SLIM_MAX_CODE sheep — ≠ M4",
+        "S3.709: child-cwd drop-in stress DONE (NO_INPUT pinned); teach-H00 ABSENT — ≠ M4",
+        "S3.710: G CLOSED blockers named; Rust trust path remains — ≠ M4",
     ]
 }
 
@@ -845,14 +851,13 @@ pub fn yoyo_host_slim_residual_io_floor_ready() -> bool {
 /// Clearing ≠ M4 flip / ≠ densify. ready=false.
 pub fn yoyo_dropin_selfhost_no_input_design() -> &'static [&'static str] {
     &[
-        "S3.695 DONE pick A: Gate I loop (H_00+sidecar) IS the self-host contract — ≠ child-cwd drop-in",
-        "today: CreateProcess(yoyo_compiler.exe)+input.tyb GREEN; output ≡ seed (S683/693)",
-        "child-cwd CreateProcess(compiled-yoyo)→NO_INPUT remains optional ABSENT (same class as export-local densify)",
+        "S3.695/S709 pick A STANDS: Gate I (H_00+sidecar) = self-host contract — ≠ child-cwd drop-in",
+        "S709 stress: CreateProcess(seed PE)+input.tyb → EXIT_NO_INPUT(2); compiler CP same cwd GREEN",
         "why NO_INPUT: seed/H00 entry = Gate I/H_00 driver (heap/sidecar), ≠ child-cwd ReadFile(input.tyb)",
-        "B mid ABSENT optional: teach H00 child-cwd input.tyb→output.exe — not required for contract A",
+        "B mid ABSENT: teach H00 child-cwd input.tyb→output.exe (parse1-compiler shape) — far",
         "C far ABSENT: shared-text dual package — infra",
         "sheep: densify yoyo_compiler into yoyo.tyb; raise slim; flip while CUT; claim CLOSED",
-        "ready=false (M4 production flip / inventory CUT); Gate I≡self-host ≠ OW-RT CLOSED",
+        "ready=false (M4 / inventory CUT); Gate I≡self-host ≠ OW-RT CLOSED",
     ]
 }
 
@@ -863,11 +868,11 @@ pub fn yoyo_dropin_selfhost_no_input_ready() -> bool {
 /// S3.695: pick record for drop-in self-host (post-S694 dissect).
 pub fn yoyo_dropin_selfhost_no_input_paths() -> &'static [&'static str] {
     &[
-        "A near/non-sheep: Gate I (H_00+sidecar) = self-host contract — child-cwd drop-in optional ABSENT",
-        "B mid/optional: H00 learns child-cwd input.tyb→output.exe (parse1-compiler shape)",
+        "A near/non-sheep: Gate I = self-host; child-cwd drop-in stress pinned NO_INPUT (S709)",
+        "B mid/optional ABSENT: teach H00 child-cwd input.tyb→output.exe",
         "C far: shared-text dual package",
         "sheep: densify / raise slim / flip-while-CUT / fake CLOSED",
-        "S695 pick: A — next = refresh live/M4 map honesty OR inventory-facing knife; ≠ flip now",
+        "S709 pick: A — next = G CLOSED blocker map OR teach-H00 far; ≠ flip",
     ]
 }
 
@@ -1256,6 +1261,23 @@ pub fn yoyo_ow_rt_inventory_facing_ready() -> bool {
     false // CUT by construction until inventory+evidence
 }
 
+/// S3.710: **G CLOSED blockers** (honest). Clearing ≠ flip default while CUT.
+/// G CLOSED = production H_00 uses YOYO-built compile sidecar; Rust runtime gone from trust path.
+pub fn yoyo_g_closed_blockers() -> &'static [&'static str] {
+    &[
+        "SCOPE-CUT disposition=CUT; closed=0 — stage17 prints disposition=CUT",
+        "production_default=RUST: ALT_SIDECAR unset → place_cwd writes Rust yoyo_runtime bytes",
+        "Gate G slice = in-dll-recompile oracle table ≠ full YOYO compiler as production sidecar",
+        "G CLOSED needs: H_00 loads YOYO-built compile sidecar; Rust yoyo_runtime gone from trust path",
+        "evidence pack (S707) GREEN ≠ G CLOSED — fail-closed requires Rust-sidecar-gone + disposition change",
+        "forbidden: edit disposition to CLOSED without evidence; flip ALT while CUT; densify; invent Stage",
+        "S710: blockers named — human/docs + production evidence remain; ≠ M4 flip now",
+    ]
+}
+
+pub fn yoyo_g_closed_ready() -> bool {
+    yoyo_g_closed_blockers().is_empty()
+}
 
 /// S3.548/S3.551/S3.704: YOYO-built parse1 compiler PE for [`YOYO_COMPILER_PE_NAME`].
 ///
@@ -16200,26 +16222,94 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_host_addsub_imm32_floor_paths"));
     }
 
-    /// S3.694/S3.695: drop-in NO_INPUT cliff; pick A Gate I≡self-host; ready=false; ≠ M4.
+    /// S3.694/S695/S709: drop-in cliff; pick A; stress NO_INPUT; ≠ M4.
     #[test]
     fn yoyo_dropin_selfhost_no_input_cliff_pin() {
         let d = yoyo_dropin_selfhost_no_input_design();
         assert!(!d.is_empty());
-        assert!(d.iter().any(|s| s.contains("S3.695") && s.contains("pick A")));
+        assert!(d.iter().any(|s| s.contains("pick A") && (s.contains("S3.695") || s.contains("S709"))));
         assert!(d.iter().any(|s| s.contains("Gate I") || s.contains("H_00")));
-        assert!(d.iter().any(|s| s.contains("optional ABSENT") || s.contains("NO_INPUT")));
+        assert!(d.iter().any(|s| s.contains("NO_INPUT")));
         assert!(d.iter().any(|s| s.contains("sheep")));
         let p = yoyo_dropin_selfhost_no_input_paths();
-        assert!(p.iter().any(|s| s.contains("S695 pick") && s.contains("A")));
+        assert!(p.iter().any(|s| s.contains("S709 pick") && s.contains("A")));
         assert!(!yoyo_dropin_selfhost_no_input_ready());
         assert!(!yoyo_m4_production_flip_ready());
         assert!(!yoyo_child_live_compose_ready());
         assert!(yoyo_live_in_dll_compile_map()
             .iter()
-            .any(|s| s.contains("S3.695") && s.contains("Gate I")));
-        assert!(include_str!("pe_dll_link.rs").contains("S3.694"));
-        assert!(include_str!("pe_dll_link.rs").contains("S3.695"));
+            .any(|s| s.contains("S3.709") || (s.contains("S3.695") && s.contains("Gate I"))));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.709"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_dropin_selfhost_no_input_paths"));
+    }
+
+    /// S3.709: child-cwd drop-in stress — seed PE + input.tyb → NO_INPUT; compiler CP GREEN.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_child_cwd_dropin_stress_s709_pin() {
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
+        let seed = crate::selfhost::seed_host_compile(&yoyo).expect("seed");
+        let dir = temp_work("s709-dropin-stress");
+        // Control: compiler compose GREEN ≡ seed
+        let cpath = yoyo_place_compiler_pe(&dir).expect("place compiler");
+        std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        assert!(
+            std::process::Command::new(&cpath)
+                .current_dir(&dir)
+                .status()
+                .unwrap()
+                .success(),
+            "compiler CP must GREEN"
+        );
+        assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), seed);
+        // Drop-in: run seed PE itself in cwd with input.tyb → NO_INPUT (not a compiler)
+        let drop_exe = dir.join("compiled-yoyo.exe");
+        std::fs::write(&drop_exe, &seed).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&drop_exe)
+            .current_dir(&dir)
+            .status()
+            .expect("spawn seed PE");
+        assert_eq!(
+            st.code(),
+            Some(EXIT_NO_INPUT),
+            "child-cwd seed PE must EXIT_NO_INPUT got {:?}",
+            st.code()
+        );
+        assert!(
+            !dir.join(OUTPUT_NAME).is_file()
+                || std::fs::metadata(dir.join(OUTPUT_NAME)).map(|m| m.len()).unwrap_or(0) == 0,
+            "drop-in must not write compose output as compiler"
+        );
+        assert!(yoyo_dropin_selfhost_no_input_design()
+            .iter()
+            .any(|s| s.contains("S709") && s.contains("NO_INPUT")));
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_g_closed_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.709"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.710: G CLOSED blockers named; ALT/Rust trust + SCOPE CUT; ≠flip.
+    #[test]
+    fn yoyo_g_closed_blockers_pin() {
+        let b = yoyo_g_closed_blockers();
+        assert!(!b.is_empty());
+        assert!(b.iter().any(|s| s.contains("disposition=CUT") || s.contains("SCOPE-CUT")));
+        assert!(b.iter().any(|s| s.contains("production_default=RUST") || s.contains("ALT")));
+        assert!(b.iter().any(|s| s.contains("G CLOSED needs")));
+        assert!(b.iter().any(|s| s.contains("forbidden") && s.contains("CLOSED")));
+        assert!(b.iter().any(|s| s.contains("S710")));
+        assert!(!yoyo_g_closed_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_ow_rt_inventory_facing_ready());
+        assert_eq!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off);
+        let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
+        assert!(stage17.contains("disposition=CUT"));
+        assert!(stage17.contains("production_default=RUST"));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.710"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_g_closed_blockers"));
     }
 
     /// S3.696: M4 flip prep/gates refreshed post-S695; inventory CUT hard gate; ≠ flip.

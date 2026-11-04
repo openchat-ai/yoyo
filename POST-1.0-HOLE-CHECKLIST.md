@@ -4,31 +4,31 @@
 
 | | |
 | --- | --- |
-| **tip** | **S3.709** ⏳ child-cwd 远可选 **或** 人审 **G CLOSED** |
+| **tip** | **S3.711** ⏳ shared-text 远可选 **或** 人审 **G CLOSED** 证据 |
 | **主线** | S1✅ S2✅ **S3⏳** · S4/S5 未开 |
-| **已站住** | live-compose · Gate I · dual-path · nested · evidence pack · **slim I/O residual floor** |
-| **硬闸** | M4 flip **ABSENT**（inventory CUT）· `ready=false` |
-| **禁** | flip / densify / raise slim / retarget fixed10 ADD / 假 CLOSED / 空转 |
-| **近刀** | 705–708 ✅（…→evidence→**slim residual leave**） |
-| **git** | S708 → tip **S3.709** · **未 push** · bake=362 |
+| **已站住** | compose · Gate I · dual-path · nested · evidence · slim residual · **drop-in stress** · **G CLOSED map** |
+| **硬闸** | M4 flip **ABSENT**（inventory CUT）· `ready=false` · G CLOSED ABSENT |
+| **禁** | flip / densify / raise slim / retarget fixed10 / 假 CLOSED / 空转 |
+| **近刀** | 705–710 ✅ |
+| **git** | S710 → tip **S3.711** · **未 push** · bake=362 |
 
-继续 = 做 tip；遇红自动修。细节 → `git log` · `SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md`。
+继续 = 做 tip；遇红自动修。
 
 ## 下一刀
 
 | tip | 做什么 | 禁 |
 | --- | --- | --- |
-| **S3.709** | child-cwd drop-in（远·有行为才动）**或** 人审 G CLOSED（Rust sidecar 离信任链） | raise `S1_SLIM_MAX_CODE` · flip while CUT · 假 CLOSED |
+| **S3.711** | shared-text dual-package 远可选（有行为）**或** 人审 G CLOSED（Rust sidecar 离信任链） | flip while CUT · densify · 假 CLOSED |
 
-**缺口**：G CLOSED ABSENT；slim Δ=+28 已 leave；child-cwd 仍 ABSENT。
+**缺口**：G CLOSED ABSENT；teach-H00 / shared-text 仍远。
 
 ## 验收
 
 ```powershell
 cd F:\yoyo\yoyo-rust\verifier
-cargo test --lib -- yoyo_host_slim_residual_io_floor_pin --test-threads=1
+cargo test --lib -- yoyo_child_cwd_dropin_stress_s709_pin yoyo_g_closed_blockers_pin --test-threads=1
 ```
 
 ---
 
-*post-v1.0 · tip S3.709*
+*post-v1.0 · tip S3.711*
