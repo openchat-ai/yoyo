@@ -496,6 +496,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.722 DONE: E4 disposition-change gate design — CUT until E1–E3 evidence; ≠edit now",
         "S3.723 DONE: OW-IAT follow-on cliff map — after OW-RT; leave ABSENT; ≠claim now",
         "S3.724 DONE: OW-SEED follow-on cliff map — Rust yoyo.exe emitter; leave ABSENT",
+        "S3.725 DONE: retarget fixed10 ADD sheep floor — emit_add_imm imm32 stays; dual-path stands",
     ]
 }
 
@@ -723,6 +724,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.722 DONE: E4 disposition gate pick A — named; SCOPE-CUT stays CUT",
         "S3.723 DONE: OW-IAT cliff pick A — mapped; blocked on OW-RT G CLOSED first",
         "S3.724 DONE: OW-SEED cliff pick A — mapped; blocked on OW-RT; leave ABSENT",
+        "S3.725 DONE: retarget fixed10 sheep floor pick A — imm32 seed; compact on emit_x86",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -830,6 +832,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.722: E4 disposition-change gate design named (still CUT) — ≠ M4",
         "S3.723: OW-IAT follow-on cliff ABSENT (after OW-RT) — ≠ M4",
         "S3.724: OW-SEED follow-on cliff ABSENT (Rust yoyo.exe emitter) — ≠ M4",
+        "S3.725: retarget fixed10 ADD sheep floor (imm32 seed stays) — ≠ M4",
     ]
 }
 
@@ -1570,12 +1573,30 @@ pub fn yoyo_ow_seed_followon_cliff_design() -> &'static [&'static str] {
         "blocker: OW-RT G CLOSED first — SEED before CLOSED = sheep / wrong pole",
         "A near/non-sheep: map cliff; leave OW-SEED ABSENT; human lands E1–E4 first",
         "B sheep: claim OW-SEED CLOSED; densify seed into sole path; invent Stage; flip while CUT",
-        "S724 pick: A — OW-SEED stays ABSENT; next = human E1–E4 production evidence",
+        "S724 pick: A — OW-SEED stays ABSENT; S725 retarget-fixed10 sheep DONE; next = human E1–E4",
     ]
 }
 
 pub fn yoyo_ow_seed_followon_cliff_ready() -> bool {
     yoyo_ow_seed_followon_cliff_design().is_empty()
+}
+
+/// S3.725: **retarget fixed10 ADD sheep floor** — `emit_add_imm`/`emit_sub_imm` stay imm32.
+/// Dual-path (S705): compact only on general `emit_x86`. Retarget goldens = sheep.
+/// ready=false.
+pub fn yoyo_retarget_fixed10_add_sheep_floor_design() -> &'static [&'static str] {
+    &[
+        "today: emit_add_imm/emit_sub_imm = 48 81 imm32; emit_*_compact on emit_x86 only (S705)",
+        "sheep: imm8-ify emit_add_imm globally + retarget fixed10 ADD goldens",
+        "A near/non-sheep: leave imm32 seed floor; dual-path stands; Δ=+28 residual leave",
+        "B sheep: retarget fixed10; raise slim; densify; flip-while-CUT; claim CLOSED",
+        "evidence: host addsub imm32 floor design; dual-path probe cleared; s1 emit_add_imm uses 0x81",
+        "S725 pick: A — retarget stays sheep; next = human E1–E4 production evidence",
+    ]
+}
+
+pub fn yoyo_retarget_fixed10_add_sheep_floor_ready() -> bool {
+    yoyo_retarget_fixed10_add_sheep_floor_design().is_empty()
 }
 
 /// S3.548/S3.551/S3.704: YOYO-built parse1 compiler PE for [`YOYO_COMPILER_PE_NAME`].
@@ -17015,6 +17036,34 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.724"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_ow_seed_followon_cliff_design"));
+    }
+
+    /// S3.725: retarget fixed10 ADD sheep floor — imm32 seed stays; dual-path; pick A; ≠M4.
+    #[test]
+    fn yoyo_retarget_fixed10_add_sheep_floor_pin() {
+        let d = yoyo_retarget_fixed10_add_sheep_floor_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S725 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("sheep") && s.contains("retarget")));
+        assert!(d.iter().any(|s| s.contains("imm32") || s.contains("48 81")));
+        assert!(!yoyo_retarget_fixed10_add_sheep_floor_ready());
+        assert!(yoyo_host_addsub_imm32_floor_design()
+            .iter()
+            .any(|s| s.contains("imm32") || s.contains("48 81")));
+        assert!(yoyo_host_addsub_imm32_floor_paths()
+            .iter()
+            .any(|s| s.contains("sheep") && s.contains("imm8")));
+        let src = include_str!("s1_tyb_parser.rs");
+        assert!(src.contains("fn emit_add_imm("));
+        assert!(src.contains("emit_add_imm_compact"));
+        // emit_add_imm body must keep 0x81 (imm32), not only compact path
+        let idx = src.find("fn emit_add_imm(").expect("emit_add_imm");
+        let body = &src[idx..idx + 220];
+        assert!(body.contains("0x81"), "emit_add_imm must stay imm32 (0x81)");
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_g_closed_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.725"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_retarget_fixed10_add_sheep_floor_design"));
     }
 
     /// S3.696: M4 flip prep/gates refreshed post-S695; inventory CUT hard gate; ≠ flip.
