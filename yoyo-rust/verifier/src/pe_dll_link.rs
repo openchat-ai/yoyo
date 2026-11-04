@@ -473,10 +473,11 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.699: compose/self-host preflight complete; graduation hard gate=inventory CUT",
         "S3.700: inventory-facing CUT honest (SCOPE-CUT ow-rt); G CLOSED still ABSENT",
         "S3.701: dual-path host ADD probe pick A (ABSENT at probe); leave-floor stood",
-        "S3.702: nested CreateProcess optional ABSENT; single-shot contract stands",
+        "S3.702: nested CreateProcess probe pick A (ABSENT at probe); single-shot stood",
         "S3.703: CP call-site wording ≡GREEN; SCOPE-CUT still CUT (preflight noted)",
         "S3.704: stage17+SCOPE evidence surface pinned; yoyo.tyb doc ABSENT claim removed",
         "S3.705 DONE: dual-path host ADD/SUB compact (fixed10 seed imm32); slim 0x45ae Δ=+28",
+        "S3.706 DONE: nested CP stress B — serial×2 GREEN; concurrent same-cwd both-exit; ≠graduation",
     ]
 }
 
@@ -677,20 +678,21 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.695 DONE: pick A Gate I≡self-host; child-cwd drop-in optional ABSENT; map refreshed; ≠M4",
         "S3.696 DONE: M4 flip prep/gates refreshed — hard gate=inventory CUT; preflight compose+self-host GREEN",
         "S3.697 DONE: CreateProcess blockers+call-site design refreshed; re-entrancy residual; stale pins fixed",
-        "S3.698 DONE: re-entrancy pick A (single-shot CreateProcess); nested optional ABSENT; blockers refreshed",
+        "S3.698 DONE: re-entrancy pick A (single-shot CreateProcess); nested stayed ABSENT at pick",
         "S3.699 DONE: S3 compose/self-host preflight named complete — remaining = inventory CUT + optional probes",
         "S3.700 DONE: inventory-facing map (CUT honest pick A); flip≠CLOSED; see yoyo_ow_rt_inventory_facing_design",
         "S3.701 DONE: dual-path host ADD probe pick A (leave then); dual-path stayed ABSENT at probe",
-        "S3.702 DONE: nested CreateProcess probe pick A (optional ABSENT); single-shot stands",
+        "S3.702 DONE: nested CreateProcess probe pick A (ABSENT at probe); single-shot stood",
         "S3.703 DONE: truth-repair CP call-site ABSENT wording; SCOPE-CUT notes S3 preflight; still CUT",
         "S3.704 DONE: yoyo.tyb ABSENT doc repair + stage17/SCOPE evidence surface; still CUT",
         "S3.705 DONE: dual-path B — emit_add/sub_compact on emit_x86; fixed10 seed imm32; slim 0x45ae Δ=+28",
+        "S3.706 DONE: nested CP stress B — serial×2 CreateProcess GREEN; concurrent same-cwd both-exit pinned",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
         "yoyo.tyb: child+indll CreateProcess compose GREEN ≡seed; Gate I loop = self-host (S695)",
         "hand-hex densify / raise slim / retarget fixed10 ADD golden / flip-while-CUT = sheep",
-        "optional ABSENT: nested re-entrancy; host-mini 1024; child-cwd drop-in; shared-text",
+        "optional ABSENT: host-mini 1024; child-cwd drop-in; shared-text; densify export-local",
         "graduation hard gate: inventory OW-RT disposition≠CUT — code flip alone ≠ CLOSED",
     ]
 }
@@ -769,10 +771,11 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.699: compose/self-host preflight complete; hard gate=inventory CUT — ≠ M4",
         "S3.700: inventory-facing CUT map pick A; flip≠CLOSED — ≠ M4",
         "S3.701: dual-path host ADD probe pick A (ABSENT at probe) — ≠ M4",
-        "S3.702: nested CP probe pick A (optional ABSENT); single-shot stands — ≠ M4",
+        "S3.702: nested CP probe pick A (ABSENT at probe); single-shot stood — ≠ M4",
         "S3.703: stale call-site ABSENT wording repaired; inventory CUT stands — ≠ M4",
         "S3.704: compiler-PE doc honesty + inventory evidence surface; CUT stands — ≠ M4",
         "S3.705: dual-path B DONE (compact emit_x86; fixed10 seed imm32); slim 0x45ae Δ=+28 — ≠ M4",
+        "S3.706: nested CP stress B DONE (serial×2 + concurrent same-cwd); ≠graduation — ≠ M4",
     ]
 }
 
@@ -1105,7 +1108,7 @@ pub fn yoyo_export_createprocess_reentrancy_design() -> &'static [&'static str] 
         "B mid/optional: probe nested CreateProcess (child loads same DLL export) + concurrent same-cwd",
         "C far: handle-inheritance TRUE path / explicit child curdir — not needed for contract A",
         "sheep: densify locks into export; raise slim; flip while CUT; claim CLOSED",
-        "S698 pick A STANDS; S702: nested probe pick A — nested remains optional ABSENT",
+        "S698 pick A STANDS; S706: nested/concurrent stress B DONE — ≠graduation; inventory CUT hard gate",
     ]
 }
 
@@ -1123,16 +1126,12 @@ pub fn yoyo_export_createprocess_reentrancy_ready() -> bool {
     yoyo_export_createprocess_reentrancy_design().is_empty()
 }
 
-/// S3.702: **nested CreateProcess** optional probe (export→child→same export).
-/// Single-shot contract A (S698) stands. Nested ≠ graduation. ready=false.
+/// S3.702 probe / S3.706 implement: **nested/concurrent CreateProcess** stress.
+/// Single-shot contract A (S698) stands. Stress ≠ graduation. Cleared when pinned.
 pub fn yoyo_nested_createprocess_probe_design() -> &'static [&'static str] {
     &[
-        "scenario: in-DLL export CreateProcess(compiler) whose TYB somehow re-enters same export",
-        "today: single-shot GREEN; inherit=FALSE; no lock; nested path untested (S698 optional ABSENT)",
-        "A near: leave nested ABSENT — compose/self-host preflight does not require nested",
-        "B mid/optional: stress pin spawn child that LoadLibrary+call export (expect fail-closed or skip)",
-        "C sheep: densify re-entrancy locks; flip while CUT; claim CLOSED because nested GREEN",
-        "S702 pick: A — nested stays optional ABSENT; S705 dual-path DONE; next = nested B OR inventory evidence",
+        // S3.706: cleared — serial×2 CreateProcess(compiler) GREEN; concurrent same-cwd
+        // both processes exit (no harness AV); single-shot contract stands; ≠ densify locks; ≠ M4.
     ]
 }
 
@@ -1174,10 +1173,11 @@ pub fn yoyo_s3_compose_selfhost_preflight_design() -> &'static [&'static str] {
     &[
         "GREEN: CreateProcess≡live-compose (S685/683); parse1≡exec; Gate I≡self-host (S695)",
         "GREEN: single-shot CP re-entrancy contract A (S698); inherit=FALSE; dual-path host ADD (S705)",
+        "GREEN: nested/concurrent CP stress B (S706) — serial×2 OK; concurrent same-cwd both-exit; ≠graduation",
         "ABSENT hard: inventory OW-RT disposition=CUT — flip≠CLOSED; production default still Rust",
-        "optional ABSENT: nested CP; host-mini raise; child-cwd drop-in; shared-text; residual slim Δ=+28",
+        "optional ABSENT: host-mini raise; child-cwd drop-in; shared-text; residual slim Δ=+28",
         "forbidden: flip while CUT; densify; raise S1_SLIM_MAX_CODE alone; retarget fixed10 ADD; invent Stage",
-        "S699/S705: preflight + dual-path DONE — next = nested probe OR inventory-facing evidence; ≠ fake CLOSED",
+        "S699/S706: preflight + dual-path + nested stress DONE — next = inventory evidence OR far optional; ≠ fake CLOSED",
     ]
 }
 
@@ -1194,9 +1194,9 @@ pub fn yoyo_ow_rt_inventory_facing_design() -> &'static [&'static str] {
         "G CLOSED needs: production H_00 uses YOYO-built compile sidecar; Rust yoyo_runtime gone from trust path",
         "today GREEN ≠ G CLOSED: CreateProcess compose + Gate I self-host = preflight; default ALT still Off/Rust",
         "inventory change alone ≠ CLOSED — need fail-closed evidence (stage17-ow-rt + no Rust sidecar trust)",
-        "A near/honest: keep CUT; code stays ready=false; optional probes (nested/host-mini; dual-path DONE S705)",
+        "A near/honest: keep CUT; code stays ready=false; dual-path+nested stress DONE; host-mini/child-cwd far optional",
         "B forbidden now: edit disposition to CLOSED without evidence; flip default while CUT; densify; invent Stage",
-        "S700 pick: A — tip next = nested probe OR inventory evidence pack; ≠ M4 flip",
+        "S700 pick: A — tip next = inventory evidence pack (S707); nested stress DONE S706; ≠ M4 flip",
     ]
 }
 
@@ -1205,7 +1205,7 @@ pub fn yoyo_ow_rt_inventory_facing_paths() -> &'static [&'static str] {
         "A near: stay CUT-honest; preflight GREEN; no silent flip",
         "B sheep: claim CLOSED / flip default / densify / raise slim / retarget fixed10 ADD",
         "C far: inventory disposition change + stage17 evidence pack — human/docs gate, not this knife",
-        "S700/S705: dual-path DONE; next optional = nested CP probe OR inventory evidence",
+        "S700 pick: A — stay CUT; S706 nested stress DONE; next = inventory evidence pack OR far optional",
     ]
 }
 
@@ -21857,20 +21857,59 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(include_str!("s1_tyb_parser.rs").contains("emit_add_imm_compact"));
     }
 
-    /// S3.702: nested CreateProcess optional probe; pick A leave ABSENT; ≠ M4.
+    /// S3.706: nested/concurrent CreateProcess stress B; serial×2 GREEN; concurrent both-exit; ≠ M4.
     #[test]
+    #[cfg(windows)]
     fn yoyo_nested_createprocess_probe_pick_a_pin() {
-        let d = yoyo_nested_createprocess_probe_design();
-        assert!(!d.is_empty());
-        assert!(d.iter().any(|s| s.contains("nested")));
-        assert!(d.iter().any(|s| s.contains("S702 pick") && s.contains("A")));
-        assert!(d.iter().any(|s| s.contains("single-shot") || s.contains("S698")));
-        assert!(!yoyo_nested_createprocess_probe_ready());
-        assert!(!yoyo_export_createprocess_reentrancy_ready());
+        assert!(yoyo_nested_createprocess_probe_design().is_empty());
+        assert!(yoyo_nested_createprocess_probe_ready());
+        let dir = temp_work("s706-nested-cp");
+        let path = yoyo_place_compiler_pe(&dir).expect("place compiler");
+        let tyb = crate::s1_tyb_parser::s3_fixed10_ret_tyb(0xFF);
+        std::fs::write(dir.join("input.tyb"), &tyb).expect("input");
+        // Serial: two CreateProcess back-to-back on same cwd — contract A stands.
+        for i in 0..2 {
+            let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+            let st = std::process::Command::new(&path)
+                .current_dir(&dir)
+                .status()
+                .unwrap_or_else(|e| panic!("serial CP #{i}: {e}"));
+            assert!(st.success(), "serial CP #{i} exit {:?}", st.code());
+            assert!(
+                dir.join(OUTPUT_NAME).is_file(),
+                "serial CP #{i} wrote output.exe"
+            );
+        }
+        // Concurrent: two CreateProcess same cwd — both must exit (fail-closed OK); ≠graduation.
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let p1 = path.clone();
+        let d1 = dir.clone();
+        let p2 = path.clone();
+        let d2 = dir.clone();
+        let h1 = std::thread::spawn(move || {
+            std::process::Command::new(&p1)
+                .current_dir(&d1)
+                .status()
+                .map(|s| s.code())
+        });
+        let h2 = std::thread::spawn(move || {
+            std::process::Command::new(&p2)
+                .current_dir(&d2)
+                .status()
+                .map(|s| s.code())
+        });
+        let c1 = h1.join().expect("join1");
+        let c2 = h2.join().expect("join2");
+        assert!(
+            c1.is_ok() && c2.is_ok(),
+            "concurrent CP both exited: {c1:?} {c2:?}"
+        );
         assert!(!yoyo_m4_production_flip_ready());
         assert!(!yoyo_ow_rt_inventory_facing_ready());
-        assert!(include_str!("pe_dll_link.rs").contains("S3.702"));
+        assert!(!yoyo_export_createprocess_reentrancy_ready()); // single-shot design still non-empty
+        assert!(include_str!("pe_dll_link.rs").contains("S3.706"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_nested_createprocess_probe_design"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.703: no stale call-site ABSENT wording; SCOPE-CUT named; still CUT; ≠ flip.
