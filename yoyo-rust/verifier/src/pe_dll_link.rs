@@ -475,6 +475,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.701: dual-path host ADD optional ABSENT; leave-floor Δ=+307 stands",
         "S3.702: nested CreateProcess optional ABSENT; single-shot contract stands",
         "S3.703: CP call-site wording ≡GREEN; SCOPE-CUT still CUT (preflight noted)",
+        "S3.704: stage17+SCOPE evidence surface pinned; yoyo.tyb doc ABSENT claim removed",
     ]
 }
 
@@ -681,6 +682,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.701 DONE: dual-path host ADD probe pick A (leave-floor stands); dual-path ABSENT",
         "S3.702 DONE: nested CreateProcess probe pick A (optional ABSENT); single-shot stands",
         "S3.703 DONE: truth-repair CP call-site ABSENT wording; SCOPE-CUT notes S3 preflight; still CUT",
+        "S3.704 DONE: yoyo.tyb ABSENT doc repair + stage17/SCOPE evidence surface; still CUT",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -767,6 +769,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.701: dual-path host ADD optional ABSENT (leave-floor stands) — ≠ M4",
         "S3.702: nested CP probe pick A (optional ABSENT); single-shot stands — ≠ M4",
         "S3.703: stale call-site ABSENT wording repaired; inventory CUT stands — ≠ M4",
+        "S3.704: compiler-PE doc honesty + inventory evidence surface; CUT stands — ≠ M4",
     ]
 }
 
@@ -1151,6 +1154,23 @@ pub fn yoyo_s3_703_truth_repair_design() -> &'static [&'static str] {
     ]
 }
 
+/// S3.704: evidence surface — stage17 script + SCOPE-CUT still CUT; stale yoyo.tyb ABSENT docs repaired.
+/// Running full stage17 is CI/local gate; this knife pins paths + disposition honesty. ≠ CLOSED.
+pub fn yoyo_s3_704_inventory_evidence_surface_design() -> &'static [&'static str] {
+    &[
+        "scripts/stage17-ow-rt-yoyo-runtime.ps1 — Gate G slice pe_dll_link + in-dll-recompile; prints disposition=CUT",
+        "SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md — disposition CUT; S3 preflight noted (S703); production_default=RUST",
+        "S704: repaired yoyo_compiler_pe_bytes docs (yoyo.tyb no longer claimed ABSENT)",
+        "evidence ≠ CLOSED: GREEN spike / preflight never flips inventory alone",
+        "forbidden: empty leave-pick sheep; flip ALT default; claim G CLOSED without Rust-sidecar-gone evidence",
+        "S704 next: new red OR human inventory disposition+evidence pack — not more ABSENT renames",
+    ]
+}
+
+pub fn yoyo_s3_704_inventory_evidence_surface_ready() -> bool {
+    false
+}
+
 /// S3.699: **S3 compose/self-host preflight** status (honest).
 /// GREEN contracts do not clear inventory CUT. ready=false; ≠ CLOSED.
 pub fn yoyo_s3_compose_selfhost_preflight_design() -> &'static [&'static str] {
@@ -1197,10 +1217,10 @@ pub fn yoyo_ow_rt_inventory_facing_ready() -> bool {
 }
 
 
-/// S3.548/S3.551: YOYO-built fixed10 + multi-op compile-in-child PE for [`YOYO_COMPILER_PE_NAME`].
+/// S3.548/S3.551/S3.704: YOYO-built parse1 compiler PE for [`YOYO_COMPILER_PE_NAME`].
 ///
-/// Honest: RET/SET seeds + emit-bake fixed10 + SET+ADD/GET multi. Markers `yoyo_f10_c`/`yoyo_multi_c`.
-/// yoyo.tyb / general compose still ABSENT. Not M4 flip / not CLOSED.
+/// Honest: fixed10+multi seeds historically; live parse1 covers yoyo.tyb (S631/683/693≡seed).
+/// Markers `yoyo_f10_c`/`yoyo_multi_c`/`yoyo_parse1_c`. M4 flip ABSENT / not CLOSED.
 pub fn yoyo_compiler_pe_bytes() -> Option<Vec<u8>> {
     #[cfg(windows)]
     {
@@ -1369,10 +1389,10 @@ fn s3_compact_full_grow_from_tmpl(tmpl: &[u8], user_text: &[u8], user_data: &[u8
     img
 }
 
-/// Build fixed10 + multi-op compile-in-child EXE (S3.548/S3.551).
+/// Build parse1 compile-in-child EXE (S3.548+; S3.704 doc honesty).
 ///
-/// RET/SET seeds + emit-bake fixed10 op+RET + SET+ADD/SET+GET multi.
-/// Markers `yoyo_f10_c` / `yoyo_multi_c`. yoyo.tyb still ABSENT.
+/// Live path: yoyo.tyb GREEN via CreateProcess≡seed (S683/693). Markers include parse1.
+/// fixed10/multi markers retained. M4/inventory CUT unchanged.
 #[cfg(windows)]
 fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link::PeImage> {
     let ret_seed = crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED;
@@ -21867,6 +21887,35 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_ow_rt_inventory_facing_ready());
         assert!(yoyo_createprocess_call_site_emitted());
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_s3_703_truth_repair_design"));
+    }
+
+    /// S3.704: evidence surface + no stale yoyo.tyb ABSENT on compiler PE docs; still CUT.
+    #[test]
+    fn yoyo_s3_704_inventory_evidence_surface_pin() {
+        let d = yoyo_s3_704_inventory_evidence_surface_design();
+        assert!(d.iter().any(|s| s.contains("stage17-ow-rt-yoyo-runtime")));
+        assert!(d.iter().any(|s| s.contains("SCOPE-CUT") && s.contains("CUT")));
+        assert!(d.iter().any(|s| s.contains("S704")));
+        assert!(!yoyo_s3_704_inventory_evidence_surface_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_ow_rt_inventory_facing_ready());
+        let src = include_str!("pe_dll_link.rs");
+        // doc above yoyo_compiler_pe_bytes must not claim yoyo.tyb still ABSENT
+        let idx = src.find("pub fn yoyo_compiler_pe_bytes").expect("fn");
+        let head = &src[idx.saturating_sub(400)..idx];
+        assert!(
+            !head.contains("yoyo.tyb") || !head.contains("still ABSENT"),
+            "yoyo_compiler_pe_bytes docs must not claim yoyo.tyb still ABSENT"
+        );
+        assert!(
+            std::path::Path::new("../scripts/stage17-ow-rt-yoyo-runtime.ps1").exists()
+                || std::path::Path::new("../../scripts/stage17-ow-rt-yoyo-runtime.ps1").exists()
+                || std::path::Path::new("scripts/stage17-ow-rt-yoyo-runtime.ps1").exists()
+                || src.contains("stage17-ow-rt-yoyo-runtime.ps1"),
+            "stage17 script must stay named"
+        );
+        assert!(src.contains("S3.704"));
+        assert!(src.contains("yoyo_s3_704_inventory_evidence_surface_design"));
     }
 
     /// H_00 + yoyo.tyb ≡ seed_host. Default unset still Rust. M4 flip ABSENT.

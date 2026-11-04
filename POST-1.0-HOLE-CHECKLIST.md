@@ -4,13 +4,13 @@
 
 | | |
 | --- | --- |
-| **tip** | **S3.704** ⏳ 等新红 / inventory 证据（≠flip·禁空转） |
+| **tip** | **S3.705** ⏳ 等新红 / 人审 inventory（≠flip·禁空转） |
 | **主线** | S1✅ S2✅ **S3⏳** · S4/S5 未开 |
 | **已站住** | live-compose · parse1≡exec · Gate I≡self-host · single-shot CP · leave-floor · inventory CUT 诚实 |
 | **硬闸** | M4 flip **ABSENT**（inventory CUT · `closed=0 cut=7`）· `ready=false` |
 | **禁** | flip / densify / raise slim / host ADD imm8 / 假 CLOSED |
-| **近刀** | 691–703 ✅（…→nested→**truth-repair+SCOPE note**） |
-| **git** | S703 收工 → tip **S3.704** · **未 push** · bake=362 |
+| **近刀** | 691–704 ✅（…→truth-repair→**evidence surface**） |
+| **git** | S704 收工 → tip **S3.705** · **未 push** · bake=362 |
 
 ---
 
@@ -18,7 +18,7 @@
 
 v1.0 已毕业（`ACTIVE=0`）。本板 = **OW-RT 长杆日常**（S3）。**禁假 CLOSED** · **禁 invent Stage** · `closed=0 cut=7`。
 
-**默认** 继续 **= S3.704**（703=truth-repair+SCOPE preflight note；下一刀=等新红/证据；禁空转）。
+**默认** 继续 **= S3.705**（704=evidence surface+doc honesty；下一刀=等新红/人审 inventory；禁空转）。
 
 | 阻塞 | 说明 |
 | --- | --- |
@@ -62,7 +62,8 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3.701** ✅ | — | dual-path probe **pick A**（leave-floor stands） |
 | **S3.702** ✅ | — | nested CP probe **pick A**（optional ABSENT） |
 | **S3.703** ✅ | — | truth-repair call-site 文案 + SCOPE-CUT preflight 注记（仍 CUT） |
-| **S3.704** ⏳ | — | **本步**：等新红 / inventory 证据（禁空转） |
+| **S3.704** ✅ | — | stage17/SCOPE **evidence surface** + yoyo.tyb doc 诚实 |
+| **S3.705** ⏳ | — | **本步**：等新红 / 人审 inventory（禁空转） |
 
 **缺口**：inventory **CUT**（G CLOSED ABSENT）；可选探针均 leave。`ready=false`。bake=362。
 
@@ -82,9 +83,9 @@ path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（
 ## 对 AI
 
 - **每刀结束 / 用户说继续**：先扫本文件「一眼进度」；收工时**同步更新** tip·近刀·缺口·git 行（用户不必另问进度）。
-- 继续 → **S3.704**（非 sheep；**禁** flip / densify / 假 CLOSED / 无增量空转）。遇红自动修。S3.703=truth-repair。硬闸=inventory。
+- 继续 → **S3.705**（非 sheep；**禁** flip / densify / 假 CLOSED / 无增量空转）。遇红自动修。S3.704=evidence surface。硬闸=inventory。
 - OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
 
 ---
 
-*post-v1.0 · 收纳板 · tip S3.704 · 一眼进度置顶*
+*post-v1.0 · 收纳板 · tip S3.705 · 一眼进度置顶*
