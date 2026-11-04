@@ -490,6 +490,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.716 DONE: invent-Stage sheep floor — stay S3 path2; S4/S5 unopened; invent=sheep",
         "S3.717 DONE: G CLOSED evidence checklist named — fail-closed items; still CUT; ≠flip",
         "S3.718 DONE: ALT silent-flip sheep floor — default Off/Rust while CUT; flip alone=sheep",
+        "S3.719 DONE: E3 stage17 fail-closed design named — checks listed; still CUT; ≠implement flip",
     ]
 }
 
@@ -711,6 +712,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.716 DONE: invent-Stage sheep floor pick A — S3 tip only; no S4 invent",
         "S3.717 DONE: G CLOSED evidence checklist pick A — items named; human evidence remains",
         "S3.718 DONE: ALT silent-flip sheep floor pick A — Off/Rust default; flip-while-CUT=sheep",
+        "S3.719 DONE: E3 stage17 fail-closed design pick A — named; human implements with E1/E2",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -812,6 +814,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.716: invent-Stage sheep floor (S3 path2 only; S4/S5 unopened) — ≠ M4",
         "S3.717: G CLOSED evidence checklist named (still CUT; human evidence) — ≠ M4",
         "S3.718: ALT silent-flip sheep floor (Off/Rust default while CUT) — ≠ M4",
+        "S3.719: E3 stage17 fail-closed design named (still CUT) — ≠ M4",
     ]
 }
 
@@ -1441,12 +1444,32 @@ pub fn yoyo_alt_silent_flip_sheep_floor_design() -> &'static [&'static str] {
         "A near/non-sheep: keep Off/Rust default; require E1–E4 evidence before any default change",
         "B sheep: change place_cwd default / flip ALT while CUT / claim CLOSED / densify",
         "evidence: yoyo_alt_sidecar_mode()==Off; place_cwd(…, rust)→Rust; stage17 production_default=RUST",
-        "S718 pick: A — silent-flip stays sheep; next = human G CLOSED E1–E4 evidence",
+        "S718 pick: A — silent-flip stays sheep; S719 E3 fail-closed design DONE; next = human E1–E4",
     ]
 }
 
 pub fn yoyo_alt_silent_flip_sheep_floor_ready() -> bool {
     yoyo_alt_silent_flip_sheep_floor_design().is_empty()
+}
+
+/// S3.719: **E3 stage17 fail-closed design** — what gate must check before CLOSED.
+/// Naming ≠ implementing. Today stage17 still prints disposition=CUT + production_default=RUST.
+/// ready=false.
+pub fn yoyo_e3_stage17_fail_closed_design() -> &'static [&'static str] {
+    &[
+        "today: stage17 prints disposition=CUT + production_default=RUST + rust_sidecar=PRESENT/NOT_BUILT",
+        "E3 goal: gate must FAIL if Rust yoyo_runtime still on production H_00 trust path after claimed CLOSED",
+        "check A: if disposition claims CLOSED then rust_sidecar must be ABSENT from place_cwd default",
+        "check B: if disposition claims CLOSED then YOYO-built compile sidecar must be PRESENT and loaded",
+        "check C: Gate G slice PRESENT alone never upgrades disposition (oracle ≠ full compiler)",
+        "A near/non-sheep: name checks; leave stage17 CUT; human implements with E1/E2 evidence",
+        "B sheep: flip disposition in script without E1/E2; silent ALT flip; claim CLOSED",
+        "S719 pick: A — E3 design named; stage17 stays CUT; next = human E1–E4 production evidence",
+    ]
+}
+
+pub fn yoyo_e3_stage17_fail_closed_ready() -> bool {
+    yoyo_e3_stage17_fail_closed_design().is_empty()
 }
 
 /// S3.548/S3.551/S3.704: YOYO-built parse1 compiler PE for [`YOYO_COMPILER_PE_NAME`].
@@ -16747,6 +16770,34 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(include_str!("pe_dll_link.rs").contains("S3.718"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_alt_silent_flip_sheep_floor_design"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.719: E3 stage17 fail-closed design named; still CUT; ≠implement flip; ≠M4.
+    #[test]
+    fn yoyo_e3_stage17_fail_closed_design_pin() {
+        let d = yoyo_e3_stage17_fail_closed_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S719 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("E3") && s.contains("FAIL")));
+        assert!(d.iter().any(|s| s.contains("check A") && s.contains("CLOSED")));
+        assert!(d.iter().any(|s| s.contains("check B") && s.contains("YOYO-built")));
+        assert!(d.iter().any(|s| s.contains("check C") && s.contains("oracle")));
+        assert!(d.iter().any(|s| s.contains("sheep")));
+        assert!(!yoyo_e3_stage17_fail_closed_ready());
+        let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
+        assert!(stage17.contains("disposition=CUT"));
+        assert!(stage17.contains("production_default=RUST"));
+        assert!(
+            stage17.contains("CLOSED requires") || stage17.contains("drop Rust"),
+            "stage17 must still note CLOSED needs Rust drop"
+        );
+        assert!(yoyo_g_closed_evidence_checklist()
+            .iter()
+            .any(|s| s.starts_with("E3:") && s.contains("stage17")));
+        assert!(!yoyo_g_closed_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.719"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_e3_stage17_fail_closed_design"));
     }
 
     /// S3.696: M4 flip prep/gates refreshed post-S695; inventory CUT hard gate; ≠ flip.
