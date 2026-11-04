@@ -499,6 +499,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.725 DONE: retarget fixed10 ADD sheep floor — emit_add_imm imm32 stays; dual-path stands",
         "S3.726 DONE: OW-STUB/OW-H00 follow-on cliff map — leave ABSENT; after OW-RT",
         "S3.727 DONE: Host-I/O follow-on cliff map — CreateFile/ReadFile/VA; leave ABSENT",
+        "S3.728 DONE: REL-FULLTEXT+REL-STUBOS cliffs mapped — never graduation alone; leave ABSENT",
     ]
 }
 
@@ -729,6 +730,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.725 DONE: retarget fixed10 sheep floor pick A — imm32 seed; compact on emit_x86",
         "S3.726 DONE: OW-STUB/H00 cliff pick A — mapped; blocked on OW-RT G CLOSED",
         "S3.727 DONE: Host-I/O cliff pick A — mapped; blocked on OW-RT; leave ABSENT",
+        "S3.728 DONE: REL cliffs pick A — FULLTEXT never-grad; STUBOS until prod I/O; ABSENT",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -839,6 +841,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.725: retarget fixed10 ADD sheep floor (imm32 seed stays) — ≠ M4",
         "S3.726: OW-STUB/OW-H00 follow-on cliff ABSENT (after OW-RT) — ≠ M4",
         "S3.727: Host-I/O follow-on cliff ABSENT (CreateFile/RF/VA) — ≠ M4",
+        "S3.728: REL-FULLTEXT+REL-STUBOS cliffs ABSENT (never-grad alone) — ≠ M4",
     ]
 }
 
@@ -1633,12 +1636,30 @@ pub fn yoyo_host_io_followon_cliff_design() -> &'static [&'static str] {
         "blocker: OW-RT G CLOSED first — Host-I/O graduation before CLOSED = wrong pole",
         "A near/non-sheep: map cliff; leave ABSENT; human lands E1–E4 first",
         "B sheep: claim Host-I/O CLOSED; densify; invent Stage; flip while CUT",
-        "S727 pick: A — Host-I/O stays ABSENT; next = REL-FULLTEXT/REL-STUBOS map OR human E1–E4",
+        "S727 pick: A — Host-I/O stays ABSENT; S728 REL cliffs DONE; next = human E1–E4 (SCOPE follow-ons mapped)",
     ]
 }
 
 pub fn yoyo_host_io_followon_cliff_ready() -> bool {
     yoyo_host_io_followon_cliff_design().is_empty()
+}
+
+/// S3.728: **REL-FULLTEXT + REL-STUBOS** follow-on cliffs (SCOPE-CUT remaining).
+/// REL-FULLTEXT: never graduation CLOSED. REL-STUBOS: until production I/O on stub OS.
+/// Leave ABSENT. ≠ claim. ready=false.
+pub fn yoyo_rel_fulltext_stubos_cliff_design() -> &'static [&'static str] {
+    &[
+        "doc: SCOPE-CUT REL-FULLTEXT — never graduation CLOSED; REL-STUBOS — until prod I/O on stub OS",
+        "today: fulltext/stub-OS inventory remain after OW-RT; not this knife; not G CLOSED",
+        "blocker: OW-RT G CLOSED first; REL-FULLTEXT alone never graduates; STUBOS needs prod I/O",
+        "A near/non-sheep: map both; leave ABSENT; human lands E1–E4; SCOPE follow-ons complete map",
+        "B sheep: claim REL CLOSED; densify; invent Stage; flip while CUT; treat FULLTEXT as graduation",
+        "S728 pick: A — REL cliffs stay ABSENT; next = human E1–E4 (all SCOPE follow-ons mapped)",
+    ]
+}
+
+pub fn yoyo_rel_fulltext_stubos_cliff_ready() -> bool {
+    yoyo_rel_fulltext_stubos_cliff_design().is_empty()
 }
 
 /// S3.548/S3.551/S3.704: YOYO-built parse1 compiler PE for [`YOYO_COMPILER_PE_NAME`].
@@ -17142,6 +17163,26 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.727"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_host_io_followon_cliff_design"));
+    }
+
+    /// S3.728: REL-FULLTEXT+REL-STUBOS cliffs mapped; leave ABSENT; ≠graduation; ≠M4.
+    #[test]
+    fn yoyo_rel_fulltext_stubos_cliff_pin() {
+        let d = yoyo_rel_fulltext_stubos_cliff_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S728 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("REL-FULLTEXT")));
+        assert!(d.iter().any(|s| s.contains("REL-STUBOS") || s.contains("STUBOS")));
+        assert!(d.iter().any(|s| s.contains("never") || s.contains("graduation")));
+        assert!(d.iter().any(|s| s.contains("sheep")));
+        assert!(!yoyo_rel_fulltext_stubos_cliff_ready());
+        let scope = include_str!("../../../SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md");
+        assert!(scope.contains("REL-FULLTEXT"));
+        assert!(scope.contains("REL-STUBOS"));
+        assert!(!yoyo_g_closed_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.728"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_rel_fulltext_stubos_cliff_design"));
     }
 
     /// S3.696: M4 flip prep/gates refreshed post-S695; inventory CUT hard gate; ≠ flip.

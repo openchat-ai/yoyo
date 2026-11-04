@@ -68,9 +68,11 @@ Win H_00+in-dll-recompile no-input may print `yoyo_in_dll_recompile_smoke=NOT_ST
 
 ## S3 compose/self-host preflight (path 2 progress · still CUT)
 
-As of S3.699–S3.726: CreateProcess≡live-compose, parse1≡exec, Gate I≡self-host, dual-path, nested, evidence pack, residual/drop-in/teach/shared-text/densify ABSENT floors, sheep floors (host-mini/bake-sole/invent-Stage), **G CLOSED blockers + evidence checklist named**. **Production default remains Rust** (`ALT` unset). **Disposition stays CUT** — checklist ≠ G CLOSED ≠ OW-RT CLOSED. See `POST-1.0-HOLE-CHECKLIST.md` tip / `yoyo_g_closed_evidence_checklist` / E1–E4 designs (`yoyo_e1_*`…`yoyo_e4_*`).
+As of S3.699–S3.728: CreateProcess≡live-compose, parse1≡exec, Gate I≡self-host, dual-path, nested, evidence pack, residual/drop-in/teach/shared-text/densify ABSENT floors, sheep floors (host-mini/bake-sole/invent-Stage), **G CLOSED blockers + evidence checklist named**. **Production default remains Rust** (`ALT` unset). **Disposition stays CUT** — checklist ≠ G CLOSED ≠ OW-RT CLOSED. See `POST-1.0-HOLE-CHECKLIST.md` tip / `yoyo_g_closed_evidence_checklist` / E1–E4 designs (`yoyo_e1_*`…`yoyo_e4_*`).
 
 ## Remaining CUT after OW-RT CLOSED
+
+> S3.723–S3.728: follow-on cliffs **mapped** in `pe_dll_link` (`yoyo_ow_iat_*` / `yoyo_ow_seed_*` / `yoyo_ow_stub_h00_*` / `yoyo_host_io_*` / `yoyo_rel_fulltext_stubos_*`) — still ABSENT; do not open before G CLOSED.
 
 - **OW-SEED** — Rust `yoyo.exe` emitter  
 - **OW-STUB** / **OW-H00** — stub / full `.text` peer DIFF as applicable  
