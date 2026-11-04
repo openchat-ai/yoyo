@@ -485,6 +485,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.711 DONE: shared-text dual-package probe — parse1 in compiler PE only; export trampoline; leave ABSENT",
         "S3.712 DONE: teach-H00 child-cwd cliff map — seed PE=Gate I driver; teach ABSENT; pick A",
         "S3.713 DONE: host-mini raise sheep floor — S1_SLIM_MAX_CODE=1024 stays; raise alone=sheep",
+        "S3.714 DONE: densify export-local ABSENT lock — CreateProcess contract A; export≠parse1",
     ]
 }
 
@@ -513,7 +514,7 @@ pub fn yoyo_indll_export_live_emit_paths() -> &'static [&'static str] {
         "B far/non-sheep: one parse1 machine image linked into both DLL export + compiler PE (shared .text) — build-system work; not densify-by-hand",
         "C sheep: copy/densify parse1 asm into export .text / raise slim-cap / bake seed blob as sole emit",
         "D reject: LoadLibrary(EXE) / map-and-call compiler PE entry — fragile Win32, not a slice",
-        "S685 pick: A — next knife refreshes M4 blockers + live map (CreateProcess≡live-compose); export-local emit stays optional ABSENT",
+        "S685/S714 pick: A — densify export-local left ABSENT; CreateProcess≡live-compose stands; ≠ densify",
     ]
 }
 
@@ -701,12 +702,13 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.711 DONE: shared-text probe pick A — parse1≢export body; dual-pack ABSENT; contract A stands",
         "S3.712 DONE: teach-H00 cliff pick A — Gate I≡self-host stands; teach child-cwd ABSENT",
         "S3.713 DONE: host-mini raise sheep floor pick A — 1024 stays; parse1 child covers; Δ=+28 leave",
+        "S3.714 DONE: densify export-local ABSENT pick A — trampoline export; child=compose engine",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
         "yoyo.tyb: child+indll CreateProcess compose GREEN ≡seed; Gate I loop = self-host (S695)",
         "hand-hex densify / raise slim / retarget fixed10 ADD golden / flip-while-CUT = sheep",
-        "optional ABSENT: densify export-local; shared-text/teach-H00 left ABSENT; host-mini raise left sheep",
+        "optional ABSENT: shared-text/teach-H00 left ABSENT; host-mini sheep; densify export-local left ABSENT",
         "graduation hard gate: inventory OW-RT disposition≠CUT — code flip alone ≠ CLOSED",
     ]
 }
@@ -797,6 +799,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.711: shared-text dual-pack ABSENT (parse1 in child PE only) — ≠ M4",
         "S3.712: teach-H00 child-cwd cliff ABSENT (seed=Gate I ≠ compiler) — ≠ M4",
         "S3.713: host-mini raise sheep floor (S1_SLIM_MAX_CODE=1024 stays) — ≠ M4",
+        "S3.714: densify export-local ABSENT (CreateProcess contract A stands) — ≠ M4",
     ]
 }
 
@@ -1232,7 +1235,7 @@ pub fn yoyo_s3_compose_selfhost_preflight_design() -> &'static [&'static str] {
         "GREEN: single-shot CP re-entrancy contract A (S698); inherit=FALSE; dual-path host ADD (S705)",
         "GREEN: nested/concurrent CP stress B (S706) — serial×2 OK; concurrent same-cwd both-exit; ≠graduation",
         "ABSENT hard: inventory OW-RT disposition=CUT — flip≠CLOSED; production default still Rust",
-        "optional ABSENT: densify export-local; teach-H00/shared-text left ABSENT; host-mini sheep floor; residual Δ=+28 leave",
+        "optional ABSENT: teach-H00/shared-text/densify left ABSENT; host-mini sheep; residual Δ=+28 leave",
         "forbidden: flip while CUT; densify; raise S1_SLIM_MAX_CODE alone; retarget fixed10 ADD; invent Stage",
         "S699/S708: preflight + evidence + slim I/O residual floor DONE — next = child-cwd far OR human G CLOSED; ≠ fake CLOSED",
     ]
@@ -1334,12 +1337,30 @@ pub fn yoyo_host_mini_raise_sheep_floor_design() -> &'static [&'static str] {
         "residual: host emit_x86(yoyo) 0x45ae vs exec 0x4592 (Δ=+28) leave — ≠ raise slim",
         "A near/non-sheep: leave 1024; document raise alone = sheep; inventory CUT stands",
         "B sheep: raise S1_SLIM_MAX_CODE / densify hand-hex / flip-while-CUT / claim CLOSED",
-        "S713 pick: A — host-mini raise stays sheep; next = densify export-local ABSENT OR human G CLOSED",
+        "S713 pick: A — host-mini raise stays sheep; S714 densify ABSENT DONE; next = human G CLOSED OR bake-sole-WF sheep",
     ]
 }
 
 pub fn yoyo_host_mini_raise_sheep_floor_ready() -> bool {
     yoyo_host_mini_raise_sheep_floor_design().is_empty()
+}
+
+/// S3.714: **densify export-local ABSENT** lock.
+/// Export body = CreateProcess trampoline (S542); child PE = compose engine.
+/// Hand-hex/densify parse1 into export = sheep. Contract A stands. ready=false.
+pub fn yoyo_densify_export_local_absent_design() -> &'static [&'static str] {
+    &[
+        "today: export .text CreateProcessA+Wait+GetExitCode; marker yoyo_in_dll_recompile; no yoyo_parse1_c",
+        "contract A: CreateProcess(yoyo_compiler.exe) IS live-compose — densify export-local not required",
+        "A near/non-sheep: leave densify ABSENT; keep trampoline; child parse1≡exec stands",
+        "B sheep: hand-hex/densify parse1 into export .text / raise slim / bake-sole-WF / claim CLOSED",
+        "C far (≠densify): shared-text dual-pack — already ABSENT (S711)",
+        "S714 pick: A — densify export-local stays ABSENT; next = human G CLOSED OR bake-sole-WF sheep floor",
+    ]
+}
+
+pub fn yoyo_densify_export_local_absent_ready() -> bool {
+    yoyo_densify_export_local_absent_design().is_empty()
 }
 
 /// S3.548/S3.551/S3.704: YOYO-built parse1 compiler PE for [`YOYO_COMPILER_PE_NAME`].
@@ -16479,6 +16500,39 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_g_closed_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.713"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_host_mini_raise_sheep_floor_design"));
+    }
+
+    /// S3.714: densify export-local ABSENT — trampoline export; no parse1 marker; pick A; ≠M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_densify_export_local_absent_pin() {
+        let d = yoyo_densify_export_local_absent_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S714 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("densify") && s.contains("ABSENT")));
+        assert!(d.iter().any(|s| s.contains("sheep")));
+        assert!(d.iter().any(|s| s.contains("CreateProcess") || s.contains("contract A")));
+        assert!(!yoyo_densify_export_local_absent_ready());
+        assert!(!yoyo_indll_export_live_emit_ready());
+        let dir = temp_work("s714-densify-absent");
+        write_yoyo_in_dll_recompile_sidecar(&dir.join(RUNTIME_SIDECAR_NAME))
+            .expect("write sidecar");
+        let dll = std::fs::read(dir.join(RUNTIME_SIDECAR_NAME)).unwrap();
+        let ascii = String::from_utf8_lossy(&dll);
+        assert!(ascii.contains("yoyo_in_dll_recompile"));
+        assert!(ascii.contains("CreateProcessA"));
+        assert!(
+            !ascii.contains("yoyo_parse1_c"),
+            "densify ABSENT: export sidecar must not embed parse1 marker"
+        );
+        assert!(yoyo_indll_export_live_emit_paths()
+            .iter()
+            .any(|s| s.contains("sheep") && s.contains("densify")));
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_g_closed_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.714"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_densify_export_local_absent_design"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.696: M4 flip prep/gates refreshed post-S695; inventory CUT hard gate; ≠ flip.
