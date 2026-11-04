@@ -494,6 +494,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.720 DONE: E1 YOYO-built production sidecar design — H_00 path named; still ABSENT",
         "S3.721 DONE: E2 default-no-Rust design named — place_cwd Off path; still writes Rust",
         "S3.722 DONE: E4 disposition-change gate design — CUT until E1–E3 evidence; ≠edit now",
+        "S3.723 DONE: OW-IAT follow-on cliff map — after OW-RT; leave ABSENT; ≠claim now",
     ]
 }
 
@@ -719,6 +720,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.720 DONE: E1 YOYO-built sidecar design pick A — named; production H_00 still Rust",
         "S3.721 DONE: E2 default-no-Rust design pick A — named; Off still writes Rust; ≠flip",
         "S3.722 DONE: E4 disposition gate pick A — named; SCOPE-CUT stays CUT",
+        "S3.723 DONE: OW-IAT cliff pick A — mapped; blocked on OW-RT G CLOSED first",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -824,6 +826,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.720: E1 YOYO-built production sidecar design named (still ABSENT) — ≠ M4",
         "S3.721: E2 default-no-Rust design named (Off still Rust; ≠flip) — ≠ M4",
         "S3.722: E4 disposition-change gate design named (still CUT) — ≠ M4",
+        "S3.723: OW-IAT follow-on cliff ABSENT (after OW-RT) — ≠ M4",
     ]
 }
 
@@ -1527,12 +1530,31 @@ pub fn yoyo_e4_disposition_change_gate_design() -> &'static [&'static str] {
         "gate: human evidence pack (E1 sidecar + E2 default + E3 stage17 fail-closed) before doc edit",
         "A near/non-sheep: name E4; leave CUT; forbid silent disposition edit",
         "B sheep: edit disposition to CLOSED without E1–E3; flip ALT; claim CLOSED; invent Stage",
-        "S722 pick: A — E4 named; SCOPE-CUT stays CUT; next = human E1–E4 production evidence",
+        "S722 pick: A — E4 named; S723 OW-IAT cliff mapped; next = human E1–E4 (OW-IAT after CLOSED)",
     ]
 }
 
 pub fn yoyo_e4_disposition_change_gate_ready() -> bool {
     yoyo_e4_disposition_change_gate_design().is_empty()
+}
+
+/// S3.723: **OW-IAT follow-on cliff** (SCOPE-CUT remaining after OW-RT CLOSED).
+/// CLOSED when: no host DLL load face (no `yoyo_rt.dll` marker).
+/// Today: blocked — OW-RT still CUT; manual-map + Rust sidecar still present.
+/// Leave ABSENT. ≠ claim IAT CLOSED. ready=false.
+pub fn yoyo_ow_iat_followon_cliff_design() -> &'static [&'static str] {
+    &[
+        "doc: SCOPE-CUT OW-IAT follow-on — no host DLL load face / no yoyo_rt.dll marker",
+        "today: yoyo_rt.dll cwd sidecar + RUNTIME_SIDECAR_NAME marker still present; OW-RT CUT",
+        "blocker: OW-RT G CLOSED (E1–E4) must land first — IAT before CLOSED = sheep",
+        "A near/non-sheep: map cliff; leave OW-IAT ABSENT; human lands E1–E4 first",
+        "B sheep: claim OW-IAT CLOSED; densify; invent Stage; flip while CUT",
+        "S723 pick: A — OW-IAT stays ABSENT; next = human E1–E4 production evidence",
+    ]
+}
+
+pub fn yoyo_ow_iat_followon_cliff_ready() -> bool {
+    yoyo_ow_iat_followon_cliff_design().is_empty()
 }
 
 /// S3.548/S3.551/S3.704: YOYO-built parse1 compiler PE for [`YOYO_COMPILER_PE_NAME`].
@@ -16935,6 +16957,25 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.722"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_e4_disposition_change_gate_design"));
+    }
+
+    /// S3.723: OW-IAT follow-on cliff mapped; leave ABSENT; blocked on OW-RT; ≠M4.
+    #[test]
+    fn yoyo_ow_iat_followon_cliff_pin() {
+        let d = yoyo_ow_iat_followon_cliff_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S723 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("OW-IAT") || s.contains("yoyo_rt.dll")));
+        assert!(d.iter().any(|s| s.contains("OW-RT") && s.contains("CLOSED")));
+        assert!(d.iter().any(|s| s.contains("sheep")));
+        assert!(!yoyo_ow_iat_followon_cliff_ready());
+        assert_eq!(RUNTIME_SIDECAR_NAME, "yoyo_rt.dll");
+        let scope = include_str!("../../../SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md");
+        assert!(scope.contains("OW-IAT"));
+        assert!(!yoyo_g_closed_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.723"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_ow_iat_followon_cliff_design"));
     }
 
     /// S3.696: M4 flip prep/gates refreshed post-S695; inventory CUT hard gate; ≠ flip.
