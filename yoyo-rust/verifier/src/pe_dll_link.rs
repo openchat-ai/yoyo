@@ -474,6 +474,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.700: inventory-facing CUT honest (SCOPE-CUT ow-rt); G CLOSED still ABSENT",
         "S3.701: dual-path host ADD optional ABSENT; leave-floor Δ=+307 stands",
         "S3.702: nested CreateProcess optional ABSENT; single-shot contract stands",
+        "S3.703: CP call-site wording ≡GREEN; SCOPE-CUT still CUT (preflight noted)",
     ]
 }
 
@@ -608,7 +609,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.629 parse1 DONE: label/patch tables 256→1024 (scratch 0x4100; covers yoyo.tyb 788 LABELs; text-cap ABSENT)",
         "S3.630 parse1 DONE: child RET PE .text raw 0x600→0x1000 (cap≈0xFF3; S1_SLIM_MAX_CODE stays 1024; yoyo.tyb 18KiB ABSENT)",
         "S3.631 parse1 DONE: child .text raw→0x5000 + mid-stream RET (yoyo.tyb 788×RET child GREEN; S1_SLIM_MAX_CODE stays 1024)",
-        "S3.632 DONE: in-DLL CreateProcess(yoyo_compiler.exe)+yoyo.tyb GREEN ≡ wide emit; host-mini 1024 ABSENT; ≠ M4",
+        "S3.632 DONE: in-DLL CreateProcess+yoyo.tyb GREEN (hist≡wide; S683/693≡seed); host-mini ABSENT; ≠ M4",
         "S3.633 cliff: seed_host(yoyo.tyb) ≫≠ wide slim RET (hist); S683 child≡seed supersedes child≡wide",
         "S3.634 cliff(hist): child-built slim AV as self-host; S693: stage1≡seed, stage2→NO_INPUT (AV cleared)",
         "S3.635 cliff: seed_host raw CreateProcess → EXIT_NO_INPUT(2); S693 child-built(=seed) same NO_INPUT (≠AV)",
@@ -679,6 +680,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.700 DONE: inventory-facing map (CUT honest pick A); flip≠CLOSED; see yoyo_ow_rt_inventory_facing_design",
         "S3.701 DONE: dual-path host ADD probe pick A (leave-floor stands); dual-path ABSENT",
         "S3.702 DONE: nested CreateProcess probe pick A (optional ABSENT); single-shot stands",
+        "S3.703 DONE: truth-repair CP call-site ABSENT wording; SCOPE-CUT notes S3 preflight; still CUT",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -764,6 +766,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.700: inventory-facing CUT map pick A; flip≠CLOSED — ≠ M4",
         "S3.701: dual-path host ADD optional ABSENT (leave-floor stands) — ≠ M4",
         "S3.702: nested CP probe pick A (optional ABSENT); single-shot stands — ≠ M4",
+        "S3.703: stale call-site ABSENT wording repaired; inventory CUT stands — ≠ M4",
     ]
 }
 
@@ -1135,6 +1138,17 @@ pub fn yoyo_nested_createprocess_probe_design() -> &'static [&'static str] {
 
 pub fn yoyo_nested_createprocess_probe_ready() -> bool {
     yoyo_nested_createprocess_probe_design().is_empty()
+}
+
+/// S3.703: truth-repair + inventory note — not a disposition change.
+pub fn yoyo_s3_703_truth_repair_design() -> &'static [&'static str] {
+    &[
+        "repaired: S538/S540 pin comments no longer claim call sites ABSENT (S542 GREEN)",
+        "repaired: S632 DONE line notes post-S683 ≡seed supersedes hist≡wide",
+        "SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md: S3 compose/self-host preflight noted; disposition stays CUT",
+        "forbidden: flip default; claim CLOSED; densify; empty pick-A sheep knives without evidence",
+        "S703: honesty knife — next real move needs inventory evidence or new red, not more leave-picks",
+    ]
 }
 
 /// S3.699: **S3 compose/self-host preflight** status (honest).
@@ -6526,7 +6540,7 @@ const IN_DLL_RECOMPILE_K32: &[&str] = &[
     "VirtualAlloc",
     "VirtualFree",
 
-    // S3.538: slot for CreateProcess YOYO-compiler experiment (call sites still ABSENT)
+    // S3.538/S3.703: CreateProcess IAT slot; call-site GREEN (S542); residual=nested optional/M4 CUT
     "CreateProcessA",
 
     // S3.540: Wait after CreateProcess
@@ -21581,7 +21595,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
     }
 
 
-/// S3.540: in-DLL IAT imports WaitForSingleObject; call sites still ABSENT.
+/// S3.540/S3.703: in-DLL IAT imports WaitForSingleObject; call-site GREEN (S542); residual=M4/CUT.
     #[test]
     #[cfg(windows)]
     fn yoyo_in_dll_waitforsingleobject_iat_slot_pin() {
@@ -21622,7 +21636,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
     }
 
 
-/// S3.538: in-DLL recompile DLL imports CreateProcessA; call sites still ABSENT.
+/// S3.538/S3.703: in-DLL IAT imports CreateProcessA; call-site GREEN (S542); residual=M4/CUT.
     #[test]
     #[cfg(windows)]
     fn yoyo_in_dll_createprocess_a_iat_slot_pin() {
@@ -21833,6 +21847,26 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_ow_rt_inventory_facing_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.702"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_nested_createprocess_probe_design"));
+    }
+
+    /// S3.703: no stale call-site ABSENT wording; SCOPE-CUT named; still CUT; ≠ flip.
+    #[test]
+    fn yoyo_s3_703_truth_repair_pin() {
+        let src = include_str!("pe_dll_link.rs");
+        let stale = concat!("call sites still ", "ABSENT");
+        assert!(
+            !src.contains(stale),
+            "CreateProcess call-site must not be described as ABSENT post-S542"
+        );
+        assert!(src.contains("S3.703"));
+        assert!(src.contains("call-site GREEN (S542)"));
+        let d = yoyo_s3_703_truth_repair_design();
+        assert!(d.iter().any(|s| s.contains("SCOPE-CUT") && s.contains("CUT")));
+        assert!(d.iter().any(|s| s.contains("S703")));
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_ow_rt_inventory_facing_ready());
+        assert!(yoyo_createprocess_call_site_emitted());
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_s3_703_truth_repair_design"));
     }
 
     /// H_00 + yoyo.tyb ≡ seed_host. Default unset still Rust. M4 flip ABSENT.

@@ -65,6 +65,11 @@ bash scripts/stage17-ow-rt-yoyo-runtime.sh
 Gate prints `OW_RT_SPIKE status=GREEN`, **`yoyo_in_dll_recompile=PRESENT`**, **`gate_g_slice=in_dll_recompile`**, and **`yoyo_built=IN_DLL_RECOMPILE disposition=CUT`**.  
 Win H_00+in-dll-recompile no-input may print `yoyo_in_dll_recompile_smoke=NOT_STABLE` (AV) — honest; does not fail the gate.
 
+
+## S3 compose/self-host preflight (path 2 progress · still CUT)
+
+As of S3.699–S3.702: CreateProcess≡live-compose, parse1≡exec, Gate I≡self-host, single-shot CP, leave-floor, optional probes left ABSENT. **Production default remains Rust** (`ALT` unset). **Disposition stays CUT** — preflight ≠ G CLOSED ≠ OW-RT CLOSED. See `POST-1.0-HOLE-CHECKLIST.md` tip / `yoyo_s3_compose_selfhost_preflight_design`.
+
 ## Remaining CUT after OW-RT CLOSED
 
 - **OW-SEED** — Rust `yoyo.exe` emitter  
