@@ -371,6 +371,10 @@ pub enum CwdSidecarKind {
 ///
 /// Moves toward replacing the Rust production default **without** flipping it —
 /// default path still writes Rust bytes. Not OW-RT CLOSED.
+///
+/// S3.731 E2 scaffold: keep Off→Rust until E1+E3+E4 evidence. Do not flip this const.
+pub const E2_DEFAULT_STILL_RUST: bool = true;
+
 pub fn place_cwd_runtime_sidecar(out_path: &Path, rust_dll: &[u8]) -> IsaResult<CwdSidecarKind> {
     match yoyo_alt_sidecar_mode() {
         AltSidecarMode::Probe => {
@@ -386,6 +390,10 @@ pub fn place_cwd_runtime_sidecar(out_path: &Path, rust_dll: &[u8]) -> IsaResult<
             Ok(CwdSidecarKind::YoyoInDllGateI)
         }
         AltSidecarMode::Off => {
+            debug_assert!(
+                E2_DEFAULT_STILL_RUST,
+                "E2 scaffold: Off must stay Rust while CUT"
+            );
             if let Some(parent) = out_path.parent() {
                 if !parent.as_os_str().is_empty() {
                     std::fs::create_dir_all(parent).map_err(|e| IsaError::IoError {
@@ -502,6 +510,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.728 DONE: REL-FULLTEXT+REL-STUBOS cliffs mapped — never graduation alone; leave ABSENT",
         "S3.729 DONE: E3 stage17 fail-closed scaffolding ARMED — DispositionClaim=CUT; ≠flip",
         "S3.730 DONE: E1 production sidecar candidate named — in-dll-recompile shape; default still Rust",
+        "S3.731 DONE: E2 place_cwd scaffold ARMED — E2_DEFAULT_STILL_RUST=true; Off→Rust; ≠flip",
     ]
 }
 
@@ -735,6 +744,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.728 DONE: REL cliffs pick A — FULLTEXT never-grad; STUBOS until prod I/O; ABSENT",
         "S3.729 DONE: E3 stage17 scaffolding ARMED (CUT claim; CLOSED would fail-closed)",
         "S3.730 DONE: E1 candidate sidecar shape pinned; place_cwd default still Rust; ≠flip",
+        "S3.731 DONE: E2 scaffold ARMED (E2_DEFAULT_STILL_RUST); Off still writes Rust",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -848,6 +858,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.728: REL-FULLTEXT+REL-STUBOS cliffs ABSENT (never-grad alone) — ≠ M4",
         "S3.729: E3 stage17 fail-closed scaffolding ARMED (still CUT) — ≠ M4",
         "S3.730: E1 candidate sidecar shape named (default still Rust) — ≠ M4",
+        "S3.731: E2 place_cwd scaffold ARMED (Off→Rust; ≠flip) — ≠ M4",
     ]
 }
 
@@ -1697,12 +1708,29 @@ pub fn yoyo_e1_production_sidecar_candidate_design() -> &'static [&'static str] 
         "honest: Gate G slice oracle ≠ full compiler; candidate shape for contract A compose path",
         "A near/non-sheep: name+pin candidate; keep place_cwd Off→Rust; human wires H_00 later",
         "B sheep: flip place_cwd default while CUT; claim E1 CLOSED; densify; invent Stage",
-        "S730 pick: A — candidate named; default still Rust; next = E2 scaffold OR human landing",
+        "S730 pick: A — candidate named; S731 E2 scaffold ARMED; next = human E1/E2/E4 landing",
     ]
 }
 
 pub fn yoyo_e1_production_sidecar_candidate_ready() -> bool {
     yoyo_e1_production_sidecar_candidate_design().is_empty()
+}
+
+/// S3.731: **E2 place_cwd scaffold** — [`E2_DEFAULT_STILL_RUST`] armed.
+/// Off arm writes `rust_dll` + debug_assert. Flip const/default = sheep while CUT.
+/// ready=false.
+pub fn yoyo_e2_place_cwd_scaffold_design() -> &'static [&'static str] {
+    &[
+        "today: E2_DEFAULT_STILL_RUST=true; AltSidecarMode::Off → write rust_dll; debug_assert armed",
+        "E2 goal later: Off path writes YOYO-built (E1) or fail-closed refuse Rust — not now",
+        "A near/non-sheep: keep scaffold ARMED; human lands E1 then flips with E3/E4",
+        "B sheep: set E2_DEFAULT_STILL_RUST=false / change Off arm while CUT; claim CLOSED",
+        "S731 pick: A — scaffold ARMED; still Rust default; next = human E1/E2/E4 landing",
+    ]
+}
+
+pub fn yoyo_e2_place_cwd_scaffold_ready() -> bool {
+    yoyo_e2_place_cwd_scaffold_design().is_empty()
 }
 
 /// S3.548/S3.551/S3.704: YOYO-built parse1 compiler PE for [`YOYO_COMPILER_PE_NAME`].
@@ -17277,6 +17305,34 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.730"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_e1_production_sidecar_candidate_design"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.731: E2 place_cwd scaffold ARMED; Off→Rust; ≠flip; ≠M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_e2_place_cwd_scaffold_pin() {
+        let d = yoyo_e2_place_cwd_scaffold_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S731 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("E2_DEFAULT_STILL_RUST") || s.contains("scaffold")));
+        assert!(d.iter().any(|s| s.contains("sheep")));
+        assert!(!yoyo_e2_place_cwd_scaffold_ready());
+        assert!(E2_DEFAULT_STILL_RUST);
+        assert_eq!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off);
+        let dir = temp_work("s731-e2");
+        let rustish = b"RUST_E2_SCAFFOLD ".to_vec();
+        let kind = place_cwd_runtime_sidecar(&dir.join(RUNTIME_SIDECAR_NAME), &rustish)
+            .expect("place");
+        assert_eq!(kind, CwdSidecarKind::Rust);
+        assert_eq!(std::fs::read(dir.join(RUNTIME_SIDECAR_NAME)).unwrap(), rustish);
+        let src = include_str!("pe_dll_link.rs");
+        assert!(src.contains("E2_DEFAULT_STILL_RUST"));
+        assert!(src.contains("E2 scaffold: Off must stay Rust while CUT"));
+        assert!(!yoyo_g_closed_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(src.contains("S3.731"));
+        assert!(src.contains("yoyo_e2_place_cwd_scaffold_design"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
