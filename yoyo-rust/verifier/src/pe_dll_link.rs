@@ -489,6 +489,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.715 DONE: bake-sole-WF sheep floor — live parse1≡seed; bake-text gone; sole-WF=sheep",
         "S3.716 DONE: invent-Stage sheep floor — stay S3 path2; S4/S5 unopened; invent=sheep",
         "S3.717 DONE: G CLOSED evidence checklist named — fail-closed items; still CUT; ≠flip",
+        "S3.718 DONE: ALT silent-flip sheep floor — default Off/Rust while CUT; flip alone=sheep",
     ]
 }
 
@@ -709,6 +710,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.715 DONE: bake-sole-WF sheep floor pick A — parse1≡exec ready; drop bake stands",
         "S3.716 DONE: invent-Stage sheep floor pick A — S3 tip only; no S4 invent",
         "S3.717 DONE: G CLOSED evidence checklist pick A — items named; human evidence remains",
+        "S3.718 DONE: ALT silent-flip sheep floor pick A — Off/Rust default; flip-while-CUT=sheep",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -809,6 +811,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.715: bake-sole-WF sheep floor (live parse1; bake-text gone) — ≠ M4",
         "S3.716: invent-Stage sheep floor (S3 path2 only; S4/S5 unopened) — ≠ M4",
         "S3.717: G CLOSED evidence checklist named (still CUT; human evidence) — ≠ M4",
+        "S3.718: ALT silent-flip sheep floor (Off/Rust default while CUT) — ≠ M4",
     ]
 }
 
@@ -1419,13 +1422,31 @@ pub fn yoyo_g_closed_evidence_checklist() -> &'static [&'static str] {
         "E5: Gate G slice (in-dll-recompile oracle) ≠ sufficient alone for G CLOSED",
         "today: E1–E4 ABSENT; E5 stands; blockers non-empty; ALT Off; disposition=CUT",
         "forbidden: edit disposition to CLOSED; flip ALT while CUT; densify; invent Stage; claim CLOSED",
-        "S717 pick: A — checklist named; human/production evidence remains; ≠ M4 flip now",
+        "S717 pick: A — checklist named; S718 ALT silent-flip sheep DONE; next = human E1–E4 evidence",
     ]
 }
 
 pub fn yoyo_g_closed_evidence_checklist_ready() -> bool {
     // Never true until human evidence clears blockers — checklist stays non-empty by design.
     false
+}
+
+/// S3.718: **ALT silent-flip sheep floor** — changing production default while CUT = sheep.
+/// Today: unset env → Off → place_cwd writes Rust bytes. Flip alone ≠ G CLOSED.
+/// ready=false.
+pub fn yoyo_alt_silent_flip_sheep_floor_design() -> &'static [&'static str] {
+    &[
+        "today: ALT_SIDECAR unset → AltSidecarMode::Off → place_cwd writes Rust yoyo_runtime bytes",
+        "sheep: silent flip default Off→InDll/Probe while inventory disposition=CUT",
+        "A near/non-sheep: keep Off/Rust default; require E1–E4 evidence before any default change",
+        "B sheep: change place_cwd default / flip ALT while CUT / claim CLOSED / densify",
+        "evidence: yoyo_alt_sidecar_mode()==Off; place_cwd(…, rust)→Rust; stage17 production_default=RUST",
+        "S718 pick: A — silent-flip stays sheep; next = human G CLOSED E1–E4 evidence",
+    ]
+}
+
+pub fn yoyo_alt_silent_flip_sheep_floor_ready() -> bool {
+    yoyo_alt_silent_flip_sheep_floor_design().is_empty()
 }
 
 /// S3.548/S3.551/S3.704: YOYO-built parse1 compiler PE for [`YOYO_COMPILER_PE_NAME`].
@@ -16692,6 +16713,40 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.717"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_g_closed_evidence_checklist"));
+    }
+
+    /// S3.718: ALT silent-flip sheep floor — Off/Rust default while CUT; pick A; ≠M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_alt_silent_flip_sheep_floor_pin() {
+        let d = yoyo_alt_silent_flip_sheep_floor_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S718 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("sheep") && s.contains("flip")));
+        assert!(d.iter().any(|s| s.contains("Off") || s.contains("Rust")));
+        assert!(!yoyo_alt_silent_flip_sheep_floor_ready());
+        assert_eq!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off);
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_g_closed_ready());
+        let dir = temp_work("s718-alt-silent");
+        let rustish = b"RUST_SIDECAR_MARKER_S718 ".to_vec();
+        let kind = place_cwd_runtime_sidecar(&dir.join(RUNTIME_SIDECAR_NAME), &rustish)
+            .expect("place default");
+        assert_eq!(kind, CwdSidecarKind::Rust);
+        assert_eq!(
+            std::fs::read(dir.join(RUNTIME_SIDECAR_NAME)).unwrap(),
+            rustish,
+            "unset ALT must still write Rust bytes"
+        );
+        let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
+        assert!(stage17.contains("production_default=RUST"));
+        assert!(stage17.contains("disposition=CUT"));
+        assert!(yoyo_m4_production_flip_prep_design()
+            .iter()
+            .any(|s| s.contains("forbidden") && s.contains("CUT")));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.718"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_alt_silent_flip_sheep_floor_design"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.696: M4 flip prep/gates refreshed post-S695; inventory CUT hard gate; ≠ flip.
