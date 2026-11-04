@@ -478,6 +478,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.704: stage17+SCOPE evidence surface pinned; yoyo.tyb doc ABSENT claim removed",
         "S3.705 DONE: dual-path host ADD/SUB compact (fixed10 seed imm32); slim 0x45ae Δ=+28",
         "S3.706 DONE: nested CP stress B — serial×2 GREEN; concurrent same-cwd both-exit; ≠graduation",
+        "S3.707 DONE: inventory evidence pack — emit-rt-sidecar in-dll-recompile GREEN; disposition=CUT",
     ]
 }
 
@@ -687,6 +688,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.704 DONE: yoyo.tyb ABSENT doc repair + stage17/SCOPE evidence surface; still CUT",
         "S3.705 DONE: dual-path B — emit_add/sub_compact on emit_x86; fixed10 seed imm32; slim 0x45ae Δ=+28",
         "S3.706 DONE: nested CP stress B — serial×2 CreateProcess GREEN; concurrent same-cwd both-exit pinned",
+        "S3.707 DONE: inventory evidence pack (emit-rt-sidecar + SCOPE/stage17 text); disposition=CUT stands",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -776,6 +778,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.704: compiler-PE doc honesty + inventory evidence surface; CUT stands — ≠ M4",
         "S3.705: dual-path B DONE (compact emit_x86; fixed10 seed imm32); slim 0x45ae Δ=+28 — ≠ M4",
         "S3.706: nested CP stress B DONE (serial×2 + concurrent same-cwd); ≠graduation — ≠ M4",
+        "S3.707: inventory evidence pack DONE (in-dll-recompile GREEN; disposition=CUT) — ≠ M4",
     ]
 }
 
@@ -1167,6 +1170,24 @@ pub fn yoyo_s3_704_inventory_evidence_surface_ready() -> bool {
     false
 }
 
+/// S3.707: **inventory evidence pack** — run fail-closed checks; disposition stays CUT.
+/// Emits behavioral evidence (emit-rt-sidecar --in-dll-recompile) + text pins on
+/// stage17/SCOPE. GREEN spike ≠ G CLOSED ≠ flip. ready=false by construction.
+pub fn yoyo_s3_707_inventory_evidence_pack_design() -> &'static [&'static str] {
+    &[
+        "S707: emit-rt-sidecar --in-dll-recompile GREEN (sidecar+output.exe); prints disposition=CUT",
+        "scripts/stage17-ow-rt-yoyo-runtime.ps1 still ends with disposition=CUT + production_default=RUST",
+        "SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md disposition CUT; S3 preflight through S706 noted",
+        "S3 preflight GREEN (compose/self-host/dual-path/nested) ≠ inventory CLOSED",
+        "forbidden: flip disposition to CLOSED; flip ALT default; densify; invent Stage",
+        "S707 next: far optional (host-mini/child-cwd) OR human G CLOSED evidence — ≠ empty wait",
+    ]
+}
+
+pub fn yoyo_s3_707_inventory_evidence_pack_ready() -> bool {
+    false // CUT by construction until G CLOSED evidence
+}
+
 /// S3.699: **S3 compose/self-host preflight** status (honest).
 /// GREEN contracts do not clear inventory CUT. ready=false; ≠ CLOSED.
 pub fn yoyo_s3_compose_selfhost_preflight_design() -> &'static [&'static str] {
@@ -1177,7 +1198,7 @@ pub fn yoyo_s3_compose_selfhost_preflight_design() -> &'static [&'static str] {
         "ABSENT hard: inventory OW-RT disposition=CUT — flip≠CLOSED; production default still Rust",
         "optional ABSENT: host-mini raise; child-cwd drop-in; shared-text; residual slim Δ=+28",
         "forbidden: flip while CUT; densify; raise S1_SLIM_MAX_CODE alone; retarget fixed10 ADD; invent Stage",
-        "S699/S706: preflight + dual-path + nested stress DONE — next = inventory evidence OR far optional; ≠ fake CLOSED",
+        "S699/S707: preflight + dual-path + nested + evidence pack DONE — next = far optional OR human G CLOSED; ≠ fake CLOSED",
     ]
 }
 
@@ -1196,7 +1217,7 @@ pub fn yoyo_ow_rt_inventory_facing_design() -> &'static [&'static str] {
         "inventory change alone ≠ CLOSED — need fail-closed evidence (stage17-ow-rt + no Rust sidecar trust)",
         "A near/honest: keep CUT; code stays ready=false; dual-path+nested stress DONE; host-mini/child-cwd far optional",
         "B forbidden now: edit disposition to CLOSED without evidence; flip default while CUT; densify; invent Stage",
-        "S700 pick: A — tip next = inventory evidence pack (S707); nested stress DONE S706; ≠ M4 flip",
+        "S700 pick: A — S707 evidence pack DONE (still CUT); next = far optional OR human G CLOSED; ≠ M4 flip",
     ]
 }
 
@@ -1205,7 +1226,7 @@ pub fn yoyo_ow_rt_inventory_facing_paths() -> &'static [&'static str] {
         "A near: stay CUT-honest; preflight GREEN; no silent flip",
         "B sheep: claim CLOSED / flip default / densify / raise slim / retarget fixed10 ADD",
         "C far: inventory disposition change + stage17 evidence pack — human/docs gate, not this knife",
-        "S700 pick: A — stay CUT; S706 nested stress DONE; next = inventory evidence pack OR far optional",
+        "S700 pick: A — stay CUT; S706/S707 DONE; next = far optional OR human G CLOSED evidence",
     ]
 }
 
@@ -21959,6 +21980,52 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         );
         assert!(src.contains("S3.704"));
         assert!(src.contains("yoyo_s3_704_inventory_evidence_surface_design"));
+    }
+
+    /// S3.707: inventory evidence pack — stage17/SCOPE text + in-dll-recompile GREEN; still CUT; ≠flip.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_s3_707_inventory_evidence_pack_pin() {
+        let d = yoyo_s3_707_inventory_evidence_pack_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("disposition=CUT")));
+        assert!(d.iter().any(|s| s.contains("S707")));
+        assert!(d.iter().any(|s| s.contains("forbidden") && s.contains("CLOSED")));
+        assert!(!yoyo_s3_707_inventory_evidence_pack_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_ow_rt_inventory_facing_ready());
+        let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
+        assert!(
+            stage17.contains("disposition=CUT"),
+            "stage17 must print disposition=CUT"
+        );
+        assert!(
+            stage17.contains("production_default=RUST"),
+            "stage17 must name production_default=RUST"
+        );
+        let scope = include_str!("../../../SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md");
+        assert!(
+            scope.contains("OW-RT remains CUT") || scope.contains("disposition=CUT") || scope.contains("**CUT**"),
+            "SCOPE-CUT must stay CUT-honest"
+        );
+        // Behavioral evidence: same core as stage17 in-dll-recompile path
+        let dir = temp_work("s707-evidence-indll");
+        let fx = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../yoyo/tests/golden/selfhost_min_nop.ty");
+        std::fs::copy(&fx, dir.join("input.ty")).expect("copy fixture");
+        assert_eq!(
+            yoyo_sidecar_in_dll_recompile(&dir),
+            EXIT_OK,
+            "S707 evidence in-dll-recompile"
+        );
+        assert!(dir.join(RUNTIME_SIDECAR_NAME).is_file(), "sidecar present");
+        assert!(dir.join(OUTPUT_NAME).is_file(), "output.exe present");
+        let side_bytes = std::fs::read(dir.join(RUNTIME_SIDECAR_NAME)).unwrap();
+        let ascii = String::from_utf8_lossy(&side_bytes);
+        assert!(ascii.contains("yoyo_in_dll_recompile"));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.707"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_s3_707_inventory_evidence_pack_design"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// H_00 + yoyo.tyb ≡ seed_host. Default unset still Rust. M4 flip ABSENT.

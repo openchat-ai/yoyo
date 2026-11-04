@@ -68,7 +68,7 @@ Win H_00+in-dll-recompile no-input may print `yoyo_in_dll_recompile_smoke=NOT_ST
 
 ## S3 compose/self-host preflight (path 2 progress · still CUT)
 
-As of S3.699–S3.702: CreateProcess≡live-compose, parse1≡exec, Gate I≡self-host, single-shot CP, leave-floor, optional probes left ABSENT. **Production default remains Rust** (`ALT` unset). **Disposition stays CUT** — preflight ≠ G CLOSED ≠ OW-RT CLOSED. See `POST-1.0-HOLE-CHECKLIST.md` tip / `yoyo_s3_compose_selfhost_preflight_design`.
+As of S3.699–S3.707: CreateProcess≡live-compose, parse1≡exec, Gate I≡self-host, single-shot CP, dual-path host ADD, nested CP stress, **inventory evidence pack** (emit-rt-sidecar in-dll-recompile GREEN). **Production default remains Rust** (`ALT` unset). **Disposition stays CUT** — preflight + evidence pack ≠ G CLOSED ≠ OW-RT CLOSED. See `POST-1.0-HOLE-CHECKLIST.md` tip / `yoyo_s3_707_inventory_evidence_pack_design`.
 
 ## Remaining CUT after OW-RT CLOSED
 

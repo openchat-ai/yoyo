@@ -4,13 +4,13 @@
 
 | | |
 | --- | --- |
-| **tip** | **S3.707** ⏳ **inventory evidence pack**（stage17 跑证 · SCOPE 仍 CUT）或远可选 |
+| **tip** | **S3.708** ⏳ **远可选**（host-mini/child-cwd）或人审 **G CLOSED** 证据 |
 | **主线** | S1✅ S2✅ **S3⏳** · S4/S5 未开 |
-| **已站住** | live-compose · parse1≡exec · Gate I≡self-host · single-shot CP · dual-path · **nested CP stress** · inventory CUT 诚实 |
+| **已站住** | live-compose · parse1≡exec · Gate I · dual-path · nested CP · **evidence pack CUT** |
 | **硬闸** | M4 flip **ABSENT**（inventory CUT · `closed=0 cut=7`）· `ready=false` |
 | **禁** | flip / densify / raise slim / retarget fixed10 ADD / 假 CLOSED / 空转 wait |
-| **近刀** | 691–706 ✅（…→dual-path→**nested CP stress B**） |
-| **git** | S706 收工 → tip **S3.707** · **未 push** · bake=362 |
+| **近刀** | 691–707 ✅（…→nested→**evidence pack** disposition=CUT） |
+| **git** | S707 收工 → tip **S3.708** · **未 push** · bake=362 |
 
 ---
 
@@ -35,10 +35,10 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 
 | # | 刀 | 类型 | 增量 | 状态 |
 | --- | --- | --- | --- | --- |
-| 1 | **S3.705 dual-path host ADD/SUB** | 代码 | `emit_*_compact`；fixed10 seed 仍 imm32；slim `0x45ae` Δ=+28 | ✅ |
-| 2 | **S3.706 nested CP probe 实现** | 代码/探针 | serial×2 GREEN；concurrent same-cwd both-exit | ✅ |
-| 3 | **S3.707 inventory evidence pack** | 证据 | `stage17-ow-*` 跑证 + SCOPE 仍 CUT；≠flip | ⏳ tip |
-| 4 | **host-mini / child-cwd drop-in** | 可选远 | 非毕业；有行为才动 | 可选 |
+| 1 | **S3.705 dual-path host ADD/SUB** | 代码 | slim `0x45ae` Δ=+28 | ✅ |
+| 2 | **S3.706 nested CP probe** | 探针 | serial×2 + concurrent both-exit | ✅ |
+| 3 | **S3.707 inventory evidence pack** | 证据 | emit-rt-sidecar GREEN；disposition=CUT | ✅ |
+| 4 | **S3.708 far optional / G CLOSED** | 远/人审 | host-mini·child-cwd 或人审 Rust-sidecar-gone | ⏳ tip |
 | 5 | **M4 flip** | 禁 | while CUT | 🚫 |
 
 ---
@@ -52,36 +52,19 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 | **S3** ⏳ | child parse1 扩 ISA · 真自举不排假工期 |
 | **S4/S5** | 全 ISA / 形式化 · 地图 |
 
-**诚实底线**：CreateProcess≡live-compose；parse1 ADD/SUB≡exec；host ADD/SUB **dual-path**；nested CP stress pinned；Gate I≡self-host；M4 flip **禁** while CUT。
+**诚实底线**：CreateProcess≡live-compose；dual-path；nested stress；**evidence pack CUT**；Gate I≡self-host；M4 flip **禁** while CUT。
 
 ### 波段 tip（更早单刀已折）
 
 | 波段 | tip | 一句话 |
 | --- | --- | --- |
-| **S3.1–630** ✅ | `3809e18` | fixed10→parse1→any-slot→text4KiB |
-| **S3.631–638** ✅ | `3227356` | yoyo.tyb child→CreateProcess GREEN |
-| **S3.639–655** ✅ | `7f27b15` | compact→mid-grow→**full-grow / yoyo≈27KiB** |
-| **S3.656–683** ✅ | — | HOT→H00→**parse1≡exec + stage live** |
-| **S3.684–690** ✅ | — | cliff→contract→map→prep→gates→LDB→**slim len** |
-| **S3.691** ✅ | — | fixed10 expect **retarget**（parse1≡win32；in-DLL≡emit_x86） |
-| **S3.692** ✅ | — | host ADD/SUB **imm32 floor** named；design pin wording |
-| **S3.693** ✅ | — | **leave-floor**；S634/5 stage1≡seed stage2→**NO_INPUT** |
-| **S3.694** ✅ | — | drop-in self-host **NO_INPUT** cliff dissected |
-| **S3.695** ✅ | — | **pick A** Gate I≡self-host；child-cwd drop-in optional |
-| **S3.696** ✅ | — | M4 prep/gates **刷新**（硬闸=inventory CUT） |
-| **S3.697** ✅ | `d710e3b` | CreateProcess blockers/call-site 刷新 |
-| **S3.698** ✅ | — | re-entrancy **pick A**（single-shot） |
-| **S3.699** ✅ | — | compose/self-host **preflight complete** |
-| **S3.700** ✅ | — | inventory-facing **CUT map** pick A |
-| **S3.701** ✅ | — | dual-path probe pick A（后由 705 实现） |
-| **S3.702** ✅ | — | nested CP probe pick A（后由 706 实现） |
-| **S3.703** ✅ | — | truth-repair + SCOPE-CUT preflight 注记 |
-| **S3.704** ✅ | — | stage17/SCOPE **evidence surface** |
+| **S3.691–704** ✅ | — | retarget→leave-floor→Gate I→preflight→CUT map→truth→evidence surface |
 | **S3.705** ✅ | — | **dual-path B**：slim **0x45ae** Δ=+28 |
-| **S3.706** ✅ | — | **nested CP stress B**：serial×2 + concurrent both-exit |
-| **S3.707** ⏳ | — | **本步**：inventory evidence pack（stage17 · 仍 CUT） |
+| **S3.706** ✅ | — | **nested CP stress B**：serial×2 + concurrent |
+| **S3.707** ✅ | — | **inventory evidence pack**：in-dll-recompile GREEN；**disposition=CUT** |
+| **S3.708** ⏳ | — | **本步**：远可选（host-mini/child-cwd）或人审 G CLOSED |
 
-**缺口**：inventory **CUT**（G CLOSED ABSENT）；host-mini/child-cwd 远可选；slim residual Δ=+28。`ready=false`。bake=362。
+**缺口**：inventory **CUT**（G CLOSED ABSENT）；Rust sidecar 仍 production default。`ready=false`。bake=362。
 
 ---
 
@@ -89,20 +72,19 @@ Disposition / 洞表 → `SCOPE-CUT-v1.0-hole-inventory.md`。门禁明细 → `
 
 ```powershell
 cd F:\yoyo\yoyo-rust\verifier
-cargo test --lib -- yoyo_nested_createprocess yoyo_host_addsub_dual_path yoyo_h00_writefile_seed_pin --test-threads=1
+cargo test --lib -- yoyo_s3_707_inventory_evidence_pack_pin --test-threads=1
 ```
 
-path 2 回归才跑：`stage17-ow-*` / `stage15-hole-inventory` / `stage16-*`（见 `scripts/`）。
+path 2 回归：`scripts/stage17-ow-rt-yoyo-runtime.ps1`（仍打印 disposition=CUT）。
 
 ---
 
 ## 对 AI
 
-- **每刀结束 / 用户说继续**：先扫「一眼进度」+ **自动任务队列**；取首条未勾真增量刀；收工同步 tip·近刀·缺口·git。
-- 继续 → **禁**只回「等新红/人审」；遇红**自动修**再推。
-- 禁 flip / densify / 假 CLOSED / retarget fixed10 ADD golden / 无增量空转。
-- OW-* GREEN ≠ CLOSED；本地先绿；2 次红 CI 停推；AUTO `ACTIVE=0`。
+- **每刀结束 / 用户说继续**：取「自动任务队列」首条未勾；遇红**自动修**；禁空转 wait。
+- 禁 flip / densify / 假 CLOSED / retarget fixed10 ADD golden。
+- OW-* GREEN ≠ CLOSED；本地先绿；AUTO `ACTIVE=0`。
 
 ---
 
-*post-v1.0 · 收纳板 · tip S3.707 · 一眼进度置顶 · 任务队列防空转*
+*post-v1.0 · tip S3.708 · 一眼进度置顶 · 任务队列防空转*
