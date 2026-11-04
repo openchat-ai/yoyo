@@ -487,6 +487,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.713 DONE: host-mini raise sheep floor — S1_SLIM_MAX_CODE=1024 stays; raise alone=sheep",
         "S3.714 DONE: densify export-local ABSENT lock — CreateProcess contract A; export≠parse1",
         "S3.715 DONE: bake-sole-WF sheep floor — live parse1≡seed; bake-text gone; sole-WF=sheep",
+        "S3.716 DONE: invent-Stage sheep floor — stay S3 path2; S4/S5 unopened; invent=sheep",
     ]
 }
 
@@ -705,6 +706,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.713 DONE: host-mini raise sheep floor pick A — 1024 stays; parse1 child covers; Δ=+28 leave",
         "S3.714 DONE: densify export-local ABSENT pick A — trampoline export; child=compose engine",
         "S3.715 DONE: bake-sole-WF sheep floor pick A — parse1≡exec ready; drop bake stands",
+        "S3.716 DONE: invent-Stage sheep floor pick A — S3 tip only; no S4 invent",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -803,6 +805,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.713: host-mini raise sheep floor (S1_SLIM_MAX_CODE=1024 stays) — ≠ M4",
         "S3.714: densify export-local ABSENT (CreateProcess contract A stands) — ≠ M4",
         "S3.715: bake-sole-WF sheep floor (live parse1; bake-text gone) — ≠ M4",
+        "S3.716: invent-Stage sheep floor (S3 path2 only; S4/S5 unopened) — ≠ M4",
     ]
 }
 
@@ -1376,12 +1379,29 @@ pub fn yoyo_bake_sole_wf_sheep_floor_design() -> &'static [&'static str] {
         "A near/non-sheep: leave bake-sole ABSENT; keep live parse1 stage path",
         "B sheep: reintroduce bake-text / sole-WF seed blob / densify / flip-while-CUT / claim CLOSED",
         "evidence: yoyo_parse1_equiv_exec_ready(); compiler CP ≡ seed_host_compile(yoyo)",
-        "S715 pick: A — bake-sole-WF stays sheep; next = invent-Stage sheep floor OR human G CLOSED",
+        "S715 pick: A — bake-sole-WF stays sheep; S716 invent-Stage sheep DONE; next = G CLOSED evidence checklist OR human",
     ]
 }
 
 pub fn yoyo_bake_sole_wf_sheep_floor_ready() -> bool {
     yoyo_bake_sole_wf_sheep_floor_design().is_empty()
+}
+
+/// S3.716: **invent-Stage sheep floor** — do not invent S4/S5 or rename CUT away.
+/// Path 2 stays S3 OW-RT; tip advances as S3.N only. ready=false.
+pub fn yoyo_invent_stage_sheep_floor_design() -> &'static [&'static str] {
+    &[
+        "today: mainline S1✅ S2✅ S3⏳; S4/S5 unopened; inventory disposition=CUT",
+        "sheep: invent Stage S4/S5 / rename path / claim Stage-complete while CUT",
+        "A near/non-sheep: stay on S3 tip (S3.N); fold optional ABSENT; human G CLOSED remains",
+        "B sheep: invent Stage; flip disposition without evidence; densify; claim CLOSED",
+        "evidence: live map tip is S3.*; SCOPE-CUT still CUT; ready=false",
+        "S716 pick: A — invent-Stage stays sheep; next = G CLOSED evidence checklist OR human evidence",
+    ]
+}
+
+pub fn yoyo_invent_stage_sheep_floor_ready() -> bool {
+    yoyo_invent_stage_sheep_floor_design().is_empty()
 }
 
 /// S3.548/S3.551/S3.704: YOYO-built parse1 compiler PE for [`YOYO_COMPILER_PE_NAME`].
@@ -16594,6 +16614,35 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(src.contains("S3.715"));
         assert!(src.contains("yoyo_bake_sole_wf_sheep_floor_design"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.716: invent-Stage sheep floor — S3 path2 only; S4/S5 unopened; pick A; ≠M4.
+    #[test]
+    fn yoyo_invent_stage_sheep_floor_pin() {
+        let d = yoyo_invent_stage_sheep_floor_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S716 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("invent") && s.contains("sheep")));
+        assert!(d.iter().any(|s| s.contains("S4") || s.contains("S3")));
+        assert!(!yoyo_invent_stage_sheep_floor_ready());
+        let live = yoyo_live_in_dll_compile_map();
+        assert!(
+            live.iter().any(|s| s.contains("S3.716")),
+            "live tip must stay on S3.*"
+        );
+        assert!(
+            !live.iter().any(|s| s.starts_with("S4.") || s.contains("S4 DONE")),
+            "S4 must stay unopened"
+        );
+        let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
+        assert!(stage17.contains("disposition=CUT"));
+        assert!(yoyo_post_flip_prep_remaining_gates()
+            .iter()
+            .any(|s| s.contains("invent Stage") && s.contains("sheep")));
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_g_closed_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.716"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_invent_stage_sheep_floor_design"));
     }
 
     /// S3.696: M4 flip prep/gates refreshed post-S695; inventory CUT hard gate; ≠ flip.
