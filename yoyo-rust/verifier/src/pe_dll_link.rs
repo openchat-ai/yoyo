@@ -492,6 +492,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.718 DONE: ALT silent-flip sheep floor — default Off/Rust while CUT; flip alone=sheep",
         "S3.719 DONE: E3 stage17 fail-closed design named — checks listed; still CUT; ≠implement flip",
         "S3.720 DONE: E1 YOYO-built production sidecar design — H_00 path named; still ABSENT",
+        "S3.721 DONE: E2 default-no-Rust design named — place_cwd Off path; still writes Rust",
     ]
 }
 
@@ -715,6 +716,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.718 DONE: ALT silent-flip sheep floor pick A — Off/Rust default; flip-while-CUT=sheep",
         "S3.719 DONE: E3 stage17 fail-closed design pick A — named; human implements with E1/E2",
         "S3.720 DONE: E1 YOYO-built sidecar design pick A — named; production H_00 still Rust",
+        "S3.721 DONE: E2 default-no-Rust design pick A — named; Off still writes Rust; ≠flip",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -818,6 +820,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.718: ALT silent-flip sheep floor (Off/Rust default while CUT) — ≠ M4",
         "S3.719: E3 stage17 fail-closed design named (still CUT) — ≠ M4",
         "S3.720: E1 YOYO-built production sidecar design named (still ABSENT) — ≠ M4",
+        "S3.721: E2 default-no-Rust design named (Off still Rust; ≠flip) — ≠ M4",
     ]
 }
 
@@ -1485,12 +1488,30 @@ pub fn yoyo_e1_yoyo_built_production_sidecar_design() -> &'static [&'static str]
         "need: YOYO compile sidecar shape that H_00 can manual-map (CreateProcess-compiler contract A candidate)",
         "A near/non-sheep: name E1; leave production Rust; human ships with E2/E3/E4",
         "B sheep: flip ALT default while CUT; densify oracle into full compiler claim; claim CLOSED",
-        "S720 pick: A — E1 named ABSENT; next = E2 default-no-Rust design OR human evidence",
+        "S720 pick: A — E1 named ABSENT; S721 E2 design DONE; next = human E1–E4 evidence",
     ]
 }
 
 pub fn yoyo_e1_yoyo_built_production_sidecar_ready() -> bool {
     yoyo_e1_yoyo_built_production_sidecar_design().is_empty()
+}
+
+/// S3.721: **E2 default-no-Rust design** — place_cwd unset path must stop writing Rust.
+/// Today: Off → write rust_dll. Change requires E1 sidecar ready + inventory allow.
+/// Naming ≠ flipping. ready=false.
+pub fn yoyo_e2_default_no_rust_design() -> &'static [&'static str] {
+    &[
+        "E2 goal: ALT unset / place_cwd default no longer writes Rust yoyo_runtime bytes",
+        "today: AltSidecarMode::Off → std::fs::write(out, rust_dll); production_default=RUST",
+        "need: Off path writes YOYO-built compile sidecar (E1) OR fail-closed refuse Rust",
+        "A near/non-sheep: name E2; keep Off→Rust now; flip only with E1+E3+E4 evidence",
+        "B sheep: silent change Off default while CUT; claim CLOSED; densify",
+        "S721 pick: A — E2 named; Off still Rust; next = human E1–E4 production evidence",
+    ]
+}
+
+pub fn yoyo_e2_default_no_rust_ready() -> bool {
+    yoyo_e2_default_no_rust_design().is_empty()
 }
 
 /// S3.548/S3.551/S3.704: YOYO-built parse1 compiler PE for [`YOYO_COMPILER_PE_NAME`].
@@ -16839,6 +16860,33 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.720"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_e1_yoyo_built_production_sidecar_design"));
+    }
+
+    /// S3.721: E2 default-no-Rust design named; Off still writes Rust; ≠flip; ≠M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_e2_default_no_rust_design_pin() {
+        let d = yoyo_e2_default_no_rust_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S721 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("E2") && (s.contains("no longer") || s.contains("default"))));
+        assert!(d.iter().any(|s| s.contains("sheep")));
+        assert!(!yoyo_e2_default_no_rust_ready());
+        assert_eq!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off);
+        let dir = temp_work("s721-e2");
+        let rustish = b"RUST_E2_MARKER ".to_vec();
+        let kind = place_cwd_runtime_sidecar(&dir.join(RUNTIME_SIDECAR_NAME), &rustish)
+            .expect("place");
+        assert_eq!(kind, CwdSidecarKind::Rust, "E2 ABSENT: Off must still write Rust");
+        assert_eq!(std::fs::read(dir.join(RUNTIME_SIDECAR_NAME)).unwrap(), rustish);
+        assert!(yoyo_g_closed_evidence_checklist()
+            .iter()
+            .any(|s| s.starts_with("E2:") && s.contains("Rust")));
+        assert!(!yoyo_g_closed_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.721"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_e2_default_no_rust_design"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.696: M4 flip prep/gates refreshed post-S695; inventory CUT hard gate; ≠ flip.

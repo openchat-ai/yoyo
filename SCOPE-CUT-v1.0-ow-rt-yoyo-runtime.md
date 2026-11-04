@@ -68,7 +68,7 @@ Win H_00+in-dll-recompile no-input may print `yoyo_in_dll_recompile_smoke=NOT_ST
 
 ## S3 compose/self-host preflight (path 2 progress · still CUT)
 
-As of S3.699–S3.719: CreateProcess≡live-compose, parse1≡exec, Gate I≡self-host, dual-path, nested, evidence pack, residual/drop-in/teach/shared-text/densify ABSENT floors, sheep floors (host-mini/bake-sole/invent-Stage), **G CLOSED blockers + evidence checklist named**. **Production default remains Rust** (`ALT` unset). **Disposition stays CUT** — checklist ≠ G CLOSED ≠ OW-RT CLOSED. See `POST-1.0-HOLE-CHECKLIST.md` tip / `yoyo_g_closed_evidence_checklist` / `yoyo_e3_stage17_fail_closed_design`.
+As of S3.699–S3.721: CreateProcess≡live-compose, parse1≡exec, Gate I≡self-host, dual-path, nested, evidence pack, residual/drop-in/teach/shared-text/densify ABSENT floors, sheep floors (host-mini/bake-sole/invent-Stage), **G CLOSED blockers + evidence checklist named**. **Production default remains Rust** (`ALT` unset). **Disposition stays CUT** — checklist ≠ G CLOSED ≠ OW-RT CLOSED. See `POST-1.0-HOLE-CHECKLIST.md` tip / `yoyo_g_closed_evidence_checklist` / E1–E3 designs (`yoyo_e1_*`/`yoyo_e2_*`/`yoyo_e3_*`).
 
 ## Remaining CUT after OW-RT CLOSED
 
