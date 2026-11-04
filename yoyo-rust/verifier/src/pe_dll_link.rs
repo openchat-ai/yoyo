@@ -483,6 +483,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.709 DONE: child-cwd drop-in stress — seed PE→NO_INPUT; compiler CP GREEN; pick A stands",
         "S3.710 DONE: G CLOSED blockers named (ALT/Rust trust + SCOPE CUT); ≠flip; ≠claim CLOSED",
         "S3.711 DONE: shared-text dual-package probe — parse1 in compiler PE only; export trampoline; leave ABSENT",
+        "S3.712 DONE: teach-H00 child-cwd cliff map — seed PE=Gate I driver; teach ABSENT; pick A",
     ]
 }
 
@@ -697,12 +698,13 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.709 DONE: child-cwd drop-in stress pin (seed→NO_INPUT; Gate I/compiler GREEN); B teach-H00 ABSENT",
         "S3.710 DONE: G CLOSED blocker map (Rust sidecar trust + disposition CUT); human evidence remains",
         "S3.711 DONE: shared-text probe pick A — parse1≢export body; dual-pack ABSENT; contract A stands",
+        "S3.712 DONE: teach-H00 cliff pick A — Gate I≡self-host stands; teach child-cwd ABSENT",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
         "yoyo.tyb: child+indll CreateProcess compose GREEN ≡seed; Gate I loop = self-host (S695)",
         "hand-hex densify / raise slim / retarget fixed10 ADD golden / flip-while-CUT = sheep",
-        "optional ABSENT: host-mini raise; child-cwd teach-H00 (B); densify export-local; shared-text left ABSENT",
+        "optional ABSENT: host-mini raise; densify export-local; shared-text left ABSENT; teach-H00 left ABSENT",
         "graduation hard gate: inventory OW-RT disposition≠CUT — code flip alone ≠ CLOSED",
     ]
 }
@@ -791,6 +793,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.709: child-cwd drop-in stress DONE (NO_INPUT pinned); teach-H00 ABSENT — ≠ M4",
         "S3.710: G CLOSED blockers named; Rust trust path remains — ≠ M4",
         "S3.711: shared-text dual-pack ABSENT (parse1 in child PE only) — ≠ M4",
+        "S3.712: teach-H00 child-cwd cliff ABSENT (seed=Gate I ≠ compiler) — ≠ M4",
     ]
 }
 
@@ -875,7 +878,7 @@ pub fn yoyo_dropin_selfhost_no_input_paths() -> &'static [&'static str] {
         "B mid/optional ABSENT: teach H00 child-cwd input.tyb→output.exe",
         "C far: shared-text dual package",
         "sheep: densify / raise slim / flip-while-CUT / fake CLOSED",
-        "S709 pick: A — next = G CLOSED blocker map OR teach-H00 far; ≠ flip",
+        "S709/S712 pick: A — teach-H00 left ABSENT; next = human G CLOSED OR host-mini sheep floor; ≠ flip",
     ]
 }
 
@@ -1226,7 +1229,7 @@ pub fn yoyo_s3_compose_selfhost_preflight_design() -> &'static [&'static str] {
         "GREEN: single-shot CP re-entrancy contract A (S698); inherit=FALSE; dual-path host ADD (S705)",
         "GREEN: nested/concurrent CP stress B (S706) — serial×2 OK; concurrent same-cwd both-exit; ≠graduation",
         "ABSENT hard: inventory OW-RT disposition=CUT — flip≠CLOSED; production default still Rust",
-        "optional ABSENT: host-mini raise; child-cwd drop-in; shared-text; residual slim Δ=+28",
+        "optional ABSENT: host-mini raise; densify export-local; teach-H00/shared-text left ABSENT; residual Δ=+28 leave",
         "forbidden: flip while CUT; densify; raise S1_SLIM_MAX_CODE alone; retarget fixed10 ADD; invent Stage",
         "S699/S708: preflight + evidence + slim I/O residual floor DONE — next = child-cwd far OR human G CLOSED; ≠ fake CLOSED",
     ]
@@ -1298,6 +1301,24 @@ pub fn yoyo_shared_text_dual_package_design() -> &'static [&'static str] {
 
 pub fn yoyo_shared_text_dual_package_ready() -> bool {
     yoyo_shared_text_dual_package_design().is_empty()
+}
+
+/// S3.712: **teach-H00 child-cwd** cliff — make seed/H00 PE accept `input.tyb`→`output.exe`.
+/// Today: seed PE entry = Gate I/H_00 driver → CreateProcess(seed)+input.tyb = EXIT_NO_INPUT.
+/// Teaching = rewrite H00 entry into parse1-compiler shape. Far. ≠ densify. ready=false.
+pub fn yoyo_teach_h00_child_cwd_design() -> &'static [&'static str] {
+    &[
+        "goal: seed/H00 PE in child-cwd reads input.tyb and writes output.exe (compiler shape)",
+        "today cliff: CreateProcess(seed PE)+input.tyb → EXIT_NO_INPUT(2); Gate I driver ≠ ReadFile(input.tyb)",
+        "A near/non-sheep: leave teach ABSENT — Gate I (H_00+sidecar) already ≡ self-host; graduation ≠ teach",
+        "B far: rewrite H00 entry / pe_link path into child-cwd parse1-compiler (mega; not this knife)",
+        "C sheep: densify yoyo_compiler into yoyo.tyb; raise slim; flip-while-CUT; claim CLOSED",
+        "S712 pick: A — teach-H00 stays ABSENT; next = human G CLOSED evidence OR host-mini sheep floor",
+    ]
+}
+
+pub fn yoyo_teach_h00_child_cwd_ready() -> bool {
+    yoyo_teach_h00_child_cwd_design().is_empty()
 }
 
 /// S3.548/S3.551/S3.704: YOYO-built parse1 compiler PE for [`YOYO_COMPILER_PE_NAME`].
@@ -16367,6 +16388,41 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_g_closed_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.711"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_shared_text_dual_package_design"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.712: teach-H00 child-cwd cliff — seed PE NO_INPUT; leave teach ABSENT; pick A; ≠M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_teach_h00_child_cwd_cliff_pin() {
+        let d = yoyo_teach_h00_child_cwd_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S712 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("EXIT_NO_INPUT") || s.contains("NO_INPUT")));
+        assert!(d.iter().any(|s| s.contains("Gate I") || s.contains("H_00")));
+        assert!(d.iter().any(|s| s.contains("sheep") && s.contains("densify")));
+        assert!(!yoyo_teach_h00_child_cwd_ready());
+        // live cliff: seed PE + input.tyb → NO_INPUT (not taught)
+        let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
+        let seed = crate::selfhost::seed_host_compile(&yoyo).expect("seed");
+        let dir = temp_work("s712-teach-h00");
+        std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
+        let drop_exe = dir.join("compiled-yoyo.exe");
+        std::fs::write(&drop_exe, &seed).unwrap();
+        let st = std::process::Command::new(&drop_exe)
+            .current_dir(&dir)
+            .status()
+            .expect("spawn seed PE");
+        assert_eq!(
+            st.code(),
+            Some(EXIT_NO_INPUT),
+            "teach ABSENT: seed PE must still EXIT_NO_INPUT got {:?}",
+            st.code()
+        );
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_g_closed_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.712"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_teach_h00_child_cwd_design"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
