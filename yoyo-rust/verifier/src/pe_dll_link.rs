@@ -493,6 +493,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.719 DONE: E3 stage17 fail-closed design named — checks listed; still CUT; ≠implement flip",
         "S3.720 DONE: E1 YOYO-built production sidecar design — H_00 path named; still ABSENT",
         "S3.721 DONE: E2 default-no-Rust design named — place_cwd Off path; still writes Rust",
+        "S3.722 DONE: E4 disposition-change gate design — CUT until E1–E3 evidence; ≠edit now",
     ]
 }
 
@@ -717,6 +718,7 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.719 DONE: E3 stage17 fail-closed design pick A — named; human implements with E1/E2",
         "S3.720 DONE: E1 YOYO-built sidecar design pick A — named; production H_00 still Rust",
         "S3.721 DONE: E2 default-no-Rust design pick A — named; Off still writes Rust; ≠flip",
+        "S3.722 DONE: E4 disposition gate pick A — named; SCOPE-CUT stays CUT",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
@@ -821,6 +823,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.719: E3 stage17 fail-closed design named (still CUT) — ≠ M4",
         "S3.720: E1 YOYO-built production sidecar design named (still ABSENT) — ≠ M4",
         "S3.721: E2 default-no-Rust design named (Off still Rust; ≠flip) — ≠ M4",
+        "S3.722: E4 disposition-change gate design named (still CUT) — ≠ M4",
     ]
 }
 
@@ -1488,7 +1491,7 @@ pub fn yoyo_e1_yoyo_built_production_sidecar_design() -> &'static [&'static str]
         "need: YOYO compile sidecar shape that H_00 can manual-map (CreateProcess-compiler contract A candidate)",
         "A near/non-sheep: name E1; leave production Rust; human ships with E2/E3/E4",
         "B sheep: flip ALT default while CUT; densify oracle into full compiler claim; claim CLOSED",
-        "S720 pick: A — E1 named ABSENT; S721 E2 design DONE; next = human E1–E4 evidence",
+        "S720 pick: A — E1 named ABSENT; S721–S722 E2/E4 DONE; next = human E1–E4 evidence",
     ]
 }
 
@@ -1506,12 +1509,30 @@ pub fn yoyo_e2_default_no_rust_design() -> &'static [&'static str] {
         "need: Off path writes YOYO-built compile sidecar (E1) OR fail-closed refuse Rust",
         "A near/non-sheep: name E2; keep Off→Rust now; flip only with E1+E3+E4 evidence",
         "B sheep: silent change Off default while CUT; claim CLOSED; densify",
-        "S721 pick: A — E2 named; Off still Rust; next = human E1–E4 production evidence",
+        "S721 pick: A — E2 named; S722 E4 gate DONE; next = human E1–E4 production evidence",
     ]
 }
 
 pub fn yoyo_e2_default_no_rust_ready() -> bool {
     yoyo_e2_default_no_rust_design().is_empty()
+}
+
+/// S3.722: **E4 disposition-change gate design** — when SCOPE-CUT may leave CUT.
+/// Today: disposition=CUT; closed=0. Edit without E1–E3 = sheep / fake CLOSED.
+/// Naming ≠ editing docs. ready=false.
+pub fn yoyo_e4_disposition_change_gate_design() -> &'static [&'static str] {
+    &[
+        "E4 goal: SCOPE-CUT disposition may leave CUT only with E1–E3 evidence attached",
+        "today: disposition=CUT; closed=0; stage17 prints CUT; inventory-facing ready=false",
+        "gate: human evidence pack (E1 sidecar + E2 default + E3 stage17 fail-closed) before doc edit",
+        "A near/non-sheep: name E4; leave CUT; forbid silent disposition edit",
+        "B sheep: edit disposition to CLOSED without E1–E3; flip ALT; claim CLOSED; invent Stage",
+        "S722 pick: A — E4 named; SCOPE-CUT stays CUT; next = human E1–E4 production evidence",
+    ]
+}
+
+pub fn yoyo_e4_disposition_change_gate_ready() -> bool {
+    yoyo_e4_disposition_change_gate_design().is_empty()
 }
 
 /// S3.548/S3.551/S3.704: YOYO-built parse1 compiler PE for [`YOYO_COMPILER_PE_NAME`].
@@ -16887,6 +16908,33 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(include_str!("pe_dll_link.rs").contains("S3.721"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_e2_default_no_rust_design"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.722: E4 disposition-change gate design named; still CUT; ≠edit; ≠M4.
+    #[test]
+    fn yoyo_e4_disposition_change_gate_design_pin() {
+        let d = yoyo_e4_disposition_change_gate_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S722 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("E4") && s.contains("CUT")));
+        assert!(d.iter().any(|s| s.contains("sheep")));
+        assert!(d.iter().any(|s| s.contains("E1") && s.contains("E3")));
+        assert!(!yoyo_e4_disposition_change_gate_ready());
+        assert!(!yoyo_ow_rt_inventory_facing_ready());
+        assert!(!yoyo_g_closed_ready());
+        let scope = include_str!("../../../SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md");
+        assert!(
+            scope.contains("disposition=CUT") || scope.contains("Disposition stays CUT") || scope.contains("**CUT**"),
+            "SCOPE-CUT must still say CUT"
+        );
+        let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
+        assert!(stage17.contains("disposition=CUT"));
+        assert!(yoyo_g_closed_evidence_checklist()
+            .iter()
+            .any(|s| s.starts_with("E4:") && s.contains("SCOPE-CUT")));
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.722"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_e4_disposition_change_gate_design"));
     }
 
     /// S3.696: M4 flip prep/gates refreshed post-S695; inventory CUT hard gate; ≠ flip.
