@@ -4,31 +4,31 @@
 
 | | |
 | --- | --- |
-| **tip** | **S3.711** ⏳ shared-text 远可选 **或** 人审 **G CLOSED** 证据 |
+| **tip** | **S3.712** ⏳ 人审 **G CLOSED** 证据（Rust sidecar 离信任链）· 或 teach-H00 远 |
 | **主线** | S1✅ S2✅ **S3⏳** · S4/S5 未开 |
-| **已站住** | compose · Gate I · dual-path · nested · evidence · slim residual · **drop-in stress** · **G CLOSED map** |
-| **硬闸** | M4 flip **ABSENT**（inventory CUT）· `ready=false` · G CLOSED ABSENT |
-| **禁** | flip / densify / raise slim / retarget fixed10 / 假 CLOSED / 空转 |
-| **近刀** | 705–710 ✅ |
-| **git** | S710 → tip **S3.711** · **未 push** · bake=362 |
+| **已站住** | compose · Gate I · dual-path · nested · evidence · residual · drop-in stress · G map · **shared-text ABSENT** |
+| **硬闸** | M4 / G CLOSED **ABSENT**（inventory CUT）· `ready=false` |
+| **禁** | flip / densify / raise slim / 假 CLOSED / 空转 |
+| **近刀** | 705–711 ✅ |
+| **git** | S711 → tip **S3.712** · **未 push** · bake=362 |
 
-继续 = 做 tip；遇红自动修。
+继续 = 做 tip；遇红自动修。自动可选远刀已折尽 → 下一真闸 = **人审 G CLOSED**。
 
 ## 下一刀
 
 | tip | 做什么 | 禁 |
 | --- | --- | --- |
-| **S3.711** | shared-text dual-package 远可选（有行为）**或** 人审 G CLOSED（Rust sidecar 离信任链） | flip while CUT · densify · 假 CLOSED |
+| **S3.712** | 人审：production 去 Rust sidecar 信任 + disposition 证据包（stage17 仍须 CUT 直到证据齐） | 静默 flip ALT · 假 CLOSED |
 
-**缺口**：G CLOSED ABSENT；teach-H00 / shared-text 仍远。
+**缺口**：G CLOSED ABSENT；teach-H00 仍远。
 
 ## 验收
 
 ```powershell
 cd F:\yoyo\yoyo-rust\verifier
-cargo test --lib -- yoyo_child_cwd_dropin_stress_s709_pin yoyo_g_closed_blockers_pin --test-threads=1
+cargo test --lib -- yoyo_shared_text_dual_package_probe_pin yoyo_g_closed_blockers_pin --test-threads=1
 ```
 
 ---
 
-*post-v1.0 · tip S3.711*
+*post-v1.0 · tip S3.712*

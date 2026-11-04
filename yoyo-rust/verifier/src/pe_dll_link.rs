@@ -482,6 +482,7 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.708 DONE: host slim residual I/O floor — Δ=+28 = LOAD_FILE/IAT layout ≠ ADD; leave; ≠raise slim",
         "S3.709 DONE: child-cwd drop-in stress — seed PE→NO_INPUT; compiler CP GREEN; pick A stands",
         "S3.710 DONE: G CLOSED blockers named (ALT/Rust trust + SCOPE CUT); ≠flip; ≠claim CLOSED",
+        "S3.711 DONE: shared-text dual-package probe — parse1 in compiler PE only; export trampoline; leave ABSENT",
     ]
 }
 
@@ -695,12 +696,13 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.708 DONE: slim residual I/O floor named (Δ=+28 LOAD_FILE); host-mini raise still sheep",
         "S3.709 DONE: child-cwd drop-in stress pin (seed→NO_INPUT; Gate I/compiler GREEN); B teach-H00 ABSENT",
         "S3.710 DONE: G CLOSED blocker map (Rust sidecar trust + disposition CUT); human evidence remains",
+        "S3.711 DONE: shared-text probe pick A — parse1≢export body; dual-pack ABSENT; contract A stands",
         "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
         "yoyo.tyb: child+indll CreateProcess compose GREEN ≡seed; Gate I loop = self-host (S695)",
         "hand-hex densify / raise slim / retarget fixed10 ADD golden / flip-while-CUT = sheep",
-        "optional ABSENT: host-mini raise; child-cwd teach-H00 (B); shared-text; densify export-local",
+        "optional ABSENT: host-mini raise; child-cwd teach-H00 (B); densify export-local; shared-text left ABSENT",
         "graduation hard gate: inventory OW-RT disposition≠CUT — code flip alone ≠ CLOSED",
     ]
 }
@@ -788,6 +790,7 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.708: slim residual I/O floor DONE (Δ=+28 leave); raise S1_SLIM_MAX_CODE sheep — ≠ M4",
         "S3.709: child-cwd drop-in stress DONE (NO_INPUT pinned); teach-H00 ABSENT — ≠ M4",
         "S3.710: G CLOSED blockers named; Rust trust path remains — ≠ M4",
+        "S3.711: shared-text dual-pack ABSENT (parse1 in child PE only) — ≠ M4",
     ]
 }
 
@@ -1277,6 +1280,24 @@ pub fn yoyo_g_closed_blockers() -> &'static [&'static str] {
 
 pub fn yoyo_g_closed_ready() -> bool {
     yoyo_g_closed_blockers().is_empty()
+}
+
+/// S3.711: **shared-text dual-package** probe (parse1 .text in both DLL+EXE).
+/// Today: parse1 lives in `yoyo_compiler.exe` only; in-DLL export is CreateProcess trampoline.
+/// Dual-pack = infra far. ≠ densify parse1 into export. ready=false.
+pub fn yoyo_shared_text_dual_package_design() -> &'static [&'static str] {
+    &[
+        "goal: one parse1 .text image dual-packaged as child EXE + in-DLL export body",
+        "today: compiler PE has yoyo_parse1_c; export path CreateProcess(compiler) — no in-DLL parse1 machine",
+        "A near: leave shared-text ABSENT — CreateProcess-as-compose-contract A already GREEN",
+        "B far/infra: shared parse1 bytes dual-mapped — not required for graduation / G CLOSED",
+        "C sheep: densify parse1 hand-hex into export; raise slim; flip while CUT; claim CLOSED",
+        "S711 pick: A — shared-text stays ABSENT; next = human G CLOSED evidence OR teach-H00 far",
+    ]
+}
+
+pub fn yoyo_shared_text_dual_package_ready() -> bool {
+    yoyo_shared_text_dual_package_design().is_empty()
 }
 
 /// S3.548/S3.551/S3.704: YOYO-built parse1 compiler PE for [`YOYO_COMPILER_PE_NAME`].
@@ -16310,6 +16331,43 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(stage17.contains("production_default=RUST"));
         assert!(include_str!("pe_dll_link.rs").contains("S3.710"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_g_closed_blockers"));
+    }
+
+    /// S3.711: shared-text dual-package ABSENT — parse1 in compiler PE, not export; pick A; ≠M4.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_shared_text_dual_package_probe_pin() {
+        let d = yoyo_shared_text_dual_package_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S711 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("shared-text") || s.contains("dual")));
+        assert!(d.iter().any(|s| s.contains("sheep") && s.contains("densify")));
+        assert!(!yoyo_shared_text_dual_package_ready());
+        let pe = yoyo_compiler_pe_bytes().expect("compiler");
+        let ascii = String::from_utf8_lossy(&pe);
+        assert!(
+            ascii.contains("yoyo_parse1_c"),
+            "compiler PE must carry parse1 marker"
+        );
+        // in-DLL recompile sidecar is oracle/export path — must NOT be full parse1 compiler machine
+        let dir = temp_work("s711-shared-text");
+        write_yoyo_in_dll_recompile_sidecar(&dir.join(RUNTIME_SIDECAR_NAME))
+            .expect("write in-dll-recompile sidecar");
+        let dll = std::fs::read(dir.join(RUNTIME_SIDECAR_NAME)).unwrap();
+        let dll_ascii = String::from_utf8_lossy(&dll);
+        assert!(
+            dll_ascii.contains("yoyo_in_dll_recompile"),
+            "export-path sidecar is in-dll-recompile oracle"
+        );
+        assert!(
+            !dll_ascii.contains("yoyo_parse1_c"),
+            "shared-text ABSENT: in-DLL sidecar must not embed parse1 compiler marker"
+        );
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(!yoyo_g_closed_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.711"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_shared_text_dual_package_design"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// S3.696: M4 flip prep/gates refreshed post-S695; inventory CUT hard gate; ≠ flip.
