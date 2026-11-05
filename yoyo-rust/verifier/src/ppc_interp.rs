@@ -194,7 +194,7 @@ impl Cpu {
                 }
                 0x00 => { // CMP / CMPD
                     let bf = (insn >> 23) & 0x7; // CR field
-                    let l = (insn >> 21) & 1; // 0=32-bit, 1=64-bit
+                    let _l = (insn >> 21) & 1; // 0=32-bit, 1=64-bit
                     if bf == 0 {
                         self.set_cr0(self.r(ra) as i64, self.r(rb) as i64);
                     }

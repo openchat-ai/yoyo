@@ -68,7 +68,11 @@ Win H_00+in-dll-recompile no-input may print `yoyo_in_dll_recompile_smoke=NOT_ST
 
 ## S3 compose/self-host preflight (path 2 progress · still CUT)
 
-As of S3.699–S3.728: CreateProcess≡live-compose, parse1≡exec, Gate I≡self-host, dual-path, nested, evidence pack, residual/drop-in/teach/shared-text/densify ABSENT floors, sheep floors (host-mini/bake-sole/invent-Stage), **G CLOSED blockers + evidence checklist named**. **Production default remains Rust** (`ALT` unset). **Disposition stays CUT** — checklist ≠ G CLOSED ≠ OW-RT CLOSED. See `POST-1.0-HOLE-CHECKLIST.md` tip / `yoyo_g_closed_evidence_checklist` / E1–E4 designs (`yoyo_e1_*`…`yoyo_e4_*`).
+As of S3.699–S3.731: CreateProcess≡live-compose, parse1≡exec, Gate I≡self-host, dual-path, nested, evidence pack, residual/drop-in/teach/shared-text/densify ABSENT floors, sheep floors, G CLOSED blockers + E1–E4 designs/scaffolds.
+
+**S3.732 human landing (E1/E2/E4):** production `place_cwd` Off → YOYO in-dll-recompile candidate (`E2_DEFAULT_STILL_RUST=false`; `production_default=YOYO_IN_DLL`). E3 stage17 fail-closed remains ARMED.
+
+**S3.733 E5 design:** oracle→full-compile clearance named — near path = co-place `yoyo_compiler.exe` with Off sidecar (CreateProcess contract A as primary evidence); oracle demotion still ABSENT. **Disposition stays CUT** — E5 clear / G CLOSED / OW-RT CLOSED still blocked. See `yoyo_e5_oracle_to_full_compile_design` / `POST-1.0-HOLE-CHECKLIST.md`.
 
 ## Remaining CUT after OW-RT CLOSED
 

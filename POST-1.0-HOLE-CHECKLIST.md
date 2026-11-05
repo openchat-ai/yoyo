@@ -4,31 +4,41 @@
 
 | | |
 | --- | --- |
-| **tip** | **S3.732** ⏳ **人审落地 E1→E2→E4**（E2/E3 scaffold 已 ARMED） |
+| **tip** | **S3.733** ✅ **E5 清闸设计已命名**（近路=co-place compiler PE；仍 ABSENT） |
 | **主线** | S1✅ S2✅ **S3⏳** · S4/S5 未开 |
-| **已站住** | E1 candidate · **E2 scaffold ARMED** · E3 ARMED |
-| **硬闸** | M4 / G CLOSED **ABSENT**（inventory CUT）· `ready=false` |
-| **禁** | silent flip / 改 E2_DEFAULT_STILL_RUST / 假 CLOSED |
-| **近刀** | 705–731 ✅ |
-| **git** | S731 → tip **S3.732** · **未 push** · bake=362 |
-
-自动脚手架刀已折尽。继续 = 人审落地。
+| **已站住** | E1–E4 · E5 **named** · **E5 clear 仍 ABSENT** |
+| **硬闸** | G CLOSED **ABSENT**（oracle≠full compile）· inventory CUT |
+| **禁** | 假 CLOSED / densify / invent Stage |
+| **近刀** | 705–733 ✅ |
+| **git** | tip **S3.733** · bake=362 |
 
 ## 下一刀
 
 | tip | 做什么 | 禁 |
 | --- | --- | --- |
-| **S3.732 人审** | E1 H_00 接 candidate → 翻 E2 const/Off → E4 disposition（E3 已 ARMED） | 静默 flip · 假 CLOSED |
+| **S3.734** | E5 近路：`place_cwd` Off 同目录 co-place `yoyo_compiler.exe`（CreateProcess≡full-compile 证据） | 假 CLOSED · densify |
 
-**缺口**：G CLOSED ABSENT。
+**缺口**：E5 clear / G CLOSED ABSENT。
+
+## HARD BLOCK（runner-only · 勿当本地回归）
+
+下列 `pe_dll_link` 测试保持 `#[ignore]`——**仅** GitHub `windows-latest` debug 复现；本地同 rustc 多轮不复现。主门禁 = `stage17-ow-rt-yoyo-runtime.ps1`（in-DLL recompile），不依赖它们。
+
+| 测试 | CI 现象 | 说明 |
+| --- | --- | --- |
+| `yoyo_sidecar_export_compile_success_writes_pe` | `STATUS_ACCESS_VIOLATION` | 旧 export-compile 路径；见 issue #37 |
+| `yoyo_sidecar_export_compile_probe_inproc` | `STATUS_STACK_BUFFER_OVERRUN` (`0xC0000409`) | `__fastfail` 绕过 VEH |
+| `yoyo_sidecar_export_compile_probe_subproc` | 同上 | 子进程探针同崩 |
+
+临时打开：`cargo test -p verifier --lib -- --include-ignored --exact <name>`。
 
 ## 验收
 
 ```powershell
 cd F:\yoyo\yoyo-rust\verifier
-cargo test --lib -- yoyo_e2_place_cwd_scaffold_pin yoyo_e1_production_sidecar_candidate_pin --test-threads=1
+cargo test --lib -- yoyo_e5_oracle_to_full_compile_design_pin yoyo_s3_732_human_e1_e2_e4_landing_pin --test-threads=1
 ```
 
 ---
 
-*post-v1.0 · tip S3.732*
+*post-v1.0 · tip S3.733 · next co-place*

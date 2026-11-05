@@ -10603,8 +10603,19 @@ pub fn compile_tyb_to_pe_link_compact_emit(
         msg: format!("s1 compile_tyb_to_pe_link_compact_emit: {e}"),
     })?;
     validate_tyb_mini(&prog)?;
-    let out = emit_x86(&prog);
-    crate::pe_link::link_pe_win32_compact(&out.text, &out.data, &[])
+    // S3.691 dual-path: ADD/SUB expect ≡ Win32/parse1 imm8 (same as child_expect).
+    // Empty-handler compact must stay byte-equal to child_expect for yoyo.tyb pins.
+    let (text, data) = if prog.records.iter().any(|r| r.op == 0x61 || r.op == 0x62) {
+        let win = crate::executor::compile_tyb_source(
+            tyb,
+            crate::platform::PlatformKind::Win32,
+        )?;
+        (win.code, win.data)
+    } else {
+        let out = emit_x86(&prog);
+        (out.text, out.data)
+    };
+    crate::pe_link::link_pe_win32_compact(&text, &data, &[])
 }
 
 /// S3.648/650/653/655: child CreateProcess expect — compact when

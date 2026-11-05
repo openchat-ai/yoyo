@@ -56,7 +56,7 @@ impl Cpu {
         self.steps += 1;
 
         let cond = insn >> 28;
-        let opcode = (insn >> 25) & 0x7;
+        let _opcode = (insn >> 25) & 0x7;
         let rd = ((insn >> 12) & 0xF) as usize;
         let rn = ((insn >> 16) & 0xF) as usize;
         let rm = (insn & 0xF) as usize;

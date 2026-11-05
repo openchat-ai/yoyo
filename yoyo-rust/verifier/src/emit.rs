@@ -40,7 +40,7 @@ pub fn emit_from_lines(lines: &[ty_parser::SourceLine], platform: PlatformKind) 
     emit_internal(&tir, platform, true)
 }
 
-fn emit_internal(tir: &[TirInst], platform: PlatformKind, track_handlers: bool) -> IsaResult<EmitOutput> {
+fn emit_internal(tir: &[TirInst], platform: PlatformKind, _track_handlers: bool) -> IsaResult<EmitOutput> {
     let mut backend = select_platform(platform);
     let mut code: Box<FixedBuf<CODE_BUF_CAP>> = FixedBuf::new_boxed();
     let mut data: Vec<u8> = Vec::new();

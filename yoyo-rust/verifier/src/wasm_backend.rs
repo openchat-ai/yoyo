@@ -529,7 +529,7 @@ fn encode_i32leb(v: i32) -> Vec<u8> {
         let byte = val & 0x7F;
         val >>= 7;
         let unsigned_byte = byte as u8;
-        let mut b = unsigned_byte;
+        let b = unsigned_byte;
         if (val == 0 && byte & 0x40 == 0) || (val == -1 && byte & 0x40 != 0) {
             out.push(b);
             break;

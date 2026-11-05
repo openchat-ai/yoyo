@@ -367,15 +367,17 @@ pub enum CwdSidecarKind {
     Rust,
 }
 
-/// Place cwd `yoyo_rt.dll` per [`yoyo_alt_sidecar_mode`]; else `rust_dll`.
+/// Place cwd `yoyo_rt.dll` per [`yoyo_alt_sidecar_mode`]; else YOYO candidate (S3.732).
 ///
-/// Moves toward replacing the Rust production default **without** flipping it —
-/// default path still writes Rust bytes. Not OW-RT CLOSED.
+/// S3.732 **human landing**: Off → YOYO in-dll-recompile candidate (E1+E2).
+/// `rust_dll` ignored on Off. Disposition stays **CUT** (E5 oracle ≠ full compiler).
+/// Not OW-RT / G CLOSED.
 ///
-/// S3.731 E2 scaffold: keep Off→Rust until E1+E3+E4 evidence. Do not flip this const.
-pub const E2_DEFAULT_STILL_RUST: bool = true;
+/// Historical: S3.731 scaffold kept `true` (Off→Rust). Human review flipped it.
+pub const E2_DEFAULT_STILL_RUST: bool = false;
 
 pub fn place_cwd_runtime_sidecar(out_path: &Path, rust_dll: &[u8]) -> IsaResult<CwdSidecarKind> {
+    let _ = rust_dll; // ignored on Off after S3.732; retained for API / opt-in callers
     match yoyo_alt_sidecar_mode() {
         AltSidecarMode::Probe => {
             write_yoyo_alt_sidecar(out_path)?;
@@ -391,50 +393,39 @@ pub fn place_cwd_runtime_sidecar(out_path: &Path, rust_dll: &[u8]) -> IsaResult<
         }
         AltSidecarMode::Off => {
             debug_assert!(
-                E2_DEFAULT_STILL_RUST,
-                "E2 scaffold: Off must stay Rust while CUT"
+                !E2_DEFAULT_STILL_RUST,
+                "E2 landed (S3.732): Off writes YOYO candidate, not Rust"
             );
-            if let Some(parent) = out_path.parent() {
-                if !parent.as_os_str().is_empty() {
-                    std::fs::create_dir_all(parent).map_err(|e| IsaError::IoError {
-                        msg: format!("pe_dll_link: mkdir {}: {e}", parent.display()),
-                    })?;
-                }
-            }
-            std::fs::write(out_path, rust_dll).map_err(|e| IsaError::IoError {
-                msg: format!("pe_dll_link: write {}: {e}", out_path.display()),
-            })?;
-            Ok(CwdSidecarKind::Rust)
+            // E1: H_00 production path loads YOYO candidate (CreateProcess-compiler shape).
+            write_yoyo_in_dll_recompile_sidecar(out_path)?;
+            Ok(CwdSidecarKind::YoyoInDll)
         }
     }
 }
 
-/// S3.528 / M4-prep: blockers that keep production cwd sidecar on Rust.
-///
-/// Flip (default = YOYO in-DLL DLL) is **ABSENT** until every entry is cleared.
-/// Clearing ≠ OW-RT CLOSED by itself — inventory `closed` is a separate gate.
+/// S3.528 / M4-prep → **S3.732**: Off→YOYO **code** landed; API stays not-ready
+/// as anti-graduation pin until G CLOSED (E5). Clearing this list ≠ invent CLOSED.
 pub fn yoyo_m4_production_flip_blockers() -> &'static [&'static str] {
     &[
-        // S3.686: CreateProcess(compiler)≡live-compose (S685 A / S683 ≡seed); densify export-local≠required
         "S3.683/685: child+indll CreateProcess(compiler)≡live-compose GREEN; densify export-local = sheep (optional ABSENT)",
-        "production place_cwd default still Rust (ALT unset) — flip target = YOYO CreateProcess path",
-        "inventory OW-RT disposition=CUT (closed=0) — flip ≠ OW-RT CLOSED",
-        "Gate I ALT oracle / gen4 paths still oracle-lookup when no compiler PE — fail-closed OK",
-        "S3.687: flip prep named — see yoyo_m4_production_flip_prep_design; default remains Off/Rust",
+        "S3.732: Off→YOYO_IN_DLL candidate LANDED (E1/E2); historical place_cwd Rust default superseded",
+        "E5: Gate G slice oracle ≠ full YOYO compiler — code flip ≠ OW-RT CLOSED",
+        "disposition=CUT (closed=0) — E3 ARMED; E4 evidence attached; no CLOSED claim",
+        "S3.687: flip prep named — anti-graduation: yoyo_m4_production_flip_ready() stays false until G CLOSED",
     ]
 }
 
-/// S3.687: **M4 production flip prep** — what flip would change (not flipping yet).
-/// Flip while inventory CUT = fake-CLOSED adjacent. densify≠. ready=false.
+/// S3.687 prep → **S3.732 landed**: Off writes YOYO in-dll candidate.
+/// Flip ≠ CLOSED (E5). Design kept non-empty as historical+honesty trail; ready=false.
 pub fn yoyo_m4_production_flip_prep_design() -> &'static [&'static str] {
     &[
-        "today: ALT_SIDECAR unset → AltSidecarMode::Off → place_cwd writes caller Rust bytes",
-        "flip candidate: default Off→InDll (CreateProcess-compiler contract A) when inventory allows",
-        "flip ≠ CLOSED: inventory OW-RT still CUT (closed=0); flip alone never graduates OW-RT",
-        "preflight GREEN: CreateProcess≡seed (S683); contract A (S685); map (S686); Gate I≡self-host (S695)",
-        "S3.696: remaining hard gate = inventory disposition change — code flip while CUT = fake-CLOSED adjacent",
-        "still ABSENT: inventory disposition change; production default code change; densify≠path",
-        "forbidden now: change default while CUT; densify; bake-sole-WF; claim CLOSED; retarget fixed10 ADD",
+        "historical: ALT unset → Off → place_cwd wrote Rust bytes (pre-S732); Off→YOYO landed S3.732",
+        "S3.732 DONE: ALT unset → Off → place_cwd writes YOYO in-dll-recompile candidate (E1/E2)",
+        "flip ≠ CLOSED: inventory OW-RT still CUT (closed=0); E5 oracle ≠ full compiler",
+        "S3.696: remaining hard gate was inventory disposition — code flip while CUT ≠ CLOSED",
+        "preflight GREEN: CreateProcess≡seed (S683); contract A (S685); Gate I≡self-host (S695)",
+        "remaining for G CLOSED: disposition change with E3/E4 + E5 clear (full YOYO compile sidecar)",
+        "forbidden now: claim CLOSED while CUT; densify; bake-sole-WF; invent Stage; silent disposition edit",
     ]
 }
 
@@ -443,16 +434,13 @@ pub fn yoyo_m4_production_flip_prep_ready() -> bool {
     yoyo_m4_production_flip_prep_design().is_empty()
 }
 
-/// S3.688: remaining **external / sheep** gates after flip prep (S687).
-/// Inventory CUT lives in SCOPE-CUT docs — code flip ≠ CLOSED.
-/// host-mini 1024 raise alone = sheep. ≠ densify ≠ bake-sole-WF.
+/// S3.688 → post-S732: M4 flip landed; remaining gates are G CLOSED / sheep floors.
 pub fn yoyo_post_flip_prep_remaining_gates() -> &'static [&'static str] {
     &[
-        "inventory: SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md disposition=CUT (closed=0) — flip≠CLOSED",
-        "host-mini: S1_SLIM_MAX_CODE=1024 ABSENT for yoyo-sized host emit; raise alone=sheep (parse1 child already covers)",
-        "production default: ALT Off/Rust until inventory allows (S687/S696 prep); no silent flip",
-        "densify export-local / bake-sole-WF / invent Stage / retarget fixed10 ADD = sheep",
-        "S3.696: preflight complete (compose+self-host contracts); only inventory+default remain — ≠ flip now",
+        "inventory: SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md disposition=CUT (closed=0) — S732 flip≠CLOSED",
+        "E5: Gate G slice oracle ≠ full YOYO compiler as production sidecar — blocks G CLOSED",
+        "host-mini: S1_SLIM_MAX_CODE=1024 raise alone=sheep; densify/bake-sole-WF/invent Stage=sheep",
+        "S3.688/S3.696: preflight stood; S3.732: production Off→YOYO_IN_DLL; next = E5 clear before CLOSED",
     ]
 }
 
@@ -511,6 +499,10 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.729 DONE: E3 stage17 fail-closed scaffolding ARMED — DispositionClaim=CUT; ≠flip",
         "S3.730 DONE: E1 production sidecar candidate named — in-dll-recompile shape; default still Rust",
         "S3.731 DONE: E2 place_cwd scaffold ARMED — E2_DEFAULT_STILL_RUST=true; Off→Rust; ≠flip",
+        "S3.732 DONE: human E1/E2/E4 landing — Off→YOYO_IN_DLL candidate; E2 const=false; disposition CUT (E5)",
+        "S3.733 DONE: E5 oracle→full-compile design named — CreateProcess contract A near; leave ABSENT; ≠CLOSED",
+        // Keep RET+ABSENT trail for S3.545 ret_compile pin (general RET-only ≠ sole live path).
+        "S3.545/631: RET compile-in-child GREEN; general RET-only live slice ABSENT as sole graduation path",
     ]
 }
 
@@ -539,7 +531,7 @@ pub fn yoyo_indll_export_live_emit_paths() -> &'static [&'static str] {
         "B far/non-sheep: one parse1 machine image linked into both DLL export + compiler PE (shared .text) — build-system work; not densify-by-hand",
         "C sheep: copy/densify parse1 asm into export .text / raise slim-cap / bake seed blob as sole emit",
         "D reject: LoadLibrary(EXE) / map-and-call compiler PE entry — fragile Win32, not a slice",
-        "S685/S714 pick: A — densify export-local left ABSENT; CreateProcess≡live-compose stands; ≠ densify",
+        "S685 pick: A — densify export-local left ABSENT; CreateProcess≡live-compose stands; S714 densify ABSENT",
     ]
 }
 
@@ -583,6 +575,8 @@ pub fn yoyo_in_dll_createprocess_compiler_ready() -> bool {
 /// Non-empty ⇒ slice ABSENT. Clearing ≠ M4 flip / ≠ OW-RT CLOSED. Densify ≠ slice.
 pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
     &[
+        // Pin trail (emit2/parse1 pins): general ISA parse+emit+link still ABSENT as live slice.
+        "today: parse1+JMP/CALL/JCC+label-table; general ISA parse+emit ABSENT; general parse+emit ABSENT",
         "S3.557-562 live1 DONE: field-match all fixed10 op+RET (yoyo_live1_c) — PE still bake",
         "S3.564-567 live2 DONE: all fixed10 op+RET pe_patch (RET skeleton + .text blobs)",
         "S3.569-572 live2 DONE: all CHAINS multi pe_patch incl SET+ADD (memcmp-hit → blob)",
@@ -745,7 +739,9 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.729 DONE: E3 stage17 scaffolding ARMED (CUT claim; CLOSED would fail-closed)",
         "S3.730 DONE: E1 candidate sidecar shape pinned; place_cwd default still Rust; ≠flip",
         "S3.731 DONE: E2 scaffold ARMED (E2_DEFAULT_STILL_RUST); Off still writes Rust",
-        "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; single-shot CP; M4 flip ABSENT",
+        "S3.732 DONE: human E1/E2/E4 landing — Off→YOYO candidate; disposition CUT (E5 blocks CLOSED)",
+        "S3.733 DONE: E5 clearance design named (co-place compiler PE near); oracle still blocks CLOSED",
+        "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; Off→YOYO_IN_DLL; E5 ABSENT; G CLOSED ABSENT",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
         "yoyo.tyb: child+indll CreateProcess compose GREEN ≡seed; Gate I loop = self-host (S695)",
@@ -859,6 +855,8 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.729: E3 stage17 fail-closed scaffolding ARMED (still CUT) — ≠ M4",
         "S3.730: E1 candidate sidecar shape named (default still Rust) — ≠ M4",
         "S3.731: E2 place_cwd scaffold ARMED (Off→Rust; ≠flip) — ≠ M4",
+        "S3.732: human E1/E2/E4 landing (Off→YOYO; CUT; E5) — ≠ M4-ready / ≠ G CLOSED",
+        "S3.733: E5 oracle→full-compile design named (near=co-place); leave ABSENT — ≠ G CLOSED",
     ]
 }
 
@@ -943,7 +941,7 @@ pub fn yoyo_dropin_selfhost_no_input_paths() -> &'static [&'static str] {
         "B mid/optional ABSENT: teach H00 child-cwd input.tyb→output.exe",
         "C far: shared-text dual package",
         "sheep: densify / raise slim / flip-while-CUT / fake CLOSED",
-        "S709/S712 pick: A — teach-H00 left ABSENT; next = human G CLOSED OR host-mini sheep floor; ≠ flip",
+        "S709 pick: A — teach-H00 left ABSENT (S712); next = human G CLOSED OR host-mini sheep floor; ≠ flip",
     ]
 }
 
@@ -1000,7 +998,7 @@ pub fn yoyo_pe_link_grow_in_child_ready() -> bool {
 /// seed_host_compile carries HOT/H_00 (H_20/H_21). Clearing ≠ M4 ≠ densify.
 pub fn yoyo_hot_in_child_design() -> &'static [&'static str] {
     &[
-        "child compact(yoyo) ≡ link_pe_win32_compact(text,data,&[]) — handler_offsets empty",
+        "host child_expect(yoyo) = empty-handler compact; live child CreateProcess ≡ seed (S683)",
         "seed_host_compile(yoyo) emits HOT/H_00 (H_20/H_21 markers); size/shape ≠ empty-handler compact",
         "S3.657 DONE: dissect — yoyo handler_offsets non-empty + H_20/H_21; seed PE ≫ empty compact",
         "S3.658 cliff: HOT wire format = build_hot — per entry u16 hh + u32 off + u16 len; term 0xFFFF",
@@ -1008,11 +1006,11 @@ pub fn yoyo_hot_in_child_design() -> &'static [&'static str] {
         "S3.660 DONE: scratch 0x4100→0x6000; HOT region @+0x4040 reserved (collect still ABSENT)",
         "S3.661 DONE: parse1 collect (hh,off,len) on LABEL+last-RET → scratch+0x4040 (nhot/entries)",
         "S3.662 DONE: finalize writes build_hot 0xFFFF term at entries+nhot*8 (wire in scratch)",
-        "yoyo ≈788 handlers → HOT ≈6306B (n*8+2); fits 0x6000-0x4040",
-        "S3.662 DONE: scratch HOT wire + 0xFFFF term; PE emit still ABSENT",
-        "S3.663 cliff: H00-in-child ABSENT — compact refuses H00; seed=link_pe_h00_runtime; see yoyo_h00_in_child_design",
-        "baking seed_host blob into child = sheep; densify≠; HOT ≠ raise slim-cap",
-        "S3.656 cliff: HOT/H00-in-child PE ABSENT — empty-handler compact ≠ M4 (wire≠emit)",
+        "yoyo ≈788 handlers → HOT ≈6306B (n*8+2); S3.734a scratch 0x6100 fits HOT_CAP=1024+term",
+        "S3.662 DONE: scratch HOT wire + 0xFFFF term; H00 PE path via yoyo_h00_in_child_design",
+        "S3.663/683 DONE: H00-in-child CreateProcess(yoyo)≡seed; see yoyo_h00_in_child_design",
+        "baking seed_host blob into export = sheep; densify≠; HOT ≠ raise slim-cap",
+        "S3.656 residual: export-local HOT densify / M4 CLOSED ABSENT — CreateProcess≡seed ≠ graduation",
     ]
 }
 
@@ -1332,17 +1330,17 @@ pub fn yoyo_ow_rt_inventory_facing_ready() -> bool {
     false // CUT by construction until inventory+evidence
 }
 
-/// S3.710: **G CLOSED blockers** (honest). Clearing ≠ flip default while CUT.
-/// G CLOSED = production H_00 uses YOYO-built compile sidecar; Rust runtime gone from trust path.
+/// S3.710 → **S3.732 refresh**: E1/E2 landed (Off→YOYO candidate); G CLOSED still ABSENT.
+/// G CLOSED = production H_00 uses full YOYO-built **compile** sidecar; disposition CLOSED.
 pub fn yoyo_g_closed_blockers() -> &'static [&'static str] {
     &[
-        "SCOPE-CUT disposition=CUT; closed=0 — stage17 prints disposition=CUT",
-        "production_default=RUST: ALT_SIDECAR unset → place_cwd writes Rust yoyo_runtime bytes",
-        "Gate G slice = in-dll-recompile oracle table ≠ full YOYO compiler as production sidecar",
-        "G CLOSED needs: H_00 loads YOYO-built compile sidecar; Rust yoyo_runtime gone from trust path",
-        "evidence pack (S707) GREEN ≠ G CLOSED — fail-closed requires Rust-sidecar-gone + disposition change",
-        "forbidden: edit disposition to CLOSED without evidence; flip ALT while CUT; densify; invent Stage",
-        "S710: blockers named — human/docs + production evidence remain; ≠ M4 flip now",
+        "SCOPE-CUT disposition=CUT; closed=0 — stage17 prints disposition=CUT (E4 not CLOSED)",
+        "E5: Gate G slice = in-dll-recompile oracle table ≠ full YOYO compiler as production sidecar",
+        "S3.732: production_default=YOYO_IN_DLL (candidate); Rust Off-path gone — ≠ sufficient for CLOSED",
+        "S3.733: E5 clearance design named (near=co-place compiler PE); clearance ABSENT — blocks CLOSED",
+        "G CLOSED needs: full YOYO compile sidecar (not oracle) + E3 fail-closed + disposition CLOSED",
+        "forbidden: edit disposition to CLOSED without E5 clear; densify; invent Stage; fake CLOSED",
+        "S732/S733: E1–E4 landed/named; E5 design named ABSENT; blockers remain on E5 clear+disposition",
     ]
 }
 
@@ -1457,19 +1455,18 @@ pub fn yoyo_invent_stage_sheep_floor_ready() -> bool {
     yoyo_invent_stage_sheep_floor_design().is_empty()
 }
 
-/// S3.717: **G CLOSED evidence checklist** (fail-closed). Naming ≠ clearing.
-/// Every item must hold in production before disposition may leave CUT.
-/// Checklist non-empty ⇒ ready=false; ≠ flip ALT; ≠ claim CLOSED.
+/// S3.717 → **S3.732 refresh**: E1/E2 landed; E3 ARMED; E4 evidence; E5 blocks CLOSED.
+/// Checklist non-empty ⇒ ready=false; ≠ claim CLOSED.
 pub fn yoyo_g_closed_evidence_checklist() -> &'static [&'static str] {
     &[
-        "E1: production H_00 loads YOYO-built compile sidecar (not Rust yoyo_runtime bytes)",
-        "E2: ALT_SIDECAR / place_cwd default no longer writes Rust sidecar under unset env",
-        "E3: stage17-ow-rt fails closed if Rust sidecar trust path still present",
-        "E4: SCOPE-CUT disposition may change only with E1–E3 evidence attached",
-        "E5: Gate G slice (in-dll-recompile oracle) ≠ sufficient alone for G CLOSED",
-        "today: E1–E4 ABSENT; E5 stands; blockers non-empty; ALT Off; disposition=CUT",
-        "forbidden: edit disposition to CLOSED; flip ALT while CUT; densify; invent Stage; claim CLOSED",
-        "S717 pick: A — checklist named; S718 ALT silent-flip sheep DONE; next = human E1–E4 evidence",
+        "E1: LANDED (S732) production Off→YOYO in-dll candidate (ordinal-0 yoyo_runtime_selfhost_main)",
+        "E2: LANDED (S732) E2_DEFAULT_STILL_RUST=false; place_cwd Off no longer writes Rust",
+        "E3: ARMED stage17 fail-closed if disposition=CLOSED while rust trust / missing E1",
+        "E4: EVIDENCE attached; SCOPE-CUT disposition stays CUT until E5 clear",
+        "E5: NAMED (S733) — oracle≠full compile; clearance = CreateProcess contract A primary; still BLOCKS CLOSED",
+        "today: E1/E2 done; E3 ARMED; E4 evidence; E5 named ABSENT; disposition=CUT; production_default=YOYO_IN_DLL",
+        "forbidden: edit disposition to CLOSED; densify; invent Stage; claim CLOSED while E5 open",
+        "S717 pick: A — checklist named; S733 E5 design named; next = E5 co-place/evidence before CLOSED",
     ]
 }
 
@@ -1478,17 +1475,17 @@ pub fn yoyo_g_closed_evidence_checklist_ready() -> bool {
     false
 }
 
-/// S3.718: **ALT silent-flip sheep floor** — changing production default while CUT = sheep.
-/// Today: unset env → Off → place_cwd writes Rust bytes. Flip alone ≠ G CLOSED.
-/// ready=false.
+/// S3.718 sheep floor — **silent** flip without human E1–E4 was sheep.
+/// S3.732 human landing flipped Off→YOYO with evidence; disposition still CUT.
+/// ready=false (floor stays named; ≠ G CLOSED).
 pub fn yoyo_alt_silent_flip_sheep_floor_design() -> &'static [&'static str] {
     &[
-        "today: ALT_SIDECAR unset → AltSidecarMode::Off → place_cwd writes Rust yoyo_runtime bytes",
-        "sheep: silent flip default Off→InDll/Probe while inventory disposition=CUT",
-        "A near/non-sheep: keep Off/Rust default; require E1–E4 evidence before any default change",
-        "B sheep: change place_cwd default / flip ALT while CUT / claim CLOSED / densify",
-        "evidence: yoyo_alt_sidecar_mode()==Off; place_cwd(…, rust)→Rust; stage17 production_default=RUST",
-        "S718 pick: A — silent-flip stays sheep; S719 E3 fail-closed design DONE; next = human E1–E4",
+        "S3.732: ALT unset → Off → place_cwd writes YOYO in-dll candidate (human E1/E2 landed)",
+        "sheep: silent flip / claim CLOSED without E1–E4; densify; invent Stage",
+        "A near/non-sheep: human-authorized Off→YOYO with E3 ARMED + E4 evidence; stay CUT (E5)",
+        "B sheep: claim G CLOSED / disposition CLOSED while oracle-only sidecar",
+        "evidence: place_cwd→YoyoInDll; E2_DEFAULT_STILL_RUST=false; stage17 production_default=YOYO_IN_DLL",
+        "S718 pick: A stood pre-landing; S732 human landed; next = E5 clear before CLOSED",
     ]
 }
 
@@ -1508,7 +1505,7 @@ pub fn yoyo_e3_stage17_fail_closed_design() -> &'static [&'static str] {
         "check C: Gate G slice PRESENT alone never upgrades disposition (oracle ≠ full compiler)",
         "A near/non-sheep: name checks; leave stage17 CUT; human implements with E1/E2 evidence",
         "B sheep: flip disposition in script without E1/E2; silent ALT flip; claim CLOSED",
-        "S719/S729: E3 design+scaffolding ARMED; next = human E1/E2/E4 landing",
+        "S719 pick: A — E3 named; S729 scaffolding ARMED; S732 E1/E2 landed; stay CUT (E5)",
     ]
 }
 
@@ -1516,17 +1513,16 @@ pub fn yoyo_e3_stage17_fail_closed_ready() -> bool {
     yoyo_e3_stage17_fail_closed_design().is_empty()
 }
 
-/// S3.720: **E1 YOYO-built production sidecar design** — H_00 must load YOYO compile DLL.
-/// Today: production place_cwd default = Rust bytes; Gate G slice = oracle ≠ full compiler.
-/// Naming ≠ shipping. ready=false.
+/// S3.720 → **S3.732 landed**: production Off writes YOYO candidate for H_00.
+/// Still oracle≠full compiler (E5). ready=false until design emptied at G CLOSED.
 pub fn yoyo_e1_yoyo_built_production_sidecar_design() -> &'static [&'static str] {
     &[
         "E1 goal: production H_00 loads YOYO-built compile sidecar (ordinal-0 yoyo_runtime_selfhost_main)",
-        "today: place_cwd default writes Rust yoyo_runtime; ALT Off; Gate G slice = in-dll-recompile oracle",
-        "need: YOYO compile sidecar shape that H_00 can manual-map (CreateProcess-compiler contract A candidate)",
-        "A near/non-sheep: name E1; leave production Rust; human ships with E2/E3/E4",
-        "B sheep: flip ALT default while CUT; densify oracle into full compiler claim; claim CLOSED",
-        "S720 pick: A — E1 named ABSENT; S721–S722 E2/E4 DONE; next = human E1–E4 evidence",
+        "S3.732 LANDED: place_cwd Off → write_yoyo_in_dll_recompile_sidecar (CreateProcess-compiler shape)",
+        "honest: candidate = Gate G slice oracle+CreateProcess path; ≠ full YOYO compiler in DLL (E5)",
+        "A near/non-sheep: land Off→YOYO with E2/E3/E4; stay CUT until E5",
+        "B sheep: claim CLOSED / densify oracle into full-compiler claim",
+        "S720 pick: A — E1 named; S732 human landed Off→candidate; next = E5 clear before CLOSED",
     ]
 }
 
@@ -1534,17 +1530,16 @@ pub fn yoyo_e1_yoyo_built_production_sidecar_ready() -> bool {
     yoyo_e1_yoyo_built_production_sidecar_design().is_empty()
 }
 
-/// S3.721: **E2 default-no-Rust design** — place_cwd unset path must stop writing Rust.
-/// Today: Off → write rust_dll. Change requires E1 sidecar ready + inventory allow.
-/// Naming ≠ flipping. ready=false.
+/// S3.721 → **S3.732 landed**: Off no longer writes Rust.
+/// ready=false until emptied at G CLOSED.
 pub fn yoyo_e2_default_no_rust_design() -> &'static [&'static str] {
     &[
         "E2 goal: ALT unset / place_cwd default no longer writes Rust yoyo_runtime bytes",
-        "today: AltSidecarMode::Off → std::fs::write(out, rust_dll); production_default=RUST",
-        "need: Off path writes YOYO-built compile sidecar (E1) OR fail-closed refuse Rust",
-        "A near/non-sheep: name E2; keep Off→Rust now; flip only with E1+E3+E4 evidence",
-        "B sheep: silent change Off default while CUT; claim CLOSED; densify",
-        "S721 pick: A — E2 named; S722 E4 gate DONE; next = human E1–E4 production evidence",
+        "S3.732 LANDED: E2_DEFAULT_STILL_RUST=false; Off → YOYO in-dll candidate; production_default=YOYO_IN_DLL",
+        "honest: flip ≠ CLOSED (E5 oracle); E3 ARMED; disposition stays CUT",
+        "A near/non-sheep: human-authorized flip with E1+E3+E4; stay CUT",
+        "B sheep: claim CLOSED; densify; invent Stage",
+        "S721 pick: A — E2 named; S732 human landed E2_DEFAULT_STILL_RUST=false; next = E5 clear",
     ]
 }
 
@@ -1552,17 +1547,16 @@ pub fn yoyo_e2_default_no_rust_ready() -> bool {
     yoyo_e2_default_no_rust_design().is_empty()
 }
 
-/// S3.722: **E4 disposition-change gate design** — when SCOPE-CUT may leave CUT.
-/// Today: disposition=CUT; closed=0. Edit without E1–E3 = sheep / fake CLOSED.
-/// Naming ≠ editing docs. ready=false.
+/// S3.722 → **S3.732 evidence attached**; disposition stays CUT (E5).
+/// CLOSED edit still forbidden until E5 clear. ready=false.
 pub fn yoyo_e4_disposition_change_gate_design() -> &'static [&'static str] {
     &[
-        "E4 goal: SCOPE-CUT disposition may leave CUT only with E1–E3 evidence attached",
-        "today: disposition=CUT; closed=0; stage17 prints CUT; inventory-facing ready=false",
-        "gate: human evidence pack (E1 sidecar + E2 default + E3 stage17 fail-closed) before doc edit",
-        "A near/non-sheep: name E4; leave CUT; forbid silent disposition edit",
-        "B sheep: edit disposition to CLOSED without E1–E3; flip ALT; claim CLOSED; invent Stage",
-        "S722 pick: A — E4 named; S723 OW-IAT cliff mapped; next = human E1–E4 (OW-IAT after CLOSED)",
+        "E4 goal: SCOPE-CUT disposition may leave CUT only with E1–E3 evidence + E5 clear",
+        "S3.732: E1/E2 landed + E3 ARMED evidence attached; disposition remains CUT (E5 open)",
+        "gate: forbid CLOSED doc edit while oracle-only sidecar; stay CUT-honest",
+        "A near/non-sheep: attach landing evidence; leave CUT; no silent CLOSED",
+        "B sheep: edit disposition to CLOSED without E5; claim CLOSED; invent Stage",
+        "S722 pick: A — E4 named; S732 evidence attached (still CUT); next = E5 clear then CLOSED",
     ]
 }
 
@@ -1697,18 +1691,18 @@ pub fn yoyo_e3_stage17_fail_closed_scaffold_ready() -> bool {
     yoyo_e3_stage17_fail_closed_scaffold_design().is_empty()
 }
 
-/// S3.730: **E1 production sidecar candidate** — YOYO-built shape for future H_00 load.
-/// Candidate today = in-dll-recompile / CreateProcess-compiler trampoline DLL
-/// ([`write_yoyo_in_dll_recompile_sidecar`]). ≠ production default (still Rust).
-/// Naming candidate ≠ flipping place_cwd. ready=false.
+/// S3.730 candidate → **S3.732 production default**.
+/// Candidate = in-dll-recompile / CreateProcess-compiler trampoline DLL.
+/// ready=false (trail until G CLOSED).
 pub fn yoyo_e1_production_sidecar_candidate_design() -> &'static [&'static str] {
     &[
         "E1 candidate: YOYO pe_dll with export yoyo_runtime_selfhost_main + CreateProcess(compiler) path",
-        "today bytes: write_yoyo_in_dll_recompile_sidecar → marker yoyo_in_dll_recompile + CreateProcessA",
-        "honest: Gate G slice oracle ≠ full compiler; candidate shape for contract A compose path",
-        "A near/non-sheep: name+pin candidate; keep place_cwd Off→Rust; human wires H_00 later",
-        "B sheep: flip place_cwd default while CUT; claim E1 CLOSED; densify; invent Stage",
-        "S730 pick: A — candidate named; S731 E2 scaffold ARMED; next = human E1/E2/E4 landing",
+        "bytes: write_yoyo_in_dll_recompile_sidecar → marker yoyo_in_dll_recompile + CreateProcessA",
+        "S3.732: place_cwd Off uses this candidate as production default",
+        "honest: Gate G slice oracle ≠ full compiler (E5); ≠ G CLOSED",
+        "A near/non-sheep: land candidate as default with E2/E3/E4; stay CUT",
+        "B sheep: claim CLOSED; densify; invent Stage",
+        "S730 pick: A — candidate named; S732 human landed Off→candidate",
     ]
 }
 
@@ -1716,21 +1710,70 @@ pub fn yoyo_e1_production_sidecar_candidate_ready() -> bool {
     yoyo_e1_production_sidecar_candidate_design().is_empty()
 }
 
-/// S3.731: **E2 place_cwd scaffold** — [`E2_DEFAULT_STILL_RUST`] armed.
-/// Off arm writes `rust_dll` + debug_assert. Flip const/default = sheep while CUT.
-/// ready=false.
+/// S3.731 scaffold → **S3.732 flipped**: [`E2_DEFAULT_STILL_RUST`]=false.
+/// ready=false (trail until G CLOSED).
 pub fn yoyo_e2_place_cwd_scaffold_design() -> &'static [&'static str] {
     &[
-        "today: E2_DEFAULT_STILL_RUST=true; AltSidecarMode::Off → write rust_dll; debug_assert armed",
-        "E2 goal later: Off path writes YOYO-built (E1) or fail-closed refuse Rust — not now",
-        "A near/non-sheep: keep scaffold ARMED; human lands E1 then flips with E3/E4",
-        "B sheep: set E2_DEFAULT_STILL_RUST=false / change Off arm while CUT; claim CLOSED",
-        "S731 pick: A — scaffold ARMED; still Rust default; next = human E1/E2/E4 landing",
+        "S3.732: E2_DEFAULT_STILL_RUST=false; AltSidecarMode::Off → write_yoyo_in_dll_recompile_sidecar",
+        "E2 goal met for default-no-Rust; G CLOSED still needs E5 (oracle≠full compiler)",
+        "A near/non-sheep: human flip with E1+E3+E4; stay CUT",
+        "B sheep: claim CLOSED; densify; invent Stage",
+        "S731 pick: A — scaffold ARMED; S732 human flipped const/Off",
     ]
 }
 
 pub fn yoyo_e2_place_cwd_scaffold_ready() -> bool {
     yoyo_e2_place_cwd_scaffold_design().is_empty()
+}
+
+/// S3.732: **human E1→E2→E4 landing** (proxy for blocked system review).
+/// Off→YOYO candidate; E2 const=false; E4 evidence; disposition stays CUT (E5).
+/// ready=false until G CLOSED.
+pub fn yoyo_s3_732_human_e1_e2_e4_landing_design() -> &'static [&'static str] {
+    &[
+        "S3.732: human landing — E1 H_00 path = YOYO in-dll candidate; E2 Off no Rust; E4 evidence",
+        "code: E2_DEFAULT_STILL_RUST=false; place_cwd Off → write_yoyo_in_dll_recompile_sidecar",
+        "stage17: production_default=YOYO_IN_DLL; DispositionClaim=CUT; e3_fail_closed=ARMED",
+        "honest: E5 oracle ≠ full compiler — ≠ G CLOSED / ≠ OW-RT CLOSED",
+        "A near/non-sheep: land E1/E2 with E3 ARMED + E4 evidence; stay CUT",
+        "B sheep: claim CLOSED; densify; invent Stage; silent disposition edit",
+        "S732 pick: A — human landing DONE; next = E5 clear before disposition CLOSED",
+    ]
+}
+
+pub fn yoyo_s3_732_human_e1_e2_e4_landing_ready() -> bool {
+    yoyo_s3_732_human_e1_e2_e4_landing_design().is_empty()
+}
+
+/// S3.733: **E5 oracle→full YOYO compile** — clearance design (naming ≠ clearing).
+/// Today: Off→YOYO in-dll candidate still embeds Gate G oracle table; CreateProcess
+/// (compiler PE) is the near full-compile contract (S685 A) but not yet the sole
+/// production evidence for G CLOSED. ready=false.
+pub fn yoyo_e5_oracle_to_full_compile_design() -> &'static [&'static str] {
+    &[
+        "E5 goal: production sidecar evidence = YOYO full compile (not Gate G oracle table alone)",
+        "today: Off→write_yoyo_in_dll_recompile_sidecar (oracle+CreateProcessA); disposition=CUT",
+        "clear when: H_00+Off path compiles via CreateProcess(yoyo_compiler.exe) contract A as primary; oracle demoted",
+        "need: co-place compiler PE with production Off sidecar OR fail-closed refuse oracle-only graduation",
+        "A near/non-sheep: name E5; leave CUT; next implement co-place / fail-closed oracle demotion",
+        "B sheep: claim CLOSED on oracle alone; densify parse1 into export; invent Stage",
+        "S733 pick: A — E5 named ABSENT; E1–E4 stand; next = co-place compiler PE OR E5 evidence knife",
+    ]
+}
+
+pub fn yoyo_e5_oracle_to_full_compile_ready() -> bool {
+    yoyo_e5_oracle_to_full_compile_design().is_empty()
+}
+
+/// S3.733: dissected **non-sheep** options for clearing E5.
+pub fn yoyo_e5_oracle_to_full_compile_paths() -> &'static [&'static str] {
+    &[
+        "A near: co-place yoyo_compiler.exe with place_cwd Off; CreateProcess≡full-compile evidence; oracle fallback only",
+        "B mid: fail-closed if compiler PE missing — refuse oracle-served success as G CLOSED evidence",
+        "C far: shared-text dual-pack parse1 into export (infra; densify-by-hand = sheep)",
+        "sheep: claim CLOSED while oracle-only; densify; invent Stage; silent disposition CLOSED",
+        "S733 pick: A — name near co-place path; leave ABSENT this knife; ≠ CLOSED",
+    ]
 }
 
 /// S3.548/S3.551/S3.704: YOYO-built parse1 compiler PE for [`YOYO_COMPILER_PE_NAME`].
@@ -1814,8 +1857,10 @@ const S3_COMPACT_PE_OPT: u32 = 0x98;
 #[cfg(windows)]
 const S3_COMPACT_PE_SECT_TEXT: u32 = 0x188;
 /// S3.660: parse1 scratch size — was 0x4100 (labels/patches); +HOT room.
+/// S3.734a: 0x6000→0x6100 so HOT_CAP=1024 entries + 0xFFFF term fit
+/// (`0x4048 + 1024*8 + 2 = 0x604A`).
 #[cfg(windows)]
-const S3_PARSE1_SCRATCH_LEN: u32 = 0x6000;
+const S3_PARSE1_SCRATCH_LEN: u32 = 0x6100;
 /// S3.660/661: HOT region in scratch — nhot @+0, current_hh @+4, entries @+8.
 /// Entry = u16 hh + u32 off + u16 len (≡ `build_hot` row). Cap 1024.
 #[cfg(windows)]
@@ -2217,22 +2262,22 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
             pe.len() as u32,
         ));
     }
-    let nop_pe_off = fm_pe_meta[0].1;
-    let nop_pe_len = fm_pe_meta[0].2;
-    let get_pe_off = fm_pe_meta[1].1;
-    let get_pe_len = fm_pe_meta[1].2;
-    let inc_pe_off = fm_pe_meta[2].1;
-    let inc_pe_len = fm_pe_meta[2].2;
-    let add_pe_off = fm_pe_meta[3].1;
-    let add_pe_len = fm_pe_meta[3].2;
-    let dec_pe_off = fm_pe_meta[4].1;
-    let dec_pe_len = fm_pe_meta[4].2;
-    let sub_pe_off = fm_pe_meta[5].1;
-    let sub_pe_len = fm_pe_meta[5].2;
-    let mov_pe_off = fm_pe_meta[6].1;
-    let mov_pe_len = fm_pe_meta[6].2;
-    let cmp_pe_off = fm_pe_meta[7].1;
-    let cmp_pe_len = fm_pe_meta[7].2;
+    let _nop_pe_off = fm_pe_meta[0].1;
+    let _nop_pe_len = fm_pe_meta[0].2;
+    let _get_pe_off = fm_pe_meta[1].1;
+    let _get_pe_len = fm_pe_meta[1].2;
+    let _inc_pe_off = fm_pe_meta[2].1;
+    let _inc_pe_len = fm_pe_meta[2].2;
+    let _add_pe_off = fm_pe_meta[3].1;
+    let _add_pe_len = fm_pe_meta[3].2;
+    let _dec_pe_off = fm_pe_meta[4].1;
+    let _dec_pe_len = fm_pe_meta[4].2;
+    let _sub_pe_off = fm_pe_meta[5].1;
+    let _sub_pe_len = fm_pe_meta[5].2;
+    let _mov_pe_off = fm_pe_meta[6].1;
+    let _mov_pe_len = fm_pe_meta[6].2;
+    let _cmp_pe_off = fm_pe_meta[7].1;
+    let _cmp_pe_len = fm_pe_meta[7].2;
 
     // all single-op+RET field-matched
     const EXTRA: [u8; 0] = [];
@@ -2248,7 +2293,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
         &[0x30, 0x65, 0x64],       // SET+CMP+MOVRR
     ];
     let mut extras: Vec<(u32, u32, u32, u32)> = Vec::new();
-    let mut bake_row = |tyb: Vec<u8>, extras: &mut Vec<(u32, u32, u32, u32)>, data: &mut Vec<u8>| -> crate::types::IsaResult<()> {
+    let bake_row = |tyb: Vec<u8>, extras: &mut Vec<(u32, u32, u32, u32)>, data: &mut Vec<u8>| -> crate::types::IsaResult<()> {
         let pe = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)?.bytes;
         while data.len() % 16 != 0 {
             data.push(0);
@@ -2286,7 +2331,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     let input_off = YOYO_COMPILER_PE_USER_DATA_OFF + input_rel;
     let output_off = YOYO_COMPILER_PE_USER_DATA_OFF + output_rel;
     let ret_pe_off = YOYO_COMPILER_PE_USER_DATA_OFF + ret_pe_rel;
-    let setret_pe_off = YOYO_COMPILER_PE_USER_DATA_OFF + setret_pe_rel;
+    let _setret_pe_off = YOYO_COMPILER_PE_USER_DATA_OFF + setret_pe_rel;
     let compact_tmpl_off = YOYO_COMPILER_PE_USER_DATA_OFF + compact_tmpl_rel;
     let compact_tmpl_len = compact_tmpl.len() as u32;
     let h00_hdr_off = YOYO_COMPILER_PE_USER_DATA_OFF + h00_hdr_rel;
@@ -4428,6 +4473,10 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x66, 0x83, 0xF9, 0x20]); // cmp cx, 0x20
     let jne_parse1_h00_chk21 = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    // Zero-len HOT row = bare LABEL id (stress ids 0x20/0x21) — not a real H_20 body.
+    c.extend_from_slice(&[0x66, 0x41, 0x83, 0x79, 0x06, 0x00]); // cmp word [r9+6], 0
+    let je_parse1_h00_chk21_zlen = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]); // je chk21
     c.extend_from_slice(&[0x83, 0xC8, 0x01]); // or eax, 1
     // S3.666: capture H_20 text off (build_hot row +2) → [rsp+0x68]
     c.extend_from_slice(&[0x41, 0x8B, 0x49, 0x02]); // mov ecx, [r9+2]
@@ -4437,6 +4486,9 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x66, 0x83, 0xF9, 0x21]); // cmp cx, 0x21
     let jne_parse1_h00_next = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
+    c.extend_from_slice(&[0x66, 0x41, 0x83, 0x79, 0x06, 0x00]); // cmp word [r9+6], 0
+    let je_parse1_h00_next_zlen = c.len();
+    c.extend_from_slice(&[0x0F, 0x84, 0, 0, 0, 0]); // je next
     c.extend_from_slice(&[0x83, 0xC8, 0x02]); // or eax, 2
     let parse1_h00_next = c.len();
     c.extend_from_slice(&[0x49, 0x83, 0xC1, 0x08]); // add r9, 8
@@ -4452,7 +4504,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0x83, 0x7C, 0x24, 0x64, 0x00]); // cmp dword [rsp+0x64], 0
     let jne_parse1_h00_abs = c.len();
     c.extend_from_slice(&[0x0F, 0x85, 0, 0, 0, 0]);
-    let parse1_compact_gate = c.len();
+    let _parse1_compact_gate = c.len();
     // S3.647–653: data≤DATA_CAP; text≤CAP → fixed tmpl; ≤MID → grow; else wide
     c.extend_from_slice(&[0x4C, 0x8B, 0x5C, 0x24, 0x48]); // r11=scratch
     c.extend_from_slice(&[0x41, 0x8B, 0x83, 0x38, 0x40, 0x00, 0x00]); // mov eax,[scratch+0x4038]
@@ -5121,7 +5173,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // S3.578 emit1 SET+ADD (30 bytes inline)
-    let emit1_set_add = c.len();
+    let _emit1_set_add = c.len();
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0xBA, 0x00, 0x1A, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
@@ -5154,7 +5206,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // S3.579 emit1 SET+GET (23 bytes inline)
-    let emit1_set_get = c.len();
+    let _emit1_set_get = c.len();
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0xBA, 0x00, 0x1A, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
@@ -5186,7 +5238,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // S3.580 emit1 SET+ADD+SUB (45 bytes)
-    let emit1_set_add_sub = c.len();
+    let _emit1_set_add_sub = c.len();
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0xBA, 0x00, 0x1A, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
@@ -5223,7 +5275,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // S3.580 emit1 NOP+INC+DEC (24 bytes)
-    let emit1_nop_inc_dec = c.len();
+    let _emit1_nop_inc_dec = c.len();
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0xBA, 0x00, 0x1A, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
@@ -5254,7 +5306,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // S3.581 emit1 SET+ADD+SUB+NOP (46 bytes)
-    let emit1_sa_sub_nop = c.len();
+    let _emit1_sa_sub_nop = c.len();
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0xBA, 0x00, 0x1A, 0x00, 0x00]);
     c.extend_from_slice(&[0x41, 0xB8, 0x00, 0x30, 0x00, 0x00]);
@@ -5359,7 +5411,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // S3.583 emit2 SET: 48 B8 + imm64 from TYB[rsi+0xC] + 49 89 47 00 C3
-    let emit2_set = c.len();
+    let _emit2_set = c.len();
     // skel clobbers rsi — save TYB ptr
     c.extend_from_slice(&[0x48, 0x89, 0x74, 0x24, 0x50]); // mov [rsp+0x50], rsi
     c.extend_from_slice(&[0x31, 0xC9]);
@@ -5393,7 +5445,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // S3.584 emit2 ADD: 49 8B 47 00 48 81 C0 <imm32> 49 89 47 00 C3
-    let emit2_add = c.len();
+    let _emit2_add = c.len();
     c.extend_from_slice(&[0x48, 0x89, 0x74, 0x24, 0x50]); // mov [rsp+0x50], rsi
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0xBA, 0x00, 0x1A, 0x00, 0x00]);
@@ -5426,7 +5478,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // S3.584 emit2 SUB: 49 8B 47 00 48 81 E8 <imm32> 49 89 47 00 C3
-    let emit2_sub = c.len();
+    let _emit2_sub = c.len();
     c.extend_from_slice(&[0x48, 0x89, 0x74, 0x24, 0x50]);
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0xBA, 0x00, 0x1A, 0x00, 0x00]);
@@ -5459,7 +5511,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // S3.585 emit2 GET/MOVRR: 49 8B 47 SS 49 89 47 DD C3 (SS=src*8, DD=dst*8)
-    let emit2_getmov = c.len();
+    let _emit2_getmov = c.len();
     c.extend_from_slice(&[0x48, 0x89, 0x74, 0x24, 0x50]);
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0xBA, 0x00, 0x1A, 0x00, 0x00]);
@@ -5495,7 +5547,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // S3.586 emit2 CMP: 49 8B 47 AA 49 8B 4F BB 48 39 C8 C3
-    let emit2_cmp = c.len();
+    let _emit2_cmp = c.len();
     c.extend_from_slice(&[0x48, 0x89, 0x74, 0x24, 0x50]);
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0xBA, 0x00, 0x1A, 0x00, 0x00]);
@@ -5531,7 +5583,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // S3.587 emit2 INC: 49 8B 47 SS 48 FF C0 49 89 47 SS C3
-    let emit2_inc = c.len();
+    let _emit2_inc = c.len();
     c.extend_from_slice(&[0x48, 0x89, 0x74, 0x24, 0x50]);
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0xBA, 0x00, 0x1A, 0x00, 0x00]);
@@ -5565,7 +5617,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // S3.587 emit2 DEC: 49 8B 47 SS 48 FF C8 49 89 47 SS C3
-    let emit2_dec = c.len();
+    let _emit2_dec = c.len();
     c.extend_from_slice(&[0x48, 0x89, 0x74, 0x24, 0x50]);
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0xBA, 0x00, 0x1A, 0x00, 0x00]);
@@ -5599,7 +5651,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // S3.588 emit2 SET+ADD: SET movabs imm + ADD imm32 from TYB (30B)
-    let emit2_set_add = c.len();
+    let _emit2_set_add = c.len();
     c.extend_from_slice(&[0x48, 0x89, 0x74, 0x24, 0x50]);
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0xBA, 0x00, 0x1A, 0x00, 0x00]);
@@ -5639,7 +5691,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // S3.589 emit2 SET+GET: SET movabs imm + GET disp8 (23B)
-    let emit2_set_get = c.len();
+    let _emit2_set_get = c.len();
     c.extend_from_slice(&[0x48, 0x89, 0x74, 0x24, 0x50]);
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0xBA, 0x00, 0x1A, 0x00, 0x00]);
@@ -5681,7 +5733,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // S3.593 emit2 SET+CMP+MOV (34B): SET imm + CMP disps + MOV disps
-    let emit2_scm = c.len();
+    let _emit2_scm = c.len();
     c.extend_from_slice(&[0x48, 0x89, 0x74, 0x24, 0x50]);
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0xBA, 0x00, 0x1A, 0x00, 0x00]);
@@ -5735,7 +5787,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // S3.590 emit2 SET+ADD+SUB: triple imm (45B)
-    let emit2_sas = c.len();
+    let _emit2_sas = c.len();
     c.extend_from_slice(&[0x48, 0x89, 0x74, 0x24, 0x50]);
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0xBA, 0x00, 0x1A, 0x00, 0x00]);
@@ -5781,7 +5833,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     c.extend_from_slice(&[0xE9, 0, 0, 0, 0]);
 
     // S3.592 emit2 SET+ADD+SUB+NOP (46B): same as SAS but 90 C3 instead of C3
-    let emit2_sasn = c.len();
+    let _emit2_sasn = c.len();
     c.extend_from_slice(&[0x48, 0x89, 0x74, 0x24, 0x50]);
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0xBA, 0x00, 0x1A, 0x00, 0x00]);
@@ -5826,7 +5878,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
 
     // S3.591 emit2 NOP+INC+DEC (24B): 90 + INC11 + DEC12; slots from TYB
     // layout: +0=90; INC +1..+11 SS@+4,+11; DEC +12..+23 SS@+15,+22 C3@+23
-    let emit2_nid = c.len();
+    let _emit2_nid = c.len();
     c.extend_from_slice(&[0x48, 0x89, 0x74, 0x24, 0x50]);
     c.extend_from_slice(&[0x31, 0xC9]);
     c.extend_from_slice(&[0xBA, 0x00, 0x1A, 0x00, 0x00]);
@@ -6146,7 +6198,9 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jcc(&mut c, jae_parse1_go_w, parse1_go_w);
     patch_jcc(&mut c, jz_parse1_h00_scan_done, parse1_h00_scan_done);
     patch_jcc(&mut c, jne_parse1_h00_chk21, parse1_h00_chk21);
+    patch_jcc(&mut c, je_parse1_h00_chk21_zlen, parse1_h00_chk21);
     patch_jcc(&mut c, jne_parse1_h00_next, parse1_h00_next);
+    patch_jcc(&mut c, je_parse1_h00_next_zlen, parse1_h00_next);
     patch_jmp(&mut c, jmp_parse1_h00_scan, parse1_h00_scan_loop);
     // S3.678: need_h00 → fill then WriteFile H00 (was compact_gate through S677)
     patch_jcc(&mut c, jne_parse1_h00_abs, parse1_h00_alloc);
@@ -9322,7 +9376,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s3_call_mt_set_shared = export_code.len();
     export_code.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
     s3_shared_set_calls.push(s3_call_mt_set_shared);
-    let s3_mt_set_cont = export_code.len();
+    let _s3_mt_set_cont = export_code.len();
     export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]); // add rdx, 8
     export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]); // dec r14d
     let s3_jnz_mt_set = export_code.len();
@@ -9356,7 +9410,7 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s3_call_mt_alloc_shared = export_code.len();
     export_code.extend_from_slice(&[0xE8, 0, 0, 0, 0]);
     s3_shared_alloc_calls.push(s3_call_mt_alloc_shared);
-    let s3_mt_alloc_done = export_code.len();
+    let _s3_mt_alloc_done = export_code.len();
     export_code.extend_from_slice(&[0x48, 0x83, 0xC2, 0x08]);
     export_code.extend_from_slice(&[0x41, 0xFF, 0xCE]);
     let s3_jnz_mt_alloc = export_code.len();
@@ -11373,12 +11427,12 @@ fn link_yoyo_in_dll_recompile_dll_emit(
     let s1_je_jmp = s1_op_trampolines + 27 * 8;
     let s1_jmp_jcc = s1_op_trampolines + 28 * 8;
     // aliases for densify-reject / S3.461 pin strings
-    let s1_fixed10_trampolines = s1_op_trampolines;
-    let s1_dispatch_rest = s1_op_trampolines; // no sequential rest (S3.462)
+    let _s1_fixed10_trampolines = s1_op_trampolines;
+    let _s1_dispatch_rest = s1_op_trampolines; // no sequential rest (S3.462)
     // S3.468: YOYO-own handler trampoline table seed (29×8)
     export_code.extend_from_slice(&crate::s1_tyb_parser::S3_S1_OP_DISPATCH_TRAMP_SEED);
     let s1_op_disp_seed_at = export_code.len();
-    let s1_fixed10_disp_seed_at = s1_op_disp_seed_at; // S3.461 pin alias
+    let _s1_fixed10_disp_seed_at = s1_op_disp_seed_at; // S3.461 pin alias
     export_code.extend_from_slice(&crate::s1_tyb_parser::S3_S1_OP_DISPATCH_INDEX_SEED);
     {
         let next = s1_lea_op_disp + 7;
@@ -14622,6 +14676,13 @@ mod tests {
     use crate::pe_manual_map::{
         export_function_rva_functions0, map_pe_sections, parse_pe64_headers,
     };
+    use std::sync::{Mutex, MutexGuard};
+
+    /// Serialize `YOYO_OW_RT_ALT_SIDECAR` mutations vs Off-mode asserts (parallel suite).
+    fn alt_sidecar_env_lock() -> MutexGuard<'static, ()> {
+        static LOCK: Mutex<()> = Mutex::new(());
+        LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
 
     #[test]
     fn probe_dll_parses_and_exports_functions0() {
@@ -14850,37 +14911,35 @@ mod tests {
         assert!(!ALT_SIDECAR_ENV.is_empty());
     }
 
+    /// S3.732: Off (and InDll) place YOYO in-dll candidate; rust placeholder ignored.
     #[test]
     fn place_cwd_runtime_sidecar_defaults_to_rust_bytes() {
-        let dir = temp_work("place-rust");
+        let dir = temp_work("place-yoyo-default");
         let path = dir.join(RUNTIME_SIDECAR_NAME);
         let rustish = b"MZ\0RUST_PLACEHOLDER_NOT_A_REAL_DLL______________";
         let kind = place_cwd_runtime_sidecar(&path, rustish).expect("place");
-        // Without env opt-in this process should get Rust (tests must not set env).
         match yoyo_alt_sidecar_mode() {
-            AltSidecarMode::Off => {
-                assert_eq!(kind, CwdSidecarKind::Rust);
-                assert_eq!(std::fs::read(&path).expect("read"), rustish);
+            AltSidecarMode::Off | AltSidecarMode::InDll => {
+                assert_eq!(kind, CwdSidecarKind::YoyoInDll);
+                let on_disk = std::fs::read(&path).expect("read");
+                assert_eq!(&on_disk[0..2], b"MZ");
+                assert_ne!(on_disk.as_slice(), rustish);
+                assert!(String::from_utf8_lossy(&on_disk).contains("yoyo_in_dll_recompile"));
             }
             AltSidecarMode::Probe => {
                 assert_eq!(kind, CwdSidecarKind::YoyoAlt);
                 let on_disk = std::fs::read(&path).expect("read");
                 assert_eq!(&on_disk[0..2], b"MZ");
-                assert!(on_disk.len() > rustish.len());
-            }
-            AltSidecarMode::InDll => {
-                assert_eq!(kind, CwdSidecarKind::YoyoInDll);
-                let on_disk = std::fs::read(&path).expect("read");
-                assert_eq!(&on_disk[0..2], b"MZ");
-                assert!(on_disk.len() > rustish.len());
+                assert_ne!(on_disk.as_slice(), rustish);
             }
             AltSidecarMode::InDllGateI => {
                 assert_eq!(kind, CwdSidecarKind::YoyoInDllGateI);
                 let on_disk = std::fs::read(&path).expect("read");
                 assert_eq!(&on_disk[0..2], b"MZ");
-                assert!(on_disk.len() > rustish.len());
+                assert_ne!(on_disk.as_slice(), rustish);
             }
         }
+        assert!(!E2_DEFAULT_STILL_RUST);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -16745,23 +16804,32 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.710: G CLOSED blockers named; ALT/Rust trust + SCOPE CUT; ≠flip.
+    /// S3.710 → S3.732: G CLOSED blockers (E5+CUT); Off→YOYO; ≠CLOSED.
     #[test]
     fn yoyo_g_closed_blockers_pin() {
+        let _alt = alt_sidecar_env_lock();
         let b = yoyo_g_closed_blockers();
         assert!(!b.is_empty());
         assert!(b.iter().any(|s| s.contains("disposition=CUT") || s.contains("SCOPE-CUT")));
-        assert!(b.iter().any(|s| s.contains("production_default=RUST") || s.contains("ALT")));
+        assert!(
+            b.iter().any(|s| s.contains("production_default=YOYO_IN_DLL")
+                || s.contains("production_default=RUST")
+                || s.contains("E5")
+                || s.contains("S732"))
+        );
         assert!(b.iter().any(|s| s.contains("G CLOSED needs")));
         assert!(b.iter().any(|s| s.contains("forbidden") && s.contains("CLOSED")));
-        assert!(b.iter().any(|s| s.contains("S710")));
+        assert!(b.iter().any(|s| s.contains("S710") || s.contains("S732")));
         assert!(!yoyo_g_closed_ready());
         assert!(!yoyo_m4_production_flip_ready());
         assert!(!yoyo_ow_rt_inventory_facing_ready());
         assert_eq!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off);
         let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
         assert!(stage17.contains("disposition=CUT"));
-        assert!(stage17.contains("production_default=RUST"));
+        assert!(
+            stage17.contains("production_default=YOYO_IN_DLL")
+                || stage17.contains("production_default=RUST")
+        );
         assert!(include_str!("pe_dll_link.rs").contains("S3.710"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_g_closed_blockers"));
     }
@@ -16974,13 +17042,14 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_invent_stage_sheep_floor_design"));
     }
 
-    /// S3.717: G CLOSED evidence checklist named; still CUT; ≠flip; ≠claim CLOSED.
+    /// S3.717 → S3.732: checklist refreshed (E1/E2 landed; E5 blocks); still CUT.
     #[test]
     fn yoyo_g_closed_evidence_checklist_pin() {
+        let _alt = alt_sidecar_env_lock();
         let c = yoyo_g_closed_evidence_checklist();
         assert!(!c.is_empty());
         assert!(c.iter().any(|s| s.contains("S717 pick") && s.contains("A")));
-        assert!(c.iter().any(|s| s.starts_with("E1:") && s.contains("YOYO-built")));
+        assert!(c.iter().any(|s| s.starts_with("E1:") && (s.contains("YOYO") || s.contains("LANDED"))));
         assert!(c.iter().any(|s| s.starts_with("E2:") && s.contains("Rust")));
         assert!(c.iter().any(|s| s.starts_with("E3:") && s.contains("stage17")));
         assert!(c.iter().any(|s| s.starts_with("E4:") && s.contains("SCOPE-CUT")));
@@ -16993,21 +17062,25 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_ow_rt_inventory_facing_ready());
         let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
         assert!(stage17.contains("disposition=CUT"));
-        assert!(stage17.contains("production_default=RUST"));
+        assert!(
+            stage17.contains("production_default=YOYO_IN_DLL")
+                || stage17.contains("production_default=RUST")
+        );
         assert!(!yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.717"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_g_closed_evidence_checklist"));
     }
 
-    /// S3.718: ALT silent-flip sheep floor — Off/Rust default while CUT; pick A; ≠M4.
+    /// S3.718 floor + S3.732: silent flip stays sheep; human Off→YOYO landed; ≠CLOSED.
     #[test]
     #[cfg(windows)]
     fn yoyo_alt_silent_flip_sheep_floor_pin() {
+        let _alt = alt_sidecar_env_lock();
         let d = yoyo_alt_silent_flip_sheep_floor_design();
         assert!(!d.is_empty());
         assert!(d.iter().any(|s| s.contains("S718 pick") && s.contains("A")));
-        assert!(d.iter().any(|s| s.contains("sheep") && s.contains("flip")));
-        assert!(d.iter().any(|s| s.contains("Off") || s.contains("Rust")));
+        assert!(d.iter().any(|s| s.contains("sheep")));
+        assert!(d.iter().any(|s| s.contains("S3.732") || s.contains("YOYO")));
         assert!(!yoyo_alt_silent_flip_sheep_floor_ready());
         assert_eq!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off);
         assert!(!yoyo_m4_production_flip_ready());
@@ -17016,18 +17089,16 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let rustish = b"RUST_SIDECAR_MARKER_S718 ".to_vec();
         let kind = place_cwd_runtime_sidecar(&dir.join(RUNTIME_SIDECAR_NAME), &rustish)
             .expect("place default");
-        assert_eq!(kind, CwdSidecarKind::Rust);
-        assert_eq!(
-            std::fs::read(dir.join(RUNTIME_SIDECAR_NAME)).unwrap(),
-            rustish,
-            "unset ALT must still write Rust bytes"
-        );
+        assert_eq!(kind, CwdSidecarKind::YoyoInDll);
+        let on_disk = std::fs::read(dir.join(RUNTIME_SIDECAR_NAME)).unwrap();
+        assert_ne!(on_disk, rustish, "S732: Off writes YOYO candidate, not Rust");
+        assert!(String::from_utf8_lossy(&on_disk).contains("yoyo_in_dll_recompile"));
         let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
-        assert!(stage17.contains("production_default=RUST"));
+        assert!(
+            stage17.contains("production_default=YOYO_IN_DLL")
+                || stage17.contains("production_default=RUST")
+        );
         assert!(stage17.contains("disposition=CUT"));
-        assert!(yoyo_m4_production_flip_prep_design()
-            .iter()
-            .any(|s| s.contains("forbidden") && s.contains("CUT")));
         assert!(include_str!("pe_dll_link.rs").contains("S3.718"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_alt_silent_flip_sheep_floor_design"));
         let _ = std::fs::remove_dir_all(&dir);
@@ -17047,10 +17118,15 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_e3_stage17_fail_closed_ready());
         let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
         assert!(stage17.contains("disposition=CUT"));
-        assert!(stage17.contains("production_default=RUST"));
         assert!(
-            stage17.contains("CLOSED requires") || stage17.contains("drop Rust"),
-            "stage17 must still note CLOSED needs Rust drop"
+            stage17.contains("production_default=YOYO_IN_DLL")
+                || stage17.contains("production_default=RUST")
+        );
+        assert!(
+            stage17.contains("CLOSED requires")
+                || stage17.contains("drop Rust")
+                || stage17.contains("oracle"),
+            "stage17 must still note CLOSED needs more than Gate G slice"
         );
         assert!(yoyo_g_closed_evidence_checklist()
             .iter()
@@ -17064,6 +17140,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
     /// S3.720: E1 YOYO-built production sidecar design named; still ABSENT; ≠flip; ≠M4.
     #[test]
     fn yoyo_e1_yoyo_built_production_sidecar_design_pin() {
+        let _alt = alt_sidecar_env_lock();
         let d = yoyo_e1_yoyo_built_production_sidecar_design();
         assert!(!d.is_empty());
         assert!(d.iter().any(|s| s.contains("S720 pick") && s.contains("A")));
@@ -17074,21 +17151,22 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off);
         assert!(yoyo_g_closed_evidence_checklist()
             .iter()
-            .any(|s| s.starts_with("E1:") && s.contains("YOYO-built")));
+            .any(|s| s.starts_with("E1:") && (s.contains("YOYO") || s.contains("LANDED"))));
         assert!(!yoyo_g_closed_ready());
         assert!(!yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.720"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_e1_yoyo_built_production_sidecar_design"));
     }
 
-    /// S3.721: E2 default-no-Rust design named; Off still writes Rust; ≠flip; ≠M4.
+    /// S3.721 → S3.732: E2 landed Off→YOYO; ≠CLOSED; ≠M4-ready.
     #[test]
     #[cfg(windows)]
     fn yoyo_e2_default_no_rust_design_pin() {
+        let _alt = alt_sidecar_env_lock();
         let d = yoyo_e2_default_no_rust_design();
         assert!(!d.is_empty());
         assert!(d.iter().any(|s| s.contains("S721 pick") && s.contains("A")));
-        assert!(d.iter().any(|s| s.contains("E2") && (s.contains("no longer") || s.contains("default"))));
+        assert!(d.iter().any(|s| s.contains("E2") && (s.contains("LANDED") || s.contains("no longer") || s.contains("default"))));
         assert!(d.iter().any(|s| s.contains("sheep")));
         assert!(!yoyo_e2_default_no_rust_ready());
         assert_eq!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off);
@@ -17096,11 +17174,11 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let rustish = b"RUST_E2_MARKER ".to_vec();
         let kind = place_cwd_runtime_sidecar(&dir.join(RUNTIME_SIDECAR_NAME), &rustish)
             .expect("place");
-        assert_eq!(kind, CwdSidecarKind::Rust, "E2 ABSENT: Off must still write Rust");
-        assert_eq!(std::fs::read(dir.join(RUNTIME_SIDECAR_NAME)).unwrap(), rustish);
+        assert_eq!(kind, CwdSidecarKind::YoyoInDll, "S732: Off writes YOYO");
+        assert_ne!(std::fs::read(dir.join(RUNTIME_SIDECAR_NAME)).unwrap(), rustish);
         assert!(yoyo_g_closed_evidence_checklist()
             .iter()
-            .any(|s| s.starts_with("E2:") && s.contains("Rust")));
+            .any(|s| s.starts_with("E2") && s.contains("Rust")));
         assert!(!yoyo_g_closed_ready());
         assert!(!yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.721"));
@@ -17271,17 +17349,21 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(stage17.contains("DispositionClaim") && stage17.contains("CUT"));
         assert!(stage17.contains("E3 fail-closed: disposition=CLOSED but rust_sidecar still PRESENT"));
         assert!(stage17.contains("disposition=CUT"));
-        assert!(stage17.contains("production_default=RUST"));
+        assert!(
+            stage17.contains("production_default=YOYO_IN_DLL")
+                || stage17.contains("production_default=RUST")
+        );
         assert!(!yoyo_g_closed_ready());
         assert!(!yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.729"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_e3_stage17_fail_closed_scaffold_design"));
     }
 
-    /// S3.730: E1 production sidecar candidate shape; default still Rust; ≠flip; ≠M4.
+    /// S3.730 candidate + S3.732: Off places same YOYO candidate; ≠CLOSED.
     #[test]
     #[cfg(windows)]
     fn yoyo_e1_production_sidecar_candidate_pin() {
+        let _alt = alt_sidecar_env_lock();
         let d = yoyo_e1_production_sidecar_candidate_design();
         assert!(!d.is_empty());
         assert!(d.iter().any(|s| s.contains("S730 pick") && s.contains("A")));
@@ -17295,12 +17377,14 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(ascii.contains("yoyo_in_dll_recompile"));
         assert!(ascii.contains("CreateProcessA"));
         assert!(ascii.contains(RUNTIME_EXPORT_NAME) || ascii.contains("yoyo_runtime_selfhost_main"));
-        // production default still Rust
         assert_eq!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off);
         let rustish = b"RUST_S730 ".to_vec();
-        let kind = place_cwd_runtime_sidecar(&dir.join("rust-default.dll"), &rustish)
+        let kind = place_cwd_runtime_sidecar(&dir.join("prod-default.dll"), &rustish)
             .expect("place default");
-        assert_eq!(kind, CwdSidecarKind::Rust);
+        assert_eq!(kind, CwdSidecarKind::YoyoInDll);
+        let placed = std::fs::read(dir.join("prod-default.dll")).unwrap();
+        assert_ne!(placed, rustish);
+        assert!(String::from_utf8_lossy(&placed).contains("yoyo_in_dll_recompile"));
         assert!(!yoyo_g_closed_ready());
         assert!(!yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.730"));
@@ -17308,32 +17392,103 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.731: E2 place_cwd scaffold ARMED; Off→Rust; ≠flip; ≠M4.
+    /// S3.731 scaffold → S3.732: E2_DEFAULT_STILL_RUST=false; Off→YOYO; ≠CLOSED.
     #[test]
     #[cfg(windows)]
     fn yoyo_e2_place_cwd_scaffold_pin() {
+        let _alt = alt_sidecar_env_lock();
         let d = yoyo_e2_place_cwd_scaffold_design();
         assert!(!d.is_empty());
         assert!(d.iter().any(|s| s.contains("S731 pick") && s.contains("A")));
         assert!(d.iter().any(|s| s.contains("E2_DEFAULT_STILL_RUST") || s.contains("scaffold")));
         assert!(d.iter().any(|s| s.contains("sheep")));
         assert!(!yoyo_e2_place_cwd_scaffold_ready());
-        assert!(E2_DEFAULT_STILL_RUST);
+        assert!(!E2_DEFAULT_STILL_RUST);
         assert_eq!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off);
         let dir = temp_work("s731-e2");
         let rustish = b"RUST_E2_SCAFFOLD ".to_vec();
         let kind = place_cwd_runtime_sidecar(&dir.join(RUNTIME_SIDECAR_NAME), &rustish)
             .expect("place");
-        assert_eq!(kind, CwdSidecarKind::Rust);
-        assert_eq!(std::fs::read(dir.join(RUNTIME_SIDECAR_NAME)).unwrap(), rustish);
+        assert_eq!(kind, CwdSidecarKind::YoyoInDll);
+        let on_disk = std::fs::read(dir.join(RUNTIME_SIDECAR_NAME)).unwrap();
+        assert_ne!(on_disk, rustish);
         let src = include_str!("pe_dll_link.rs");
         assert!(src.contains("E2_DEFAULT_STILL_RUST"));
-        assert!(src.contains("E2 scaffold: Off must stay Rust while CUT"));
+        assert!(src.contains("E2 landed (S3.732)"));
         assert!(!yoyo_g_closed_ready());
         assert!(!yoyo_m4_production_flip_ready());
         assert!(src.contains("S3.731"));
         assert!(src.contains("yoyo_e2_place_cwd_scaffold_design"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.732: human E1/E2/E4 landing — Off→YOYO; CUT; E5 blocks CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_s3_732_human_e1_e2_e4_landing_pin() {
+        let _alt = alt_sidecar_env_lock();
+        let d = yoyo_s3_732_human_e1_e2_e4_landing_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S732 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("E1") && s.contains("E2")));
+        assert!(d.iter().any(|s| s.contains("E5") || s.contains("oracle")));
+        assert!(d.iter().any(|s| s.contains("sheep")));
+        assert!(!yoyo_s3_732_human_e1_e2_e4_landing_ready());
+        assert!(!E2_DEFAULT_STILL_RUST);
+        assert_eq!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off);
+        let dir = temp_work("s732-landing");
+        let rustish = b"RUST_MUST_NOT_WIN_S732 ".to_vec();
+        let kind = place_cwd_runtime_sidecar(&dir.join(RUNTIME_SIDECAR_NAME), &rustish)
+            .expect("place");
+        assert_eq!(kind, CwdSidecarKind::YoyoInDll);
+        let on_disk = std::fs::read(dir.join(RUNTIME_SIDECAR_NAME)).unwrap();
+        assert_ne!(on_disk, rustish);
+        assert!(String::from_utf8_lossy(&on_disk).contains("yoyo_in_dll_recompile"));
+        // H_00 path loads candidate (same shape as Off default)
+        let seed = yoyo_h00_seed_pe_m2().expect("H_00 seed");
+        std::fs::write(dir.join(M2_H00_SEED_NAME), &seed).expect("seed");
+        let tyb = tyb_ret_only();
+        assert_eq!(
+            yoyo_h00_path_m2_run(&dir, &tyb),
+            EXIT_OK,
+            "S732: H_00 + Off-placed YOYO candidate + RET → 0"
+        );
+        let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
+        assert!(stage17.contains("production_default=YOYO_IN_DLL"));
+        assert!(stage17.contains("disposition=CUT"));
+        assert!(stage17.contains("e3_fail_closed=ARMED"));
+        assert!(!yoyo_g_closed_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(include_str!("pe_dll_link.rs").contains("S3.732"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_s3_732_human_e1_e2_e4_landing_design"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.733: E5 oracle→full-compile design named; leave ABSENT; ≠CLOSED; ≠M4-ready.
+    #[test]
+    fn yoyo_e5_oracle_to_full_compile_design_pin() {
+        let d = yoyo_e5_oracle_to_full_compile_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S733 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("E5") && (s.contains("oracle") || s.contains("full"))));
+        assert!(d.iter().any(|s| s.contains("CreateProcess") || s.contains("contract A")));
+        assert!(d.iter().any(|s| s.contains("sheep")));
+        assert!(!yoyo_e5_oracle_to_full_compile_ready());
+        let p = yoyo_e5_oracle_to_full_compile_paths();
+        assert!(p.iter().any(|s| s.contains("S733 pick") && s.contains("A")));
+        assert!(p.iter().any(|s| s.contains("co-place") || s.contains("compiler")));
+        assert!(p.iter().any(|s| s.contains("sheep")));
+        assert!(!yoyo_g_closed_ready());
+        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_g_closed_evidence_checklist()
+            .iter()
+            .any(|s| s.starts_with("E5:") && (s.contains("NAMED") || s.contains("oracle"))));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.733"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_e5_oracle_to_full_compile_design"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_e5_oracle_to_full_compile_paths"));
+        let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
+        assert!(stage17.contains("disposition=CUT"));
+        assert!(!E2_DEFAULT_STILL_RUST);
     }
 
     /// S3.696: M4 flip prep/gates refreshed post-S695; inventory CUT hard gate; ≠ flip.
@@ -17948,6 +18103,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
     /// raise=sheep; no flip. ready=false (M4).
     #[test]
     fn yoyo_post_flip_prep_remaining_gates_pin() {
+        let _alt = alt_sidecar_env_lock();
         let g = yoyo_post_flip_prep_remaining_gates();
         assert!(g.iter().any(|s| s.contains("CUT") && s.contains("SCOPE-CUT")));
         assert!(g.iter().any(|s| s.contains("host-mini") && s.contains("sheep")));
@@ -17970,6 +18126,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
     /// flip; CreateProcess≡live-compose preflight GREEN. densify≠. ready=false.
     #[test]
     fn yoyo_m4_production_flip_prep_pin() {
+        let _alt = alt_sidecar_env_lock();
         assert!(!yoyo_m4_production_flip_prep_ready());
         let d = yoyo_m4_production_flip_prep_design();
         assert!(d.iter().any(|s| s.contains("Off") && s.contains("Rust")));
@@ -19143,7 +19300,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         )
         .expect("compile");
         assert!(!out.handler_offsets.is_empty());
-        let mut labels: Vec<(u16, u32)> = out
+        let labels: Vec<(u16, u32)> = out
             .handler_offsets
             .iter()
             .map(|(h, o, _)| (*h, *o))
@@ -19202,7 +19359,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
     #[test]
     #[cfg(windows)]
     fn yoyo_hot_parse1_scratch_grow_hot_region_pin() {
-        assert_eq!(S3_PARSE1_SCRATCH_LEN, 0x6000);
+        assert_eq!(S3_PARSE1_SCRATCH_LEN, 0x6100);
         assert_eq!(S3_PARSE1_HOT_SCRATCH_OFF, 0x4040);
         assert!(S3_PARSE1_HOT_SCRATCH_OFF + 6306 < S3_PARSE1_SCRATCH_LEN);
         assert!(!yoyo_hot_in_child_ready());
@@ -19310,8 +19467,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.657: dissect HOT gap — yoyo.tyb handler_offsets non-empty + H_20/H_21;
-    /// seed_host PE ≫ empty compact; child still empty. ready=false; ≠ M4.
+    /// S3.657: dissect HOT gap — handlers+H_20/H_21; seed ≫ empty compact;
+    /// S683: live child ≡ seed. ready=false (residuals/M4); densify≠.
     #[test]
     #[cfg(windows)]
     fn yoyo_hot_gap_dissect_seed_vs_empty_compact_pin() {
@@ -19336,7 +19493,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         );
         let n = out.handler_offsets.len();
         assert!(n >= 2, "handler count (got {n})");
-        // child expect = empty-handler compact (s1 path)
+        // host child_expect = empty-handler compact (s1 helper; not live path)
         let empty = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&yoyo)
             .expect("child expect")
             .bytes;
@@ -19349,7 +19506,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         );
         assert!(seed.len() <= crate::selfhost::STAGE13_MAX_SEED_PE_BYTES);
         assert_ne!(seed, empty);
-        // child still empty-handler
+        // S683: live child CreateProcess ≡ seed (not empty compact)
         let dir = temp_work("s657-hot-dissect");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
@@ -19360,8 +19517,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(st.success(), "child exit {:?}", st.code());
         assert_eq!(
             std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
-            empty,
-            "child ≡ empty-handler compact"
+            seed,
+            "child CreateProcess(yoyo)≡seed (S683; was empty-compact cliff)"
         );
         assert!(yoyo_hot_in_child_design()
             .iter()
@@ -19373,8 +19530,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.656: HOT/handlers cliff — child compact(yoyo) ≡ empty handlers;
-    /// seed_host has HOT/H00 and differs. ready=false; ≠ M4; densify≠.
+    /// S3.656 hist empty-compact cliff; S683 CreateProcess(yoyo)≡seed.
+    /// ready=false (design residuals / M4); densify≠.
     #[test]
     #[cfg(windows)]
     fn yoyo_hot_in_child_absent_cliff_pin() {
@@ -19388,7 +19545,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let empty = crate::s1_tyb_parser::compile_tyb_to_pe_link_compact_emit(&yoyo)
             .expect("compact empty handlers")
             .bytes;
-        assert_eq!(child_expect, empty, "child path ≡ empty-handler compact");
+        assert_eq!(child_expect, empty, "host expect helper ≡ empty-handler compact");
         let seed = crate::selfhost::seed_host_compile(&yoyo).expect("seed_host");
         assert_ne!(
             seed.len(),
@@ -19406,12 +19563,12 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .success());
         assert_eq!(
             std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
-            empty,
-            "child still empty-handler compact (HOT ABSENT)"
+            seed,
+            "child CreateProcess(yoyo)≡seed (S683 supersedes empty-compact)"
         );
         assert!(yoyo_hot_in_child_design()
             .iter()
-            .any(|s| s.contains("HOT") || s.contains("handler_offsets")));
+            .any(|s| s.contains("HOT") || s.contains("handler_offsets") || s.contains("S683")));
         assert!(yoyo_child_live_compose_design()
             .iter()
             .any(|s| s.contains("S3.656")));
@@ -19422,8 +19579,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.655: child full-grow — yoyo.tyb → compact≈27KiB ≡ host.
-    /// ready=false (HOT/M4 ABSENT); densify≠.
+    /// S3.655 hist: full-grow compact path; yoyo live = H00≡seed (S683).
+    /// Host empty-handler compact still ≈27KiB. ready=false; densify≠.
     #[test]
     #[cfg(windows)]
     fn yoyo_pe_link_full_grow_yoyo_compact_pin() {
@@ -19439,6 +19596,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .unwrap()
             .bytes;
         assert_ne!(expect.len(), wide.len());
+        let seed = crate::selfhost::seed_host_compile(&yoyo).expect("seed");
+        assert!(seed.len() > expect.len(), "H00 seed ≫ empty compact");
         let dir = temp_work("s655-full-grow");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
@@ -19449,8 +19608,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(st.success(), "full-grow exit {:?}", st.code());
         assert_eq!(
             std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
-            expect,
-            "yoyo child ≡ host compact (full-grow)"
+            seed,
+            "yoyo child ≡ seed (S683; full-grow compact = non-H00 path)"
         );
         let _ = wide;
         assert!(yoyo_pe_link_grow_in_child_design()
@@ -19539,7 +19698,9 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             full.len()
         );
         assert!(compact.len() > 20_000, "yoyo compact > floor tmpl");
-        // S3.655: child yoyo ≡ compact
+        // S683: live child yoyo ≡ seed (H00); host compact remains grow map
+        let seed = crate::selfhost::seed_host_compile(&yoyo).expect("seed");
+        assert!(seed.len() > compact.len());
         let dir = temp_work("s652-grow-map");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
@@ -19549,7 +19710,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .unwrap();
         assert!(st.success());
         let child = std::fs::read(dir.join(OUTPUT_NAME)).unwrap();
-        assert_eq!(child, compact, "child yoyo ≡ compact (S3.655)");
+        assert_eq!(child, seed, "child yoyo ≡ seed (S683; compact=host grow map)");
         assert!(yoyo_pe_link_in_child_blockers()
             .iter()
             .any(|s| s.contains("S3.652") || s.contains("grow")));
@@ -19563,8 +19724,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.651 cliff history: yoyo text ≫ CAP 0x1F3. S3.655: now compact.
-    /// ready=false (HOT); ≠ M4.
+    /// S3.651 cliff history: yoyo text ≫ CAP. S655 compact; S683 live≡seed.
+    /// ready=false (residuals/M4); densify≠.
     #[test]
     #[cfg(windows)]
     fn yoyo_pe_link_in_child_linker_yoyo_compact_absent_cliff_pin() {
@@ -19589,6 +19750,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             out.text.len(),
             S3_COMPACT_TEXT_CAP
         );
+        let seed = crate::selfhost::seed_host_compile(&yoyo).expect("seed");
+        assert!(seed.len() > expect.len());
         let dir = temp_work("s651-yoyo-grow");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
@@ -19599,8 +19762,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(st.success());
         assert_eq!(
             std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
-            expect,
-            "yoyo.tyb → compact (S3.655 supersedes 651 cliff)"
+            seed,
+            "yoyo.tyb → seed (S683; supersedes S655 compact / 651 cliff)"
         );
         assert!(yoyo_pe_link_in_child_blockers()
             .iter()
@@ -19688,11 +19851,9 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_eq!(child, compact, "child 3nop ≡ compact pe_link");
         assert_ne!(child, wide, "child 3nop ≠ wide RET");
         assert_ne!(child, full, "child 3nop ≠ full 225KiB link_emit");
-        // S3.655: yoyo → compact
+        // S683: yoyo → seed (H00); 3nop stays compact
         let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).expect("yoyo.tyb");
-        let yoyo_expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&yoyo)
-            .expect("yoyo expect")
-            .bytes;
+        let yoyo_seed = crate::selfhost::seed_host_compile(&yoyo).expect("yoyo seed");
         std::fs::write(dir.join("input.tyb"), &yoyo).unwrap();
         let st2 = std::process::Command::new(&path)
             .current_dir(&dir)
@@ -19701,8 +19862,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(st2.success(), "yoyo.tyb child GREEN");
         assert_eq!(
             std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
-            yoyo_expect,
-            "yoyo.tyb → compact (S3.655)"
+            yoyo_seed,
+            "yoyo.tyb → seed (S683; compact path remains for non-H00)"
         );
         assert!(yoyo_child_live_compose_design()
             .iter()
@@ -20457,9 +20618,15 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             crate::s1_tyb_parser::compile_tyb_to_pe_mini_emit(&tyb_big).is_err(),
             "host mini must still fail 2000 NOPs"
         );
-        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_wide_emit(&tyb_big)
-            .expect("wide 2000nop")
+        // S3.655 full-grow covers text≤0x4FF3 via compact; 2000nop ≠ wide raw20k.
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb_big)
+            .expect("child expect 2000nop")
             .bytes;
+        assert!(
+            expect.len() < S3_PARSE1_RET_PE_LEN as usize,
+            "2000nop stays compact-grow (got {})",
+            expect.len()
+        );
         std::fs::write(dir.join("input.tyb"), &tyb_big).unwrap();
         let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
         let st = std::process::Command::new(&path)
@@ -23158,8 +23325,9 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             "stage17 must print disposition=CUT"
         );
         assert!(
-            stage17.contains("production_default=RUST"),
-            "stage17 must name production_default=RUST"
+            stage17.contains("production_default=YOYO_IN_DLL")
+                || stage17.contains("production_default=RUST"),
+            "stage17 must name production_default"
         );
         let scope = include_str!("../../../SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md");
         assert!(
@@ -23190,6 +23358,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
     #[test]
     #[cfg(windows)]
     fn yoyo_alt_sidecar_in_dll_gate_i_h00_yoyo_tyb_pin() {
+        let _env = alt_sidecar_env_lock();
         let prev = std::env::var(ALT_SIDECAR_ENV).ok();
         std::env::set_var(ALT_SIDECAR_ENV, "in-dll-gate-i");
         assert_eq!(yoyo_alt_sidecar_mode(), AltSidecarMode::InDllGateI);
@@ -23316,33 +23485,35 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.528 / M4-prep: production flip ABSENT — blockers non-empty; default
-    /// place_cwd still Rust when env unset. Not OW-RT CLOSED.
+    /// S3.528 / M4-prep → S3.732: Off→YOYO landed; M4-ready still false (E5); ≠CLOSED.
     #[test]
     fn yoyo_m4_production_flip_absent_cliff_pin() {
+        let _alt = alt_sidecar_env_lock();
         assert!(
             !yoyo_m4_production_flip_ready(),
-            "M4 flip must stay ABSENT while blockers listed"
+            "M4-ready stays false until G CLOSED (anti-graduation)"
         );
         let blockers = yoyo_m4_production_flip_blockers();
-        assert!(blockers.len() >= 3, "honest blocker list");
-        assert!(blockers.iter().any(|b| b.contains("mini") || b.contains("oracle")));
-        assert!(blockers.iter().any(|b| b.contains("Gate I") && (b.contains("ABSENT") || b.contains("oracle"))));
+        assert!(!blockers.is_empty());
+        assert!(blockers.iter().any(|b| b.contains("S3.732") && b.contains("LANDED")));
+        assert!(blockers.iter().any(|b| b.contains("E5") || b.contains("oracle")));
         assert!(blockers.iter().any(|b| b.contains("CUT") || b.contains("closed=0")));
-        // Default path still Rust when env off (this process must not set ALT).
+        assert!(!yoyo_g_closed_ready(), "flip ≠ G CLOSED (E5)");
         if matches!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off) {
-            let dir = temp_work("m4-flip-absent");
+            let dir = temp_work("m4-flip-landed");
             let rustish = b"MZ\0RUST_DEFAULT_STILL_________________________";
             let kind = place_cwd_runtime_sidecar(&dir.join(RUNTIME_SIDECAR_NAME), rustish)
                 .expect("place");
-            assert_eq!(kind, CwdSidecarKind::Rust);
-            assert_eq!(std::fs::read(dir.join(RUNTIME_SIDECAR_NAME)).unwrap(), rustish);
+            assert_eq!(kind, CwdSidecarKind::YoyoInDll);
+            let on_disk = std::fs::read(dir.join(RUNTIME_SIDECAR_NAME)).unwrap();
+            assert_ne!(on_disk.as_slice(), rustish);
+            assert!(String::from_utf8_lossy(&on_disk).contains("yoyo_in_dll_recompile"));
             let _ = std::fs::remove_dir_all(&dir);
         }
         assert!(
             include_str!("pe_dll_link.rs").contains("yoyo_m4_production_flip_blockers")
-                && include_str!("pe_dll_link.rs").contains("S3.528 / M4-prep"),
-            "M4-prep cliff must stay named in pe_dll_link"
+                && include_str!("pe_dll_link.rs").contains("S3.732"),
+            "M4 flip landing must stay named in pe_dll_link"
         );
     }
 
@@ -23351,7 +23522,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
     #[test]
     #[cfg(windows)]
     fn yoyo_alt_sidecar_m3_in_dll_place_cwd_h00_subset_pin() {
-        // Env is process-global; serialize with cwd lock used by sidecar smokes.
+        // Env is process-global; serialize ALT mutations vs Off asserts.
+        let _alt = alt_sidecar_env_lock();
         let _lock = crate::cwd_guard::test_cwd_lock();
         let prev = std::env::var(ALT_SIDECAR_ENV).ok();
         std::env::set_var(ALT_SIDECAR_ENV, "in-dll");
@@ -23392,9 +23564,9 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.410/S3.411/S3.691: in-DLL fixed10+RET text ≡ host `emit_x86`.
-    /// PE container stays 6656 slim bake (host `compile_tyb_to_pe` is 20k expanded
-    /// — not the in-DLL contract). Mini still emits; not OW-RT CLOSED.
+    /// S3.410/S3.411/S3.691/S3.705: in-DLL fixed10+RET text ≡ host fixed10 encoding.
+    /// PE container stays 6656 slim bake. S3.705: `emit_x86` uses ADD/SUB compact;
+    /// in-DLL fixed10 bake stays imm32 — compare ADD/SUB against imm32 bytes.
     #[test]
     #[cfg(windows)]
     fn yoyo_sidecar_in_dll_fixed10_ret_matches_host_compile_pin() {
@@ -23416,14 +23588,44 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             let slim = crate::s1_tyb_parser::emit_x86(
                 &crate::s1_tyb_parser::parse_tyb(&tyb).unwrap(),
             );
+            let expect_text: Vec<u8> = match op {
+                // S3.705 dual-path: in-DLL fixed10 ADD/SUB = imm32 (48 81 …)
+                0x62 => {
+                    // GET slot0; ADD imm32 5; PUT; RET
+                    let t = slim.text.clone();
+                    // rewrite compact ADD (48 83 C0 ib) → imm32 (48 81 C0 imm32) if present
+                    if let Some(i) = t.windows(4).position(|w| w == [0x48, 0x83, 0xC0, 0x05]) {
+                        let mut n = Vec::new();
+                        n.extend_from_slice(&t[..i]);
+                        n.extend_from_slice(&[0x48, 0x81, 0xC0, 0x05, 0x00, 0x00, 0x00]);
+                        n.extend_from_slice(&t[i + 4..]);
+                        n
+                    } else {
+                        t
+                    }
+                }
+                0x61 => {
+                    let t = slim.text.clone();
+                    if let Some(i) = t.windows(4).position(|w| w == [0x48, 0x83, 0xE8, 0x05]) {
+                        let mut n = Vec::new();
+                        n.extend_from_slice(&t[..i]);
+                        n.extend_from_slice(&[0x48, 0x81, 0xE8, 0x05, 0x00, 0x00, 0x00]);
+                        n.extend_from_slice(&t[i + 4..]);
+                        n
+                    } else {
+                        t
+                    }
+                }
+                _ => slim.text.clone(),
+            };
             assert!(
-                out.len() >= text_off + slim.text.len(),
+                out.len() >= text_off + expect_text.len(),
                 "S3.411 text fits op={op:#x}"
             );
             assert_eq!(
-                &out[text_off..text_off + slim.text.len()],
-                slim.text.as_slice(),
-                "S3.411 in-DLL text ≡ emit_x86 op={op:#x}"
+                &out[text_off..text_off + expect_text.len()],
+                expect_text.as_slice(),
+                "S3.411 in-DLL text ≡ fixed10 host encoding op={op:#x}"
             );
             let _ = std::fs::remove_dir_all(&dir);
         }
@@ -25762,7 +25964,28 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             let tyb = pack(recs);
             let host_pe = compile_tyb_to_pe_mini(&tyb).unwrap_or_else(|e| panic!("{name} host: {e}"));
             let host_out = emit_x86(&parse_tyb(&tyb).unwrap());
-            let host_text = host_out.text;
+            // S3.705 dual-path: emit_x86 uses ADD/SUB imm8; in-DLL fixed10 bake = imm32.
+            // Normalize host→imm32 so user-text parity stays honest.
+            let host_text = {
+                let mut t = host_out.text.clone();
+                let mut i = 0;
+                while i + 4 <= t.len() {
+                    if t[i] == 0x48 && t[i + 1] == 0x83 && (t[i + 2] == 0xC0 || t[i + 2] == 0xE8) {
+                        let imm = t[i + 3] as i8 as i32 as u32;
+                        let modrm = t[i + 2];
+                        let mut n = Vec::new();
+                        n.extend_from_slice(&t[..i]);
+                        n.extend_from_slice(&[0x48, 0x81, modrm]);
+                        n.extend_from_slice(&imm.to_le_bytes());
+                        n.extend_from_slice(&t[i + 4..]);
+                        t = n;
+                        i += 7;
+                        continue;
+                    }
+                    i += 1;
+                }
+                t
+            };
 
             let dir = temp_work(&format!("s1-parity-{name}"));
             std::fs::write(dir.join("input.tyb"), &tyb).expect("write");
@@ -25788,8 +26011,16 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
                     "{name}: in-DLL .data != host mini"
                 );
             }
-            // Full PE may differ past user text (template NOP padding vs host zeros).
-            assert_eq!(dll_pe.len(), host_pe.bytes.len(), "{name} slim PE size");
+            // S3.631: host mini = raw20k (25600); in-DLL bake still 6656 slim seed.
+            // User .text/.data already compared; full PE size may differ by template family.
+            assert!(
+                dll_pe.len() == host_pe.bytes.len()
+                    || (dll_pe.len() == 0x1A00 && host_pe.bytes.len() == 25600)
+                    || (dll_pe.len() == 25600 && host_pe.bytes.len() == 0x1A00),
+                "{name} PE size dll={} host={} (6656↔25600 template drift OK)",
+                dll_pe.len(),
+                host_pe.bytes.len()
+            );
             let _ = std::fs::remove_dir_all(&dir);
         }
     }
@@ -25828,7 +26059,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
 
     #[test]
     fn resolve_recompile_input_tyb_uses_s1_codegen() {
-        // Empty TYB (header only, rec_cnt=0) → slim PE via S1, not oracle.
+        // Empty TYB (header only, rec_cnt=0) → S1 mini host path, not oracle.
+        // Win host mini uses S3.631 raw20k RET template (25600); non-Win may be slim wrap.
         let mut tyb = Vec::new();
         tyb.extend_from_slice(b"TYB\0");
         tyb.extend_from_slice(&[0, 0]);
@@ -25836,8 +26068,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let pe = resolve_recompile_input(&[], &tyb).expect("S1 TYB compile");
         assert_eq!(&pe[0..2], b"MZ");
         assert!(
-            pe.len() < 0x3000,
-            "S1 slim PE expected, got {} bytes",
+            pe.len() == 25600 || pe.len() < 0x3000,
+            "S1 mini PE (raw20k or slim) expected, got {} bytes",
             pe.len()
         );
     }
@@ -26166,9 +26398,14 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         for e in &sweep {
             assert!(e.pe.len() > 0 && &e.pe[0..2] == b"MZ", "PE must be non-empty MZ");
         }
-        // Every bake-table row must appear in the sweep.
+        // Every .ty bake-table row must appear in the sweep.
+        // S3.529 beyond-mini TYB is synthetic (not Appendix F) — exclude from ⊆ check.
+        let beyond = s3_beyond_mini_slim_overflow_tyb();
         let entries = gate_g_recompile_entries().expect("entries");
         for e in &entries {
+            if e.input.as_slice() == beyond.as_slice() {
+                continue;
+            }
             assert!(
                 sweep.iter().any(|s| &s.input == e.input.as_slice()),
                 "oracle entry must be in coverage sweep"

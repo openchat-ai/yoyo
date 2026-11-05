@@ -115,7 +115,7 @@ fn prepend_win32_io_iat(user_data: &[u8], data_rva: u32) -> (Vec<u8>, u32, u32) 
     write_u32(&mut blob, desc_off + 12, data_rva + kern_name_off as u32);
     write_u32(&mut blob, desc_off + 16, data_rva + kern_iat_off as u32);
 
-    for (i, (name_off, hn_off, ilt_off, iat_off)) in preload_meta.iter().enumerate() {
+    for (i, (name_off, _hn_off, ilt_off, iat_off)) in preload_meta.iter().enumerate() {
         let at = desc_off + desc_size * (1 + i);
         write_u32(&mut blob, at, data_rva + *ilt_off as u32);
         write_u32(&mut blob, at + 12, data_rva + *name_off as u32);

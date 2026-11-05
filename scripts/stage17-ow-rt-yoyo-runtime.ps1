@@ -1,8 +1,8 @@
 # stage17-ow-rt-yoyo-runtime.ps1 — OW-RT YOYO-built runtime spike gate (post-v1.0 path 2)
 #
 # Gate G slice: generic in-DLL recompile (call-time ReadFile + multi-entry
-# YOYO-precompiled oracle). Still NOT OW-RT CLOSED — Rust sidecar remains
-# production default; oracle ≠ full YOYO compiler in DLL.
+# YOYO-precompiled oracle). S3.732: production Off→YOYO candidate landed (E1/E2).
+# Still NOT OW-RT / G CLOSED — E5 oracle ≠ full YOYO compiler; disposition=CUT.
 #
 # Script name stage17-* = post-v1.0 gate id (NOT ROADMAP Stage 17).
 #
@@ -28,7 +28,8 @@ Push-Location (Join-Path $Root "yoyo-rust")
 try {
     $prevEap = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
-    & cargo test -p verifier --lib pe_dll_link --no-default-features --features full-backends
+    # --test-threads=1: ALT_SIDECAR env is process-global; parallel Off asserts race mutators.
+    & cargo test -p verifier --lib pe_dll_link --no-default-features --features full-backends -- --test-threads=1
     $cargoExit = $LASTEXITCODE
     $ErrorActionPreference = $prevEap
     if ($cargoExit -ne 0) { throw "pe_dll_link tests failed" }
@@ -141,13 +142,15 @@ if (-not $RuntimeDll) {
         }
     }
 }
+# S3.732: production default is YOYO in-dll candidate (place_cwd Off).
+# Rust yoyo_runtime.dll may still exist on disk for legacy/compare — not production Off path.
+Write-Host "OW_RT_SPIKE production_default=YOYO_IN_DLL (S3.732 E1/E2 landed; disposition stays CUT)"
 if ($RuntimeDll) {
     $dllBytes = (Get-Item $RuntimeDll).Length
     $dllSha = (Get-FileHash -Algorithm SHA256 -Path $RuntimeDll).Hash.ToLowerInvariant().Substring(0, 16)
-    Write-Host "OW_RT_SPIKE rust_sidecar path=$RuntimeDll bytes=$dllBytes sha256_prefix=$dllSha"
-    Write-Host "OW_RT_SPIKE production_default=RUST rust_sidecar=PRESENT"
+    Write-Host "OW_RT_SPIKE rust_sidecar path=$RuntimeDll bytes=$dllBytes sha256_prefix=$dllSha (legacy on-disk; not Off default)"
 } else {
-    Write-Host "OW_RT_SPIKE production_default=RUST rust_sidecar=NOT_BUILT_HERE"
+    Write-Host "OW_RT_SPIKE rust_sidecar=NOT_BUILT_HERE (ok; production Off uses YOYO candidate)"
 }
 # Win-only: H_00 loads YOYO in-dll-recompile DLL with no input → exit 2.
 $IsWin = $env:OS -eq "Windows_NT"

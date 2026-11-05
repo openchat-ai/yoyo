@@ -2,12 +2,10 @@
 //!
 //! Post-v1.0 OW-RT shrink: the approved H_00 seed/link path (`append_h00_runtime_data`
 //! / `gen_h00_selfhost_main`) no longer exact-embeds `yoyo_runtime.dll` in PE `.data`.
-//! It loads cwd sidecar `yoyo_rt.dll` (still Rust-built by default — OW-RT stays CUT).
-//! Gate G slice: place YOYO `pe_dll` bytes as cwd `yoyo_rt.dll` via `emit-rt-sidecar`
-//! / `pe_dll_link::write_yoyo_alt_sidecar` / `yoyo_sidecar_path_rcw` (opt-in placement;
-//! H_00 loads whatever is in cwd — production scripts still Copy-Item Rust
-//! `yoyo_runtime.dll`). `place_cwd_runtime_sidecar` flips to YOYO only when
-//! `YOYO_OW_RT_ALT_SIDECAR` is set (default remains Rust).
+//! It loads cwd sidecar `yoyo_rt.dll`. S3.732 human landing: production default via
+//! `place_cwd_runtime_sidecar` writes YOYO in-dll-recompile candidate (E1/E2).
+//! OW-RT stays **CUT** (E5: oracle ≠ full YOYO compiler; disposition not CLOSED).
+//! `YOYO_OW_RT_ALT_SIDECAR` still selects Probe / InDll / GateI variants.
 //! Post-v1.0 OW-IAT shrink: H_00 no longer imports GetProcAddress — after load it
 //! resolves export ordinal 0 in-process (yoyo_runtime pins `yoyo_runtime_selfhost_main`
 //! as the first named export).
@@ -72,23 +70,17 @@ pub fn runtime_dll_bytes() -> IsaResult<Vec<u8>> {
     })
 }
 
-/// Place cwd `yoyo_rt.dll` for H_00: YOYO alt/in-DLL when `YOYO_OW_RT_ALT_SIDECAR`
-/// is set (`1`=probe, `in-dll`/`m1`=M1 recompile), else Rust.
+/// Place cwd `yoyo_rt.dll` for H_00.
 ///
-/// Gate G / M3 progress toward dropping Rust production default — **opt-in only**.
-/// Scripts that still `Copy-Item` Rust are unchanged until they call this helper.
+/// S3.732: default (ALT unset) → YOYO in-dll-recompile candidate. Env still selects
+/// Probe / InDll / GateI. Rust bytes no longer required for the default path.
 pub fn write_cwd_runtime_sidecar(
     out_dir: &std::path::Path,
 ) -> IsaResult<(std::path::PathBuf, crate::pe_dll_link::CwdSidecarKind)> {
     use crate::pe_dll_link::{place_cwd_runtime_sidecar, RUNTIME_SIDECAR_NAME};
     let path = out_dir.join(RUNTIME_SIDECAR_NAME);
-    // Empty rust bytes unused when env selects YOYO; still required by API.
-    let rust = if crate::pe_dll_link::yoyo_alt_sidecar_enabled() {
-        Vec::new()
-    } else {
-        runtime_dll_bytes()?
-    };
-    let kind = place_cwd_runtime_sidecar(&path, &rust)?;
+    // rust_dll ignored on Off after S3.732; empty placeholder keeps API stable.
+    let kind = place_cwd_runtime_sidecar(&path, &[])?;
     Ok((path, kind))
 }
 
