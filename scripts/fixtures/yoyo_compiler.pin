@@ -1,0 +1,13 @@
+﻿# Bootstrap fixture: YOYO parse1 compiler PE (CreateProcess child).
+# Honest: bytes originally materialized via verifier yoyo_place_compiler_pe once.
+# REAL track: copy this file — do NOT cargo emit-rt-sidecar --place-compiler on the chain.
+# disposition=BOOTSTRAP_FIXTURE (not OW-SEED CLOSED).
+name=yoyo_compiler.exe
+bytes=444416
+sha256=e2a9c566e1a84e22d4096d8e00ea1b5a62af1254702b24cc2948bf00816a8c89
+sha256_prefix=e2a9c566e1a84e22
+path=scripts/fixtures/yoyo_compiler.exe
+emitter_historical=rust_yoyo_place_compiler_pe
+chain_emitter=fixture_copy
+disposition=BOOTSTRAP_FIXTURE
+doc=AUTO-REAL-FIXEDPOINT.md

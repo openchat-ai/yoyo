@@ -18,6 +18,9 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
+. (Join-Path $Root "scripts\lib\unattended-ui-harden.ps1")
+Enable-YoyoUnattendedUiHarden
+
 Write-Host "=== Post-v1.0: OW-SEED Gate G slice (YOYO PE emit seed · multi-hop) ==="
 
 # Gate H: fail-closed trust-root pin before emit hops
@@ -84,10 +87,9 @@ function Invoke-YoyoPeEmit {
     Push-Location $WorkDir
     try {
         if (Test-Path "output.exe") { Remove-Item "output.exe" -Force }
-        Write-Host "=== YOYO PE emit: $Label ==="
-        & $ExePath
-        $ec = $LASTEXITCODE
-        if ($ec -ne 0 -or -not (Test-Path "output.exe")) {
+        Write-Host "=== YOYO PE emit: $Label (unattended-ui) ==="
+        $ec = Invoke-YoyoUnattendedNativeExe -FilePath $ExePath -WorkingDirectory $WorkDir -TimeoutSec 180
+        if ($ec -eq -1 -or $ec -ne 0 -or -not (Test-Path "output.exe")) {
             Write-Host "OW_SEED_EMIT status=RED reason=yoyo_pe_emit_failed label=$Label exit=$ec"
             exit 1
         }

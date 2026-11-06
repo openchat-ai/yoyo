@@ -25,6 +25,9 @@ if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction Sile
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
+. (Join-Path $Root "scripts\lib\unattended-ui-harden.ps1")
+Enable-YoyoUnattendedUiHarden
+
 function Test-H00BisectEnabled {
     if ($EnableBisect) { return $true }
     $v = $env:H00_BISECT
@@ -154,11 +157,12 @@ function Get-SmokePhase([int]$ExitCode) {
 function Invoke-ManualMapSmoke([string]$RunDir, [string]$Gen1Path) {
     $outExe = Join-Path $RunDir "output.exe"
     if (Test-Path $outExe) { Remove-Item $outExe }
+    $gen1Local = Join-Path $RunDir "gen1.exe"
     Push-Location $RunDir
     try {
         $env:YOYO_MM_SMOKE_PROBE = "1"
-        & ".\gen1.exe"
-        return @{ Exit = $LASTEXITCODE; OutPresent = (Test-Path $outExe) }
+        $ec = Invoke-YoyoUnattendedNativeExe -FilePath $gen1Local -WorkingDirectory $RunDir -TimeoutSec 180
+        return @{ Exit = $ec; OutPresent = (Test-Path $outExe) }
     } finally {
         Remove-Item Env:YOYO_MM_SMOKE_PROBE -ErrorAction SilentlyContinue
         Pop-Location
@@ -245,13 +249,7 @@ if (-not $SkipSmoke) {
     $rtFail = Join-Path $runFail "yoyo_rt.dll"
     if (Test-Path $outFail) { Remove-Item $outFail }
     if (Test-Path $rtFail) { Remove-Item $rtFail }
-    Push-Location $runFail
-    try {
-        & ".\gen1.exe"
-        $failExit = $LASTEXITCODE
-    } finally {
-        Pop-Location
-    }
+    $failExit = Invoke-YoyoUnattendedNativeExe -FilePath (Join-Path $runFail "gen1.exe") -WorkingDirectory $runFail -TimeoutSec 180
     if ($failExit -eq -1073741819) {
         if ($H00BisectOn) {
             $bisect = Invoke-H00BisectDiagnostic $runFail $Ty $Tyb $dllPath -NoSidecar

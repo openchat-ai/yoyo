@@ -1,8 +1,10 @@
-# OW-SEED Gate H — trust-root pin (post-v1.0 path 2)
+# OW-SEED Gate H — trust-root pin (post-v1.0 path 2 · FP-4 dual provenance)
 #
 # Machine-pinned YOYO PE used as bootstrap emitter after Gate G.
-# Honest: this root's *ancestry* still includes one Rust stage9 gen1 link.
-# Pinning ≠ no-Rust provenance. disposition=CUT. Not OW-SEED CLOSED.
+# FP-4: Rust stage9 gen1 is NO LONGER the sole listed ancestor —
+#   provenance_ancestry  = cold-start chain (still includes Rust gen1)
+#   provenance_operational = YOYO PE emit hops (Gate G; rust yoyo.exe ABSENT on hops)
+# disposition=CUT. Pinning dual ≠ OW-SEED CLOSED.
 #
 # Format: KEY=VALUE lines (fail-closed).
 
@@ -12,7 +14,10 @@ bytes=251392
 sha256=b0a8dbb0d3133e2a7f763fe79af19975bb2f2f505b0fed1d625d0e8b8f793a74
 sha256_prefix=b0a8dbb0d3133e2a
 path_hint=scripts/_stage9-pure-m4/gen4.exe
-provenance=rust_stage9_gen1_then_H00_chain
+provenance=dual_ancestry_rust_stage9_gen1_plus_operational_yoyo_pe_emit
+provenance_ancestry=rust_stage9_gen1_then_H00_chain
+provenance_operational=yoyo_pe_emit_hops_gen4
 disposition=CUT
-pinned_date=2026-09-30
+pinned_date=2026-11-06
 doc=SCOPE-CUT-v1.0-ow-seed-observe.md
+fp4_doc=AUTO-FIXEDPOINT.md

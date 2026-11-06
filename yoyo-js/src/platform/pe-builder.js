@@ -10,55 +10,76 @@ const { KERNEL32_IO_FUNCS } = require('./platform-io');
 
 function alignUp(v, a) { return (v + a - 1) & ~(a - 1); }
 
+/** Match pe_link::WIN32_IO_H00_SCRATCH_* — phase/LL scratch after IAT metadata. */
+const WIN32_IO_H00_SCRATCH_BYTES = 32;
+const WIN32_IO_H00_SCRATCH_OFF = 0xf8;
+
 /**
  * Prepend kernel32 IAT blob at start of .data (r15+0), matching pe_link.rs.
  * Returns { data, importDirRva, importDirSize }.
  */
 function prependWin32IoIat(userData, dataRva) {
-  const n = KERNEL32_IO_FUNCS.length;
-  const descSize = 40;
+  // IMAGE_IMPORT_DESCRIPTOR is 20B; + trailing null descriptor (pe_link.rs).
+  const DESC_SIZE = 20;
+  const kernN = KERNEL32_IO_FUNCS.length;
+  const preloadN = 0; // PRELOAD_RUNTIME_DLL_IMPORTS empty (no UCRT in seed)
+  const numDesc = 1 + preloadN + 1;
   const kernel32Name = Buffer.from('kernel32.dll\0');
-  const iatSlotsOff = 0;
 
   const hintNames = KERNEL32_IO_FUNCS.map((name) => {
     const nm = Buffer.from(name + '\0');
-    const pad = (nm.length + 2) % 2 === 1 ? 1 : 0;
+    const pad = (2 + nm.length) % 2 === 1 ? 1 : 0;
     const hn = Buffer.alloc(2 + nm.length + pad);
     hn.writeUInt16LE(0, 0);
     nm.copy(hn, 2);
     return hn;
   });
 
-  const descOff = (n + 1) * 8;
-  const kernOff = descOff + descSize;
-  const hnStart = kernOff + kernel32Name.length;
-  let hnOff = hnStart;
-  const hnRvas = [];
+  const kernIatOff = 0;
+  const kernIatBytes = (kernN + 1) * 8;
+  const descOff = kernIatBytes; // preload_iat_base + 0
+  let cursor = descOff + DESC_SIZE * numDesc;
+
+  const kernNameOff = cursor;
+  cursor += kernel32Name.length;
+
+  const kernHnOff = [];
   for (const hn of hintNames) {
-    hnRvas.push(dataRva + hnOff);
-    hnOff += hn.length;
+    kernHnOff.push(cursor);
+    cursor += hn.length;
   }
-  const iltOff = hnOff;
-  const headerEnd = iltOff + (n + 1) * 8;
-  const pad = alignUp(headerEnd, 16);
+  cursor = alignUp(cursor, 8);
+  const kernIltOff = cursor;
+  cursor += (kernN + 1) * 8;
+
+  const h00ScratchOff = cursor;
+  cursor += WIN32_IO_H00_SCRATCH_BYTES;
+  if (h00ScratchOff !== WIN32_IO_H00_SCRATCH_OFF) {
+    throw new Error(
+      `update WIN32_IO_H00_SCRATCH_OFF (got 0x${h00ScratchOff.toString(16)})`,
+    );
+  }
+  const pad = alignUp(cursor, 16);
   const blob = Buffer.alloc(pad + userData.length, 0);
 
-  blob.writeUInt32LE(dataRva + iltOff, descOff);
-  blob.writeUInt32LE(dataRva + kernOff, descOff + 12);
-  blob.writeUInt32LE(dataRva + iatSlotsOff, descOff + 16);
-  kernel32Name.copy(blob, kernOff);
+  // kernel32 descriptor (+ null descriptor stays zero-filled)
+  blob.writeUInt32LE(dataRva + kernIltOff, descOff);
+  blob.writeUInt32LE(dataRva + kernNameOff, descOff + 12);
+  blob.writeUInt32LE(dataRva + kernIatOff, descOff + 16);
 
-  let off = hnStart;
-  for (const hn of hintNames) {
-    hn.copy(blob, off);
-    off += hn.length;
-  }
-  for (let i = 0; i < hnRvas.length; i++) {
-    blob.writeBigUInt64LE(BigInt(hnRvas[i]), iltOff + i * 8);
-    blob.writeBigUInt64LE(BigInt(hnRvas[i]), iatSlotsOff + i * 8);
+  kernel32Name.copy(blob, kernNameOff);
+  for (let i = 0; i < hintNames.length; i++) {
+    hintNames[i].copy(blob, kernHnOff[i]);
+    const hnRva = BigInt(dataRva + kernHnOff[i]);
+    blob.writeBigUInt64LE(hnRva, kernIltOff + i * 8);
+    blob.writeBigUInt64LE(hnRva, kernIatOff + i * 8);
   }
   userData.copy(blob, pad);
-  return { data: blob, importDirRva: dataRva + descOff, importDirSize: descSize };
+  return {
+    data: blob,
+    importDirRva: dataRva + descOff,
+    importDirSize: DESC_SIZE * numDesc,
+  };
 }
 
 function buildPe(code, data, dataNeed, importOverride) {
@@ -115,7 +136,7 @@ function buildPe(code, data, dataNeed, importOverride) {
   img.writeUInt32LE(sizeOfImage, opt + 56);
   img.writeUInt32LE(headersRaw, opt + 60);
   img.writeUInt16LE(3, opt + 68);
-  img.writeUInt16LE(0x8160, opt + 70);
+  img.writeUInt16LE(0x0100, opt + 70); // NX_COMPAT — match pe_link.rs
   img.writeBigUInt64LE(0x100000n, opt + 72);
   img.writeBigUInt64LE(0x1000n, opt + 80);
   img.writeBigUInt64LE(0x100000n, opt + 88);

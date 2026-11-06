@@ -11,6 +11,9 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
+. (Join-Path $Root "scripts\lib\unattended-ui-harden.ps1")
+Enable-YoyoUnattendedUiHarden
+
 $WorkDir = Join-Path $Root "scripts\_stage9-pure-m4"
 New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
 
@@ -71,10 +74,13 @@ function Invoke-H00Gen {
     Push-Location $WorkDir
     try {
         if (Test-Path "output.exe") { Remove-Item "output.exe" }
-        Write-Host "running $Label (zero-arg H_00)..."
-        & $ExePath
-        $ec = $LASTEXITCODE
-        if ($ec -eq 0xC0000005) {
+        Write-Host "running $Label (zero-arg H_00, unattended-ui)..."
+        $ec = Invoke-YoyoUnattendedNativeExe -FilePath $ExePath -WorkingDirectory $WorkDir -TimeoutSec 180
+        if ($ec -eq -1) {
+            Write-Host "${Label}: RED (timeout)"
+            return $false
+        }
+        if ($ec -eq 0xC0000005 -or $ec -eq -1073741819) {
             Write-Host "${Label}: RED (STATUS_ACCESS_VIOLATION 0xC0000005)"
             return $false
         }

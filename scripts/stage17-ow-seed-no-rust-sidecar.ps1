@@ -16,6 +16,9 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
+. (Join-Path $Root "scripts\lib\unattended-ui-harden.ps1")
+Enable-YoyoUnattendedUiHarden
+
 Write-Host "=== Post-v1.0: OW-SEED Gate I experiment (no Rust sidecar) ==="
 
 # Gate H: fail-closed trust-root pin
@@ -59,10 +62,9 @@ Copy-Item -Force $Ty (Join-Path $RustDir "input.ky")
 Push-Location $RustDir
 try {
     if (Test-Path "output.exe") { Remove-Item "output.exe" -Force }
-    Write-Host "=== contrast: gen4 + RUST sidecar ==="
-    & (Join-Path $RustDir "emitter_gen4.exe")
-    $ecRust = $LASTEXITCODE
-    if ($ecRust -ne 0 -or -not (Test-Path "output.exe")) {
+    Write-Host "=== contrast: gen4 + RUST sidecar (unattended-ui) ==="
+    $ecRust = Invoke-YoyoUnattendedNativeExe -FilePath (Join-Path $RustDir "emitter_gen4.exe") -WorkingDirectory $RustDir -TimeoutSec 180
+    if ($ecRust -eq -1 -or $ecRust -ne 0 -or -not (Test-Path "output.exe")) {
         Write-Host "OW_SEED_NO_SIDECAR status=RED reason=rust_baseline_failed exit=$ecRust"
         exit 1
     }
@@ -95,14 +97,37 @@ Copy-Item -Force $AltSrc (Join-Path $YoyoDir "yoyo_rt.dll")
 Copy-Item -Force $TrustRoot (Join-Path $YoyoDir "emitter_gen4.exe")
 Copy-Item -Force $Tyb (Join-Path $YoyoDir "input.tyb")
 Copy-Item -Force $Ty (Join-Path $YoyoDir "input.ky")
+# REAL: CreateProcess needs cwd yoyo_compiler.exe — copy pin fixture (no cargo place-compiler).
+Write-Host "=== co-place yoyo_compiler.exe from bootstrap fixture (no cargo) ==="
+$fx = Join-Path $Root "scripts\fixtures\yoyo_compiler.exe"
+$fxPin = Join-Path $Root "scripts\fixtures\yoyo_compiler.pin"
+if (-not (Test-Path $fx) -or -not (Test-Path $fxPin)) {
+    Write-Host "OW_SEED_NO_SIDECAR status=RED reason=missing_compiler_fixture"
+    exit 1
+}
+$fxExpect = @{}
+Get-Content $fxPin | ForEach-Object {
+    if ($_ -match '^\s*#' -or $_ -match '^\s*$') { return }
+    if ($_ -match '^\s*([^=]+)=(.*)$') { $fxExpect[$Matches[1].Trim()] = $Matches[2].Trim() }
+}
+$fxSha = (Get-FileHash $fx -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($fxSha -ne $fxExpect['sha256']) {
+    Write-Host "OW_SEED_NO_SIDECAR status=RED reason=compiler_fixture_sha_mismatch"
+    exit 1
+}
+Copy-Item -Force $fx (Join-Path $YoyoDir "yoyo_compiler.exe")
+Write-Host ("OW_SEED_NO_SIDECAR yoyo_compiler_bytes={0} sha256_prefix={1} emitter=fixture_copy" -f (Get-Item (Join-Path $YoyoDir "yoyo_compiler.exe")).Length, $fxSha.Substring(0,16))
+Write-Host "OW_SEED_NO_SIDECAR rust_place_compiler_cargo=ABSENT"
 Push-Location $YoyoDir
 try {
     if (Test-Path "output.exe") { Remove-Item "output.exe" -Force }
-    Write-Host "=== experiment: gen4 + YOYO-built sidecar (no Rust DLL) ==="
-    try { & (Join-Path $YoyoDir "emitter_gen4.exe") 2>&1 | ForEach-Object { Write-Host $_ } } catch {
+    Write-Host "=== experiment: gen4 + YOYO sidecar + yoyo_compiler (no Rust DLL, unattended-ui) ==="
+    try {
+        $ecYoyo = Invoke-YoyoUnattendedNativeExe -FilePath (Join-Path $YoyoDir "emitter_gen4.exe") -WorkingDirectory $YoyoDir -TimeoutSec 180
+    } catch {
         Write-Host ("exception: {0}" -f $_.Exception.Message)
+        $ecYoyo = -2
     }
-    $ecYoyo = $LASTEXITCODE
 } finally { Pop-Location }
 
 $hasOut = Test-Path (Join-Path $YoyoDir "output.exe")
@@ -129,9 +154,10 @@ if ($hasOut) {
     Write-Host ("OW_SEED_NO_SIDECAR seed_yoyo_sha256_prefix={0} parity={1}" -f $altSha, $parity)
 }
 Write-Host "OW_SEED_NO_SIDECAR rust_yoyo_rt_dll_in_cwd=ABSENT"
+Write-Host "OW_SEED_NO_SIDECAR yoyo_compiler_cwd=PRESENT"
 Write-Host "OW_SEED_NO_SIDECAR disposition=CUT"
-Write-Host "OW_SEED_NO_SIDECAR note=in_dll_recompile_sidecar_is_oracle_table_not_full_H00_runtime"
-Write-Host "OW_SEED_NO_SIDECAR doc=SCOPE-CUT-v1.0-ow-seed-observe.md"
+Write-Host "OW_SEED_NO_SIDECAR note=CreateProcess_compiler_coplaced; oracle_fallback_if_no_compiler"
+Write-Host "OW_SEED_NO_SIDECAR doc=AUTO-FULLBAR.md"
 
 if ($ecYoyo -ne 0 -or -not $hasOut -or $parity -ne "EQUAL") {
     Write-Host ("OW_SEED_NO_SIDECAR status=RED reason=yoyo_sidecar_cannot_replace_rust_runtime exit={0} output={1} parity={2}" -f $ecYoyo, $hasOut, $parity)

@@ -5,9 +5,14 @@ alwaysApply: true
 
 # Stage 4 自动负责人（零指令 + AUTO-TO-1.0）
 
-本仓库中，**除非** `AUTO_TO_1.0.md` 为 `ACTIVE=0`，或用户明确说 `停` / 「只讨论/不要动手」，否则按自动负责人执行。
+本仓库中，**除非** 用户明确说 `停` / 「只讨论/不要动手」，否则按开关执行：
 
-**长期北星**：`SCOPE-v1.0.md` / `ROADMAP-TO-1.0.md` → **1.0**（打破后门魔咒 · DDC+Lock 扩面 / 缩宿主信任）。DDC = detection；**禁止** Thompson-proof；**禁止**发明 ROADMAP 外无界功能。
+- `AUTO-REAL-FIXEDPOINT.md` `ACTIVE=1` → **硬满配**（优先；别搞虚的）；`COMPLETED=1`（2026-11-06）则勿回改
+- 否则 `AUTO-FULLBAR.md` / `AUTO-FIXEDPOINT.md` `ACTIVE=1` → 软轨（已 COMPLETED 则勿回改）
+- 否则 `AUTO_TO_1.0.md` `ACTIVE=1` → 历史 AUTO-TO-1.0
+- 皆 `ACTIVE=0` → 零指令触发词
+
+**长期北星**：**打破后门魔咒 / 自举**（`SCOPE-v1.0.md` / `ROADMAP-TO-1.0.md` → 1.0 已毕业）。进度只问自举是否更硬、DDC+Lock 检测是否更实。DDC = detection（对外禁吹牛 ≠ 进度尺）；OW-\* = 宿主债附录；**禁止** Thompson-proof 宣称；**禁止** invent Stage 17 / 无界 tip 工厂。
 
 ---
 
@@ -15,14 +20,16 @@ alwaysApply: true
 
 ```text
 F:\yoyo\AUTO_TO_1.0.md
+F:\yoyo\AUTO-FIXEDPOINT.md
 ```
 
-| `ACTIVE` | 模式 |
-|----------|------|
-| `1` | **AUTO-TO-1.0**：无人值守；见下节 |
-| `0` 或不存在且无触发词 | 普通零指令（`继续` 等才推进） |
+| 开关 | 模式 |
+|------|------|
+| `AUTO_TO_1.0` `ACTIVE=1` | 历史 **AUTO-TO-1.0**（v1.0 已 `COMPLETED=1` → 应保持 0） |
+| `AUTO-FIXEDPOINT` `ACTIVE=1` | **固定点全自动**：三链终极 + 非 Rust 唯一发射；只走该文件 FP-0…DONE |
+| 两轨皆 `ACTIVE=0` 且无触发词 | 普通零指令（`继续` / `关洞` / `继续固定点` 等才推进） |
 
-用户已说过 **自动持续 / 推到1.0 / 离电脑** 且 flag=`ACTIVE=1` 时：**不要**向用户索取「继续」；**不要**教用户打字。
+用户已说过 **自动持续 / 推到1.0 / 固定点自动 / 离电脑** 且对应 flag=`ACTIVE=1` 时：**不要**向用户索取「继续」；**不要**教用户打字。
 
 ---
 
@@ -157,13 +164,15 @@ v1.0 / Stage 16 已毕业；`AUTO_TO_1.0.md` **`ACTIVE=0` · `COMPLETED=1`** →
 
 | 触发 | 行为 |
 | ---- | ---- |
-| `继续` / `关洞` / `post-1.0` / `path 2` / `整仓竣工` | 读 `POST-1.0-HOLE-CHECKLIST.md`；**一项** A→G per tick |
-| 验收 | 本地先跑看板该项 PowerShell 门禁；绿了才勾 |
+| `继续` / `关洞` / `post-1.0` / `path 2` / `整仓竣工` | 读 `POST-1.0-HOLE-CHECKLIST.md`；默认本源已可停；加深则转固定点轨 |
+| `固定点自动` / `继续固定点` / `别搞虚的` / `自动固定点` | 读 **`AUTO-REAL-FIXEDPOINT.md`**；`COMPLETED=1` → 停；否则一项 RR-\* |
+| `满配自动` / `继续满配` | REAL 已 COMPLETED → 停或只回归；否则 FULLBAR |
+| 验收 | 本地先跑该项 PowerShell 门禁；绿了才勾 |
 | push | 遵守 **CI anti-thrash**（`.cursor/rules/ci-anti-thrash.mdc`）：本地 smoke 先绿 → 一次 CI push；WIP `[skip ci]` |
-| 诚实 | OW-IAT/OW-RT smoke GREEN **≠** CLOSED；sidecar / Rust runtime 仍在则 CUT |
-| 阻塞 | 写入看板「阻塞」节；长杆 = YOYO-built runtime（多月） |
+| 诚实 | observe/smoke GREEN **≠** CLOSED；D3≠OW-SEED CLOSED |
+| 阻塞 | 写入 `AUTO-FIXEDPOINT.md`「阻塞」；需人类授权 CUT→CLOSED 则停 |
 
-**下一项（2026-09-04）** = **E** — YOYO-origin stub 填 `pe_dll_link` export body（仍 CUT）。
+**全自动加深入口** = `AUTO-FIXEDPOINT.md`（默认 `ACTIVE=0`；开跑改 `ACTIVE=1`）。
 
 ## 约束
 

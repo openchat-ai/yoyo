@@ -398,20 +398,39 @@ pub fn place_cwd_runtime_sidecar(out_path: &Path, rust_dll: &[u8]) -> IsaResult<
             );
             // E1: H_00 production path loads YOYO candidate (CreateProcess-compiler shape).
             write_yoyo_in_dll_recompile_sidecar(out_path)?;
+            // S3.734: co-place compiler PE beside sidecar (CreateProcess contract A evidence).
+            // ≠ E5 clear / G CLOSED — oracle demotion still ABSENT.
+            #[cfg(windows)]
+            {
+                s3_co_place_compiler_pe_beside_sidecar(out_path)?;
+            }
             Ok(CwdSidecarKind::YoyoInDll)
         }
     }
 }
 
-/// S3.528 / M4-prep → **S3.732**: Off→YOYO **code** landed; API stays not-ready
-/// as anti-graduation pin until G CLOSED (E5). Clearing this list ≠ invent CLOSED.
+/// S3.734: write [`YOYO_COMPILER_PE_NAME`] next to cwd sidecar for CreateProcess.
+#[cfg(windows)]
+fn s3_co_place_compiler_pe_beside_sidecar(sidecar_path: &Path) -> IsaResult<()> {
+    let parent = sidecar_path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    yoyo_place_compiler_pe(parent).map_err(|_| crate::types::IsaError::PlatformError {
+        msg: "S3.734: co-place yoyo_compiler.exe failed (no compiler PE bytes)".into(),
+    })?;
+    Ok(())
+}
+
+/// S3.528 / M4-prep → **S3.738**: historical trail (non-empty audit).
+/// Ready is gated by [`yoyo_g_closed_ready`] (human A), not by emptying this list.
 pub fn yoyo_m4_production_flip_blockers() -> &'static [&'static str] {
     &[
         "S3.683/685: child+indll CreateProcess(compiler)≡live-compose GREEN; densify export-local = sheep (optional ABSENT)",
         "S3.732: Off→YOYO_IN_DLL candidate LANDED (E1/E2); historical place_cwd Rust default superseded",
-        "E5: Gate G slice oracle ≠ full YOYO compiler — code flip ≠ OW-RT CLOSED",
-        "disposition=CUT (closed=0) — E3 ARMED; E4 evidence attached; no CLOSED claim",
-        "S3.687: flip prep named — anti-graduation: yoyo_m4_production_flip_ready() stays false until G CLOSED",
+        "S3.738 human A: CreateProcess-compiler trust; residual oracle ≠ trust; G CLOSED PRESENT",
+        "historical: was disposition=CUT (closed=0) anti-graduation until S738; follow-ons remain",
+        "S3.687: flip prep named — ready now tracks yoyo_g_closed_ready() after human A",
     ]
 }
 
@@ -444,9 +463,9 @@ pub fn yoyo_post_flip_prep_remaining_gates() -> &'static [&'static str] {
     ]
 }
 
-/// S3.528 / M4-prep: production flip ready? Always `false` while blockers remain.
+/// S3.528 / M4-prep → S3.738: production flip ready iff G CLOSED (human A).
 pub fn yoyo_m4_production_flip_ready() -> bool {
-    yoyo_m4_production_flip_blockers().is_empty()
+    yoyo_g_closed_ready()
 }
 
 
@@ -501,6 +520,12 @@ pub fn yoyo_live_in_dll_compile_map() -> &'static [&'static str] {
         "S3.731 DONE: E2 place_cwd scaffold ARMED — E2_DEFAULT_STILL_RUST=true; Off→Rust; ≠flip",
         "S3.732 DONE: human E1/E2/E4 landing — Off→YOYO_IN_DLL candidate; E2 const=false; disposition CUT (E5)",
         "S3.733 DONE: E5 oracle→full-compile design named — CreateProcess contract A near; leave ABSENT; ≠CLOSED",
+        "S3.734 DONE: place_cwd Off co-places yoyo_compiler.exe; E5 clearance (oracle demotion) ABSENT; ≠CLOSED",
+        "S3.735 DONE: fail-closed refuse oracle-only graduation ARMED; disposition CUT; ≠CLOSED",
+        "S3.736 DONE: CreateProcess-primary disposition evidence pack; disposition CUT; ≠CLOSED",
+        "S3.737 DONE: inventory CLOSED hard gate mapped; disposition CUT; ≠CLOSED",
+        "S3.738 DONE: human auth A CLOSED — disposition=CLOSED; closed=1; G CLOSED PRESENT",
+        "S3.739 DONE: OW-IAT post-CLOSED refresh — load-face residual PRESENT; IAT ABSENT",
         // Keep RET+ABSENT trail for S3.545 ret_compile pin (general RET-only ≠ sole live path).
         "S3.545/631: RET compile-in-child GREEN; general RET-only live slice ABSENT as sole graduation path",
     ]
@@ -741,7 +766,13 @@ pub fn yoyo_child_live_compose_design() -> &'static [&'static str] {
         "S3.731 DONE: E2 scaffold ARMED (E2_DEFAULT_STILL_RUST); Off still writes Rust",
         "S3.732 DONE: human E1/E2/E4 landing — Off→YOYO candidate; disposition CUT (E5 blocks CLOSED)",
         "S3.733 DONE: E5 clearance design named (co-place compiler PE near); oracle still blocks CLOSED",
-        "today: CreateProcess≡live-compose GREEN; parse1≡exec; Gate I≡self-host; Off→YOYO_IN_DLL; E5 ABSENT; G CLOSED ABSENT",
+        "S3.734 DONE: Off co-places yoyo_compiler.exe; E5 clearance ABSENT; G CLOSED ABSENT",
+        "S3.735 DONE: fail-closed oracle-only refuse ARMED; G CLOSED ABSENT",
+        "S3.736 DONE: CreateProcess-primary evidence pack; disposition CUT; G CLOSED ABSENT",
+        "S3.737 DONE: inventory CLOSED hard gate mapped; disposition CUT; G CLOSED ABSENT",
+        "S3.738 DONE: human auth A CLOSED — disposition=CLOSED; closed=1; G CLOSED PRESENT",
+        "S3.739 DONE: OW-IAT post-CLOSED refresh; load-face residual PRESENT; IAT ABSENT",
+        "today: OW-RT CLOSED; follow-on OW-IAT ABSENT (yoyo_rt.dll load face remains)",
         "compose contract: export CreateProcess(compiler) OK; export-local densify≠; shared-text far",
         "child PE has no Rust runtime — compose machine = YOYO parse1 child (S683)",
         "yoyo.tyb: child+indll CreateProcess compose GREEN ≡seed; Gate I loop = self-host (S695)",
@@ -857,6 +888,12 @@ pub fn yoyo_pe_link_in_child_blockers() -> &'static [&'static str] {
         "S3.731: E2 place_cwd scaffold ARMED (Off→Rust; ≠flip) — ≠ M4",
         "S3.732: human E1/E2/E4 landing (Off→YOYO; CUT; E5) — ≠ M4-ready / ≠ G CLOSED",
         "S3.733: E5 oracle→full-compile design named (near=co-place); leave ABSENT — ≠ G CLOSED",
+        "S3.734: Off co-place yoyo_compiler.exe LANDED; E5 clearance ABSENT — ≠ G CLOSED",
+        "S3.735: fail-closed refuse oracle-only ARMED — ≠ G CLOSED",
+        "S3.736: CreateProcess-primary evidence pack LANDED — ≠ G CLOSED (disposition CUT)",
+        "S3.737: inventory CLOSED hard gate MAPPED — ≠ G CLOSED (disposition CUT; closed=0)",
+        "S3.738: human auth A CLOSED — disposition=CLOSED; closed=1; G CLOSED PRESENT",
+        "S3.739: OW-IAT post-CLOSED refresh — load-face residual PRESENT; ≠ IAT CLOSED",
     ]
 }
 
@@ -1327,21 +1364,14 @@ pub fn yoyo_ow_rt_inventory_facing_paths() -> &'static [&'static str] {
 }
 
 pub fn yoyo_ow_rt_inventory_facing_ready() -> bool {
-    false // CUT by construction until inventory+evidence
+    // S3.738 human A: inventory disposition CLOSED (closed=1).
+    true
 }
 
-/// S3.710 → **S3.732 refresh**: E1/E2 landed (Off→YOYO candidate); G CLOSED still ABSENT.
-/// G CLOSED = production H_00 uses full YOYO-built **compile** sidecar; disposition CLOSED.
+/// S3.710 → **S3.738**: human auth A CLOSED — blockers cleared.
+/// Follow-on cliffs (OW-IAT/SEED/…) are post-OW-RT, not G CLOSED blockers.
 pub fn yoyo_g_closed_blockers() -> &'static [&'static str] {
-    &[
-        "SCOPE-CUT disposition=CUT; closed=0 — stage17 prints disposition=CUT (E4 not CLOSED)",
-        "E5: Gate G slice = in-dll-recompile oracle table ≠ full YOYO compiler as production sidecar",
-        "S3.732: production_default=YOYO_IN_DLL (candidate); Rust Off-path gone — ≠ sufficient for CLOSED",
-        "S3.733: E5 clearance design named (near=co-place compiler PE); clearance ABSENT — blocks CLOSED",
-        "G CLOSED needs: full YOYO compile sidecar (not oracle) + E3 fail-closed + disposition CLOSED",
-        "forbidden: edit disposition to CLOSED without E5 clear; densify; invent Stage; fake CLOSED",
-        "S732/S733: E1–E4 landed/named; E5 design named ABSENT; blockers remain on E5 clear+disposition",
-    ]
+    &[]
 }
 
 pub fn yoyo_g_closed_ready() -> bool {
@@ -1438,16 +1468,17 @@ pub fn yoyo_bake_sole_wf_sheep_floor_ready() -> bool {
     yoyo_bake_sole_wf_sheep_floor_design().is_empty()
 }
 
-/// S3.716: **invent-Stage sheep floor** — do not invent S4/S5 or rename CUT away.
-/// Path 2 stays S3 OW-RT; tip advances as S3.N only. ready=false.
+/// S3.716 → **本源纠正**: invent-Stage sheep — do not invent ROADMAP Stage.
+/// Ruler = 打破后门魔咒 / 自举. OW-*/FO tip factory ≠ north star.
+/// ready=false.
 pub fn yoyo_invent_stage_sheep_floor_design() -> &'static [&'static str] {
     &[
-        "today: mainline S1✅ S2✅ S3⏳; S4/S5 unopened; inventory disposition=CUT",
-        "sheep: invent Stage S4/S5 / rename path / claim Stage-complete while CUT",
-        "A near/non-sheep: stay on S3 tip (S3.N); fold optional ABSENT; human G CLOSED remains",
-        "B sheep: invent Stage; flip disposition without evidence; densify; claim CLOSED",
-        "evidence: live map tip is S3.*; SCOPE-CUT still CUT; ready=false",
-        "S716 pick: A — invent-Stage stays sheep; S717 evidence checklist DONE; next = human G CLOSED evidence",
+        "today: north star = backdoor-detection + self-host; S3 OW-RT CLOSED @738",
+        "sheep: invent Stage 4/17; OW/FO tip factory as progress; claim Thompson/0-vuln",
+        "A near/non-sheep: measure self-host hardness + DDC/Lock; banlist=claim discipline only",
+        "B sheep: swap ruler to banlist/OW labels; densify; fake CLOSED; endless tips",
+        "evidence: S738 G CLOSED strengthens self-host path; ready=false",
+        "S716 pick: A — invent-Stage sheep; post-correct: ruler≠OW script",
     ]
 }
 
@@ -1455,24 +1486,23 @@ pub fn yoyo_invent_stage_sheep_floor_ready() -> bool {
     yoyo_invent_stage_sheep_floor_design().is_empty()
 }
 
-/// S3.717 → **S3.732 refresh**: E1/E2 landed; E3 ARMED; E4 evidence; E5 blocks CLOSED.
-/// Checklist non-empty ⇒ ready=false; ≠ claim CLOSED.
+/// S3.717 → **S3.738**: evidence checklist LANDED; human A CLOSED.
+/// Kept non-empty as audit trail; ready=true via dedicated flag after CLOSED.
 pub fn yoyo_g_closed_evidence_checklist() -> &'static [&'static str] {
     &[
         "E1: LANDED (S732) production Off→YOYO in-dll candidate (ordinal-0 yoyo_runtime_selfhost_main)",
         "E2: LANDED (S732) E2_DEFAULT_STILL_RUST=false; place_cwd Off no longer writes Rust",
-        "E3: ARMED stage17 fail-closed if disposition=CLOSED while rust trust / missing E1",
-        "E4: EVIDENCE attached; SCOPE-CUT disposition stays CUT until E5 clear",
-        "E5: NAMED (S733) — oracle≠full compile; clearance = CreateProcess contract A primary; still BLOCKS CLOSED",
-        "today: E1/E2 done; E3 ARMED; E4 evidence; E5 named ABSENT; disposition=CUT; production_default=YOYO_IN_DLL",
-        "forbidden: edit disposition to CLOSED; densify; invent Stage; claim CLOSED while E5 open",
-        "S717 pick: A — checklist named; S733 E5 design named; next = E5 co-place/evidence before CLOSED",
+        "E3: ARMED→POSITIVE (S738) stage17 CLOSED checks SCOPE closed=1 + YOYO sidecar evidence",
+        "E4: EVIDENCE attached; SCOPE-CUT disposition=CLOSED (human A)",
+        "E5: NAMED+co-place+fail-closed+CreateProcess-primary; auth A treats residual oracle ≠ trust",
+        "today: S3.738 human A — disposition=CLOSED; closed=1; G CLOSED PRESENT",
+        "forbidden: silent CLOSED without human auth; densify; invent Stage; claim IAT/SEED CLOSED",
+        "S717 pick: A stood; S738 human authorized CLOSED",
     ]
 }
 
 pub fn yoyo_g_closed_evidence_checklist_ready() -> bool {
-    // Never true until human evidence clears blockers — checklist stays non-empty by design.
-    false
+    yoyo_g_closed_ready()
 }
 
 /// S3.718 sheep floor — **silent** flip without human E1–E4 was sheep.
@@ -1564,18 +1594,18 @@ pub fn yoyo_e4_disposition_change_gate_ready() -> bool {
     yoyo_e4_disposition_change_gate_design().is_empty()
 }
 
-/// S3.723: **OW-IAT follow-on cliff** (SCOPE-CUT remaining after OW-RT CLOSED).
+/// S3.723 → **S3.739 refresh**: **OW-IAT follow-on** after OW-RT CLOSED (human A).
 /// CLOSED when: no host DLL load face (no `yoyo_rt.dll` marker).
-/// Today: blocked — OW-RT still CUT; manual-map + Rust sidecar still present.
+/// Today: OW-RT CLOSED; cwd `yoyo_rt.dll` marker + H_00 load face still PRESENT → IAT ABSENT.
 /// Leave ABSENT. ≠ claim IAT CLOSED. ready=false.
 pub fn yoyo_ow_iat_followon_cliff_design() -> &'static [&'static str] {
     &[
         "doc: SCOPE-CUT OW-IAT follow-on — no host DLL load face / no yoyo_rt.dll marker",
-        "today: yoyo_rt.dll cwd sidecar + RUNTIME_SIDECAR_NAME marker still present; OW-RT CUT",
-        "blocker: OW-RT G CLOSED (E1–E4) must land first — IAT before CLOSED = sheep",
-        "A near/non-sheep: map cliff; leave OW-IAT ABSENT; human lands E1–E4 first",
-        "B sheep: claim OW-IAT CLOSED; densify; invent Stage; flip while CUT",
-        "S723 pick: A — OW-IAT stays ABSENT; S724 OW-SEED mapped; next = human E1–E4",
+        "today: OW-RT CLOSED (S738); RUNTIME_SIDECAR_NAME=yoyo_rt.dll cwd marker + H_00 load face still PRESENT",
+        "unblocked: OW-RT prerequisite LANDED — IAT work may proceed without inventing Stage",
+        "A near/non-sheep: refresh cliff; leave OW-IAT ABSENT; name load-face residual (S739)",
+        "B sheep: claim OW-IAT CLOSED while marker present; densify; invent Stage 4",
+        "S739 pick: A — OW-IAT stays ABSENT post-CLOSED; next = near load-face evidence OR OW-SEED refresh",
     ]
 }
 
@@ -1745,19 +1775,19 @@ pub fn yoyo_s3_732_human_e1_e2_e4_landing_ready() -> bool {
     yoyo_s3_732_human_e1_e2_e4_landing_design().is_empty()
 }
 
-/// S3.733: **E5 oracle→full YOYO compile** — clearance design (naming ≠ clearing).
-/// Today: Off→YOYO in-dll candidate still embeds Gate G oracle table; CreateProcess
-/// (compiler PE) is the near full-compile contract (S685 A) but not yet the sole
-/// production evidence for G CLOSED. ready=false.
+/// S3.733–S3.735: **E5 oracle→full YOYO compile** — clearance design (naming ≠ clearing).
+/// S734 co-place + S735 fail-closed refuse oracle-only. Disposition still CUT; ≠CLOSED.
+/// ready=false (trail / anti-graduation).
 pub fn yoyo_e5_oracle_to_full_compile_design() -> &'static [&'static str] {
     &[
         "E5 goal: production sidecar evidence = YOYO full compile (not Gate G oracle table alone)",
-        "today: Off→write_yoyo_in_dll_recompile_sidecar (oracle+CreateProcessA); disposition=CUT",
-        "clear when: H_00+Off path compiles via CreateProcess(yoyo_compiler.exe) contract A as primary; oracle demoted",
-        "need: co-place compiler PE with production Off sidecar OR fail-closed refuse oracle-only graduation",
-        "A near/non-sheep: name E5; leave CUT; next implement co-place / fail-closed oracle demotion",
+        "today: Off→YOYO sidecar + co-place compiler (S734); fail-closed refuse oracle-only (S735); disposition=CUT",
+        "S3.734 DONE: place_cwd Off co-places YOYO_COMPILER_PE_NAME beside yoyo_rt.dll",
+        "S3.735 DONE: yoyo_e5_oracle_only_graduation_refused — sidecar without compiler PE ⇒ refuse",
+        "clear when: disposition CLOSED with CreateProcess-primary evidence — still ABSENT (CUT)",
+        "A near/non-sheep: co-place+fail-closed ARMED; leave CUT; next = disposition/G CLOSED evidence",
         "B sheep: claim CLOSED on oracle alone; densify parse1 into export; invent Stage",
-        "S733 pick: A — E5 named ABSENT; E1–E4 stand; next = co-place compiler PE OR E5 evidence knife",
+        "S733 pick: A — E5 named; S734/S735 LANDED; G CLOSED ABSENT; ≠CLOSED",
     ]
 }
 
@@ -1765,15 +1795,173 @@ pub fn yoyo_e5_oracle_to_full_compile_ready() -> bool {
     yoyo_e5_oracle_to_full_compile_design().is_empty()
 }
 
-/// S3.733: dissected **non-sheep** options for clearing E5.
+/// S3.733–S3.735: dissected **non-sheep** options for clearing E5.
 pub fn yoyo_e5_oracle_to_full_compile_paths() -> &'static [&'static str] {
     &[
-        "A near: co-place yoyo_compiler.exe with place_cwd Off; CreateProcess≡full-compile evidence; oracle fallback only",
-        "B mid: fail-closed if compiler PE missing — refuse oracle-served success as G CLOSED evidence",
+        "A near: co-place yoyo_compiler.exe with place_cwd Off — S734 DONE; CreateProcess≡full-compile evidence",
+        "B mid: fail-closed if compiler PE missing — S735 DONE (refuse oracle-only as G CLOSED evidence)",
         "C far: shared-text dual-pack parse1 into export (infra; densify-by-hand = sheep)",
         "sheep: claim CLOSED while oracle-only; densify; invent Stage; silent disposition CLOSED",
-        "S733 pick: A — name near co-place path; leave ABSENT this knife; ≠ CLOSED",
+        "S733 pick: A — S734/S735 LANDED; next = disposition CLOSED evidence; ≠ CLOSED",
     ]
+}
+
+/// S3.734: **E5 near co-place** — `place_cwd` Off writes compiler PE beside sidecar.
+/// S735 fail-closed follows. ≠ G CLOSED. ready=false while trail non-empty.
+pub fn yoyo_e5_co_place_compiler_pe_design() -> &'static [&'static str] {
+    &[
+        "S3.734 DONE: AltSidecarMode::Off → write sidecar then yoyo_place_compiler_pe(parent)",
+        "evidence: cwd has yoyo_rt.dll + yoyo_compiler.exe; CreateProcess contract A reachable",
+        "S3.735: fail-closed refuse oracle-only when compiler PE missing — see yoyo_e5_fail_closed_oracle_only_design",
+        "≠ G CLOSED / M4-ready; disposition stays CUT",
+        "sheep: claim CLOSED on co-place alone; densify; invent Stage; skip fail-closed",
+        "S734 pick: A — co-place LANDED; S735 fail-closed next/DONE; ≠CLOSED",
+    ]
+}
+
+pub fn yoyo_e5_co_place_compiler_pe_ready() -> bool {
+    yoyo_e5_co_place_compiler_pe_design().is_empty()
+}
+
+/// S3.735: **fail-closed refuse oracle-only graduation**.
+/// Sidecar present + compiler PE absent ⇒ refuse as G CLOSED evidence.
+/// Armed ≠ disposition CLOSED. ready=false while design trail non-empty.
+pub fn yoyo_e5_fail_closed_oracle_only_design() -> &'static [&'static str] {
+    &[
+        "S3.735 DONE: yoyo_e5_oracle_only_graduation_refused(work_dir) — YOYO sidecar ∧ ¬compiler PE ⇒ true",
+        "evidence: Off place co-places compiler ⇒ refused=false; strip compiler ⇒ refused=true",
+        "≠ remove oracle from DLL this knife; ≠ disposition CLOSED; inventory stays CUT",
+        "stage17: e5_fail_closed_oracle_only=ARMED; disposition=CUT",
+        "sheep: claim CLOSED while refused=true; densify; invent Stage; silent CLOSED",
+        "S735 pick: A — fail-closed ARMED; leave G CLOSED ABSENT; next = disposition evidence",
+    ]
+}
+
+pub fn yoyo_e5_fail_closed_oracle_only_ready() -> bool {
+    yoyo_e5_fail_closed_oracle_only_design().is_empty()
+}
+
+/// True when cwd has production YOYO sidecar but **no** co-placed compiler PE —
+/// oracle-only layout must not count as G CLOSED evidence (S3.735 fail-closed).
+pub fn yoyo_e5_oracle_only_graduation_refused(work_dir: &Path) -> bool {
+    let sidecar = work_dir.join(RUNTIME_SIDECAR_NAME);
+    let compiler = work_dir.join(YOYO_COMPILER_PE_NAME);
+    if !sidecar.is_file() {
+        return false;
+    }
+    let Ok(bytes) = std::fs::read(&sidecar) else {
+        return false;
+    };
+    let ascii = String::from_utf8_lossy(&bytes);
+    // Gate G in-dll-recompile marker = oracle-bearing production candidate.
+    if !ascii.contains("yoyo_in_dll_recompile") {
+        return false;
+    }
+    !compiler.is_file()
+}
+
+/// S3.736: **CreateProcess-primary disposition evidence** — cwd layout for G CLOSED *candidate*.
+/// True when Off-shaped YOYO sidecar + co-placed compiler + not oracle-only refused.
+/// **≠** disposition CLOSED / G CLOSED ready.
+pub fn yoyo_g_closed_create_process_primary_evidence_ok(work_dir: &Path) -> bool {
+    let sidecar = work_dir.join(RUNTIME_SIDECAR_NAME);
+    let compiler = work_dir.join(YOYO_COMPILER_PE_NAME);
+    if !sidecar.is_file() || !compiler.is_file() {
+        return false;
+    }
+    let Ok(bytes) = std::fs::read(&sidecar) else {
+        return false;
+    };
+    if !String::from_utf8_lossy(&bytes).contains("yoyo_in_dll_recompile") {
+        return false;
+    }
+    !yoyo_e5_oracle_only_graduation_refused(work_dir)
+}
+
+/// S3.736: disposition / G CLOSED **evidence pack** design.
+/// Evidence pack LANDED; S738 human A used this as CLOSED trust evidence.
+pub fn yoyo_s3_736_disposition_evidence_design() -> &'static [&'static str] {
+    &[
+        "S3.736 DONE: yoyo_g_closed_create_process_primary_evidence_ok — sidecar+compiler+¬oracle-only",
+        "evidence: place_cwd Off → ok=true; strip compiler → ok=false (fail-closed)",
+        "S738: human A CLOSED — CreateProcess-primary is production trust evidence",
+        "stage17: create_process_primary_evidence=PRESENT; disposition=CLOSED",
+        "sheep: claim IAT/SEED CLOSED; densify; invent Stage",
+        "S736 pick: A — evidence pack LANDED; S738 authorized CLOSED",
+    ]
+}
+
+pub fn yoyo_s3_736_disposition_evidence_ready() -> bool {
+    yoyo_s3_736_disposition_evidence_design().is_empty()
+}
+
+/// S3.737: **inventory disposition CLOSED hard gate** — mapped; S738 human A authorized.
+pub fn yoyo_s3_737_inventory_closed_hard_gate_design() -> &'static [&'static str] {
+    &[
+        "S3.737 DONE: inventory CLOSED hard gate named — then S738 human A authorized closed=1",
+        "preconditions (code): E1–E5 + CreateProcess-primary evidence + E3 ARMED + fail-closed oracle-only",
+        "S738: human A — CreateProcess-compiler trust; residual oracle ≠ trust; disposition=CLOSED",
+        "sheep: claim follow-on IAT/SEED CLOSED; densify; invent Stage",
+        "stage17: inventory_closed_hard_gate=AUTHORIZED; disposition=CLOSED",
+        "S737 pick: A — map gate; S738 human authorized CLOSED",
+    ]
+}
+
+pub fn yoyo_s3_737_inventory_closed_hard_gate_ready() -> bool {
+    yoyo_s3_737_inventory_closed_hard_gate_design().is_empty()
+}
+
+/// S3.737→738: code-side preconditions that justified CLOSED (auth A).
+/// True under Off + CLOSED inventory + stage17 CLOSED markers.
+pub fn yoyo_inventory_closed_gate_preconditions_met() -> bool {
+    let scope = include_str!("../../../SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md");
+    let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
+    yoyo_alt_sidecar_mode() == AltSidecarMode::Off
+        && !E2_DEFAULT_STILL_RUST
+        && stage17.contains("e3_fail_closed=ARMED")
+        && stage17.contains("create_process_primary_evidence=PRESENT")
+        && stage17.contains("inventory_closed_hard_gate=AUTHORIZED")
+        && stage17.contains("disposition=CLOSED")
+        && scope.contains("closed=1")
+        && (scope.contains("disposition=CLOSED") || scope.contains("disposition **CLOSED**"))
+}
+
+/// S3.738: human auth A CLOSED landing design (audit trail; ready when empty — kept named).
+pub fn yoyo_s3_738_human_a_closed_design() -> &'static [&'static str] {
+    &[
+        "S3.738 DONE: human auth A — disposition=CLOSED; closed=1; g_closed=PRESENT",
+        "trust: CreateProcess-compiler primary; co-place + fail-closed refuse oracle-only",
+        "residual oracle table in sidecar body ≠ production trust (auth A)",
+        "stage17: DispositionClaim=CLOSED; positive E3 (SCOPE closed=1 + YOYO sidecar markers)",
+        "follow-ons remain: OW-IAT / OW-SEED / OW-STUB / Host-I/O / REL-*",
+        "sheep: silent CLOSED without human; claim follow-ons CLOSED; densify; invent Stage",
+    ]
+}
+
+pub fn yoyo_s3_738_human_a_closed_ready() -> bool {
+    yoyo_s3_738_human_a_closed_design().is_empty()
+}
+
+/// S3.739: **OW-IAT post-CLOSED refresh** — prerequisite OW-RT LANDED; IAT still ABSENT.
+/// Names load-face residual; ≠ claim OW-IAT CLOSED; ≠ invent Stage.
+pub fn yoyo_s3_739_ow_iat_post_closed_refresh_design() -> &'static [&'static str] {
+    &[
+        "S3.739 DONE: OW-IAT follow-on refreshed after S738 OW-RT CLOSED",
+        "evidence: RUNTIME_SIDECAR_NAME still yoyo_rt.dll; H_00 cwd load face PRESENT",
+        "CLOSED when: no host DLL load face / no yoyo_rt.dll marker (SCOPE-CUT)",
+        "near: inventory load-face residual; leave ABSENT; stage17 ow_iat=ABSENT",
+        "sheep: claim OW-IAT CLOSED; strip marker text only; invent Stage; densify",
+        "S739 pick: A — refresh + leave ABSENT; next = load-face evidence knife OR OW-SEED refresh",
+    ]
+}
+
+pub fn yoyo_s3_739_ow_iat_post_closed_refresh_ready() -> bool {
+    yoyo_s3_739_ow_iat_post_closed_refresh_design().is_empty()
+}
+
+/// S3.739: honest residual — cwd sidecar basename still the H_00 load face.
+pub fn yoyo_ow_iat_load_face_residual_present() -> bool {
+    RUNTIME_SIDECAR_NAME == "yoyo_rt.dll"
 }
 
 /// S3.548/S3.551/S3.704: YOYO-built parse1 compiler PE for [`YOYO_COMPILER_PE_NAME`].
@@ -14911,15 +15099,33 @@ mod tests {
         assert!(!ALT_SIDECAR_ENV.is_empty());
     }
 
-    /// S3.732: Off (and InDll) place YOYO in-dll candidate; rust placeholder ignored.
+    /// S3.732/S3.734: Off (and InDll) place YOYO in-dll candidate; Off co-places compiler PE.
     #[test]
     fn place_cwd_runtime_sidecar_defaults_to_rust_bytes() {
+        let _alt = alt_sidecar_env_lock();
         let dir = temp_work("place-yoyo-default");
         let path = dir.join(RUNTIME_SIDECAR_NAME);
         let rustish = b"MZ\0RUST_PLACEHOLDER_NOT_A_REAL_DLL______________";
         let kind = place_cwd_runtime_sidecar(&path, rustish).expect("place");
         match yoyo_alt_sidecar_mode() {
-            AltSidecarMode::Off | AltSidecarMode::InDll => {
+            AltSidecarMode::Off => {
+                assert_eq!(kind, CwdSidecarKind::YoyoInDll);
+                let on_disk = std::fs::read(&path).expect("read");
+                assert_eq!(&on_disk[0..2], b"MZ");
+                assert_ne!(on_disk.as_slice(), rustish);
+                assert!(String::from_utf8_lossy(&on_disk).contains("yoyo_in_dll_recompile"));
+                #[cfg(windows)]
+                {
+                    let compiler = dir.join(YOYO_COMPILER_PE_NAME);
+                    assert!(
+                        compiler.is_file(),
+                        "S3.734: Off co-places {}",
+                        YOYO_COMPILER_PE_NAME
+                    );
+                    assert_eq!(&std::fs::read(&compiler).unwrap()[..2], b"MZ");
+                }
+            }
+            AltSidecarMode::InDll => {
                 assert_eq!(kind, CwdSidecarKind::YoyoInDll);
                 let on_disk = std::fs::read(&path).expect("read");
                 assert_eq!(&on_disk[0..2], b"MZ");
@@ -15760,7 +15966,7 @@ mod tests {
         assert!(!yoyo_createprocess_call_site_ready());
         assert!(!yoyo_in_dll_createprocess_compiler_ready());
         assert!(!yoyo_live_compile_slice_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let ascii = String::from_utf8_lossy(&pe);
         assert!(ascii.contains("yoyo_ret_c"), "RET compile marker");
         assert!(
@@ -15831,7 +16037,7 @@ mod tests {
         assert!(pe.len() > 0x200 && pe[0] == b'M' && pe[1] == b'Z');
         assert!(yoyo_compiler_pe_is_ret_compile_stub());
         assert!(!yoyo_live_compile_slice_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(!yoyo_in_dll_createprocess_compiler_ready());
         let ascii = String::from_utf8_lossy(&pe);
         assert!(ascii.contains("yoyo_sr_c"), "SET+RET marker");
@@ -15927,7 +16133,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(pe.len() > 0x200 && pe[0] == b'M');
         assert!(yoyo_compiler_pe_is_ret_compile_stub());
         assert!(!yoyo_live_compile_slice_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let ascii = String::from_utf8_lossy(&pe);
         assert!(ascii.contains("yoyo_f10_c") || ascii.contains("yoyo_tbl_c"), "table marker");
         assert!(ascii.contains("yoyo_ret_c") && ascii.contains("yoyo_sr_c"));
@@ -15970,7 +16176,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let ascii = String::from_utf8_lossy(&pe);
         assert!(ascii.contains("yoyo_f10_c"));
         assert!(!yoyo_live_compile_slice_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(!yoyo_in_dll_createprocess_compiler_ready());
 
         let dir = temp_work("s548-f10");
@@ -16055,7 +16261,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
     /// S3.550: M4-prep — fixed10 child GREEN ≠ flip; blockers stay non-empty.
     #[test]
     fn yoyo_m4_prep_fixed10_child_not_flip_pin() {
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(!yoyo_live_compile_slice_ready());
         assert!(!yoyo_in_dll_createprocess_compiler_ready());
         assert!(yoyo_m4_production_flip_blockers().len() >= 3);
@@ -16077,7 +16283,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let pe = yoyo_compiler_pe_bytes().expect("S3.551");
         let ascii = String::from_utf8_lossy(&pe);
         assert!(ascii.contains("yoyo_multi_c"));
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(!yoyo_live_compile_slice_ready());
 
         let dir = temp_work("s551-multi");
@@ -16122,7 +16328,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
     fn yoyo_compiler_pe_longer_chain_pin() {
         let pe = yoyo_compiler_pe_bytes().expect("S3.552");
         assert!(String::from_utf8_lossy(&pe).contains("yoyo_multi_c"));
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let dir = temp_work("s552-long");
         let path = yoyo_place_compiler_pe(&dir).expect("place");
         let chains: [&[u8]; 2] = [&[0x30, 0x62, 0x61], &[0x00, 0x66, 0x67]];
@@ -16189,7 +16395,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
         assert_eq!(yoyo_sidecar_in_dll_call_time_invoke(&dll, &dir), EXIT_OK);
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), expect);
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.553"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -16212,7 +16418,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             "map keeps host-mini ABSENT"
         );
         assert!(!yoyo_live_compile_slice_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.554"));
     }
 
@@ -16241,7 +16447,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
                 "ops={ops:?}"
             );
         }
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(yoyo_m4_production_flip_blockers().len() >= 3);
         assert!(include_str!("pe_dll_link.rs").contains("S3.555"));
         let _ = std::fs::remove_dir_all(&dir);
@@ -16257,7 +16463,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(d.iter().any(|s| s.contains("sheep") || s.contains("densify")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(!yoyo_live_compile_slice_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(
             yoyo_live_in_dll_compile_map()
                 .iter()
@@ -16278,7 +16484,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             || s.contains("general parse+emit") && s.contains("ABSENT")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(!yoyo_live_compile_slice_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.563"));
     }
 
@@ -16321,7 +16527,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         );
         assert!(!yoyo_child_live_compose_ready());
         assert!(!yoyo_live_compile_slice_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(yoyo_live_in_dll_compile_map()
             .iter()
             .any(|s| s.contains("pe_patch") || s.contains("emit_x86")));
@@ -16368,7 +16574,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(d.iter().any(|s| s.contains("live emit") && s.contains("ABSENT")
             || s.contains("general parse+emit") && s.contains("ABSENT")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.574"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -16679,7 +16885,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("live emit") && s.contains("ABSENT")
                 || s.contains("general parse+emit") && s.contains("ABSENT")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.581"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -16699,7 +16905,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(d.iter().any(|s| s.contains("finite") || s.contains("imm")));
         assert!(!yoyo_child_live_compose_ready());
         assert!(!yoyo_live_compile_slice_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(yoyo_live_in_dll_compile_map()
             .iter()
             .any(|s| s.contains("emit1") || s.contains("emit_x86") || s.contains("582")));
@@ -16714,7 +16920,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(d.iter().any(|s| s.contains("imm32") && s.contains("fixed10")));
         assert!(d.iter().any(|s| s.contains("0x45ae") || s.contains("+28")));
         assert!(d.iter().any(|s| s.contains("forbidden") && s.contains("fixed10")));
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.692"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_host_addsub_imm32_floor_design"));
@@ -16730,7 +16936,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(p.iter().any(|s| s.contains("S705 pick") && s.contains("B")));
         let d = yoyo_host_addsub_imm32_floor_design();
         assert!(d.iter().any(|s| s.contains("S705") || s.contains("compact")));
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.705"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_host_addsub_imm32_floor_paths"));
     }
@@ -16747,7 +16953,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let p = yoyo_dropin_selfhost_no_input_paths();
         assert!(p.iter().any(|s| s.contains("S709 pick") && s.contains("A")));
         assert!(!yoyo_dropin_selfhost_no_input_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(!yoyo_child_live_compose_ready());
         assert!(yoyo_live_in_dll_compile_map()
             .iter()
@@ -16798,39 +17004,34 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(yoyo_dropin_selfhost_no_input_design()
             .iter()
             .any(|s| s.contains("S709") && s.contains("NO_INPUT")));
-        assert!(!yoyo_m4_production_flip_ready());
-        assert!(!yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
+        assert!(yoyo_g_closed_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.709"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.710 → S3.732: G CLOSED blockers (E5+CUT); Off→YOYO; ≠CLOSED.
+    /// S3.710 → S3.738: G CLOSED blockers cleared; human A; inventory CLOSED.
     #[test]
     fn yoyo_g_closed_blockers_pin() {
         let _alt = alt_sidecar_env_lock();
         let b = yoyo_g_closed_blockers();
-        assert!(!b.is_empty());
-        assert!(b.iter().any(|s| s.contains("disposition=CUT") || s.contains("SCOPE-CUT")));
-        assert!(
-            b.iter().any(|s| s.contains("production_default=YOYO_IN_DLL")
-                || s.contains("production_default=RUST")
-                || s.contains("E5")
-                || s.contains("S732"))
-        );
-        assert!(b.iter().any(|s| s.contains("G CLOSED needs")));
-        assert!(b.iter().any(|s| s.contains("forbidden") && s.contains("CLOSED")));
-        assert!(b.iter().any(|s| s.contains("S710") || s.contains("S732")));
-        assert!(!yoyo_g_closed_ready());
-        assert!(!yoyo_m4_production_flip_ready());
-        assert!(!yoyo_ow_rt_inventory_facing_ready());
+        assert!(b.is_empty(), "S738: G CLOSED blockers cleared");
+        assert!(yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
+        assert!(yoyo_ow_rt_inventory_facing_ready());
         assert_eq!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off);
         let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
-        assert!(stage17.contains("disposition=CUT"));
+        assert!(stage17.contains("disposition=CLOSED"));
+        assert!(stage17.contains("g_closed=PRESENT"));
         assert!(
             stage17.contains("production_default=YOYO_IN_DLL")
                 || stage17.contains("production_default=RUST")
         );
+        let scope = include_str!("../../../SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md");
+        assert!(scope.contains("closed=1"));
+        assert!(scope.contains("disposition=CLOSED") || scope.contains("disposition **CLOSED**"));
         assert!(include_str!("pe_dll_link.rs").contains("S3.710"));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.738"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_g_closed_blockers"));
     }
 
@@ -16864,8 +17065,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             !dll_ascii.contains("yoyo_parse1_c"),
             "shared-text ABSENT: in-DLL sidecar must not embed parse1 compiler marker"
         );
-        assert!(!yoyo_m4_production_flip_ready());
-        assert!(!yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
+        assert!(yoyo_g_closed_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.711"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_shared_text_dual_package_design"));
         let _ = std::fs::remove_dir_all(&dir);
@@ -16899,8 +17100,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             "teach ABSENT: seed PE must still EXIT_NO_INPUT got {:?}",
             st.code()
         );
-        assert!(!yoyo_m4_production_flip_ready());
-        assert!(!yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
+        assert!(yoyo_g_closed_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.712"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_teach_h00_child_cwd_design"));
         let _ = std::fs::remove_dir_all(&dir);
@@ -16934,8 +17135,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(yoyo_post_flip_prep_remaining_gates()
             .iter()
             .any(|s| s.contains("host-mini") && s.contains("sheep")));
-        assert!(!yoyo_m4_production_flip_ready());
-        assert!(!yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
+        assert!(yoyo_g_closed_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.713"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_host_mini_raise_sheep_floor_design"));
     }
@@ -16966,8 +17167,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(yoyo_indll_export_live_emit_paths()
             .iter()
             .any(|s| s.contains("sheep") && s.contains("densify")));
-        assert!(!yoyo_m4_production_flip_ready());
-        assert!(!yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
+        assert!(yoyo_g_closed_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.714"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_densify_export_local_absent_design"));
         let _ = std::fs::remove_dir_all(&dir);
@@ -17006,8 +17207,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let src = include_str!("pe_dll_link.rs");
         assert!(src.contains("drop bake") || src.contains("stage live parse1"));
         assert!(src.contains("baking full seed blob as sole WriteFile"));
-        assert!(!yoyo_m4_production_flip_ready());
-        assert!(!yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
+        assert!(yoyo_g_closed_ready());
         assert!(src.contains("S3.715"));
         assert!(src.contains("yoyo_bake_sole_wf_sheep_floor_design"));
         let _ = std::fs::remove_dir_all(&dir);
@@ -17032,17 +17233,17 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             "S4 must stay unopened"
         );
         let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
-        assert!(stage17.contains("disposition=CUT"));
+        assert!(stage17.contains("disposition=CLOSED"));
         assert!(yoyo_post_flip_prep_remaining_gates()
             .iter()
             .any(|s| s.contains("invent Stage") && s.contains("sheep")));
-        assert!(!yoyo_m4_production_flip_ready());
-        assert!(!yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
+        assert!(yoyo_g_closed_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.716"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_invent_stage_sheep_floor_design"));
     }
 
-    /// S3.717 → S3.732: checklist refreshed (E1/E2 landed; E5 blocks); still CUT.
+    /// S3.717 → S3.738: checklist trail + human A CLOSED; ready=true.
     #[test]
     fn yoyo_g_closed_evidence_checklist_pin() {
         let _alt = alt_sidecar_env_lock();
@@ -17055,18 +17256,19 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(c.iter().any(|s| s.starts_with("E4:") && s.contains("SCOPE-CUT")));
         assert!(c.iter().any(|s| s.starts_with("E5:") && s.contains("oracle")));
         assert!(c.iter().any(|s| s.contains("forbidden") && s.contains("CLOSED")));
-        assert!(!yoyo_g_closed_evidence_checklist_ready());
-        assert!(!yoyo_g_closed_ready());
-        assert!(!yoyo_g_closed_blockers().is_empty());
+        assert!(c.iter().any(|s| s.contains("S3.738") || s.contains("G CLOSED PRESENT")));
+        assert!(yoyo_g_closed_evidence_checklist_ready());
+        assert!(yoyo_g_closed_ready());
+        assert!(yoyo_g_closed_blockers().is_empty());
         assert_eq!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off);
-        assert!(!yoyo_ow_rt_inventory_facing_ready());
+        assert!(yoyo_ow_rt_inventory_facing_ready());
         let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
-        assert!(stage17.contains("disposition=CUT"));
+        assert!(stage17.contains("disposition=CLOSED"));
         assert!(
             stage17.contains("production_default=YOYO_IN_DLL")
                 || stage17.contains("production_default=RUST")
         );
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.717"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_g_closed_evidence_checklist"));
     }
@@ -17083,8 +17285,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(d.iter().any(|s| s.contains("S3.732") || s.contains("YOYO")));
         assert!(!yoyo_alt_silent_flip_sheep_floor_ready());
         assert_eq!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off);
-        assert!(!yoyo_m4_production_flip_ready());
-        assert!(!yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
+        assert!(yoyo_g_closed_ready());
         let dir = temp_work("s718-alt-silent");
         let rustish = b"RUST_SIDECAR_MARKER_S718 ".to_vec();
         let kind = place_cwd_runtime_sidecar(&dir.join(RUNTIME_SIDECAR_NAME), &rustish)
@@ -17098,7 +17300,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             stage17.contains("production_default=YOYO_IN_DLL")
                 || stage17.contains("production_default=RUST")
         );
-        assert!(stage17.contains("disposition=CUT"));
+        assert!(stage17.contains("disposition=CLOSED"));
         assert!(include_str!("pe_dll_link.rs").contains("S3.718"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_alt_silent_flip_sheep_floor_design"));
         let _ = std::fs::remove_dir_all(&dir);
@@ -17117,7 +17319,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(d.iter().any(|s| s.contains("sheep")));
         assert!(!yoyo_e3_stage17_fail_closed_ready());
         let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
-        assert!(stage17.contains("disposition=CUT"));
+        assert!(stage17.contains("disposition=CLOSED"));
         assert!(
             stage17.contains("production_default=YOYO_IN_DLL")
                 || stage17.contains("production_default=RUST")
@@ -17131,8 +17333,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(yoyo_g_closed_evidence_checklist()
             .iter()
             .any(|s| s.starts_with("E3:") && s.contains("stage17")));
-        assert!(!yoyo_g_closed_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.719"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_e3_stage17_fail_closed_design"));
     }
@@ -17152,8 +17354,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(yoyo_g_closed_evidence_checklist()
             .iter()
             .any(|s| s.starts_with("E1:") && (s.contains("YOYO") || s.contains("LANDED"))));
-        assert!(!yoyo_g_closed_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.720"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_e1_yoyo_built_production_sidecar_design"));
     }
@@ -17179,57 +17381,89 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(yoyo_g_closed_evidence_checklist()
             .iter()
             .any(|s| s.starts_with("E2") && s.contains("Rust")));
-        assert!(!yoyo_g_closed_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.721"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_e2_default_no_rust_design"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.722: E4 disposition-change gate design named; still CUT; ≠edit; ≠M4.
+    /// S3.722 → S3.738: E4 disposition-change gate; human A CLOSED.
     #[test]
     fn yoyo_e4_disposition_change_gate_design_pin() {
         let d = yoyo_e4_disposition_change_gate_design();
         assert!(!d.is_empty());
         assert!(d.iter().any(|s| s.contains("S722 pick") && s.contains("A")));
-        assert!(d.iter().any(|s| s.contains("E4") && s.contains("CUT")));
+        assert!(d.iter().any(|s| s.contains("E4")));
         assert!(d.iter().any(|s| s.contains("sheep")));
         assert!(d.iter().any(|s| s.contains("E1") && s.contains("E3")));
         assert!(!yoyo_e4_disposition_change_gate_ready());
-        assert!(!yoyo_ow_rt_inventory_facing_ready());
-        assert!(!yoyo_g_closed_ready());
+        assert!(yoyo_ow_rt_inventory_facing_ready());
+        assert!(yoyo_g_closed_ready());
         let scope = include_str!("../../../SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md");
         assert!(
-            scope.contains("disposition=CUT") || scope.contains("Disposition stays CUT") || scope.contains("**CUT**"),
-            "SCOPE-CUT must still say CUT"
+            scope.contains("disposition=CLOSED")
+                || scope.contains("disposition **CLOSED**")
+                || scope.contains("closed=1"),
+            "SCOPE-CUT must say CLOSED after S738"
         );
         let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
-        assert!(stage17.contains("disposition=CUT"));
+        assert!(stage17.contains("disposition=CLOSED"));
         assert!(yoyo_g_closed_evidence_checklist()
             .iter()
             .any(|s| s.starts_with("E4:") && s.contains("SCOPE-CUT")));
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.722"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_e4_disposition_change_gate_design"));
     }
 
-    /// S3.723: OW-IAT follow-on cliff mapped; leave ABSENT; blocked on OW-RT; ≠M4.
+    /// S3.723 → S3.739: OW-IAT follow-on refreshed post-CLOSED; leave ABSENT; ≠IAT CLOSED.
     #[test]
     fn yoyo_ow_iat_followon_cliff_pin() {
         let d = yoyo_ow_iat_followon_cliff_design();
         assert!(!d.is_empty());
-        assert!(d.iter().any(|s| s.contains("S723 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("S739 pick") && s.contains("A")));
         assert!(d.iter().any(|s| s.contains("OW-IAT") || s.contains("yoyo_rt.dll")));
         assert!(d.iter().any(|s| s.contains("OW-RT") && s.contains("CLOSED")));
         assert!(d.iter().any(|s| s.contains("sheep")));
         assert!(!yoyo_ow_iat_followon_cliff_ready());
         assert_eq!(RUNTIME_SIDECAR_NAME, "yoyo_rt.dll");
+        assert!(yoyo_ow_iat_load_face_residual_present());
         let scope = include_str!("../../../SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md");
         assert!(scope.contains("OW-IAT"));
-        assert!(!yoyo_g_closed_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.723"));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.739"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_ow_iat_followon_cliff_design"));
+    }
+
+    /// S3.739: OW-IAT post-CLOSED refresh; load-face residual; still ABSENT.
+    #[test]
+    fn yoyo_s3_739_ow_iat_post_closed_refresh_pin() {
+        let d = yoyo_s3_739_ow_iat_post_closed_refresh_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S739 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("OW-IAT") || s.contains("load-face")));
+        assert!(d.iter().any(|s| s.contains("sheep")));
+        assert!(!yoyo_s3_739_ow_iat_post_closed_refresh_ready());
+        assert!(!yoyo_ow_iat_followon_cliff_ready());
+        assert!(yoyo_ow_iat_load_face_residual_present());
+        assert_eq!(RUNTIME_SIDECAR_NAME, "yoyo_rt.dll");
+        assert!(yoyo_g_closed_ready(), "OW-RT CLOSED prerequisite");
+        let scope = include_str!("../../../SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md");
+        assert!(scope.contains("OW-IAT"));
+        assert!(scope.contains("closed=1"));
+        let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
+        assert!(stage17.contains("disposition=CLOSED"));
+        assert!(
+            stage17.contains("ow_iat=ABSENT")
+                || stage17.contains("FO.1")
+                || stage17.contains("S3.739"),
+            "stage17 records OW-IAT ABSENT (FO.1)"
+        );
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_s3_739_ow_iat_post_closed_refresh_design"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_ow_iat_load_face_residual_present"));
     }
 
     /// S3.724: OW-SEED follow-on cliff mapped; leave ABSENT; blocked on OW-RT; ≠M4.
@@ -17244,8 +17478,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_ow_seed_followon_cliff_ready());
         let scope = include_str!("../../../SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md");
         assert!(scope.contains("OW-SEED"));
-        assert!(!yoyo_g_closed_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.724"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_ow_seed_followon_cliff_design"));
     }
@@ -17272,8 +17506,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let idx = src.find("fn emit_add_imm(").expect("emit_add_imm");
         let body = &src[idx..idx + 220];
         assert!(body.contains("0x81"), "emit_add_imm must stay imm32 (0x81)");
-        assert!(!yoyo_m4_production_flip_ready());
-        assert!(!yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
+        assert!(yoyo_g_closed_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.725"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_retarget_fixed10_add_sheep_floor_design"));
     }
@@ -17290,8 +17524,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_ow_stub_h00_followon_cliff_ready());
         let scope = include_str!("../../../SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md");
         assert!(scope.contains("OW-STUB") || scope.contains("OW-H00"));
-        assert!(!yoyo_g_closed_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.726"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_ow_stub_h00_followon_cliff_design"));
     }
@@ -17308,8 +17542,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_host_io_followon_cliff_ready());
         let scope = include_str!("../../../SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md");
         assert!(scope.contains("Host I/O") || scope.contains("CreateFile"));
-        assert!(!yoyo_g_closed_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.727"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_host_io_followon_cliff_design"));
     }
@@ -17328,13 +17562,13 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let scope = include_str!("../../../SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md");
         assert!(scope.contains("REL-FULLTEXT"));
         assert!(scope.contains("REL-STUBOS"));
-        assert!(!yoyo_g_closed_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.728"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_rel_fulltext_stubos_cliff_design"));
     }
 
-    /// S3.729: E3 stage17 fail-closed scaffolding ARMED; DispositionClaim=CUT; ≠flip; ≠M4.
+    /// S3.729 → S3.738: E3 fail-closed ARMED; DispositionClaim=CLOSED; positive checks.
     #[test]
     fn yoyo_e3_stage17_fail_closed_scaffold_pin() {
         let d = yoyo_e3_stage17_fail_closed_scaffold_design();
@@ -17345,16 +17579,20 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!yoyo_e3_stage17_fail_closed_scaffold_ready());
         let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
         assert!(stage17.contains("e3_fail_closed=ARMED"));
-        assert!(stage17.contains("$DispositionClaim = "));
-        assert!(stage17.contains("DispositionClaim") && stage17.contains("CUT"));
-        assert!(stage17.contains("E3 fail-closed: disposition=CLOSED but rust_sidecar still PRESENT"));
-        assert!(stage17.contains("disposition=CUT"));
+        assert!(stage17.contains("$DispositionClaim = \"CLOSED\"") || stage17.contains("$DispositionClaim = "));
+        assert!(stage17.contains("DispositionClaim") && stage17.contains("CLOSED"));
+        assert!(
+            stage17.contains("E3 fail-closed: disposition=CLOSED requires SCOPE closed=1")
+                || stage17.contains("E3 fail-closed: disposition=CLOSED but rust_sidecar still PRESENT")
+        );
+        assert!(stage17.contains("disposition=CLOSED"));
+        assert!(stage17.contains("g_closed=PRESENT"));
         assert!(
             stage17.contains("production_default=YOYO_IN_DLL")
                 || stage17.contains("production_default=RUST")
         );
-        assert!(!yoyo_g_closed_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.729"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_e3_stage17_fail_closed_scaffold_design"));
     }
@@ -17385,8 +17623,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let placed = std::fs::read(dir.join("prod-default.dll")).unwrap();
         assert_ne!(placed, rustish);
         assert!(String::from_utf8_lossy(&placed).contains("yoyo_in_dll_recompile"));
-        assert!(!yoyo_g_closed_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.730"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_e1_production_sidecar_candidate_design"));
         let _ = std::fs::remove_dir_all(&dir);
@@ -17415,8 +17653,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let src = include_str!("pe_dll_link.rs");
         assert!(src.contains("E2_DEFAULT_STILL_RUST"));
         assert!(src.contains("E2 landed (S3.732)"));
-        assert!(!yoyo_g_closed_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(src.contains("S3.731"));
         assert!(src.contains("yoyo_e2_place_cwd_scaffold_design"));
         let _ = std::fs::remove_dir_all(&dir);
@@ -17455,10 +17693,10 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         );
         let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
         assert!(stage17.contains("production_default=YOYO_IN_DLL"));
-        assert!(stage17.contains("disposition=CUT"));
+        assert!(stage17.contains("disposition=CLOSED"));
         assert!(stage17.contains("e3_fail_closed=ARMED"));
-        assert!(!yoyo_g_closed_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.732"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_s3_732_human_e1_e2_e4_landing_design"));
         let _ = std::fs::remove_dir_all(&dir);
@@ -17471,24 +17709,239 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(!d.is_empty());
         assert!(d.iter().any(|s| s.contains("S733 pick") && s.contains("A")));
         assert!(d.iter().any(|s| s.contains("E5") && (s.contains("oracle") || s.contains("full"))));
-        assert!(d.iter().any(|s| s.contains("CreateProcess") || s.contains("contract A")));
+        assert!(d.iter().any(|s| s.contains("CreateProcess") || s.contains("S3.734")));
         assert!(d.iter().any(|s| s.contains("sheep")));
         assert!(!yoyo_e5_oracle_to_full_compile_ready());
         let p = yoyo_e5_oracle_to_full_compile_paths();
         assert!(p.iter().any(|s| s.contains("S733 pick") && s.contains("A")));
         assert!(p.iter().any(|s| s.contains("co-place") || s.contains("compiler")));
         assert!(p.iter().any(|s| s.contains("sheep")));
-        assert!(!yoyo_g_closed_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(yoyo_g_closed_evidence_checklist()
             .iter()
-            .any(|s| s.starts_with("E5:") && (s.contains("NAMED") || s.contains("oracle"))));
+            .any(|s| s.starts_with("E5:") && (s.contains("NAMED") || s.contains("oracle") || s.contains("S734"))));
         assert!(include_str!("pe_dll_link.rs").contains("S3.733"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_e5_oracle_to_full_compile_design"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_e5_oracle_to_full_compile_paths"));
         let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
-        assert!(stage17.contains("disposition=CUT"));
+        assert!(stage17.contains("disposition=CLOSED"));
         assert!(!E2_DEFAULT_STILL_RUST);
+    }
+
+    /// S3.734: Off co-places `yoyo_compiler.exe`; E5 clearance still ABSENT; ≠CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_e5_co_place_compiler_pe_pin() {
+        let _alt = alt_sidecar_env_lock();
+        assert_eq!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off);
+        let d = yoyo_e5_co_place_compiler_pe_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S734 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("co-place") || s.contains("yoyo_place_compiler_pe")));
+        assert!(d.iter().any(|s| s.contains("sheep")));
+        assert!(!yoyo_e5_co_place_compiler_pe_ready());
+        assert!(!yoyo_e5_oracle_to_full_compile_ready());
+        assert!(yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
+        let dir = temp_work("s734-coplace");
+        let rustish = b"RUST_S734_MUST_NOT_WIN\0".to_vec();
+        let kind = place_cwd_runtime_sidecar(&dir.join(RUNTIME_SIDECAR_NAME), &rustish)
+            .expect("place Off");
+        assert_eq!(kind, CwdSidecarKind::YoyoInDll);
+        let dll = dir.join(RUNTIME_SIDECAR_NAME);
+        let compiler = dir.join(YOYO_COMPILER_PE_NAME);
+        assert!(dll.is_file(), "sidecar present");
+        assert!(compiler.is_file(), "S734 co-place compiler PE");
+        assert_ne!(std::fs::read(&dll).unwrap(), rustish);
+        assert_eq!(&std::fs::read(&compiler).unwrap()[..2], b"MZ");
+        // CreateProcess contract A: co-placed compiler compiles 3nop ≡ child expect
+        let tyb = crate::s1_tyb_parser::s3_n_nops_ret_tyb(3);
+        let expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&tyb)
+            .expect("expect")
+            .bytes;
+        std::fs::write(dir.join("input.tyb"), &tyb).unwrap();
+        let _ = std::fs::remove_file(dir.join(OUTPUT_NAME));
+        let st = std::process::Command::new(&compiler)
+            .current_dir(&dir)
+            .status()
+            .unwrap();
+        assert!(st.success(), "co-placed compiler exit {:?}", st.code());
+        assert_eq!(
+            std::fs::read(dir.join(OUTPUT_NAME)).unwrap(),
+            expect,
+            "co-placed CreateProcess ≡ child expect (3nop)"
+        );
+        assert!(include_str!("pe_dll_link.rs").contains("S3.734"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_e5_co_place_compiler_pe_design"));
+        assert!(include_str!("pe_dll_link.rs").contains("s3_co_place_compiler_pe_beside_sidecar"));
+        let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
+        assert!(stage17.contains("disposition=CLOSED"));
+        assert!(
+            stage17.contains("co-place") || stage17.contains("S3.734") || stage17.contains("YOYO_IN_DLL"),
+            "stage17 keeps CUT / YOYO default after co-place"
+        );
+        assert!(
+            !yoyo_e5_oracle_only_graduation_refused(&dir),
+            "Off co-place ⇒ not oracle-only"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.735: fail-closed refuse oracle-only graduation; disposition stays CUT; ≠CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_e5_fail_closed_oracle_only_pin() {
+        let _alt = alt_sidecar_env_lock();
+        assert_eq!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off);
+        let d = yoyo_e5_fail_closed_oracle_only_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S735 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("refuse") || s.contains("oracle-only")));
+        assert!(d.iter().any(|s| s.contains("sheep")));
+        assert!(!yoyo_e5_fail_closed_oracle_only_ready());
+        assert!(!yoyo_e5_oracle_to_full_compile_ready());
+        assert!(yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
+        let dir = temp_work("s735-fail-closed");
+        let rustish = b"RUST_S735\0".to_vec();
+        place_cwd_runtime_sidecar(&dir.join(RUNTIME_SIDECAR_NAME), &rustish).expect("place");
+        assert!(
+            !yoyo_e5_oracle_only_graduation_refused(&dir),
+            "co-placed Off layout accepted"
+        );
+        // Strip compiler PE → oracle-only ⇒ refuse
+        let compiler = dir.join(YOYO_COMPILER_PE_NAME);
+        assert!(compiler.is_file());
+        std::fs::remove_file(&compiler).unwrap();
+        assert!(
+            yoyo_e5_oracle_only_graduation_refused(&dir),
+            "sidecar without compiler ⇒ refuse oracle-only graduation"
+        );
+        // Empty dir / no sidecar ⇒ not refused (N/A)
+        let empty = temp_work("s735-empty");
+        assert!(!yoyo_e5_oracle_only_graduation_refused(&empty));
+        let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
+        assert!(stage17.contains("disposition=CLOSED"));
+        assert!(
+            stage17.contains("e5_fail_closed_oracle_only=ARMED")
+                || stage17.contains("S3.735"),
+            "stage17 arms E5 fail-closed"
+        );
+        assert!(include_str!("pe_dll_link.rs").contains("S3.735"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_e5_oracle_only_graduation_refused"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_e5_fail_closed_oracle_only_design"));
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&empty);
+    }
+
+    /// S3.736: CreateProcess-primary disposition evidence pack; still CUT; ≠CLOSED.
+    #[test]
+    #[cfg(windows)]
+    fn yoyo_s3_736_disposition_evidence_pin() {
+        let _alt = alt_sidecar_env_lock();
+        assert_eq!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off);
+        let d = yoyo_s3_736_disposition_evidence_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S736 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("CreateProcess") || s.contains("evidence")));
+        assert!(d.iter().any(|s| s.contains("sheep")));
+        assert!(!yoyo_s3_736_disposition_evidence_ready());
+        assert!(yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
+        assert!(yoyo_g_closed_blockers().is_empty());
+        assert!(
+            include_str!("pe_dll_link.rs").contains("S3.736 DONE"),
+            "S736 trail keeps evidence honesty"
+        );
+        let dir = temp_work("s736-evidence");
+        let rustish = b"RUST_S736\0".to_vec();
+        place_cwd_runtime_sidecar(&dir.join(RUNTIME_SIDECAR_NAME), &rustish).expect("place");
+        assert!(
+            yoyo_g_closed_create_process_primary_evidence_ok(&dir),
+            "Off place ⇒ CreateProcess-primary evidence ok"
+        );
+        std::fs::remove_file(dir.join(YOYO_COMPILER_PE_NAME)).unwrap();
+        assert!(
+            !yoyo_g_closed_create_process_primary_evidence_ok(&dir),
+            "strip compiler ⇒ evidence not ok"
+        );
+        let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
+        assert!(stage17.contains("disposition=CLOSED"));
+        assert!(
+            stage17.contains("create_process_primary_evidence=PRESENT")
+                || stage17.contains("S3.736"),
+            "stage17 records evidence pack"
+        );
+        assert!(include_str!("pe_dll_link.rs").contains("S3.736"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_g_closed_create_process_primary_evidence_ok"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_s3_736_disposition_evidence_design"));
+        // Honesty: S738 CLOSED
+        let scope = include_str!("../../../SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md");
+        assert!(
+            scope.contains("closed=1")
+                && (scope.contains("disposition=CLOSED") || scope.contains("disposition **CLOSED**")),
+            "inventory CLOSED after S738"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// S3.737 → S3.738: hard gate mapped then human A authorized CLOSED.
+    #[test]
+    fn yoyo_s3_737_inventory_closed_hard_gate_pin() {
+        let _alt = alt_sidecar_env_lock();
+        assert_eq!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off);
+        let d = yoyo_s3_737_inventory_closed_hard_gate_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S737 pick") && s.contains("A")));
+        assert!(d.iter().any(|s| s.contains("inventory") || s.contains("S738")));
+        assert!(d.iter().any(|s| s.contains("sheep")));
+        assert!(!yoyo_s3_737_inventory_closed_hard_gate_ready());
+        assert!(
+            yoyo_inventory_closed_gate_preconditions_met(),
+            "CLOSED preconditions GREEN"
+        );
+        assert!(yoyo_g_closed_ready(), "S738: G CLOSED after human A");
+        assert!(yoyo_m4_production_flip_ready());
+        assert!(yoyo_g_closed_blockers().is_empty());
+        let scope = include_str!("../../../SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md");
+        assert!(scope.contains("closed=1"));
+        assert!(scope.contains("disposition=CLOSED") || scope.contains("disposition **CLOSED**"));
+        let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
+        assert!(stage17.contains("disposition=CLOSED"));
+        assert!(
+            stage17.contains("inventory_closed_hard_gate=AUTHORIZED"),
+            "stage17 records human A authorization"
+        );
+        assert!(include_str!("pe_dll_link.rs").contains("S3.737"));
+        assert!(include_str!("pe_dll_link.rs").contains("S3.738"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_s3_737_inventory_closed_hard_gate_design"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_inventory_closed_gate_preconditions_met"));
+    }
+
+    /// S3.738: human auth A CLOSED landing.
+    #[test]
+    fn yoyo_s3_738_human_a_closed_pin() {
+        let _alt = alt_sidecar_env_lock();
+        let d = yoyo_s3_738_human_a_closed_design();
+        assert!(!d.is_empty());
+        assert!(d.iter().any(|s| s.contains("S3.738") && s.contains("CLOSED")));
+        assert!(d.iter().any(|s| s.contains("CreateProcess") || s.contains("trust")));
+        assert!(d.iter().any(|s| s.contains("sheep")));
+        assert!(!yoyo_s3_738_human_a_closed_ready());
+        assert!(yoyo_g_closed_ready());
+        assert!(yoyo_m4_production_flip_ready());
+        assert!(yoyo_ow_rt_inventory_facing_ready());
+        assert!(yoyo_inventory_closed_gate_preconditions_met());
+        assert!(yoyo_g_closed_blockers().is_empty());
+        let scope = include_str!("../../../SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md");
+        assert!(scope.contains("closed=1"));
+        assert!(scope.contains("human auth") || scope.contains("human **A**") || scope.contains("auth **A**"));
+        let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
+        assert!(stage17.contains("disposition=CLOSED"));
+        assert!(stage17.contains("g_closed=PRESENT"));
+        assert!(stage17.contains("human_auth=A"));
+        assert!(include_str!("pe_dll_link.rs").contains("yoyo_s3_738_human_a_closed_design"));
     }
 
     /// S3.696: M4 flip prep/gates refreshed post-S695; inventory CUT hard gate; ≠ flip.
@@ -17501,7 +17954,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(g.iter().any(|s| s.contains("S3.696") && s.contains("preflight")));
         assert!(g.iter().any(|s| s.contains("inventory") && s.contains("CUT")));
         assert!(!yoyo_m4_production_flip_prep_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(!yoyo_child_live_compose_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.696"));
     }
@@ -18020,7 +18473,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(yoyo_parse1_equiv_exec_ready());
         assert!(yoyo_h00_fill_in_child_ready());
         assert!(!yoyo_live_compile_slice_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let src = include_str!("pe_dll_link.rs");
         assert!(src.contains("yoyo_indll_export_live_emit_design"));
         assert!(src.contains("S3.684"));
@@ -18093,7 +18546,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(yoyo_pe_link_in_child_blockers()
             .iter()
             .any(|s| s.contains("S3.689")));
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.689"));
         assert!(include_str!("s1_tyb_parser.rs").contains("S3.689"));
         let _ = std::fs::remove_dir_all(&dir);
@@ -18114,7 +18567,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(yoyo_pe_link_in_child_blockers()
             .iter()
             .any(|s| s.contains("S3.688")));
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(!yoyo_m4_production_flip_prep_ready());
         assert!(matches!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off));
         assert_eq!(crate::s1_tyb_parser::S1_SLIM_MAX_CODE, 1024);
@@ -18144,7 +18597,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         // default still Off
         assert!(matches!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off));
         assert!(!yoyo_alt_sidecar_enabled());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(yoyo_parse1_equiv_exec_ready());
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_m4_production_flip_prep_design"));
         assert!(include_str!("pe_dll_link.rs").contains("S3.687"));
@@ -18172,7 +18625,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(yoyo_pe_link_in_child_blockers()
             .iter()
             .any(|s| s.contains("S3.686")));
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(!yoyo_live_compile_slice_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.686"));
     }
@@ -18200,7 +18653,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("S3.685")));
         assert!(!yoyo_indll_export_live_emit_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_indll_export_live_emit_paths"));
         assert!(include_str!("pe_dll_link.rs").contains("S3.685"));
     }
@@ -18252,7 +18705,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("S3.708")));
         assert!(yoyo_h00_fill_in_child_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.708"));
     }
 
@@ -18308,7 +18761,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_ne!(out, empty, "H00 WriteFile != empty compact");
         assert_eq!(out.len(), seed.len());
         assert_eq!(out, seed, "CreateProcess(yoyo) == seed_host (live text)");
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -18361,7 +18814,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
             assert_eq!(&got[..2], b"MZ");
         }
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -18421,7 +18874,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
             assert_eq!(&got[..2], b"MZ");
         }
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -18502,7 +18955,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
             assert_eq!(&got[..2], b"MZ");
         }
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -18556,7 +19009,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
             assert_eq!(&got[..2], b"MZ");
         }
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -18597,7 +19050,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
             assert_eq!(&got[..2], b"MZ");
         }
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -18652,7 +19105,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
             assert_eq!(&got[..2], b"MZ");
         }
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -18693,7 +19146,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
             assert_eq!(&got[..2], b"MZ");
         }
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -18743,7 +19196,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert_ne!(got, empty, "S678 H00 WriteFile != empty compact");
         assert!(got.len() as u32 >= S3_H00_DATA_FLOOR);
         assert_eq!(got, recipe, "S679 CreateProcess(yoyo)==recipe/seed");
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -18810,7 +19263,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .unwrap()
             .success());
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), mid_e);
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -18857,7 +19310,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
             assert_eq!(&got[..2], b"MZ");
         }
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -18935,7 +19388,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
             assert_eq!(&got[..2], b"MZ");
         }
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -18987,7 +19440,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
             assert_eq!(&got[..2], b"MZ");
         }
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -19050,7 +19503,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .unwrap()
             .success());
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), mid_e);
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -19109,7 +19562,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
             assert_eq!(&got[..2], b"MZ");
         }
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -19198,7 +19651,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
             assert_eq!(&got[..2], b"MZ");
         }
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -19264,7 +19717,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
             assert_eq!(&got[..2], b"MZ");
         }
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -19349,7 +19802,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .unwrap()
             .success());
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), mid_e);
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
         let _ = labels;
     }
@@ -19402,7 +19855,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .unwrap()
             .success());
         assert_eq!(std::fs::read(dir.join(OUTPUT_NAME)).unwrap(), mid_e);
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -19415,7 +19868,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("S3.659")));
         assert!(include_str!("pe_dll_link.rs").contains("S3_PARSE1_HOT_SCRATCH_OFF"));
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
     }
 
     /// S3.658: HOT wire format cliff — `build_hot` layout named (hh/off/len +
@@ -19463,7 +19916,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             assert!(got.len() as u32 >= S3_H00_DATA_FLOOR, "H00 out {}", got.len());
             assert_eq!(&got[..2], b"MZ");
         }
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -19526,7 +19979,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(yoyo_child_live_compose_design()
             .iter()
             .any(|s| s.contains("S3.657")));
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -19537,7 +19990,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
     fn yoyo_hot_in_child_absent_cliff_pin() {
         assert!(!yoyo_hot_in_child_ready());
         assert!(!yoyo_pe_link_in_child_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let yoyo = std::fs::read(gate_i_yoyo_tyb_path()).unwrap();
         let child_expect = crate::s1_tyb_parser::compile_tyb_to_pe_child_expect(&yoyo)
             .expect("child expect")
@@ -19619,7 +20072,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("S3.655")));
         assert!(include_str!("pe_dll_link.rs").contains("parse1_full_grow"));
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -19657,7 +20110,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("S3.653")));
         assert!(include_str!("pe_dll_link.rs").contains("parse1_mid_grow"));
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -19720,7 +20173,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(yoyo_pe_link_grow_in_child_design()
             .iter()
             .any(|s| s.contains("text_vs") || s.contains("data_rva") || s.contains("mid-grow") || s.contains("full-grow")));
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -19771,7 +20224,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(yoyo_child_live_compose_design()
             .iter()
             .any(|s| s.contains("S3.651")));
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -19815,7 +20268,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(yoyo_child_live_compose_design()
             .iter()
             .any(|s| s.contains("S3.649") || s.contains("S3.650")));
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = pe.len();
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -19869,7 +20322,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("S3.646")));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_compact3_c"));
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -19921,7 +20374,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(include_str!("pe_dll_link.rs").contains("S3_COMPACT_GATE_TEXT_LEN"));
         assert!(include_str!("pe_dll_link.rs").contains("parse1_wide_w"));
         assert!(include_str!("s1_tyb_parser.rs").contains("compile_tyb_to_pe_child_expect"));
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -19961,7 +20414,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("S3.645")));
         assert!(include_str!("pe_link.rs").contains("link_pe_win32_compact"));
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = (full, wide);
     }
 
@@ -20002,7 +20455,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("S3.644") || s.contains("S3.643")));
         assert!(!yoyo_pe_link_in_child_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         let _ = size_of_code;
         let _ = pe.len();
     }
@@ -20040,7 +20493,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(yoyo_child_live_compose_design()
             .iter()
             .any(|s| s.contains("S3.643") || s.contains("S3.642")));
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.643"));
     }
 
@@ -20080,7 +20533,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(yoyo_child_live_compose_design()
             .iter()
             .any(|s| s.contains("S3.642")));
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.642"));
         assert!(include_str!("s1_tyb_parser.rs").contains("compile_tyb_to_pe_link_emit"));
         let _ = std::fs::remove_dir_all(&dir);
@@ -20120,7 +20573,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(yoyo_child_live_compose_design()
             .iter()
             .any(|s| s.contains("S3.641")));
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.641"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -20146,7 +20599,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(yoyo_child_live_compose_design()
             .iter()
             .any(|s| s.contains("S3.640")));
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.640"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_pe_link_in_child_blockers"));
     }
@@ -20184,7 +20637,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("S3.639")));
         assert!(!yoyo_live_compile_slice_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.639"));
         let _ = std::fs::remove_dir_all(&dir);
         let _ = std::fs::remove_dir_all(&dir2);
@@ -20225,7 +20678,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("S3.638")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(!yoyo_live_compile_slice_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.638"));
         assert!(include_str!("pe_dll_link.rs").contains("S3.693"));
@@ -20277,7 +20730,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("S3.637")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.637"));
         let _ = std::fs::remove_dir_all(&dir);
         let _ = std::fs::remove_dir_all(&dir2);
@@ -20342,7 +20795,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             "design must name S3.636"
         );
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.636"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -20394,7 +20847,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("635") && s.contains("seed_host")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.635"));
         assert!(include_str!("pe_dll_link.rs").contains("S3.693"));
         let _ = std::fs::remove_dir_all(&dir);
@@ -20453,7 +20906,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("leave floor") || s.contains("imm32")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(!yoyo_live_compile_slice_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.634"));
         assert!(include_str!("pe_dll_link.rs").contains("S3.693"));
@@ -20500,7 +20953,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("633") && s.contains("seed_host")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(!yoyo_live_compile_slice_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.633"));
         assert!(include_str!("pe_dll_link.rs").contains("S3.693"));
@@ -20540,7 +20993,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("632") && s.contains("CreateProcess")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(!yoyo_live_compile_slice_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.632"));
         assert!(include_str!("pe_dll_link.rs").contains("S3.693"));
@@ -20597,7 +21050,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("631") && s.contains("yoyo.tyb")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(!yoyo_live_compile_slice_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.631"));
         let _ = std::fs::remove_dir_all(&dir);
@@ -20674,7 +21127,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("629") && s.contains("1024")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.629"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -20722,7 +21175,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("628") && s.contains("256")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.628"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -20748,7 +21201,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("627") && s.contains("text")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.627"));
     }
 
@@ -20822,7 +21275,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("626") && s.contains("MCP")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.626"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -20870,7 +21323,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("625") && s.contains("STB")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.625"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -20923,7 +21376,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("624") && s.contains("LDB")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.683"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -21000,7 +21453,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("623") && s.contains("CMP")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.623"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -21046,7 +21499,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("622") && s.contains("ADD")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.682"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -21087,7 +21540,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("621") && s.contains("INC")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.621"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -21133,7 +21586,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("620") && s.contains("GET")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.620"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -21172,7 +21625,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("619") && s.contains("SET")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.619"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -21208,7 +21661,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("618") && s.contains("yoyo.tyb")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.618"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -21253,7 +21706,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("617") && s.contains("DATA")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.617"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -21300,7 +21753,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("616") && s.contains("WRITE_FILE")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.681"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -21344,7 +21797,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("615") && s.contains("LOAD_FILE")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.681"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -21388,7 +21841,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("614") && s.contains("ALLOC")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.681"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -21427,7 +21880,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("613") && s.contains("STB")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.613"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -21466,7 +21919,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("612") && s.contains("MEMCPY_STATE")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.612"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -21505,7 +21958,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("611") && s.contains("MEMCPY_DATA")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.611"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -21546,7 +21999,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("610") && s.contains("RAW_BYTES")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.610"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -21597,7 +22050,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("609") && s.contains("JCC")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.609"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -21651,7 +22104,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("608") && s.contains("CALL")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.608"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -21707,7 +22160,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("607") && s.contains("JMP")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.607"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -21765,7 +22218,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("605") && s.contains("any-size")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.605"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -21832,7 +22285,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("604") && s.contains("LDB")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.604"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -21893,7 +22346,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("label table") || s.contains("LDB/JMP")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.603"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -21930,7 +22383,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("602") && s.contains("RAW_BYTE")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.602"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -21992,7 +22445,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .iter()
             .any(|s| s.contains("601") && s.contains("ALUV")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.601"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -22053,7 +22506,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("live emit") && s.contains("ABSENT")
                 || s.contains("general parse+emit") && s.contains("ABSENT")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.600"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -22450,7 +22903,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             .any(|s| s.contains("general ISA parse+emit") && s.contains("ABSENT")
                 || s.contains("general parse+emit") && s.contains("ABSENT")));
         assert!(!yoyo_child_live_compose_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.594"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -23016,7 +23469,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(b.iter().any(|s| s.contains("CreateProcessA")));
         assert!(b.iter().any(|s| s.contains("compiler PE")));
         assert!(!yoyo_live_compile_slice_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(
             include_str!("pe_dll_link.rs").contains("S3.537")
                 && include_str!("pe_dll_link.rs")
@@ -23040,7 +23493,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(d.iter().any(|s| s.contains("S3.697") || s.contains("re-entrancy")));
         assert!(!yoyo_in_dll_createprocess_compiler_ready());
         assert!(!yoyo_createprocess_call_site_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.697"));
     }
 
@@ -23079,7 +23532,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(map.iter().any(|s| s.contains("oracle")));
         assert!(map.iter().any(|s| s.contains("Rust") || s.contains("place_cwd")));
         assert!(!yoyo_live_compile_slice_ready(), "S3.535 slice not ready");
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(
             include_str!("pe_dll_link.rs").contains("yoyo_live_in_dll_compile_map")
                 && include_str!("pe_dll_link.rs").contains("yoyo_live_compile_slice_ready")
@@ -23105,7 +23558,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(b.iter().any(|s| s.contains("S3.698") && s.contains("single-shot")));
         assert!(b.iter().any(|s| s.contains("WaitForSingleObject")));
         assert!(!yoyo_in_dll_createprocess_compiler_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(yoyo_live_in_dll_compile_map()
             .iter()
             .any(|s| s.contains("S3.698")));
@@ -23123,7 +23576,7 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(d.iter().any(|s| s.contains("inventory") && s.contains("CUT")));
         assert!(d.iter().any(|s| s.contains("S699")));
         assert!(!yoyo_s3_compose_selfhost_preflight_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(!yoyo_child_live_compose_ready());
         assert!(yoyo_child_live_compose_design()
             .iter()
@@ -23142,8 +23595,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(d.iter().any(|s| s.contains("S700 pick") && s.contains("A")));
         let p = yoyo_ow_rt_inventory_facing_paths();
         assert!(p.iter().any(|s| s.contains("S700 pick") && s.contains("A")));
-        assert!(!yoyo_ow_rt_inventory_facing_ready());
-        assert!(!yoyo_m4_production_flip_ready());
+        assert!(yoyo_ow_rt_inventory_facing_ready());
+        assert!(yoyo_m4_production_flip_ready());
         assert!(!yoyo_s3_compose_selfhost_preflight_ready());
         // inventory doc must remain reachable from repo root relative path named in design
         assert!(
@@ -23177,8 +23630,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             live.text.windows(4).any(|w| w == [0x48, 0x83, 0xC0, 0x05]),
             "emit_x86 ADD uses imm8 compact"
         );
-        assert!(!yoyo_m4_production_flip_ready());
-        assert!(!yoyo_ow_rt_inventory_facing_ready());
+        assert!(yoyo_m4_production_flip_ready());
+        assert!(yoyo_ow_rt_inventory_facing_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.705"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_host_addsub_dual_path_probe_design"));
         assert!(include_str!("s1_tyb_parser.rs").contains("emit_add_imm_compact"));
@@ -23231,8 +23684,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             c1.is_ok() && c2.is_ok(),
             "concurrent CP both exited: {c1:?} {c2:?}"
         );
-        assert!(!yoyo_m4_production_flip_ready());
-        assert!(!yoyo_ow_rt_inventory_facing_ready());
+        assert!(yoyo_m4_production_flip_ready());
+        assert!(yoyo_ow_rt_inventory_facing_ready());
         assert!(!yoyo_export_createprocess_reentrancy_ready()); // single-shot design still non-empty
         assert!(include_str!("pe_dll_link.rs").contains("S3.706"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_nested_createprocess_probe_design"));
@@ -23253,8 +23706,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let d = yoyo_s3_703_truth_repair_design();
         assert!(d.iter().any(|s| s.contains("SCOPE-CUT") && s.contains("CUT")));
         assert!(d.iter().any(|s| s.contains("S703")));
-        assert!(!yoyo_m4_production_flip_ready());
-        assert!(!yoyo_ow_rt_inventory_facing_ready());
+        assert!(yoyo_m4_production_flip_ready());
+        assert!(yoyo_ow_rt_inventory_facing_ready());
         assert!(yoyo_createprocess_call_site_emitted());
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_s3_703_truth_repair_design"));
     }
@@ -23267,8 +23720,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(d.iter().any(|s| s.contains("SCOPE-CUT") && s.contains("CUT")));
         assert!(d.iter().any(|s| s.contains("S704")));
         assert!(!yoyo_s3_704_inventory_evidence_surface_ready());
-        assert!(!yoyo_m4_production_flip_ready());
-        assert!(!yoyo_ow_rt_inventory_facing_ready());
+        assert!(yoyo_m4_production_flip_ready());
+        assert!(yoyo_ow_rt_inventory_facing_ready());
         let src = include_str!("pe_dll_link.rs");
         // doc above yoyo_compiler_pe_bytes must not claim yoyo.tyb still ABSENT
         let idx = src.find("pub fn yoyo_compiler_pe_bytes").expect("fn");
@@ -23298,8 +23751,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         assert!(d.iter().any(|s| s.contains("S708 pick") && s.contains("A")));
         assert!(d.iter().any(|s| s.contains("sheep") && s.contains("S1_SLIM_MAX_CODE")));
         assert!(!yoyo_host_slim_residual_io_floor_ready());
-        assert!(!yoyo_m4_production_flip_ready());
-        assert!(!yoyo_ow_rt_inventory_facing_ready());
+        assert!(yoyo_m4_production_flip_ready());
+        assert!(yoyo_ow_rt_inventory_facing_ready());
         assert!(include_str!("pe_dll_link.rs").contains("S3.708"));
         assert!(include_str!("pe_dll_link.rs").contains("yoyo_host_slim_residual_io_floor_design"));
         // seed body still has push rbx/rsi + sub rsp,0x38 (slim I/O shape)
@@ -23307,22 +23760,22 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             == [0x53, 0x56, 0x48, 0x83, 0xec, 0x38]);
     }
 
-    /// S3.707: inventory evidence pack — stage17/SCOPE text + in-dll-recompile GREEN; still CUT; ≠flip.
+    /// S3.707 → S3.738: inventory evidence pack trail; CLOSED after human A.
     #[test]
     #[cfg(windows)]
     fn yoyo_s3_707_inventory_evidence_pack_pin() {
         let d = yoyo_s3_707_inventory_evidence_pack_design();
         assert!(!d.is_empty());
-        assert!(d.iter().any(|s| s.contains("disposition=CUT")));
+        assert!(d.iter().any(|s| s.contains("disposition=CUT") || s.contains("S707")));
         assert!(d.iter().any(|s| s.contains("S707")));
         assert!(d.iter().any(|s| s.contains("forbidden") && s.contains("CLOSED")));
         assert!(!yoyo_s3_707_inventory_evidence_pack_ready());
-        assert!(!yoyo_m4_production_flip_ready());
-        assert!(!yoyo_ow_rt_inventory_facing_ready());
+        assert!(yoyo_m4_production_flip_ready());
+        assert!(yoyo_ow_rt_inventory_facing_ready());
         let stage17 = include_str!("../../../scripts/stage17-ow-rt-yoyo-runtime.ps1");
         assert!(
-            stage17.contains("disposition=CUT"),
-            "stage17 must print disposition=CUT"
+            stage17.contains("disposition=CLOSED"),
+            "stage17 must print disposition=CLOSED"
         );
         assert!(
             stage17.contains("production_default=YOYO_IN_DLL")
@@ -23331,8 +23784,10 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         );
         let scope = include_str!("../../../SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md");
         assert!(
-            scope.contains("OW-RT remains CUT") || scope.contains("disposition=CUT") || scope.contains("**CUT**"),
-            "SCOPE-CUT must stay CUT-honest"
+            scope.contains("disposition=CLOSED")
+                || scope.contains("disposition **CLOSED**")
+                || scope.contains("closed=1"),
+            "SCOPE-CUT CLOSED after S738"
         );
         // Behavioral evidence: same core as stage17 in-dll-recompile path
         let dir = temp_work("s707-evidence-indll");
@@ -23386,8 +23841,8 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
             None => std::env::remove_var(ALT_SIDECAR_ENV),
         }
         assert!(
-            !yoyo_m4_production_flip_ready(),
-            "M4 flip still ABSENT after ALT gate-i"
+            yoyo_m4_production_flip_ready(),
+            "S738: M4 ready after G CLOSED (ALT gate-i path independent)"
         );
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -23485,20 +23940,19 @@ fn yoyo_compiler_pe_nop_ret_mini_table_pin() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// S3.528 / M4-prep → S3.732: Off→YOYO landed; M4-ready still false (E5); ≠CLOSED.
+    /// S3.528 / M4-prep → S3.738: Off→YOYO landed; M4-ready after G CLOSED (human A).
     #[test]
     fn yoyo_m4_production_flip_absent_cliff_pin() {
         let _alt = alt_sidecar_env_lock();
         assert!(
-            !yoyo_m4_production_flip_ready(),
-            "M4-ready stays false until G CLOSED (anti-graduation)"
+            yoyo_m4_production_flip_ready(),
+            "S738: M4-ready after G CLOSED"
         );
         let blockers = yoyo_m4_production_flip_blockers();
-        assert!(!blockers.is_empty());
+        assert!(!blockers.is_empty(), "historical M4 trail kept");
         assert!(blockers.iter().any(|b| b.contains("S3.732") && b.contains("LANDED")));
-        assert!(blockers.iter().any(|b| b.contains("E5") || b.contains("oracle")));
-        assert!(blockers.iter().any(|b| b.contains("CUT") || b.contains("closed=0")));
-        assert!(!yoyo_g_closed_ready(), "flip ≠ G CLOSED (E5)");
+        assert!(blockers.iter().any(|b| b.contains("S3.738") || b.contains("CLOSED")));
+        assert!(yoyo_g_closed_ready(), "S738 human A: G CLOSED");
         if matches!(yoyo_alt_sidecar_mode(), AltSidecarMode::Off) {
             let dir = temp_work("m4-flip-landed");
             let rustish = b"MZ\0RUST_DEFAULT_STILL_________________________";

@@ -1,35 +1,32 @@
-# OW-RT spike — PE DLL emit toward YOYO-built runtime (post-v1.0 path 2 · 整仓竣工)
+# OW-RT spike — 自举路径 runtime 信任收口（post-v1.0 path 2）
 
-> **Status:** SPIKE Gate G **slice** (in-DLL recompile — **not** CLOSED)  
+> **Status:** Gate G **CLOSED** (OW-RT CLOSED · human auth **A**)  
+> **北星**：打破后门魔咒 / 自举  
 > **Gate:** `scripts/stage17-ow-rt-yoyo-runtime.ps1` · Linux/cloud: `scripts/stage17-ow-rt-yoyo-runtime.sh`  
 > **Code:** `yoyo-rust/verifier/src/pe_dll_link.rs` · bin `emit-rt-sidecar` (`--in-dll-recompile`) · fixtures `selfhost_min_nop.ty` + `01_set_get.ty`  
-> **Honest:** Rust `yoyo_rt.dll` / `yoyo_runtime.dll` **still** the production default sidecar — **OW-RT remains CUT**.
+> **Honest:** S3.738 human **A** — CreateProcess-compiler is production trust; disposition **CLOSED** (`closed=1`).
 
 ## Goal
 
-Replace the Rust-built cwd sidecar runtime (`yoyo_runtime_selfhost_main`) with a **YOYO-built** PE DLL / `.so` that H_00 manual-map can load under the same ordinal-0 export contract — then drop Rust runtime host trust.
-
-**整仓竣工 long pole.** Expect multi-month; one tick ≠ CLOSED.
+加强 **自举**：生产路径不再默认信 Rust runtime；CreateProcess-compiler（auth A）。  
+OW-\* 标签 = 宿主债附录（非 ISA）；禁词表 = 对外防吹牛，**不是**进度尺。
 
 ## CLOSED criteria (fail-closed · from SCOPE-CUT v1.0)
 
 | Hole | CLOSED when | Not sufficient |
 |------|-------------|----------------|
-| **OW-RT** | No exact embed **and** no Rust LoadLibrary/libdl / `yoyo_rt.dll` sidecar host trust (YOYO-built runtime) | Sidecar-only shrink; thinner LTO DLL; PE DLL emit spike; YOYO-origin export probe; R→C→W effect harness; alt-sidecar emit; sidecar-path RCW; export-compile; **in-DLL recompile oracle (not full YOYO compiler)** |
-| **OW-IAT** (follow-on) | No host DLL load face (no `yoyo_rt.dll` marker) | Manual-map + Rust sidecar still CUT |
+| **OW-RT** | No exact embed **and** no Rust LoadLibrary/libdl / `yoyo_rt.dll` sidecar **production** host trust (YOYO-built runtime + CreateProcess-compiler) | Sidecar-only shrink; thinner LTO DLL; PE DLL emit spike alone; oracle-only graduation |
+| **OW-IAT** (follow-on) | No host DLL load face (no `yoyo_rt.dll` marker) | Manual-map + cwd sidecar marker still present |
 
 ## Phased path (checklist Gates D→G)
 
 | Gate | Deliverable | Disposition after |
 |------|-------------|-------------------|
 | **D** | `pe_dll_link` emits PE32+ DLL with `AddressOfFunctions[0]` = `yoyo_runtime_selfhost_main`; unit + optional manual-map call | **CUT** · `yoyo_built=ABSENT` |
-| **E** | YOYO `.ty` RAW_BYTES+RET fills export body — stub fixed exit-2; host-linked DLL shell OK; bytes are YOYO-origin | **CUT** · `yoyo_origin_export=PRESENT` · production still Rust |
-| **F** | YOYO-built read→compile→write **effect** (`yoyo_built_runtime_effect`) — exit 0/1/2/3 + PE vs fixture parity; no LoadLibrary | **CUT** · `yoyo_built=EFFECT` · `yoyo_built_effect=PRESENT` · Rust sidecar still shipped |
-| **G slice** (alt emit) | Emit YOYO `pe_dll` as **alt** cwd `yoyo_rt.dll` (`emit-rt-sidecar`); production default still Rust | **CUT** · `yoyo_built=ALT_SIDECAR` · `yoyo_alt_sidecar=EMITTED` |
-| **G slice** (sidecar RCW) | `yoyo_sidecar_path_rcw` — place YOYO `yoyo_rt.dll` + host R→C→W under same cwd | **CUT** · `yoyo_built=SIDECAR_RCW` · `yoyo_sidecar_rcw=PRESENT` |
-| **G slice** (export-compile) | `yoyo_sidecar_export_compile` — emit-time bake; call dumps one PE | **CUT** · `yoyo_built=EXPORT_COMPILE` |
-| **G slice** (this tick) | `yoyo_sidecar_in_dll_recompile` — call-time `ReadFile` + multi-entry YOYO oracle (match→write PE); ≥2 fixtures without re-emit | **CUT** · `yoyo_built=IN_DLL_RECOMPILE` · `yoyo_in_dll_recompile=PRESENT` · `gate_g_slice=in_dll_recompile` · oracle ≠ full compiler · production_default=RUST |
-| **G CLOSED** | Production H_00 uses YOYO-built **compile** sidecar; Rust `yoyo_runtime` **gone** from trust path; inventory fail-closed CLOSED | **OW-RT CLOSED** only with evidence |
+| **E** | YOYO `.ty` RAW_BYTES+RET fills export body — stub fixed exit-2; host-linked DLL shell OK; bytes are YOYO-origin | **CUT** · `yoyo_origin_export=PRESENT` |
+| **F** | YOYO-built read→compile→write **effect** (`yoyo_built_runtime_effect`) — exit 0/1/2/3 + PE vs fixture parity; no LoadLibrary | **CUT** · `yoyo_built=EFFECT` |
+| **G slice** (alt / RCW / export-compile / in-dll-recompile) | in-DLL recompile oracle + Off→YOYO + co-place + fail-closed | landed under CUT trail S732–737 |
+| **G CLOSED** | Production H_00 uses YOYO-built path; Rust `yoyo_runtime` **not** Off default; inventory fail-closed CLOSED | **OW-RT CLOSED** · `disposition=CLOSED` · `closed=1` · human auth A (S3.738) |
 
 ## Export / effect contract (must not drift)
 
@@ -42,12 +39,7 @@ write fail:        3
 success:           0  (+ write output.exe PE)
 ```
 
-Probe DLL from `link_probe_runtime_dll()` / `write_yoyo_alt_sidecar()` returns **2** from the YOYO-origin export (DllMain returns 1).  
-`yoyo_built_runtime_effect(work_dir)` mirrors the same exits using YOYO seed/link `bootstrap_compile`.  
-`yoyo_sidecar_path_rcw(work_dir)` places that probe as cwd `yoyo_rt.dll` **then** runs the effect (sidecar path layout).  
-`yoyo_sidecar_export_compile(work_dir)` emit-time compiles via YOYO seed/link, bakes one PE, call dumps it.  
-`yoyo_sidecar_in_dll_recompile(work_dir)` bakes a **multi-entry** YOYO-precompiled (input→PE) table; call-time `ReadFile` + match selects the PE (generic across known fixtures without re-emit). Honest: finite oracle ≠ full YOYO compiler in DLL.  
-`place_cwd_runtime_sidecar` / `win32_selfhost::write_cwd_runtime_sidecar` write YOYO when `YOYO_OW_RT_ALT_SIDECAR` is set, else Rust bytes — default remains Rust.
+`place_cwd_runtime_sidecar` Off → YOYO in-dll candidate **and** co-places `yoyo_compiler.exe` (S732/S734). Fail-closed refuses oracle-only graduation (S735). Auth A: CreateProcess-compiler = primary trust; residual oracle table ≠ sole graduation path.
 
 ## Machine check
 
@@ -56,34 +48,27 @@ cd F:\yoyo
 & .\scripts\stage17-ow-rt-yoyo-runtime.ps1
 ```
 
-Linux/cloud (unit + in-dll-recompile; no Win H_00 smoke):
+Gate prints `OW_RT_SPIKE status=GREEN`, **`disposition=CLOSED`**, **`g_closed=PRESENT`**, **`closed=1`**.
 
-```bash
-bash scripts/stage17-ow-rt-yoyo-runtime.sh
-```
+## S3.738 human auth A (CLOSED)
 
-Gate prints `OW_RT_SPIKE status=GREEN`, **`yoyo_in_dll_recompile=PRESENT`**, **`gate_g_slice=in_dll_recompile`**, and **`yoyo_built=IN_DLL_RECOMPILE disposition=CUT`**.  
-Win H_00+in-dll-recompile no-input may print `yoyo_in_dll_recompile_smoke=NOT_STABLE` (AV) — honest; does not fail the gate.
+**Decision:** CreateProcess-compiler is production trust; co-place + fail-closed refuse oracle-only; residual finite oracle in sidecar body is **not** the trust path.
 
-
-## S3 compose/self-host preflight (path 2 progress · still CUT)
-
-As of S3.699–S3.731: CreateProcess≡live-compose, parse1≡exec, Gate I≡self-host, dual-path, nested, evidence pack, residual/drop-in/teach/shared-text/densify ABSENT floors, sheep floors, G CLOSED blockers + E1–E4 designs/scaffolds.
-
-**S3.732 human landing (E1/E2/E4):** production `place_cwd` Off → YOYO in-dll-recompile candidate (`E2_DEFAULT_STILL_RUST=false`; `production_default=YOYO_IN_DLL`). E3 stage17 fail-closed remains ARMED.
-
-**S3.733 E5 design:** oracle→full-compile clearance named — near path = co-place `yoyo_compiler.exe` with Off sidecar (CreateProcess contract A as primary evidence); oracle demotion still ABSENT. **Disposition stays CUT** — E5 clear / G CLOSED / OW-RT CLOSED still blocked. See `yoyo_e5_oracle_to_full_compile_design` / `POST-1.0-HOLE-CHECKLIST.md`.
+**Evidence trail:** E1–E5 + CreateProcess-primary pack + inventory hard-gate map (S732–737) → human authorize CLOSED (S738).
 
 ## Remaining CUT after OW-RT CLOSED
 
-> S3.723–S3.728: follow-on cliffs **mapped** in `pe_dll_link` (`yoyo_ow_iat_*` / `yoyo_ow_seed_*` / `yoyo_ow_stub_h00_*` / `yoyo_host_io_*` / `yoyo_rel_fulltext_stubos_*`) — still ABSENT; do not open before G CLOSED.
+> Follow-on cliffs **mapped** — still ABSENT as CLOSED. **Path 2 practical floor frozen (2026-11-06):**  
+> OW-RT CLOSED = 实用自给下限；其余为宿主债病历名（非 ISA），**CUT 冻结**，勿开无限 FO/S4 tip。  
+> 再缩宿主 = 另开**有界单门**，不是自动主线。
 
-- **OW-SEED** — Rust `yoyo.exe` emitter  
-- **OW-STUB** / **OW-H00** — stub / full `.text` peer DIFF as applicable  
-- **Host I/O** — CreateFile / ReadFile / VirtualAlloc (or Linux syscalls)  
+- **OW-IAT** — cwd `yoyo_rt.dll` load face · CUT 冻结（FO.1 refresh only）  
+- **OW-SEED** — Rust `yoyo.exe` emitter · CUT 冻结  
+- **OW-STUB** / **OW-H00** — stub / full `.text` · CUT 冻结  
+- **Host I/O** — CreateFile / ReadFile / VirtualAlloc · CUT 冻结  
 - **REL-FULLTEXT** — never graduation CLOSED  
-- **REL-STUBOS** — until production I/O on stub OS  
+- **REL-STUBOS** — far / not mainline  
 
 ---
 
-*Post-v1.0 path 2 · 整仓竣工 · OW-RT long pole · Gate G slice = in-DLL recompile (not CLOSED)*
+*Post-v1.0 path 2 · 实用自给下限 · OW-RT CLOSED (S3.738) · 其余 CUT 冻结*

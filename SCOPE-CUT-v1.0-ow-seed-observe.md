@@ -148,7 +148,7 @@ cd F:\yoyo
 | **root** | `scripts/_stage9-pure-m4/gen4.exe` |
 | **bytes** | `251392` |
 | **sha256** | `b0a8dbb0d3133e2a7f763fe79af19975bb2f2f505b0fed1d625d0e8b8f793a74` |
-| **provenance** | `rust_stage9_gen1_then_H00_chain` |
+| **provenance** | `dual_ancestry_rust_stage9_gen1_plus_operational_yoyo_pe_emit`（FP-4；ancestry 仍记 Rust gen1；≠ CLOSED） |
 | **disposition** | CUT |
 
 **Proves:** trust-root is machine-pinned; drift → RED.

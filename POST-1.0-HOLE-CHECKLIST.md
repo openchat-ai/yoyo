@@ -1,44 +1,58 @@
-# Post-v1.0 关洞看板（path 2 · OW-RT / S3）
+# Post-v1.0 看板 — 本源纠正
 
-## 一眼进度
+## 本源尺子（唯一主尺）
+
+**打破后门魔咒** + **自举**
+
+| 是 | 不是 |
+| --- | --- |
+| 自举主路径能自己编、自己跑 | 翻译器 / 通用语言功能表 |
+| DDC+Lock **检出**编译器级异常 | 宣称 Thompson 免疫 / 「0 漏洞」 |
+| 缩**自举路径上的**宿主外包 | 把 OW-\* 病历名当成 ISA / CPU 概念 |
+| 像 CPU：有限能力自给 | 无限 tip（S3.N / FO.N / S4.N）工厂 |
+
+> 对外禁词（detection≠proof）是 **防吹牛**，不是进度定义。  
+> 进度只问：**自举是否更硬？后门检测面是否更实？**
+
+## 当前判定
 
 | | |
 | --- | --- |
-| **tip** | **S3.733** ✅ **E5 清闸设计已命名**（近路=co-place compiler PE；仍 ABSENT） |
-| **主线** | S1✅ S2✅ **S3⏳** · S4/S5 未开 |
-| **已站住** | E1–E4 · E5 **named** · **E5 clear 仍 ABSENT** |
-| **硬闸** | G CLOSED **ABSENT**（oracle≠full compile）· inventory CUT |
-| **禁** | 假 CLOSED / densify / invent Stage |
-| **近刀** | 705–733 ✅ |
-| **git** | tip **S3.733** · bake=362 |
+| **自举** | ✅ 主路径有限自举成立（parse1 / CreateProcess-compiler · Gate I 类） |
+| **打破后门（检测）** | ✅ DDC+Lock + 自举窗可用；⚠️ 仍是 detection，不是证明 |
+| **path 2 长杆** | ✅ OW-RT CLOSED @ S3.738（human A）— 自举运行信任面收了一大截 |
+| **状态** | 软轨 FIXEDPOINT/FULLBAR COMPLETED；硬轨 `AUTO-REAL-FIXEDPOINT.md` **COMPLETED=1**（R1–R5 full-file EQUAL · 2026-11-06）；OW-SEED 仍 CUT；≠ Thompson |
 
-## 下一刀
+## 次要账本（非本源 · 可冻结）
 
-| tip | 做什么 | 禁 |
-| --- | --- | --- |
-| **S3.734** | E5 近路：`place_cwd` Off 同目录 co-place `yoyo_compiler.exe`（CreateProcess≡full-compile 证据） | 假 CLOSED · densify |
+宿主债标签（OW-IAT / SEED / STUB·H00 / Host-I/O / REL-\*）只是 **实现外包病历**。  
+**CUT 冻结**；默认不自动开刀。再动必须回答：是否直接加强 **自举** 或 **后门检测**？
 
-**缺口**：E5 clear / G CLOSED ABSENT。
+## 继续时怎么选刀
 
-## HARD BLOCK（runner-only · 勿当本地回归）
+只做能答「是」的：
+1. 让自举更少依赖外来发射/加载？或  
+2. 让 DDC/Lock 覆盖更实的自举字节？
 
-下列 `pe_dll_link` 测试保持 `#[ignore]`——**仅** GitHub `windows-latest` debug 复现；本地同 rustc 多轮不复现。主门禁 = `stage17-ow-rt-yoyo-runtime.ps1`（in-DLL recompile），不依赖它们。
+否则不做。禁止用禁词表否定「自举已立」。
 
-| 测试 | CI 现象 | 说明 |
-| --- | --- | --- |
-| `yoyo_sidecar_export_compile_success_writes_pe` | `STATUS_ACCESS_VIOLATION` | 旧 export-compile 路径；见 issue #37 |
-| `yoyo_sidecar_export_compile_probe_inproc` | `STATUS_STACK_BUFFER_OVERRUN` (`0xC0000409`) | `__fastfail` 绕过 VEH |
-| `yoyo_sidecar_export_compile_probe_subproc` | 同上 | 子进程探针同崩 |
+### 要「真正全自动」加深时
 
-临时打开：`cargo test -p verifier --lib -- --include-ignored --exact <name>`。
+读并只走 **`AUTO-FIXEDPOINT.md`**（规格图 + typed graph + FP-0…DONE）。  
+开关：该文件 `ACTIVE=1` 或用户说 `固定点自动` / `继续固定点`。  
+目标谓词：三链同一终极二进制 + 非 Rust 唯一发射器（D1–D6）— **FIXEDPOINT COMPLETED=1**。  
+**硬轨（别搞虚的）**：`AUTO-REAL-FIXEDPOINT.md` — **COMPLETED=1**（full-file 三链 EQUAL）。`继续固定点` 若已 DONE 则停。  
+禁止 invent Stage 17；OW-SEED 仍 CUT；≠ Thompson。
 
-## 验收
+## 验收（本源）
 
 ```powershell
 cd F:\yoyo\yoyo-rust\verifier
-cargo test --lib -- yoyo_e5_oracle_to_full_compile_design_pin yoyo_s3_732_human_e1_e2_e4_landing_pin --test-threads=1
+cargo test --lib -- yoyo_s3_738_human_a_closed_pin --test-threads=1
+# 自举/检测回归按需：cargo run -- test ddc 等既有门禁
+# 固定点轨：见 AUTO-FIXEDPOINT.md §1 / §4
 ```
 
 ---
 
-*post-v1.0 · tip S3.733 · next co-place*
+*本源纠正 2026-11-06 · 尺子 = 打破后门魔咒 / 自举 · REAL full-file EQUAL COMPLETED · ≠ Thompson · OW-SEED CUT*
