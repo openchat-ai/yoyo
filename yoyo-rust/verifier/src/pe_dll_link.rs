@@ -2144,6 +2144,12 @@ fn s3_compact_full_grow_from_tmpl(tmpl: &[u8], user_text: &[u8], user_data: &[u8
 /// fixed10/multi markers retained. M4/inventory CUT unchanged.
 #[cfg(windows)]
 fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link::PeImage> {
+    let (c, data) = yoyo_compiler_ret_compile_code_data()?;
+    crate::pe_link::link_pe_win32(&c, &data, &[])
+}
+
+/// Pre-link parse1 child payloads (HB-FX JS peer links these via `linkPeWin32`).
+fn yoyo_compiler_ret_compile_code_data() -> crate::types::IsaResult<(Vec<u8>, Vec<u8>)> {
     let ret_seed = crate::s1_tyb_parser::S3_COMPILE_PE_RET_IMAGE_SEED;
     let setret_seed = crate::s1_tyb_parser::S3_COMPILE_PE_SET_RET_IMAGE_SEED;
 
@@ -6622,7 +6628,7 @@ fn yoyo_compiler_ret_compile_pe_link() -> crate::types::IsaResult<crate::pe_link
     patch_jcc(&mut c, je_fail_out, fail_wr);
     patch_jcc(&mut c, je_fail_wr, fail_wr);
 
-    crate::pe_link::link_pe_win32(&c, &data, &[])
+    Ok((c, data))
 }
 
 /// Build passthrough EXE: input.tyb → output.exe (max 32KiB), exit 0/2/3.
@@ -6752,6 +6758,29 @@ pub fn yoyo_place_compiler_pe(work_dir: &Path) -> Result<PathBuf, ()> {
     }
     std::fs::write(&path, bytes).map_err(|_| ())?;
     Ok(path)
+}
+
+/// HB-FX: dump pre-link parse1 `.text` payload + `.data` user blob for JS `linkPeWin32`.
+/// Offline tooling only — chain must not `cargo` this; JS peer links the blobs.
+#[cfg(windows)]
+pub fn yoyo_dump_compiler_payload(work_dir: &Path) -> Result<(usize, usize), ()> {
+    let (code, data) = yoyo_compiler_ret_compile_payload().ok_or(())?;
+    std::fs::create_dir_all(work_dir).map_err(|_| ())?;
+    std::fs::write(work_dir.join("code.bin"), &code).map_err(|_| ())?;
+    std::fs::write(work_dir.join("data.bin"), &data).map_err(|_| ())?;
+    let meta = format!(
+        "name=yoyo_compiler_payload\ncode_bytes={}\ndata_bytes={}\npayload_origin=rust_parse1_emit\npeer_link=js_linkPeWin32\n",
+        code.len(),
+        data.len()
+    );
+    std::fs::write(work_dir.join("payload.pin"), meta).map_err(|_| ())?;
+    Ok((code.len(), data.len()))
+}
+
+/// Pre-link (code, data) for [`yoyo_compiler_ret_compile_pe_link`] — HB-FX JS peer input.
+#[cfg(windows)]
+pub fn yoyo_compiler_ret_compile_payload() -> Option<(Vec<u8>, Vec<u8>)> {
+    yoyo_compiler_ret_compile_code_data().ok()
 }
 
 /// Exit contract shared with Rust `yoyo_runtime_selfhost_main`.

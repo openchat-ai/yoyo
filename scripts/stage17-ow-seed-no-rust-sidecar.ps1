@@ -97,27 +97,22 @@ Copy-Item -Force $AltSrc (Join-Path $YoyoDir "yoyo_rt.dll")
 Copy-Item -Force $TrustRoot (Join-Path $YoyoDir "emitter_gen4.exe")
 Copy-Item -Force $Tyb (Join-Path $YoyoDir "input.tyb")
 Copy-Item -Force $Ty (Join-Path $YoyoDir "input.ky")
-# REAL: CreateProcess needs cwd yoyo_compiler.exe — copy pin fixture (no cargo place-compiler).
-Write-Host "=== co-place yoyo_compiler.exe from bootstrap fixture (no cargo) ==="
-$fx = Join-Path $Root "scripts\fixtures\yoyo_compiler.exe"
-$fxPin = Join-Path $Root "scripts\fixtures\yoyo_compiler.pin"
-if (-not (Test-Path $fx) -or -not (Test-Path $fxPin)) {
-    Write-Host "OW_SEED_NO_SIDECAR status=RED reason=missing_compiler_fixture"
+# HB-FX: CreateProcess child via JS peer link (no fixture copy, no cargo place-compiler).
+Write-Host "=== co-place yoyo_compiler.exe via JS peer link (HB-FX) ==="
+$jsPlace = Join-Path $Root "yoyo-js\scripts\place-yoyo-compiler.js"
+if (-not (Test-Path $jsPlace)) {
+    Write-Host "OW_SEED_NO_SIDECAR status=RED reason=missing_js_place_script"
     exit 1
 }
-$fxExpect = @{}
-Get-Content $fxPin | ForEach-Object {
-    if ($_ -match '^\s*#' -or $_ -match '^\s*$') { return }
-    if ($_ -match '^\s*([^=]+)=(.*)$') { $fxExpect[$Matches[1].Trim()] = $Matches[2].Trim() }
-}
-$fxSha = (Get-FileHash $fx -Algorithm SHA256).Hash.ToLowerInvariant()
-if ($fxSha -ne $fxExpect['sha256']) {
-    Write-Host "OW_SEED_NO_SIDECAR status=RED reason=compiler_fixture_sha_mismatch"
+& node $jsPlace $YoyoDir
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $YoyoDir "yoyo_compiler.exe"))) {
+    Write-Host ("OW_SEED_NO_SIDECAR status=RED reason=js_peer_place_failed exit={0}" -f $LASTEXITCODE)
     exit 1
 }
-Copy-Item -Force $fx (Join-Path $YoyoDir "yoyo_compiler.exe")
-Write-Host ("OW_SEED_NO_SIDECAR yoyo_compiler_bytes={0} sha256_prefix={1} emitter=fixture_copy" -f (Get-Item (Join-Path $YoyoDir "yoyo_compiler.exe")).Length, $fxSha.Substring(0,16))
+$compSha = (Get-FileHash (Join-Path $YoyoDir "yoyo_compiler.exe") -Algorithm SHA256).Hash.ToLowerInvariant()
+Write-Host ("OW_SEED_NO_SIDECAR yoyo_compiler_bytes={0} sha256_prefix={1} emitter=js_peer_link" -f (Get-Item (Join-Path $YoyoDir "yoyo_compiler.exe")).Length, $compSha.Substring(0,16))
 Write-Host "OW_SEED_NO_SIDECAR rust_place_compiler_cargo=ABSENT"
+Write-Host "OW_SEED_NO_SIDECAR fixture_copy=ABSENT"
 Push-Location $YoyoDir
 try {
     if (Test-Path "output.exe") { Remove-Item "output.exe" -Force }
@@ -158,7 +153,7 @@ Write-Host "OW_SEED_NO_SIDECAR yoyo_compiler_cwd=PRESENT"
 Write-Host "OW_SEED_NO_SIDECAR disposition=CLOSED"
 Write-Host "OW_SEED_NO_SIDECAR closed=1"
 Write-Host "OW_SEED_NO_SIDECAR auth=human_A_2026-11-07"
-Write-Host "OW_SEED_NO_SIDECAR note=CreateProcess_compiler_fixture;FULLBAR_trust_root;not_Thompson"
+Write-Host "OW_SEED_NO_SIDECAR note=CreateProcess_js_peer_link;payload_origin_rust_parse1_emit;not_Thompson"
 Write-Host "OW_SEED_NO_SIDECAR doc=SCOPE-CUT-v1.0-ow-seed-observe.md"
 
 if ($ecYoyo -ne 0 -or -not $hasOut -or $parity -ne "EQUAL") {

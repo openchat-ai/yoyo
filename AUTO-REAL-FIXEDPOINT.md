@@ -35,7 +35,7 @@ STOP_ONLY=停 | ACTIVE=0 | hard-block | COMPLETED=1
 
 | ID | 内容 |
 | --- | --- |
-| HB-FX | compiler 仍是 bootstrap fixture（人类 auth A 已接受）— 链上无 cargo place；「peer 现场吐 compiler」未做 |
+| HB-FX | **COMPLETED**（2026-11-07）· live JS emit · origin=`js_parse1_source_interp` · 见 `AUTO-HB-FX.md` |
 | OW-SEED | **CLOSED** @ human A 2026-11-07（FULLBAR pin）；≠ Thompson |
 
 ## 触发

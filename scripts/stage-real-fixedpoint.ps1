@@ -1,7 +1,7 @@
 # stage-real-fixedpoint.ps1 — AUTO-REAL-FIXEDPOINT R1–R4 (not soft COMPLETED)
 #
 # Hard: JS/asm cold start → YOYO H00 fixedpoint; no Rust yoyo.exe on chain;
-#       compiler = fixture copy (no cargo place-compiler); Gate I shape; ancestry pin.
+#       compiler = JS peer link (HB-FX; no cargo place-compiler); Gate I shape; ancestry pin.
 # R5 full-file / full .text EQUAL required for REAL COMPLETED (no soft window).
 #
 #   cd F:\yoyo
@@ -16,11 +16,12 @@ Enable-YoyoUnattendedUiHarden
 
 Write-Host "=== AUTO-REAL-FIXEDPOINT (no soft graduation) ==="
 
-# R2 fixture present
-$fx = Join-Path $Root "scripts\fixtures\yoyo_compiler.exe"
-$fxPin = Join-Path $Root "scripts\fixtures\yoyo_compiler.pin"
-if (-not (Test-Path $fx) -or -not (Test-Path $fxPin)) {
-    Write-Host "REAL_FP status=RED reason=missing_compiler_fixture"
+# R2 / HB-FX: JS peer place script + payload bins present
+$jsPlace = Join-Path $Root "yoyo-js\scripts\place-yoyo-compiler.js"
+$payloadCode = Join-Path $Root "yoyo-js\src\platform\yoyo-compiler-payload\code.bin"
+$payloadData = Join-Path $Root "yoyo-js\src\platform\yoyo-compiler-payload\data.bin"
+if (-not (Test-Path $jsPlace) -or -not (Test-Path $payloadCode) -or -not (Test-Path $payloadData)) {
+    Write-Host "REAL_FP status=RED reason=missing_js_peer_compiler_place"
     exit 1
 }
 
@@ -32,7 +33,7 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# R1+R4 FULLBAR trust-root (JS ancestry + YOYO chain + fixture compiler)
+# R1+R4 FULLBAR trust-root (JS ancestry + YOYO chain + js_peer_link compiler)
 Write-Host "=== R1/R4 fullbar trust-root ==="
 & (Join-Path $Root "scripts\stage-fullbar-trust-root.ps1") -SkipEmitRt:$SkipEmitRt
 if ($LASTEXITCODE -ne 0) {
@@ -40,13 +41,8 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# R2: prove place-compiler cargo was not required — fixture pin chain_emitter
-$pinTxt = Get-Content $fxPin -Raw
-if ($pinTxt -notmatch 'chain_emitter=fixture_copy') {
-    Write-Host "REAL_FP status=RED reason=fixture_pin_not_fixture_copy"
-    exit 1
-}
 Write-Host "REAL_FP rust_place_compiler_cargo=ABSENT"
+Write-Host "REAL_FP compiler_emitter=js_peer_link"
 Write-Host "REAL_FP rust_yoyo_exe_on_emit_hops=ABSENT (Gate I + fullbar chain)"
 
 # R5 observe

@@ -106,25 +106,14 @@ function Invoke-H00YoyoChain([string]$ExePath, [string]$OutPath, [string]$Label)
     Copy-Item -Force $AltSrc (Join-Path $run "yoyo_rt.dll")
     Copy-Item -Force $Tyb (Join-Path $run "input.tyb")
     Copy-Item -Force $Ty (Join-Path $run "input.ky")
-    $fx = Join-Path $Root "scripts\fixtures\yoyo_compiler.exe"
-    $fxPin = Join-Path $Root "scripts\fixtures\yoyo_compiler.pin"
-    if (-not (Test-Path $fx) -or -not (Test-Path $fxPin)) {
-        Write-Host ("FULLBAR_F2 status=RED reason=missing_compiler_fixture label={0}" -f $Label)
+    $jsPlace = Join-Path $Root "yoyo-js\scripts\place-yoyo-compiler.js"
+    if (-not (Test-Path $jsPlace)) {
+        Write-Host ("FULLBAR_F2 status=RED reason=missing_js_place_script label={0}" -f $Label)
         return $false
     }
-    $fxExpect = @{}
-    Get-Content $fxPin | ForEach-Object {
-        if ($_ -match '^\s*#' -or $_ -match '^\s*$') { return }
-        if ($_ -match '^\s*([^=]+)=(.*)$') { $fxExpect[$Matches[1].Trim()] = $Matches[2].Trim() }
-    }
-    $fxSha = (Get-FileHash $fx -Algorithm SHA256).Hash.ToLowerInvariant()
-    if ($fxSha -ne $fxExpect['sha256']) {
-        Write-Host ("FULLBAR_F2 status=RED reason=compiler_fixture_sha_mismatch label={0}" -f $Label)
-        return $false
-    }
-    Copy-Item -Force $fx (Join-Path $run "yoyo_compiler.exe")
-    if (-not (Test-Path (Join-Path $run "yoyo_compiler.exe"))) {
-        Write-Host ("FULLBAR_F2 status=RED reason=fixture_copy_failed label={0}" -f $Label)
+    & node $jsPlace $run
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $run "yoyo_compiler.exe"))) {
+        Write-Host ("FULLBAR_F2 status=RED reason=js_peer_place_failed label={0} exit={1}" -f $Label, $LASTEXITCODE)
         return $false
     }
     $sideLen = (Get-Item (Join-Path $run "yoyo_rt.dll")).Length
@@ -247,7 +236,7 @@ Write-Host "FULLBAR_F2 rust_yoyo_rt_dll_on_chain=ABSENT"
 Write-Host "FULLBAR_F2 disposition=CLOSED"
 Write-Host "FULLBAR_F2 closed=1"
 Write-Host "FULLBAR_F2 auth=human_A_2026-11-07"
-Write-Host "FULLBAR_F2 note=OW_SEED_CLOSED;fixture_compiler_accepted;not_Thompson;Gate_H_dual_pin_still_CUT"
+Write-Host "FULLBAR_F2 note=OW_SEED_CLOSED;js_peer_link_compiler;payload_origin_js_parse1_source_interp;not_Thompson"
 Write-Host "FULLBAR_F2 doc=SCOPE-CUT-v1.0-ow-seed-observe.md"
 Write-Host "FULLBAR_F2 status=GREEN"
 exit 0

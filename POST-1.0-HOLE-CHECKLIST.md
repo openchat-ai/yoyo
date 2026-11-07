@@ -21,7 +21,7 @@
 | **自举** | ✅ 主路径有限自举成立（parse1 / CreateProcess-compiler · Gate I 类） |
 | **打破后门（检测）** | ✅ DDC+Lock + 自举窗可用；⚠️ 仍是 detection，不是证明 |
 | **path 2 长杆** | ✅ OW-RT CLOSED @ S3.738（human A）— 自举运行信任面收了一大截 |
-| **状态** | 软轨 FIXEDPOINT/FULLBAR COMPLETED；硬轨 REAL **COMPLETED=1**（R1–R5）；**OW-SEED CLOSED**（human A · 2026-11-07 · FULLBAR pin）；≠ Thompson |
+| **状态** | REAL COMPLETED；OW-SEED CLOSED；**HB-FX COMPLETED**（live JS emit · origin=`js_parse1_source_interp`）· ≠ Thompson |
 
 ## 次要账本（非本源 · 可冻结）
 
@@ -55,4 +55,4 @@ cargo test --lib -- yoyo_s3_738_human_a_closed_pin --test-threads=1
 
 ---
 
-*本源纠正 2026-11-07 · 尺子 = 打破后门魔咒 / 自举 · REAL COMPLETED · OW-SEED CLOSED (human A) · ≠ Thompson*
+*本源纠正 2026-11-07 · 尺子 = 打破后门魔咒 / 自举 · REAL + FIXEDPOINT/FULLBAR + HB-FX COMPLETED · OW-SEED CLOSED · ≠ Thompson*

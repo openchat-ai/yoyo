@@ -16,6 +16,42 @@ use std::process::ExitCode;
 
 fn main() -> ExitCode {
     let mut args: Vec<String> = env::args().skip(1).collect();
+    // HB-FX: dump pre-link parse1 code+data for JS peer link (offline regen only).
+    if args.first().map(|s| s.as_str()) == Some("--dump-compiler-payload") {
+        args.remove(0);
+        let Some(work) = args.first() else {
+            eprintln!("usage: emit-rt-sidecar --dump-compiler-payload <outdir>");
+            return ExitCode::from(2);
+        };
+        let work_dir = Path::new(work);
+        if let Err(e) = std::fs::create_dir_all(work_dir) {
+            eprintln!("error: mkdir {}: {e}", work_dir.display());
+            return ExitCode::FAILURE;
+        }
+        #[cfg(windows)]
+        {
+            match verifier::pe_dll_link::yoyo_dump_compiler_payload(work_dir) {
+                Ok((c, d)) => {
+                    println!(
+                        "HB_FX_DUMP_COMPILER_PAYLOAD code={} data={} dir={} status=GREEN",
+                        c,
+                        d,
+                        work_dir.display()
+                    );
+                    return ExitCode::SUCCESS;
+                }
+                Err(()) => {
+                    eprintln!("HB_FX_DUMP_COMPILER_PAYLOAD status=RED");
+                    return ExitCode::FAILURE;
+                }
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            eprintln!("HB_FX_DUMP_COMPILER_PAYLOAD status=SKIP reason=non-Windows");
+            return ExitCode::from(2);
+        }
+    }
     // FULLBAR FS-1: co-place CreateProcess compiler next to YOYO sidecar (Gate I).
     if args.first().map(|s| s.as_str()) == Some("--place-compiler") {
         args.remove(0);

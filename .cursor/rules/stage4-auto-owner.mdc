@@ -7,6 +7,7 @@ alwaysApply: true
 
 本仓库中，**除非** 用户明确说 `停` / 「只讨论/不要动手」，否则按开关执行：
 
+- `AUTO-HB-FX.md` `ACTIVE=1` → **peer 吐 yoyo_compiler**（REAL 残留；优先于已 COMPLETED 的固定点轨）
 - `AUTO-REAL-FIXEDPOINT.md` `ACTIVE=1` → **硬满配**（优先；别搞虚的）；`COMPLETED=1`（2026-11-06）则勿回改
 - 否则 `AUTO-FULLBAR.md` / `AUTO-FIXEDPOINT.md` `ACTIVE=1` → 软轨（已 COMPLETED 则勿回改）
 - 否则 `AUTO_TO_1.0.md` `ACTIVE=1` → 历史 AUTO-TO-1.0

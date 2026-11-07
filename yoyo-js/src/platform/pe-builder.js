@@ -196,4 +196,16 @@ function linkPeWin32(code, data, handlerOffsets, dataNeed = require('./platform-
   return buildPe(userCode, userData, dataNeed);
 }
 
-module.exports = { buildPe, prependWin32IoIat, linkPeWin32 };
+/**
+ * JS peer of pe_link::link_pe_win32_compact — no 0x38000 .data floor.
+ * Used by HB-FX FX-2b data prelude (parse1 compact template bake).
+ */
+function linkPeWin32Compact(code, data, handlerOffsets = []) {
+  if (shouldH00Selfhost(handlerOffsets)) {
+    throw new Error('linkPeWin32Compact: H_00 handlers unsupported (use linkPeWin32)');
+  }
+  const COMPACT_DATA_FLOOR = 0x1000;
+  return linkPeWin32(code, data, handlerOffsets, COMPACT_DATA_FLOOR);
+}
+
+module.exports = { buildPe, prependWin32IoIat, linkPeWin32, linkPeWin32Compact };
