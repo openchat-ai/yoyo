@@ -1,0 +1,4 @@
+; S3.19 - YOYO general multi-op program loop (table@0x80 + prog@0xBC)
+; Sibling: s3_yoyo_table_prog_loop.tyb (ops=SET,RET)
+; Honest: outbuf == emit_x86 for SET+RET / NOP+RET / RET; sim+PE.
+; Does **not** replace in-DLL Rust emit. OW-RT CUT.

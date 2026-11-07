@@ -1,0 +1,8 @@
+name=yoyo_compiler_payload
+code_bytes=13011
+data_bytes=421920
+payload_origin=js_parse1_source_interp
+peer_link=js_linkPeWin32
+chain_emitter=js_peer_link
+note=JS_emits_data_bake+code_via_pe_dll_link_source_interp; bins kept as EQUAL pin; place defaults to live emit
+doc=AUTO-HB-FX.md

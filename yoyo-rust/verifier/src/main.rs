@@ -54,7 +54,9 @@ mod selfhost;
 mod seed_host;
 mod startup;
 mod h00_manual_map_wireup;
+mod cwd_guard;
 mod pe_dll_link;
+mod s1_tyb_parser;
 mod pe_manual_map;
 mod win32_selfhost;
 mod linux_selfhost;
@@ -954,7 +956,7 @@ fn cmd_exec(args: &[String]) -> Result<(), types::IsaError> {
     use crate::executor::compile_ty_source_to_tir;
     use crate::platform::PlatformKind;
     use crate::simulator::simulate;
-    use crate::emit::emit;
+    
     let mut target = PlatformKind::Android;
     let mut rest = Vec::new();
     for a in args {
@@ -1024,7 +1026,7 @@ fn cmd_info(args: &[String]) -> Result<(), types::IsaError> {
     } else {
         None
     };
-    let width = |p: &str| p.len().max(15);
+    let _width = |p: &str| p.len().max(15);
     println!("{:<15} | {:<6} | {:>3} | {:<10} | MMU | Hvd | Stk | Inst | Description", "Backend", "Endian", "Ptr", "ABI");
     println!("{}", "-".repeat(90));
     let endian_str = |e: Endian| match e { Endian::Little => "Little", Endian::Big => "Big" };
@@ -26576,7 +26578,7 @@ fn check_selfhost_min_io(root: &std::path::Path) -> Result<String, String> {
     }
 
     // Fixture: 4 handlers 脳 18B each (movabs+store+ret). ALLOC size=0x1000 gives unique byte.
-    let alloc_marker: [u8; 3] = [0x48, 0xB8, 0x00]; // movabs rax, lo-byte
+    let _alloc_marker: [u8; 3] = [0x48, 0xB8, 0x00]; // movabs rax, lo-byte
     if expected[18] != 0x48 || expected[19] != 0xB8 || expected[20] != 0x00 {
         return Err("expected pin: ALLOC (H_2B) must start at offset 18".into());
     }

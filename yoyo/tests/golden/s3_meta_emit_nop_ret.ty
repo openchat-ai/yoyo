@@ -1,0 +1,3 @@
+; S3.3 — meta-emit NOP+RET via RAW_BYTES (template dump; within 256B soft cap)
+; Sibling: s3_meta_emit_nop_ret.tyb → bytes 90 C3 ≡ emit_x86(NOP; RET)
+; Soft-cap raise deferred: in-DLL code scratch hard-wired to 256B.

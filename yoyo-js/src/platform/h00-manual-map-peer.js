@@ -33,6 +33,11 @@ const H00_IAT_SITES = [
   [354, 0], // VirtualAlloc (image)
   [2486, 5], // ExitProcess (export success)
 ];
+/** `c6 05 rel32 imm8` phase probes — must track pe_link::WIN32_IO_H00_SCRATCH_OFF+24. */
+const H00_PHASE_SCRATCH_OFF = 0xf8 + 24;
+const H00_PHASE_SITES = [
+  14, 132, 192, 264, 305, 319, 376, 383, 544, 688, 953, 1058, 1173, 1198, 1521, 1538, 2463,
+];
 
 function rebaseManualMapStub(buf, textRva, codeBaseOff, meta) {
   patchRel32(
@@ -51,6 +56,11 @@ function rebaseManualMapStub(buf, textRva, codeBaseOff, meta) {
       textRva + codeBaseOff + at + 6,
       meta.iatRva + slot * 8,
     );
+  }
+  const phaseTgt = meta.iatRva + H00_PHASE_SCRATCH_OFF;
+  for (const at of H00_PHASE_SITES) {
+    // c6 05 rel32 imm8 — disp at +2, insn end at +7
+    patchRel32(buf, at + 2, textRva + codeBaseOff + at + 7, phaseTgt);
   }
 }
 

@@ -210,7 +210,7 @@ impl Cpu {
         // 0x9B (9B) for MUL, 0xAB (AB) for ORR, 0xEB (EB) for CMP(SUBS)
         // bits 23:22 = shift type (0=LSL), bits 15:10 = imm6 (0=no shift)
         let top8 = (insn >> 24) as u8;
-        let top21 = (insn >> 11) as u32;
+        let _top21 = (insn >> 11) as u32;
         let shift_type = (insn >> 22) & 0x3;
         let imm6 = (insn >> 10) & 0x3F;
         // ADD (shifted register, no shift)

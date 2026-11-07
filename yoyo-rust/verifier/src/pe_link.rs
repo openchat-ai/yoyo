@@ -115,7 +115,7 @@ fn prepend_win32_io_iat(user_data: &[u8], data_rva: u32) -> (Vec<u8>, u32, u32) 
     write_u32(&mut blob, desc_off + 12, data_rva + kern_name_off as u32);
     write_u32(&mut blob, desc_off + 16, data_rva + kern_iat_off as u32);
 
-    for (i, (name_off, hn_off, ilt_off, iat_off)) in preload_meta.iter().enumerate() {
+    for (i, (name_off, _hn_off, ilt_off, iat_off)) in preload_meta.iter().enumerate() {
         let at = desc_off + desc_size * (1 + i);
         write_u32(&mut blob, at, data_rva + *ilt_off as u32);
         write_u32(&mut blob, at + 12, data_rva + *name_off as u32);
@@ -205,8 +205,48 @@ pub fn link_pe_win32(
         let data_rva = text_rva + text_vs;
         let (extended, import_dir_rva, import_dir_size) = prepend_win32_io_iat(data, data_rva);
         let _ = platform_io::WIN32_IAT_DATA_RESERVE;
-        link_pe_impl(code, &extended, true, import_dir_rva, import_dir_size, None)
+        link_pe_impl(
+            code,
+            &extended,
+            true,
+            import_dir_rva,
+            import_dir_size,
+            None,
+            OUTPUT_DATA_NEED,
+        )
     }
+}
+
+/// S3.645: compact Win32 PE link — same I/O IAT as [`link_pe_win32`] non-H00 path,
+/// but **without** the 0x38000 `.data` floor (pe_link-in-child milestone size).
+/// Refuses H_00 handler sets. ≠ raising slim-cap; ≠ densify.
+pub fn link_pe_win32_compact(
+    code: &[u8],
+    data: &[u8],
+    handler_offsets: &[(u16, u32, u32)],
+) -> IsaResult<PeImage> {
+    if should_h00_selfhost(handler_offsets) {
+        return Err(crate::types::IsaError::PlatformError {
+            msg: "link_pe_win32_compact: H_00 handlers unsupported (use link_pe_win32)".into(),
+        });
+    }
+    let section_align: u32 = 0x1000;
+    let text_rva = section_align;
+    let est_text = code.len() as u32 + 0x40;
+    let text_vs = align_up(est_text, section_align);
+    let data_rva = text_rva + text_vs;
+    let (extended, import_dir_rva, import_dir_size) = prepend_win32_io_iat(data, data_rva);
+    // Compact floor: IAT reserve + small pad (not OUTPUT_DATA_NEED=0x38000).
+    const COMPACT_DATA_FLOOR: u32 = 0x1000;
+    link_pe_impl(
+        code,
+        &extended,
+        true,
+        import_dir_rva,
+        import_dir_size,
+        None,
+        COMPACT_DATA_FLOOR,
+    )
 }
 
 fn should_h00_selfhost(handler_offsets: &[(u16, u32, u32)]) -> bool {
@@ -301,6 +341,7 @@ pub fn link_pe_h00_runtime(
         import_dir_rva,
         import_dir_size,
         Some(data_rva),
+        OUTPUT_DATA_NEED,
     )
 }
 
@@ -374,6 +415,7 @@ pub fn link_pe_selfhost(
         meta.import_dir_rva,
         meta.import_dir_size,
         None,
+        OUTPUT_DATA_NEED,
     )
 }
 
@@ -384,6 +426,7 @@ fn link_pe_impl(
     import_dir_rva: u32,
     import_dir_size: u32,
     data_rva_override: Option<u32>,
+    data_floor: u32,
 ) -> IsaResult<PeImage> {
     let section_align: u32 = 0x1000;
     let file_align: u32 = 0x200;
@@ -391,7 +434,7 @@ fn link_pe_impl(
 
     let code_need = code.len() as u32 + PE_STARTUP_LEN;
     let code_raw = align_up(code_need, file_align);
-    let data_need = OUTPUT_DATA_NEED.max(align_up(data.len() as u32 + 0x1000, section_align));
+    let data_need = data_floor.max(align_up(data.len() as u32 + 0x1000, section_align));
     let data_raw = align_up(data_need, file_align);
 
     // Layout:

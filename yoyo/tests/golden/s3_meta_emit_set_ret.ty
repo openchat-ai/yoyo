@@ -1,0 +1,13 @@
+; S3.2 — minimal meta-emit: YOYO-authored SET+RET machine code via RAW_BYTES
+; Sibling: s3_meta_emit_set_ret.tyb
+; Honest: this is a **template dump** of host emit_x86(SET slot0=0xDEADBEEF; RET),
+; not a YOYO-written compiler. Proves IR can carry emit results byte-identical.
+; Soft caps still block a real table-driven emit (see S3.1). OW-RT remains CUT.
+;
+; Target bytes (15):
+;   48 B8 EF BE AD DE 00 00 00 00   movabs rax, 0xDEADBEEF
+;   49 89 47 00                      mov [r15+0], rax  (disp8 form)
+;   C3                               ret
+;
+; TYB: five RAW_BYTES (argc=3) packing the above; last byte C3 so no auto-ret pad.
+; Acceptance: verifier s3_meta_emit_* vs emit_x86 of SET+RET program.

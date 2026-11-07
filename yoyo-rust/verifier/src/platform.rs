@@ -322,7 +322,7 @@ pub trait PlatformBackend {
                 let diff = target as i32 - branch_start as i32;
                 let imm = diff as u32;
                 // J-type: imm[20] imm[10:1] imm[11] imm[19:12] xxxx
-                let imm20 = ((imm >> 12) & 0x7FFFF) as u32; // actually need to encode J-type
+                let _imm20 = ((imm >> 12) & 0x7FFFF) as u32; // actually need to encode J-type
                 let i20 = (imm >> 20) & 1;
                 let i10_1 = (imm >> 1) & 0x3FF;
                 let i11 = (imm >> 11) & 1;
@@ -597,6 +597,8 @@ impl StubPlatform {
     }
 }
 
+/// FlatBinary / H_00 self-test lane: keep movabs+store stubs.
+/// Real OS I/O for TYB slim PE is `s1_tyb_parser::emit_slim_*` (S3.94+) - not here.
 impl PlatformBackend for StubPlatform {
     fn emit_alloc(&mut self, slot: u16, size: u64) -> IsaResult<Vec<u8>> {
         use crate::assembler::{movabs, store_state};
@@ -3648,7 +3650,7 @@ impl PlatformBackend for LoongArchPlatform {
         let addr = loongarch_slot_addr_64(slot);
         let mut out = loong_li_upper(LOONG_T1, 0x120010000u64);
         out.extend_from_slice(&loong_addi_d(LOONG_T1, LOONG_T1, addr as i32));
-        let mut imm_out = loong_li(LOONG_T0, imm);
+        let imm_out = loong_li(LOONG_T0, imm);
         out.extend_from_slice(&imm_out);
         out.extend_from_slice(&loong_st_d(LOONG_T0, LOONG_T1, 0));
         Ok(out)
@@ -3825,7 +3827,7 @@ impl PlatformBackend for LoongArchPlatform {
         let off = loongarch_slot_addr_64(slot);
         let mut out = loong_li_upper(LOONG_T1, 0x120010000u64);
         out.extend_from_slice(&loong_addi_d(LOONG_T1, LOONG_T1, off as i32));
-        let mut size_out = loong_li(LOONG_T0, size);
+        let size_out = loong_li(LOONG_T0, size);
         out.extend_from_slice(&size_out);
         out.extend_from_slice(&loong_st_d(LOONG_T0, LOONG_T1, 0));
         Ok(out)
@@ -5692,7 +5694,7 @@ impl PlatformBackend for M68kPlatform {
         out.extend_from_slice(&m68k_cmp_w_d1_d0());
         Ok(out)
     }
-    fn emit_ldb(&mut self, dd: u16, ss: u16, oo: u16) -> IsaResult<Vec<u8>> {
+    fn emit_ldb(&mut self, dd: u16, ss: u16, _oo: u16) -> IsaResult<Vec<u8>> {
         let ss_disp = ss as u16 * 2;
         let dd_disp = dd as u16 * 2;
         // MOVE.W (a0+ss), d0; ADDA.L d0, a0 (nope, that's not right)
@@ -5734,12 +5736,12 @@ impl PlatformBackend for M68kPlatform {
     }
     fn emit_call_branch(&mut self) -> IsaResult<(Vec<u8>, BranchFixup)> {
         // JSR to (a0+disp16): 0x4EB9 with ea=(disp16,a0)=0x8080
-        let mut out = vec![0x4E, 0xB9, 0x80, 0x80, 0x00, 0x00];
+        let out = vec![0x4E, 0xB9, 0x80, 0x80, 0x00, 0x00];
         Ok((out, BranchFixup { field_offset: 2, field_size: 2, kind: FixupKind::AbsAddr16 }))
     }
     fn emit_jmp_branch(&mut self) -> IsaResult<(Vec<u8>, BranchFixup)> {
         // JMP to (a0+disp16): 0x4EF9 with ea=(disp16,a0)=0x8080
-        let mut out = vec![0x4E, 0xF9, 0x80, 0x80, 0x00, 0x00];
+        let out = vec![0x4E, 0xF9, 0x80, 0x80, 0x00, 0x00];
         Ok((out, BranchFixup { field_offset: 2, field_size: 2, kind: FixupKind::AbsAddr16 }))
     }
     fn emit_jcc_branch(&mut self, _cc: u8) -> IsaResult<(Vec<u8>, BranchFixup)> {
