@@ -186,9 +186,13 @@ path_hint=scripts/_stage-fullbar-fs2-chain/gen4_js.exe
 provenance=$prov
 provenance_ancestry=$ancestry
 provenance_operational=$operational
-disposition=CUT
+disposition=CLOSED
+closed=1
+auth=human_A_2026-11-07
+auth_note=FULLBAR_pin_production_trust_root;fixture_compiler_accepted;not_Thompson
 pinned_date=2026-11-06
-doc=AUTO-FULLBAR.md
+closed_date=2026-11-07
+doc=SCOPE-CUT-v1.0-ow-seed-observe.md
 "@
 
 if ($WritePin -or -not (Test-Path $PinPath)) {
@@ -226,14 +230,24 @@ if ($ancField -notmatch 'js_asm_peer') {
     Write-Host "FULLBAR_F2 status=RED reason=pin_missing_js_asm_ancestry"
     exit 1
 }
+if ($pinFields['disposition'] -ne 'CLOSED') {
+    Write-Host ("FULLBAR_F2 status=RED reason=pin_disposition_must_be_CLOSED got={0}" -f $pinFields['disposition'])
+    exit 1
+}
+if ($pinFields['closed'] -ne '1') {
+    Write-Host "FULLBAR_F2 status=RED reason=pin_closed_must_be_1"
+    exit 1
+}
 
 Write-Host "FULLBAR_F2 provenance_ancestry=$ancestry"
 Write-Host "FULLBAR_F2 provenance_operational=$operational"
 Write-Host "FULLBAR_F2 sole_rust_cold_start=ABSENT"
 Write-Host "FULLBAR_F2 rust_yoyo_exe_on_chain=ABSENT"
 Write-Host "FULLBAR_F2 rust_yoyo_rt_dll_on_chain=ABSENT"
-Write-Host "FULLBAR_F2 disposition=CUT"
-Write-Host "FULLBAR_F2 note=NOT_OW_SEED_CLOSED; FIXEDPOINT_pin_unchanged"
-Write-Host "FULLBAR_F2 doc=AUTO-FULLBAR.md"
+Write-Host "FULLBAR_F2 disposition=CLOSED"
+Write-Host "FULLBAR_F2 closed=1"
+Write-Host "FULLBAR_F2 auth=human_A_2026-11-07"
+Write-Host "FULLBAR_F2 note=OW_SEED_CLOSED;fixture_compiler_accepted;not_Thompson;Gate_H_dual_pin_still_CUT"
+Write-Host "FULLBAR_F2 doc=SCOPE-CUT-v1.0-ow-seed-observe.md"
 Write-Host "FULLBAR_F2 status=GREEN"
 exit 0

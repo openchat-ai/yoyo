@@ -63,7 +63,7 @@ Gate prints `OW_RT_SPIKE status=GREEN`, **`disposition=CLOSED`**, **`g_closed=PR
 > 再缩宿主 = 另开**有界单门**，不是自动主线。
 
 - **OW-IAT** — cwd `yoyo_rt.dll` load face · CUT 冻结（FO.1 refresh only）  
-- **OW-SEED** — Rust `yoyo.exe` emitter · CUT 冻结  
+- **OW-SEED** — **CLOSED** @ human A 2026-11-07（FULLBAR pin 生产信任根；见 `SCOPE-CUT-v1.0-ow-seed-observe.md`）  
 - **OW-STUB** / **OW-H00** — stub / full `.text` · CUT 冻结  
 - **Host I/O** — CreateFile / ReadFile / VirtualAlloc · CUT 冻结  
 - **REL-FULLTEXT** — never graduation CLOSED  

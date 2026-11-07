@@ -1,10 +1,24 @@
 # OW-SEED observe — current facts (post-v1.0 path 2 · 关洞)
 
-> **Status:** OBSERVE only · **disposition = CUT**  
-> **Date:** 2026-09-29  
-> **Gate:** `scripts/stage9-pure-m4.ps1` (Stage 9-C H_00 pure M4)  
-> **Honest:** Rust `yoyo.exe` **still** emits seed — **OW-SEED remains CUT**.  
-> **Not CLOSED.** Pinning emitter/seed hash ≠ non-Rust emit path.
+> **Status:** Gate production trust-root **CLOSED** (OW-SEED CLOSED · human auth **A**)  
+> **Closed date:** 2026-11-07  
+> **Production pin:** `scripts/ow-seed-trust-root-fullbar.pin` (`disposition=CLOSED` · `closed=1`)  
+> **Honest residual:** bootstrap `yoyo_compiler.exe` fixture accepted by auth A; ≠ Thompson; Gate H dual pin (`ow-seed-trust-root.pin`) still records Rust gen1 ancestry as **historical CUT** observe.  
+> **v1.0 stage15 inventory** still measures Rust contrast `yoyo link` as CUT pins — that path is contrast only, not production trust root.
+
+## Human auth A (CLOSED · 2026-11-07)
+
+**User decision (verbatim):** 授权 OW-SEED CLOSED：以 FULLBAR pin（JS/asm 冷启 + YOYO H00 + Gate I）为生产信任根；接受 fixture compiler / 非 Thompson。
+
+**Evidence trail:** FIXEDPOINT D1–D6 + FULLBAR F1–F2 + REAL R1–R5 full-file EQUAL (`b0a8dbb0…`) → human authorize CLOSED.
+
+| Gate | Script | Expect |
+| --- | --- | --- |
+| F2 / CLOSED pin | `scripts/stage-fullbar-trust-root.ps1` | `disposition=CLOSED` · `closed=1` · GREEN |
+| Gate I | `scripts/stage17-ow-seed-no-rust-sidecar.ps1` | `disposition=CLOSED` · GREEN |
+| REAL | `scripts/stage-real-fixedpoint.ps1` | R1–R5 GREEN |
+
+**Not claimed:** Thompson-proof; peer-live compiler (fixture accepted); Gate H dual Rust-ancestry pin CLOSED.
 
 ## Purpose
 
@@ -317,4 +331,4 @@ $Seed = "F:\yoyo\scripts\_stage9-pure-m4\gen1.exe"
 
 ---
 
-*Post-v1.0 path 2 · OW-SEED observe only · disposition=CUT · 2026-09-29*
+*Post-v1.0 path 2 · OW-SEED CLOSED (human A · 2026-11-07) · FULLBAR production pin · ≠ Thompson*

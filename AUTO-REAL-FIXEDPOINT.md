@@ -31,12 +31,12 @@ STOP_ONLY=停 | ACTIVE=0 | hard-block | COMPLETED=1
 - [x] **RR-4**（2026-11-06）：JS peer IAT/H00 对齐 Rust — `prependWin32IoIat`（DESC=20、ILT 8-align、H00 scratch@0xF8）、phase-probe rebase、DllCharacteristics=`0x0100` → cold-start **full-file** JS≡asm≡Rust `b0a8dbb0…`；`stage-real-fixedpoint.ps1 -SkipEmitRt` → `status=GREEN` · R5=EQUAL  
 - [x] **RR-DONE** R1–R5 全绿 → `COMPLETED=1` · `ACTIVE=0`
 
-### 仍 CUT（诚实，不挡本轨 COMPLETED）
+### 诚实残留（不挡本轨 COMPLETED）
 
 | ID | 内容 |
 | --- | --- |
-| HB-FX | compiler 仍是 bootstrap fixture（历史曾由 Rust place 物化）— 链上已无 cargo place；「peer 现场吐 compiler」未做 |
-| OW-SEED | disposition 仍 CUT；≠ CLOSED；≠ Thompson |
+| HB-FX | compiler 仍是 bootstrap fixture（人类 auth A 已接受）— 链上无 cargo place；「peer 现场吐 compiler」未做 |
+| OW-SEED | **CLOSED** @ human A 2026-11-07（FULLBAR pin）；≠ Thompson |
 
 ## 触发
 

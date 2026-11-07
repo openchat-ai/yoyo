@@ -21,7 +21,7 @@
 | **自举** | ✅ 主路径有限自举成立（parse1 / CreateProcess-compiler · Gate I 类） |
 | **打破后门（检测）** | ✅ DDC+Lock + 自举窗可用；⚠️ 仍是 detection，不是证明 |
 | **path 2 长杆** | ✅ OW-RT CLOSED @ S3.738（human A）— 自举运行信任面收了一大截 |
-| **状态** | 软轨 FIXEDPOINT/FULLBAR COMPLETED；硬轨 `AUTO-REAL-FIXEDPOINT.md` **COMPLETED=1**（R1–R5 full-file EQUAL · 2026-11-06）；OW-SEED 仍 CUT；≠ Thompson |
+| **状态** | 软轨 FIXEDPOINT/FULLBAR COMPLETED；硬轨 REAL **COMPLETED=1**（R1–R5）；**OW-SEED CLOSED**（human A · 2026-11-07 · FULLBAR pin）；≠ Thompson |
 
 ## 次要账本（非本源 · 可冻结）
 
@@ -42,7 +42,7 @@
 开关：该文件 `ACTIVE=1` 或用户说 `固定点自动` / `继续固定点`。  
 目标谓词：三链同一终极二进制 + 非 Rust 唯一发射器（D1–D6）— **FIXEDPOINT COMPLETED=1**。  
 **硬轨（别搞虚的）**：`AUTO-REAL-FIXEDPOINT.md` — **COMPLETED=1**（full-file 三链 EQUAL）。`继续固定点` 若已 DONE 则停。  
-禁止 invent Stage 17；OW-SEED 仍 CUT；≠ Thompson。
+禁止 invent Stage 17；**OW-SEED CLOSED**（FULLBAR 生产根）；≠ Thompson。
 
 ## 验收（本源）
 
@@ -55,4 +55,4 @@ cargo test --lib -- yoyo_s3_738_human_a_closed_pin --test-threads=1
 
 ---
 
-*本源纠正 2026-11-06 · 尺子 = 打破后门魔咒 / 自举 · REAL full-file EQUAL COMPLETED · ≠ Thompson · OW-SEED CUT*
+*本源纠正 2026-11-07 · 尺子 = 打破后门魔咒 / 自举 · REAL COMPLETED · OW-SEED CLOSED (human A) · ≠ Thompson*

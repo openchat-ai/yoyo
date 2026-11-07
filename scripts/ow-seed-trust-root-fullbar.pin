@@ -1,6 +1,7 @@
-﻿# OW-SEED FULLBAR trust-root pin (FS-2)
+﻿# OW-SEED FULLBAR trust-root pin (FS-2) — production trust root
 # Cold-start ancestry = JS+asm peer link (full-file EQUAL); no Rust stage9 gen1 field.
-# H00 chain uses YOYO sidecar + yoyo_compiler (CreateProcess). disposition=CUT.
+# H00 chain uses YOYO sidecar + yoyo_compiler (CreateProcess).
+# Human auth A (2026-11-07): disposition=CLOSED — fixture compiler accepted; ≠ Thompson.
 name=gen4_js.exe
 kind=YOYO_PE
 bytes=251392
@@ -10,6 +11,10 @@ path_hint=scripts/_stage-fullbar-fs2-chain/gen4_js.exe
 provenance=dual_ancestry_js_asm_peer_plus_operational_yoyo_pe
 provenance_ancestry=js_asm_peer_link_then_H00_yoyo_createprocess
 provenance_operational=yoyo_pe_emit_hops_gen4_js
-disposition=CUT
+disposition=CLOSED
+closed=1
+auth=human_A_2026-11-07
+auth_note=FULLBAR_pin_production_trust_root;fixture_compiler_accepted;not_Thompson
 pinned_date=2026-11-06
-doc=AUTO-FULLBAR.md
+closed_date=2026-11-07
+doc=SCOPE-CUT-v1.0-ow-seed-observe.md

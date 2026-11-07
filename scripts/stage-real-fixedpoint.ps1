@@ -73,8 +73,10 @@ if ($r5 -ne "EQUAL") {
 }
 
 Write-Host "REAL_FP R1=GREEN R2=GREEN R3=GREEN R4=GREEN R5=GREEN"
-Write-Host "REAL_FP disposition=CUT"
-Write-Host "REAL_FP note=R1-R5_machine_green; OW-SEED_still_CUT; not_Thompson; fixture_compiler_ok_per_R2"
-Write-Host "REAL_FP doc=AUTO-REAL-FIXEDPOINT.md"
+Write-Host "REAL_FP disposition=CLOSED"
+Write-Host "REAL_FP closed=1"
+Write-Host "REAL_FP auth=human_A_2026-11-07"
+Write-Host "REAL_FP note=R1-R5_machine_green; OW-SEED_CLOSED; not_Thompson; fixture_compiler_accepted"
+Write-Host "REAL_FP doc=SCOPE-CUT-v1.0-ow-seed-observe.md"
 Write-Host "REAL_FP status=GREEN"
 exit 0

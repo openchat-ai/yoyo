@@ -155,9 +155,11 @@ if ($hasOut) {
 }
 Write-Host "OW_SEED_NO_SIDECAR rust_yoyo_rt_dll_in_cwd=ABSENT"
 Write-Host "OW_SEED_NO_SIDECAR yoyo_compiler_cwd=PRESENT"
-Write-Host "OW_SEED_NO_SIDECAR disposition=CUT"
-Write-Host "OW_SEED_NO_SIDECAR note=CreateProcess_compiler_coplaced; oracle_fallback_if_no_compiler"
-Write-Host "OW_SEED_NO_SIDECAR doc=AUTO-FULLBAR.md"
+Write-Host "OW_SEED_NO_SIDECAR disposition=CLOSED"
+Write-Host "OW_SEED_NO_SIDECAR closed=1"
+Write-Host "OW_SEED_NO_SIDECAR auth=human_A_2026-11-07"
+Write-Host "OW_SEED_NO_SIDECAR note=CreateProcess_compiler_fixture;FULLBAR_trust_root;not_Thompson"
+Write-Host "OW_SEED_NO_SIDECAR doc=SCOPE-CUT-v1.0-ow-seed-observe.md"
 
 if ($ecYoyo -ne 0 -or -not $hasOut -or $parity -ne "EQUAL") {
     Write-Host ("OW_SEED_NO_SIDECAR status=RED reason=yoyo_sidecar_cannot_replace_rust_runtime exit={0} output={1} parity={2}" -f $ecYoyo, $hasOut, $parity)
