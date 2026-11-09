@@ -261,6 +261,12 @@ function buildCompilerDataPrelude(opts = {}) {
     'yoyo_emit1_c\0',
     'yoyo_emit2_c\0',
     'yoyo_parse1_c\0',
+    // CN-1: C1 place/repro from bins (append-only; keep input/output offs stable)
+    'code.bin\0',
+    'data.bin\0',
+    'yoyo_compiler.exe\0',
+    // YB: C1 emit bins from self PE when sentinel present
+    'emit.bins\0',
   ];
   for (const s of names) chunks.push(Buffer.from(s, 'ascii'));
 
@@ -328,6 +334,12 @@ function buildCompilerDataPrelude(opts = {}) {
 
   const inputRel = 0;
   const outputRel = Buffer.from('input.tyb\0', 'ascii').length;
+  let nameRel = 0;
+  const nameOff = {};
+  for (const s of names) {
+    nameOff[s.replace(/\0/g, '')] = nameRel;
+    nameRel += Buffer.from(s, 'ascii').length;
+  }
   let data = Buffer.concat(chunks);
   // First MZ = expanded RET PE (0x6400); then setret; then compact tmpl.
   let retPeRel = -1;
@@ -386,6 +398,10 @@ function buildCompilerDataPrelude(opts = {}) {
     meta: {
       input_off: USER + inputRel,
       output_off: USER + outputRel,
+      code_bin_off: USER + nameOff['code.bin'],
+      data_bin_off: USER + nameOff['data.bin'],
+      self_pe_off: USER + nameOff['yoyo_compiler.exe'],
+      emit_bins_off: USER + nameOff['emit.bins'],
       ret_pe_off: USER + retPeRel,
       setret_pe_off: USER + setretPeRel,
       compact_tmpl_off: USER + compactTmplRel,

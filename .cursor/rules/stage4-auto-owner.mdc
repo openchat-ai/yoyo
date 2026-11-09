@@ -7,7 +7,10 @@ alwaysApply: true
 
 本仓库中，**除非** 用户明确说 `停` / 「只讨论/不要动手」，否则按开关执行：
 
-- `AUTO-HB-FX.md` `ACTIVE=1` → **peer 吐 yoyo_compiler**（REAL 残留；优先于已 COMPLETED 的固定点轨）
+- `AUTO-BOUNDARY.md` `ACTIVE=1` → **诚实边界易→难**（优先）
+- `AUTO-C1-NATIVE.md` `ACTIVE=1` → **C1 进程 place/repro**（已 COMPLETED=1 则勿回改）
+- `AUTO-YOYO-CLOSED.md` `ACTIVE=1` → **闭链 YOYO**（已 COMPLETED=1 则勿回改）
+- `AUTO-HB-FX.md` `ACTIVE=1` → **peer 吐 yoyo_compiler**（已 COMPLETED=1 则勿回改）
 - `AUTO-REAL-FIXEDPOINT.md` `ACTIVE=1` → **硬满配**（优先；别搞虚的）；`COMPLETED=1`（2026-11-06）则勿回改
 - 否则 `AUTO-FULLBAR.md` / `AUTO-FIXEDPOINT.md` `ACTIVE=1` → 软轨（已 COMPLETED 则勿回改）
 - 否则 `AUTO_TO_1.0.md` `ACTIVE=1` → 历史 AUTO-TO-1.0
@@ -70,7 +73,17 @@ F:\yoyo\AUTO-FIXEDPOINT.md
 4. **push** commit + tag  
 5. **GitHub Release**（`gh release create`，body 用 RELEASE 摘要）  
 
-**非毕业 WIP：禁止 push。** 日常项默认可不 commit，除非该门验收要求落盘；毕业除外。
+**非毕业 WIP：禁止 push**（除非用户明确要 push）。  
+
+### 一刀一落（用户 2026-11-10 起强制）
+
+加深轨（`AUTO-TRUER*` / `AUTO-C1-*` / `AUTO-YOYO-*` / `AUTO-BOUNDARY` / 同类授权刀）每把刀 **`COMPLETED=1` 且门禁绿** 后，**同 tick 必须 `git commit` 落盘**，便于随时复盘。  
+
+- **一刀一 commit**（勿把多刀揉进一个 WIP 坨）  
+- 信息写清刀名 + 绿门禁 + 诚实边界（≠ Thompson）  
+- 默认 **不 push**；push 另听用户 / 遵守 CI anti-thrash  
+- 用户说 `停` / 只讨论 → 不落盘、不改代码  
+- 毕业 D 仍走 commit+tag+push+gh
 
 ### 每 tick 工作量
 
@@ -154,26 +167,26 @@ PE/ELF **不得**改 master 看板。AUTO 下两板完成后若仍有未勾项�
 | 项 | 主题 |
 |----|------|
 | S10–S16 | v0.4→v1.0 已毕业（跳过 · 勿回改） |
-| **post-v1.0** | `POST-1.0-HOLE-CHECKLIST.md` — path 2 + 整仓竣工 D→G |
-| post-A/B/C | 已绿（里程碑）· OW-* 仍 CUT |
-| post-D | OW-RT PE DLL emit spike 已绿 · 仍 CUT |
-| **post-E** | YOYO-origin stub 填 export body（下一项） |
+| **post-v1.0** | `POST-1.0-HOLE-CHECKLIST.md` — 本源尺 + 指向闭链轨 |
+| **闭链** | `AUTO-YOYO-CLOSED.md` — COMPLETED=1 · 勿回改 |
+| FIXEDPOINT/REAL/HB-FX | 已 COMPLETED · 勿回改 |
 
-## Post-v1.0 关洞（`ACTIVE=0` · 用户 `继续`/`关洞`/`整仓竣工`）
+## Post-v1.0 / 闭链（用户 `继续`/`自动继续`/`关洞`）
 
-v1.0 / Stage 16 已毕业；`AUTO_TO_1.0.md` **`ACTIVE=0` · `COMPLETED=1`** → **勿启 AUTO invent Stage 17**。
+v1.0 / Stage 16 已毕业；`AUTO_TO_1.0.md` **`ACTIVE=0` · `COMPLETED=1`** → **勿 invent Stage 17**。
 
 | 触发 | 行为 |
 | ---- | ---- |
-| `继续` / `关洞` / `post-1.0` / `path 2` / `整仓竣工` | 读 `POST-1.0-HOLE-CHECKLIST.md`；默认本源已可停；加深则转固定点轨 |
-| `固定点自动` / `继续固定点` / `别搞虚的` / `自动固定点` | 读 **`AUTO-REAL-FIXEDPOINT.md`**；`COMPLETED=1` → 停；否则一项 RR-\* |
-| `满配自动` / `继续满配` | REAL 已 COMPLETED → 停或只回归；否则 FULLBAR |
+| `继续` / `自动继续` / `关洞` / `闭链` | 读 **`AUTO-YOYO-CLOSED.md`**；已 COMPLETED → 停；`ACTIVE=1` 才砍 YC-\* |
+| `固定点自动` / `继续固定点` / `别搞虚的` | REAL/FIXEDPOINT 已 COMPLETED → 停或只回归 |
+| `满配自动` / `继续满配` | FULLBAR/REAL 已 COMPLETED → 停或只回归 |
 | 验收 | 本地先跑该项 PowerShell 门禁；绿了才勾 |
-| push | 遵守 **CI anti-thrash**（`.cursor/rules/ci-anti-thrash.mdc`）：本地 smoke 先绿 → 一次 CI push；WIP `[skip ci]` |
-| 诚实 | observe/smoke GREEN **≠** CLOSED；D3≠OW-SEED CLOSED |
-| 阻塞 | 写入 `AUTO-FIXEDPOINT.md`「阻塞」；需人类授权 CUT→CLOSED 则停 |
+| 落盘 | **一刀一落**：`COMPLETED=1` → 立刻 commit（见上节）；勿攒坨 |
+| push | 遵守 **CI anti-thrash**；默认不 push；WIP 若暂推用 `[skip ci]` |
+| 诚实 | CLOSED COMPLETED 仍注 place 一次 Node + PS link peer；≠ Thompson |
+| 阻塞 | 写入当前 ACTIVE 加深看板「阻塞」 |
 
-**全自动加深入口** = `AUTO-FIXEDPOINT.md`（默认 `ACTIVE=0`；开跑改 `ACTIVE=1`）。
+**全自动加深入口** = 无 ACTIVE 轨则停；新加深需用户另开授权轨。
 
 ## 约束
 

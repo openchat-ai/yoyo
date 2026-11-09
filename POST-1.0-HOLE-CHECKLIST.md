@@ -21,7 +21,7 @@
 | **自举** | ✅ 主路径有限自举成立（parse1 / CreateProcess-compiler · Gate I 类） |
 | **打破后门（检测）** | ✅ DDC+Lock + 自举窗可用；⚠️ 仍是 detection，不是证明 |
 | **path 2 长杆** | ✅ OW-RT CLOSED @ S3.738（human A）— 自举运行信任面收了一大截 |
-| **状态** | REAL COMPLETED；OW-SEED CLOSED；**HB-FX COMPLETED**（live JS emit · origin=`js_parse1_source_interp`）· ≠ Thompson |
+| **状态** | 父轨 COMPLETED；至 **TRUER13**（YOYO tyb→真 MZ 可运行 · H00 空头路径已脱）· ≠ 空盘 / Thompson |
 
 ## 次要账本（非本源 · 可冻结）
 
@@ -38,11 +38,9 @@
 
 ### 要「真正全自动」加深时
 
-读并只走 **`AUTO-FIXEDPOINT.md`**（规格图 + typed graph + FP-0…DONE）。  
-开关：该文件 `ACTIVE=1` 或用户说 `固定点自动` / `继续固定点`。  
-目标谓词：三链同一终极二进制 + 非 Rust 唯一发射器（D1–D6）— **FIXEDPOINT COMPLETED=1**。  
-**硬轨（别搞虚的）**：`AUTO-REAL-FIXEDPOINT.md` — **COMPLETED=1**（full-file 三链 EQUAL）。`继续固定点` 若已 DONE 则停。  
-禁止 invent Stage 17；**OW-SEED CLOSED**（FULLBAR 生产根）；≠ Thompson。
+**边界加深**：至 **AUTO-TRUER13** 已 COMPLETED（YOYO tyb→真 MZ 可运行；plant 仍 bootstrap）。再加深需另开授权轨。  
+父轨 COMPLETED（勿回改）：… / TRUER12 / **TRUER13** / FIXEDPOINT / REAL / HB-FX。  
+禁止 invent Stage 17；≠ 空盘创世 / Thompson。
 
 ## 验收（本源）
 

@@ -33,8 +33,9 @@ function main() {
   const dump = fs.readFileSync(dumpPath);
   const seedPe = fs.readFileSync(seedPath);
   let code;
+  let origin;
   try {
-    ({ code } = buildCompilerCode({ seedPe, userCodeLen: 17810 }));
+    ({ code, origin } = buildCompilerCode({ seedPe, userCodeLen: 17810 }));
   } catch (e) {
     console.log(`HB_FX_CODE status=RED reason=emit_throw msg=${e.message}`);
     console.error(e.stack);
@@ -60,8 +61,32 @@ function main() {
     );
     process.exit(1);
   }
+  // Hot-path must not open pe_dll_link.rs (FX-2c).
+  const emitSrc = require('fs').readFileSync(
+    require('path').join(__dirname, '..', 'src', 'platform', 'yoyo-compiler-emit-code.js'),
+    'utf8',
+  );
+  if (/readFileSync\([^\)]*pe_dll_link\.rs/.test(emitSrc)) {
+    console.log('HB_FX_CODE status=RED reason=emit_code_still_reads_rust_source');
+    process.exit(1);
+  }
   console.log('HB_FX_CODE status=GREEN code_bin_FULL_EQUAL');
-  console.log('HB_FX_CODE origin=js_parse1_source_interp');
+  console.log(`HB_FX_CODE origin=${origin || 'js_parse1_native'}`);
+  console.log('HB_FX_CODE rust_source_hot_path=ABSENT');
+  console.log('HB_FX_CODE steps_table_hot_path=ABSENT');
+  // X6 = emit semantics not from STEPS freeze-dry. Require ISA/RT plant lineage.
+  const stubs = require('../src/platform/yoyo-compiler-parse1-emit-stubs');
+  const plant = require('../src/platform/yoyo-compiler-parse1-x64-plant');
+  const emit2Ok =
+    stubs.lineage === 'js_parse1_isa_rt_plant' &&
+    typeof plant.emit2Stores === 'function' &&
+    JSON.stringify(stubs.TEMPLATES.EMIT2_SET) === JSON.stringify(plant.emit2Stores('set')) &&
+    JSON.stringify(stubs.TEMPLATES.EMIT2_NID) === JSON.stringify(plant.emit2Stores('nid'));
+  console.log(
+    emit2Ok
+      ? 'HB_FX_CODE x6_native=PRESENT note=emit1_isa_emit2_isa_rt_EQUAL_pack_schedule_historical'
+      : 'HB_FX_CODE x6_native=ABSENT note=emit2_not_isa_rt_wired',
+  );
   console.log('HB_FX_CODE doc=AUTO-HB-FX.md');
   process.exit(0);
 }

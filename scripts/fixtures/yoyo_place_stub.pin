@@ -1,0 +1,14 @@
+# Cold-start executable SoT (AUTO-TRUER4). Place/emit only — no parse1 body.
+# Full compiler PE is derived: stub × bins → place.
+# ≠ Thompson.
+name=yoyo_place_stub.exe
+bytes=13824
+sha256=9d603113bbecf77431d4f0b490b09d326c318731b1be6c8ba2283bcc4f5069e7
+sha256_prefix=9d603113bbecf774
+path=scripts/fixtures/yoyo_place_stub.exe
+code_trunc=4491
+data_prefix=2048
+disposition=BOOTSTRAP_FIXTURE
+trust_root=place_stub
+role=cold_start_executable_sot
+doc=AUTO-TRUER4.md

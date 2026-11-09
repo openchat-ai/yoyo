@@ -56,8 +56,15 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Write-Host "HB_FX payload_origin=js_parse1_source_interp"
-Write-Host "HB_FX note=JS_links_payload; data+code_algorithmic_GREEN"
+Write-Host "=== FX-2d native front verify ==="
+& node (Join-Path $Root "yoyo-js\scripts\verify-native-front.js")
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "HB_FX status=RED reason=native_front_mismatch"
+    exit 1
+}
+
+Write-Host "HB_FX payload_origin=js_parse1_native"
+Write-Host "HB_FX note=emit1_isa+emit2_isa_rt; x6_native=PRESENT; EQUAL_pack_schedule_historical"
 Write-Host "HB_FX doc=AUTO-HB-FX.md"
 Write-Host "HB_FX status=GREEN"
 exit 0

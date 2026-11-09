@@ -1,0 +1,14 @@
+# YOYO in-DLL-recompile sidecar — CONTRAST ONLY (AUTO-TRUER5).
+# Not on critical path; gate must NOT cargo emit-rt.
+# ≠ Thompson.
+name=yoyo_rt.dll
+bytes=1882624
+sha256=565dc85febe3cd91936a313b8a4e9ddee71c09f179a853ea2fdc0e19a760537a
+sha256_prefix=565dc85febe3cd91
+path=scripts/fixtures/yoyo_rt.dll
+emitter=yoyo_in_dll_recompile
+disposition=CONTRAST_ONLY
+trust_root=contrast_sidecar
+cargo_emit_rt=ABSENT
+critical=ABSENT
+doc=AUTO-TRUER5.md

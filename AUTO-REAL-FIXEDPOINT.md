@@ -35,7 +35,7 @@ STOP_ONLY=停 | ACTIVE=0 | hard-block | COMPLETED=1
 
 | ID | 内容 |
 | --- | --- |
-| HB-FX | **COMPLETED**（2026-11-07）· live JS emit · origin=`js_parse1_source_interp` · 见 `AUTO-HB-FX.md` |
+| HB-FX | **COMPLETED=1**（2026-11-09）· ISA/RT plant · peer ≠ 闭链 YOYO · 见 `AUTO-HB-FX.md` |
 | OW-SEED | **CLOSED** @ human A 2026-11-07（FULLBAR pin）；≠ Thompson |
 
 ## 触发

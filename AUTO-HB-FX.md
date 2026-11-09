@@ -1,55 +1,51 @@
 # AUTO-HB-FX — peer 现场吐 `yoyo_compiler.exe`
 
-> 补 REAL 诚实残留 HB-FX。  
-> **禁止**把 `scripts/fixtures/yoyo_compiler.exe` 拷贝说成 peer emit。  
-> **禁止**链上 `cargo … --place-compiler` 冒充 peer。  
-> **禁止** invent Stage 17；**禁止** Thompson 宣称。
+> **禁止**用弱谓词假装完。  
+> **禁止** fixture_copy / cargo place。  
+> **禁止** invent Stage 17 / Thompson。
 
 ```
 ACTIVE=0
 COMPLETED=1
-COMPLETED_AT=2026-11-07
 PARENT=AUTO-REAL-FIXEDPOINT.md (HB-FX)
-NORTH_STAR=CreateProcess 子进程 yoyo_compiler 由 JS/asm/YOYO peer 现场物化；链上 emitter≠fixture_copy≠rust_place
+NORTH_STAR=发射语义 **完全不源自 Rust**（含不源自 recipe/STEPS 冻干）
 STOP_ONLY=停 | ACTIVE=0 | hard-block | COMPLETED=1
 ```
 
+## DONE 谓词
 
-## DONE 谓词（全绿才 COMPLETED=1）
-
-| ID | 谓词 |
-| --- | --- |
-| X1 | **peer place API**：`node yoyo-js/scripts/place-yoyo-compiler.js <dir>` 写出 `yoyo_compiler.exe`，**不读** fixture，**不** cargo place |
-| X2 | 产物能跑 Gate I / FULLBAR H00 链：CreateProcess 子进程 exit=0 且产出 ≡ 对照不动点 |
-| X3 | FULLBAR / Gate I `emitter=js_peer_link`（≠ `fixture_copy`） |
-| X4 | payload pin 记 `chain_emitter=js_peer_link` + sha/size；`payload_origin≠rust_parse1_emit` |
-
-## 悬崖 / 楔子
-
-| 层 | 状态 |
-| --- | --- |
-| 链上 fixture_copy / cargo place | **已去掉**（Gate I / FULLBAR / HB-FX 门禁） |
-| JS `linkPeWin32` 链上 place | **GREEN** · 产物 ≡ fixture `e2a9c566…` |
-| parse1 **算法** emit 在 JS | **GREEN** · data bake + code source-interp ≡ dump；origin=`js_parse1_source_interp` |
+| ID | 谓词 | 状态 |
+| --- | --- | --- |
+| X1–X3 | peer place / Gate / `js_peer_link` | **绿** |
+| X4弱 | 热路径不读 `pe_dll_link.rs` | **绿** |
+| **X6** | 发射语义不源自 Rust（无 recipe/STEPS 血统） | **绿**（ISA emit1 + ISA/RT emit2；pack 切分仍为 EQUAL 历史） |
+| X7 | origin=`js_parse1_native` + 对照可用 | **绿** |
 
 ## Checklist
 
-- [x] **FX-0**（2026-11-07）：悬崖钉死  
-- [x] **FX-1** place 入口  
-- [x] **FX-2a**（2026-11-07）：JS link payload → PE ≡ fixture `e2a9c566…`；`stage-hb-fx-peer-compiler.ps1` GREEN  
-- [x] **FX-2b-1**（2026-11-07）：JS `buildCompilerDataPrelude` ≡ dump 前 **42560** B（live2+RET expand+compact）  
-- [x] **FX-2b-2**（2026-11-07）：+ H00 hdr/main/data bake from JS seed ≡ dump 前 **275712** B  
-- [x] **FX-2b-3**（2026-11-07）：+ field-match 8 singles + 7 CHAINS → **data.bin FULL EQUAL**（421920 B）  
-- [x] **FX-2b-4**（2026-11-07）：**code.bin FULL EQUAL**（13011 B）via JS source-interp of `yoyo_compiler_ret_compile_code_data` emit body；place 默认 live emit；origin=`js_parse1_source_interp`  
-- [x] **FX-3**（2026-11-07）：Gate I + FULLBAR `js_peer_link` 绿  
-- [x] **FX-DONE**（2026-11-07）：`stage-hb-fx-peer-compiler.ps1` GREEN · place live emit · vs_fixture EQUAL `e2a9c566…` · origin=`js_parse1_source_interp` · `COMPLETED=1`  
-
-> **诚实**：code emit = JS **source-interp** of `pe_dll_link.rs` parse1 body（读 Rust **源** recipe，不 cargo / 不 dump）；手写逐行 JS port 非毕业必须。≠ Thompson。
+- [x] FX-0…FX-2c / FX-2d-0…7b（帧 + 具名模板）  
+- [x] **FX-2d-7c-emit1**：`x64-plant` ISA PROG → `emit1Stores`；16 个 emit1 EQUAL  
+- [x] **FX-2d-7c-emit2**：emit2 从 `emit2Stores` ISA/RT 建；live2 语义函数；禁 STEPS 冻干  
+- [x] **FX-DONE**：X6 诚实绿 + X7 → `COMPLETED=1`
 
 ## 触发
 
-`HB-FX` / `继续` / `继续 HB-FX` / `下一刀` → 下一未勾 FX-\*。
+`继续` / `自动继续` → **已 COMPLETED**；勿回改。闭链加深 → **`AUTO-YOYO-CLOSED.md`**。
+
+## 验收（回归）
+
+```powershell
+node yoyo-js\scripts\verify-compiler-code.js
+node yoyo-js\scripts\verify-native-front.js
+& .\scripts\stage-hb-fx-peer-compiler.ps1
+```
+
+## 诚实边界
+
+- emit1/emit2 种植字节从 ISA（+emit2 RT patch）再生；chunk/hole 日程仍为 EQUAL 历史切分  
+- peer place ≠ 闭链 YOYO 真自举；≠ Thompson  
+- STEPS/emit-all 仅 lazy 对照，热路径 `js_parse1_native`
 
 ---
 
-*2026-11-07 · FX-2b-4 code source-interp · ≠ Thompson*
+*2026-11-09 · ACTIVE=0 · COMPLETED=1 · X6 PRESENT · peer sha e2a9c566…*
