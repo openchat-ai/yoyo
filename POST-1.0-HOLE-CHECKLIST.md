@@ -21,7 +21,7 @@
 | **自举** | ✅ 主路径有限自举成立（parse1 / CreateProcess-compiler · Gate I 类） |
 | **打破后门（检测）** | ✅ DDC+Lock + 自举窗可用；⚠️ 仍是 detection，不是证明 |
 | **path 2 长杆** | ✅ OW-RT CLOSED @ S3.738（human A）— 自举运行信任面收了一大截 |
-| **状态** | 字面轴封口；**TYBSELF**：C1×plant tyb 回收 code+data→link 出自己 · ≠ Thompson |
+| **状态** | 字面轴封口；**ONESELF**：`P(T)=P` 单文件一次跑 · TYBSELF plant 回收仍在 · ≠ Thompson |
 
 ## 次要账本（非本源 · 可冻结）
 
@@ -38,10 +38,10 @@
 
 ### 要「真正全自动」加深时
 
-**边界加深**：**TYBSELF**（C1×code/data plant tyb → bins → link self）。  
-父轨 COMPLETED（勿回改）：… / SEMSELF / SELFHOST(copy-self·降级) / FIXEDPOINT / REAL / HB-FX。  
+**边界加深**：**ONESELF**（`P(T)=P` 单文件一次跑）。  
+父轨 COMPLETED（勿回改）：… / TYBSELF / SEMSELF / SELFHOST(copy-self·降级) / FIXEDPOINT / REAL / HB-FX。  
 禁止 invent Stage 17；≠ 空盘创世 / Thompson。  
-诚实：code+data 均 C1 语义编 plant tyb 回收；多片拼接；非单文件 quine；28KB handler ≠ 载体。
+诚实：ONESELF = Y1SF 内嵌映像 + text 空隙入口；≠ plant 语义编编译器；≠ Thompson。
 
 ## 验收（本源）
 

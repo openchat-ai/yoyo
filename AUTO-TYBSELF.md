@@ -35,4 +35,6 @@ STOP_ONLY=停 | ACTIVE=0 | hard-block | COMPLETED=1
 
 ---
 
+> **2026-11-10 续刀**：单文件方程改走 `AUTO-ONESELF.md`（`P(T)=P`）。
+
 *2026-11-10 · COMPLETED=1 · GREEN · code+data from plant tyb → self*
