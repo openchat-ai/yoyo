@@ -63,7 +63,8 @@ function main() {
     console.log('Y37 status=RED reason=pin_glue');
     process.exit(1);
   }
-  if (pin.yoyo_product_open_loop_glue !== 'ABSENT') {
+  const productGlueExpect = pin.yoyo_product_open_loop_glue;
+  if (productGlueExpect !== 'ABSENT' && productGlueExpect !== 'PRESENT') {
     console.log('Y37 status=RED reason=pin_product_glue');
     process.exit(1);
   }
@@ -107,8 +108,13 @@ function main() {
     process.exit(1);
   }
   const prodText = peText(fs.readFileSync(productPe));
-  if (prodText.indexOf(exp) >= 0) {
+  const prodIdx = prodText.indexOf(exp);
+  if (productGlueExpect === 'ABSENT' && prodIdx >= 0) {
     console.log('Y37 status=RED reason=product_unexpected_glue');
+    process.exit(1);
+  }
+  if (productGlueExpect === 'PRESENT' && prodIdx < 0) {
+    console.log('Y37 status=RED reason=product_miss_glue');
     process.exit(1);
   }
   if (!fs.existsSync(facePe)) {
@@ -122,7 +128,7 @@ function main() {
     process.exit(1);
   }
   console.log('Y37 yoyo_compiler_open_loop_glue=PRESENT');
-  console.log('Y37 yoyo_product_open_loop_glue=ABSENT');
+  console.log('Y37 yoyo_product_open_loop_glue=' + productGlueExpect);
   console.log('Y37 yoyo_product_open_loop_faces=PRESENT');
   console.log('Y37 face_text_off=' + idx);
   console.log('Y37 status=GREEN');
