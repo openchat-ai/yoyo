@@ -21,7 +21,7 @@
 | **自举** | ✅ 主路径有限自举成立（parse1 / CreateProcess-compiler · Gate I 类） |
 | **打破后门（检测）** | ✅ DDC+Lock + 自举窗可用；⚠️ 仍是 detection，不是证明 |
 | **path 2 长杆** | ✅ OW-RT CLOSED @ S3.738（human A）— 自举运行信任面收了一大截 |
-| **状态** | 父轨 COMPLETED；字面轴 @42 封口；**OPENLOOP 已灭 open_loop/relay 未真** · ≠ 空盘 / Thompson |
+| **状态** | 字面轴封口；OPENLOOP；**SELFHOST 固定点=EQUAL（copy-self）** · ≠ 语义自举 / Thompson |
 
 ## 次要账本（非本源 · 可冻结）
 
@@ -38,10 +38,10 @@
 
 ### 要「真正全自动」加深时
 
-**边界加深**：**AUTO-TRUER42 字面轴封口**；**AUTO-OPENLOOP COMPLETED**（`open_loop`/`relay`=PRESENT）。  
-父轨 COMPLETED（勿回改）：… / TRUER42（轴封） / **OPENLOOP** / FIXEDPOINT / REAL / HB-FX。  
-禁止再开 face tip；禁止 invent Stage 17；≠ 空盘创世 / Thompson。  
-诚实：OPENLOOP emit = 最小 ret-PE，不是完整 tyb 语义编译器。
+**边界加深**：**TRUER42 封口**；**OPENLOOP**；**SELFHOST COMPLETED**（`P(yoyo.tyb)=P`）。  
+父轨 COMPLETED（勿回改）：… / OPENLOOP / **SELFHOST** / FIXEDPOINT / REAL / HB-FX。  
+禁止 invent Stage 17；≠ 空盘创世 / Thompson。  
+诚实：SELFHOST 大 tyb = **copy-self**，不是 plant 语义「编出同能力编译器」。
 
 ## 验收（本源）
 
