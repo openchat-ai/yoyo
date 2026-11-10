@@ -1,14 +1,14 @@
 'use strict';
 /**
- * AUTO-TRUER15/16: C1 × semantic parse1 slices → .text contains locked expect.hex.
- * Usage: node verify-yoyo-semantic-c1-regen.js [_stage-truer16]
+ * AUTO-TRUER15/16/17: C1 × semantic parse1 slices → .text contains locked expect.hex.
+ * Usage: node verify-yoyo-semantic-c1-regen.js [_stage-truer17]
  */
 const fs = require('fs');
 const path = require('path');
 
 const root = path.join(__dirname, '..', '..');
 const projects = path.join(root, 'yoyo', 'projects');
-const stageName = process.argv[2] || '_stage-truer16';
+const stageName = process.argv[2] || '_stage-truer17';
 const stage = path.join(root, 'scripts', stageName);
 
 const BATCH1 = [
@@ -25,9 +25,16 @@ const BATCH2 = [
   'yoyo-sem-inc',
   'yoyo-sem-dec',
 ];
-// Historical TRUER15 stage dirs only compiled batch1.
-const SLICES =
-  stageName === '_stage-truer15' ? BATCH1 : BATCH1.concat(BATCH2);
+const BATCH3 = [
+  'yoyo-sem-addv',
+  'yoyo-sem-orv',
+  'yoyo-sem-subv',
+  'yoyo-sem-imul',
+];
+// Historical stages only compiled their batch tip.
+let SLICES = BATCH1.concat(BATCH2, BATCH3);
+if (stageName === '_stage-truer15') SLICES = BATCH1;
+else if (stageName === '_stage-truer16') SLICES = BATCH1.concat(BATCH2);
 
 function peText(pe) {
   const e = pe.readUInt32LE(0x3c);

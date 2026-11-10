@@ -28,6 +28,10 @@ const SLICES = [
   { name: 'yoyo-sem-cmp', allow: new Set([0x40, 0x65, 0xff]) },
   { name: 'yoyo-sem-inc', allow: new Set([0x40, 0x66, 0xff]) },
   { name: 'yoyo-sem-dec', allow: new Set([0x40, 0x67, 0xff]) },
+  { name: 'yoyo-sem-addv', allow: new Set([0x40, 0x68, 0xff]) },
+  { name: 'yoyo-sem-orv', allow: new Set([0x40, 0x69, 0xff]) },
+  { name: 'yoyo-sem-subv', allow: new Set([0x40, 0x6a, 0xff]) },
+  { name: 'yoyo-sem-imul', allow: new Set([0x40, 0x63, 0xff]) },
 ];
 
 function readPin(p) {
@@ -63,7 +67,7 @@ function main() {
     console.log('Y15 status=RED reason=pin_parse1_sem_slice_sot');
     process.exit(1);
   }
-  if (pin.parse1_sem_batch !== '2') {
+  if (pin.parse1_sem_batch !== '3') {
     console.log('Y15 status=RED reason=pin_parse1_sem_batch');
     process.exit(1);
   }
@@ -114,9 +118,9 @@ function main() {
   }
 
   console.log('Y15 parse1_sem_slice_sot=yoyo_semantic_tyb');
-  console.log('Y15 parse1_sem_batch=2');
+  console.log('Y15 parse1_sem_batch=3');
   console.log('Y15 a1_in_sem_slices=0');
-  console.log('Y15 slices=ret,nop,sub,add,get,set,mov,cmp,inc,dec');
+  console.log('Y15 slices=ret,nop,sub,add,get,set,mov,cmp,inc,dec,addv,orv,subv,imul');
   console.log('Y15 status=GREEN');
 }
 
