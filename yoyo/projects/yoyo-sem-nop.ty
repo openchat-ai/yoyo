@@ -1,0 +1,5 @@
+# yoyo-sem-nop — AUTO-TRUER15
+# Semantic parse1 NOP face (00 → 90) + RET.
+40 0
+  00
+  FF

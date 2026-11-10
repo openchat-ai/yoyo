@@ -1,0 +1,5 @@
+# yoyo-sem-add — AUTO-TRUER15
+# Semantic parse1 ADD-imm (62 50 03) + RET. Mirror body-extend-001.
+40 0
+  62 50 03
+  FF
