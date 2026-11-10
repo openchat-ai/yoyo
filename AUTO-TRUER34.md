@@ -4,8 +4,8 @@
 > **不是** Stage 17 / Thompson / CloseHandle 已接线 / 能读文件编产物。
 
 ```
-ACTIVE=1
-COMPLETED=0
+ACTIVE=0
+COMPLETED=1
 PARENT=AUTO-TRUER33.md
 NORTH_STAR=yoyo.tyb 追加 H_791 ReadFile face；产物 .text HIT；pin PRESENT；open_loop 仍 ABSENT
 STOP_ONLY=停 | ACTIVE=0 | hard-block | COMPLETED=1
@@ -15,9 +15,9 @@ STOP_ONLY=停 | ACTIVE=0 | hard-block | COMPLETED=1
 
 | ID | 项 | 状态 |
 | --- | --- | --- |
-| **R1** | `yoyo.ty`/`tyb` 追加 H_791 ReadFile A1 面 | 待 |
-| **R2** | 产物 HIT + fixedpoint 更新 | 待 |
-| **R3** | pin + `stage-truer34` GREEN | 待 |
+| **R1** | `yoyo.ty`/`tyb` 追加 H_791 ReadFile A1 面 | **绿** |
+| **R2** | 产物 HIT + fixedpoint 更新 | **绿** |
+| **R3** | pin + `stage-truer34` GREEN | **绿** |
 
 ## 验收
 
@@ -34,4 +34,4 @@ STOP_ONLY=停 | ACTIVE=0 | hard-block | COMPLETED=1
 
 ---
 
-*2026-11-10 · ACTIVE=1*
+*2026-11-10 · COMPLETED=1 · GREEN*
