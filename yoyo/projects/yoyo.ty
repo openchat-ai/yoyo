@@ -4217,3 +4217,10 @@
   A1 97 10 00
   A1 00 00 85
   FF
+
+; AUTO-TRUER41 - entry→connected trampoline face (H_795 / 0x031b)
+; A1 emits jmp-rel32 bytes that would wire entry IF at .text+0; still not installed.
+40 31b
+  A1 E9 26 46
+  A1 00 00 90
+  FF
