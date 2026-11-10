@@ -1,0 +1,14 @@
+# yoyo-compiler-createfile-face - AUTO-TRUER28
+# A1 emits CreateFileA open-path face (GENERIC_READ + call [r15+0x10]), then RET.
+# Distinctive of C1 open-file path; ABSENT from full yoyo.tyb product.
+40 0
+  A1 41 B8 00
+  A1 80 00 00
+  A1 4C 8D 4C
+  A1 24 40 48
+  A1 C7 44 24
+  A1 20 00 00
+  A1 00 00 41
+  A1 FF 97 10
+  A1 00 00 00
+  FF
