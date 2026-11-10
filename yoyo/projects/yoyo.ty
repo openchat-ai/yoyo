@@ -4125,3 +4125,17 @@
   A1 74 2E 65
   A1 78 65 00
   FF
+
+; AUTO-TRUER32 - VirtualAlloc open-path face (H_789 / 0x0315)
+; A1 emits VA face into product PE .text; still not CreateFile/Read/Close loop.
+40 315
+  A1 31 C9 BA
+  A1 00 80 00
+  A1 00 41 B8
+  A1 00 30 00
+  A1 00 41 B9
+  A1 04 00 00
+  A1 00 41 FF
+  A1 97 00 00
+  A1 00 00
+  FF
