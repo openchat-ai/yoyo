@@ -21,7 +21,7 @@
 | **自举** | ✅ 主路径有限自举成立（parse1 / CreateProcess-compiler · Gate I 类） |
 | **打破后门（检测）** | ✅ DDC+Lock + 自举窗可用；⚠️ 仍是 detection，不是证明 |
 | **path 2 长杆** | ✅ OW-RT CLOSED @ S3.738（human A）— 自举运行信任面收了一大截 |
-| **状态** | 父轨 COMPLETED；至 **TRUER19**（place 可缺席仓库 bins；plant 派生+seeds 装配）· ≠ 空盘 / Thompson |
+| **状态** | 父轨 COMPLETED；至 **TRUER20**（place 缺席 bins 自动派生）· ≠ 空盘 / Thompson |
 
 ## 次要账本（非本源 · 可冻结）
 
@@ -38,8 +38,8 @@
 
 ### 要「真正全自动」加深时
 
-**边界加深**：至 **AUTO-TRUER19**（place 缺席仓库 bins 仍绿）。再加深需另开授权轨。  
-父轨 COMPLETED（勿回改）：… / TRUER17 / TRUER18 / **TRUER19** / FIXEDPOINT / REAL / HB-FX。  
+**边界加深**：至 **AUTO-TRUER20**（place 工具缺席自动派生）。再加深需另开授权轨。  
+父轨 COMPLETED（勿回改）：… / TRUER18 / TRUER19 / **TRUER20** / FIXEDPOINT / REAL / HB-FX。  
 禁止 invent Stage 17；≠ 空盘创世 / Thompson。
 
 ## 验收（本源）

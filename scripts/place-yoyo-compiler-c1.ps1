@@ -1,11 +1,16 @@
 # place-yoyo-compiler-c1.ps1 — place via C1 try_place_bins (no Node link/emit)
 #
-#   & .\scripts\place-yoyo-compiler-c1.ps1 <outdir> [-Bootstrap <c1.exe>]
+#   & .\scripts\place-yoyo-compiler-c1.ps1 -OutDir <outdir> [-Bootstrap <c1.exe>]
+#   [-CodeBin path] [-DataBin path] [-ForceDerive]
+#
+# AUTO-TRUER20: if payload bins are absent (and no overrides), auto-derive from
+# YOYO plant tyb + seeds assemble into OutDir/_derived and place from those.
 param(
     [Parameter(Mandatory = $true)][string]$OutDir,
     [string]$Bootstrap = "",
     [string]$CodeBin = "",
-    [string]$DataBin = ""
+    [string]$DataBin = "",
+    [switch]$ForceDerive
 )
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
@@ -25,20 +30,53 @@ if (-not $Bootstrap) {
         if (Test-Path $c) { $Bootstrap = $c; break }
     }
 }
-$codePath = if ($CodeBin) { $CodeBin } else { Join-Path $Root "yoyo-js\src\platform\yoyo-compiler-payload\code.bin" }
-$dataPath = if ($DataBin) { $DataBin } else { Join-Path $Root "yoyo-js\src\platform\yoyo-compiler-payload\data.bin" }
+
+$defaultCode = Join-Path $Root "yoyo-js\src\platform\yoyo-compiler-payload\code.bin"
+$defaultData = Join-Path $Root "yoyo-js\src\platform\yoyo-compiler-payload\data.bin"
+$codePath = if ($CodeBin) { $CodeBin } else { $defaultCode }
+$dataPath = if ($DataBin) { $DataBin } else { $defaultData }
+$placeInput = "payload_bins"
+$derivedUsed = $false
+
 if (-not $Bootstrap -or -not (Test-Path $Bootstrap)) {
     Write-Host "HB_FX_PLACE emitter=c1_try_place_bins"
     Write-Host "HB_FX_PLACE status=ABSENT"
     Write-Host "HB_FX_PLACE reason=missing_bootstrap_c1"
     exit 2
 }
+
+$needDerive = $ForceDerive -or (-not $CodeBin -and -not $DataBin -and (-not (Test-Path $codePath) -or -not (Test-Path $dataPath)))
+if ($needDerive) {
+    $derivedDir = Join-Path $OutDir "_derived"
+    New-Item -ItemType Directory -Force -Path $derivedDir | Out-Null
+    $derivedCode = Join-Path $derivedDir "code.bin"
+    $derivedData = Join-Path $derivedDir "data.bin"
+    Write-Output "HB_FX_PLACE auto_derive=ON"
+    & node (Join-Path $Root "yoyo-js\scripts\derive-code-from-plant-tyb.js") $derivedCode
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "HB_FX_PLACE status=RED reason=auto_derive_code"
+        exit 1
+    }
+    & node (Join-Path $Root "yoyo-js\scripts\derive-data-from-seeds.js") $derivedData
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "HB_FX_PLACE status=RED reason=auto_derive_data"
+        exit 1
+    }
+    $codePath = $derivedCode
+    $dataPath = $derivedData
+    $placeInput = "plant_derive_plus_assemble"
+    $derivedUsed = $true
+}
+
 if (-not (Test-Path $codePath) -or -not (Test-Path $dataPath)) {
     Write-Host "HB_FX_PLACE status=ABSENT reason=missing_payload_bins"
     exit 2
 }
 if ($CodeBin) {
     Write-Host ("HB_FX_PLACE code_bin_override={0}" -f $CodeBin)
+}
+if ($DataBin) {
+    Write-Host ("HB_FX_PLACE data_bin_override={0}" -f $DataBin)
 }
 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
@@ -60,13 +98,15 @@ if ($ec -ne 0 -or -not (Test-Path $outPe)) {
 $dest = Join-Path $OutDir "yoyo_compiler.exe"
 Copy-Item -Force $outPe $dest
 $sha = (Get-FileHash $dest -Algorithm SHA256).Hash.ToLowerInvariant()
-Write-Host "HB_FX_PLACE emitter=c1_try_place_bins"
-Write-Host "HB_FX_PLACE payload_origin=derived_bins_native_link_by_c1"
-Write-Host ("HB_FX_PLACE code_bytes={0} data_bytes={1} pe_bytes={2}" -f (Get-Item $codePath).Length, (Get-Item $dataPath).Length, (Get-Item $dest).Length)
-Write-Host ("HB_FX_PLACE out={0}" -f $dest)
-Write-Host ("HB_FX_PLACE sha256_prefix={0}" -f $sha.Substring(0, 16))
-Write-Host "HB_FX_PLACE node_linkPeWin32=ABSENT"
-Write-Host "HB_FX_PLACE node_buildCompilerCode=ABSENT"
-Write-Host "HB_FX_PLACE status=GREEN"
-Write-Host "HB_FX_PLACE doc=AUTO-C1-NATIVE.md"
+Write-Output "HB_FX_PLACE emitter=c1_try_place_bins"
+Write-Output "HB_FX_PLACE payload_origin=derived_bins_native_link_by_c1"
+Write-Output ("HB_FX_PLACE place_bins_input={0}" -f $placeInput)
+Write-Output ("HB_FX_PLACE auto_derive_used={0}" -f ($(if ($derivedUsed) { "1" } else { "0" })))
+Write-Output ("HB_FX_PLACE code_bytes={0} data_bytes={1} pe_bytes={2}" -f (Get-Item $codePath).Length, (Get-Item $dataPath).Length, (Get-Item $dest).Length)
+Write-Output ("HB_FX_PLACE out={0}" -f $dest)
+Write-Output ("HB_FX_PLACE sha256_prefix={0}" -f $sha.Substring(0, 16))
+Write-Output "HB_FX_PLACE node_linkPeWin32=ABSENT"
+Write-Output "HB_FX_PLACE node_buildCompilerCode=ABSENT"
+Write-Output "HB_FX_PLACE status=GREEN"
+Write-Output "HB_FX_PLACE doc=AUTO-C1-NATIVE.md"
 exit 0
