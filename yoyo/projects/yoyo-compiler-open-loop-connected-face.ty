@@ -1,0 +1,28 @@
+# yoyo-compiler-open-loop-connected-face - AUTO-TRUER39
+# A1 emits contiguous VA+glue+CF (+1 trailing), then RET.
+40 0
+  A1 31 C9 BA
+  A1 00 80 00
+  A1 00 41 B8
+  A1 00 30 00
+  A1 00 41 B9
+  A1 04 00 00
+  A1 00 41 FF
+  A1 97 00 00
+  A1 00 00 48
+  A1 85 C0 0F
+  A1 84 01 07
+  A1 00 00 48
+  A1 89 C6 48
+  A1 89 D9 48
+  A1 89 F2 41
+  A1 B8 00 80
+  A1 00 00 4C
+  A1 8D 4C 24
+  A1 40 48 C7
+  A1 44 24 20
+  A1 00 00 00
+  A1 00 41 FF
+  A1 97 10 00
+  A1 00 00 85
+  FF

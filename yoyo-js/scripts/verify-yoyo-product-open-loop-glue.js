@@ -56,7 +56,8 @@ function main() {
     console.log('Y38 status=RED reason=pin_product_glue');
     process.exit(1);
   }
-  if (pin.yoyo_product_open_loop_connected !== 'ABSENT') {
+  const connectedExpect = pin.yoyo_product_open_loop_connected || 'ABSENT';
+  if (connectedExpect !== 'ABSENT' && connectedExpect !== 'PRESENT') {
     console.log('Y38 status=RED reason=pin_connected');
     process.exit(1);
   }
@@ -94,8 +95,13 @@ function main() {
     console.log('Y38 status=RED reason=product_miss_glue');
     process.exit(1);
   }
-  if (text.indexOf(CONNECTED) >= 0) {
+  const cidx = text.indexOf(CONNECTED);
+  if (connectedExpect === 'ABSENT' && cidx >= 0) {
     console.log('Y38 status=RED reason=product_unexpected_connected');
+    process.exit(1);
+  }
+  if (connectedExpect === 'PRESENT' && cidx < 0) {
+    console.log('Y38 status=RED reason=product_miss_connected');
     process.exit(1);
   }
   const sha = crypto.createHash('sha256').update(pe).digest('hex');
@@ -107,7 +113,7 @@ function main() {
     process.exit(1);
   }
   console.log('Y38 yoyo_product_open_loop_glue=PRESENT');
-  console.log('Y38 yoyo_product_open_loop_connected=ABSENT');
+  console.log('Y38 yoyo_product_open_loop_connected=' + connectedExpect);
   console.log('Y38 yoyo_product_open_loop=ABSENT');
   console.log('Y38 product_text_off=' + idx);
   console.log('Y38 product_sha256_prefix=' + sha.slice(0, 16));

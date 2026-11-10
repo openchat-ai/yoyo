@@ -2,5 +2,5 @@
 param()
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
-& (Join-Path $Root "scripts\stage-truer38.ps1")
+& (Join-Path $Root "scripts\stage-truer39.ps1")
 exit $LASTEXITCODE
