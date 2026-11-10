@@ -101,61 +101,66 @@ function emitTy() {
   const code = fs.readFileSync(codePath);
   const data = fs.readFileSync(dataPath);
   const body = Buffer.concat([code, data]);
+  // YOYC: stock-native text (AUTO-SEMTXT). LF only; contiguous hex body.
   const rows = [];
-  rows.push('# yoyo-compiler.ty — AUTO-SEMSRC');
-  rows.push('# High-level text SoT for stock C1 body (code||data).');
-  rows.push('# Assemble: node yoyo-js/scripts/assemble-compiler-ty.js assemble');
-  rows.push('# Encoding: A1×3 (+ A0 tail) + FF — same dialect family as yoyo.ty');
-  rows.push('# @kind=y1pl_compiler_body');
-  rows.push('# @code_len=' + code.length);
-  rows.push('# @data_len=' + data.length);
-  rows.push('# @code_sha256=' + sha256(code));
-  rows.push('# @data_sha256=' + sha256(data));
-  rows.push('');
-  let i = 0;
-  while (i + 3 <= body.length) {
-    rows.push(
-      'A1 03 ' +
-        body[i].toString(16).padStart(2, '0') +
-        ' ' +
-        body[i + 1].toString(16).padStart(2, '0') +
-        ' ' +
-        body[i + 2].toString(16).padStart(2, '0'),
-    );
-    i += 3;
-  }
-  while (i < body.length) {
-    rows.push('A0 01 ' + body[i].toString(16).padStart(2, '0'));
-    i += 1;
-  }
-  rows.push('FF');
-  rows.push('');
-  fs.writeFileSync(tyPath, rows.join('\n'));
+  rows.push('YOYC');
+  rows.push(code.length.toString(16).padStart(8, '0'));
+  rows.push(data.length.toString(16).padStart(8, '0'));
+  rows.push(body.toString('hex'));
+  fs.writeFileSync(tyPath, rows.join('\n') + '\n');
   console.log('SEMSRC emit ty_bytes=' + fs.statSync(tyPath).size + ' code=' + code.length + ' data=' + data.length);
+  console.log('SEMSRC emit kind=YOYC');
   console.log('SEMSRC emit out=' + tyPath);
   console.log('SEMSRC status=GREEN');
 }
 
+function parseYoyc(src) {
+  const lines = src.replace(/\r\n/g, '\n').split('\n');
+  if (lines[0] !== 'YOYC') throw new Error('SEMSRC not YOYC');
+  const codeLen = parseInt(lines[1], 16);
+  const dataLen = parseInt(lines[2], 16);
+  if (!Number.isFinite(codeLen) || !Number.isFinite(dataLen)) throw new Error('SEMSRC bad lens');
+  const hex = (lines[3] || '').trim();
+  if (hex.length !== (codeLen + dataLen) * 2) {
+    throw new Error('SEMSRC hex_len=' + hex.length + ' expect=' + (codeLen + dataLen) * 2);
+  }
+  const body = Buffer.from(hex, 'hex');
+  return { codeLen, dataLen, body };
+}
+
 function assembleTy(writeBins) {
   const src = fs.readFileSync(tyPath, 'utf8');
-  const { dir, lines } = parseCompilerTy(src);
-  const codeLen = parseInt(dir.code_len, 10);
-  const dataLen = parseInt(dir.data_len, 10);
-  if (!Number.isFinite(codeLen) || !Number.isFinite(dataLen)) {
-    throw new Error('SEMSRC missing @code_len/@data_len');
+  let code;
+  let data;
+  let codeLen;
+  let dataLen;
+  if (src.startsWith('YOYC')) {
+    const y = parseYoyc(src);
+    codeLen = y.codeLen;
+    dataLen = y.dataLen;
+    code = y.body.subarray(0, codeLen);
+    data = y.body.subarray(codeLen);
+  } else {
+    const { dir, lines } = parseCompilerTy(src);
+    codeLen = parseInt(dir.code_len, 10);
+    dataLen = parseInt(dir.data_len, 10);
+    if (!Number.isFinite(codeLen) || !Number.isFinite(dataLen)) {
+      throw new Error('SEMSRC missing @code_len/@data_len');
+    }
+    const body = unpackPlantRecords(lines);
+    if (body.length !== codeLen + dataLen) {
+      throw new Error('SEMSRC body_len=' + body.length + ' expect=' + (codeLen + dataLen));
+    }
+    code = body.subarray(0, codeLen);
+    data = body.subarray(codeLen);
+    if (dir.code_sha256 && sha256(code) !== dir.code_sha256) {
+      throw new Error('SEMSRC code_sha mismatch');
+    }
+    if (dir.data_sha256 && sha256(data) !== dir.data_sha256) {
+      throw new Error('SEMSRC data_sha mismatch');
+    }
   }
-  const body = unpackPlantRecords(lines);
-  if (body.length !== codeLen + dataLen) {
-    throw new Error('SEMSRC body_len=' + body.length + ' expect=' + (codeLen + dataLen));
-  }
-  const code = body.subarray(0, codeLen);
-  const data = body.subarray(codeLen);
-  if (dir.code_sha256 && sha256(code) !== dir.code_sha256) {
-    throw new Error('SEMSRC code_sha mismatch');
-  }
-  if (dir.data_sha256 && sha256(data) !== dir.data_sha256) {
-    throw new Error('SEMSRC data_sha mismatch');
-  }
+  const body = Buffer.concat([code, data]);
 
   const place = code.subarray(0, Math.min(4491, code.length));
   const parse1 = code.subarray(place.length);

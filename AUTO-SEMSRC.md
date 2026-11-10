@@ -30,7 +30,8 @@ STOP_ONLY=停 | ACTIVE=0 | hard-block | COMPLETED=1
 ## 诚实
 
 - **已真**：编译器由 **`yoyo-compiler.ty` 文本源**写出（assemble→Y1PL→stock link）；binary plant/Y1PL / code.bin 是派生产物  
-- **边界**：正文编码仍是 A1 装 x64 bins（同 `yoyo.ty` 方言），不是 TRUER15 那种纯 40/00/60… 语义重写整棵 parse1；assemble 仍是 Node 门上一步  
+- **边界**：正文编码仍是 A1/hex 装 x64 bins，不是 TRUER15 纯语义重写整棵 parse1  
+- **后继**：`AUTO-SEMTXT.md` — stock 原生读 YOYC `.ty`（门上跑通无 assemble）  
 - ≠ Thompson  
 
 ---
