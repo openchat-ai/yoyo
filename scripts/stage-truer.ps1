@@ -1,6 +1,6 @@
-# stage-truer.ps1 — forwards to latest AUTO-TRUER E2E
+# stage-truer.ps1 — forwards to latest deepen tip E2E
 param()
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
-& (Join-Path $Root "scripts\stage-selfhost.ps1")
+& (Join-Path $Root "scripts\stage-semself.ps1")
 exit $LASTEXITCODE

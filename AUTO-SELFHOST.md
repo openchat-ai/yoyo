@@ -36,4 +36,6 @@ STOP_ONLY=停 | ACTIVE=0 | hard-block | COMPLETED=1
 
 ---
 
-*2026-11-10 · COMPLETED=1 · GREEN · copy-self fixedpoint*
+> **2026-11-10 降级**：语义「编 tyb 再编出自己」改走 `AUTO-SEMSELF.md`（plant tyb→code→link）。本轨仍绿，但 **不是** 语义自举。
+
+*2026-11-10 · COMPLETED=1 · GREEN · copy-self fixedpoint（已降级）*
