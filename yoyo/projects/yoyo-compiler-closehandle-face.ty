@@ -1,0 +1,10 @@
+# yoyo-compiler-closehandle-face - AUTO-TRUER30
+# A1 emits CloseHandle open-path face (call [r15+0x20]), then RET.
+# Distinctive of C1 open-loop teardown; ABSENT from full yoyo.tyb product.
+40 0
+  A1 8B 7C 24
+  A1 40 48 89
+  A1 D9 41 FF
+  A1 97 20 00
+  A1 00 00 83
+  FF

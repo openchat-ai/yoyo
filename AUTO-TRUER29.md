@@ -4,8 +4,8 @@
 > **不是** Stage 17 / Thompson / 已接上完整读写主循环。
 
 ```
-ACTIVE=1
-COMPLETED=0
+ACTIVE=0
+COMPLETED=1
 PARENT=AUTO-TRUER28.md
 NORTH_STAR=钉 C1/code 的 ReadFile open-path face；全量产物 ABSENT；YOYO A1 face PE HIT
 STOP_ONLY=停 | ACTIVE=0 | hard-block | COMPLETED=1
@@ -15,9 +15,9 @@ STOP_ONLY=停 | ACTIVE=0 | hard-block | COMPLETED=1
 
 | ID | 项 | 状态 |
 | --- | --- | --- |
-| **M1** | `yoyo-compiler-readfile-face.ty(b)` A1 编 ReadFile face | 待 |
-| **M2** | C1 PRESENT / product ABSENT / face PE HIT | 待 |
-| **M3** | pin + `stage-truer29` GREEN | 待 |
+| **M1** | `yoyo-compiler-readfile-face.ty(b)` A1 编 ReadFile face | **绿** |
+| **M2** | C1 PRESENT / product ABSENT / face PE HIT | **绿** |
+| **M3** | pin + `stage-truer29` GREEN | **绿** |
 
 ## 验收
 
@@ -34,4 +34,4 @@ STOP_ONLY=停 | ACTIVE=0 | hard-block | COMPLETED=1
 
 ---
 
-*2026-11-10 · ACTIVE=1*
+*2026-11-10 · COMPLETED=1 · GREEN*
