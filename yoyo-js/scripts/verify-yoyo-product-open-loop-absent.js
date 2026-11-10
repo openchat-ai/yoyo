@@ -32,8 +32,8 @@ const c1Pe =
   process.argv[3] ||
   path.join(root, 'scripts', '_stage-truer31', 'place-gate', 'yoyo_compiler.exe');
 
-  // Full open-loop = all four. VA alone may already be in product (TRUER32+);
-// CreateFile/ReadFile/CloseHandle must stay ABSENT for open_loop=ABSENT.
+// Full open-loop = all four. VA/CreateFile may already be in product (TRUER32/33+);
+// ReadFile/CloseHandle must stay ABSENT for open_loop=ABSENT.
 const C1_FACES = [
   ['va', 'yoyo-compiler-open-face.expect.hex'],
   ['createfile', 'yoyo-compiler-createfile-face.expect.hex'],
@@ -41,7 +41,6 @@ const C1_FACES = [
   ['closehandle', 'yoyo-compiler-closehandle-face.expect.hex'],
 ];
 const PRODUCT_MUST_MISS = [
-  ['createfile', 'yoyo-compiler-createfile-face.expect.hex'],
   ['readfile', 'yoyo-compiler-readfile-face.expect.hex'],
   ['closehandle', 'yoyo-compiler-closehandle-face.expect.hex'],
 ];

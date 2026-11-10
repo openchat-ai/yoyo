@@ -63,7 +63,8 @@ function main() {
     console.log('Y28 status=RED reason=pin_createfile_face');
     process.exit(1);
   }
-  if (pin.yoyo_product_createfile_face !== 'ABSENT') {
+  const productExpect = pin.yoyo_product_createfile_face;
+  if (productExpect !== 'ABSENT' && productExpect !== 'PRESENT') {
     console.log('Y28 status=RED reason=pin_product_createfile');
     process.exit(1);
   }
@@ -99,8 +100,13 @@ function main() {
     process.exit(1);
   }
   const prodText = peText(fs.readFileSync(productPe));
-  if (prodText.indexOf(exp) >= 0) {
+  const prodIdx = prodText.indexOf(exp);
+  if (productExpect === 'ABSENT' && prodIdx >= 0) {
     console.log('Y28 status=RED reason=product_unexpected_createfile_face');
+    process.exit(1);
+  }
+  if (productExpect === 'PRESENT' && prodIdx < 0) {
+    console.log('Y28 status=RED reason=product_miss_createfile_face');
     process.exit(1);
   }
   if (!fs.existsSync(facePe)) {
@@ -114,7 +120,7 @@ function main() {
     process.exit(1);
   }
   console.log('Y28 yoyo_compiler_createfile_face=PRESENT');
-  console.log('Y28 yoyo_product_createfile_face=ABSENT');
+  console.log('Y28 yoyo_product_createfile_face=' + productExpect);
   console.log('Y28 face_text_off=' + idx);
   console.log('Y28 status=GREEN');
 }

@@ -4139,3 +4139,17 @@
   A1 97 00 00
   A1 00 00
   FF
+
+; AUTO-TRUER33 - CreateFileA open-path face (H_790 / 0x0316)
+; A1 emits CreateFile face into product PE .text; still not Read/Close loop.
+40 316
+  A1 41 B8 00
+  A1 80 00 00
+  A1 4C 8D 4C
+  A1 24 40 48
+  A1 C7 44 24
+  A1 20 00 00
+  A1 00 00 41
+  A1 FF 97 10
+  A1 00 00 00
+  FF
