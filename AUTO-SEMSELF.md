@@ -4,8 +4,8 @@
 > 取代 `AUTO-SELFHOST` 的 copy-self 宣称；**不是** Stage 17 / Thompson。
 
 ```
-ACTIVE=1
-COMPLETED=0
+ACTIVE=0
+COMPLETED=1
 PARENT=AUTO-SELFHOST.md
 NORTH_STAR=C1×plant-place/parse1.tyb → 回收 code.bin；link→C1'==C1；hop2 仍 EQUAL
 STOP_ONLY=停 | ACTIVE=0 | hard-block | COMPLETED=1
@@ -15,9 +15,9 @@ STOP_ONLY=停 | ACTIVE=0 | hard-block | COMPLETED=1
 
 | ID | 项 | 状态 |
 | --- | --- | --- |
-| **M1** | C1 语义编 `yoyo-plant-place.tyb` / `yoyo-plant-parse1.tyb`，`.text+13` 回收 code 半片 | **待** |
-| **M2** | concat==`code.bin`；cwd bins link → `output.exe`==C1 | **待** |
-| **M3** | hop2（C1'）再编两半片 EQUAL；compact-ret 仍出 MZ | **待** |
+| **M1** | C1 语义编 `yoyo-plant-place.tyb` / `yoyo-plant-parse1.tyb`，`.text+13` 回收 code 半片 | **绿** |
+| **M2** | concat==`code.bin`；cwd bins link → `output.exe`==C1 | **绿** |
+| **M3** | hop2（C1'）再编两半片 EQUAL；compact-ret 仍出 MZ | **绿** |
 
 ## 验收
 
@@ -35,4 +35,6 @@ STOP_ONLY=停 | ACTIVE=0 | hard-block | COMPLETED=1
 
 ---
 
-*2026-11-10 · ACTIVE tip*
+> **2026-11-10 续刀**：`data.bin` 缺口改走 `AUTO-TYBSELF.md`（code+data 皆 plant tyb）。
+
+*2026-11-10 · COMPLETED=1 · GREEN · plant tyb semantic → code → self（data 续 TYBSELF）*
