@@ -93,7 +93,7 @@ function main() {
     console.log('ASM status=RED reason=pin_data_sot');
     process.exit(1);
   }
-  if (pin.prefab_sot !== 'code_plus_seeds') {
+  if (pin.prefab_sot !== 'code_plus_seeds' && pin.prefab_sot !== 'yoyo_plant_tyb_plus_seeds') {
     console.log('ASM status=RED reason=pin_prefab_sot');
     process.exit(1);
   }

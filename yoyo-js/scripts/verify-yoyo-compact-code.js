@@ -135,7 +135,11 @@ function main() {
     console.log('Y11 status=RED reason=pin_code_lineage');
     process.exit(1);
   }
-  if (pin.prefab_sot !== 'bins_minus_compact' && pin.prefab_sot !== 'code_plus_seeds') {
+  if (
+    pin.prefab_sot !== 'bins_minus_compact' &&
+    pin.prefab_sot !== 'code_plus_seeds' &&
+    pin.prefab_sot !== 'yoyo_plant_tyb_plus_seeds'
+  ) {
     console.log('Y11 status=RED reason=pin_prefab_sot');
     process.exit(1);
   }

@@ -37,7 +37,8 @@ function main() {
   const prefabOk =
     pin.prefab_sot === 'bins' ||
     pin.prefab_sot === 'bins_minus_compact' ||
-    pin.prefab_sot === 'code_plus_seeds';
+    pin.prefab_sot === 'code_plus_seeds' ||
+    pin.prefab_sot === 'yoyo_plant_tyb_plus_seeds';
   if (!prefabOk) {
     console.log('PREFAB status=RED reason=prefab_sot');
     process.exit(1);

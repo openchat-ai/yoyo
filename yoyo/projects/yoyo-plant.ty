@@ -1,0 +1,6 @@
+# yoyo-plant — AUTO-TRUER14
+# YOYO SoT for bootstrap code.bin (place + parse1 plant).
+# Encoding: A1 x3-byte chunks, terminated by FF.
+# Halves: yoyo-plant-place.tyb (0..4491) + yoyo-plant-parse1.tyb (4491..)
+# Full:   yoyo-plant.tyb (same bytes; C1 single-shot may AV above ~12KB text)
+# Derive unpack → code.bin; C1×halves extract+concat EQUAL.
