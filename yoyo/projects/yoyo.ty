@@ -4167,3 +4167,13 @@
   A1 FF 97 18
   A1 00 00 00
   FF
+
+; AUTO-TRUER35 - CloseHandle open-path face (H_792 / 0x0318)
+; A1 emits CloseHandle face into product PE .text; still not a wired open-loop.
+40 318
+  A1 8B 7C 24
+  A1 40 48 89
+  A1 D9 41 FF
+  A1 97 20 00
+  A1 00 00 83
+  FF

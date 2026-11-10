@@ -1,8 +1,8 @@
 'use strict';
 /**
- * AUTO-TRUER31: open-loop quartet honesty.
- * C1 hosts VA+CreateFile+ReadFile+CloseHandle faces.
- * Product may host VA (TRUER32+); CF/RF/CH must miss for open_loop=ABSENT.
+ * AUTO-TRUER31/35: open-loop faces vs wired open-loop.
+ * C1 + product may host VA+CreateFile+ReadFile+CloseHandle A1 faces (TRUER35+).
+ * Pin yoyo_product_open_loop=ABSENT means faces ≠ wired read/compile main loop.
  */
 const fs = require('fs');
 const path = require('path');
@@ -27,20 +27,15 @@ const codePath = path.join(
 );
 const productPe =
   process.argv[2] ||
-  path.join(root, 'scripts', '_stage-truer31', 'product', 'output.exe');
+  path.join(root, 'scripts', '_stage-truer35', 'product', 'output.exe');
 const c1Pe =
   process.argv[3] ||
-  path.join(root, 'scripts', '_stage-truer31', 'place-gate', 'yoyo_compiler.exe');
+  path.join(root, 'scripts', '_stage-truer35', 'place-gate', 'yoyo_compiler.exe');
 
-// Full open-loop = all four. VA/CreateFile may already be in product (TRUER32/33+);
-// ReadFile/CloseHandle must stay ABSENT for open_loop=ABSENT.
-const C1_FACES = [
+const FACES = [
   ['va', 'yoyo-compiler-open-face.expect.hex'],
   ['createfile', 'yoyo-compiler-createfile-face.expect.hex'],
   ['readfile', 'yoyo-compiler-readfile-face.expect.hex'],
-  ['closehandle', 'yoyo-compiler-closehandle-face.expect.hex'],
-];
-const PRODUCT_MUST_MISS = [
   ['closehandle', 'yoyo-compiler-closehandle-face.expect.hex'],
 ];
 
@@ -88,7 +83,8 @@ function main() {
   const code = fs.readFileSync(codePath);
   const c1Text = peText(fs.readFileSync(c1Pe));
   const prodText = peText(fs.readFileSync(productPe));
-  for (const [label, file] of C1_FACES) {
+  const productFacesExpect = pin.yoyo_product_open_loop_faces || 'ABSENT';
+  for (const [label, file] of FACES) {
     const exp = loadExpect(file);
     if (code.indexOf(exp) < 0) {
       console.log('Y31 status=RED reason=code_miss_' + label);
@@ -99,16 +95,21 @@ function main() {
       process.exit(1);
     }
     console.log('Y31 face_' + label + '=C1_HIT');
-  }
-  for (const [label, file] of PRODUCT_MUST_MISS) {
-    const exp = loadExpect(file);
-    if (prodText.indexOf(exp) >= 0) {
+    const pidx = prodText.indexOf(exp);
+    if (productFacesExpect === 'PRESENT') {
+      if (pidx < 0) {
+        console.log('Y31 status=RED reason=product_miss_' + label);
+        process.exit(1);
+      }
+      console.log('Y31 face_' + label + '=PRODUCT_HIT');
+    } else if (pidx >= 0 && label === 'closehandle') {
+      // pre-TRUER35: closehandle must miss when product faces not yet PRESENT
       console.log('Y31 status=RED reason=product_has_' + label);
       process.exit(1);
     }
-    console.log('Y31 face_' + label + '=PRODUCT_MISS');
   }
   console.log('Y31 yoyo_compiler_open_loop_faces=PRESENT');
+  console.log('Y31 yoyo_product_open_loop_faces=' + productFacesExpect);
   console.log('Y31 yoyo_product_open_loop=ABSENT');
   console.log('Y31 status=GREEN');
 }
