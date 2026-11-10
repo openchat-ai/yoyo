@@ -1,0 +1,12 @@
+# yoyo-compiler-io-paths-face — AUTO-TRUER24
+# YOYO A1 emits compiler I/O path cstrings into PE .text, then RET.
+# Bytes: input.tyb\0output.exe\0
+40 0
+  A1 69 6E 70
+  A1 75 74 2E
+  A1 74 79 62
+  A1 00 6F 75
+  A1 74 70 75
+  A1 74 2E 65
+  A1 78 65 00
+  FF
