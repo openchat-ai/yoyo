@@ -4113,3 +4113,15 @@
   41 02
   FF
 
+
+; AUTO-TRUER25 - compiler I/O path face (H_788 / 0x0314)
+; A1 emits input.tyb nul output.exe nul into product PE .text; not an open/read loop.
+40 314
+  A1 69 6E 70
+  A1 75 74 2E
+  A1 74 79 62
+  A1 00 6F 75
+  A1 74 70 75
+  A1 74 2E 65
+  A1 78 65 00
+  FF

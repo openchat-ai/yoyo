@@ -54,10 +54,7 @@ function main() {
     console.log('Y24 status=RED reason=pin_io_paths_face');
     process.exit(1);
   }
-  if (pin.yoyo_product_compiler_io_paths !== 'ABSENT') {
-    console.log('Y24 status=RED reason=pin_product_still_absent');
-    process.exit(1);
-  }
+  // TRUER25+: full product may PRESENT io paths; face gate still requires face PE hit.
   if (!fs.existsSync(faceTyb)) {
     console.log('Y24 status=RED reason=missing_face_tyb');
     process.exit(1);
@@ -98,18 +95,24 @@ function main() {
     process.exit(1);
   }
   const prod = fs.readFileSync(productPe);
-  if (prod.indexOf(Buffer.from('input.tyb')) >= 0) {
-    console.log('Y24 status=RED reason=full_product_gained_input_tyb');
+  const prodHas =
+    prod.indexOf(Buffer.from('input.tyb')) >= 0 &&
+    prod.indexOf(Buffer.from('output.exe')) >= 0;
+  if (pin.yoyo_product_compiler_io_paths === 'PRESENT' && !prodHas) {
+    console.log('Y24 status=RED reason=product_missing_io_paths');
     process.exit(1);
   }
-  if (prod.indexOf(Buffer.from('output.exe')) >= 0) {
-    console.log('Y24 status=RED reason=full_product_gained_output_exe');
+  if (pin.yoyo_product_compiler_io_paths === 'ABSENT' && prodHas) {
+    console.log('Y24 status=RED reason=product_unexpected_io_paths');
     process.exit(1);
   }
   console.log('Y24 yoyo_compiler_io_paths_face=PRESENT');
   console.log('Y24 face_text_off=' + idx);
   console.log('Y24 face_pe_bytes=' + pe.length);
-  console.log('Y24 yoyo_product_compiler_io_paths=ABSENT');
+  console.log(
+    'Y24 yoyo_product_compiler_io_paths=' +
+      (pin.yoyo_product_compiler_io_paths || 'ABSENT'),
+  );
   console.log('Y24 status=GREEN');
 }
 

@@ -53,8 +53,12 @@ function main() {
     console.log('Y23 status=RED reason=pin_compiler_io_names_sot');
     process.exit(1);
   }
-  if (pin.yoyo_product_compiler_io_paths !== 'ABSENT') {
-    console.log('Y23 status=RED reason=pin_product_io_absent');
+  // TRUER25+: full yoyo.tyb product hosts io paths (was ABSENT through TRUER24).
+  if (
+    pin.yoyo_product_compiler_io_paths !== 'PRESENT' &&
+    pin.yoyo_product_compiler_io_paths !== 'ABSENT'
+  ) {
+    console.log('Y23 status=RED reason=pin_product_io');
     process.exit(1);
   }
   if (!fs.existsSync(COMPILER_IO_NAMES_TYB)) {
@@ -115,19 +119,24 @@ function main() {
     process.exit(1);
   }
   const prod = fs.readFileSync(productPath);
-  if (prod.indexOf(Buffer.from('input.tyb')) >= 0) {
-    console.log('Y23 status=RED reason=product_has_input_tyb');
+  const prodHas =
+    prod.indexOf(Buffer.from('input.tyb')) >= 0 &&
+    prod.indexOf(Buffer.from('output.exe')) >= 0;
+  if (pin.yoyo_product_compiler_io_paths === 'PRESENT' && !prodHas) {
+    console.log('Y23 status=RED reason=product_missing_io_paths');
     process.exit(1);
   }
-  if (prod.indexOf(Buffer.from('output.exe')) >= 0) {
-    console.log('Y23 status=RED reason=product_has_output_exe');
+  if (pin.yoyo_product_compiler_io_paths === 'ABSENT' && prodHas) {
+    console.log('Y23 status=RED reason=product_unexpected_io_paths');
     process.exit(1);
   }
   console.log('Y23 compiler_io_names_sot=yoyo_compiler_io_names_tyb');
   console.log('Y23 compiler_io_names_tyb_sha256_prefix=' + sha.slice(0, 16));
   console.log('Y23 io_names_bytes=189 names=16');
   console.log('Y23 c1_io_paths=PRESENT');
-  console.log('Y23 yoyo_product_compiler_io_paths=ABSENT');
+  console.log(
+    'Y23 yoyo_product_compiler_io_paths=' + pin.yoyo_product_compiler_io_paths,
+  );
   console.log('Y23 assemble_EQUAL=1');
   console.log('Y23 status=GREEN');
 }
