@@ -1,0 +1,5 @@
+# yoyo-sem-mov — AUTO-TRUER16
+# Semantic parse1 MOV/GET-rr (64 50 51) + RET.
+40 0
+  64 50 51
+  FF

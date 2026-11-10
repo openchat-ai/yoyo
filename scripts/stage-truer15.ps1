@@ -71,7 +71,7 @@ foreach ($s in $slices) {
   Write-Host ("TRUER15 sem_{0}=MZ bytes={1}" -f $s.Name, (Get-Item $out).Length)
 }
 
-& node (Join-Path $Root "yoyo-js\scripts\verify-yoyo-semantic-c1-regen.js")
+& node (Join-Path $Root "yoyo-js\scripts\verify-yoyo-semantic-c1-regen.js") "_stage-truer15"
 if ($LASTEXITCODE -ne 0) { Write-Host "TRUER15 status=RED reason=c1_sem_regen"; exit 1 }
 
 & (Join-Path $Root "scripts\stage-truer5-semantic.ps1")

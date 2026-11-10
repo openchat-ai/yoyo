@@ -1,0 +1,5 @@
+# yoyo-sem-set — AUTO-TRUER16
+# Semantic parse1 SET (30 50 12345678) + RET.
+40 0
+  30 50 12345678
+  FF

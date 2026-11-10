@@ -1,7 +1,7 @@
 'use strict';
 /**
- * AUTO-TRUER15: finite parse1 emit faces owned as YOYO semantic tyb
- * (40/00/60/61/62/FF — no A1 byte-bag), with locked expect.hex payloads.
+ * AUTO-TRUER15/16: parse1 emit faces owned as YOYO semantic tyb (no A1),
+ * with locked expect.hex payloads.
  */
 const fs = require('fs');
 const path = require('path');
@@ -23,6 +23,11 @@ const SLICES = [
   { name: 'yoyo-sem-sub', allow: new Set([0x40, 0x61, 0xff]) },
   { name: 'yoyo-sem-add', allow: new Set([0x40, 0x62, 0xff]) },
   { name: 'yoyo-sem-get', allow: new Set([0x40, 0x60, 0xff]) },
+  { name: 'yoyo-sem-set', allow: new Set([0x40, 0x30, 0xff]) },
+  { name: 'yoyo-sem-mov', allow: new Set([0x40, 0x64, 0xff]) },
+  { name: 'yoyo-sem-cmp', allow: new Set([0x40, 0x65, 0xff]) },
+  { name: 'yoyo-sem-inc', allow: new Set([0x40, 0x66, 0xff]) },
+  { name: 'yoyo-sem-dec', allow: new Set([0x40, 0x67, 0xff]) },
 ];
 
 function readPin(p) {
@@ -58,6 +63,10 @@ function main() {
     console.log('Y15 status=RED reason=pin_parse1_sem_slice_sot');
     process.exit(1);
   }
+  if (pin.parse1_sem_batch !== '2') {
+    console.log('Y15 status=RED reason=pin_parse1_sem_batch');
+    process.exit(1);
+  }
 
   let a1 = 0;
   for (const s of SLICES) {
@@ -85,7 +94,11 @@ function main() {
       console.log(`Y15 status=RED reason=no_trailing_ff name=${s.name}`);
       process.exit(1);
     }
-    const exp = fs.readFileSync(expPath, 'utf8').trim().toLowerCase();
+    const exp = fs
+      .readFileSync(expPath, 'utf8')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '');
     if (!/^[0-9a-f]+$/.test(exp) || exp.length < 2 || exp.length % 2) {
       console.log(`Y15 status=RED reason=bad_expect name=${s.name}`);
       process.exit(1);
@@ -101,8 +114,9 @@ function main() {
   }
 
   console.log('Y15 parse1_sem_slice_sot=yoyo_semantic_tyb');
+  console.log('Y15 parse1_sem_batch=2');
   console.log('Y15 a1_in_sem_slices=0');
-  console.log('Y15 slices=ret,nop,sub,add,get');
+  console.log('Y15 slices=ret,nop,sub,add,get,set,mov,cmp,inc,dec');
   console.log('Y15 status=GREEN');
 }
 

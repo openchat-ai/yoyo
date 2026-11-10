@@ -1,16 +1,33 @@
 'use strict';
 /**
- * AUTO-TRUER15: C1 × semantic parse1 slices → .text contains locked expect.hex.
- * Invoked after stage-truer15 has cold-run each slice under scripts/_stage-truer15/sem-*.
+ * AUTO-TRUER15/16: C1 × semantic parse1 slices → .text contains locked expect.hex.
+ * Usage: node verify-yoyo-semantic-c1-regen.js [_stage-truer16]
  */
 const fs = require('fs');
 const path = require('path');
 
 const root = path.join(__dirname, '..', '..');
 const projects = path.join(root, 'yoyo', 'projects');
-const stage = path.join(root, 'scripts', '_stage-truer15');
+const stageName = process.argv[2] || '_stage-truer16';
+const stage = path.join(root, 'scripts', stageName);
 
-const SLICES = ['yoyo-sem-ret', 'yoyo-sem-nop', 'yoyo-sem-sub', 'yoyo-sem-add', 'yoyo-sem-get'];
+const BATCH1 = [
+  'yoyo-sem-ret',
+  'yoyo-sem-nop',
+  'yoyo-sem-sub',
+  'yoyo-sem-add',
+  'yoyo-sem-get',
+];
+const BATCH2 = [
+  'yoyo-sem-set',
+  'yoyo-sem-mov',
+  'yoyo-sem-cmp',
+  'yoyo-sem-inc',
+  'yoyo-sem-dec',
+];
+// Historical TRUER15 stage dirs only compiled batch1.
+const SLICES =
+  stageName === '_stage-truer15' ? BATCH1 : BATCH1.concat(BATCH2);
 
 function peText(pe) {
   const e = pe.readUInt32LE(0x3c);
@@ -27,10 +44,13 @@ function main() {
     const out = path.join(stage, 'sem-' + short, 'output.exe');
     const expPath = path.join(projects, name + '.expect.hex');
     if (!fs.existsSync(out)) {
-      console.log(`Y15C1 status=RED reason=missing_pe name=${name}`);
+      console.log(`Y15C1 status=RED reason=missing_pe name=${name} stage=${stageName}`);
       process.exit(1);
     }
-    const exp = Buffer.from(fs.readFileSync(expPath, 'utf8').trim(), 'hex');
+    const exp = Buffer.from(
+      fs.readFileSync(expPath, 'utf8').trim().replace(/\s+/g, ''),
+      'hex',
+    );
     const text = peText(fs.readFileSync(out));
     const idx = text.indexOf(exp);
     if (idx < 0) {
@@ -39,13 +59,11 @@ function main() {
       process.exit(1);
     }
     const peSize = fs.statSync(out).size;
-    if (peSize < 64 || text[0] !== 0x4c) {
-      // entry typically starts 4C 8D…; require MZ already checked by runner
-    }
     console.log(
       `Y15C1 slice=${name} pe_bytes=${peSize} expect_at=${idx} expect_bytes=${exp.length}`,
     );
   }
+  console.log(`Y15C1 stage=${stageName}`);
   console.log('Y15C1 c1_sem_regen=EXPECT_IN_TEXT');
   console.log('Y15C1 status=GREEN');
 }
