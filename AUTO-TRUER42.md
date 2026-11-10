@@ -26,13 +26,15 @@ STOP_ONLY=停 | ACTIVE=0 | hard-block | COMPLETED=1
 # trampoline_installed=PRESENT · entry_wired=PRESENT · open_loop=ABSENT · relay=ABSENT · GREEN
 ```
 
-## 诚实
+## 诚实 / 收束
 
 - 入口现在 `E9 26 46 00 00` → connected@17963  
 - **仍是** post-emit PE poke，不是 plant/A1 改写冷启动序言  
-- 装上后作「编译器」跑 compact-ret → AV / 无 `output.exe`（connected ≠ 开环）  
+- 装上后作「编译器」跑 compact-ret → AV / 无 `output.exe`  
+- **本轴（face 字面 → trampoline → 入口 poke）到此封口**；禁止再开 TRUER43「再钉一个 ABSENT」  
+- 唯一未完成能力（不是 tip）：`open_loop`/`relay` 仍 ABSENT——要真，就直接做打开读编能接力，不要再切字面刀  
 - ≠ Thompson  
 
 ---
 
-*2026-11-10 · COMPLETED=1 · GREEN*
+*2026-11-10 · COMPLETED=1 · GREEN · AXIS FROZEN*
