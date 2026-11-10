@@ -41,7 +41,6 @@ const C1_FACES = [
   ['closehandle', 'yoyo-compiler-closehandle-face.expect.hex'],
 ];
 const PRODUCT_MUST_MISS = [
-  ['readfile', 'yoyo-compiler-readfile-face.expect.hex'],
   ['closehandle', 'yoyo-compiler-closehandle-face.expect.hex'],
 ];
 

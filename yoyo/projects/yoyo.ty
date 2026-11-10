@@ -4153,3 +4153,17 @@
   A1 FF 97 10
   A1 00 00 00
   FF
+
+; AUTO-TRUER34 - ReadFile open-path face (H_791 / 0x0317)
+; A1 emits ReadFile face into product PE .text; CloseHandle still absent.
+40 317
+  A1 48 89 F2
+  A1 41 89 F8
+  A1 4C 8D 4C
+  A1 24 40 48
+  A1 C7 44 24
+  A1 20 00 00
+  A1 00 00 41
+  A1 FF 97 18
+  A1 00 00 00
+  FF
