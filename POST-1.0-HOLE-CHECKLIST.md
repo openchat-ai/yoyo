@@ -21,7 +21,7 @@
 | **自举** | ✅ 主路径有限自举成立（parse1 / CreateProcess-compiler · Gate I 类） |
 | **打破后门（检测）** | ✅ DDC+Lock + 自举窗可用；⚠️ 仍是 detection，不是证明 |
 | **path 2 长杆** | ✅ OW-RT CLOSED @ S3.738（human A）— 自举运行信任面收了一大截 |
-| **状态** | 父轨 COMPLETED；至 **TRUER36**（开环四面齐仍不能接力）· ≠ 空盘 / Thompson |
+| **状态** | 父轨 COMPLETED；至 **TRUER37**（四面齐但接线胶水 ABSENT）· ≠ 空盘 / Thompson |
 
 ## 次要账本（非本源 · 可冻结）
 
@@ -38,8 +38,8 @@
 
 ### 要「真正全自动」加深时
 
-**边界加深**：至 **AUTO-TRUER36**（四面齐仍不能接力）。再加深需另开授权轨。  
-父轨 COMPLETED（勿回改）：… / TRUER34 / TRUER35 / **TRUER36** / FIXEDPOINT / REAL / HB-FX。  
+**边界加深**：至 **AUTO-TRUER37**（开环接线胶水缺口）。再加深需另开授权轨。  
+父轨 COMPLETED（勿回改）：… / TRUER35 / TRUER36 / **TRUER37** / FIXEDPOINT / REAL / HB-FX。  
 禁止 invent Stage 17；≠ 空盘创世 / Thompson。
 
 ## 验收（本源）
