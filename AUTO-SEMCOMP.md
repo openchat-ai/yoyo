@@ -31,6 +31,7 @@ STOP_ONLY=停 | ACTIVE=0 | hard-block | COMPLETED=1
 
 - **已真**：一个 tyb 里是 **plant A1 语义**；一次跑 **link 出编译器** 且 `== stock C1`（`c525b1cc…`）  
 - **边界**：入口仍是 PE `.text` 空隙 trampoline；runner ≠ stock，**输出**才是编译器固定点  
+- **后继**：`AUTO-SEMNATIVE.md` 已把 Y1PL 打进 code.bin（无 PE poke）  
 - ≠ ONESELF 映像写回；≠ Thompson  
 
 ---
