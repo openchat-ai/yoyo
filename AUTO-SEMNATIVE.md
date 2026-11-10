@@ -30,7 +30,8 @@ STOP_ONLY=停 | ACTIVE=0 | hard-block | COMPLETED=1
 ## 诚实
 
 - **已真**：编译器本体（code.bin）语义处理 plant A1 tyb 并 link 出自己；门外不再装 trampoline；`stock×T==stock`（hop2 EQUAL）
-- **边界**：仍是 plant A1 回收 bins + native link（不是从零写的高级语言源）；stock 入口 ReadFile 仅 0x8000，Y1PL 路径需再读满文件
+- **边界**：仍是 plant A1 回收 bins + native link；stock 入口 ReadFile 仅 0x8000，Y1PL 路径需再读满文件  
+- **后继**：`AUTO-SEMSRC.md` 已把 SoT 升为 `yoyo-compiler.ty` 文本源  
 - ≠ Thompson  
 
 ---

@@ -36,7 +36,10 @@ function main() {
     console.log('Y18 status=RED reason=pin_code_authority');
     process.exit(1);
   }
-  if (pin.code_bin_role !== 'derived_from_plant_tyb') {
+  const roleOk =
+    pin.code_bin_role === 'derived_from_plant_tyb' ||
+    pin.code_bin_role === 'derived_from_yoyo_compiler_ty';
+  if (!roleOk) {
     console.log('Y18 status=RED reason=pin_code_bin_role');
     process.exit(1);
   }
@@ -81,7 +84,7 @@ function main() {
   console.log(`Y18 parse1_tyb_sha=${parse1Sha.slice(0, 16)}`);
   console.log(`Y18 code_bytes=${checked.length} derive_EQUAL=1`);
   console.log('Y18 code_authority=yoyo_plant_tyb_halves');
-  console.log('Y18 code_bin_role=derived_from_plant_tyb');
+  console.log('Y18 code_bin_role=' + pin.code_bin_role);
   console.log('Y18 status=GREEN');
   console.log('Y18 note=place_input_from_plant_derive;code_bin_is_cache;not_Thompson');
   process.exit(0);
