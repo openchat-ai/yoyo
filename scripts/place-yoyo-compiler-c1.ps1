@@ -3,7 +3,9 @@
 #   & .\scripts\place-yoyo-compiler-c1.ps1 <outdir> [-Bootstrap <c1.exe>]
 param(
     [Parameter(Mandatory = $true)][string]$OutDir,
-    [string]$Bootstrap = ""
+    [string]$Bootstrap = "",
+    [string]$CodeBin = "",
+    [string]$DataBin = ""
 )
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
@@ -23,8 +25,8 @@ if (-not $Bootstrap) {
         if (Test-Path $c) { $Bootstrap = $c; break }
     }
 }
-$codePath = Join-Path $Root "yoyo-js\src\platform\yoyo-compiler-payload\code.bin"
-$dataPath = Join-Path $Root "yoyo-js\src\platform\yoyo-compiler-payload\data.bin"
+$codePath = if ($CodeBin) { $CodeBin } else { Join-Path $Root "yoyo-js\src\platform\yoyo-compiler-payload\code.bin" }
+$dataPath = if ($DataBin) { $DataBin } else { Join-Path $Root "yoyo-js\src\platform\yoyo-compiler-payload\data.bin" }
 if (-not $Bootstrap -or -not (Test-Path $Bootstrap)) {
     Write-Host "HB_FX_PLACE emitter=c1_try_place_bins"
     Write-Host "HB_FX_PLACE status=ABSENT"
@@ -34,6 +36,9 @@ if (-not $Bootstrap -or -not (Test-Path $Bootstrap)) {
 if (-not (Test-Path $codePath) -or -not (Test-Path $dataPath)) {
     Write-Host "HB_FX_PLACE status=ABSENT reason=missing_payload_bins"
     exit 2
+}
+if ($CodeBin) {
+    Write-Host ("HB_FX_PLACE code_bin_override={0}" -f $CodeBin)
 }
 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
