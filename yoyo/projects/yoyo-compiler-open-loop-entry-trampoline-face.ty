@@ -1,6 +1,6 @@
 # yoyo-compiler-open-loop-entry-trampoline-face - AUTO-TRUER41
 # A1 emits jmp-rel32 that WOULD reach connected@17963 IF installed at .text+0.
-# Present as face blob ≠ installed at AddressOfEntryPoint (entry_wired still ABSENT).
+# Present as face blob != installed at AddressOfEntryPoint (entry_wired still ABSENT).
 40 0
   A1 E9 26 46
   A1 00 00 90
