@@ -34,4 +34,4 @@ STOP_ONLY=停 | ACTIVE=0 | hard-block | COMPLETED=1
 
 ---
 
-*2026-11-10 �
+*2026-11-10 · COMPLETED=1 · GREEN*
