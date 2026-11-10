@@ -36,4 +36,6 @@ STOP_ONLY=停 | ACTIVE=0 | hard-block | COMPLETED=1
 
 ---
 
+> **2026-11-10 续刀**：语义编出编译器改走 `AUTO-SEMCOMP.md`。
+
 *2026-11-10 · COMPLETED=1 · GREEN · P(T)=P*

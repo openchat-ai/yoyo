@@ -21,7 +21,7 @@
 | **自举** | ✅ 主路径有限自举成立（parse1 / CreateProcess-compiler · Gate I 类） |
 | **打破后门（检测）** | ✅ DDC+Lock + 自举窗可用；⚠️ 仍是 detection，不是证明 |
 | **path 2 长杆** | ✅ OW-RT CLOSED @ S3.738（human A）— 自举运行信任面收了一大截 |
-| **状态** | 字面轴封口；**ONESELF**：`P(T)=P` 单文件一次跑 · TYBSELF plant 回收仍在 · ≠ Thompson |
+| **状态** | 字面轴封口；**SEMCOMP**：plant A1 tyb→编译器==stock · ONESELF `P(T)=P` 仍在 · ≠ Thompson |
 
 ## 次要账本（非本源 · 可冻结）
 
