@@ -49,10 +49,10 @@ if ($base.Ec -ne 0 -or $base.Sha -eq "MISSING") {
     exit 1
 }
 
-# Controlled mutation: XOR one byte at offset 2048 (proven live body; exit=0 + DIFF).
+# Controlled mutation: XOR one byte at live body offset (OPENLOOP H_00 grew tyb; 2048 now fatal).
 $mutTyb = Join-Path $Root "scripts\_stage-truer5\sem-mut.tyb"
 $bytes = [IO.File]::ReadAllBytes($tyb)
-$off = 2048
+$off = 4000
 if ($bytes.Length -le $off) {
     Write-Host "TRUER5_SEM status=RED reason=tyb_too_small"
     exit 1
@@ -74,7 +74,7 @@ if ($mut.Sha -eq $base.Sha) {
 
 Write-Host "TRUER5_SEM source_driven=PRESENT"
 Write-Host "TRUER5_SEM input=input.tyb"
-Write-Host "TRUER5_SEM mutation=xor1_off_2048"
+Write-Host "TRUER5_SEM mutation=xor1_off_4000"
 Write-Host "TRUER5_SEM status=GREEN"
 Write-Host "TRUER5_SEM doc=AUTO-TRUER5.md"
 Write-Host "TRUER5_SEM note=tyb_flip_changes_seed;not_Thompson;not_full_YOYO_rewrite_plant"
