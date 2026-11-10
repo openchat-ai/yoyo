@@ -14,6 +14,16 @@ const { linkPeWin32Compact } = require('./pe-builder');
 const { encodeOp } = require('./encode-x64');
 
 const SEEDS = path.join(__dirname, 'yoyo-compiler-payload', 'seeds');
+/** AUTO-TRUER23: compiler I/O name table SoT = YOYO A1 plant tyb (not JS string literals). */
+const COMPILER_IO_NAMES_TYB = path.join(
+  __dirname,
+  '..',
+  '..',
+  '..',
+  'yoyo',
+  'projects',
+  'yoyo-compiler-io-names.tyb',
+);
 const S3_PARSE1_RET_PE_LEN = 0x6400;
 const S3_HOST_SET_DEADBEEF = 0xdeadbeef;
 const S3_HOST_ADD_IMM = 5;
@@ -238,6 +248,49 @@ function appendFieldMatchBake(dataBuf) {
   return { data: Buffer.concat(chunks), extras };
 }
 
+/** Unpack A1×3+FF plant-style tyb → raw bytes (peer of derive-code-from-plant-tyb). */
+function unpackPlantLiteralTyb(buf) {
+  if (buf.length < 8 || buf.toString('ascii', 0, 3) !== 'TYB') {
+    throw new Error('bad compiler-io-names tyb magic');
+  }
+  const n = buf.readUInt16LE(6);
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const o = 8 + i * 8;
+    if (o + 8 > buf.length) throw new Error('compiler-io-names tyb truncated');
+    const op = buf[o];
+    const argc = buf[o + 1];
+    if (op === 0xff) break;
+    if (op === 0xa0) {
+      if (argc >= 1) out.push(buf[o + 2]);
+    } else if (op === 0xa1) {
+      if (argc >= 1) out.push(buf[o + 2]);
+      if (argc >= 2) out.push(buf[o + 4]);
+      if (argc >= 3) out.push(buf[o + 6]);
+    } else {
+      throw new Error(`unexpected io-names op 0x${op.toString(16)} at rec ${i}`);
+    }
+  }
+  return Buffer.from(out);
+}
+
+/** Load null-terminated name table from YOYO io-names tyb. */
+function loadCompilerIoNames() {
+  const raw = unpackPlantLiteralTyb(fs.readFileSync(COMPILER_IO_NAMES_TYB));
+  const names = [];
+  let start = 0;
+  for (let i = 0; i < raw.length; i++) {
+    if (raw[i] === 0) {
+      names.push(raw.subarray(start, i + 1).toString('ascii'));
+      start = i + 1;
+    }
+  }
+  if (names.length < 2 || names[0] !== 'input.tyb\0' || names[1] !== 'output.exe\0') {
+    throw new Error('compiler-io-names missing input.tyb/output.exe');
+  }
+  return { raw, names };
+}
+
 /**
  * Build data.bin prefix through compact tmpl + yoyo_compact3_c marker.
  * Optional seedPe extends through H00 hdr/main/data bake.
@@ -248,27 +301,8 @@ function buildCompilerDataPrelude(opts = {}) {
   const setretSeed = fs.readFileSync(path.join(SEEDS, 's3_compile_pe_setret.pe'));
 
   const chunks = [];
-  const names = [
-    'input.tyb\0',
-    'output.exe\0',
-    'yoyo_ret_c\0',
-    'yoyo_sr_c\0',
-    'yoyo_tbl_c\0',
-    'yoyo_f10_c\0',
-    'yoyo_multi_c\0',
-    'yoyo_live1_c\0',
-    'yoyo_live2_c\0',
-    'yoyo_emit1_c\0',
-    'yoyo_emit2_c\0',
-    'yoyo_parse1_c\0',
-    // CN-1: C1 place/repro from bins (append-only; keep input/output offs stable)
-    'code.bin\0',
-    'data.bin\0',
-    'yoyo_compiler.exe\0',
-    // YB: C1 emit bins from self PE when sentinel present
-    'emit.bins\0',
-  ];
-  for (const s of names) chunks.push(Buffer.from(s, 'ascii'));
+  const { raw: ioNamesRaw, names } = loadCompilerIoNames();
+  chunks.push(ioNamesRaw);
 
   // align 16 before live2
   let len = chunks.reduce((a, c) => a + c.length, 0);
@@ -333,12 +367,12 @@ function buildCompilerDataPrelude(opts = {}) {
   chunks.push(Buffer.from('yoyo_compact3_c\0', 'ascii'));
 
   const inputRel = 0;
-  const outputRel = Buffer.from('input.tyb\0', 'ascii').length;
+  const outputRel = names[0].length;
   let nameRel = 0;
   const nameOff = {};
   for (const s of names) {
     nameOff[s.replace(/\0/g, '')] = nameRel;
-    nameRel += Buffer.from(s, 'ascii').length;
+    nameRel += Buffer.byteLength(s, 'ascii');
   }
   let data = Buffer.concat(chunks);
   // First MZ = expanded RET PE (0x6400); then setret; then compact tmpl.
@@ -421,12 +455,15 @@ function buildCompilerDataPrelude(opts = {}) {
 module.exports = {
   expandRetPeTextRaw20k,
   buildCompilerDataPrelude,
+  unpackPlantLiteralTyb,
+  loadCompilerIoNames,
   appendH00BakeFromSeed,
   appendFieldMatchBake,
   compileTybToPeChild,
   fixed10RetTyb,
   S3_PARSE1_RET_PE_LEN,
   S3_H00_HDR_STARTUP_LEN,
+  COMPILER_IO_NAMES_TYB,
   S3_H00_DATA_FLOOR,
   FM_SINGLES,
   FM_CHAINS,
