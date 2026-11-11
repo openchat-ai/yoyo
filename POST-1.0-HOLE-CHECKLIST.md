@@ -23,7 +23,8 @@
 | **path 2 长杆** | ✅ OW-RT CLOSED @ S3.738（human A）— 自举运行信任面收了一大截 |
 | **状态** | 字面轴封口；**NOCOPY**：copy_self 废除 · **hard-block**=place_stub + Win32/PE A1 · ≠ Thompson |
 | **信任面结算** | 见 `TRUST-SURFACE-v1.md`（stub=活冷启根；检测≠证明） |
-| **TRUSTLIM** | ✅ 少信+检测冷启双极限（STUBMIN/POISON/PLACEPIN/BINSPOISON）· hard-block 仍 stub+A1+内容pin · ≠ Thompson |
+| **TRUSTLIM** | ✅ 冷启双极限（STUBMIN/POISON/PLACEPIN/BINSPOISON） |
+| **TRUSTLIM2** | ✅ 自再生：Y1PLPIN + A1PIN · hard-block 仍 stub存在+A1存在+内容pin · ≠ Thompson |
 
 ## 次要账本（非本源 · 可冻结）
 

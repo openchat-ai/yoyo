@@ -1,32 +1,26 @@
 # 信任面结算（v1）
 
-> 本源尺子：自举更硬 · 后门**检测**更实 · ≠ Thompson 证明 · 禁空盘/Stage17。
+> 本源尺子：自举更硬 · 后门**检测**更实 · ≠ Thompson · 禁空盘/Stage17。
 
-## 现在必须先验信什么
+## 先验信什么
 
-1. **`place_stub`** — 活路径唯一可执行冷启根（place-only；`.text` 已到 place 最短 5876）  
-2. **内容 pin**（plant / bins）— 字节从哪来  
-3. **Win32 / PE A1** — 宿主面  
+1. **`place_stub`**（`.text` place 最短 5876）  
+2. **内容 pin**（plant / bins）  
+3. **Win32/PE A1**（导入集已 pin=6，未消除）
 
-全量 C1 与 Y1PL 自再生是**派生**，不是冷启公理。
+## 双极限（已到 → 默认停）
 
-## 两句定界
+| 层 | 少信 | 有后门必被抓 |
+| --- | --- | --- |
+| 冷启 | STUBMIN | STUBDDC·POISON·PLACEPIN·BINSPOISON |
+| 自再生 | A1PIN（禁膨胀） | Y1PLPIN |
 
-| 是 | 不是 |
-| --- | --- |
-| stub = 缩盲信面后的活 gen0 | stub = 已破后门魔咒 |
-| 三链/冷启 pin = **检测** | 证明无后门 / 空盘创世 |
+再下：消 stub/A1/空盘，或宣称共谋也可抓 = **禁**。
 
-## 双极限（TRUSTLIM COMPLETED）
+## 下一刀判据
 
-- **少信**：stub place-half 不可再短（STUBMIN）；消 stub/A1=空盘（禁）。  
-- **有毒必被抓（冷启观测）**：STUBDDC · STUBPOISON · PLACEPIN · BINSPOISON — 该类毒必 RED；共谋/观测外仍不可抓。
-
-## 下一刀（唯一判据）
-
-只做能答「是」的：自举更少外来，或 DDC/Lock 覆盖更实的自举字节。  
-冷启双极限已到 → **默认停**；再动须新授权且不碰空盘。
+仅当新授权且能答：更少外来，或更实检测字节。默认停。
 
 ---
 
-*trust_root=place_stub · AUTO-TRUSTLIM COMPLETED · ≠ Thompson*
+*TRUSTLIM+TRUSTLIM2 COMPLETED · ≠ Thompson*
