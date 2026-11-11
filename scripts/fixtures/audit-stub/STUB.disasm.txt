@@ -1,21 +1,28 @@
-; AUTO-HUMANAUDIT export — Capstone intel (no llvm-objdump)
+; AUTO-HUMANAUDIT annotated disasm — Capstone intel
 ; PE: scripts/fixtures/yoyo_place_stub.exe
 ; image_base=0x140000000  .text_rva=0x1000  entry_va=0x140001000
 ; bytes=5889 (= PE_startup 13 + code_place 5876)
+; Read banners `; ==========` and `; => API` / `; str=` — not every insn
 ; ≠ Thompson
 
+
+; ========== ENTRY / PE startup @ 0x140001000 ==========
 0000000140001000:  4c 8d 3d f9 1f 00 00              lea      r15, [rip + 0x1ff9]  ; << entry
 0000000140001007:  e9 01 00 00 00                    jmp      0x14000100d
 000000014000100c:  90                                nop      
-000000014000100d:  48 81 ec 88 00 00 00              sub      rsp, 0x88  ; << code.bin place half starts (approx)
-0000000140001014:  48 8d 0d 49 04 00 00              lea      rcx, [rip + 0x449]
+
+; ========== PLACE BODY @ 0x14000100d ==========
+000000014000100d:  48 81 ec 88 00 00 00              sub      rsp, 0x88  ; << place body
+0000000140001014:  48 8d 0d 49 04 00 00              lea      rcx, [rip + 0x449]  ; str="input.tyb"
 000000014000101b:  ba 00 00 00 80                    mov      edx, 0x80000000
 0000000140001020:  41 b8 01 00 00 00                 mov      r8d, 1
 0000000140001026:  45 31 c9                          xor      r9d, r9d
 0000000140001029:  48 c7 44 24 20 03 00 00 00        mov      qword ptr [rsp + 0x20], 3
 0000000140001032:  48 c7 44 24 28 00 00 00 00        mov      qword ptr [rsp + 0x28], 0
 000000014000103b:  48 c7 44 24 30 00 00 00 00        mov      qword ptr [rsp + 0x30], 0
-0000000140001044:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]
+
+; ========== CreateFileA → input.tyb @ 0x140001044 ==========
+0000000140001044:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]  ; => CreateFileA path="input.tyb"
 000000014000104b:  48 83 f8 ff                       cmp      rax, -1
 000000014000104f:  0f 84 03 04 00 00                 je       0x140001458
 0000000140001055:  48 89 c3                          mov      rbx, rax
@@ -24,21 +31,25 @@
 0000000140001060:  41 b8 40 00 00 00                 mov      r8d, 0x40
 0000000140001066:  4c 8d 4c 24 40                    lea      r9, [rsp + 0x40]
 000000014000106b:  48 c7 44 24 20 00 00 00 00        mov      qword ptr [rsp + 0x20], 0
-0000000140001074:  41 ff 97 10 00 00 00              call     qword ptr [r15 + 0x10]
+0000000140001074:  41 ff 97 10 00 00 00              call     qword ptr [r15 + 0x10]  ; => ReadFile
 000000014000107b:  85 c0                             test     eax, eax
 000000014000107d:  0f 84 c9 03 00 00                 je       0x14000144c
 0000000140001083:  8b 7c 24 40                       mov      edi, dword ptr [rsp + 0x40]
 0000000140001087:  48 89 d9                          mov      rcx, rbx
-000000014000108a:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]
+000000014000108a:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]  ; => CloseHandle
 0000000140001091:  83 ff 3f                          cmp      edi, 0x3f
 0000000140001094:  0f 86 13 00 00 00                 jbe      0x1400010ad
-000000014000109a:  81 7c 24 50 59 31 50 4c           cmp      dword ptr [rsp + 0x50], 0x4c503159
+
+; ========== CHECK magic Y1PL @ 0x14000109a ==========
+000000014000109a:  81 7c 24 50 59 31 50 4c           cmp      dword ptr [rsp + 0x50], 0x4c503159  ; magic Y1PL
 00000001400010a2:  0f 85 a4 03 00 00                 jne      0x14000144c
 00000001400010a8:  e9 ab 03 00 00                    jmp      0x140001458
 00000001400010ad:  4c 8d 35 ce 03 00 00              lea      r14, [rip + 0x3ce]
 00000001400010b4:  41 bd 01 00 00 00                 mov      r13d, 1
 00000001400010ba:  48 8d 74 24 50                    lea      rsi, [rsp + 0x50]
-00000001400010bf:  81 3e 54 59 42 00                 cmp      dword ptr [rsi], 0x425954
+
+; ========== CHECK magic TYB @ 0x1400010bf ==========
+00000001400010bf:  81 3e 54 59 42 00                 cmp      dword ptr [rsi], 0x425954  ; magic TYB
 00000001400010c5:  0f 85 81 03 00 00                 jne      0x14000144c
 00000001400010cb:  0f b7 4e 06                       movzx    ecx, word ptr [rsi + 6]
 00000001400010cf:  48 8d 76 08                       lea      rsi, [rsi + 8]
@@ -117,7 +128,9 @@
 000000014000123d:  ba 00 10 00 00                    mov      edx, 0x1000
 0000000140001242:  41 b8 00 30 00 00                 mov      r8d, 0x3000
 0000000140001248:  41 b9 04 00 00 00                 mov      r9d, 4
-000000014000124e:  41 ff 97 00 00 00 00              call     qword ptr [r15]
+
+; ========== VirtualAlloc @ 0x14000124e ==========
+000000014000124e:  41 ff 97 00 00 00 00              call     qword ptr [r15]  ; => VirtualAlloc
 0000000140001255:  48 85 c0                          test     rax, rax
 0000000140001258:  0f 84 ee 01 00 00                 je       0x14000144c
 000000014000125e:  48 89 c6                          mov      rsi, rax
@@ -125,6 +138,8 @@
 0000000140001264:  31 c0                             xor      eax, eax
 0000000140001266:  b9 00 04 00 00                    mov      ecx, 0x400
 000000014000126b:  f3 aa                             rep stosb byte ptr [rdi], al
+
+; ========== BUILD PE MZ header @ 0x14000126d ==========
 000000014000126d:  c6 06 4d                          mov      byte ptr [rsi], 0x4d
 0000000140001270:  c6 46 01 5a                       mov      byte ptr [rsi + 1], 0x5a
 0000000140001274:  c7 46 3c 80 00 00 00              mov      dword ptr [rsi + 0x3c], 0x80
@@ -169,14 +184,16 @@
 00000001400013cd:  44 89 e9                          mov      ecx, r13d
 00000001400013d0:  f3 a4                             rep movsb byte ptr [rdi], byte ptr [rsi]
 00000001400013d2:  48 8b 74 24 48                    mov      rsi, qword ptr [rsp + 0x48]
-00000001400013d7:  48 8d 0d 90 00 00 00              lea      rcx, [rip + 0x90]
+00000001400013d7:  48 8d 0d 90 00 00 00              lea      rcx, [rip + 0x90]  ; str="output.exe"
 00000001400013de:  ba 00 00 00 40                    mov      edx, 0x40000000
 00000001400013e3:  45 31 c0                          xor      r8d, r8d
 00000001400013e6:  45 31 c9                          xor      r9d, r9d
 00000001400013e9:  48 c7 44 24 20 02 00 00 00        mov      qword ptr [rsp + 0x20], 2
 00000001400013f2:  48 c7 44 24 28 00 00 00 00        mov      qword ptr [rsp + 0x28], 0
 00000001400013fb:  48 c7 44 24 30 00 00 00 00        mov      qword ptr [rsp + 0x30], 0
-0000000140001404:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]
+
+; ========== CreateFileA → output.exe @ 0x140001404 ==========
+0000000140001404:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]  ; => CreateFileA path="output.exe"
 000000014000140b:  48 83 f8 ff                       cmp      rax, -1
 000000014000140f:  0f 84 37 00 00 00                 je       0x14000144c
 0000000140001415:  48 89 c3                          mov      rbx, rax
@@ -185,23 +202,27 @@
 000000014000141e:  41 b8 00 04 00 00                 mov      r8d, 0x400
 0000000140001424:  4c 8d 4c 24 40                    lea      r9, [rsp + 0x40]
 0000000140001429:  48 c7 44 24 20 00 00 00 00        mov      qword ptr [rsp + 0x20], 0
-0000000140001432:  41 ff 97 18 00 00 00              call     qword ptr [r15 + 0x18]
+
+; ========== WriteFile @ 0x140001432 ==========
+0000000140001432:  41 ff 97 18 00 00 00              call     qword ptr [r15 + 0x18]  ; => WriteFile
 0000000140001439:  48 89 d9                          mov      rcx, rbx
-000000014000143c:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]
+000000014000143c:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]  ; => CloseHandle
 0000000140001443:  31 c9                             xor      ecx, ecx
-0000000140001445:  41 ff 97 28 00 00 00              call     qword ptr [r15 + 0x28]
+
+; ========== ExitProcess @ 0x140001445 ==========
+0000000140001445:  41 ff 97 28 00 00 00              call     qword ptr [r15 + 0x28]  ; => ExitProcess
 000000014000144c:  b9 01 00 00 00                    mov      ecx, 1
-0000000140001451:  41 ff 97 28 00 00 00              call     qword ptr [r15 + 0x28]
+0000000140001451:  41 ff 97 28 00 00 00              call     qword ptr [r15 + 0x28]  ; => ExitProcess
 0000000140001458:  48 81 c4 88 00 00 00              add      rsp, 0x88
 000000014000145f:  e9 12 01 00 00                    jmp      0x140001576
-0000000140001464:  69 6e 70 75 74 2e 74              imul     ebp, dword ptr [rsi + 0x70], 0x742e7475
-000000014000146b:  79 62                             jns      0x1400014cf
-000000014000146d:  00 6f 75                          add      byte ptr [rdi + 0x75], ch
-0000000140001470:  74 70                             je       0x1400014e2
-0000000140001472:  75 74                             jne      0x1400014e8
-0000000140001474:  2e 65 78 65                       js       0x1400014dd
-0000000140001478:  00 53 45                          add      byte ptr [rbx + 0x45], dl
-000000014000147b:  4d 48 4f 53                       push     r11
+
+; ========== DATA string "input.tyb" @ 0x140001464 ==========
+0000000140001464:  ; DATA "input.tyb"  (do not decode as code)
+
+; ========== DATA string "output.exe" @ 0x14000146e ==========
+000000014000146e:  ; DATA "output.exe"  (do not decode as code)
+0000000140001479:  53                                push     rbx
+000000014000147a:  45 4d 48 4f 53                    push     r11
 000000014000147f:  54                                push     rsp
 0000000140001480:  31 00                             xor      dword ptr [rax], eax
 0000000140001482:  c3                                ret      
@@ -257,14 +278,14 @@
 000000014000156e:  49 89 87 80 02 00 00              mov      qword ptr [r15 + 0x280], rax
 0000000140001575:  c3                                ret      
 0000000140001576:  48 83 ec 78                       sub      rsp, 0x78
-000000014000157a:  49 8d 8f 20 01 00 00              lea      rcx, [r15 + 0x120]
+000000014000157a:  49 8d 8f 20 01 00 00              lea      rcx, [r15 + 0x120]  ; str="input.tyb"
 0000000140001581:  ba 00 00 00 80                    mov      edx, 0x80000000
 0000000140001586:  45 31 c0                          xor      r8d, r8d
 0000000140001589:  45 31 c9                          xor      r9d, r9d
 000000014000158c:  c7 44 24 20 03 00 00 00           mov      dword ptr [rsp + 0x20], 3
 0000000140001594:  48 c7 44 24 28 80 00 00 00        mov      qword ptr [rsp + 0x28], 0x80
 000000014000159d:  48 c7 44 24 30 00 00 00 00        mov      qword ptr [rsp + 0x30], 0
-00000001400015a6:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]
+00000001400015a6:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]  ; => CreateFileA path="input.tyb"
 00000001400015ad:  48 83 f8 ff                       cmp      rax, -1
 00000001400015b1:  0f 84 31 07 00 00                 je       0x140001ce8
 00000001400015b7:  48 89 c3                          mov      rbx, rax
@@ -272,7 +293,7 @@
 00000001400015bc:  ba 00 80 00 00                    mov      edx, 0x8000
 00000001400015c1:  41 b8 00 30 00 00                 mov      r8d, 0x3000
 00000001400015c7:  41 b9 04 00 00 00                 mov      r9d, 4
-00000001400015cd:  41 ff 97 00 00 00 00              call     qword ptr [r15]
+00000001400015cd:  41 ff 97 00 00 00 00              call     qword ptr [r15]  ; => VirtualAlloc
 00000001400015d4:  48 85 c0                          test     rax, rax
 00000001400015d7:  0f 84 01 07 00 00                 je       0x140001cde
 00000001400015dd:  48 89 c6                          mov      rsi, rax
@@ -281,16 +302,16 @@
 00000001400015e6:  41 b8 00 80 00 00                 mov      r8d, 0x8000
 00000001400015ec:  4c 8d 4c 24 40                    lea      r9, [rsp + 0x40]
 00000001400015f1:  48 c7 44 24 20 00 00 00 00        mov      qword ptr [rsp + 0x20], 0
-00000001400015fa:  41 ff 97 10 00 00 00              call     qword ptr [r15 + 0x10]
+00000001400015fa:  41 ff 97 10 00 00 00              call     qword ptr [r15 + 0x10]  ; => ReadFile
 0000000140001601:  85 c0                             test     eax, eax
 0000000140001603:  0f 84 d5 06 00 00                 je       0x140001cde
 0000000140001609:  8b 7c 24 40                       mov      edi, dword ptr [rsp + 0x40]
 000000014000160d:  48 89 d9                          mov      rcx, rbx
-0000000140001610:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]
+0000000140001610:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]  ; => CloseHandle
 0000000140001617:  e9 46 3c 00 00                    jmp      0x140005262
 000000014000161c:  33 00                             xor      eax, dword ptr [rax]
 000000014000161e:  00 00                             add      byte ptr [rax], al
-0000000140001620:  81 3e 54 59 42 00                 cmp      dword ptr [rsi], 0x425954
+0000000140001620:  81 3e 54 59 42 00                 cmp      dword ptr [rsi], 0x425954  ; magic TYB
 0000000140001626:  0f 85 21 06 00 00                 jne      0x140001c4d
 000000014000162c:  66 83 7e 06 01                    cmp      word ptr [rsi + 6], 1
 0000000140001631:  0f 85 16 06 00 00                 jne      0x140001c4d
@@ -301,7 +322,7 @@
 000000014000164e:  e9 04 06 00 00                    jmp      0x140001c57
 0000000140001653:  83 ff 18                          cmp      edi, 0x18
 0000000140001656:  0f 85 cb 01 00 00                 jne      0x140001827
-000000014000165c:  81 3e 54 59 42 00                 cmp      dword ptr [rsi], 0x425954
+000000014000165c:  81 3e 54 59 42 00                 cmp      dword ptr [rsi], 0x425954  ; magic TYB
 0000000140001662:  0f 85 e5 05 00 00                 jne      0x140001c4d
 0000000140001668:  66 83 7e 06 02                    cmp      word ptr [rsi + 6], 2
 000000014000166d:  0f 85 da 05 00 00                 jne      0x140001c4d
@@ -392,7 +413,7 @@
 0000000140001822:  e9 da 0e 00 00                    jmp      0x140002701
 0000000140001827:  83 ff 20                          cmp      edi, 0x20
 000000014000182a:  0f 85 d6 00 00 00                 jne      0x140001906
-0000000140001830:  81 3e 54 59 42 00                 cmp      dword ptr [rsi], 0x425954
+0000000140001830:  81 3e 54 59 42 00                 cmp      dword ptr [rsi], 0x425954  ; magic TYB
 0000000140001836:  0f 85 11 04 00 00                 jne      0x140001c4d
 000000014000183c:  66 83 7e 06 03                    cmp      word ptr [rsi + 6], 3
 0000000140001841:  0f 85 06 04 00 00                 jne      0x140001c4d
@@ -435,7 +456,7 @@
 0000000140001901:  e9 fb 0d 00 00                    jmp      0x140002701
 0000000140001906:  83 ff 28                          cmp      edi, 0x28
 0000000140001909:  0f 85 47 01 00 00                 jne      0x140001a56
-000000014000190f:  81 3e 54 59 42 00                 cmp      dword ptr [rsi], 0x425954
+000000014000190f:  81 3e 54 59 42 00                 cmp      dword ptr [rsi], 0x425954  ; magic TYB
 0000000140001915:  0f 85 32 03 00 00                 jne      0x140001c4d
 000000014000191b:  66 83 7e 06 04                    cmp      word ptr [rsi + 6], 4
 0000000140001920:  0f 85 27 03 00 00                 jne      0x140001c4d
@@ -500,7 +521,7 @@
 0000000140001a51:  e9 ab 0c 00 00                    jmp      0x140002701
 0000000140001a56:  83 ff 30                          cmp      edi, 0x30
 0000000140001a59:  0f 85 97 00 00 00                 jne      0x140001af6
-0000000140001a5f:  81 3e 54 59 42 00                 cmp      dword ptr [rsi], 0x425954
+0000000140001a5f:  81 3e 54 59 42 00                 cmp      dword ptr [rsi], 0x425954  ; magic TYB
 0000000140001a65:  0f 85 e2 01 00 00                 jne      0x140001c4d
 0000000140001a6b:  66 83 7e 06 05                    cmp      word ptr [rsi + 6], 5
 0000000140001a70:  0f 85 d7 01 00 00                 jne      0x140001c4d
@@ -634,7 +655,7 @@
 0000000140001c25:  58                                pop      rax
 0000000140001c26:  0f 85 05 00 00 00                 jne      0x140001c31
 0000000140001c2c:  e9 d0 0a 00 00                    jmp      0x140002701
-0000000140001c31:  81 3e 54 59 42 00                 cmp      dword ptr [rsi], 0x425954
+0000000140001c31:  81 3e 54 59 42 00                 cmp      dword ptr [rsi], 0x425954  ; magic TYB
 0000000140001c37:  0f 85 10 00 00 00                 jne      0x140001c4d
 0000000140001c3d:  66 83 7e 06 00                    cmp      word ptr [rsi + 6], 0
 0000000140001c42:  0f 84 05 00 00 00                 je       0x140001c4d
@@ -644,14 +665,14 @@
 0000000140001c56:  c3                                ret      
 0000000140001c57:  48 89 d6                          mov      rsi, rdx
 0000000140001c5a:  44 89 c7                          mov      edi, r8d
-0000000140001c5d:  49 8d 8f 2a 01 00 00              lea      rcx, [r15 + 0x12a]
+0000000140001c5d:  49 8d 8f 2a 01 00 00              lea      rcx, [r15 + 0x12a]  ; str="output.exe"
 0000000140001c64:  ba 00 00 00 40                    mov      edx, 0x40000000
 0000000140001c69:  45 31 c0                          xor      r8d, r8d
 0000000140001c6c:  45 31 c9                          xor      r9d, r9d
 0000000140001c6f:  c7 44 24 20 02 00 00 00           mov      dword ptr [rsp + 0x20], 2
 0000000140001c77:  48 c7 44 24 28 80 00 00 00        mov      qword ptr [rsp + 0x28], 0x80
 0000000140001c80:  48 c7 44 24 30 00 00 00 00        mov      qword ptr [rsp + 0x30], 0
-0000000140001c89:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]
+0000000140001c89:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]  ; => CreateFileA path="output.exe"
 0000000140001c90:  48 83 f8 ff                       cmp      rax, -1
 0000000140001c94:  0f 84 43 00 00 00                 je       0x140001cdd
 0000000140001c9a:  48 89 c3                          mov      rbx, rax
@@ -660,47 +681,51 @@
 0000000140001ca3:  41 89 f8                          mov      r8d, edi
 0000000140001ca6:  4c 8d 4c 24 40                    lea      r9, [rsp + 0x40]
 0000000140001cab:  48 c7 44 24 20 00 00 00 00        mov      qword ptr [rsp + 0x20], 0
-0000000140001cb4:  41 ff 97 18 00 00 00              call     qword ptr [r15 + 0x18]
+0000000140001cb4:  41 ff 97 18 00 00 00              call     qword ptr [r15 + 0x18]  ; => WriteFile
 0000000140001cbb:  85 c0                             test     eax, eax
 0000000140001cbd:  0f 84 1a 00 00 00                 je       0x140001cdd
 0000000140001cc3:  48 89 d9                          mov      rcx, rbx
-0000000140001cc6:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]
+0000000140001cc6:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]  ; => CloseHandle
 0000000140001ccd:  31 c9                             xor      ecx, ecx
-0000000140001ccf:  41 ff 97 28 00 00 00              call     qword ptr [r15 + 0x28]
+0000000140001ccf:  41 ff 97 28 00 00 00              call     qword ptr [r15 + 0x28]  ; => ExitProcess
 0000000140001cd6:  b8 02 00 00 00                    mov      eax, 2
 0000000140001cdb:  eb 05                             jmp      0x140001ce2
 0000000140001cdd:  b8 03 00 00 00                    mov      eax, 3
 0000000140001ce2:  48 83 c4 78                       add      rsp, 0x78
 0000000140001ce6:  c3                                ret      
 0000000140001ce7:  90                                nop      
-0000000140001ce8:  49 8d 8f d3 01 00 00              lea      rcx, [r15 + 0x1d3]
+0000000140001ce8:  49 8d 8f d3 01 00 00              lea      rcx, [r15 + 0x1d3]  ; str="emit.bins"
 0000000140001cef:  ba 00 00 00 80                    mov      edx, 0x80000000
 0000000140001cf4:  45 31 c0                          xor      r8d, r8d
 0000000140001cf7:  45 31 c9                          xor      r9d, r9d
 0000000140001cfa:  c7 44 24 20 03 00 00 00           mov      dword ptr [rsp + 0x20], 3
 0000000140001d02:  48 c7 44 24 28 80 00 00 00        mov      qword ptr [rsp + 0x28], 0x80
 0000000140001d0b:  48 c7 44 24 30 00 00 00 00        mov      qword ptr [rsp + 0x30], 0
-0000000140001d14:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]
+
+; ========== CreateFileA → emit.bins @ 0x140001d14 ==========
+0000000140001d14:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]  ; => CreateFileA path="emit.bins"
 0000000140001d1b:  48 83 f8 ff                       cmp      rax, -1
 0000000140001d1f:  0f 84 b4 01 00 00                 je       0x140001ed9
 0000000140001d25:  48 89 c1                          mov      rcx, rax
-0000000140001d28:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]
+0000000140001d28:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]  ; => CloseHandle
 0000000140001d2f:  31 c9                             xor      ecx, ecx
 0000000140001d31:  ba 00 cc 03 00                    mov      edx, 0x3cc00
 0000000140001d36:  41 b8 00 30 00 00                 mov      r8d, 0x3000
 0000000140001d3c:  41 b9 04 00 00 00                 mov      r9d, 4
-0000000140001d42:  41 ff 97 00 00 00 00              call     qword ptr [r15]
+0000000140001d42:  41 ff 97 00 00 00 00              call     qword ptr [r15]  ; => VirtualAlloc
 0000000140001d49:  48 85 c0                          test     rax, rax
 0000000140001d4c:  0f 84 00 00 00 00                 je       0x140001d52
 0000000140001d52:  48 89 44 24 58                    mov      qword ptr [rsp + 0x58], rax
-0000000140001d57:  49 8d 8f c1 01 00 00              lea      rcx, [r15 + 0x1c1]
+0000000140001d57:  49 8d 8f c1 01 00 00              lea      rcx, [r15 + 0x1c1]  ; str="yoyo_compiler.exe"
 0000000140001d5e:  ba 00 00 00 80                    mov      edx, 0x80000000
 0000000140001d63:  45 31 c0                          xor      r8d, r8d
 0000000140001d66:  45 31 c9                          xor      r9d, r9d
 0000000140001d69:  c7 44 24 20 03 00 00 00           mov      dword ptr [rsp + 0x20], 3
 0000000140001d71:  48 c7 44 24 28 80 00 00 00        mov      qword ptr [rsp + 0x28], 0x80
 0000000140001d7a:  48 c7 44 24 30 00 00 00 00        mov      qword ptr [rsp + 0x30], 0
-0000000140001d83:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]
+
+; ========== CreateFileA → yoyo_compiler.exe @ 0x140001d83 ==========
+0000000140001d83:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]  ; => CreateFileA path="yoyo_compiler.exe"
 0000000140001d8a:  48 83 f8 ff                       cmp      rax, -1
 0000000140001d8e:  0f 84 40 ff ff ff                 je       0x140001cd4
 0000000140001d94:  48 89 c3                          mov      rbx, rax
@@ -709,21 +734,23 @@
 0000000140001da2:  4c 8d 4c 24 40                    lea      r9, [rsp + 0x40]
 0000000140001da7:  48 c7 44 24 20 00 00 00 00        mov      qword ptr [rsp + 0x20], 0
 0000000140001db0:  48 89 d9                          mov      rcx, rbx
-0000000140001db3:  41 ff 97 10 00 00 00              call     qword ptr [r15 + 0x10]
+0000000140001db3:  41 ff 97 10 00 00 00              call     qword ptr [r15 + 0x10]  ; => ReadFile
 0000000140001dba:  85 c0                             test     eax, eax
 0000000140001dbc:  0f 84 12 ff ff ff                 je       0x140001cd4
 0000000140001dc2:  81 7c 24 40 00 cc 03 00           cmp      dword ptr [rsp + 0x40], 0x3cc00
 0000000140001dca:  0f 85 04 ff ff ff                 jne      0x140001cd4
 0000000140001dd0:  48 89 d9                          mov      rcx, rbx
-0000000140001dd3:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]
-0000000140001dda:  49 8d 8f af 01 00 00              lea      rcx, [r15 + 0x1af]
+0000000140001dd3:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]  ; => CloseHandle
+0000000140001dda:  49 8d 8f af 01 00 00              lea      rcx, [r15 + 0x1af]  ; str="code.bin"
 0000000140001de1:  ba 00 00 00 40                    mov      edx, 0x40000000
 0000000140001de6:  45 31 c0                          xor      r8d, r8d
 0000000140001de9:  45 31 c9                          xor      r9d, r9d
 0000000140001dec:  c7 44 24 20 02 00 00 00           mov      dword ptr [rsp + 0x20], 2
 0000000140001df4:  48 c7 44 24 28 80 00 00 00        mov      qword ptr [rsp + 0x28], 0x80
 0000000140001dfd:  48 c7 44 24 30 00 00 00 00        mov      qword ptr [rsp + 0x30], 0
-0000000140001e06:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]
+
+; ========== CreateFileA → code.bin @ 0x140001e06 ==========
+0000000140001e06:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]  ; => CreateFileA path="code.bin"
 0000000140001e0d:  48 83 f8 ff                       cmp      rax, -1
 0000000140001e11:  0f 84 00 00 00 00                 je       0x140001e17
 0000000140001e17:  48 89 c3                          mov      rbx, rax
@@ -733,19 +760,21 @@
 0000000140001e2c:  4c 8d 4c 24 40                    lea      r9, [rsp + 0x40]
 0000000140001e31:  48 c7 44 24 20 00 00 00 00        mov      qword ptr [rsp + 0x20], 0
 0000000140001e3a:  48 89 d9                          mov      rcx, rbx
-0000000140001e3d:  41 ff 97 18 00 00 00              call     qword ptr [r15 + 0x18]
+0000000140001e3d:  41 ff 97 18 00 00 00              call     qword ptr [r15 + 0x18]  ; => WriteFile
 0000000140001e44:  85 c0                             test     eax, eax
 0000000140001e46:  0f 84 88 fe ff ff                 je       0x140001cd4
 0000000140001e4c:  48 89 d9                          mov      rcx, rbx
-0000000140001e4f:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]
-0000000140001e56:  49 8d 8f b8 01 00 00              lea      rcx, [r15 + 0x1b8]
+0000000140001e4f:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]  ; => CloseHandle
+0000000140001e56:  49 8d 8f b8 01 00 00              lea      rcx, [r15 + 0x1b8]  ; str="data.bin"
 0000000140001e5d:  ba 00 00 00 40                    mov      edx, 0x40000000
 0000000140001e62:  45 31 c0                          xor      r8d, r8d
 0000000140001e65:  45 31 c9                          xor      r9d, r9d
 0000000140001e68:  c7 44 24 20 02 00 00 00           mov      dword ptr [rsp + 0x20], 2
 0000000140001e70:  48 c7 44 24 28 80 00 00 00        mov      qword ptr [rsp + 0x28], 0x80
 0000000140001e79:  48 c7 44 24 30 00 00 00 00        mov      qword ptr [rsp + 0x30], 0
-0000000140001e82:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]
+
+; ========== CreateFileA → data.bin @ 0x140001e82 ==========
+0000000140001e82:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]  ; => CreateFileA path="data.bin"
 0000000140001e89:  48 83 f8 ff                       cmp      rax, -1
 0000000140001e8d:  0f 84 00 00 00 00                 je       0x140001e93
 0000000140001e93:  48 89 c3                          mov      rbx, rax
@@ -755,11 +784,11 @@
 0000000140001ea8:  4c 8d 4c 24 40                    lea      r9, [rsp + 0x40]
 0000000140001ead:  48 c7 44 24 20 00 00 00 00        mov      qword ptr [rsp + 0x20], 0
 0000000140001eb6:  48 89 d9                          mov      rcx, rbx
-0000000140001eb9:  41 ff 97 18 00 00 00              call     qword ptr [r15 + 0x18]
+0000000140001eb9:  41 ff 97 18 00 00 00              call     qword ptr [r15 + 0x18]  ; => WriteFile
 0000000140001ec0:  85 c0                             test     eax, eax
 0000000140001ec2:  0f 84 0c fe ff ff                 je       0x140001cd4
 0000000140001ec8:  48 89 d9                          mov      rcx, rbx
-0000000140001ecb:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]
+0000000140001ecb:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]  ; => CloseHandle
 0000000140001ed2:  31 c0                             xor      eax, eax
 0000000140001ed4:  48 83 c4 78                       add      rsp, 0x78
 0000000140001ed8:  c3                                ret      
@@ -767,7 +796,7 @@
 0000000140001edb:  ba 00 cc 03 00                    mov      edx, 0x3cc00
 0000000140001ee0:  41 b8 00 30 00 00                 mov      r8d, 0x3000
 0000000140001ee6:  41 b9 04 00 00 00                 mov      r9d, 4
-0000000140001eec:  41 ff 97 00 00 00 00              call     qword ptr [r15]
+0000000140001eec:  41 ff 97 00 00 00 00              call     qword ptr [r15]  ; => VirtualAlloc
 0000000140001ef3:  48 85 c0                          test     rax, rax
 0000000140001ef6:  0f 84 d8 fd ff ff                 je       0x140001cd4
 0000000140001efc:  48 89 44 24 58                    mov      qword ptr [rsp + 0x58], rax
@@ -775,7 +804,7 @@
 0000000140001f03:  ba b6 46 00 00                    mov      edx, 0x46b6
 0000000140001f08:  41 b8 00 30 00 00                 mov      r8d, 0x3000
 0000000140001f0e:  41 b9 04 00 00 00                 mov      r9d, 4
-0000000140001f14:  41 ff 97 00 00 00 00              call     qword ptr [r15]
+0000000140001f14:  41 ff 97 00 00 00 00              call     qword ptr [r15]  ; => VirtualAlloc
 0000000140001f1b:  48 85 c0                          test     rax, rax
 0000000140001f1e:  0f 84 b0 fd ff ff                 je       0x140001cd4
 0000000140001f24:  48 89 44 24 60                    mov      qword ptr [rsp + 0x60], rax
@@ -783,18 +812,18 @@
 0000000140001f2b:  ba 70 a6 00 00                    mov      edx, 0xa670
 0000000140001f30:  41 b8 00 30 00 00                 mov      r8d, 0x3000
 0000000140001f36:  41 b9 04 00 00 00                 mov      r9d, 4
-0000000140001f3c:  41 ff 97 00 00 00 00              call     qword ptr [r15]
+0000000140001f3c:  41 ff 97 00 00 00 00              call     qword ptr [r15]  ; => VirtualAlloc
 0000000140001f43:  48 85 c0                          test     rax, rax
 0000000140001f46:  0f 84 88 fd ff ff                 je       0x140001cd4
 0000000140001f4c:  48 89 44 24 68                    mov      qword ptr [rsp + 0x68], rax
-0000000140001f51:  49 8d 8f af 01 00 00              lea      rcx, [r15 + 0x1af]
+0000000140001f51:  49 8d 8f af 01 00 00              lea      rcx, [r15 + 0x1af]  ; str="code.bin"
 0000000140001f58:  ba 00 00 00 80                    mov      edx, 0x80000000
 0000000140001f5d:  45 31 c0                          xor      r8d, r8d
 0000000140001f60:  45 31 c9                          xor      r9d, r9d
 0000000140001f63:  c7 44 24 20 03 00 00 00           mov      dword ptr [rsp + 0x20], 3
 0000000140001f6b:  48 c7 44 24 28 80 00 00 00        mov      qword ptr [rsp + 0x28], 0x80
 0000000140001f74:  48 c7 44 24 30 00 00 00 00        mov      qword ptr [rsp + 0x30], 0
-0000000140001f7d:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]
+0000000140001f7d:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]  ; => CreateFileA path="code.bin"
 0000000140001f84:  48 83 f8 ff                       cmp      rax, -1
 0000000140001f88:  0f 84 46 fd ff ff                 je       0x140001cd4
 0000000140001f8e:  48 89 c3                          mov      rbx, rax
@@ -803,21 +832,21 @@
 0000000140001f9c:  4c 8d 4c 24 40                    lea      r9, [rsp + 0x40]
 0000000140001fa1:  48 c7 44 24 20 00 00 00 00        mov      qword ptr [rsp + 0x20], 0
 0000000140001faa:  48 89 d9                          mov      rcx, rbx
-0000000140001fad:  41 ff 97 10 00 00 00              call     qword ptr [r15 + 0x10]
+0000000140001fad:  41 ff 97 10 00 00 00              call     qword ptr [r15 + 0x10]  ; => ReadFile
 0000000140001fb4:  85 c0                             test     eax, eax
 0000000140001fb6:  0f 84 18 fd ff ff                 je       0x140001cd4
 0000000140001fbc:  81 7c 24 40 b6 46 00 00           cmp      dword ptr [rsp + 0x40], 0x46b6
 0000000140001fc4:  0f 85 0a fd ff ff                 jne      0x140001cd4
 0000000140001fca:  48 89 d9                          mov      rcx, rbx
-0000000140001fcd:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]
-0000000140001fd4:  49 8d 8f b8 01 00 00              lea      rcx, [r15 + 0x1b8]
+0000000140001fcd:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]  ; => CloseHandle
+0000000140001fd4:  49 8d 8f b8 01 00 00              lea      rcx, [r15 + 0x1b8]  ; str="data.bin"
 0000000140001fdb:  ba 00 00 00 80                    mov      edx, 0x80000000
 0000000140001fe0:  45 31 c0                          xor      r8d, r8d
 0000000140001fe3:  45 31 c9                          xor      r9d, r9d
 0000000140001fe6:  c7 44 24 20 03 00 00 00           mov      dword ptr [rsp + 0x20], 3
 0000000140001fee:  48 c7 44 24 28 80 00 00 00        mov      qword ptr [rsp + 0x28], 0x80
 0000000140001ff7:  48 c7 44 24 30 00 00 00 00        mov      qword ptr [rsp + 0x30], 0
-0000000140002000:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]
+0000000140002000:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]  ; => CreateFileA path="data.bin"
 0000000140002007:  48 83 f8 ff                       cmp      rax, -1
 000000014000200b:  0f 84 c3 fc ff ff                 je       0x140001cd4
 0000000140002011:  48 89 c3                          mov      rbx, rax
@@ -826,13 +855,13 @@
 000000014000201f:  4c 8d 4c 24 40                    lea      r9, [rsp + 0x40]
 0000000140002024:  48 c7 44 24 20 00 00 00 00        mov      qword ptr [rsp + 0x20], 0
 000000014000202d:  48 89 d9                          mov      rcx, rbx
-0000000140002030:  41 ff 97 10 00 00 00              call     qword ptr [r15 + 0x10]
+0000000140002030:  41 ff 97 10 00 00 00              call     qword ptr [r15 + 0x10]  ; => ReadFile
 0000000140002037:  85 c0                             test     eax, eax
 0000000140002039:  0f 84 95 fc ff ff                 je       0x140001cd4
 000000014000203f:  81 7c 24 40 70 a6 00 00           cmp      dword ptr [rsp + 0x40], 0xa670
 0000000140002047:  0f 85 87 fc ff ff                 jne      0x140001cd4
 000000014000204d:  48 89 d9                          mov      rcx, rbx
-0000000140002050:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]
+0000000140002050:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]  ; => CloseHandle
 0000000140002057:  48 8b 7c 24 58                    mov      rdi, qword ptr [rsp + 0x58]
 000000014000205c:  31 c0                             xor      eax, eax
 000000014000205e:  b9 00 cc 03 00                    mov      ecx, 0x3cc00

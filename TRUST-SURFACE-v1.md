@@ -17,10 +17,10 @@
 
 stub `.text` / 消 A1 / 空盘 → 已到或禁。
 
-## 人眼（HUMANAUDIT）
+## 人/AI 抽查（HUMANAUDIT）
 
-冷启 stub：`scripts/fixtures/audit-stub/AUDIT-STUB.md`（结构+窗+导入+text_raw）。  
-bins 不在人眼极致内。
+优先 `scripts/fixtures/audit-stub/STUB.WALKTHROUGH.md`（非生肉汇编）。  
+bins 仍非「读完」对象。
 
 ## 下一刀
 

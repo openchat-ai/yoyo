@@ -16,8 +16,16 @@ if ($LASTEXITCODE -ne 0) { Write-Host "HUMANAUDIT status=RED reason=gen"; exit 1
 
 & python (Join-Path $Root "scripts\gen-stub-disasm.py")
 if ($LASTEXITCODE -ne 0) { Write-Host "HUMANAUDIT status=RED reason=disasm"; exit 1 }
-if (-not (Test-Path (Join-Path $Root "scripts\fixtures\audit-stub\STUB.disasm.txt"))) {
-  Write-Host "HUMANAUDIT status=RED reason=missing_disasm"
+foreach ($f in @('STUB.disasm.txt','STUB.WALKTHROUGH.md')) {
+  if (-not (Test-Path (Join-Path $Root "scripts\fixtures\audit-stub\$f"))) {
+    Write-Host "HUMANAUDIT status=RED reason=missing_$f"
+    exit 1
+  }
+}
+# Fail-closed: walkthrough must not list FLAG opens
+$walk = Get-Content (Join-Path $Root "scripts\fixtures\audit-stub\STUB.WALKTHROUGH.md") -Raw
+if ($walk -match '\|\s+\*\*FLAG\*\*\s+\|') {
+  Write-Host "HUMANAUDIT status=RED reason=createfile_path_FLAG"
   exit 1
 }
 

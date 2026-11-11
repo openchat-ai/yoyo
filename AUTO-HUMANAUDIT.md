@@ -1,28 +1,27 @@
-# AUTO-HUMANAUDIT — 人眼审核支撑推到工程极致
+# AUTO-HUMANAUDIT — 人/AI 可抽查审核包
 
-> 用户（2026-11-11）：**往人类肉眼审核方向，做到极致**。≠ Thompson。
+> 生肉反汇编不可审完；本轨交付 **走读 + 标注反汇编**。≠ Thompson。
 
 ```
 ACTIVE=0
 COMPLETED=1
 PARENT=TRUST-SURFACE-v1.md
-NORTH_STAR=AUDIT-STUB 包 ≡ pin；stage-humanaudit GREEN
+NORTH_STAR=STUB.WALKTHROUGH + 标注 disasm；CreateFile 路径全解析且允许名单
 STOP_ONLY=停 | ACTIVE=0 | COMPLETED=1
 ```
 
-## 队列
+## 产物
 
-| ID | 项 | 状态 |
-| --- | --- | --- |
-| **H1** | `scripts/fixtures/audit-stub/` 人审包 | **绿** |
-| **H2** | `stage-humanaudit` GREEN | **绿** |
+| 文件 | 用途 |
+| --- | --- |
+| `scripts/fixtures/audit-stub/STUB.WALKTHROUGH.md` | **优先**：API 表、CreateFile 路径、红旗 |
+| `scripts/fixtures/audit-stub/STUB.disasm.txt` | `; => API` / `==========` / `DATA` 标注 |
+| `stage-humanaudit.ps1` | pin + 再生 + CreateFile FLAG fail-closed |
 
-## 人眼极致（诚实）
+## 诚实
 
-- **已交付**：stub 头/IAT hex、导入表、`.text` raw、勾选清单、与 pin 对齐  
-- **人仍要做**：把 `text_raw.bin` 送进反汇编器读 place 逻辑（工时）  
-- **做不到**：bins ~60KB「人眼极致审完」；证明无后门  
+- 抽查面变小 ≠ 人/AI 读穿逻辑证明无后门  
 
 ---
 
-*2026-11-11 · COMPLETED*
+*2026-11-12 · annotated walkthrough*

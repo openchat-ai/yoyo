@@ -215,13 +215,11 @@ ${hexdump(hdr, 0)}
 ${hexdump(iat, L.data.raw)}
 \`\`\`
 
-## 6. 反汇编（已导出，无需 llvm-objdump）
+## 6. 反汇编（先走读，别啃生肉）
 
-- **\`STUB.disasm.txt\`** — Capstone intel（\`python scripts/gen-stub-disasm.py\`）  
-- 完整 PE SoT：\`../yoyo_place_stub.exe\`  
-- \`text_raw.bin\` / \`hdr_0x200.bin\` / \`iat_0x100.bin\`
-
-人审焦点：**入口 → try_place_bins 读 code.bin/data.bin → 写 PE → 写 output.exe**；不应出现 LoadLibrary/额外 DLL。
+- **\`STUB.WALKTHROUGH.md\`** — **优先读**：API 表、CreateFile 路径、红旗  
+- **\`STUB.disasm.txt\`** — 已标注 \`; => API\` / \`; ==========\` / \`; DATA\`（\`python scripts/gen-stub-disasm.py\`）  
+- 完整 PE：\`../yoyo_place_stub.exe\`；\`text_raw.bin\` / hdr / iat 窗
 
 ## 7. 人审勾选清单
 
