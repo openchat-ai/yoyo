@@ -45,8 +45,10 @@ for (const line of fs.readFileSync(pinPath, 'utf8').split(/\r?\n/)) {
 }
 if (pin.tyb_sha256 !== sha) fail('tyb_sha_DIFF');
 if (pin.src_kind !== 'yoyo_ty_not_yoyc') fail('src_kind_pin');
+if (pin.parse1_sem_slices && pin.parse1_sem_slices !== '14') fail('slices_not_14');
 
 console.log('SEMOPS_SRC src_kind=yoyo_ty_not_yoyc');
 console.log('SEMOPS_SRC tyb_sha256_prefix=' + sha.slice(0, 16));
+if (pin.parse1_sem_slices) console.log('SEMOPS_SRC parse1_sem_slices=' + pin.parse1_sem_slices);
 console.log('SEMOPS_SRC status=GREEN');
 process.exit(0);

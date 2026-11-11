@@ -1,9 +1,9 @@
 'use strict';
 /**
- * AUTO-SEMOPS: emit yoyo-semops-compiler.ty / .tyb
+ * AUTO-SEMOPS / AUTO-SEMFULL: emit yoyo-semops-compiler.ty / .tyb
  *
- * YOYO H_00 (A1 x64): read input.tyb → classify batch1 ops → write 1024B PE
- * whose .text@0x200 holds the locked expect bytes (content-aware, not blind C3).
+ * YOYO H_00 (A1 x64): read input.tyb → classify parse1 emit ops (14 slices) →
+ * write 1024B PE whose .text@0x200 holds locked expect bytes.
  *
  * Not YOYC hex-unload of stock C1. Not Thompson.
  */
@@ -14,13 +14,35 @@ const crypto = require('crypto');
 const root = path.join(__dirname, '..', '..');
 const projects = path.join(root, 'yoyo', 'projects');
 
-const EXP = {
-  Ret: Buffer.from('c3', 'hex'),
-  Nop: Buffer.from('90c3', 'hex'),
-  Sub: Buffer.from('498b87800200004883e80349898780020000c3', 'hex'),
-  Add: Buffer.from('498b87800200004883c00349898780020000c3', 'hex'),
-  Get: Buffer.from('498b878802000049898780020000c3', 'hex'),
-};
+function loadExp(name) {
+  return Buffer.from(
+    fs
+      .readFileSync(path.join(projects, 'yoyo-sem-' + name + '.expect.hex'), 'utf8')
+      .trim()
+      .replace(/\s+/g, ''),
+    'hex',
+  );
+}
+
+// opcode byte → slice name (locked tyb first-byte). ret = default / FF-only.
+const OP_SLICES = [
+  { op: 0x00, name: 'nop' },
+  { op: 0x30, name: 'set' },
+  { op: 0x60, name: 'get' },
+  { op: 0x61, name: 'sub' },
+  { op: 0x62, name: 'add' },
+  { op: 0x63, name: 'imul' },
+  { op: 0x64, name: 'mov' },
+  { op: 0x65, name: 'cmp' },
+  { op: 0x66, name: 'inc' },
+  { op: 0x67, name: 'dec' },
+  { op: 0x68, name: 'addv' },
+  { op: 0x69, name: 'orv' },
+  { op: 0x6a, name: 'subv' },
+];
+
+const EXP = { ret: loadExp('ret') };
+for (const s of OP_SLICES) EXP[s.name] = loadExp(s.name);
 
 function u32(n) {
   return [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255];
@@ -87,9 +109,9 @@ function buildCode() {
   emit(0x48, 0x89, 0xd9);
   emit(0x41, 0xff, 0x97, ...u32(0x20)); // CloseHandle
 
-  // default expect = Ret
-  leaRipR14('expRet');
-  emit(0x41, 0xbd, ...u32(EXP.Ret.length)); // r13d=len
+  // default expect = ret
+  leaRipR14('exp_ret');
+  emit(0x41, 0xbd, ...u32(EXP.ret.length)); // r13d=len
 
   // classify TYB at [rsp+0x50]
   emit(0x48, 0x8d, 0x74, 0x24, 0x50); // rsi=buf
@@ -102,28 +124,21 @@ function buildCode() {
   emit(0x66, 0x85, 0xc9); // test cx,cx
   jcc(0x84, 'mkpe');
   emit(0x8a, 0x06); // al=[rsi]
-  emit(0x3c, 0x00);
-  jcc(0x84, 'useNop');
-  emit(0x3c, 0x62);
-  jcc(0x84, 'useAdd');
-  emit(0x3c, 0x61);
-  jcc(0x84, 'useSub');
-  emit(0x3c, 0x60);
-  jcc(0x84, 'useGet');
+  for (const s of OP_SLICES) {
+    emit(0x3c, s.op);
+    jcc(0x84, 'use_' + s.name);
+  }
   emit(0x48, 0x83, 0xc6, 0x08);
   emit(0xff, 0xc9); // dec ecx
   jmp('scan');
 
-  const use = (lab, expLab, len) => {
-    mark(lab);
-    leaRipR14(expLab);
-    emit(0x41, 0xbd, ...u32(len));
+  const use = (name) => {
+    mark('use_' + name);
+    leaRipR14('exp_' + name);
+    emit(0x41, 0xbd, ...u32(EXP[name].length));
     jmp('mkpe');
   };
-  use('useNop', 'expNop', EXP.Nop.length);
-  use('useAdd', 'expAdd', EXP.Add.length);
-  use('useSub', 'expSub', EXP.Sub.length);
-  use('useGet', 'expGet', EXP.Get.length);
+  for (const s of OP_SLICES) use(s.name);
 
   // --- VirtualAlloc + PE template (OPENLOOP compact layout) ---
   mark('mkpe');
@@ -233,11 +248,8 @@ function buildCode() {
   };
   addStr('strIn', 'input.tyb');
   addStr('strOut', 'output.exe');
-  addBuf('expRet', EXP.Ret);
-  addBuf('expNop', EXP.Nop);
-  addBuf('expAdd', EXP.Add);
-  addBuf('expSub', EXP.Sub);
-  addBuf('expGet', EXP.Get);
+  addBuf('exp_ret', EXP.ret);
+  for (const s of OP_SLICES) addBuf('exp_' + s.name, EXP[s.name]);
 
   const code = Buffer.from(parts);
   for (const f of fixRel32) {
@@ -285,8 +297,8 @@ function packTyb(code) {
 
 function emitTy(code) {
   const lines = [
-    '; yoyo-semops-compiler — AUTO-SEMOPS',
-    '; YOYO source: content-aware batch1 (+compact-ret) compiler.',
+    '; yoyo-semops-compiler — AUTO-SEMOPS / AUTO-SEMFULL',
+    '; YOYO source: content-aware parse1 emit (14 slices) compiler.',
     '; NOT YOYC hex dump of stock C1. Not Thompson.',
     '40 0',
   ];
@@ -318,7 +330,7 @@ function main() {
   const sha = crypto.createHash('sha256').update(tyb).digest('hex');
   const pinDir = path.join(root, 'yoyo-js', 'src', 'platform', 'yoyo-compiler-payload');
   const pin =
-    '# AUTO-SEMOPS pin — yoyo-semops-compiler.tyb\n' +
+    '# AUTO-SEMOPS / AUTO-SEMFULL pin — yoyo-semops-compiler.tyb\n' +
     'tyb_sha256=' +
     sha +
     '\n' +
@@ -326,12 +338,14 @@ function main() {
     tyb.length +
     '\n' +
     'src_kind=yoyo_ty_not_yoyc\n' +
-    'yoyc_role=stock_residual\n';
+    'yoyc_role=stock_residual\n' +
+    'parse1_sem_slices=14\n';
   fs.writeFileSync(path.join(pinDir, 'semops.pin'), pin);
   console.log('SEMOPS code_bytes=' + code.length);
   console.log('SEMOPS ty_bytes=' + Buffer.byteLength(ty));
   console.log('SEMOPS tyb_bytes=' + tyb.length + ' sha256_prefix=' + sha.slice(0, 16));
   console.log('SEMOPS src_kind=yoyo_ty_not_yoyc');
+  console.log('SEMOPS parse1_sem_slices=14');
   console.log('SEMOPS emit=GREEN');
 }
 
