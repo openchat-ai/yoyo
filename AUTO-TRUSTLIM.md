@@ -4,8 +4,8 @@
 > 判据：`TRUST-SURFACE-v1.md`。禁空盘/Stage17/Thompson 宣称。
 
 ```
-ACTIVE=1
-COMPLETED=0
+ACTIVE=0
+COMPLETED=1
 PARENT=TRUST-SURFACE-v1.md
 NORTH_STAR=stub面到工程极限；冷启观测上投毒必RED
 STOP_ONLY=停 | ACTIVE=0 | hard-block双极限 | COMPLETED=1
@@ -15,17 +15,21 @@ STOP_ONLY=停 | ACTIVE=0 | hard-block双极限 | COMPLETED=1
 
 | ID | 轨 | 项 | 状态 |
 | --- | --- | --- | --- |
-| **L0** | 探测 | stub code 最小 place 长度 | 5876=唯一绿（5875红） |
-| **P1** | 检测 | STUBPOISON：毒 stub→pin/DDC 必 RED | 待 |
-| **S1** | 少信 | STUBMIN：门禁钉死 min code_place=5876 | 待 |
-| **P2** | 检测 | PLACEPIN：stub×bins→C1 sha pin | 待 |
-| **L9** | 结算 | 双极限到齐 → COMPLETED | 待 |
+| **L0** | 探测 | stub code 最小 place 长度 | **5876唯一绿** |
+| **P1** | 检测 | STUBPOISON | **绿** `47acc46` |
+| **S1** | 少信 | STUBMIN | **绿** `1e90bce` |
+| **P2** | 检测 | PLACEPIN | **绿** `c795d8c` |
+| **P3** | 检测 | BINSPOISON | **绿** |
+| **L9** | 结算 | 双极限到齐 | **绿** |
 
-## 极限定义（到了才停）
+## 极限判定（停）
 
-- **少信**：place 所需 stub `.text` 不可再短；PE 几何不可再靠 floor 缩小；stub/A1/内容pin 不可空盘消除  
-- **检测**：冷启 linker + place 产物在既定观测下毒必 RED；共谋/观测外仍不可抓  
+| 轨 | 到了吗 | 证据 |
+| --- | --- | --- |
+| **少信（stub `.text`）** | **是** | STUBMIN：再短 1B place 红；data floor 不缩 PE |
+| **检测（冷启观测）** | **是** | linker DDC + stub毒 + place产物pin + bins毒 → 皆必 RED |
+| **仍 hard-block** | stub 存在本身 · 内容 pin 体量 · Win32/PE A1 · 共谋/观测外 | 再下=空盘/宣称证明（禁） |
 
 ---
 
-*ACTIVE=1*
+*2026-11-11 · COMPLETED · ≠ Thompson*
