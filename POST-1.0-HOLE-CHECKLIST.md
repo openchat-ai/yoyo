@@ -21,7 +21,7 @@
 | **自举** | ✅ 主路径有限自举成立（parse1 / CreateProcess-compiler · Gate I 类） |
 | **打破后门（检测）** | ✅ DDC+Lock + 自举窗可用；⚠️ 仍是 detection，不是证明 |
 | **path 2 长杆** | ✅ OW-RT CLOSED @ S3.738（human A）— 自举运行信任面收了一大截 |
-| **状态** | 字面轴封口；**SEMREPRO**：Y1PL 语义自举（非 copy_self）· 残=写后AV+copy_self兜底+place_stub+A1 · ≠ Thompson |
+| **状态** | 字面轴封口；**NOCOPY**：copy_self 废除 · **hard-block**=place_stub + Win32/PE A1 · ≠ Thompson |
 
 ## 次要账本（非本源 · 可冻结）
 
@@ -38,10 +38,10 @@
 
 ### 要「真正全自动」加深时
 
-**边界加深**：SEMREPRO / SEMPLACE / SEMFRAG / SEMOLP / SEMLARGE / SEMGEOM / SEMBED / SEMHOST / SEMFULL / SEMOPS / SEMTXT / SEMSRC / SEMNATIVE / SEMCOMP 已 COMPLETED（勿回改）。  
-父轨 COMPLETED（勿回改）：SEMREPRO / SEMPLACE / SEMFRAG / SEMOLP / SEMLARGE / SEMGEOM / SEMBED / SEMHOST / SEMFULL / SEMOPS / SEMTXT / SEMSRC / SEMNATIVE / SEMCOMP / ONESELF / TYBSELF / SEMSELF / SELFHOST / FIXEDPOINT / REAL / HB-FX。  
+**边界加深**：NOCOPY / SEMAV / SEMREPRO / SEMPLACE / SEMFRAG / SEMOLP / SEMLARGE / SEMGEOM / SEMBED / SEMHOST / SEMFULL / SEMOPS / SEMTXT / SEMSRC / SEMNATIVE / SEMCOMP 已 COMPLETED（勿回改）。  
+父轨 COMPLETED（勿回改）：NOCOPY / SEMAV / SEMREPRO / SEMPLACE / SEMFRAG / SEMOLP / SEMLARGE / SEMGEOM / SEMBED / SEMHOST / SEMFULL / SEMOPS / SEMTXT / SEMSRC / SEMNATIVE / SEMCOMP / ONESELF / TYBSELF / SEMSELF / SELFHOST / FIXEDPOINT / REAL / HB-FX。  
 禁止 invent Stage 17；≠ 空盘创世 / Thompson。  
-诚实：SEMREPRO = live Y1PL→body 语义 try_place（毒化名证明≠copy_self）；残=写后 AV + 非Y1PL 仍 copy_self + place_stub + Win32/PE A1；≠ Thompson。  
+诚实：NOCOPY = live 无 copy_self，大输入仅 Y1PL 语义 try_place；**hard-block**=place_stub 冷启动根 + Win32/PE A1（再缩=Stage17/空盘，禁）；≠ Thompson。  
 SEMTXT = stock 原生读 YOYC `.ty` 写出自己；门上跑通无 Node assemble；编码仍 hex bins；≠ Thompson。
 
 ## 验收（本源）

@@ -2,11 +2,11 @@
 # Full compiler PE is derived: stub × bins → place.
 # ≠ Thompson.
 name=yoyo_place_stub.exe
-bytes=15872
-sha256=983251efc08a197558ddd5deef0be50486e5c9673150858e726b3c130dad3e1e
-sha256_prefix=983251efc08a1975
+bytes=15360
+sha256=0ba3f4d2b9090a135c08efc2eda74a446a3ee9e4d377d705b64ebc209812ece5
+sha256_prefix=0ba3f4d2b9090a13
 path=scripts/fixtures/yoyo_place_stub.exe
-code_trunc=6169
+code_trunc=5876
 data_prefix=2048
 disposition=BOOTSTRAP_FIXTURE
 trust_root=place_stub

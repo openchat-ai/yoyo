@@ -234,3 +234,5 @@ function main() {
   console.log('SEMREPRO semcomp_tyb_sha256_prefix=' + tsha.slice(0, 16));
   console.log('SEMREPRO status=GREEN');
 }
+
+main();
