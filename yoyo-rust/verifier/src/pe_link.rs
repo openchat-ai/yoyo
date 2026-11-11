@@ -225,9 +225,26 @@ pub fn link_pe_win32_compact(
     data: &[u8],
     handler_offsets: &[(u16, u32, u32)],
 ) -> IsaResult<PeImage> {
+    // Compact floor: IAT reserve + small pad (not OUTPUT_DATA_NEED=0x38000).
+    const COMPACT_DATA_FLOOR: u32 = 0x1000;
+    link_pe_win32_with_data_floor(code, data, handler_offsets, COMPACT_DATA_FLOOR)
+}
+
+/// Place-stub floor — matches `yoyo-js/scripts/build-place-stub.js` `DATA_NEED=0x2000`.
+pub const PLACE_STUB_DATA_FLOOR: u32 = 0x2000;
+
+/// Win32 link with explicit `.data` floor (JS `linkPeWin32(..., dataNeed)` peer).
+/// Refuses H_00 handler sets. Used by STUBDDC: same trunc bins → rust≡js stub.
+pub fn link_pe_win32_with_data_floor(
+    code: &[u8],
+    data: &[u8],
+    handler_offsets: &[(u16, u32, u32)],
+    data_floor: u32,
+) -> IsaResult<PeImage> {
     if should_h00_selfhost(handler_offsets) {
         return Err(crate::types::IsaError::PlatformError {
-            msg: "link_pe_win32_compact: H_00 handlers unsupported (use link_pe_win32)".into(),
+            msg: "link_pe_win32_with_data_floor: H_00 handlers unsupported (use link_pe_win32)"
+                .into(),
         });
     }
     let section_align: u32 = 0x1000;
@@ -236,8 +253,6 @@ pub fn link_pe_win32_compact(
     let text_vs = align_up(est_text, section_align);
     let data_rva = text_rva + text_vs;
     let (extended, import_dir_rva, import_dir_size) = prepend_win32_io_iat(data, data_rva);
-    // Compact floor: IAT reserve + small pad (not OUTPUT_DATA_NEED=0x38000).
-    const COMPACT_DATA_FLOOR: u32 = 0x1000;
     link_pe_impl(
         code,
         &extended,
@@ -245,8 +260,13 @@ pub fn link_pe_win32_compact(
         import_dir_rva,
         import_dir_size,
         None,
-        COMPACT_DATA_FLOOR,
+        data_floor,
     )
+}
+
+/// Link place-stub PE from truncated place-half bins (peer of JS build-place-stub).
+pub fn link_place_stub(code_place: &[u8], data_prefix: &[u8]) -> IsaResult<PeImage> {
+    link_pe_win32_with_data_floor(code_place, data_prefix, &[], PLACE_STUB_DATA_FLOOR)
 }
 
 fn should_h00_selfhost(handler_offsets: &[(u16, u32, u32)]) -> bool {
@@ -847,5 +867,33 @@ mod tests {
             0,
             "seed PE must not set DYNAMIC_BASE/HIGH_ENTROPY_VA without .reloc"
         );
+    }
+
+    /// STUBDDC: Rust place-stub linker ≡ checked-in JS-built fixture (detection on cold-start PE).
+    #[test]
+    fn place_stub_rust_matches_js_fixture() {
+        use std::path::PathBuf;
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let payload = root.join("yoyo-js/src/platform/yoyo-compiler-payload");
+        let pin = std::fs::read_to_string(payload.join("payload.pin")).expect("payload.pin");
+        let mut off = 4491usize;
+        for l in pin.lines() {
+            if let Some(v) = l.strip_prefix("code_place_bytes=") {
+                off = v.trim().parse().expect("code_place_bytes");
+            }
+        }
+        let code = std::fs::read(payload.join("code.bin")).expect("code.bin");
+        let data = std::fs::read(payload.join("data.bin")).expect("data.bin");
+        assert!(code.len() >= off && data.len() >= 0x800);
+        let pe = link_place_stub(&code[..off], &data[..0x800]).expect("link_place_stub");
+        let fx = std::fs::read(root.join("scripts/fixtures/yoyo_place_stub.exe")).expect("fixture");
+        assert_eq!(
+            pe.bytes.len(),
+            fx.len(),
+            "STUBDDC len rust={} fx={}",
+            pe.bytes.len(),
+            fx.len()
+        );
+        assert_eq!(pe.bytes, fx, "STUBDDC rust stub DIFF js fixture");
     }
 }

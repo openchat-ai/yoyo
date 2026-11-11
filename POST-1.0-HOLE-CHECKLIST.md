@@ -22,6 +22,8 @@
 | **打破后门（检测）** | ✅ DDC+Lock + 自举窗可用；⚠️ 仍是 detection，不是证明 |
 | **path 2 长杆** | ✅ OW-RT CLOSED @ S3.738（human A）— 自举运行信任面收了一大截 |
 | **状态** | 字面轴封口；**NOCOPY**：copy_self 废除 · **hard-block**=place_stub + Win32/PE A1 · ≠ Thompson |
+| **信任面结算** | 见 `TRUST-SURFACE-v1.md`（stub=活冷启根；三链=检测；双极限；≠ Thompson） |
+| **STUBDDC** | ✅ JS≡Rust≡pin 冷启 stub linker 检测（`AUTO-STUBDDC.md`）· 仍 ≠ 消 stub / Thompson |
 
 ## 次要账本（非本源 · 可冻结）
 
