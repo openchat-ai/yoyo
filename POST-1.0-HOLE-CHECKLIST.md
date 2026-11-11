@@ -21,7 +21,7 @@
 | **自举** | ✅ 主路径有限自举成立（parse1 / CreateProcess-compiler · Gate I 类） |
 | **打破后门（检测）** | ✅ DDC+Lock + 自举窗可用；⚠️ 仍是 detection，不是证明 |
 | **path 2 长杆** | ✅ OW-RT CLOSED @ S3.738（human A）— 自举运行信任面收了一大截 |
-| **状态** | 字面轴封口；**SEMGEOM**：place 几何对齐完整 code.bin · 残=大输入默认 ret-PE+Win32 A1 · ≠ Thompson |
+| **状态** | 字面轴封口；**SEMLARGE**：大输入 copy_self + 十四切片 + 几何对齐 · 残=Node 烙前缀+Win32 A1 · ≠ Thompson |
 
 ## 次要账本（非本源 · 可冻结）
 
@@ -38,10 +38,10 @@
 
 ### 要「真正全自动」加深时
 
-**边界加深**：SEMGEOM / SEMBED / SEMHOST / SEMFULL / SEMOPS / SEMTXT / SEMSRC / SEMNATIVE / SEMCOMP 已 COMPLETED（勿回改）。  
-父轨 COMPLETED（勿回改）：SEMGEOM / SEMBED / SEMHOST / SEMFULL / SEMOPS / SEMTXT / SEMSRC / SEMNATIVE / SEMCOMP / ONESELF / TYBSELF / SEMSELF / SELFHOST / FIXEDPOINT / REAL / HB-FX。  
+**边界加深**：SEMLARGE / SEMGEOM / SEMBED / SEMHOST / SEMFULL / SEMOPS / SEMTXT / SEMSRC / SEMNATIVE / SEMCOMP 已 COMPLETED（勿回改）。  
+父轨 COMPLETED（勿回改）：SEMLARGE / SEMGEOM / SEMBED / SEMHOST / SEMFULL / SEMOPS / SEMTXT / SEMSRC / SEMNATIVE / SEMCOMP / ONESELF / TYBSELF / SEMSELF / SELFHOST / FIXEDPOINT / REAL / HB-FX。  
 禁止 invent Stage 17；≠ 空盘创世 / Thompson。  
-诚实：SEMGEOM = place PE 几何对齐完整 `code.bin`；SEMBED 十四切片⊂；残=大输入默认 ret-PE + Win32/PE A1；≠ Thompson。  
+诚实：SEMLARGE = 大输入 copy_self + 十四切片 + place 几何对齐；残=入口前缀仍 Node bake + Win32/PE A1；≠ Thompson。  
 SEMTXT = stock 原生读 YOYC `.ty` 写出自己；门上跑通无 Node assemble；编码仍 hex bins；≠ Thompson。
 
 ## 验收（本源）
