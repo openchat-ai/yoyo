@@ -1,0 +1,13 @@
+# AUTO-TRUSTLIM4 slice pin. Detection only. ≠ Thompson.
+name=yoyo_compiler.exe
+role=place_product_c1
+bytes=248832
+entry_rva=4096
+data_raw=19456
+hdr_window=0x200
+hdr_sha256=f8d8a4d5c6e9be32187e5899a9d81c477d9ce287984b789eb2d0625d6b30743a
+hdr_sha256_prefix=f8d8a4d5c6e9be32
+iat_window=0x100
+iat_sha256=64b05df8f8219dc68a082f9255dd99fa7d684fa71a3611ee296e7d870c1b2383
+iat_sha256_prefix=64b05df8f8219dc6
+doc=AUTO-TRUSTLIM4.md

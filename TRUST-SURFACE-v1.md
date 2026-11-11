@@ -1,27 +1,26 @@
 # 信任面结算（v1）
 
-> 本源尺子：自举更硬 · 后门**检测**更实 · ≠ Thompson · 禁空盘/Stage17。
+> 自举更硬 · 检测更实 · ≠ Thompson · 禁空盘/Stage17。
 
-## 先验信什么
+## 先验
 
-1. **`place_stub`**（place 半截最短 5876）  
-2. **内容 pin**（plant / bins；体量仍在，检测已钉）  
-3. **Win32/PE A1**（导入集=6，未消除）
+1. `place_stub`（place 半截 5876）  
+2. 内容 pin（plant/bins）  
+3. Win32/PE A1（6 导入，未消）
 
-## 已到极限的层
+## 更好检（已到工程尽头 · TRUSTLIM4）
 
-| 层 | 少信 / 更好检 |
-| --- | --- |
-| 冷启 | STUBMIN · STUBDDC/POISON/PLACEPIN/BINSPOISON |
-| 自再生 | A1PIN · Y1PLPIN |
-| 内容 SoT | PLANTPOISON · DATAPLANT（unpack≡ + 毒必红） |
+全文件 pin + hdr/IAT 结构窗 + plant/data/Y1PL 毒网。  
+再密≈重复；网外=共谋/OS/钉子自身。
 
-再下：消 stub/A1/空盘，或缩编译器本体（另议）= 非本结算小刀。
+## 少信
 
-## 下一刀判据
+stub `.text` / 消 A1 / 空盘 → 已到或禁。
 
-默认停。继续须能答：更少外来，或更实检测；禁空盘。
+## 下一刀
+
+默认停。
 
 ---
 
-*TRUSTLIM…3 COMPLETED · ≠ Thompson*
+*TRUSTLIM…4 COMPLETED · ≠ Thompson*
