@@ -24,7 +24,8 @@
 | **状态** | 字面轴封口；**NOCOPY**：copy_self 废除 · **hard-block**=place_stub + Win32/PE A1 · ≠ Thompson |
 | **信任面结算** | 见 `TRUST-SURFACE-v1.md`（stub=活冷启根；检测≠证明） |
 | **TRUSTLIM** | ✅ 冷启双极限（STUBMIN/POISON/PLACEPIN/BINSPOISON） |
-| **TRUSTLIM2** | ✅ 自再生：Y1PLPIN + A1PIN · hard-block 仍 stub存在+A1存在+内容pin · ≠ Thompson |
+| **TRUSTLIM2** | ✅ 自再生：Y1PLPIN + A1PIN |
+| **TRUSTLIM3** | ✅ 内容 SoT 更好检：PLANTPOISON + DATAPLANT · 体量未缩 · ≠ Thompson |
 
 ## 次要账本（非本源 · 可冻结）
 
