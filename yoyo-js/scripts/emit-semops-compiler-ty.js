@@ -10,39 +10,12 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { OP_SLICES, loadAllExpects } = require('./lib/sem-expect-tables');
 
 const root = path.join(__dirname, '..', '..');
 const projects = path.join(root, 'yoyo', 'projects');
-
-function loadExp(name) {
-  return Buffer.from(
-    fs
-      .readFileSync(path.join(projects, 'yoyo-sem-' + name + '.expect.hex'), 'utf8')
-      .trim()
-      .replace(/\s+/g, ''),
-    'hex',
-  );
-}
-
-// opcode byte → slice name (locked tyb first-byte). ret = default / FF-only.
-const OP_SLICES = [
-  { op: 0x00, name: 'nop' },
-  { op: 0x30, name: 'set' },
-  { op: 0x60, name: 'get' },
-  { op: 0x61, name: 'sub' },
-  { op: 0x62, name: 'add' },
-  { op: 0x63, name: 'imul' },
-  { op: 0x64, name: 'mov' },
-  { op: 0x65, name: 'cmp' },
-  { op: 0x66, name: 'inc' },
-  { op: 0x67, name: 'dec' },
-  { op: 0x68, name: 'addv' },
-  { op: 0x69, name: 'orv' },
-  { op: 0x6a, name: 'subv' },
-];
-
-const EXP = { ret: loadExp('ret') };
-for (const s of OP_SLICES) EXP[s.name] = loadExp(s.name);
+const EXP = loadAllExpects();
+const HOST_A1_MAX = 2048;
 
 function u32(n) {
   return [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255];
@@ -248,6 +221,7 @@ function buildCode() {
   };
   addStr('strIn', 'input.tyb');
   addStr('strOut', 'output.exe');
+  addStr('marker', 'SEMHOST1');
   addBuf('exp_ret', EXP.ret);
   for (const s of OP_SLICES) addBuf('exp_' + s.name, EXP[s.name]);
 
@@ -297,9 +271,9 @@ function packTyb(code) {
 
 function emitTy(code) {
   const lines = [
-    '; yoyo-semops-compiler — AUTO-SEMOPS / AUTO-SEMFULL',
+    '; yoyo-semops-compiler — AUTO-SEMOPS / SEMFULL / SEMHOST',
     '; YOYO source: content-aware parse1 emit (14 slices) compiler.',
-    '; NOT YOYC hex dump of stock C1. Not Thompson.',
+    '; host A1 face pinned (Win32/PE); marker SEMHOST1. Not Thompson.',
     '40 0',
   ];
   let i = 0;
@@ -323,6 +297,7 @@ function emitTy(code) {
 
 function main() {
   const code = buildCode();
+  if (code.length > HOST_A1_MAX) throw new Error('host_a1_face over max ' + code.length);
   const ty = emitTy(code);
   const tyb = packTyb(code);
   fs.writeFileSync(path.join(projects, 'yoyo-semops-compiler.ty'), ty);
@@ -330,7 +305,7 @@ function main() {
   const sha = crypto.createHash('sha256').update(tyb).digest('hex');
   const pinDir = path.join(root, 'yoyo-js', 'src', 'platform', 'yoyo-compiler-payload');
   const pin =
-    '# AUTO-SEMOPS / AUTO-SEMFULL pin — yoyo-semops-compiler.tyb\n' +
+    '# AUTO-SEMOPS / SEMFULL / SEMHOST pin — yoyo-semops-compiler.tyb\n' +
     'tyb_sha256=' +
     sha +
     '\n' +
@@ -339,13 +314,22 @@ function main() {
     '\n' +
     'src_kind=yoyo_ty_not_yoyc\n' +
     'yoyc_role=stock_residual\n' +
-    'parse1_sem_slices=14\n';
+    'parse1_sem_slices=14\n' +
+    'host_a1_face_bytes=' +
+    code.length +
+    '\n' +
+    'host_a1_face_max=' +
+    HOST_A1_MAX +
+    '\n' +
+    'host_a1_marker=SEMHOST1\n' +
+    'gate_node_emit=ABSENT\n';
   fs.writeFileSync(path.join(pinDir, 'semops.pin'), pin);
   console.log('SEMOPS code_bytes=' + code.length);
   console.log('SEMOPS ty_bytes=' + Buffer.byteLength(ty));
   console.log('SEMOPS tyb_bytes=' + tyb.length + ' sha256_prefix=' + sha.slice(0, 16));
   console.log('SEMOPS src_kind=yoyo_ty_not_yoyc');
   console.log('SEMOPS parse1_sem_slices=14');
+  console.log('SEMOPS host_a1_face=PINNED');
   console.log('SEMOPS emit=GREEN');
 }
 

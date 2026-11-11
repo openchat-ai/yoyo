@@ -1,6 +1,6 @@
-; yoyo-semops-compiler — AUTO-SEMOPS / AUTO-SEMFULL
+; yoyo-semops-compiler — AUTO-SEMOPS / SEMFULL / SEMHOST
 ; YOYO source: content-aware parse1 emit (14 slices) compiler.
-; NOT YOYC hex dump of stock C1. Not Thompson.
+; host A1 face pinned (Win32/PE); marker SEMHOST1. Not Thompson.
 40 0
   A1 48 81 ec
   A1 88 00 00
@@ -45,7 +45,7 @@
   A1 d9 41 ff
   A1 97 20 00
   A1 00 00 4c
-  A1 8d 35 b9
+  A1 8d 35 c2
   A1 03 00 00
   A1 41 bd 01
   A1 00 00 00
@@ -100,79 +100,79 @@
   A1 ff c9 e9
   A1 82 ff ff
   A1 ff 4c 8d
-  A1 35 16 03
+  A1 35 1f 03
   A1 00 00 41
   A1 bd 02 00
   A1 00 00 e9
   A1 d8 00 00
   A1 00 4c 8d
-  A1 35 06 03
+  A1 35 0f 03
   A1 00 00 41
   A1 bd 12 00
   A1 00 00 e9
   A1 c6 00 00
   A1 00 4c 8d
-  A1 35 06 03
+  A1 35 0f 03
   A1 00 00 41
   A1 bd 0f 00
   A1 00 00 e9
   A1 b4 00 00
   A1 00 4c 8d
-  A1 35 03 03
+  A1 35 0c 03
   A1 00 00 41
   A1 bd 13 00
   A1 00 00 e9
   A1 a2 00 00
   A1 00 4c 8d
-  A1 35 04 03
+  A1 35 0d 03
   A1 00 00 41
   A1 bd 13 00
   A1 00 00 e9
   A1 90 00 00
   A1 00 4c 8d
-  A1 35 05 03
+  A1 35 0e 03
   A1 00 00 41
   A1 bd 1a 00
   A1 00 00 e9
   A1 7e 00 00
   A1 00 4c 8d
-  A1 35 0d 03
+  A1 35 16 03
   A1 00 00 41
   A1 bd 0f 00
   A1 00 00 e9
   A1 6c 00 00
   A1 00 4c 8d
-  A1 35 0a 03
+  A1 35 13 03
   A1 00 00 41
   A1 bd 12 00
   A1 00 00 e9
   A1 5a 00 00
   A1 00 4c 8d
-  A1 35 0a 03
+  A1 35 13 03
   A1 00 00 41
   A1 bd 12 00
   A1 00 00 e9
   A1 48 00 00
   A1 00 4c 8d
-  A1 35 0a 03
+  A1 35 13 03
   A1 00 00 41
   A1 bd 12 00
   A1 00 00 e9
   A1 36 00 00
   A1 00 4c 8d
-  A1 35 0a 03
+  A1 35 13 03
   A1 00 00 41
   A1 bd 19 00
   A1 00 00 e9
   A1 24 00 00
   A1 00 4c 8d
-  A1 35 11 03
+  A1 35 1a 03
   A1 00 00 41
   A1 bd 19 00
   A1 00 00 e9
   A1 12 00 00
   A1 00 4c 8d
-  A1 35 18 03
+  A1 35 21 03
   A1 00 00 41
   A1 bd 19 00
   A1 00 00 e9
@@ -364,7 +364,10 @@
   A1 6f 75 74
   A1 70 75 74
   A1 2e 65 78
-  A1 65 00 c3
+  A1 65 00 53
+  A1 45 4d 48
+  A1 4f 53 54
+  A1 31 00 c3
   A1 90 c3 48
   A1 b8 78 56
   A1 34 12 00

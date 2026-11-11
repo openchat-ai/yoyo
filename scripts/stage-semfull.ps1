@@ -9,9 +9,7 @@ Enable-YoyoUnattendedUiHarden | Out-Null
 
 Write-Host "=== AUTO-SEMFULL E2E (14-slice content-aware compiler) ==="
 
-& node (Join-Path $Root "yoyo-js\scripts\emit-semops-compiler-ty.js")
-if ($LASTEXITCODE -ne 0) { Write-Host "SEMFULL status=RED reason=emit"; exit 1 }
-
+# SoT = pinned ty/tyb (Node emit offline only; SEMHOST gate_node_emit=ABSENT)
 & node (Join-Path $Root "yoyo-js\scripts\verify-semops-src.js")
 if ($LASTEXITCODE -ne 0) { Write-Host "SEMFULL status=RED reason=src_kind"; exit 1 }
 
