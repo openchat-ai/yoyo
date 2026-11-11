@@ -1,0 +1,11 @@
+﻿# Cold-start place product SoT (AUTO-PLACEPIN). stub x bins -> C1.
+# Detection pin for place output. ≠ Thompson.
+name=yoyo_compiler.exe
+bytes=248832
+sha256=13d6c6db090950811a9ec94e5b95f3278405107a6c94be9807e3ff562b0a9928
+sha256_prefix=13d6c6db09095081
+path=derived:place-yoyo-compiler-c1(stub,payload_bins)
+bootstrap=scripts/fixtures/yoyo_place_stub.exe
+trust_root=place_stub
+role=place_product_detection_pin
+doc=AUTO-PLACEPIN.md
