@@ -1,0 +1,5 @@
+# AUTO-SEMOPS pin — yoyo-semops-compiler.tyb
+tyb_sha256=b761c0a43bc53630d56fb775027f73a3e73a9fbcd50905f4c08237c35fbac5a4
+tyb_bytes=2456
+src_kind=yoyo_ty_not_yoyc
+yoyc_role=stock_residual
