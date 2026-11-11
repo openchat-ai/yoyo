@@ -17,15 +17,17 @@
 
 stub `.text` / 消 A1 / 空盘 → 已到或禁。
 
-## 人/AI 抽查（HUMANAUDIT）
+## 人/AI 抽查（HUMANAUDIT → AUDITMAX）
 
-优先 `scripts/fixtures/audit-stub/STUB.WALKTHROUGH.md`（非生肉汇编）。  
-bins 仍非「读完」对象。
+1. **`STUB.AI.md`**（一页 VERDICT）  
+2. `STUB.WALKTHROUGH.md`（时间线 / 分场）  
+3. 带标注的 `STUB.disasm.txt`  
+合同：`STUB.CALLSEQ.pin` + 禁串。bins 仍非「读完」对象。
 
 ## 下一刀
 
-默认停。
+AUDITMAX 绿后停（再密≈重复 / 共谋）。
 
 ---
 
-*TRUSTLIM…4 + HUMANAUDIT COMPLETED · ≠ Thompson*
+*TRUSTLIM…4 + HUMANAUDIT + AUDITMAX · ≠ Thompson*

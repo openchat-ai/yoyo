@@ -16,16 +16,24 @@ if ($LASTEXITCODE -ne 0) { Write-Host "HUMANAUDIT status=RED reason=gen"; exit 1
 
 & python (Join-Path $Root "scripts\gen-stub-disasm.py")
 if ($LASTEXITCODE -ne 0) { Write-Host "HUMANAUDIT status=RED reason=disasm"; exit 1 }
-foreach ($f in @('STUB.disasm.txt','STUB.WALKTHROUGH.md')) {
+# First run may WRITE callseq pin — re-run once so EQUAL is enforced in same gate
+& python (Join-Path $Root "scripts\gen-stub-disasm.py")
+if ($LASTEXITCODE -ne 0) { Write-Host "HUMANAUDIT status=RED reason=disasm_recheck"; exit 1 }
+foreach ($f in @('STUB.disasm.txt','STUB.WALKTHROUGH.md','STUB.AI.md','STUB.CALLSEQ.pin')) {
   if (-not (Test-Path (Join-Path $Root "scripts\fixtures\audit-stub\$f"))) {
     Write-Host "HUMANAUDIT status=RED reason=missing_$f"
     exit 1
   }
 }
-# Fail-closed: walkthrough must not list FLAG opens
+# Fail-closed: walkthrough must not list FLAG opens; AI verdict must be GREEN
 $walk = Get-Content (Join-Path $Root "scripts\fixtures\audit-stub\STUB.WALKTHROUGH.md") -Raw
 if ($walk -match '\|\s+\*\*FLAG\*\*\s+\|') {
   Write-Host "HUMANAUDIT status=RED reason=createfile_path_FLAG"
+  exit 1
+}
+$ai = Get-Content (Join-Path $Root "scripts\fixtures\audit-stub\STUB.AI.md") -Raw
+if ($ai -notmatch '\*\*VERDICT:\s*GREEN\*\*') {
+  Write-Host "HUMANAUDIT status=RED reason=ai_verdict_not_green"
   exit 1
 }
 
