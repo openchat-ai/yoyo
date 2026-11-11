@@ -14,6 +14,13 @@ if ($LASTEXITCODE -ne 0) { Write-Host "HUMANAUDIT status=RED reason=stub_pin"; e
 & node (Join-Path $Root "yoyo-js\scripts\gen-human-audit-stub.js")
 if ($LASTEXITCODE -ne 0) { Write-Host "HUMANAUDIT status=RED reason=gen"; exit 1 }
 
+& python (Join-Path $Root "scripts\gen-stub-disasm.py")
+if ($LASTEXITCODE -ne 0) { Write-Host "HUMANAUDIT status=RED reason=disasm"; exit 1 }
+if (-not (Test-Path (Join-Path $Root "scripts\fixtures\audit-stub\STUB.disasm.txt"))) {
+  Write-Host "HUMANAUDIT status=RED reason=missing_disasm"
+  exit 1
+}
+
 $dir = Join-Path $Root "scripts\fixtures\audit-stub"
 foreach ($f in @('AUDIT-STUB.md','hdr_0x200.bin','iat_0x100.bin','text_raw.bin','MANIFEST.sha256')) {
   if (-not (Test-Path (Join-Path $dir $f))) {

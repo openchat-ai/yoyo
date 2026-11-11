@@ -215,19 +215,11 @@ ${hexdump(hdr, 0)}
 ${hexdump(iat, L.data.raw)}
 \`\`\`
 
-## 6. 离线反汇编入口
+## 6. 反汇编（已导出，无需 llvm-objdump）
 
-本目录文件：
-
-- 完整 PE SoT：\`../yoyo_place_stub.exe\`（pin）
-- \`text_raw.bin\` — \`.text\` 文件内容（送 IDA/Ghidra/llvm-objdump）
-- \`hdr_0x200.bin\` / \`iat_0x100.bin\` — 与切片 pin 对应
-
-建议命令（若本机有工具）：
-
-\`\`\`text
-llvm-objdump -d -M intel ../yoyo_place_stub.exe
-\`\`\`
+- **\`STUB.disasm.txt\`** — Capstone intel（\`python scripts/gen-stub-disasm.py\`）  
+- 完整 PE SoT：\`../yoyo_place_stub.exe\`  
+- \`text_raw.bin\` / \`hdr_0x200.bin\` / \`iat_0x100.bin\`
 
 人审焦点：**入口 → try_place_bins 读 code.bin/data.bin → 写 PE → 写 output.exe**；不应出现 LoadLibrary/额外 DLL。
 
