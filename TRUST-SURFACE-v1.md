@@ -17,10 +17,15 @@
 
 stub `.text` / 消 A1 / 空盘 → 已到或禁。
 
+## 人眼（HUMANAUDIT）
+
+冷启 stub：`scripts/fixtures/audit-stub/AUDIT-STUB.md`（结构+窗+导入+text_raw）。  
+bins 不在人眼极致内。
+
 ## 下一刀
 
 默认停。
 
 ---
 
-*TRUSTLIM…4 COMPLETED · ≠ Thompson*
+*TRUSTLIM…4 + HUMANAUDIT COMPLETED · ≠ Thompson*

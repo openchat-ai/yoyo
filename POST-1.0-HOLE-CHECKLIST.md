@@ -26,7 +26,8 @@
 | **TRUSTLIM** | ✅ 冷启双极限（STUBMIN/POISON/PLACEPIN/BINSPOISON） |
 | **TRUSTLIM2** | ✅ 自再生：Y1PLPIN + A1PIN |
 | **TRUSTLIM3** | ✅ 内容 SoT：PLANTPOISON + DATAPLANT |
-| **TRUSTLIM4** | ✅ 更好检尽头：SLICELOCK hdr+IAT 窗 · 再密≈重复 · ≠ Thompson |
+| **TRUSTLIM4** | ✅ 更好检尽头：SLICELOCK hdr+IAT 窗 |
+| **HUMANAUDIT** | ✅ stub 人审包 `audit-stub/` · bins 非人眼极致 · ≠ Thompson |
 
 ## 次要账本（非本源 · 可冻结）
 
