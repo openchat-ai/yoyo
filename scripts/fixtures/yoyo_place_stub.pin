@@ -3,10 +3,10 @@
 # ≠ Thompson.
 name=yoyo_place_stub.exe
 bytes=15872
-sha256=57327709b934bb88ca11bceae51f07da0c18ed8acb33f874b173dd6130bc4f94
-sha256_prefix=57327709b934bb88
+sha256=622475870db00514daf85875528c6760c48b474f2636d5a48d99be23e6106fd3
+sha256_prefix=622475870db00514
 path=scripts/fixtures/yoyo_place_stub.exe
-code_trunc=6150
+code_trunc=6169
 data_prefix=2048
 disposition=BOOTSTRAP_FIXTURE
 trust_root=place_stub
