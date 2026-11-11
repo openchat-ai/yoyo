@@ -38,10 +38,10 @@
 
 ### 要「真正全自动」加深时
 
-**边界加深**：SEMPLACE / SEMFRAG / SEMOLP / SEMLARGE / SEMGEOM / SEMBED / SEMHOST / SEMFULL / SEMOPS / SEMTXT / SEMSRC / SEMNATIVE / SEMCOMP 已 COMPLETED（勿回改）。  
-父轨 COMPLETED（勿回改）：SEMPLACE / SEMFRAG / SEMOLP / SEMLARGE / SEMGEOM / SEMBED / SEMHOST / SEMFULL / SEMOPS / SEMTXT / SEMSRC / SEMNATIVE / SEMCOMP / ONESELF / TYBSELF / SEMSELF / SELFHOST / FIXEDPOINT / REAL / HB-FX。  
+**边界加深**：SEMREPRO / SEMPLACE / SEMFRAG / SEMOLP / SEMLARGE / SEMGEOM / SEMBED / SEMHOST / SEMFULL / SEMOPS / SEMTXT / SEMSRC / SEMNATIVE / SEMCOMP 已 COMPLETED（勿回改）。  
+父轨 COMPLETED（勿回改）：SEMREPRO / SEMPLACE / SEMFRAG / SEMOLP / SEMLARGE / SEMGEOM / SEMBED / SEMHOST / SEMFULL / SEMOPS / SEMTXT / SEMSRC / SEMNATIVE / SEMCOMP / ONESELF / TYBSELF / SEMSELF / SELFHOST / FIXEDPOINT / REAL / HB-FX。  
 禁止 invent Stage 17；≠ 空盘创世 / Thompson。  
-诚实：SEMPLACE = live 前缀核+place_mode 皆 OPENLOOP/YOYO fragment.ty；十四切片+large copy_self+geom⊂；**hard-block**=Win32/PE A1（SEMHOST 钉死，再缩=Stage17/空盘，禁）；≠ Thompson。  
+诚实：SEMREPRO = live Y1PL→body 语义 try_place（毒化名证明≠copy_self）；残=写后 AV + 非Y1PL 仍 copy_self + place_stub + Win32/PE A1；≠ Thompson。  
 SEMTXT = stock 原生读 YOYC `.ty` 写出自己；门上跑通无 Node assemble；编码仍 hex bins；≠ Thompson。
 
 ## 验收（本源）
