@@ -14,10 +14,15 @@ const root = path.join(__dirname, '..', '..');
 const payload = path.join(__dirname, '..', 'src', 'platform', 'yoyo-compiler-payload');
 const outDir = path.join(root, 'scripts', 'fixtures');
 
-// parse1 label offset from last native emit (prefix includes place/emit).
-const PARSE1_OFF = 4491;
 const DATA_PREFIX = 0x800;
 const DATA_NEED = 0x2000;
+
+const pinPath = path.join(payload, 'payload.pin');
+let PARSE1_OFF = 4491;
+for (const line of fs.readFileSync(pinPath, 'utf8').split(/\r?\n/)) {
+  const m = line.match(/^\s*code_place_bytes=(\d+)\s*$/);
+  if (m) PARSE1_OFF = parseInt(m[1], 10);
+}
 
 const codeFull = fs.readFileSync(path.join(payload, 'code.bin'));
 const dataFull = fs.readFileSync(path.join(payload, 'data.bin'));

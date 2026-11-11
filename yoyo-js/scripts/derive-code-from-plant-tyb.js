@@ -12,7 +12,14 @@ const crypto = require('crypto');
 const root = path.join(__dirname, '..', '..');
 const placeTyb = path.join(root, 'yoyo', 'projects', 'yoyo-plant-place.tyb');
 const parse1Tyb = path.join(root, 'yoyo', 'projects', 'yoyo-plant-parse1.tyb');
-const PARSE1_OFF = 4491;
+const pinPath = path.join(
+  root,
+  'yoyo-js',
+  'src',
+  'platform',
+  'yoyo-compiler-payload',
+  'payload.pin',
+);
 
 function unpackPlantTyb(buf) {
   if (buf.length < 8 || buf.toString('ascii', 0, 3) !== 'TYB') {
@@ -42,8 +49,15 @@ function unpackPlantTyb(buf) {
 function main() {
   const place = unpackPlantTyb(fs.readFileSync(placeTyb));
   const parse1 = unpackPlantTyb(fs.readFileSync(parse1Tyb));
-  if (place.length !== PARSE1_OFF) {
-    console.log(`DERIVE status=RED reason=place_len got=${place.length}`);
+  let wantPlace = 0;
+  if (fs.existsSync(pinPath)) {
+    for (const line of fs.readFileSync(pinPath, 'utf8').split(/\r?\n/)) {
+      const m = line.match(/^\s*code_place_bytes=(\d+)\s*$/);
+      if (m) wantPlace = parseInt(m[1], 10);
+    }
+  }
+  if (wantPlace > 0 && place.length !== wantPlace) {
+    console.log(`DERIVE status=RED reason=place_len got=${place.length} want=${wantPlace}`);
     process.exit(1);
   }
   const code = Buffer.concat([place, parse1]);

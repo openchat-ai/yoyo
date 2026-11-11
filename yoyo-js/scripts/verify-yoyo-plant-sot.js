@@ -13,7 +13,6 @@ const placeTyb = path.join(root, 'yoyo', 'projects', 'yoyo-plant-place.tyb');
 const parse1Tyb = path.join(root, 'yoyo', 'projects', 'yoyo-plant-parse1.tyb');
 const fullTyb = path.join(root, 'yoyo', 'projects', 'yoyo-plant.tyb');
 const pinPath = path.join(payload, 'payload.pin');
-const PARSE1_OFF = 4491;
 
 function readPin(p) {
   const o = Object.create(null);
@@ -72,8 +71,11 @@ function main() {
   console.log(`Y14 full_tyb_bytes=${fullBuf.length} full_bytes=${full.length}`);
   console.log(`Y14 code_bytes=${code.length} code_sha=${sha16(code)}`);
 
-  if (place.length !== PARSE1_OFF) {
-    console.log(`Y14 status=RED reason=place_len got=${place.length} want=${PARSE1_OFF}`);
+  const wantPlace = parseInt(pin.code_place_bytes || '0', 10);
+  if (!(wantPlace > 0) || place.length !== wantPlace) {
+    console.log(
+      `Y14 status=RED reason=place_len got=${place.length} want=${wantPlace}`,
+    );
     process.exit(1);
   }
   if (!joined.equals(code)) {
