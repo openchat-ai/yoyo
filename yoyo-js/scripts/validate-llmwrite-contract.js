@@ -1,7 +1,7 @@
 'use strict';
 /**
- * AUTO-LLMWRITESCALE / LLMWRITEX: line→stmt→body→program unambiguous surface.
- * Grammar+dataflow authority; shapes are aliases; generative round-trip any N.
+ * AUTO-LLMWRITEDRIFT / SCALE / WRITEX: unambiguous surface + artifact pin schema.
+ * Grammar+dataflow authority; shapes aliases; generative round-trip; v4 pins.
  */
 const fs = require('fs');
 const path = require('path');
@@ -333,8 +333,12 @@ function generativeRoundTrip(contract) {
 
 function main() {
   const contract = loadContract();
-  if (contract.revision < 3) {
-    console.log('LLMSCALE status=RED reason=contract_not_v3');
+  if (contract.revision < 4) {
+    console.log('LLMSCALE status=RED reason=contract_not_v4');
+    process.exit(1);
+  }
+  if (!contract.artifact_pins || !contract.drift) {
+    console.log('LLMSCALE status=RED reason=drift_schema_missing');
     process.exit(1);
   }
   if (!fs.existsSync(path.join(anyprog, 'MODEL-CONTRACT.md'))) {
@@ -366,6 +370,17 @@ function main() {
   }
   const inNames = Object.entries(cov).filter(([, v]) => v === 'in_contract').map(([k]) => k).sort();
   console.log(`LLMSCALE surface_in=${inNames.join(',')} classified=${requiredTools.length}`);
+  for (const n of inNames) {
+    const pin = contract.artifact_pins[n];
+    if (!pin || !/^[0-9a-f]{64}$/.test(String(pin))) {
+      console.log(`LLMSCALE status=RED reason=artifact_pin_bad sample=${n}`);
+      process.exit(1);
+    }
+  }
+  if (!contract.drift.rebuild_times || contract.drift.rebuild_times < 2) {
+    console.log('LLMSCALE status=RED reason=drift_rebuild_times');
+    process.exit(1);
+  }
 
   const llmDir = path.join(root, contract.samples_llm_dir.replace(/\//g, path.sep));
   const files = fs.readdirSync(llmDir).filter((f) => f.endsWith('.ty'));
@@ -404,6 +419,8 @@ function main() {
   console.log(`LLMSCALE samples=${goods.length} poisons=${poisons.length} distinct_reasons=${reasons.size}`);
   console.log('LLMSCALE status=GREEN');
   console.log('LLMSCALE doc=AUTO-LLMWRITESCALE.md');
+  console.log('LLMDRIFT schema=artifact_pins+drift status=STRUCT_GREEN');
+  console.log('LLMDRIFT doc=AUTO-LLMWRITEDRIFT.md');
   process.exit(0);
 }
 

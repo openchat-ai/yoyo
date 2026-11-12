@@ -1,7 +1,7 @@
-# MODEL-CONTRACT v3 — multi-scale / LLM unambiguous write surface
+# MODEL-CONTRACT v4 — multi-scale + drift / LLM unambiguous write surface
 
-Fail-closed. Human ergonomics deferred. Spacecraft-facing: **no silent ambiguity**.  
-Parent rails: `AUTO-LLMWRITE` → `AUTO-LLMWRITEX` → `AUTO-LLMWRITESCALE`.
+Fail-closed. Human ergonomics deferred. Spacecraft-facing: **no silent ambiguity**, **no silent bit drift**.  
+Parent rails: `AUTO-LLMWRITE` → `AUTO-LLMWRITEX` → `AUTO-LLMWRITESCALE` → `AUTO-LLMWRITEDRIFT`.
 
 ## Normative source
 
@@ -46,30 +46,38 @@ Authoritative: `grammar.*` in json (not named shapes).
 | Dataflow | `WRITE_OUT` requires prior size + buf |
 | Require write | body must include ≥1 `WRITE_OUT` |
 
-Named `shapes.*` are **aliases only** (convenience labels for samples).
+Named `shapes.*` are **aliases only**.
 
 ## Multi-scale AST — 任意尺度
 
-Each sample `*.ast.json` must byte-equal:
-
-- `lines` — every source line  
-- `stmts` — `KIND:opcode…`  
-- `program` — `{entry, body[], exit[]}`  
-
+Each sample `*.ast.json` must byte-equal `lines` / `stmts` / `program`.  
 Generative: `generative.trials` random legal programs, canonicalize idempotent.
+
+## Drift (must) — 极端环境 / 电子漂移
+
+Software integrity only (≠ SEU-hardened silicon).
+
+| Rule | Value |
+| --- | --- |
+| Rebuild | same `.ty` linked `drift.rebuild_times` (≥2) → **byte-equal** exe |
+| Artifact pin | every `in_contract` sample has `artifact_pins.<name>` sha256 |
+| Source bitflip | flip 1 nibble in SET imm → artifact hash **must change** |
+| Invalid token | non-hex token → lex **RED** |
+| Artifact bitflip | flip 1 byte in exe → hash ≠ pin (**detected**) |
 
 ## 全域 coverage
 
 `surface_coverage` in json: every ANYPROG tool is **in_contract** or explicit **out_***.  
-Missing key → RED (no silent gap). File-tier in: cat/head/zero/copy08/resize.
+Missing key → RED. File-tier in: cat/head/zero/copy08/resize.
 
 ## Gates
 
 ```text
 node yoyo-js/scripts/validate-llmwrite-contract.js
+scripts/validate-llmwrite-drift.ps1
 scripts/stage-llmwrite.ps1
 ```
 
 Pin: `model-contract.sha256`
 
-≠ Thompson · ≠ 全 ISA · ≠ Winsock closed · ≠ “model already programs YOYO”
+≠ Thompson · ≠ 全 ISA · ≠ Winsock closed · ≠ 抗辐射硬件

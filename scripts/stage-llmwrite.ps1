@@ -51,7 +51,12 @@ Run-File "cat" $hello $hello
 Run-File "head" $hello ([Text.Encoding]::ASCII.GetBytes("hel"))
 Run-File "zero" $null ([byte[]](0, 0, 0, 0))
 
-Write-Host "LLMWRITE note=contract_v2_aerospace;surface_coverage;human_deferred;not_Thompson"
+Write-Host "LLMWRITE note=contract_v4_drift;surface_coverage;human_deferred;not_Thompson"
+
+# Extreme-env drift: rebuild determinism + artifact pins + bitflip detect
+& (Join-Path $Root "scripts\validate-llmwrite-drift.ps1") -Yoyo $Yoyo -SkipBuild
+if ($LASTEXITCODE -ne 0) { Write-Host "LLMWRITE status=RED reason=drift"; exit 1 }
+
 Write-Host "LLMWRITE status=GREEN"
-Write-Host "LLMWRITE doc=AUTO-LLMWRITEX.md"
+Write-Host "LLMWRITE doc=AUTO-LLMWRITEDRIFT.md"
 exit 0

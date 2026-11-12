@@ -1,6 +1,6 @@
 {
-  "name": "yoyo-anyprog-llm-v3-scale",
-  "revision": 3,
+  "name": "yoyo-anyprog-llm-v4-drift",
+  "revision": 4,
   "target": "win32",
   "link": "yoyo link --target=win32 <in.ty> <out.exe>",
   "encoding": "utf-8-no-bom",
@@ -78,6 +78,19 @@
     "max_extra_sets": 3,
     "imm_choices": ["01", "02", "03", "04", "05", "08"]
   },
+  "drift": {
+    "rebuild_times": 3,
+    "bitflip_source_sample": "cat",
+    "bitflip_artifact_sample": "cat",
+    "note": "software integrity only; not SEU-hardened silicon"
+  },
+  "artifact_pins": {
+    "cat": "42454d08b3463f43dd3b450f2f65a08ee6c77f189d00fd5f58ffd5ec4a303092",
+    "head": "e73998b79204f2973702ccaa9859b81f227179f2a2cc5078f033905f554311c9",
+    "zero": "952bbc13025c813f21f9343453eb0651f2aca3f2fa13f75ec19ea7012c36f9fa",
+    "copy08": "e9c55376a09450c7897f23aeab9d8e640e6d3fcf8278c8f056b016d226487ad2",
+    "resize": "b8d1370952f78ce73184b44ac461cedde334bfdaf8381eda9d52a637be53a3e3"
+  },
   "samples_llm_dir": "scripts/fixtures/anyprog/llm",
   "min_poison_distinct_reasons": 10,
   "surface_coverage": {
@@ -86,10 +99,10 @@
     "zero": "in_contract",
     "copy08": "in_contract",
     "resize": "in_contract",
-    "hello_console": "out_raw_not_in_v3",
-    "cmdline": "out_raw_not_in_v3",
-    "tick": "out_raw_not_in_v3",
-    "thread": "out_raw_not_in_v3",
+    "hello_console": "out_raw_not_in_v4",
+    "cmdline": "out_raw_not_in_v4",
+    "tick": "out_raw_not_in_v4",
+    "thread": "out_raw_not_in_v4",
     "socket": "out_winsock_open"
   },
   "doc": "MODEL-CONTRACT.md"
