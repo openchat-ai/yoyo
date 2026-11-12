@@ -8,10 +8,16 @@ Rails: LLMWRITE → WRITEX → SCALE → DRIFT → PIPE → **TY**.
 
 `model-contract.json` (pinned by `model-contract.sha256`). Json wins.
 
-## Lex authority = `.ty`
+## Gate authority = `.ty` + `yoyo hash`
 
-`scripts/fixtures/anyprog/gate/gate_lex.ty` is the **lex fail-closed** gate (CR/TAB/BOM/`;`/entry `40 00\\n`).  
-Stage runs it via `yoyo link` **before** Node. Grammar/AST/generative still Node (honest residual).
+| Layer | Authority |
+| --- | --- |
+| Lex | `gate/gate_lex.ty` |
+| file_grammar | `gate/gate_grammar.ty` (stmts + dataflow + exit) |
+| Contract pin | `yoyo hash model-contract.json` |
+| AST / generative | Node residual (honest) |
+
+exact_body samples: lex only in ty gates (RAW bodies).
 
 ## Program kinds
 

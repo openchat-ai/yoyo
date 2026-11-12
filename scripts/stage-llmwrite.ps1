@@ -19,26 +19,33 @@ $Fix = Join-Path $Root "scripts\fixtures\anyprog\llm"
 $Work = Join-Path $Root "scripts\_stage-llmwrite"
 New-Item -ItemType Directory -Force -Path $Work | Out-Null
 
-# --- T: lex authority is gate_lex.ty (YOYO), not Node ---
-$GateDir = Join-Path $Work "gate_lex"
-New-Item -ItemType Directory -Force -Path $GateDir | Out-Null
-$GateTy = Join-Path $Root "scripts\fixtures\anyprog\gate\gate_lex.ty"
-$GateExe = Join-Path $GateDir "gate_lex.exe"
-& $Yoyo link --target=win32 $GateTy $GateExe | Out-Null
-if ($LASTEXITCODE -ne 0) { throw "LLMWRITE status=RED reason=gate_lex_link" }
+# --- pin authority: yoyo hash (not Node crypto) ---
+$ContractJson = Join-Path $Root "scripts\fixtures\anyprog\model-contract.json"
+$ContractPin = Join-Path $Root "scripts\fixtures\anyprog\model-contract.sha256"
+$gotPin = (& $Yoyo hash $ContractJson).Trim().ToLowerInvariant()
+$wantPin = (Get-Content -LiteralPath $ContractPin -Raw).Trim().Split()[0].ToLowerInvariant()
+if ($gotPin -ne $wantPin) {
+    throw "LLMWRITEGRAM status=RED reason=yoyo_hash_pin_DIFF want=$wantPin got=$gotPin"
+}
+Write-Host "LLMWRITEGRAM yoyo_hash pin=EQUAL sha256_prefix=$($gotPin.Substring(0,16)) status=GREEN"
 
-function Invoke-TyLexGate([string]$srcTy, [int]$wantExit) {
-    $in = Join-Path $GateDir "input.tyb"
-    Copy-Item -Force -LiteralPath $srcTy -Destination $in
-    Push-Location $GateDir
-    try {
-        & $GateExe
-        $code = $LASTEXITCODE
-    } finally {
-        Pop-Location
+$Contract = Get-Content -LiteralPath $ContractJson -Raw | ConvertFrom-Json
+
+# --- ty gates: lex + file_grammar ---
+$GateRoot = Join-Path $Root "scripts\fixtures\anyprog\gate"
+function Invoke-TyGate([string]$gateName, [string]$srcTy, [int]$wantExit) {
+    $dir = Join-Path $Work $gateName
+    New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    $exe = Join-Path $dir "$gateName.exe"
+    if (-not (Test-Path $exe)) {
+        & $Yoyo link --target=win32 (Join-Path $GateRoot "$gateName.ty") $exe | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "LLMWRITE status=RED reason=${gateName}_link" }
     }
+    Copy-Item -Force -LiteralPath $srcTy -Destination (Join-Path $dir "input.tyb")
+    Push-Location $dir
+    try { & $exe; $code = $LASTEXITCODE } finally { Pop-Location }
     if ($code -ne $wantExit) {
-        throw "LLMWRITETY status=RED reason=gate_lex tool=$(Split-Path $srcTy -Leaf) exit=$code want=$wantExit"
+        throw "LLMWRITEGRAM status=RED reason=$gateName tool=$(Split-Path $srcTy -Leaf) exit=$code want=$wantExit"
     }
 }
 
@@ -46,25 +53,27 @@ $goods = Get-ChildItem -LiteralPath $Fix -Filter *.ty |
     Where-Object { -not $_.Name.StartsWith('_poison') } |
     Sort-Object Name
 foreach ($g in $goods) {
-    Invoke-TyLexGate $g.FullName 0
+    Invoke-TyGate "gate_lex" $g.FullName 0
     Write-Host "LLMWRITETY gate_lex sample=$($g.BaseName) status=GREEN"
+    $kind = [string]$Contract.program_kinds.($g.BaseName)
+    if ($kind -eq 'file_grammar') {
+        Invoke-TyGate "gate_grammar" $g.FullName 0
+        Write-Host "LLMWRITEGRAM gate_grammar sample=$($g.BaseName) status=GREEN"
+    }
 }
-$lexPoisons = @(
-    '_poison_cr.ty',
-    '_poison_tab.ty',
-    '_poison_bom.ty',
-    '_poison_comment.ty',
-    '_poison_entry.ty'
-)
+$lexPoisons = @('_poison_cr.ty','_poison_tab.ty','_poison_bom.ty','_poison_comment.ty','_poison_entry.ty')
 foreach ($p in $lexPoisons) {
-    $path = Join-Path $Fix $p
-    if (-not (Test-Path $path)) { throw "LLMWRITETY status=RED reason=lex_poison_missing $p" }
-    Invoke-TyLexGate $path 1
+    Invoke-TyGate "gate_lex" (Join-Path $Fix $p) 1
     Write-Host "LLMWRITETY gate_lex poison=$p status=RED_as_expected"
 }
-Write-Host "LLMWRITETY gate_lex status=GREEN doc=AUTO-LLMWRITETY.md"
+$gramPoisons = @('_poison_shape.ty','_poison_df_size.ty','_poison_df_buf.ty','_poison_op.ty','_poison_ret.ty','_poison_raw.ty')
+foreach ($p in $gramPoisons) {
+    Invoke-TyGate "gate_grammar" (Join-Path $Fix $p) 1
+    Write-Host "LLMWRITEGRAM gate_grammar poison=$p status=RED_as_expected"
+}
+Write-Host "LLMWRITEGRAM ty_gates status=GREEN doc=AUTO-LLMWRITEGRAM.md"
 
-# grammar/AST/generative still Node (honest residual meta)
+# AST/generative residual Node (honest)
 & node (Join-Path $Root "yoyo-js\scripts\validate-llmwrite-contract.js")
 if ($LASTEXITCODE -ne 0) { Write-Host "LLMWRITE status=RED reason=validate"; exit 1 }
 
@@ -138,11 +147,11 @@ Run-Stdout "cmdline" "yoyo"
 Run-Tick
 Run-Stdout "thread" "ok"
 
-Write-Host "LLMWRITE note=lex_authority=gate_lex.ty;grammar_js_residual;not_Thompson"
+Write-Host "LLMWRITE note=lex+grammar=.ty;pin=yoyo_hash;AST_js_residual;not_Thompson"
 
 & (Join-Path $Root "scripts\validate-llmwrite-drift.ps1") -Yoyo $Yoyo -SkipBuild
 if ($LASTEXITCODE -ne 0) { Write-Host "LLMWRITE status=RED reason=drift"; exit 1 }
 
 Write-Host "LLMWRITE status=GREEN"
-Write-Host "LLMWRITE doc=AUTO-LLMWRITETY.md"
+Write-Host "LLMWRITE doc=AUTO-LLMWRITEGRAM.md"
 exit 0
