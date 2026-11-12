@@ -24,6 +24,7 @@
     "WRITE_OUT:51 50 02 51"
   ],
   "program": {
+    "kind": "file_grammar",
     "entry": "40 00",
     "body": [
       "30 51 05",

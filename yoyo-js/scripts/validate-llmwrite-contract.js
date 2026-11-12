@@ -94,6 +94,60 @@ function classifyStmt(op, args, contract) {
   return null;
 }
 
+function trailingExitOk(ops, exitBytes) {
+  if (ops.length < 1 + exitBytes.length) return false;
+  for (let i = 0; i < exitBytes.length; i++) {
+    const op = ops[ops.length - exitBytes.length + i];
+    if (op.op !== 'A0' || op.args[0] !== exitBytes[i]) return false;
+  }
+  return true;
+}
+
+function semanticExactBody(ops, contract) {
+  const errors = [];
+  const allowed = contract.allowed_opcodes;
+  const stmts = [];
+  for (let i = 0; i < ops.length; i++) {
+    const { op, args } = ops[i];
+    if (op === 'FF') {
+      errors.push('forbid_ret_ff');
+      continue;
+    }
+    if (i > 0 && op === '40') errors.push(`extra_handler_at_${i}`);
+    const spec = allowed[op];
+    if (!spec) {
+      errors.push(`opcode_not_allowed_${op}`);
+      continue;
+    }
+    if (args.length !== spec.arity) {
+      errors.push(`arity_${op}_want_${spec.arity}_got_${args.length}`);
+      continue;
+    }
+    if (op === '20' && args[0] !== contract.slot_buffer) errors.push('alloc_slot_must_be_50');
+    if (op === '30' && args[0] !== contract.slot_size) errors.push('set_slot_must_be_51');
+    if (op === '50') {
+      if (args[0] !== contract.slot_buffer) errors.push('load_slot_must_be_50');
+      if (!contract.str_load_allowed.includes(args[1])) errors.push('load_str_not_allowed');
+    }
+    if (op === '51') {
+      if (args[0] !== contract.slot_buffer) errors.push('write_slot_must_be_50');
+      if (!contract.str_write_allowed.includes(args[1])) errors.push('write_str_not_allowed');
+      if (args[2] !== contract.slot_size) errors.push('write_sz_must_be_51');
+    }
+    if (i === 0) continue;
+    if (op === 'A0') stmts.push({ kind: 'RAW', text: `A0 ${args[0]}` });
+    else {
+      const kind = classifyStmt(op, args, contract);
+      if (!kind || kind === 'EXIT_BYTE') errors.push(`stmt_not_in_grammar_${op}`);
+      else stmts.push({ kind, text: [op, ...args].join(' ') });
+    }
+  }
+  if (!trailingExitOk(ops, contract.exit_trampoline_bytes)) {
+    errors.push('exit_trampoline_mismatch');
+  }
+  return { errors, stmts, writeCount: 0 };
+}
+
 function semanticAndGrammar(ops, contract) {
   const errors = [];
   const allowed = contract.allowed_opcodes;
@@ -129,7 +183,6 @@ function semanticAndGrammar(ops, contract) {
     }
     if (inRaw) errors.push('raw_must_be_tail_only');
 
-    // slot / str checks (fail-closed)
     if (op === '20' && args[0] !== contract.slot_buffer) errors.push('alloc_slot_must_be_50');
     if (op === '30' && args[0] !== contract.slot_size) errors.push('set_slot_must_be_51');
     if (op === '50') {
@@ -169,21 +222,27 @@ function semanticAndGrammar(ops, contract) {
   return { errors, stmts, writeCount };
 }
 
-function multiScaleAst(ops, stmts, contract) {
+function multiScaleAst(ops, stmts, contract, kind) {
   const lines = [contract.entry_line];
   for (let i = 1; i < ops.length; i++) {
     lines.push(contract.body_indent + [ops[i].op, ...ops[i].args].join(' '));
   }
-  const exit = [];
-  for (let i = 1; i < ops.length; i++) {
-    if (ops[i].op === 'A0') exit.push(ops[i].args[0]);
-  }
+  const exit = contract.exit_trampoline_bytes.slice();
+  const bodyStmts =
+    kind === 'exact_body'
+      ? stmts.filter((s, idx, arr) => {
+          // drop trailing exit RAW bytes from body view (kept under exit)
+          const exitLen = exit.length;
+          return idx < arr.length - exitLen;
+        })
+      : stmts;
   return {
     lines,
-    stmts: stmts.map((s) => s.kind + ':' + s.text),
+    stmts: bodyStmts.map((s) => s.kind + ':' + s.text),
     program: {
+      kind: kind || 'file_grammar',
       entry: '40 00',
-      body: stmts.map((s) => s.text),
+      body: bodyStmts.map((s) => s.text),
       exit,
     },
   };
@@ -201,10 +260,20 @@ function matchShapeAlias(ops, contract) {
   return null;
 }
 
-function validateText(text, contract) {
+function programKind(name, contract) {
+  const map = contract.program_kinds || {};
+  return map[name] || 'file_grammar';
+}
+
+function validateText(text, contract, kind) {
+  const k = kind || 'file_grammar';
   const { errors: lexErrs, lines } = lexCheck(text);
   const { ops, errors: parseErrs } = parseStrict(lines, contract);
-  const g = ops.length ? semanticAndGrammar(ops, contract) : { errors: [], stmts: [] };
+  const g = !ops.length
+    ? { errors: [], stmts: [] }
+    : k === 'exact_body'
+      ? semanticExactBody(ops, contract)
+      : semanticAndGrammar(ops, contract);
   const errors = [...lexErrs, ...parseErrs, ...g.errors];
   let canon = null;
   let ast = null;
@@ -212,16 +281,17 @@ function validateText(text, contract) {
   if (!errors.length) {
     canon = canonical(ops, contract);
     if (text !== canon) errors.push('canonical_mismatch');
-    shape = matchShapeAlias(ops, contract);
-    ast = multiScaleAst(ops, g.stmts, contract);
+    shape = k === 'file_grammar' ? matchShapeAlias(ops, contract) : null;
+    ast = multiScaleAst(ops, g.stmts, contract, k);
   }
-  return { errors, ops, canon, ast, shape, stmts: g.stmts };
+  return { errors, ops, canon, ast, shape, stmts: g.stmts, kind: k };
 }
 
 function checkGood(filePath, contract) {
   const name = path.basename(filePath, '.ty');
+  const kind = programKind(name, contract);
   const text = fs.readFileSync(filePath, 'utf8');
-  const r = validateText(text, contract);
+  const r = validateText(text, contract, kind);
   if (r.errors.length) {
     console.log(`LLMSCALE sample=${name} status=RED reason=${r.errors.join('|')}`);
     return false;
@@ -237,20 +307,22 @@ function checkGood(filePath, contract) {
     console.log(`LLMSCALE sample=${name} status=RED reason=ast_mismatch`);
     return false;
   }
-  // round-trip idempotent
-  const again = validateText(r.canon, contract);
+  const again = validateText(r.canon, contract, kind);
   if (again.errors.length || again.canon !== r.canon) {
     console.log(`LLMSCALE sample=${name} status=RED reason=roundtrip_fail`);
     return false;
   }
-  console.log(`LLMSCALE sample=${name} stmts=${r.stmts.length} shape_alias=${r.shape || '-'} status=GREEN`);
+  console.log(
+    `LLMSCALE sample=${name} kind=${kind} stmts=${r.stmts.length} shape_alias=${r.shape || '-'} status=GREEN`
+  );
   return true;
 }
 
 function checkPoison(filePath, contract, reasonsSeen) {
   const name = path.basename(filePath);
   const text = fs.readFileSync(filePath, 'utf8');
-  const r = validateText(text, contract);
+  // poisons target file_grammar fail-closed surface
+  const r = validateText(text, contract, 'file_grammar');
   if (!r.errors.length) {
     console.log(`LLMSCALE poison=${name} status=RED reason=expected_fail_got_pass`);
     return false;
@@ -311,7 +383,7 @@ function generativeRoundTrip(contract) {
       stmts.push('51 50 02 51');
     }
     const text = buildProgram(contract, stmts);
-    const r = validateText(text, contract);
+    const r = validateText(text, contract, 'file_grammar');
     if (r.errors.length) {
       console.log(`LLMSCALE gen=${t} status=RED reason=${r.errors.join('|')}`);
       return false;
@@ -320,7 +392,7 @@ function generativeRoundTrip(contract) {
       console.log(`LLMSCALE gen=${t} status=RED reason=gen_canon_mismatch`);
       return false;
     }
-    const r2 = validateText(r.canon, contract);
+    const r2 = validateText(r.canon, contract, 'file_grammar');
     if (r2.errors.length || r2.canon !== r.canon) {
       console.log(`LLMSCALE gen=${t} status=RED reason=gen_roundtrip`);
       return false;
@@ -333,12 +405,12 @@ function generativeRoundTrip(contract) {
 
 function main() {
   const contract = loadContract();
-  if (contract.revision < 4) {
-    console.log('LLMSCALE status=RED reason=contract_not_v4');
+  if (contract.revision < 5) {
+    console.log('LLMSCALE status=RED reason=contract_not_v5');
     process.exit(1);
   }
-  if (!contract.artifact_pins || !contract.drift) {
-    console.log('LLMSCALE status=RED reason=drift_schema_missing');
+  if (!contract.artifact_pins || !contract.drift || !contract.section_pins || !contract.program_kinds) {
+    console.log('LLMSCALE status=RED reason=pipe_schema_missing');
     process.exit(1);
   }
   if (!fs.existsSync(path.join(anyprog, 'MODEL-CONTRACT.md'))) {
@@ -376,9 +448,22 @@ function main() {
       console.log(`LLMSCALE status=RED reason=artifact_pin_bad sample=${n}`);
       process.exit(1);
     }
+    const sec = contract.section_pins[n];
+    if (!sec || !/^[0-9a-f]{64}$/.test(String(sec.text_sha256 || ''))) {
+      console.log(`LLMSCALE status=RED reason=section_pin_bad sample=${n}`);
+      process.exit(1);
+    }
+    if (!contract.program_kinds[n]) {
+      console.log(`LLMSCALE status=RED reason=program_kind_missing sample=${n}`);
+      process.exit(1);
+    }
   }
   if (!contract.drift.rebuild_times || contract.drift.rebuild_times < 2) {
     console.log('LLMSCALE status=RED reason=drift_rebuild_times');
+    process.exit(1);
+  }
+  if (!contract.dual_emit || contract.dual_emit.require_agree !== true) {
+    console.log('LLMSCALE status=RED reason=dual_emit_missing');
     process.exit(1);
   }
 
@@ -386,8 +471,8 @@ function main() {
   const files = fs.readdirSync(llmDir).filter((f) => f.endsWith('.ty'));
   const goods = files.filter((f) => !f.startsWith('_poison')).sort();
   const poisons = files.filter((f) => f.startsWith('_poison')).sort();
-  if (goods.length < 5) {
-    console.log(`LLMSCALE status=RED reason=too_few_samples n=${goods.length} want>=5`);
+  if (goods.length < 9) {
+    console.log(`LLMSCALE status=RED reason=too_few_samples n=${goods.length} want>=9`);
     process.exit(1);
   }
 
@@ -419,9 +504,13 @@ function main() {
   console.log(`LLMSCALE samples=${goods.length} poisons=${poisons.length} distinct_reasons=${reasons.size}`);
   console.log('LLMSCALE status=GREEN');
   console.log('LLMSCALE doc=AUTO-LLMWRITESCALE.md');
-  console.log('LLMDRIFT schema=artifact_pins+drift status=STRUCT_GREEN');
-  console.log('LLMDRIFT doc=AUTO-LLMWRITEDRIFT.md');
+  console.log('LLMPIPE schema=program_kinds+section_pins+dual_emit status=STRUCT_GREEN');
+  console.log('LLMPIPE doc=AUTO-LLMWRITEPIPE.md');
   process.exit(0);
 }
 
-main();
+if (require.main === module) {
+  main();
+}
+
+module.exports = { loadContract, validateText, programKind, canonical, sha256file };
