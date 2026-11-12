@@ -12,12 +12,12 @@ Rails: LLMWRITE → WRITEX → SCALE → DRIFT → PIPE → **TY**.
 
 | Layer | Authority |
 | --- | --- |
-| Lex | `gate/gate_lex.ty` |
-| file_grammar | `gate/gate_grammar.ty` (stmts + dataflow + exit) |
+| Lex | `gate/gate_lex.ty` (**sole source** — no JS emitter) |
+| file_grammar | `gate/gate_grammar.ty` (**sole source** — no JS emitter) |
 | Contract pin | `yoyo hash model-contract.json` |
 | AST / generative | Node residual (honest) |
 
-exact_body samples: lex only in ty gates (RAW bodies).
+See `gate/README.md`. exact_body: lex only in ty gates. ≠ “ty produced the gate”.
 
 ## Program kinds
 

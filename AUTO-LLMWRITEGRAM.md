@@ -1,12 +1,12 @@
 # AUTO-LLMWRITEGRAM — 文法 fail-closed 进 `.ty`
 
-> 接 LLMWRITETY。`file_grammar` 数据流+出口由 `gate_grammar.ty` 判定；契约钉改走 `yoyo hash`。AST/generative 仍 Node（诚实残余）。≠ Thompson。
+> 接 LLMWRITETY。`file_grammar` 由 **`gate_grammar.ty`** 判定；pin=`yoyo hash`。发射器娘家已拆（GATESRC）。≠ Thompson。
 
 ```
 ACTIVE=0
 COMPLETED=1
 PARENT=AUTO-LLMWRITETY.md
-NORTH_STAR=file_grammar 权威=gate_grammar.ty；pin 权威=yoyo hash；exact_body 仍 lex-only
+NORTH_STAR=file_grammar 唯一源=gate_grammar.ty；pin=yoyo hash；exact_body 仍 lex-only
 STOP_ONLY=停 | ACTIVE=0 | COMPLETED=1 | hard-block
 ```
 
@@ -21,12 +21,11 @@ STOP_ONLY=停 | ACTIVE=0 | COMPLETED=1 | hard-block
 & F:\yoyo\scripts\stage-llmwrite.ps1
 ```
 
-## Evidence (2026-11-12)
+## Evidence
 
-- file_grammar ×5 gate_grammar GREEN；grammar poisons RED_as_expected  
-- exact_body 仍只过 gate_lex（RAW 面）  
-- AST/generative = Node residual  
+- `gate_grammar.ty` sole source（无 `_emit-gate-grammar.js`）  
+- AST/generative = Node residual；≠ 方案 2 ty 产门  
 
 ---
 
-*COMPLETED=1 · ACTIVE=0*
+*COMPLETED=1 · ACTIVE=0 · GATESRC corrected emitter honesty*
