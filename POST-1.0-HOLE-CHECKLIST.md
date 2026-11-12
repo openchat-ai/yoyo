@@ -28,6 +28,7 @@
 | **TRUSTLIM3** | ✅ 内容 SoT：PLANTPOISON + DATAPLANT |
 | **TRUSTLIM4** | ✅ 更好检尽头：SLICELOCK hdr+IAT 窗 |
 | **HUMANAUDIT** | ✅ stub 人审包 `audit-stub/` · bins 非人眼极致 · ≠ Thompson |
+| **ANYPROG** | ✅ 第一档 Win32 三工具（cat/head/zero）· `stage-anyprog` · A1 未膨胀 · 控制台=文件 stand-in · ≠ Thompson |
 
 ## 次要账本（非本源 · 可冻结）
 

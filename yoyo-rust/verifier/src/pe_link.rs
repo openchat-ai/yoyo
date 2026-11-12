@@ -203,7 +203,10 @@ pub fn link_pe_win32(
         let est_text = code.len() as u32 + 0x40;
         let text_vs = align_up(est_text, section_align);
         let data_rva = text_rva + text_vs;
-        let (extended, import_dir_rva, import_dir_size) = prepend_win32_io_iat(data, data_rva);
+        let (mut extended, import_dir_rva, import_dir_size) = prepend_win32_io_iat(data, data_rva);
+        // ANYPROG / plain I/O apps: paths at r15+STR_TABLE_OFF (after IAT prefix).
+        // Place-stub compact floor path does not call this. ≠ expand A1.
+        embed_string_table_r15(&mut extended);
         let _ = platform_io::WIN32_IAT_DATA_RESERVE;
         link_pe_impl(
             code,
@@ -366,25 +369,32 @@ pub fn link_pe_h00_runtime(
 }
 
 /// Embed default selfhost paths at r15+STR_TABLE_OFF (platform_io layout).
+/// Used by H_00 path **before** IAT prepend (historical); prefer
+/// [`embed_string_table_r15`] on the post-IAT blob for absolute r15 offsets.
 fn embed_string_table(user_data: &[u8]) -> Vec<u8> {
+    let mut blob = user_data.to_vec();
+    embed_string_table_r15(&mut blob);
+    blob
+}
+
+/// Write path cstrs at absolute offsets from `.data` / r15 base (post-IAT).
+fn embed_string_table_r15(blob: &mut Vec<u8>) {
     let table_off = platform_io::STR_TABLE_OFF as usize;
     let need = table_off + platform_io::STR_ENTRY_SIZE as usize * 3;
-    let mut blob = user_data.to_vec();
     if blob.len() < need {
         blob.resize(need, 0);
     }
-    write_cstr_entry(&mut blob, table_off, b"input.tyb");
+    write_cstr_entry(blob, table_off, b"input.tyb");
     write_cstr_entry(
-        &mut blob,
+        blob,
         table_off + platform_io::STR_ENTRY_SIZE as usize,
         b"input.ky",
     );
     write_cstr_entry(
-        &mut blob,
+        blob,
         table_off + platform_io::STR_ENTRY_SIZE as usize * 2,
         b"output.exe",
     );
-    blob
 }
 
 fn write_cstr_entry(blob: &mut [u8], base: usize, s: &[u8]) {
