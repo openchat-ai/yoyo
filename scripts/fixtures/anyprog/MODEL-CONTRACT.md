@@ -2,11 +2,16 @@
 
 Fail-closed. Human ergonomics deferred.  
 **钢管**：唯一写法 → 唯一映像 → 唯一摘要 → 漂移必红。  
-Rails: LLMWRITE → WRITEX → SCALE → DRIFT → **PIPE**.
+Rails: LLMWRITE → WRITEX → SCALE → DRIFT → PIPE → **TY**.
 
 ## Normative source
 
 `model-contract.json` (pinned by `model-contract.sha256`). Json wins.
+
+## Lex authority = `.ty`
+
+`scripts/fixtures/anyprog/gate/gate_lex.ty` is the **lex fail-closed** gate (CR/TAB/BOM/`;`/entry `40 00\\n`).  
+Stage runs it via `yoyo link` **before** Node. Grammar/AST/generative still Node (honest residual).
 
 ## Program kinds
 
@@ -17,9 +22,9 @@ Rails: LLMWRITE → WRITEX → SCALE → DRIFT → **PIPE**.
 
 `program_kinds` maps every `in_contract` sample.
 
-## Lexical / semantic / grammar / AST / generative
+## Semantic / grammar / AST / generative
 
-Inherited from v3/v4 for `file_grammar`. Exact bodies share lex + trailing exit trampoline + multi-scale AST.
+Inherited from v3/v4 for `file_grammar`. Exact bodies share trailing exit trampoline + multi-scale AST.
 
 ## Drift + dual + section
 

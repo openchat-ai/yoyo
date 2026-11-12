@@ -1,0 +1,173 @@
+'use strict';
+/**
+ * Bootstrap emitter for gate_lex.ty. Committed source of truth is the .ty.
+ * Reads input.tyb; lex fail-closed; ExitProcess(0)=pass, (1)=fail.
+ */
+const fs = require('fs');
+const path = require('path');
+
+function u32(n) {
+  const b = Buffer.alloc(4);
+  b.writeUInt32LE(n >>> 0);
+  return [...b];
+}
+function i32(n) {
+  const b = Buffer.alloc(4);
+  b.writeInt32LE(n | 0);
+  return [...b];
+}
+
+const c = [];
+const push = (...xs) => {
+  for (const x of xs) {
+    if (Array.isArray(x)) c.push(...x);
+    else c.push(x);
+  }
+};
+const marks = {};
+const fixups = [];
+
+function label(name) {
+  marks[name] = c.length;
+}
+function rel32(labelName) {
+  fixups.push({ at: c.length, label: labelName });
+  push(0, 0, 0, 0);
+}
+function jz(l) {
+  push(0x0f, 0x84);
+  rel32(l);
+}
+function jnz(l) {
+  push(0x0f, 0x85);
+  rel32(l);
+}
+function jb(l) {
+  push(0x0f, 0x82);
+  rel32(l);
+}
+function jnb(l) {
+  push(0x0f, 0x83);
+  rel32(l);
+}
+function jmp(l) {
+  push(0xe9);
+  rel32(l);
+}
+
+// sub rsp, 0x68
+push(0x48, 0x83, 0xec, 0x68);
+
+// VirtualAlloc(0, 0x10000, 0x3000, 4)
+push(0x31, 0xc9);
+push(0xba, ...u32(0x10000));
+push(0x41, 0xb8, ...u32(0x3000));
+push(0x41, 0xb9, ...u32(4));
+push(0x41, 0xff, 0x97, ...u32(0));
+push(0x48, 0x85, 0xc0);
+jz('fail');
+push(0x48, 0x89, 0x44, 0x24, 0x50);
+
+// CreateFileA(r15+0x10000, GENERIC_READ, SHARE_READ, 0, OPEN_EXISTING, 0, 0)
+push(0x49, 0x8d, 0x8f, ...u32(0x10000));
+push(0xba, ...u32(0x80000000));
+push(0x41, 0xb8, ...u32(1));
+push(0x45, 0x31, 0xc9);
+push(0x48, 0xc7, 0x44, 0x24, 0x20, ...u32(3));
+push(0x48, 0xc7, 0x44, 0x24, 0x28, ...u32(0));
+push(0x48, 0xc7, 0x44, 0x24, 0x30, ...u32(0));
+push(0x41, 0xff, 0x97, ...u32(8));
+push(0x48, 0x83, 0xf8, 0xff);
+jz('fail');
+push(0x48, 0x89, 0x44, 0x24, 0x48);
+
+// ReadFile(h, buf, 0x10000, &nread, 0)
+push(0x48, 0x89, 0xc1);
+push(0x48, 0x8b, 0x54, 0x24, 0x50);
+push(0x41, 0xb8, ...u32(0x10000));
+push(0x4c, 0x8d, 0x4c, 0x24, 0x40);
+push(0x48, 0xc7, 0x44, 0x24, 0x20, ...u32(0));
+push(0x41, 0xff, 0x97, ...u32(0x10));
+push(0x85, 0xc0);
+jz('fail');
+
+// CloseHandle(h)
+push(0x48, 0x8b, 0x4c, 0x24, 0x48);
+push(0x41, 0xff, 0x97, ...u32(0x20));
+
+// ebx=nread rsi=buf
+push(0x8b, 0x5c, 0x24, 0x40);
+push(0x48, 0x8b, 0x74, 0x24, 0x50);
+
+push(0x83, 0xfb, 0x06);
+jb('fail');
+
+// BOM EF BB BF → fail
+push(0x80, 0x3e, 0xef);
+jnz('after_bom');
+push(0x80, 0x7e, 0x01, 0xbb);
+jnz('after_bom');
+push(0x80, 0x7e, 0x02, 0xbf);
+jz('fail');
+label('after_bom');
+
+// "40 00\n"
+push(0x80, 0x3e, 0x34);
+jnz('fail');
+push(0x80, 0x7e, 0x01, 0x30);
+jnz('fail');
+push(0x80, 0x7e, 0x02, 0x20);
+jnz('fail');
+push(0x80, 0x7e, 0x03, 0x30);
+jnz('fail');
+push(0x80, 0x7e, 0x04, 0x30);
+jnz('fail');
+push(0x80, 0x7e, 0x05, 0x0a);
+jnz('fail');
+
+// scan
+push(0x31, 0xc9);
+label('loop');
+push(0x39, 0xd9); // cmp ecx, ebx
+jnb('pass');
+push(0x0f, 0xb6, 0x04, 0x0e);
+push(0x3c, 0x0d);
+jz('fail');
+push(0x3c, 0x09);
+jz('fail');
+push(0x3c, 0x3b);
+jz('fail');
+push(0xff, 0xc1);
+jmp('loop');
+
+label('pass');
+push(0x31, 0xc9);
+push(0x48, 0x83, 0xec, 0x20);
+push(0x41, 0xff, 0x97, ...u32(0x28));
+push(0xeb, 0xfe);
+
+label('fail');
+push(0xb9, ...u32(1));
+push(0x48, 0x83, 0xec, 0x20);
+push(0x41, 0xff, 0x97, ...u32(0x28));
+push(0xeb, 0xfe);
+
+for (const f of fixups) {
+  const t = marks[f.label];
+  if (t === undefined) throw new Error('missing ' + f.label);
+  const b = i32(t - (f.at + 4));
+  c[f.at] = b[0];
+  c[f.at + 1] = b[1];
+  c[f.at + 2] = b[2];
+  c[f.at + 3] = b[3];
+}
+
+const lines = ['40 00'];
+for (const b of c) {
+  lines.push('  A0 ' + b.toString(16).toUpperCase().padStart(2, '0'));
+}
+const outDir = path.join(__dirname, 'fixtures', 'anyprog', 'gate');
+fs.mkdirSync(outDir, { recursive: true });
+const out = path.join(outDir, 'gate_lex.ty');
+fs.writeFileSync(out, lines.join('\n') + '\n');
+console.log('wrote', out, 'bytes', c.length);

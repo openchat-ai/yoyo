@@ -1,7 +1,7 @@
 'use strict';
 /**
- * AUTO-LLMWRITEDRIFT / SCALE / WRITEX: unambiguous surface + artifact pin schema.
- * Grammar+dataflow authority; shapes aliases; generative round-trip; v4 pins.
+ * AUTO-LLMWRITETY residual: grammar/AST/generative still Node.
+ * Lex authority moved to scripts/fixtures/anyprog/gate/gate_lex.ty (stage-first).
  */
 const fs = require('fs');
 const path = require('path');
