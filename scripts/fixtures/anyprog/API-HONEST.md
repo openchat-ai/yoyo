@@ -1,30 +1,42 @@
-# ANYPROG API honesty (tier-1)
+# ANYPROG API honesty (endpoint)
 
-## In use now (A1 = 6, unchanged)
+## Cold-start A1 (unchanged · A1PIN)
 
-| Import | Via |
+`VirtualAlloc,CreateFileA,ReadFile,WriteFile,CloseHandle,ExitProcess` — **6**.  
+Applies to place_stub / compiler place. ≠ silent grow.
+
+## App PE IAT (plain `yoyo link --target=win32` only)
+
+| Slot | Import | Used by |
+| --- | --- | --- |
+| 0 | VirtualAlloc | ALLOC / RX trampoline |
+| 1 | CreateFileA | LOAD/WRITE_FILE |
+| 2 | ReadFile | LOAD_FILE |
+| 3 | WriteFile | WRITE_FILE / console |
+| 4 | CloseHandle | I/O |
+| 5 | ExitProcess | `stdlib_exit` `[r15+0x28]` |
+| 6 | GetStdHandle | hello_console / cmdline / thread |
+| 7 | GetCommandLineA | cmdline |
+| 8 | GetTickCount64 | tick |
+| 9 | CreateThread | thread |
+| 10 | WaitForSingleObject | thread |
+
+## Tier tools (gate GREEN)
+
+| Tool | Proves |
 | --- | --- |
-| VirtualAlloc | opcode `0x20` ALLOC |
-| CreateFileA | `0x50` LOAD_FILE / `0x51` WRITE_FILE |
-| ReadFile | `0x50` |
-| WriteFile | `0x51` |
-| CloseHandle | `0x50` / `0x51` |
-| ExitProcess | RAW_BYTE trampoline (`stdlib_exit.inc.ty`) |
+| cat / head / zero | file I/O |
+| hello_console | real stdout |
+| cmdline | argv face |
+| tick | time |
+| thread | concurrency |
 
-String table (pe_link): `input.tyb` / `input.ky` / `output.exe` at `r15+0x10000`.
+## OPEN residual
 
-## Console stand-in
-
-Tier-1 “console” = **file `output.exe` contents** checked by gate.  
-True stdout needs **GetStdHandle** (would grow A1 → must update `yoyo_a1_imports.pin` + honesty).
-
-## Tier-2+ (not this knife)
-
-| Need | Why |
+| Item | Why |
 | --- | --- |
-| GetStdHandle | real console |
-| GetCommandLineA / argv | rich CLI |
-| sockets / threads / time | broader “any program” |
-| higher source / macros | human writeability |
+| **Winsock** | `WSAStartup` under handmade PE AVs in `ws2_32!OpenWinSockRegistryRoot` (stack/host). Fixture `socket.ty` retained; not in gate. |
+| Higher source / macros | still `.ty` + RAW; human writeability next axis |
+| Linux app peer | Win32-first this knife |
 
-≠ Thompson · ≠ silent A1 expand
+≠ Thompson · ≠ C replacement · cold-start A1 not expanded
