@@ -9,6 +9,7 @@ use crate::win32_selfhost;
 /// IMAGE_DOS_HEADER + PE signature offset convention.
 const OUTPUT_DATA_NEED: u32 = 0x38000;
 
+/// Cold-start / place / H_00 IAT — A1PIN = these 6. Do not grow silently.
 const KERNEL32_IO_FUNCS: &[&str] = &[
     "VirtualAlloc",
     "CreateFileA",
@@ -20,6 +21,22 @@ const KERNEL32_IO_FUNCS: &[&str] = &[
     // embed + GetProcAddress; deeper OW-IAT: dropped LoadLibraryA from IAT — H_00
     // resolves it via PEB→kernel32 export hash walk (still host LoadLibrary; CUT).
     "ExitProcess",
+];
+
+/// ANYPROG app PE IAT — grows **only** on plain non-H00 `link_pe_win32`.
+/// Slots 0–5 match bootstrap (ExitProcess stays `[r15+0x28]`). ≠ cold-start A1PIN.
+const KERNEL32_APP_FUNCS: &[&str] = &[
+    "VirtualAlloc",
+    "CreateFileA",
+    "ReadFile",
+    "WriteFile",
+    "CloseHandle",
+    "ExitProcess",
+    "GetStdHandle",        // slot 6 → [r15+0x30]
+    "GetCommandLineA",     // slot 7 → [r15+0x38]
+    "GetTickCount64",      // slot 8 → [r15+0x40]
+    "CreateThread",        // slot 9 → [r15+0x48]
+    "WaitForSingleObject", // slot 10 → [r15+0x50]
 ];
 
 /// Do **not** import UCRT/VCRUNTIME into the seed PE.
@@ -47,13 +64,42 @@ fn hint_name_bytes(func: &str) -> Vec<u8> {
     hn
 }
 
-/// Prepend kernel32 IAT at r15+0 for Stage 8 platform I/O emit.
+/// Prepend kernel32 IAT at r15+0 (bootstrap 6-func face). Pins H00 scratch @ 0xF8.
 fn prepend_win32_io_iat(user_data: &[u8], data_rva: u32) -> (Vec<u8>, u32, u32) {
+    prepend_win32_iat_with(
+        user_data,
+        data_rva,
+        KERNEL32_IO_FUNCS,
+        PRELOAD_RUNTIME_DLL_IMPORTS,
+        true,
+    )
+}
+
+/// ANYPROG app IAT (kernel32 11-func). No H00 scratch pin.
+/// Winsock left OPEN: WSAStartup under handmade PE AVs in host registry path (see API-HONEST).
+fn prepend_win32_app_iat(user_data: &[u8], data_rva: u32) -> (Vec<u8>, u32, u32) {
+    prepend_win32_iat_with(
+        user_data,
+        data_rva,
+        KERNEL32_APP_FUNCS,
+        PRELOAD_RUNTIME_DLL_IMPORTS,
+        false,
+    )
+}
+
+/// Prepend kernel32 IAT at r15+0 for Stage 8 platform I/O emit.
+fn prepend_win32_iat_with(
+    user_data: &[u8],
+    data_rva: u32,
+    kern_funcs: &[&str],
+    extra_imports: &[(&str, &str)],
+    pin_h00_scratch: bool,
+) -> (Vec<u8>, u32, u32) {
     const DESC_SIZE: usize = 20; // IMAGE_IMPORT_DESCRIPTOR (was 40 — broke loader chain)
     let desc_size = DESC_SIZE;
     let kernel32_name = b"kernel32.dll\0";
-    let kern_n = KERNEL32_IO_FUNCS.len();
-    let preload_n = PRELOAD_RUNTIME_DLL_IMPORTS.len();
+    let kern_n = kern_funcs.len();
+    let preload_n = extra_imports.len();
     let num_desc = 1 + preload_n + 1; // trailing null descriptor
 
     // Each IAT/ILT array is null-terminated and 8-byte aligned. Packed IATs without a
@@ -64,8 +110,8 @@ fn prepend_win32_io_iat(user_data: &[u8], data_rva: u32) -> (Vec<u8>, u32, u32) 
     let preload_iat_base = kern_iat_bytes;
     let desc_off = preload_iat_base + preload_n * preload_iat_stride;
 
-    let kern_hints: Vec<Vec<u8>> = KERNEL32_IO_FUNCS.iter().map(|s| hint_name_bytes(s)).collect();
-    let preload_hints: Vec<Vec<u8>> = PRELOAD_RUNTIME_DLL_IMPORTS
+    let kern_hints: Vec<Vec<u8>> = kern_funcs.iter().map(|s| hint_name_bytes(s)).collect();
+    let preload_hints: Vec<Vec<u8>> = extra_imports
         .iter()
         .map(|(_, f)| hint_name_bytes(f))
         .collect();
@@ -86,7 +132,7 @@ fn prepend_win32_io_iat(user_data: &[u8], data_rva: u32) -> (Vec<u8>, u32, u32) 
     cursor += (kern_n + 1) * 8;
 
     let mut preload_meta: Vec<(usize, usize, usize, usize)> = Vec::new();
-    for (i, (dll, _)) in PRELOAD_RUNTIME_DLL_IMPORTS.iter().enumerate() {
+    for (i, (dll, _)) in extra_imports.iter().enumerate() {
         let name_off = cursor;
         cursor += dll.len() + 1;
         let hn_off = cursor;
@@ -102,11 +148,13 @@ fn prepend_win32_io_iat(user_data: &[u8], data_rva: u32) -> (Vec<u8>, u32, u32) 
     cursor += WIN32_IO_H00_SCRATCH_BYTES;
     let header_end = cursor;
     let pad = align_up_usize(header_end, 16);
-    debug_assert_eq!(
-        h00_scratch_off,
-        WIN32_IO_H00_SCRATCH_OFF as usize,
-        "update WIN32_IO_H00_SCRATCH_OFF (got 0x{h00_scratch_off:x})"
-    );
+    if pin_h00_scratch {
+        debug_assert_eq!(
+            h00_scratch_off,
+            WIN32_IO_H00_SCRATCH_OFF as usize,
+            "update WIN32_IO_H00_SCRATCH_OFF (got 0x{h00_scratch_off:x})"
+        );
+    }
     let mut blob = vec![0u8; pad + user_data.len()];
     let user_base = pad;
 
@@ -133,7 +181,7 @@ fn prepend_win32_io_iat(user_data: &[u8], data_rva: u32) -> (Vec<u8>, u32, u32) 
     }
     // kern IAT/ILT terminating thunks stay 0 (blob zero-filled)
 
-    for (i, ((dll, _), (name_off, hn_off, ilt_off, iat_off))) in PRELOAD_RUNTIME_DLL_IMPORTS
+    for (i, ((dll, _), (name_off, hn_off, ilt_off, iat_off))) in extra_imports
         .iter()
         .zip(preload_meta.iter())
         .enumerate()
@@ -203,9 +251,9 @@ pub fn link_pe_win32(
         let est_text = code.len() as u32 + 0x40;
         let text_vs = align_up(est_text, section_align);
         let data_rva = text_rva + text_vs;
-        let (mut extended, import_dir_rva, import_dir_size) = prepend_win32_io_iat(data, data_rva);
+        let (mut extended, import_dir_rva, import_dir_size) = prepend_win32_app_iat(data, data_rva);
         // ANYPROG / plain I/O apps: paths at r15+STR_TABLE_OFF (after IAT prefix).
-        // Place-stub compact floor path does not call this. ≠ expand A1.
+        // App IAT may grow; cold-start A1PIN still 6 via bootstrap prepend. ≠ Thompson.
         embed_string_table_r15(&mut extended);
         let _ = platform_io::WIN32_IAT_DATA_RESERVE;
         link_pe_impl(
@@ -380,7 +428,7 @@ fn embed_string_table(user_data: &[u8]) -> Vec<u8> {
 /// Write path cstrs at absolute offsets from `.data` / r15 base (post-IAT).
 fn embed_string_table_r15(blob: &mut Vec<u8>) {
     let table_off = platform_io::STR_TABLE_OFF as usize;
-    let need = table_off + platform_io::STR_ENTRY_SIZE as usize * 3;
+    let need = table_off + platform_io::STR_ENTRY_SIZE as usize * 6;
     if blob.len() < need {
         blob.resize(need, 0);
     }
@@ -394,6 +442,21 @@ fn embed_string_table_r15(blob: &mut Vec<u8>) {
         blob,
         table_off + platform_io::STR_ENTRY_SIZE as usize * 2,
         b"output.exe",
+    );
+    write_cstr_entry(
+        blob,
+        table_off + platform_io::STR_ENTRY_SIZE as usize * 3,
+        b"hi\n",
+    );
+    write_cstr_entry(
+        blob,
+        table_off + platform_io::STR_ENTRY_SIZE as usize * 4,
+        b"ok\n",
+    );
+    write_cstr_entry(
+        blob,
+        table_off + platform_io::STR_ENTRY_SIZE as usize * 5,
+        b"sock\n",
     );
 }
 
