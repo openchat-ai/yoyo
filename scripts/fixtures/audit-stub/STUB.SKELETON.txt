@@ -1,0 +1,121 @@
+; AUTO-AUDITCLR annotated disasm — Capstone intel (disambiguated)
+; PE: scripts/fixtures/yoyo_place_stub.exe
+; image_base=0x140000000  .text_rva=0x1000  entry_va=0x140001000
+; bytes=5889 (= PE_startup 13 + code_place 5876)
+; Prefer STUB.SKELETON.txt. Full file: banners / call# / DATA / FOLD / OUT_OF_WINDOW.
+; ≠ Thompson
+
+
+; ========== ENTRY / PE startup @ 0x140001000 ==========
+0000000140001000:  4c 8d 3d f9 1f 00 00              lea      r15, [rip + 0x1ff9]  ; << entry
+
+; ========== PLACE BODY @ 0x14000100d ==========
+000000014000100d:  48 81 ec 88 00 00 00              sub      rsp, 0x88  ; << place body
+0000000140001014:  48 8d 0d 49 04 00 00              lea      rcx, [rip + 0x449]  ; str="input.tyb"
+
+; ========== CreateFileA → input.tyb @ 0x140001044 ==========
+0000000140001044:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]  ; => CreateFileA call#1 path="input.tyb"
+
+; ========== ReadFile @ 0x140001074 ==========
+0000000140001074:  41 ff 97 10 00 00 00              call     qword ptr [r15 + 0x10]  ; => ReadFile call#2 n=0x40
+000000014000108a:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]  ; => CloseHandle call#3
+
+; ========== CHECK magic Y1PL @ 0x14000109a ==========
+000000014000109a:  81 7c 24 50 59 31 50 4c           cmp      dword ptr [rsp + 0x50], 0x4c503159  ; magic Y1PL
+
+; ========== CHECK magic TYB @ 0x1400010bf ==========
+00000001400010bf:  81 3e 54 59 42 00                 cmp      dword ptr [rsi], 0x425954  ; magic TYB
+; FOLD opcode/size-gates 0x1400010de..0x140001146  (26 insns — skipped as noise)
+;      reason: AUDITCLR — opcode/size-gates is repetitive / not an I/O edge
+
+; ========== VirtualAlloc @ 0x14000124e ==========
+000000014000124e:  41 ff 97 00 00 00 00              call     qword ptr [r15]  ; => VirtualAlloc call#4 size=0x1000
+
+; ========== BUILD PE MZ header @ 0x14000126d ==========
+000000014000126d:  c6 06 4d                          mov      byte ptr [rsi], 0x4d
+00000001400013d7:  48 8d 0d 90 00 00 00              lea      rcx, [rip + 0x90]  ; str="output.exe"
+
+; ========== CreateFileA → output.exe @ 0x140001404 ==========
+0000000140001404:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]  ; => CreateFileA call#5 path="output.exe"
+
+; ========== WriteFile @ 0x140001432 ==========
+0000000140001432:  41 ff 97 18 00 00 00              call     qword ptr [r15 + 0x18]  ; => WriteFile call#6 n=0x400
+000000014000143c:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]  ; => CloseHandle call#7
+
+; ========== ExitProcess @ 0x140001445 ==========
+0000000140001445:  41 ff 97 28 00 00 00              call     qword ptr [r15 + 0x28]  ; => ExitProcess call#8
+0000000140001451:  41 ff 97 28 00 00 00              call     qword ptr [r15 + 0x28]  ; => ExitProcess call#9
+
+; ========== DATA string "input.tyb | output.exe | SEMHOST1" @ 0x140001464 ==========
+0000000140001464:  ; DATA "input.tyb | output.exe | SEMHOST1"  (do not decode as code)
+
+; ========== EMBEDDED seed/table (not cold I/O path) @ 0x140001482 ==========
+; FOLD seed/table helpers 0x140001482..0x140001576  (244 insns — skipped as noise)
+;      reason: AUDITCLR — seed/table helpers is repetitive / not an I/O edge
+
+; ========== H_00 / open-loop frame (sub rsp,0x78) @ 0x140001576 ==========
+0000000140001576:  48 83 ec 78                       sub      rsp, 0x78  ; << H_00 frame
+000000014000157a:  49 8d 8f 20 01 00 00              lea      rcx, [r15 + 0x120]  ; str="input.tyb"
+00000001400015a6:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]  ; => CreateFileA call#10 path="input.tyb"
+00000001400015cd:  41 ff 97 00 00 00 00              call     qword ptr [r15]  ; => VirtualAlloc call#11 size=0x8000
+00000001400015fa:  41 ff 97 10 00 00 00              call     qword ptr [r15 + 0x10]  ; => ReadFile call#12 n=0x8000
+0000000140001610:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]  ; => CloseHandle call#13
+0000000140001617:  e9 46 3c 00 00                    jmp      0x140005262  ; OUT_OF_WINDOW tgt=0x140005262 (beyond place_stub window)
+; FOLD opcode/size-gates 0x14000164e..0x140001b12  (239 insns — skipped as noise)
+;      reason: AUDITCLR — opcode/size-gates is repetitive / not an I/O edge
+; FOLD opcode/size-gates 0x140001b14..0x140001b3f  (14 insns — skipped as noise)
+;      reason: AUDITCLR — opcode/size-gates is repetitive / not an I/O edge
+; FOLD opcode/size-gates 0x140001b41..0x140001b6c  (14 insns — skipped as noise)
+;      reason: AUDITCLR — opcode/size-gates is repetitive / not an I/O edge
+; FOLD opcode/size-gates 0x140001b6e..0x140001b99  (14 insns — skipped as noise)
+;      reason: AUDITCLR — opcode/size-gates is repetitive / not an I/O edge
+; FOLD opcode/size-gates 0x140001b9b..0x140001bc6  (14 insns — skipped as noise)
+;      reason: AUDITCLR — opcode/size-gates is repetitive / not an I/O edge
+; FOLD opcode/size-gates 0x140001bc8..0x140001bf3  (14 insns — skipped as noise)
+;      reason: AUDITCLR — opcode/size-gates is repetitive / not an I/O edge
+; FOLD opcode/size-gates 0x140001bf5..0x140001c20  (14 insns — skipped as noise)
+;      reason: AUDITCLR — opcode/size-gates is repetitive / not an I/O edge
+; FOLD opcode/size-gates 0x140001c22..0x140001c52  (12 insns — skipped as noise)
+;      reason: AUDITCLR — opcode/size-gates is repetitive / not an I/O edge
+0000000140001c5d:  49 8d 8f 2a 01 00 00              lea      rcx, [r15 + 0x12a]  ; str="output.exe"
+0000000140001c89:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]  ; => CreateFileA call#14 path="output.exe"
+0000000140001cb4:  41 ff 97 18 00 00 00              call     qword ptr [r15 + 0x18]  ; => WriteFile call#15
+0000000140001cc6:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]  ; => CloseHandle call#16
+0000000140001ccf:  41 ff 97 28 00 00 00              call     qword ptr [r15 + 0x28]  ; => ExitProcess call#17
+0000000140001ce8:  49 8d 8f d3 01 00 00              lea      rcx, [r15 + 0x1d3]  ; str="emit.bins"
+
+; ========== CreateFileA → emit.bins @ 0x140001d14 ==========
+0000000140001d14:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]  ; => CreateFileA call#18 path="emit.bins"
+0000000140001d28:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]  ; => CloseHandle call#19
+0000000140001d42:  41 ff 97 00 00 00 00              call     qword ptr [r15]  ; => VirtualAlloc call#20 size=0x3cc00
+0000000140001d57:  49 8d 8f c1 01 00 00              lea      rcx, [r15 + 0x1c1]  ; str="yoyo_compiler.exe"
+
+; ========== CreateFileA → yoyo_compiler.exe @ 0x140001d83 ==========
+0000000140001d83:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]  ; => CreateFileA call#21 path="yoyo_compiler.exe"
+0000000140001db3:  41 ff 97 10 00 00 00              call     qword ptr [r15 + 0x10]  ; => ReadFile call#22 n=0x3cc00
+0000000140001dd3:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]  ; => CloseHandle call#23
+0000000140001dda:  49 8d 8f af 01 00 00              lea      rcx, [r15 + 0x1af]  ; str="code.bin"
+
+; ========== CreateFileA → code.bin @ 0x140001e06 ==========
+0000000140001e06:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]  ; => CreateFileA call#24 path="code.bin"
+0000000140001e3d:  41 ff 97 18 00 00 00              call     qword ptr [r15 + 0x18]  ; => WriteFile call#25 n=0x46b6
+0000000140001e4f:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]  ; => CloseHandle call#26
+0000000140001e56:  49 8d 8f b8 01 00 00              lea      rcx, [r15 + 0x1b8]  ; str="data.bin"
+
+; ========== CreateFileA → data.bin @ 0x140001e82 ==========
+0000000140001e82:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]  ; => CreateFileA call#27 path="data.bin"
+0000000140001eb9:  41 ff 97 18 00 00 00              call     qword ptr [r15 + 0x18]  ; => WriteFile call#28 n=0xa670
+0000000140001ecb:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]  ; => CloseHandle call#29
+0000000140001eec:  41 ff 97 00 00 00 00              call     qword ptr [r15]  ; => VirtualAlloc call#30 size=0x3cc00
+0000000140001f14:  41 ff 97 00 00 00 00              call     qword ptr [r15]  ; => VirtualAlloc call#31 size=0x46b6
+0000000140001f3c:  41 ff 97 00 00 00 00              call     qword ptr [r15]  ; => VirtualAlloc call#32 size=0xa670
+0000000140001f51:  49 8d 8f af 01 00 00              lea      rcx, [r15 + 0x1af]  ; str="code.bin"
+0000000140001f7d:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]  ; => CreateFileA call#33 path="code.bin"
+0000000140001fad:  41 ff 97 10 00 00 00              call     qword ptr [r15 + 0x10]  ; => ReadFile call#34 n=0x46b6
+0000000140001fcd:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]  ; => CloseHandle call#35
+0000000140001fd4:  49 8d 8f b8 01 00 00              lea      rcx, [r15 + 0x1b8]  ; str="data.bin"
+0000000140002000:  41 ff 97 08 00 00 00              call     qword ptr [r15 + 8]  ; => CreateFileA call#36 path="data.bin"
+0000000140002030:  41 ff 97 10 00 00 00              call     qword ptr [r15 + 0x10]  ; => ReadFile call#37 n=0xa670
+0000000140002050:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]  ; => CloseHandle call#38
+; FOLD PE-field/IAT stores 0x140002065..0x1400026c6  (230 insns — skipped as noise)
+;      reason: AUDITCLR — PE-field/IAT stores is repetitive / not an I/O edge

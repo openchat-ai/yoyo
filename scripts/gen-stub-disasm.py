@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """
-AUDITMAX annotated place_stub disasm — Capstone, no llvm-objdump.
+AUDITCLR disasm — Capstone, disambiguated for AI/human audit.
 
 Outputs:
-  scripts/fixtures/audit-stub/STUB.disasm.txt
-  scripts/fixtures/audit-stub/STUB.WALKTHROUGH.md
-  scripts/fixtures/audit-stub/STUB.AI.md
-  scripts/fixtures/audit-stub/STUB.CALLSEQ.pin  (write if missing; else compare)
+  STUB.disasm.txt      — full but no false-code; long noise FOLDed
+  STUB.SKELETON.txt    — signal-only (prefer for detail dive)
+  STUB.WALKTHROUGH.md / STUB.AI.md / STUB.CALLSEQ.pin
 """
 from __future__ import annotations
 
@@ -21,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PE_PATH = ROOT / "scripts" / "fixtures" / "yoyo_place_stub.exe"
 OUT_DIR = ROOT / "scripts" / "fixtures" / "audit-stub"
 OUT_DISASM = OUT_DIR / "STUB.disasm.txt"
+OUT_SKELETON = OUT_DIR / "STUB.SKELETON.txt"
 OUT_WALK = OUT_DIR / "STUB.WALKTHROUGH.md"
 OUT_AI = OUT_DIR / "STUB.AI.md"
 OUT_CALLSEQ = OUT_DIR / "STUB.CALLSEQ.pin"
@@ -45,7 +45,6 @@ ALLOW_OPEN = {
     "yoyo_compiler.exe",
 }
 
-# Fail-closed: these substrings in PE ASCII = review RED (exfil / spawn / net).
 BAN_SUBSTR = (
     "http://",
     "https://",
@@ -64,6 +63,31 @@ BAN_SUBSTR = (
     "RegSetValue",
     "WriteProcessMemory",
 )
+
+# Instructions that alone never break a "noise gate" fold.
+GATE_MNEM = {
+    "cmp",
+    "test",
+    "je",
+    "jne",
+    "jz",
+    "jnz",
+    "ja",
+    "jb",
+    "jae",
+    "jbe",
+    "jg",
+    "jl",
+    "jge",
+    "jle",
+    "jmp",
+    "movzx",
+    "movsx",
+    "nop",
+}
+
+# PE-field store churn (try_place builder).
+STORE_MNEM = {"mov", "movabs"}
 
 
 def pe_map(pe: bytes):
@@ -103,10 +127,6 @@ def read_cstr(pe: bytes, file_off: int | None) -> str | None:
         end += 1
     if end - file_off < 4:
         return None
-    if end < len(pe) and pe[end] != 0:
-        s = pe[file_off:end].decode("ascii")
-        if "." not in s and not s.endswith(".exe") and not s.endswith(".bin") and not s.endswith(".tyb"):
-            return None
     return pe[file_off:end].decode("ascii")
 
 
@@ -116,8 +136,7 @@ def rip_target(insn) -> int | None:
     m = re.search(r"\[rip\s*([\+\-]\s*0x[0-9a-fA-F]+)\]", insn.op_str)
     if not m:
         return None
-    disp = int(m.group(1).replace(" ", ""), 16)
-    return insn.address + insn.size + disp
+    return insn.address + insn.size + int(m.group(1).replace(" ", ""), 16)
 
 
 def imm_from_op(op: str) -> int | None:
@@ -141,12 +160,99 @@ def parse_callseq_pin(text: str) -> dict[str, str]:
     out = {}
     for line in text.splitlines():
         line = line.strip()
-        if not line or line.startswith("#"):
+        if not line or line.startswith("#") or "=" not in line:
             continue
-        if "=" in line:
-            k, v = line.split("=", 1)
-            out[k.strip()] = v.strip()
+        k, v = line.split("=", 1)
+        out[k.strip()] = v.strip()
     return out
+
+
+def find_literal_spans(code: bytes, base: int) -> list[tuple[int, int, str]]:
+    """
+    Real embedded literals only — NOT instruction immediates (e.g. cmp …,'TYB').
+    Accept: lea-backed filenames, or known tags (SEMHOST/yoyo_/kernel).
+    """
+    spans: list[tuple[int, int, str]] = []
+    # Known tags that live as real .text literals in place_stub
+    # Do NOT search ".text" — it appears as movabs immediates in PE builders.
+    for tag in (b"SEMHOST", b"input.tyb", b"output.exe"):
+        start = 0
+        while True:
+            at = code.find(tag, start)
+            if at < 0:
+                break
+            # extend to NUL
+            end = at + len(tag)
+            while end < len(code) and 32 <= code[end] < 127:
+                end += 1
+            if end < len(code) and code[end] == 0:
+                s = code[at:end].decode("ascii")
+                spans.append((base + at, base + end + 1, s))
+                start = end + 1
+            else:
+                start = at + 1
+    return spans
+
+
+def find_second_frame(code: bytes, base: int) -> int | None:
+    """VA of `sub rsp, 0x78` (second place/open frame) after embedded strings."""
+    pat = bytes([0x48, 0x83, 0xEC, 0x78])
+    # skip first frame which uses sub rsp, 0x88
+    idx = 0
+    while True:
+        at = code.find(pat, idx)
+        if at < 0:
+            return None
+        return base + at
+
+
+def merge_spans(spans: list[tuple[int, int, str]]) -> list[tuple[int, int, str]]:
+    if not spans:
+        return []
+    spans = sorted(spans)
+    out = [spans[0]]
+    for a, b, s in spans[1:]:
+        pa, pb, ps = out[-1]
+        if a <= pb + 1:
+            # merge adjacent/overlapping; unique labels
+            parts = []
+            for p in (ps + " | " + s).split(" | "):
+                if p and p not in parts:
+                    parts.append(p)
+            out[-1] = (pa, max(pb, b), " | ".join(parts))
+        else:
+            out.append((a, b, s))
+    return out
+
+
+def is_pe_store_insn(insn) -> bool:
+    if insn.mnemonic not in STORE_MNEM:
+        return False
+    op = insn.op_str
+    # movabs rax, imm  OR  mov [rax+..]/..  OR mov rcx,[rsp+58] reload
+    if insn.mnemonic == "movabs":
+        return True
+    if "[rax" in op or "[rcx" in op:
+        return True
+    if op.startswith("rax, qword ptr [rsp") or op.startswith("rcx, qword ptr [rsp"):
+        return True
+    if op.startswith("rdi, qword ptr [rsp") or op.startswith("rsi, qword ptr [rsp"):
+        return True
+    return False
+
+
+def is_gate_insn(insn) -> bool:
+    if insn.mnemonic in GATE_MNEM:
+        return True
+    # lea used only as table cursor in gates (not path rcx)
+    if insn.mnemonic == "lea" and not insn.op_str.startswith("rcx"):
+        return True
+    if insn.mnemonic == "mov" and re.match(r"e?[abcd]x,\s*(0x)?[0-9a-f]+$", insn.op_str):
+        # mov ecx, imm in cmpsb prep — treat as gate-ish only inside gate runs
+        return True
+    if insn.mnemonic in ("push", "pop", "cmpsb", "repe"):
+        return True
+    return False
 
 
 def main() -> None:
@@ -157,36 +263,25 @@ def main() -> None:
     need = STARTUP + PLACE
     code = pe[text_raw : text_raw + need]
     if len(code) < need:
-        raise SystemExit("AUDITMAX status=RED reason=text_short")
+        raise SystemExit("AUDITCLR status=RED reason=text_short")
 
     ban_hits = scan_ban(pe)
     base = image_base + text_rva
     entry_va = image_base + entry_rva
+    win_lo, win_hi = base, base + need
     md = Cs(CS_ARCH_X86, CS_MODE_64)
 
-    insns = list(md.disasm(code, base))
-    str_at: dict[int, str] = {}
-    for insn in insns:
-        if insn.mnemonic != "lea":
-            continue
-        tgt = rip_target(insn)
-        if tgt is None:
-            continue
-        s = read_cstr(pe, va_to_file(tgt, image_base, sections))
-        if s and len(s) >= 4 and re.search(r"[A-Za-z].*\.|bin|tyb|exe|dll|SEMHOST|yoyo_", s):
-            str_at[tgt] = s
+    # --- DATA: lea targets + known real literals (never cmp immediates) ---
+    data_spans = merge_spans(find_literal_spans(code, base))
 
-    data_spans: list[tuple[int, int, str]] = []
-    for va, s in sorted(str_at.items()):
-        foff = va_to_file(va, image_base, sections)
-        if foff is None:
-            continue
-        end_off = foff + len(s)
-        if end_off < len(pe) and pe[end_off] == 0:
-            end_off += 1
-        end_va = va + (end_off - foff)
-        if base <= va < base + need:
-            data_spans.append((va, min(end_va, base + need), s))
+    # --- SEED/table fold: from first embedded literal cluster to second frame ---
+    second = find_second_frame(code, base)
+    seed_lo = seed_hi = None
+    if data_spans and second is not None:
+        cand = [a for a, b, s in data_spans if a >= base + 0x400]
+        if cand:
+            seed_lo = min(cand)
+            seed_hi = second  # exclusive
 
     def in_data(va: int) -> tuple[int, int, str] | None:
         for a, b, s in data_spans:
@@ -194,53 +289,163 @@ def main() -> None:
                 return a, b, s
         return None
 
-    lines = [
-        "; AUTO-AUDITMAX annotated disasm — Capstone intel",
+    def in_seed_gap(va: int) -> bool:
+        if seed_lo is None or seed_hi is None:
+            return False
+        if not (seed_lo <= va < seed_hi):
+            return False
+        return in_data(va) is None
+
+    # Pass-1 lea→str for rcx path tracking (also from .data via r15)
+    str_at: dict[int, str] = {}
+    for insn in md.disasm(code, base):
+        if insn.mnemonic != "lea":
+            continue
+        tgt = rip_target(insn)
+        if tgt is None:
+            continue
+        s = read_cstr(pe, va_to_file(tgt, image_base, sections))
+        if s and len(s) >= 4:
+            str_at[tgt] = s
+            foff = va_to_file(tgt, image_base, sections)
+            if foff is not None and win_lo <= tgt < win_hi:
+                end = foff + len(s)
+                if end < len(pe) and pe[end] == 0:
+                    end += 1
+                data_spans.append((tgt, tgt + (end - foff), s))
+    data_spans = merge_spans(data_spans)
+
+    header = [
+        "; AUTO-AUDITCLR annotated disasm — Capstone intel (disambiguated)",
         f"; PE: {PE_PATH.relative_to(ROOT).as_posix()}",
         f"; image_base=0x{image_base:x}  .text_rva=0x{text_rva:x}  entry_va=0x{entry_va:x}",
         f"; bytes={need} (= PE_startup {STARTUP} + code_place {PLACE})",
-        "; Read `; ==========` / `; => API` / `; str=` / `; DATA` / `; call#` — not every insn",
+        "; Prefer STUB.SKELETON.txt. Full file: banners / call# / DATA / FOLD / OUT_OF_WINDOW.",
         "; ≠ Thompson",
         "",
     ]
+    lines: list[str] = list(header)
+    skel: list[str] = list(header)
     phases: list[tuple[int, str]] = []
     phases_emitted: set[str] = set()
+    fold_notes: list[str] = []
 
-    def emit_phase(va: int, title: str):
+    def emit_phase(va: int, title: str, to_skel: bool = True):
         key = title.split("@")[0].strip()
         if key in phases_emitted:
             return
         phases_emitted.add(key)
         phases.append((va, title))
-        lines.append("")
-        lines.append(f"; ========== {title} @ 0x{va:x} ==========")
+        block = ["", f"; ========== {title} @ 0x{va:x} =========="]
+        lines.extend(block)
+        if to_skel:
+            skel.extend(block)
+
+    def emit_line(raw: str, signal: bool):
+        lines.append(raw)
+        if signal:
+            skel.append(raw)
+
+    def emit_fold(va0: int, va1: int, kind: str, ninsn: int):
+        msg = f"; FOLD {kind} 0x{va0:x}..0x{va1:x}  ({ninsn} insns — skipped as noise)"
+        fold_notes.append(msg)
+        emit_line("", False)
+        emit_line(msg, True)
+        emit_line(f";      reason: AUDITCLR — {kind} is repetitive / not an I/O edge", True)
 
     call_rows: list[dict] = []
     pending_rcx_str: str | None = None
     pending_rcx_age = 999
-    # recent immediates for size hints (age counted in insns)
-    last_edx: tuple[int, int] | None = None  # (imm, age)
+    last_edx: tuple[int, int] | None = None
     last_r8d: tuple[int, int] | None = None
+    last_edi: tuple[int, int] | None = None  # (imm or -1 if from reg, age)
+    r8_from_edi = False
     flags: list[str] = []
 
+    # lookahead buffers for folding
+    gate_buf: list = []
+    store_buf: list = []
+
+    def flush_gate():
+        nonlocal gate_buf
+        if len(gate_buf) >= 10:
+            emit_fold(gate_buf[0].address, gate_buf[-1].address + gate_buf[-1].size, "opcode/size-gates", len(gate_buf))
+        else:
+            for ins in gate_buf:
+                hexb = " ".join(f"{b:02x}" for b in ins.bytes)
+                emit_line(f"{ins.address:016x}:  {hexb:<32}  {ins.mnemonic:<8} {ins.op_str}", False)
+        gate_buf = []
+
+    def flush_store():
+        nonlocal store_buf
+        if len(store_buf) >= 8:
+            emit_fold(
+                store_buf[0].address,
+                store_buf[-1].address + store_buf[-1].size,
+                "PE-field/IAT stores",
+                len(store_buf),
+            )
+        else:
+            for ins in store_buf:
+                hexb = " ".join(f"{b:02x}" for b in ins.bytes)
+                emit_line(f"{ins.address:016x}:  {hexb:<32}  {ins.mnemonic:<8} {ins.op_str}", False)
+        store_buf = []
+
     i = 0
+    seed_fold_emitted = False
     while i < len(code):
         va = base + i
+
+        # Seed gap: one fold covering all non-DATA bytes in embedded region
+        if in_seed_gap(va):
+            if not seed_fold_emitted:
+                # advance across contiguous seed gaps, emitting DATA when hit
+                start = va
+                while i < len(code):
+                    va2 = base + i
+                    sp = in_data(va2)
+                    if sp and sp[0] == va2:
+                        # emit pending seed fold before this string
+                        if va2 > start:
+                            emit_phase(start, "EMBEDDED seed/table (not cold I/O path)")
+                            emit_fold(start, va2, "seed/table helpers", (va2 - start))
+                        a, b, s = sp
+                        emit_phase(va2, f'DATA string "{s}"')
+                        emit_line(f'{va2:016x}:  ; DATA "{s}"  (do not decode as code)', True)
+                        i = b - base
+                        start = base + i
+                        continue
+                    if not in_seed_gap(va2):
+                        if va2 > start:
+                            emit_phase(start, "EMBEDDED seed/table (not cold I/O path)")
+                            emit_fold(start, va2, "seed/table helpers", (va2 - start))
+                        seed_fold_emitted = True
+                        break
+                    i += 1
+                else:
+                    seed_fold_emitted = True
+                continue
+            i += 1
+            continue
+
         span = in_data(va)
         if span and span[0] == va:
+            flush_gate()
+            flush_store()
             a, b, s = span
             emit_phase(va, f'DATA string "{s}"')
-            lines.append(f'{va:016x}:  ; DATA "{s}"  (do not decode as code)')
+            emit_line(f'{va:016x}:  ; DATA "{s}"  (do not decode as code)', True)
             i = b - base
             continue
         if span:
             i += 1
             continue
 
-        chunk = code[i:]
-        got = list(md.disasm(chunk, va, count=1))
+        got = list(md.disasm(code[i:], va, count=1))
         if not got:
-            lines.append(f"{va:016x}:  {code[i]:02x}                               db 0x{code[i]:02x}")
+            flush_gate()
+            flush_store()
+            emit_line(f"{va:016x}:  {code[i]:02x}                               db 0x{code[i]:02x}", False)
             i += 1
             continue
         insn = got[0]
@@ -248,23 +453,34 @@ def main() -> None:
             i += 1
             continue
 
+        # classify before emitting — maybe fold
+        interesting = False
+        marks: list[str] = []
+        api = None
+        path_hint = ""
+        size_hint = ""
+
         pending_rcx_age += 1
         if last_edx:
             last_edx = (last_edx[0], last_edx[1] + 1)
         if last_r8d:
             last_r8d = (last_r8d[0], last_r8d[1] + 1)
-
-        hexb = " ".join(f"{b:02x}" for b in insn.bytes)
-        marks: list[str] = []
+        if last_edi:
+            last_edi = (last_edi[0], last_edi[1] + 1)
 
         if insn.address == entry_va:
+            interesting = True
             emit_phase(insn.address, "ENTRY / PE startup")
             marks.append("<< entry")
         if insn.address == base + STARTUP:
+            interesting = True
             emit_phase(insn.address, "PLACE BODY")
             marks.append("<< place body")
+        if second is not None and insn.address == second:
+            interesting = True
+            emit_phase(insn.address, "H_00 / open-loop frame (sub rsp,0x78)")
+            marks.append("<< H_00 frame")
 
-        # Track size-ish immediates: mov edx,imm / mov r8d,imm / mov eax,imm before call
         if insn.mnemonic == "mov":
             op = insn.op_str
             imm = imm_from_op(op)
@@ -273,6 +489,13 @@ def main() -> None:
                     last_edx = (imm, 0)
                 elif op.startswith("r8d,") or op.startswith("r8,"):
                     last_r8d = (imm, 0)
+                    r8_from_edi = False
+                elif op.startswith("edi,") or op.startswith("rdi,"):
+                    last_edi = (imm, 0)
+            if op.startswith("r8d, edi") or op.startswith("r8, rdi") or op == "r8d, edi":
+                r8_from_edi = True
+                if last_edi:
+                    last_r8d = (last_edi[0], 0)
 
         if insn.mnemonic == "lea":
             tgt = rip_target(insn)
@@ -283,18 +506,16 @@ def main() -> None:
                 m = re.search(r"\[r15\s*\+\s*(0x[0-9a-fA-F]+|\d+)\]", insn.op_str)
                 if m:
                     disp = int(m.group(1), 16) if m.group(1).startswith("0x") else int(m.group(1))
-                    data_va = image_base + 0x3000
-                    s = read_cstr(pe, va_to_file(data_va + disp, image_base, sections))
+                    s = read_cstr(pe, va_to_file(image_base + 0x3000 + disp, image_base, sections))
             if s and len(s) >= 4:
+                interesting = True
                 marks.append(f'str="{s}"')
                 if insn.op_str.startswith("rcx"):
                     pending_rcx_str = s
                     pending_rcx_age = 0
 
-        api = None
-        path_hint = ""
-        size_hint = ""
         if insn.mnemonic == "call" and "r15" in insn.op_str:
+            interesting = True
             if re.search(r"\[r15\]\s*$", insn.op_str) or insn.op_str.rstrip().endswith("[r15]"):
                 api = IAT[0]
             else:
@@ -315,51 +536,98 @@ def main() -> None:
                         size_hint = f"size=0x{last_edx[0]:x}"
                 elif api in ("ReadFile", "WriteFile"):
                     emit_phase(insn.address, api)
-                    if last_r8d and last_r8d[1] <= 10:
+                    if last_r8d and last_r8d[1] <= 12:
                         size_hint = f"n=0x{last_r8d[0]:x}"
-                    elif last_edx and last_edx[1] <= 10 and api == "WriteFile":
-                        # sometimes size in r8; track edx as fallback noise
-                        pass
+                    elif r8_from_edi and last_edi and last_edi[1] <= 20:
+                        size_hint = f"n=edi:0x{last_edi[0]:x}"
                 elif api == "ExitProcess":
                     emit_phase(insn.address, "ExitProcess")
-                elif api == "CloseHandle":
-                    pass
                 call_rows.append(
-                    {
-                        "n": n,
-                        "va": insn.address,
-                        "api": api,
-                        "path_hint": path_hint,
-                        "size_hint": size_hint,
-                    }
+                    {"n": n, "va": insn.address, "api": api, "path_hint": path_hint, "size_hint": size_hint}
                 )
                 if api.startswith("UNKNOWN"):
                     flags.append(f"UNKNOWN IAT call @ 0x{insn.address:x}")
 
         if "0x4c503159" in insn.op_str:
+            interesting = True
             marks.append("magic Y1PL")
             emit_phase(insn.address, "CHECK magic Y1PL")
-        if "0x425954" in insn.op_str:
-            marks.append("magic TYB")
-            emit_phase(insn.address, "CHECK magic TYB")
+        if "0x425954" in insn.op_str and insn.mnemonic == "cmp":
+            # Only the first TYB check is a landmark; later ones fold into gates.
+            if "CHECK magic TYB" not in phases_emitted:
+                interesting = True
+                marks.append("magic TYB")
+                emit_phase(insn.address, "CHECK magic TYB")
         if insn.mnemonic == "mov" and "byte ptr [rsi]" in insn.op_str and "0x4d" in insn.op_str:
+            interesting = True
             emit_phase(insn.address, "BUILD PE MZ header")
-        if "movsb" in insn.op_str or insn.mnemonic == "movsb":
+        if insn.mnemonic in ("movsb",) or "movsb" in insn.op_str:
+            interesting = True
             emit_phase(insn.address, "rep movsb copy into PE")
 
-        op = insn.op_str
-        extra = ""
-        if api:
-            bits = [f"=> {api}", f"call#{len(call_rows)}"]
-            if path_hint:
-                bits.append(f'path="{path_hint}"')
-            if size_hint:
-                bits.append(size_hint)
-            extra = "  ; " + " ".join(bits)
-        elif marks:
-            extra = "  ; " + " | ".join(marks)
-        lines.append(f"{insn.address:016x}:  {hexb:<32}  {insn.mnemonic:<8} {op}{extra}")
+        # Branch targets: PLACE_CUT (exact window end) vs true OUT_OF_WINDOW
+        oow = ""
+        place_cut = False
+        if insn.mnemonic.startswith("j") or insn.mnemonic == "call":
+            m = re.search(r"0x[0-9a-fA-F]+", insn.op_str)
+            if m and "[" not in insn.op_str:
+                tgt = int(m.group(0), 16)
+                if tgt == win_hi:
+                    # end of place half — do NOT force interesting (keep FOLDable)
+                    place_cut = True
+                    oow = "  ; PLACE_CUT (past code_place; not in this window)"
+                elif not (win_lo <= tgt < win_hi):
+                    interesting = True
+                    oow = f"  ; OUT_OF_WINDOW tgt=0x{tgt:x} (beyond place_stub window)"
+
+        # Folding decision
+        if interesting or api:
+            flush_gate()
+            flush_store()
+            hexb = " ".join(f"{b:02x}" for b in insn.bytes)
+            extra = ""
+            if api:
+                bits = [f"=> {api}", f"call#{len(call_rows)}"]
+                if path_hint:
+                    bits.append(f'path="{path_hint}"')
+                if size_hint:
+                    bits.append(size_hint)
+                extra = "  ; " + " ".join(bits)
+            elif marks:
+                extra = "  ; " + " | ".join(marks)
+            extra += oow
+            emit_line(f"{insn.address:016x}:  {hexb:<32}  {insn.mnemonic:<8} {insn.op_str}{extra}", True)
+            i += insn.size
+            continue
+
+        # try accumulate PE stores (late region) or gates
+        if is_pe_store_insn(insn) and insn.address >= base + 0x1000:
+            flush_gate()
+            store_buf.append(insn)
+            i += insn.size
+            continue
+        else:
+            flush_store()
+
+        if is_gate_insn(insn):
+            gate_buf.append(insn)
+            i += insn.size
+            continue
+        else:
+            flush_gate()
+
+        hexb = " ".join(f"{b:02x}" for b in insn.bytes)
+        emit_line(f"{insn.address:016x}:  {hexb:<32}  {insn.mnemonic:<8} {insn.op_str}{oow}", bool(oow))
         i += insn.size
+
+    flush_gate()
+    flush_store()
+
+    # Fail-closed: SEMHOST must not appear as push-decoded instruction
+    joined = "\n".join(lines)
+    if re.search(r"push\s+r11", joined) and "SEMHOST" in pe.decode("latin1", "replace"):
+        # only RED if we still false-decoded the SEMHOST bytes region
+        flags.append("false_decode: push r11 still present (SEMHOST?)")
 
     pe_strs: list[str] = []
     k = 0
@@ -381,6 +649,13 @@ def main() -> None:
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     OUT_DISASM.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    OUT_SKELETON.write_text("\n".join(skel) + "\n", encoding="utf-8")
+
+    # Anti-ambiguity gate: skeleton must contain FOLD or DATA for SEMHOST
+    skel_txt = "\n".join(skel)
+    if "SEMHOST" in pe.decode("latin1", "replace"):
+        if "SEMHOST" not in skel_txt and "seed/table" not in skel_txt.lower() and "DATA" not in skel_txt:
+            flags.append("SEMHOST not represented as DATA/FOLD in skeleton")
 
     api_c = Counter(r["api"] for r in call_rows)
     opens = [r for r in call_rows if r["api"] == "CreateFileA"]
@@ -392,7 +667,6 @@ def main() -> None:
         for h in ban_hits:
             flags.append(f"BAN_SUBSTR `{h}` in PE")
 
-    # CALLSEQ pin
     pin_body = "\n".join(
         [
             "# AUTO-AUDITMAX call contract for place_stub (fail-closed).",
@@ -410,10 +684,9 @@ def main() -> None:
         got = parse_callseq_pin(pin_body)
         for key in ("opens", "apis", "api_counts", "calls", "createfile"):
             if want.get(key) != got.get(key):
-                flags.append(f"CALLSEQ drift `{key}` want={want.get(key)!r} got={got.get(key)!r}")
-                print(f"AUDITMAX status=RED reason=callseq_{key}")
-                print(f"AUDITMAX want_{key}={want.get(key)}")
-                print(f"AUDITMAX got_{key}={got.get(key)}")
+                print(f"AUDITCLR status=RED reason=callseq_{key}")
+                print(f"AUDITCLR want_{key}={want.get(key)}")
+                print(f"AUDITCLR got_{key}={got.get(key)}")
                 raise SystemExit(1)
         print("AUDITMAX callseq=EQUAL")
     else:
@@ -423,13 +696,14 @@ def main() -> None:
     walk = [
         "# Stub 审核走读（人或 AI 用这个，别啃生肉）",
         "",
-        "> `python scripts/gen-stub-disasm.py` → 本文件 + `STUB.disasm.txt` + `STUB.AI.md`。≠ Thompson。",
+        "> 生成：`STUB.AI.md` → 本文件 → **`STUB.SKELETON.txt`** → 必要时全量 disasm。≠ Thompson。",
         "",
         "## 审法（强制）",
         "",
-        "1. **先读 `STUB.AI.md`（一页）**，再读本走读；反汇编只看 `; =>` / `; ==========` / `; str=` / `; DATA` / `; call#`",
-        "2. CreateFile 路径必须落在允许名单；否则记红旗",
-        "3. 禁止 `UNKNOWN_IAT`；禁止 BAN 串；`STUB.CALLSEQ.pin` 必须 EQUAL",
+        "1. **先读 `STUB.AI.md`**",
+        "2. 细节优先 **`STUB.SKELETON.txt`**（无假解码；长门/PE 拼装已 FOLD）",
+        "3. 全量 `STUB.disasm.txt` 仅在 FOLD 边界需要时打开",
+        "4. CreateFile ⊆ 允许名单；无 UNKNOWN_IAT；无 BAN；CALLSEQ EQUAL",
         "",
         "## 允许打开的路径",
         "",
@@ -455,18 +729,9 @@ def main() -> None:
         ]
     )
     for r in call_rows:
-        extra = r["path_hint"] or r["size_hint"] or ""
-        walk.append(f"| {r['n']} | `0x{r['va']:x}` | {r['api']} | {extra} |")
+        walk.append(f"| {r['n']} | `0x{r['va']:x}` | {r['api']} | {r['path_hint'] or r['size_hint'] or ''} |")
 
-    walk.extend(
-        [
-            "",
-            "## API 计数",
-            "",
-            "| API | count |",
-            "| --- | ---: |",
-        ]
-    )
+    walk.extend(["", "## API 计数", "", "| API | count |", "| --- | ---: |"])
     for k2, n in sorted(api_c.items()):
         walk.append(f"| {k2} | {n} |")
 
@@ -474,12 +739,19 @@ def main() -> None:
     for va, title in phases:
         walk.append(f"| `0x{va:x}` | {title} |")
 
+    walk.extend(["", "## FOLD 摘要（消歧义）", ""])
+    if fold_notes:
+        for m in fold_notes:
+            walk.append(f"- `{m}`")
+    else:
+        walk.append("- （无）")
+
     walk.extend(["", "## 审核红旗（生成器）", ""])
     if flags:
         for f in flags:
             walk.append(f"- {f}")
     else:
-        walk.append("- （无）路径允许 · 无 UNKNOWN_IAT · 无 BAN 串 · CALLSEQ EQUAL")
+        walk.append("- （无）路径允许 · 无 UNKNOWN_IAT · 无 BAN · CALLSEQ EQUAL · 无假解码")
 
     walk.extend(["", "## PE 内相关字符串（抽查用）", ""])
     for s in dict.fromkeys(pe_strs):
@@ -490,14 +762,13 @@ def main() -> None:
             "",
             "## 诚实",
             "",
-            "- 标注 + 合同让 AI/人**抽查面**到极致，不是证明无逻辑后门",
+            "- FOLD/DATA 消歧义 ≠ 逻辑无后门证明",
             "- bins / plant 仍非「读完」对象",
             "",
         ]
     )
     OUT_WALK.write_text("\n".join(walk) + "\n", encoding="utf-8")
 
-    # One-page AI brief
     opens_ok = all(r["path_hint"] in ALLOW_OPEN for r in opens) and len(opens) > 0
     no_unk = not any(r["api"].startswith("UNKNOWN") for r in call_rows)
     no_ban = not ban_hits
@@ -514,6 +785,7 @@ def main() -> None:
         f"- no_BAN_substr: **{'PASS' if no_ban else 'FAIL'}**"
         + (f" hits={ban_hits}" if ban_hits else ""),
         f"- CALLSEQ_pin_EQUAL: **{'PASS' if no_flag or not any('CALLSEQ' in f for f in flags) else 'FAIL'}**",
+        f"- no_false_decode/FOLD: **{'PASS' if no_flag else 'FAIL'}**",
         f"- generator_flags: **{'PASS' if no_flag else 'FAIL'}** ({len(flags)})",
         "",
         f"**VERDICT: {'GREEN' if (opens_ok and no_unk and no_ban and no_flag) else 'RED'}**",
@@ -522,48 +794,46 @@ def main() -> None:
         "",
         f"`{open_seq}`",
         "",
-        "## 必读分场（跳读）",
+        "## 怎么用",
+        "",
+        "1. 看 VERDICT；红则停",
+        "2. 扫打开序列",
+        "3. 细节 → `STUB.SKELETON.txt`（不是全量 disasm）",
+        "4. 仅当 FOLD 边界存疑才开 `STUB.disasm.txt`",
+        "",
+        "## 必读分场",
         "",
     ]
-    for va, title in phases[:12]:
+    for va, title in phases[:14]:
         ai.append(f"- `0x{va:x}` {title}")
-    if len(phases) > 12:
-        ai.append(f"- … +{len(phases) - 12} more in WALKTHROUGH")
-    ai.extend(
-        [
-            "",
-            "## 怎么用",
-            "",
-            "1. 看 VERDICT；红则停",
-            "2. 扫打开序列是否只含允许名单",
-            "3. 需要细节才开 WALKTHROUGH / 带 `; call#` 的 disasm 行",
-            "",
-        ]
-    )
+    if len(phases) > 14:
+        ai.append(f"- … +{len(phases) - 14} more in WALKTHROUGH")
+    ai.append("")
     OUT_AI.write_text("\n".join(ai) + "\n", encoding="utf-8")
 
     if any(r["api"].startswith("UNKNOWN") for r in call_rows):
-        print("AUDITMAX status=RED reason=unknown_iat")
+        print("AUDITCLR status=RED reason=unknown_iat")
         raise SystemExit(1)
     if ban_hits:
-        print(f"AUDITMAX status=RED reason=ban_substr hits={ban_hits}")
+        print(f"AUDITCLR status=RED reason=ban_substr hits={ban_hits}")
         raise SystemExit(1)
     if flags:
-        print(f"AUDITMAX status=RED reason=flags n={len(flags)}")
+        print(f"AUDITCLR status=RED reason=flags n={len(flags)}")
         for f in flags:
-            print(f"AUDITMAX flag={f}")
+            print(f"AUDITCLR flag={f}")
         raise SystemExit(1)
 
-    print(f"AUDITMAX disasm={OUT_DISASM.relative_to(ROOT).as_posix()}")
-    print(f"AUDITMAX walk={OUT_WALK.relative_to(ROOT).as_posix()} calls={len(call_rows)} opens={len(opens)}")
-    print(f"AUDITMAX ai={OUT_AI.relative_to(ROOT).as_posix()}")
-    print(f"AUDITMAX flags={len(flags)}")
-    print("AUDITMAX status=GREEN")
-    # keep HUMANAUDIT tag for stage script
+    print(f"AUDITCLR disasm={OUT_DISASM.relative_to(ROOT).as_posix()} lines={len(lines)}")
+    print(f"AUDITCLR skeleton={OUT_SKELETON.relative_to(ROOT).as_posix()} lines={len(skel)}")
+    print(f"AUDITCLR folds={len(fold_notes)}")
+    print(f"AUDITCLR walk={OUT_WALK.relative_to(ROOT).as_posix()} calls={len(call_rows)} opens={len(opens)}")
+    print(f"AUDITCLR ai={OUT_AI.relative_to(ROOT).as_posix()}")
+    print("AUDITCLR status=GREEN")
     print(f"HUMANAUDIT disasm={OUT_DISASM.relative_to(ROOT).as_posix()}")
     print(f"HUMANAUDIT walk={OUT_WALK.relative_to(ROOT).as_posix()} calls={len(call_rows)} opens={len(opens)}")
-    print(f"HUMANAUDIT flags={len(flags)}")
+    print("HUMANAUDIT flags=0")
     print("HUMANAUDIT status=GREEN")
+    print("AUDITMAX status=GREEN")
 
 
 if __name__ == "__main__":

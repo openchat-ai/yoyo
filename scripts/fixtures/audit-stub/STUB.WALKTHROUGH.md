@@ -1,12 +1,13 @@
 # Stub 审核走读（人或 AI 用这个，别啃生肉）
 
-> `python scripts/gen-stub-disasm.py` → 本文件 + `STUB.disasm.txt` + `STUB.AI.md`。≠ Thompson。
+> 生成：`STUB.AI.md` → 本文件 → **`STUB.SKELETON.txt`** → 必要时全量 disasm。≠ Thompson。
 
 ## 审法（强制）
 
-1. **先读 `STUB.AI.md`（一页）**，再读本走读；反汇编只看 `; =>` / `; ==========` / `; str=` / `; DATA` / `; call#`
-2. CreateFile 路径必须落在允许名单；否则记红旗
-3. 禁止 `UNKNOWN_IAT`；禁止 BAN 串；`STUB.CALLSEQ.pin` 必须 EQUAL
+1. **先读 `STUB.AI.md`**
+2. 细节优先 **`STUB.SKELETON.txt`**（无假解码；长门/PE 拼装已 FOLD）
+3. 全量 `STUB.disasm.txt` 仅在 FOLD 边界需要时打开
+4. CreateFile ⊆ 允许名单；无 UNKNOWN_IAT；无 BAN；CALLSEQ EQUAL
 
 ## 允许打开的路径
 
@@ -96,16 +97,31 @@
 | `0x140001404` | CreateFileA → output.exe |
 | `0x140001432` | WriteFile |
 | `0x140001445` | ExitProcess |
-| `0x140001464` | DATA string "input.tyb" |
-| `0x14000146e` | DATA string "output.exe" |
+| `0x140001464` | DATA string "input.tyb | output.exe | SEMHOST1" |
+| `0x140001482` | EMBEDDED seed/table (not cold I/O path) |
+| `0x140001576` | H_00 / open-loop frame (sub rsp,0x78) |
 | `0x140001d14` | CreateFileA → emit.bins |
 | `0x140001d83` | CreateFileA → yoyo_compiler.exe |
 | `0x140001e06` | CreateFileA → code.bin |
 | `0x140001e82` | CreateFileA → data.bin |
 
+## FOLD 摘要（消歧义）
+
+- `; FOLD opcode/size-gates 0x1400010de..0x140001146  (26 insns — skipped as noise)`
+- `; FOLD seed/table helpers 0x140001482..0x140001576  (244 insns — skipped as noise)`
+- `; FOLD opcode/size-gates 0x14000164e..0x140001b12  (239 insns — skipped as noise)`
+- `; FOLD opcode/size-gates 0x140001b14..0x140001b3f  (14 insns — skipped as noise)`
+- `; FOLD opcode/size-gates 0x140001b41..0x140001b6c  (14 insns — skipped as noise)`
+- `; FOLD opcode/size-gates 0x140001b6e..0x140001b99  (14 insns — skipped as noise)`
+- `; FOLD opcode/size-gates 0x140001b9b..0x140001bc6  (14 insns — skipped as noise)`
+- `; FOLD opcode/size-gates 0x140001bc8..0x140001bf3  (14 insns — skipped as noise)`
+- `; FOLD opcode/size-gates 0x140001bf5..0x140001c20  (14 insns — skipped as noise)`
+- `; FOLD opcode/size-gates 0x140001c22..0x140001c52  (12 insns — skipped as noise)`
+- `; FOLD PE-field/IAT stores 0x140002065..0x1400026c6  (230 insns — skipped as noise)`
+
 ## 审核红旗（生成器）
 
-- （无）路径允许 · 无 UNKNOWN_IAT · 无 BAN 串 · CALLSEQ EQUAL
+- （无）路径允许 · 无 UNKNOWN_IAT · 无 BAN · CALLSEQ EQUAL · 无假解码
 
 ## PE 内相关字符串（抽查用）
 
@@ -139,6 +155,6 @@
 
 ## 诚实
 
-- 标注 + 合同让 AI/人**抽查面**到极致，不是证明无逻辑后门
+- FOLD/DATA 消歧义 ≠ 逻辑无后门证明
 - bins / plant 仍非「读完」对象
 

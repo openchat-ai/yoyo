@@ -8,6 +8,7 @@
 - no_UNKNOWN_IAT: **PASS**
 - no_BAN_substr: **PASS**
 - CALLSEQ_pin_EQUAL: **PASS**
+- no_false_decode/FOLD: **PASS**
 - generator_flags: **PASS** (0)
 
 **VERDICT: GREEN**
@@ -16,7 +17,14 @@
 
 `input.tyb,output.exe,input.tyb,output.exe,emit.bins,yoyo_compiler.exe,code.bin,data.bin,code.bin,data.bin`
 
-## 必读分场（跳读）
+## 怎么用
+
+1. 看 VERDICT；红则停
+2. 扫打开序列
+3. 细节 → `STUB.SKELETON.txt`（不是全量 disasm）
+4. 仅当 FOLD 边界存疑才开 `STUB.disasm.txt`
+
+## 必读分场
 
 - `0x140001000` ENTRY / PE startup
 - `0x14000100d` PLACE BODY
@@ -29,12 +37,8 @@
 - `0x140001404` CreateFileA → output.exe
 - `0x140001432` WriteFile
 - `0x140001445` ExitProcess
-- `0x140001464` DATA string "input.tyb"
-- … +5 more in WALKTHROUGH
-
-## 怎么用
-
-1. 看 VERDICT；红则停
-2. 扫打开序列是否只含允许名单
-3. 需要细节才开 WALKTHROUGH / 带 `; call#` 的 disasm 行
+- `0x140001464` DATA string "input.tyb | output.exe | SEMHOST1"
+- `0x140001482` EMBEDDED seed/table (not cold I/O path)
+- `0x140001576` H_00 / open-loop frame (sub rsp,0x78)
+- … +4 more in WALKTHROUGH
 

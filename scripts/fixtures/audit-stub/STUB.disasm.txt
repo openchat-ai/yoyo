@@ -1,17 +1,17 @@
-; AUTO-AUDITMAX annotated disasm — Capstone intel
+; AUTO-AUDITCLR annotated disasm — Capstone intel (disambiguated)
 ; PE: scripts/fixtures/yoyo_place_stub.exe
 ; image_base=0x140000000  .text_rva=0x1000  entry_va=0x140001000
 ; bytes=5889 (= PE_startup 13 + code_place 5876)
-; Read `; ==========` / `; => API` / `; str=` / `; DATA` / `; call#` — not every insn
+; Prefer STUB.SKELETON.txt. Full file: banners / call# / DATA / FOLD / OUT_OF_WINDOW.
 ; ≠ Thompson
 
 
 ; ========== ENTRY / PE startup @ 0x140001000 ==========
 0000000140001000:  4c 8d 3d f9 1f 00 00              lea      r15, [rip + 0x1ff9]  ; << entry
-0000000140001007:  e9 01 00 00 00                    jmp      0x14000100d
-000000014000100c:  90                                nop      
 
 ; ========== PLACE BODY @ 0x14000100d ==========
+0000000140001007:  e9 01 00 00 00                    jmp      0x14000100d
+000000014000100c:  90                                nop      
 000000014000100d:  48 81 ec 88 00 00 00              sub      rsp, 0x88  ; << place body
 0000000140001014:  48 8d 0d 49 04 00 00              lea      rcx, [rip + 0x449]  ; str="input.tyb"
 000000014000101b:  ba 00 00 00 80                    mov      edx, 0x80000000
@@ -39,18 +39,18 @@
 0000000140001083:  8b 7c 24 40                       mov      edi, dword ptr [rsp + 0x40]
 0000000140001087:  48 89 d9                          mov      rcx, rbx
 000000014000108a:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]  ; => CloseHandle call#3
-0000000140001091:  83 ff 3f                          cmp      edi, 0x3f
-0000000140001094:  0f 86 13 00 00 00                 jbe      0x1400010ad
 
 ; ========== CHECK magic Y1PL @ 0x14000109a ==========
+0000000140001091:  83 ff 3f                          cmp      edi, 0x3f
+0000000140001094:  0f 86 13 00 00 00                 jbe      0x1400010ad
 000000014000109a:  81 7c 24 50 59 31 50 4c           cmp      dword ptr [rsp + 0x50], 0x4c503159  ; magic Y1PL
 00000001400010a2:  0f 85 a4 03 00 00                 jne      0x14000144c
 00000001400010a8:  e9 ab 03 00 00                    jmp      0x140001458
 00000001400010ad:  4c 8d 35 ce 03 00 00              lea      r14, [rip + 0x3ce]
 00000001400010b4:  41 bd 01 00 00 00                 mov      r13d, 1
-00000001400010ba:  48 8d 74 24 50                    lea      rsi, [rsp + 0x50]
 
 ; ========== CHECK magic TYB @ 0x1400010bf ==========
+00000001400010ba:  48 8d 74 24 50                    lea      rsi, [rsp + 0x50]
 00000001400010bf:  81 3e 54 59 42 00                 cmp      dword ptr [rsi], 0x425954  ; magic TYB
 00000001400010c5:  0f 85 81 03 00 00                 jne      0x14000144c
 00000001400010cb:  0f b7 4e 06                       movzx    ecx, word ptr [rsi + 6]
@@ -58,32 +58,9 @@
 00000001400010d3:  66 85 c9                          test     cx, cx
 00000001400010d6:  0f 84 5f 01 00 00                 je       0x14000123b
 00000001400010dc:  8a 06                             mov      al, byte ptr [rsi]
-00000001400010de:  3c 00                             cmp      al, 0
-00000001400010e0:  0f 84 6b 00 00 00                 je       0x140001151
-00000001400010e6:  3c 30                             cmp      al, 0x30
-00000001400010e8:  0f 84 75 00 00 00                 je       0x140001163
-00000001400010ee:  3c 60                             cmp      al, 0x60
-00000001400010f0:  0f 84 7f 00 00 00                 je       0x140001175
-00000001400010f6:  3c 61                             cmp      al, 0x61
-00000001400010f8:  0f 84 89 00 00 00                 je       0x140001187
-00000001400010fe:  3c 62                             cmp      al, 0x62
-0000000140001100:  0f 84 93 00 00 00                 je       0x140001199
-0000000140001106:  3c 63                             cmp      al, 0x63
-0000000140001108:  0f 84 9d 00 00 00                 je       0x1400011ab
-000000014000110e:  3c 64                             cmp      al, 0x64
-0000000140001110:  0f 84 a7 00 00 00                 je       0x1400011bd
-0000000140001116:  3c 65                             cmp      al, 0x65
-0000000140001118:  0f 84 b1 00 00 00                 je       0x1400011cf
-000000014000111e:  3c 66                             cmp      al, 0x66
-0000000140001120:  0f 84 bb 00 00 00                 je       0x1400011e1
-0000000140001126:  3c 67                             cmp      al, 0x67
-0000000140001128:  0f 84 c5 00 00 00                 je       0x1400011f3
-000000014000112e:  3c 68                             cmp      al, 0x68
-0000000140001130:  0f 84 cf 00 00 00                 je       0x140001205
-0000000140001136:  3c 69                             cmp      al, 0x69
-0000000140001138:  0f 84 d9 00 00 00                 je       0x140001217
-000000014000113e:  3c 6a                             cmp      al, 0x6a
-0000000140001140:  0f 84 e3 00 00 00                 je       0x140001229
+
+; FOLD opcode/size-gates 0x1400010de..0x140001146  (26 insns — skipped as noise)
+;      reason: AUDITCLR — opcode/size-gates is repetitive / not an I/O edge
 0000000140001146:  48 83 c6 08                       add      rsi, 8
 000000014000114a:  ff c9                             dec      ecx
 000000014000114c:  e9 82 ff ff ff                    jmp      0x1400010d3
@@ -218,68 +195,16 @@
 0000000140001458:  48 81 c4 88 00 00 00              add      rsp, 0x88
 000000014000145f:  e9 12 01 00 00                    jmp      0x140001576
 
-; ========== DATA string "input.tyb" @ 0x140001464 ==========
-0000000140001464:  ; DATA "input.tyb"  (do not decode as code)
+; ========== DATA string "input.tyb | output.exe | SEMHOST1" @ 0x140001464 ==========
+0000000140001464:  ; DATA "input.tyb | output.exe | SEMHOST1"  (do not decode as code)
 
-; ========== DATA string "output.exe" @ 0x14000146e ==========
-000000014000146e:  ; DATA "output.exe"  (do not decode as code)
-0000000140001479:  53                                push     rbx
-000000014000147a:  45 4d 48 4f 53                    push     r11
-000000014000147f:  54                                push     rsp
-0000000140001480:  31 00                             xor      dword ptr [rax], eax
-0000000140001482:  c3                                ret      
-0000000140001483:  90                                nop      
-0000000140001484:  c3                                ret      
-0000000140001485:  48 b8 78 56 34 12 00 00 00 00     movabs   rax, 0x12345678
-000000014000148f:  49 89 87 80 02 00 00              mov      qword ptr [r15 + 0x280], rax
-0000000140001496:  c3                                ret      
-0000000140001497:  49 8b 87 88 02 00 00              mov      rax, qword ptr [r15 + 0x288]
-000000014000149e:  49 89 87 80 02 00 00              mov      qword ptr [r15 + 0x280], rax
-00000001400014a5:  c3                                ret      
-00000001400014a6:  49 8b 87 80 02 00 00              mov      rax, qword ptr [r15 + 0x280]
-00000001400014ad:  48 83 e8 03                       sub      rax, 3
-00000001400014b1:  49 89 87 80 02 00 00              mov      qword ptr [r15 + 0x280], rax
-00000001400014b8:  c3                                ret      
-00000001400014b9:  49 8b 87 80 02 00 00              mov      rax, qword ptr [r15 + 0x280]
-00000001400014c0:  48 83 c0 03                       add      rax, 3
-00000001400014c4:  49 89 87 80 02 00 00              mov      qword ptr [r15 + 0x280], rax
-00000001400014cb:  c3                                ret      
-00000001400014cc:  49 8b 87 80 02 00 00              mov      rax, qword ptr [r15 + 0x280]
-00000001400014d3:  49 8b 8f 88 02 00 00              mov      rcx, qword ptr [r15 + 0x288]
-00000001400014da:  48 0f af c1                       imul     rax, rcx
-00000001400014de:  49 89 87 80 02 00 00              mov      qword ptr [r15 + 0x280], rax
-00000001400014e5:  c3                                ret      
-00000001400014e6:  49 8b 87 88 02 00 00              mov      rax, qword ptr [r15 + 0x288]
-00000001400014ed:  49 89 87 80 02 00 00              mov      qword ptr [r15 + 0x280], rax
-00000001400014f4:  c3                                ret      
-00000001400014f5:  49 8b 87 80 02 00 00              mov      rax, qword ptr [r15 + 0x280]
-00000001400014fc:  49 8b 8f 88 02 00 00              mov      rcx, qword ptr [r15 + 0x288]
-0000000140001503:  48 39 c8                          cmp      rax, rcx
-0000000140001506:  c3                                ret      
-0000000140001507:  49 8b 87 80 02 00 00              mov      rax, qword ptr [r15 + 0x280]
-000000014000150e:  48 ff c0                          inc      rax
-0000000140001511:  49 89 87 80 02 00 00              mov      qword ptr [r15 + 0x280], rax
-0000000140001518:  c3                                ret      
-0000000140001519:  49 8b 87 80 02 00 00              mov      rax, qword ptr [r15 + 0x280]
-0000000140001520:  48 ff c8                          dec      rax
-0000000140001523:  49 89 87 80 02 00 00              mov      qword ptr [r15 + 0x280], rax
-000000014000152a:  c3                                ret      
-000000014000152b:  49 8b 87 80 02 00 00              mov      rax, qword ptr [r15 + 0x280]
-0000000140001532:  49 8b 8f 88 02 00 00              mov      rcx, qword ptr [r15 + 0x288]
-0000000140001539:  48 01 c8                          add      rax, rcx
-000000014000153c:  49 89 87 80 02 00 00              mov      qword ptr [r15 + 0x280], rax
-0000000140001543:  c3                                ret      
-0000000140001544:  49 8b 87 80 02 00 00              mov      rax, qword ptr [r15 + 0x280]
-000000014000154b:  49 8b 8f 88 02 00 00              mov      rcx, qword ptr [r15 + 0x288]
-0000000140001552:  48 09 c8                          or       rax, rcx
-0000000140001555:  49 89 87 80 02 00 00              mov      qword ptr [r15 + 0x280], rax
-000000014000155c:  c3                                ret      
-000000014000155d:  49 8b 87 80 02 00 00              mov      rax, qword ptr [r15 + 0x280]
-0000000140001564:  49 8b 8f 88 02 00 00              mov      rcx, qword ptr [r15 + 0x288]
-000000014000156b:  48 29 c8                          sub      rax, rcx
-000000014000156e:  49 89 87 80 02 00 00              mov      qword ptr [r15 + 0x280], rax
-0000000140001575:  c3                                ret      
-0000000140001576:  48 83 ec 78                       sub      rsp, 0x78
+; ========== EMBEDDED seed/table (not cold I/O path) @ 0x140001482 ==========
+
+; FOLD seed/table helpers 0x140001482..0x140001576  (244 insns — skipped as noise)
+;      reason: AUDITCLR — seed/table helpers is repetitive / not an I/O edge
+
+; ========== H_00 / open-loop frame (sub rsp,0x78) @ 0x140001576 ==========
+0000000140001576:  48 83 ec 78                       sub      rsp, 0x78  ; << H_00 frame
 000000014000157a:  49 8d 8f 20 01 00 00              lea      rcx, [r15 + 0x120]  ; str="input.tyb"
 0000000140001581:  ba 00 00 00 80                    mov      edx, 0x80000000
 0000000140001586:  45 31 c0                          xor      r8d, r8d
@@ -310,10 +235,10 @@
 0000000140001609:  8b 7c 24 40                       mov      edi, dword ptr [rsp + 0x40]
 000000014000160d:  48 89 d9                          mov      rcx, rbx
 0000000140001610:  41 ff 97 20 00 00 00              call     qword ptr [r15 + 0x20]  ; => CloseHandle call#13
-0000000140001617:  e9 46 3c 00 00                    jmp      0x140005262
+0000000140001617:  e9 46 3c 00 00                    jmp      0x140005262  ; OUT_OF_WINDOW tgt=0x140005262 (beyond place_stub window)
 000000014000161c:  33 00                             xor      eax, dword ptr [rax]
 000000014000161e:  00 00                             add      byte ptr [rax], al
-0000000140001620:  81 3e 54 59 42 00                 cmp      dword ptr [rsi], 0x425954  ; magic TYB
+0000000140001620:  81 3e 54 59 42 00                 cmp      dword ptr [rsi], 0x425954
 0000000140001626:  0f 85 21 06 00 00                 jne      0x140001c4d
 000000014000162c:  66 83 7e 06 01                    cmp      word ptr [rsi + 6], 1
 0000000140001631:  0f 85 16 06 00 00                 jne      0x140001c4d
@@ -321,348 +246,37 @@
 000000014000163b:  0f 85 0c 06 00 00                 jne      0x140001c4d
 0000000140001641:  49 8d 97 80 03 00 00              lea      rdx, [r15 + 0x380]
 0000000140001648:  41 b8 00 64 00 00                 mov      r8d, 0x6400
-000000014000164e:  e9 04 06 00 00                    jmp      0x140001c57
-0000000140001653:  83 ff 18                          cmp      edi, 0x18
-0000000140001656:  0f 85 cb 01 00 00                 jne      0x140001827
-000000014000165c:  81 3e 54 59 42 00                 cmp      dword ptr [rsi], 0x425954  ; magic TYB
-0000000140001662:  0f 85 e5 05 00 00                 jne      0x140001c4d
-0000000140001668:  66 83 7e 06 02                    cmp      word ptr [rsi + 6], 2
-000000014000166d:  0f 85 da 05 00 00                 jne      0x140001c4d
-0000000140001673:  80 7e 08 30                       cmp      byte ptr [rsi + 8], 0x30
-0000000140001677:  0f 85 24 00 00 00                 jne      0x1400016a1
-000000014000167d:  80 7e 09 02                       cmp      byte ptr [rsi + 9], 2
-0000000140001681:  0f 85 c6 05 00 00                 jne      0x140001c4d
-0000000140001687:  66 83 7e 0a 00                    cmp      word ptr [rsi + 0xa], 0
-000000014000168c:  0f 85 6f 10 00 00                 jne      0x140002701
-0000000140001692:  80 7e 10 ff                       cmp      byte ptr [rsi + 0x10], 0xff
-0000000140001696:  0f 85 b1 05 00 00                 jne      0x140001c4d
-000000014000169c:  e9 60 10 00 00                    jmp      0x140002701
-00000001400016a1:  80 7e 08 00                       cmp      byte ptr [rsi + 8], 0
-00000001400016a5:  0f 85 19 00 00 00                 jne      0x1400016c4
-00000001400016ab:  80 7e 09 00                       cmp      byte ptr [rsi + 9], 0
-00000001400016af:  0f 85 98 05 00 00                 jne      0x140001c4d
-00000001400016b5:  80 7e 10 ff                       cmp      byte ptr [rsi + 0x10], 0xff
-00000001400016b9:  0f 85 8e 05 00 00                 jne      0x140001c4d
-00000001400016bf:  e9 3d 10 00 00                    jmp      0x140002701
-00000001400016c4:  80 7e 08 60                       cmp      byte ptr [rsi + 8], 0x60
-00000001400016c8:  0f 85 2f 00 00 00                 jne      0x1400016fd
-00000001400016ce:  80 7e 09 02                       cmp      byte ptr [rsi + 9], 2
-00000001400016d2:  0f 85 75 05 00 00                 jne      0x140001c4d
-00000001400016d8:  66 83 7e 0a 0f                    cmp      word ptr [rsi + 0xa], 0xf
-00000001400016dd:  0f 87 1e 10 00 00                 ja       0x140002701
-00000001400016e3:  66 83 7e 0c 0f                    cmp      word ptr [rsi + 0xc], 0xf
-00000001400016e8:  0f 87 13 10 00 00                 ja       0x140002701
-00000001400016ee:  80 7e 10 ff                       cmp      byte ptr [rsi + 0x10], 0xff
-00000001400016f2:  0f 85 55 05 00 00                 jne      0x140001c4d
-00000001400016f8:  e9 04 10 00 00                    jmp      0x140002701
-00000001400016fd:  80 7e 08 66                       cmp      byte ptr [rsi + 8], 0x66
-0000000140001701:  0f 85 24 00 00 00                 jne      0x14000172b
-0000000140001707:  80 7e 09 01                       cmp      byte ptr [rsi + 9], 1
-000000014000170b:  0f 85 3c 05 00 00                 jne      0x140001c4d
-0000000140001711:  66 83 7e 0a 0f                    cmp      word ptr [rsi + 0xa], 0xf
-0000000140001716:  0f 87 e5 0f 00 00                 ja       0x140002701
-000000014000171c:  80 7e 10 ff                       cmp      byte ptr [rsi + 0x10], 0xff
-0000000140001720:  0f 85 27 05 00 00                 jne      0x140001c4d
-0000000140001726:  e9 d6 0f 00 00                    jmp      0x140002701
-000000014000172b:  80 7e 08 62                       cmp      byte ptr [rsi + 8], 0x62
-000000014000172f:  0f 85 24 00 00 00                 jne      0x140001759
-0000000140001735:  80 7e 09 02                       cmp      byte ptr [rsi + 9], 2
-0000000140001739:  0f 85 0e 05 00 00                 jne      0x140001c4d
-000000014000173f:  66 83 7e 0a 00                    cmp      word ptr [rsi + 0xa], 0
-0000000140001744:  0f 85 b7 0f 00 00                 jne      0x140002701
-000000014000174a:  80 7e 10 ff                       cmp      byte ptr [rsi + 0x10], 0xff
-000000014000174e:  0f 85 f9 04 00 00                 jne      0x140001c4d
-0000000140001754:  e9 a8 0f 00 00                    jmp      0x140002701
-0000000140001759:  80 7e 08 67                       cmp      byte ptr [rsi + 8], 0x67
-000000014000175d:  0f 85 24 00 00 00                 jne      0x140001787
-0000000140001763:  80 7e 09 01                       cmp      byte ptr [rsi + 9], 1
-0000000140001767:  0f 85 e0 04 00 00                 jne      0x140001c4d
-000000014000176d:  66 83 7e 0a 0f                    cmp      word ptr [rsi + 0xa], 0xf
-0000000140001772:  0f 87 89 0f 00 00                 ja       0x140002701
-0000000140001778:  80 7e 10 ff                       cmp      byte ptr [rsi + 0x10], 0xff
-000000014000177c:  0f 85 cb 04 00 00                 jne      0x140001c4d
-0000000140001782:  e9 7a 0f 00 00                    jmp      0x140002701
-0000000140001787:  80 7e 08 61                       cmp      byte ptr [rsi + 8], 0x61
-000000014000178b:  0f 85 24 00 00 00                 jne      0x1400017b5
-0000000140001791:  80 7e 09 02                       cmp      byte ptr [rsi + 9], 2
-0000000140001795:  0f 85 b2 04 00 00                 jne      0x140001c4d
-000000014000179b:  66 83 7e 0a 00                    cmp      word ptr [rsi + 0xa], 0
-00000001400017a0:  0f 85 5b 0f 00 00                 jne      0x140002701
-00000001400017a6:  80 7e 10 ff                       cmp      byte ptr [rsi + 0x10], 0xff
-00000001400017aa:  0f 85 9d 04 00 00                 jne      0x140001c4d
-00000001400017b0:  e9 4c 0f 00 00                    jmp      0x140002701
-00000001400017b5:  80 7e 08 64                       cmp      byte ptr [rsi + 8], 0x64
-00000001400017b9:  0f 85 2f 00 00 00                 jne      0x1400017ee
-00000001400017bf:  80 7e 09 02                       cmp      byte ptr [rsi + 9], 2
-00000001400017c3:  0f 85 84 04 00 00                 jne      0x140001c4d
-00000001400017c9:  66 83 7e 0a 0f                    cmp      word ptr [rsi + 0xa], 0xf
-00000001400017ce:  0f 87 79 04 00 00                 ja       0x140001c4d
-00000001400017d4:  66 83 7e 0c 0f                    cmp      word ptr [rsi + 0xc], 0xf
-00000001400017d9:  0f 87 6e 04 00 00                 ja       0x140001c4d
-00000001400017df:  80 7e 10 ff                       cmp      byte ptr [rsi + 0x10], 0xff
-00000001400017e3:  0f 85 64 04 00 00                 jne      0x140001c4d
-00000001400017e9:  e9 13 0f 00 00                    jmp      0x140002701
-00000001400017ee:  80 7e 08 65                       cmp      byte ptr [rsi + 8], 0x65
-00000001400017f2:  0f 85 09 0f 00 00                 jne      0x140002701
-00000001400017f8:  80 7e 09 02                       cmp      byte ptr [rsi + 9], 2
-00000001400017fc:  0f 85 4b 04 00 00                 jne      0x140001c4d
-0000000140001802:  66 83 7e 0a 0f                    cmp      word ptr [rsi + 0xa], 0xf
-0000000140001807:  0f 87 f4 0e 00 00                 ja       0x140002701
-000000014000180d:  66 83 7e 0c 0f                    cmp      word ptr [rsi + 0xc], 0xf
-0000000140001812:  0f 87 e9 0e 00 00                 ja       0x140002701
-0000000140001818:  80 7e 10 ff                       cmp      byte ptr [rsi + 0x10], 0xff
-000000014000181c:  0f 85 2b 04 00 00                 jne      0x140001c4d
-0000000140001822:  e9 da 0e 00 00                    jmp      0x140002701
-0000000140001827:  83 ff 20                          cmp      edi, 0x20
-000000014000182a:  0f 85 d6 00 00 00                 jne      0x140001906
-0000000140001830:  81 3e 54 59 42 00                 cmp      dword ptr [rsi], 0x425954  ; magic TYB
-0000000140001836:  0f 85 11 04 00 00                 jne      0x140001c4d
-000000014000183c:  66 83 7e 06 03                    cmp      word ptr [rsi + 6], 3
-0000000140001841:  0f 85 06 04 00 00                 jne      0x140001c4d
-0000000140001847:  80 7e 08 30                       cmp      byte ptr [rsi + 8], 0x30
-000000014000184b:  0f 85 b0 0e 00 00                 jne      0x140002701
-0000000140001851:  80 7e 09 02                       cmp      byte ptr [rsi + 9], 2
-0000000140001855:  0f 85 f2 03 00 00                 jne      0x140001c4d
-000000014000185b:  66 83 7e 0a 00                    cmp      word ptr [rsi + 0xa], 0
-0000000140001860:  0f 85 e7 03 00 00                 jne      0x140001c4d
-0000000140001866:  80 7e 10 62                       cmp      byte ptr [rsi + 0x10], 0x62
-000000014000186a:  0f 85 24 00 00 00                 jne      0x140001894
-0000000140001870:  80 7e 11 02                       cmp      byte ptr [rsi + 0x11], 2
-0000000140001874:  0f 85 d3 03 00 00                 jne      0x140001c4d
-000000014000187a:  66 83 7e 12 00                    cmp      word ptr [rsi + 0x12], 0
-000000014000187f:  0f 85 c8 03 00 00                 jne      0x140001c4d
-0000000140001885:  80 7e 18 ff                       cmp      byte ptr [rsi + 0x18], 0xff
-0000000140001889:  0f 85 be 03 00 00                 jne      0x140001c4d
-000000014000188f:  e9 6d 0e 00 00                    jmp      0x140002701
-0000000140001894:  80 7e 10 60                       cmp      byte ptr [rsi + 0x10], 0x60
-0000000140001898:  0f 85 2f 00 00 00                 jne      0x1400018cd
-000000014000189e:  80 7e 11 02                       cmp      byte ptr [rsi + 0x11], 2
-00000001400018a2:  0f 85 a5 03 00 00                 jne      0x140001c4d
-00000001400018a8:  66 83 7e 12 0f                    cmp      word ptr [rsi + 0x12], 0xf
-00000001400018ad:  0f 87 9a 03 00 00                 ja       0x140001c4d
-00000001400018b3:  66 83 7e 14 0f                    cmp      word ptr [rsi + 0x14], 0xf
-00000001400018b8:  0f 87 8f 03 00 00                 ja       0x140001c4d
-00000001400018be:  80 7e 18 ff                       cmp      byte ptr [rsi + 0x18], 0xff
-00000001400018c2:  0f 85 85 03 00 00                 jne      0x140001c4d
-00000001400018c8:  e9 34 0e 00 00                    jmp      0x140002701
-00000001400018cd:  80 7e 10 64                       cmp      byte ptr [rsi + 0x10], 0x64
-00000001400018d1:  0f 85 2a 0e 00 00                 jne      0x140002701
-00000001400018d7:  80 7e 11 02                       cmp      byte ptr [rsi + 0x11], 2
-00000001400018db:  0f 85 6c 03 00 00                 jne      0x140001c4d
-00000001400018e1:  66 83 7e 12 0f                    cmp      word ptr [rsi + 0x12], 0xf
-00000001400018e6:  0f 87 61 03 00 00                 ja       0x140001c4d
-00000001400018ec:  66 83 7e 14 0f                    cmp      word ptr [rsi + 0x14], 0xf
-00000001400018f1:  0f 87 56 03 00 00                 ja       0x140001c4d
-00000001400018f7:  80 7e 18 ff                       cmp      byte ptr [rsi + 0x18], 0xff
-00000001400018fb:  0f 85 4c 03 00 00                 jne      0x140001c4d
-0000000140001901:  e9 fb 0d 00 00                    jmp      0x140002701
-0000000140001906:  83 ff 28                          cmp      edi, 0x28
-0000000140001909:  0f 85 47 01 00 00                 jne      0x140001a56
-000000014000190f:  81 3e 54 59 42 00                 cmp      dword ptr [rsi], 0x425954  ; magic TYB
-0000000140001915:  0f 85 32 03 00 00                 jne      0x140001c4d
-000000014000191b:  66 83 7e 06 04                    cmp      word ptr [rsi + 6], 4
-0000000140001920:  0f 85 27 03 00 00                 jne      0x140001c4d
-0000000140001926:  80 7e 08 30                       cmp      byte ptr [rsi + 8], 0x30
-000000014000192a:  0f 85 c5 00 00 00                 jne      0x1400019f5
-0000000140001930:  80 7e 09 02                       cmp      byte ptr [rsi + 9], 2
-0000000140001934:  0f 85 13 03 00 00                 jne      0x140001c4d
-000000014000193a:  66 83 7e 0a 00                    cmp      word ptr [rsi + 0xa], 0
-000000014000193f:  0f 85 08 03 00 00                 jne      0x140001c4d
-0000000140001945:  80 7e 10 62                       cmp      byte ptr [rsi + 0x10], 0x62
-0000000140001949:  0f 85 43 00 00 00                 jne      0x140001992
-000000014000194f:  80 7e 11 02                       cmp      byte ptr [rsi + 0x11], 2
-0000000140001953:  0f 85 f4 02 00 00                 jne      0x140001c4d
-0000000140001959:  66 83 7e 12 00                    cmp      word ptr [rsi + 0x12], 0
-000000014000195e:  0f 85 e9 02 00 00                 jne      0x140001c4d
-0000000140001964:  80 7e 18 61                       cmp      byte ptr [rsi + 0x18], 0x61
-0000000140001968:  0f 85 88 01 00 00                 jne      0x140001af6
-000000014000196e:  80 7e 19 02                       cmp      byte ptr [rsi + 0x19], 2
-0000000140001972:  0f 85 d5 02 00 00                 jne      0x140001c4d
-0000000140001978:  66 83 7e 1a 00                    cmp      word ptr [rsi + 0x1a], 0
-000000014000197d:  0f 85 ca 02 00 00                 jne      0x140001c4d
-0000000140001983:  80 7e 20 ff                       cmp      byte ptr [rsi + 0x20], 0xff
-0000000140001987:  0f 85 c0 02 00 00                 jne      0x140001c4d
-000000014000198d:  e9 6f 0d 00 00                    jmp      0x140002701
-0000000140001992:  80 7e 10 65                       cmp      byte ptr [rsi + 0x10], 0x65
-0000000140001996:  0f 85 5a 01 00 00                 jne      0x140001af6
-000000014000199c:  80 7e 11 02                       cmp      byte ptr [rsi + 0x11], 2
-00000001400019a0:  0f 85 a7 02 00 00                 jne      0x140001c4d
-00000001400019a6:  66 83 7e 12 0f                    cmp      word ptr [rsi + 0x12], 0xf
-00000001400019ab:  0f 87 9c 02 00 00                 ja       0x140001c4d
-00000001400019b1:  66 83 7e 14 0f                    cmp      word ptr [rsi + 0x14], 0xf
-00000001400019b6:  0f 87 91 02 00 00                 ja       0x140001c4d
-00000001400019bc:  80 7e 18 64                       cmp      byte ptr [rsi + 0x18], 0x64
-00000001400019c0:  0f 85 30 01 00 00                 jne      0x140001af6
-00000001400019c6:  80 7e 19 02                       cmp      byte ptr [rsi + 0x19], 2
-00000001400019ca:  0f 85 7d 02 00 00                 jne      0x140001c4d
-00000001400019d0:  66 83 7e 1a 0f                    cmp      word ptr [rsi + 0x1a], 0xf
-00000001400019d5:  0f 87 72 02 00 00                 ja       0x140001c4d
-00000001400019db:  66 83 7e 1c 0f                    cmp      word ptr [rsi + 0x1c], 0xf
-00000001400019e0:  0f 87 67 02 00 00                 ja       0x140001c4d
-00000001400019e6:  80 7e 20 ff                       cmp      byte ptr [rsi + 0x20], 0xff
-00000001400019ea:  0f 85 5d 02 00 00                 jne      0x140001c4d
-00000001400019f0:  e9 0c 0d 00 00                    jmp      0x140002701
-00000001400019f5:  80 7e 08 00                       cmp      byte ptr [rsi + 8], 0
-00000001400019f9:  0f 85 f7 00 00 00                 jne      0x140001af6
-00000001400019ff:  80 7e 09 00                       cmp      byte ptr [rsi + 9], 0
-0000000140001a03:  0f 85 44 02 00 00                 jne      0x140001c4d
-0000000140001a09:  80 7e 10 66                       cmp      byte ptr [rsi + 0x10], 0x66
-0000000140001a0d:  0f 85 e3 00 00 00                 jne      0x140001af6
-0000000140001a13:  80 7e 11 01                       cmp      byte ptr [rsi + 0x11], 1
-0000000140001a17:  0f 85 30 02 00 00                 jne      0x140001c4d
-0000000140001a1d:  66 83 7e 12 0f                    cmp      word ptr [rsi + 0x12], 0xf
-0000000140001a22:  0f 87 25 02 00 00                 ja       0x140001c4d
-0000000140001a28:  80 7e 18 67                       cmp      byte ptr [rsi + 0x18], 0x67
-0000000140001a2c:  0f 85 c4 00 00 00                 jne      0x140001af6
-0000000140001a32:  80 7e 19 01                       cmp      byte ptr [rsi + 0x19], 1
-0000000140001a36:  0f 85 11 02 00 00                 jne      0x140001c4d
-0000000140001a3c:  66 83 7e 1a 0f                    cmp      word ptr [rsi + 0x1a], 0xf
-0000000140001a41:  0f 87 06 02 00 00                 ja       0x140001c4d
-0000000140001a47:  80 7e 20 ff                       cmp      byte ptr [rsi + 0x20], 0xff
-0000000140001a4b:  0f 85 fc 01 00 00                 jne      0x140001c4d
-0000000140001a51:  e9 ab 0c 00 00                    jmp      0x140002701
-0000000140001a56:  83 ff 30                          cmp      edi, 0x30
-0000000140001a59:  0f 85 97 00 00 00                 jne      0x140001af6
-0000000140001a5f:  81 3e 54 59 42 00                 cmp      dword ptr [rsi], 0x425954  ; magic TYB
-0000000140001a65:  0f 85 e2 01 00 00                 jne      0x140001c4d
-0000000140001a6b:  66 83 7e 06 05                    cmp      word ptr [rsi + 6], 5
-0000000140001a70:  0f 85 d7 01 00 00                 jne      0x140001c4d
-0000000140001a76:  80 7e 08 30                       cmp      byte ptr [rsi + 8], 0x30
-0000000140001a7a:  0f 85 76 00 00 00                 jne      0x140001af6
-0000000140001a80:  80 7e 09 02                       cmp      byte ptr [rsi + 9], 2
-0000000140001a84:  0f 85 c3 01 00 00                 jne      0x140001c4d
-0000000140001a8a:  66 83 7e 0a 00                    cmp      word ptr [rsi + 0xa], 0
-0000000140001a8f:  0f 85 b8 01 00 00                 jne      0x140001c4d
-0000000140001a95:  80 7e 10 62                       cmp      byte ptr [rsi + 0x10], 0x62
-0000000140001a99:  0f 85 57 00 00 00                 jne      0x140001af6
-0000000140001a9f:  80 7e 11 02                       cmp      byte ptr [rsi + 0x11], 2
-0000000140001aa3:  0f 85 a4 01 00 00                 jne      0x140001c4d
-0000000140001aa9:  66 83 7e 12 00                    cmp      word ptr [rsi + 0x12], 0
-0000000140001aae:  0f 85 99 01 00 00                 jne      0x140001c4d
-0000000140001ab4:  80 7e 18 61                       cmp      byte ptr [rsi + 0x18], 0x61
-0000000140001ab8:  0f 85 38 00 00 00                 jne      0x140001af6
-0000000140001abe:  80 7e 19 02                       cmp      byte ptr [rsi + 0x19], 2
-0000000140001ac2:  0f 85 85 01 00 00                 jne      0x140001c4d
-0000000140001ac8:  66 83 7e 1a 00                    cmp      word ptr [rsi + 0x1a], 0
-0000000140001acd:  0f 85 7a 01 00 00                 jne      0x140001c4d
-0000000140001ad3:  80 7e 20 00                       cmp      byte ptr [rsi + 0x20], 0
-0000000140001ad7:  0f 85 19 00 00 00                 jne      0x140001af6
-0000000140001add:  80 7e 21 00                       cmp      byte ptr [rsi + 0x21], 0
-0000000140001ae1:  0f 85 66 01 00 00                 jne      0x140001c4d
-0000000140001ae7:  80 7e 28 ff                       cmp      byte ptr [rsi + 0x28], 0xff
-0000000140001aeb:  0f 85 5c 01 00 00                 jne      0x140001c4d
-0000000140001af1:  e9 0b 0c 00 00                    jmp      0x140002701
-0000000140001af6:  81 ff 20 00 00 00                 cmp      edi, 0x20
-0000000140001afc:  0f 85 21 00 00 00                 jne      0x140001b23
-0000000140001b02:  50                                push     rax
-0000000140001b03:  51                                push     rcx
-0000000140001b04:  57                                push     rdi
-0000000140001b05:  56                                push     rsi
-0000000140001b06:  b9 00 00 00 00                    mov      ecx, 0
-0000000140001b0b:  49 8d bf 6f a6 00 00              lea      rdi, [r15 + 0xa66f]
+
+; FOLD opcode/size-gates 0x14000164e..0x140001b12  (239 insns — skipped as noise)
+;      reason: AUDITCLR — opcode/size-gates is repetitive / not an I/O edge
 0000000140001b12:  f3 a6                             repe cmpsb byte ptr [rsi], byte ptr [rdi]
-0000000140001b14:  5e                                pop      rsi
-0000000140001b15:  5f                                pop      rdi
-0000000140001b16:  59                                pop      rcx
-0000000140001b17:  58                                pop      rax
-0000000140001b18:  0f 85 05 00 00 00                 jne      0x140001b23
-0000000140001b1e:  e9 de 0b 00 00                    jmp      0x140002701
-0000000140001b23:  81 ff 20 00 00 00                 cmp      edi, 0x20
-0000000140001b29:  0f 85 21 00 00 00                 jne      0x140001b50
-0000000140001b2f:  50                                push     rax
-0000000140001b30:  51                                push     rcx
-0000000140001b31:  57                                push     rdi
-0000000140001b32:  56                                push     rsi
-0000000140001b33:  b9 00 00 00 00                    mov      ecx, 0
-0000000140001b38:  49 8d bf 6f a6 00 00              lea      rdi, [r15 + 0xa66f]
+
+; FOLD opcode/size-gates 0x140001b14..0x140001b3f  (14 insns — skipped as noise)
+;      reason: AUDITCLR — opcode/size-gates is repetitive / not an I/O edge
 0000000140001b3f:  f3 a6                             repe cmpsb byte ptr [rsi], byte ptr [rdi]
-0000000140001b41:  5e                                pop      rsi
-0000000140001b42:  5f                                pop      rdi
-0000000140001b43:  59                                pop      rcx
-0000000140001b44:  58                                pop      rax
-0000000140001b45:  0f 85 05 00 00 00                 jne      0x140001b50
-0000000140001b4b:  e9 b1 0b 00 00                    jmp      0x140002701
-0000000140001b50:  81 ff 28 00 00 00                 cmp      edi, 0x28
-0000000140001b56:  0f 85 21 00 00 00                 jne      0x140001b7d
-0000000140001b5c:  50                                push     rax
-0000000140001b5d:  51                                push     rcx
-0000000140001b5e:  57                                push     rdi
-0000000140001b5f:  56                                push     rsi
-0000000140001b60:  b9 28 00 00 00                    mov      ecx, 0x28
-0000000140001b65:  49 8d bf 6f a6 00 00              lea      rdi, [r15 + 0xa66f]
+
+; FOLD opcode/size-gates 0x140001b41..0x140001b6c  (14 insns — skipped as noise)
+;      reason: AUDITCLR — opcode/size-gates is repetitive / not an I/O edge
 0000000140001b6c:  f3 a6                             repe cmpsb byte ptr [rsi], byte ptr [rdi]
-0000000140001b6e:  5e                                pop      rsi
-0000000140001b6f:  5f                                pop      rdi
-0000000140001b70:  59                                pop      rcx
-0000000140001b71:  58                                pop      rax
-0000000140001b72:  0f 85 05 00 00 00                 jne      0x140001b7d
-0000000140001b78:  e9 84 0b 00 00                    jmp      0x140002701
-0000000140001b7d:  81 ff 28 00 00 00                 cmp      edi, 0x28
-0000000140001b83:  0f 85 21 00 00 00                 jne      0x140001baa
-0000000140001b89:  50                                push     rax
-0000000140001b8a:  51                                push     rcx
-0000000140001b8b:  57                                push     rdi
-0000000140001b8c:  56                                push     rsi
-0000000140001b8d:  b9 28 00 00 00                    mov      ecx, 0x28
-0000000140001b92:  49 8d bf 6f a6 00 00              lea      rdi, [r15 + 0xa66f]
+
+; FOLD opcode/size-gates 0x140001b6e..0x140001b99  (14 insns — skipped as noise)
+;      reason: AUDITCLR — opcode/size-gates is repetitive / not an I/O edge
 0000000140001b99:  f3 a6                             repe cmpsb byte ptr [rsi], byte ptr [rdi]
-0000000140001b9b:  5e                                pop      rsi
-0000000140001b9c:  5f                                pop      rdi
-0000000140001b9d:  59                                pop      rcx
-0000000140001b9e:  58                                pop      rax
-0000000140001b9f:  0f 85 05 00 00 00                 jne      0x140001baa
-0000000140001ba5:  e9 57 0b 00 00                    jmp      0x140002701
-0000000140001baa:  81 ff 30 00 00 00                 cmp      edi, 0x30
-0000000140001bb0:  0f 85 21 00 00 00                 jne      0x140001bd7
-0000000140001bb6:  50                                push     rax
-0000000140001bb7:  51                                push     rcx
-0000000140001bb8:  57                                push     rdi
-0000000140001bb9:  56                                push     rsi
-0000000140001bba:  b9 30 00 00 00                    mov      ecx, 0x30
-0000000140001bbf:  49 8d bf 6f a6 00 00              lea      rdi, [r15 + 0xa66f]
+
+; FOLD opcode/size-gates 0x140001b9b..0x140001bc6  (14 insns — skipped as noise)
+;      reason: AUDITCLR — opcode/size-gates is repetitive / not an I/O edge
 0000000140001bc6:  f3 a6                             repe cmpsb byte ptr [rsi], byte ptr [rdi]
-0000000140001bc8:  5e                                pop      rsi
-0000000140001bc9:  5f                                pop      rdi
-0000000140001bca:  59                                pop      rcx
-0000000140001bcb:  58                                pop      rax
-0000000140001bcc:  0f 85 05 00 00 00                 jne      0x140001bd7
-0000000140001bd2:  e9 2a 0b 00 00                    jmp      0x140002701
-0000000140001bd7:  81 ff 20 00 00 00                 cmp      edi, 0x20
-0000000140001bdd:  0f 85 21 00 00 00                 jne      0x140001c04
-0000000140001be3:  50                                push     rax
-0000000140001be4:  51                                push     rcx
-0000000140001be5:  57                                push     rdi
-0000000140001be6:  56                                push     rsi
-0000000140001be7:  b9 00 00 00 00                    mov      ecx, 0
-0000000140001bec:  49 8d bf 6f a6 00 00              lea      rdi, [r15 + 0xa66f]
+
+; FOLD opcode/size-gates 0x140001bc8..0x140001bf3  (14 insns — skipped as noise)
+;      reason: AUDITCLR — opcode/size-gates is repetitive / not an I/O edge
 0000000140001bf3:  f3 a6                             repe cmpsb byte ptr [rsi], byte ptr [rdi]
-0000000140001bf5:  5e                                pop      rsi
-0000000140001bf6:  5f                                pop      rdi
-0000000140001bf7:  59                                pop      rcx
-0000000140001bf8:  58                                pop      rax
-0000000140001bf9:  0f 85 05 00 00 00                 jne      0x140001c04
-0000000140001bff:  e9 fd 0a 00 00                    jmp      0x140002701
-0000000140001c04:  81 ff 28 00 00 00                 cmp      edi, 0x28
-0000000140001c0a:  0f 85 21 00 00 00                 jne      0x140001c31
-0000000140001c10:  50                                push     rax
-0000000140001c11:  51                                push     rcx
-0000000140001c12:  57                                push     rdi
-0000000140001c13:  56                                push     rsi
-0000000140001c14:  b9 28 00 00 00                    mov      ecx, 0x28
-0000000140001c19:  49 8d bf 6f a6 00 00              lea      rdi, [r15 + 0xa66f]
+
+; FOLD opcode/size-gates 0x140001bf5..0x140001c20  (14 insns — skipped as noise)
+;      reason: AUDITCLR — opcode/size-gates is repetitive / not an I/O edge
 0000000140001c20:  f3 a6                             repe cmpsb byte ptr [rsi], byte ptr [rdi]
-0000000140001c22:  5e                                pop      rsi
-0000000140001c23:  5f                                pop      rdi
-0000000140001c24:  59                                pop      rcx
-0000000140001c25:  58                                pop      rax
-0000000140001c26:  0f 85 05 00 00 00                 jne      0x140001c31
-0000000140001c2c:  e9 d0 0a 00 00                    jmp      0x140002701
-0000000140001c31:  81 3e 54 59 42 00                 cmp      dword ptr [rsi], 0x425954  ; magic TYB
-0000000140001c37:  0f 85 10 00 00 00                 jne      0x140001c4d
-0000000140001c3d:  66 83 7e 06 00                    cmp      word ptr [rsi + 6], 0
-0000000140001c42:  0f 84 05 00 00 00                 je       0x140001c4d
-0000000140001c48:  e9 b4 0a 00 00                    jmp      0x140002701
-0000000140001c4d:  b8 01 00 00 00                    mov      eax, 1
+
+; FOLD opcode/size-gates 0x140001c22..0x140001c52  (12 insns — skipped as noise)
+;      reason: AUDITCLR — opcode/size-gates is repetitive / not an I/O edge
 0000000140001c52:  48 83 c4 78                       add      rsp, 0x78
 0000000140001c56:  c3                                ret      
 0000000140001c57:  48 89 d6                          mov      rsi, rdx
@@ -868,236 +482,9 @@
 000000014000205c:  31 c0                             xor      eax, eax
 000000014000205e:  b9 00 cc 03 00                    mov      ecx, 0x3cc00
 0000000140002063:  f3 aa                             rep stosb byte ptr [rdi], al
-0000000140002065:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-000000014000206a:  c6 80 00 00 00 00 4d              mov      byte ptr [rax], 0x4d
-0000000140002071:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-0000000140002076:  c6 80 01 00 00 00 5a              mov      byte ptr [rax + 1], 0x5a
-000000014000207d:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-0000000140002082:  c7 80 3c 00 00 00 80 00 00 00     mov      dword ptr [rax + 0x3c], 0x80
-000000014000208c:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-0000000140002091:  c6 80 80 00 00 00 50              mov      byte ptr [rax + 0x80], 0x50
-0000000140002098:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-000000014000209d:  c6 80 81 00 00 00 45              mov      byte ptr [rax + 0x81], 0x45
-00000001400020a4:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-00000001400020a9:  66 c7 80 84 00 00 00 64 86        mov      word ptr [rax + 0x84], 0x8664
-00000001400020b2:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-00000001400020b7:  66 c7 80 86 00 00 00 02 00        mov      word ptr [rax + 0x86], 2
-00000001400020c0:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-00000001400020c5:  66 c7 80 94 00 00 00 f0 00        mov      word ptr [rax + 0x94], 0xf0
-00000001400020ce:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-00000001400020d3:  66 c7 80 96 00 00 00 22 00        mov      word ptr [rax + 0x96], 0x22
-00000001400020dc:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-00000001400020e1:  66 c7 80 98 00 00 00 0b 02        mov      word ptr [rax + 0x98], 0x20b
-00000001400020ea:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-00000001400020ef:  c6 80 9a 00 00 00 01              mov      byte ptr [rax + 0x9a], 1
-00000001400020f6:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-00000001400020fb:  c7 80 a8 00 00 00 00 10 00 00     mov      dword ptr [rax + 0xa8], 0x1000
-0000000140002105:  48 b8 00 00 00 40 01 00 00 00     movabs   rax, 0x140000000
-000000014000210f:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-0000000140002114:  48 89 81 b0 00 00 00              mov      qword ptr [rcx + 0xb0], rax
-000000014000211b:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-0000000140002120:  c7 80 b8 00 00 00 00 10 00 00     mov      dword ptr [rax + 0xb8], 0x1000
-000000014000212a:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-000000014000212f:  c7 80 bc 00 00 00 00 02 00 00     mov      dword ptr [rax + 0xbc], 0x200
-0000000140002139:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-000000014000213e:  66 c7 80 c0 00 00 00 06 00        mov      word ptr [rax + 0xc0], 6
-0000000140002147:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-000000014000214c:  66 c7 80 c8 00 00 00 06 00        mov      word ptr [rax + 0xc8], 6
-0000000140002155:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-000000014000215a:  c7 80 d0 00 00 00 00 e0 03 00     mov      dword ptr [rax + 0xd0], 0x3e000
-0000000140002164:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-0000000140002169:  c7 80 d4 00 00 00 00 04 00 00     mov      dword ptr [rax + 0xd4], 0x400
-0000000140002173:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-0000000140002178:  66 c7 80 dc 00 00 00 03 00        mov      word ptr [rax + 0xdc], 3
-0000000140002181:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-0000000140002186:  66 c7 80 de 00 00 00 00 01        mov      word ptr [rax + 0xde], 0x100
-000000014000218f:  48 b8 00 00 10 00 00 00 00 00     movabs   rax, 0x100000
-0000000140002199:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-000000014000219e:  48 89 81 e0 00 00 00              mov      qword ptr [rcx + 0xe0], rax
-00000001400021a5:  48 b8 00 10 00 00 00 00 00 00     movabs   rax, 0x1000
-00000001400021af:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-00000001400021b4:  48 89 81 e8 00 00 00              mov      qword ptr [rcx + 0xe8], rax
-00000001400021bb:  48 b8 00 00 10 00 00 00 00 00     movabs   rax, 0x100000
-00000001400021c5:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-00000001400021ca:  48 89 81 f0 00 00 00              mov      qword ptr [rcx + 0xf0], rax
-00000001400021d1:  48 b8 00 10 00 00 00 00 00 00     movabs   rax, 0x1000
-00000001400021db:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-00000001400021e0:  48 89 81 f8 00 00 00              mov      qword ptr [rcx + 0xf8], rax
-00000001400021e7:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-00000001400021ec:  c7 80 04 01 00 00 10 00 00 00     mov      dword ptr [rax + 0x104], 0x10
-00000001400021f6:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-00000001400021fb:  c7 80 9c 00 00 00 00 48 00 00     mov      dword ptr [rax + 0x9c], 0x4800
-0000000140002205:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-000000014000220a:  c7 80 a0 00 00 00 00 80 03 00     mov      dword ptr [rax + 0xa0], 0x38000
-0000000140002214:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-0000000140002219:  c7 80 ac 00 00 00 00 10 00 00     mov      dword ptr [rax + 0xac], 0x1000
-0000000140002223:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-0000000140002228:  c7 80 10 01 00 00 38 60 00 00     mov      dword ptr [rax + 0x110], 0x6038
-0000000140002232:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-0000000140002237:  c7 80 14 01 00 00 28 00 00 00     mov      dword ptr [rax + 0x114], 0x28
-0000000140002241:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-0000000140002246:  c6 80 88 01 00 00 2e              mov      byte ptr [rax + 0x188], 0x2e
-000000014000224d:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-0000000140002252:  c6 80 89 01 00 00 74              mov      byte ptr [rax + 0x189], 0x74
-0000000140002259:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-000000014000225e:  c6 80 8a 01 00 00 65              mov      byte ptr [rax + 0x18a], 0x65
-0000000140002265:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-000000014000226a:  c6 80 8b 01 00 00 78              mov      byte ptr [rax + 0x18b], 0x78
-0000000140002271:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-0000000140002276:  c6 80 8c 01 00 00 74              mov      byte ptr [rax + 0x18c], 0x74
-000000014000227d:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-0000000140002282:  c7 80 90 01 00 00 00 50 00 00     mov      dword ptr [rax + 0x190], 0x5000
-000000014000228c:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-0000000140002291:  c7 80 94 01 00 00 00 10 00 00     mov      dword ptr [rax + 0x194], 0x1000
-000000014000229b:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-00000001400022a0:  c7 80 98 01 00 00 00 48 00 00     mov      dword ptr [rax + 0x198], 0x4800
-00000001400022aa:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-00000001400022af:  c7 80 9c 01 00 00 00 04 00 00     mov      dword ptr [rax + 0x19c], 0x400
-00000001400022b9:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-00000001400022be:  c7 80 ac 01 00 00 20 00 00 60     mov      dword ptr [rax + 0x1ac], 0x60000020
-00000001400022c8:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-00000001400022cd:  c6 80 b0 01 00 00 2e              mov      byte ptr [rax + 0x1b0], 0x2e
-00000001400022d4:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-00000001400022d9:  c6 80 b1 01 00 00 64              mov      byte ptr [rax + 0x1b1], 0x64
-00000001400022e0:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-00000001400022e5:  c6 80 b2 01 00 00 61              mov      byte ptr [rax + 0x1b2], 0x61
-00000001400022ec:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-00000001400022f1:  c6 80 b3 01 00 00 74              mov      byte ptr [rax + 0x1b3], 0x74
-00000001400022f8:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-00000001400022fd:  c6 80 b4 01 00 00 61              mov      byte ptr [rax + 0x1b4], 0x61
-0000000140002304:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-0000000140002309:  c7 80 b8 01 00 00 00 80 03 00     mov      dword ptr [rax + 0x1b8], 0x38000
-0000000140002313:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-0000000140002318:  c7 80 bc 01 00 00 00 60 00 00     mov      dword ptr [rax + 0x1bc], 0x6000
-0000000140002322:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-0000000140002327:  c7 80 c0 01 00 00 00 80 03 00     mov      dword ptr [rax + 0x1c0], 0x38000
-0000000140002331:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-0000000140002336:  c7 80 c4 01 00 00 00 4c 00 00     mov      dword ptr [rax + 0x1c4], 0x4c00
-0000000140002340:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-0000000140002345:  c7 80 d4 01 00 00 50 00 00 c0     mov      dword ptr [rax + 0x1d4], 0xc0000050
-000000014000234f:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-0000000140002354:  c6 80 00 04 00 00 4c              mov      byte ptr [rax + 0x400], 0x4c
-000000014000235b:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-0000000140002360:  c6 80 01 04 00 00 8d              mov      byte ptr [rax + 0x401], 0x8d
-0000000140002367:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-000000014000236c:  c6 80 02 04 00 00 3d              mov      byte ptr [rax + 0x402], 0x3d
-0000000140002373:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-0000000140002378:  c7 80 03 04 00 00 f9 4f 00 00     mov      dword ptr [rax + 0x403], 0x4ff9
-0000000140002382:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-0000000140002387:  c6 80 07 04 00 00 e9              mov      byte ptr [rax + 0x407], 0xe9
-000000014000238e:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-0000000140002393:  c7 80 08 04 00 00 01 00 00 00     mov      dword ptr [rax + 0x408], 1
-000000014000239d:  48 8b 44 24 58                    mov      rax, qword ptr [rsp + 0x58]
-00000001400023a2:  c6 80 0c 04 00 00 90              mov      byte ptr [rax + 0x40c], 0x90
-00000001400023a9:  48 b8 6d 60 00 00 00 00 00 00     movabs   rax, 0x606d
-00000001400023b3:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-00000001400023b8:  48 89 81 00 4c 00 00              mov      qword ptr [rcx + 0x4c00], rax
-00000001400023bf:  48 b8 7d 60 00 00 00 00 00 00     movabs   rax, 0x607d
-00000001400023c9:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-00000001400023ce:  48 89 81 08 4c 00 00              mov      qword ptr [rcx + 0x4c08], rax
-00000001400023d5:  48 b8 8b 60 00 00 00 00 00 00     movabs   rax, 0x608b
-00000001400023df:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-00000001400023e4:  48 89 81 10 4c 00 00              mov      qword ptr [rcx + 0x4c10], rax
-00000001400023eb:  48 b8 97 60 00 00 00 00 00 00     movabs   rax, 0x6097
-00000001400023f5:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-00000001400023fa:  48 89 81 18 4c 00 00              mov      qword ptr [rcx + 0x4c18], rax
-0000000140002401:  48 b8 a3 60 00 00 00 00 00 00     movabs   rax, 0x60a3
-000000014000240b:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-0000000140002410:  48 89 81 20 4c 00 00              mov      qword ptr [rcx + 0x4c20], rax
-0000000140002417:  48 b8 b1 60 00 00 00 00 00 00     movabs   rax, 0x60b1
-0000000140002421:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-0000000140002426:  48 89 81 28 4c 00 00              mov      qword ptr [rcx + 0x4c28], rax
-000000014000242d:  48 b8 00 00 00 00 00 00 00 00     movabs   rax, 0
-0000000140002437:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-000000014000243c:  48 89 81 30 4c 00 00              mov      qword ptr [rcx + 0x4c30], rax
-0000000140002443:  48 b8 c0 60 00 00 00 00 00 00     movabs   rax, 0x60c0
-000000014000244d:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-0000000140002452:  48 89 81 38 4c 00 00              mov      qword ptr [rcx + 0x4c38], rax
-0000000140002459:  48 b8 00 00 00 00 60 60 00 00     movabs   rax, 0x606000000000
-0000000140002463:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-0000000140002468:  48 89 81 40 4c 00 00              mov      qword ptr [rcx + 0x4c40], rax
-000000014000246f:  48 b8 00 60 00 00 00 00 00 00     movabs   rax, 0x6000
-0000000140002479:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-000000014000247e:  48 89 81 48 4c 00 00              mov      qword ptr [rcx + 0x4c48], rax
-0000000140002485:  48 b8 00 00 00 00 00 00 00 00     movabs   rax, 0
-000000014000248f:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-0000000140002494:  48 89 81 50 4c 00 00              mov      qword ptr [rcx + 0x4c50], rax
-000000014000249b:  48 b8 00 00 00 00 00 00 00 00     movabs   rax, 0
-00000001400024a5:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-00000001400024aa:  48 89 81 58 4c 00 00              mov      qword ptr [rcx + 0x4c58], rax
-00000001400024b1:  48 b8 6b 65 72 6e 65 6c 33 32     movabs   rax, 0x32336c656e72656b
-00000001400024bb:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-00000001400024c0:  48 89 81 60 4c 00 00              mov      qword ptr [rcx + 0x4c60], rax
-00000001400024c7:  48 b8 2e 64 6c 6c 00 00 00 56     movabs   rax, 0x560000006c6c642e
-00000001400024d1:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-00000001400024d6:  48 89 81 68 4c 00 00              mov      qword ptr [rcx + 0x4c68], rax
-00000001400024dd:  48 b8 69 72 74 75 61 6c 41 6c     movabs   rax, 0x6c416c6175747269
-00000001400024e7:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-00000001400024ec:  48 89 81 70 4c 00 00              mov      qword ptr [rcx + 0x4c70], rax
-00000001400024f3:  48 b8 6c 6f 63 00 00 00 00 43     movabs   rax, 0x4300000000636f6c
-00000001400024fd:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-0000000140002502:  48 89 81 78 4c 00 00              mov      qword ptr [rcx + 0x4c78], rax
-0000000140002509:  48 b8 72 65 61 74 65 46 69 6c     movabs   rax, 0x6c69466574616572
-0000000140002513:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-0000000140002518:  48 89 81 80 4c 00 00              mov      qword ptr [rcx + 0x4c80], rax
-000000014000251f:  48 b8 65 41 00 00 00 52 65 61     movabs   rax, 0x6165520000004165
-0000000140002529:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-000000014000252e:  48 89 81 88 4c 00 00              mov      qword ptr [rcx + 0x4c88], rax
-0000000140002535:  48 b8 64 46 69 6c 65 00 00 00     movabs   rax, 0x656c694664
-000000014000253f:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-0000000140002544:  48 89 81 90 4c 00 00              mov      qword ptr [rcx + 0x4c90], rax
-000000014000254b:  48 b8 00 57 72 69 74 65 46 69     movabs   rax, 0x6946657469725700
-0000000140002555:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-000000014000255a:  48 89 81 98 4c 00 00              mov      qword ptr [rcx + 0x4c98], rax
-0000000140002561:  48 b8 6c 65 00 00 00 43 6c 6f     movabs   rax, 0x6f6c43000000656c
-000000014000256b:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-0000000140002570:  48 89 81 a0 4c 00 00              mov      qword ptr [rcx + 0x4ca0], rax
-0000000140002577:  48 b8 73 65 48 61 6e 64 6c 65     movabs   rax, 0x656c646e61486573
-0000000140002581:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-0000000140002586:  48 89 81 a8 4c 00 00              mov      qword ptr [rcx + 0x4ca8], rax
-000000014000258d:  48 b8 00 00 00 45 78 69 74 50     movabs   rax, 0x5074697845000000
-0000000140002597:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-000000014000259c:  48 89 81 b0 4c 00 00              mov      qword ptr [rcx + 0x4cb0], rax
-00000001400025a3:  48 b8 72 6f 63 65 73 73 00 00     movabs   rax, 0x737365636f72
-00000001400025ad:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-00000001400025b2:  48 89 81 b8 4c 00 00              mov      qword ptr [rcx + 0x4cb8], rax
-00000001400025b9:  48 b8 6d 60 00 00 00 00 00 00     movabs   rax, 0x606d
-00000001400025c3:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-00000001400025c8:  48 89 81 c0 4c 00 00              mov      qword ptr [rcx + 0x4cc0], rax
-00000001400025cf:  48 b8 7d 60 00 00 00 00 00 00     movabs   rax, 0x607d
-00000001400025d9:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-00000001400025de:  48 89 81 c8 4c 00 00              mov      qword ptr [rcx + 0x4cc8], rax
-00000001400025e5:  48 b8 8b 60 00 00 00 00 00 00     movabs   rax, 0x608b
-00000001400025ef:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-00000001400025f4:  48 89 81 d0 4c 00 00              mov      qword ptr [rcx + 0x4cd0], rax
-00000001400025fb:  48 b8 97 60 00 00 00 00 00 00     movabs   rax, 0x6097
-0000000140002605:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-000000014000260a:  48 89 81 d8 4c 00 00              mov      qword ptr [rcx + 0x4cd8], rax
-0000000140002611:  48 b8 a3 60 00 00 00 00 00 00     movabs   rax, 0x60a3
-000000014000261b:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-0000000140002620:  48 89 81 e0 4c 00 00              mov      qword ptr [rcx + 0x4ce0], rax
-0000000140002627:  48 b8 b1 60 00 00 00 00 00 00     movabs   rax, 0x60b1
-0000000140002631:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-0000000140002636:  48 89 81 e8 4c 00 00              mov      qword ptr [rcx + 0x4ce8], rax
-000000014000263d:  48 b8 00 00 00 00 00 00 00 00     movabs   rax, 0
-0000000140002647:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-000000014000264c:  48 89 81 f0 4c 00 00              mov      qword ptr [rcx + 0x4cf0], rax
-0000000140002653:  48 b8 00 00 00 00 00 00 00 00     movabs   rax, 0
-000000014000265d:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-0000000140002662:  48 89 81 f8 4c 00 00              mov      qword ptr [rcx + 0x4cf8], rax
-0000000140002669:  48 b8 00 00 00 00 00 00 00 00     movabs   rax, 0
-0000000140002673:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-0000000140002678:  48 89 81 00 4d 00 00              mov      qword ptr [rcx + 0x4d00], rax
-000000014000267f:  48 b8 00 00 00 00 00 00 00 00     movabs   rax, 0
-0000000140002689:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-000000014000268e:  48 89 81 08 4d 00 00              mov      qword ptr [rcx + 0x4d08], rax
-0000000140002695:  48 b8 00 00 00 00 00 00 00 00     movabs   rax, 0
-000000014000269f:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-00000001400026a4:  48 89 81 10 4d 00 00              mov      qword ptr [rcx + 0x4d10], rax
-00000001400026ab:  48 b8 00 00 00 00 00 00 00 00     movabs   rax, 0
-00000001400026b5:  48 8b 4c 24 58                    mov      rcx, qword ptr [rsp + 0x58]
-00000001400026ba:  48 89 81 18 4d 00 00              mov      qword ptr [rcx + 0x4d18], rax
-00000001400026c1:  48 8b 7c 24 58                    mov      rdi, qword ptr [rsp + 0x58]
+
+; FOLD PE-field/IAT stores 0x140002065..0x1400026c6  (230 insns — skipped as noise)
+;      reason: AUDITCLR — PE-field/IAT stores is repetitive / not an I/O edge
 00000001400026c6:  48 81 c7 0d 04 00 00              add      rdi, 0x40d
 00000001400026cd:  48 8b 74 24 60                    mov      rsi, qword ptr [rsp + 0x60]
 00000001400026d2:  b9 b6 46 00 00                    mov      ecx, 0x46b6

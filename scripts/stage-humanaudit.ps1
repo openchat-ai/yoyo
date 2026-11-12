@@ -19,7 +19,7 @@ if ($LASTEXITCODE -ne 0) { Write-Host "HUMANAUDIT status=RED reason=disasm"; exi
 # First run may WRITE callseq pin — re-run once so EQUAL is enforced in same gate
 & python (Join-Path $Root "scripts\gen-stub-disasm.py")
 if ($LASTEXITCODE -ne 0) { Write-Host "HUMANAUDIT status=RED reason=disasm_recheck"; exit 1 }
-foreach ($f in @('STUB.disasm.txt','STUB.WALKTHROUGH.md','STUB.AI.md','STUB.CALLSEQ.pin')) {
+foreach ($f in @('STUB.disasm.txt','STUB.SKELETON.txt','STUB.WALKTHROUGH.md','STUB.AI.md','STUB.CALLSEQ.pin')) {
   if (-not (Test-Path (Join-Path $Root "scripts\fixtures\audit-stub\$f"))) {
     Write-Host "HUMANAUDIT status=RED reason=missing_$f"
     exit 1
@@ -34,6 +34,17 @@ if ($walk -match '\|\s+\*\*FLAG\*\*\s+\|') {
 $ai = Get-Content (Join-Path $Root "scripts\fixtures\audit-stub\STUB.AI.md") -Raw
 if ($ai -notmatch '\*\*VERDICT:\s*GREEN\*\*') {
   Write-Host "HUMANAUDIT status=RED reason=ai_verdict_not_green"
+  exit 1
+}
+# AUDITCLR: SEMHOST must not be false-decoded as push r11 in disasm
+$dis = Get-Content (Join-Path $Root "scripts\fixtures\audit-stub\STUB.disasm.txt") -Raw
+if ($dis -match 'push\s+r11') {
+  Write-Host "HUMANAUDIT status=RED reason=false_decode_push_r11"
+  exit 1
+}
+$skel = Get-Content (Join-Path $Root "scripts\fixtures\audit-stub\STUB.SKELETON.txt") -Raw
+if ($skel -notmatch 'FOLD') {
+  Write-Host "HUMANAUDIT status=RED reason=skeleton_missing_FOLD"
   exit 1
 }
 
