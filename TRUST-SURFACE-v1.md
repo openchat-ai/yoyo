@@ -8,27 +8,18 @@
 2. 内容 pin（plant/bins）  
 3. Win32/PE A1（6 导入，未消）
 
-## 更好检（已到工程尽头 · TRUSTLIM4）
+## 更好检 / 抽查 / 八路
 
-全文件 pin + hdr/IAT 结构窗 + plant/data/Y1PL 毒网。  
-再密≈重复；网外=共谋/OS/钉子自身。
+- HUMANAUDIT → AUDITMAX → AUDITCLR → AUDITLIVE → **AUDITZERO**  
+- 威胁表 **1–7 CLOSED**（改字节/换现场文件必红）  
+- **#8 共谋改钉 = HARD_BLOCK**（不可工程消 0）
 
-## 少信
-
-stub `.text` / 消 A1 / 空盘 → 已到或禁。
-
-## 人/AI 抽查（… → AUDITCLR → AUDITLIVE）
-
-1. **`STUB.AI.md`**  
-2. `STUB.WALKTHROUGH.md` / **`STUB.SKELETON.txt`**  
-3. 全量 disasm 仅 FOLD 边界  
-4. **AUDITLIVE**：窗外落地窗 pin + 现场 allow 文件 ≡ fixture  
-合同：CALLSEQ + 禁串 + 无假解码 + OOW/live。bins 仍非读完对象。
+审法：`STUB.AI` → 走读 → `STUB.SKELETON`；FOLD 边界才看全量。
 
 ## 下一刀
 
-AUDITLIVE 绿后停。
+默认停（再砍 #8 = 宣称 Thompson，禁）。
 
 ---
 
-*… + AUDITCLR + AUDITLIVE · ≠ Thompson*
+*AUDITZERO：7 CLOSED + 1 HARD_BLOCK · ≠ Thompson*

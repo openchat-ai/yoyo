@@ -62,9 +62,11 @@ if ($LASTEXITCODE -ne 0) { Write-Host "HUMANAUDIT status=RED reason=slices"; exi
 & node (Join-Path $Root "yoyo-js\scripts\verify-a1-imports-pin.js") $stub
 if ($LASTEXITCODE -ne 0) { Write-Host "HUMANAUDIT status=RED reason=a1"; exit 1 }
 
-# AUDITLIVE: OOW landing + live allow-files (threat model #5/#7)
+# AUDITLIVE + AUDITZERO (八路 1-7 CLOSED / 8 HARD_BLOCK)
 & (Join-Path $Root "scripts\stage-auditlive.ps1")
 if ($LASTEXITCODE -ne 0) { Write-Host "HUMANAUDIT status=RED reason=auditlive"; exit 1 }
+& (Join-Path $Root "scripts\stage-auditzero.ps1")
+if ($LASTEXITCODE -ne 0) { Write-Host "HUMANAUDIT status=RED reason=auditzero"; exit 1 }
 
 Write-Host "HUMANAUDIT note=human_pack_for_stub_TCB;bins_not_eyeball;not_Thompson"
 Write-Host "HUMANAUDIT status=GREEN"

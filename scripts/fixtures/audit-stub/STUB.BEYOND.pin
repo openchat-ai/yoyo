@@ -1,0 +1,7 @@
+# AUTO-AUDITZERO: entire code.bin past place cut (attack #5 residual).
+# ≠ Thompson.
+code_place_bytes=5876
+beyond_bytes=12226
+beyond_sha256=d79f6109eca1b356cd07c93a876c0c6f336ae771c6382a484d89e1b4901b088e
+beyond_sha256_prefix=d79f6109eca1b356
+doc=AUTO-AUDITZERO.md
