@@ -1,13 +1,14 @@
-# MODEL-CONTRACT v2 — aerospace / LLM unambiguous write surface
+# MODEL-CONTRACT v3 — multi-scale / LLM unambiguous write surface
 
-Fail-closed. Human ergonomics deferred. Spacecraft-facing: **no silent ambiguity**.
+Fail-closed. Human ergonomics deferred. Spacecraft-facing: **no silent ambiguity**.  
+Parent rails: `AUTO-LLMWRITE` → `AUTO-LLMWRITEX` → `AUTO-LLMWRITESCALE`.
 
 ## Normative source
 
 `model-contract.json` (pinned by `model-contract.sha256`).  
 This markdown is explanatory; **json wins** on conflict.
 
-## Lexical (must)
+## Lexical (must) — 行尺度
 
 | Rule | Value |
 | --- | --- |
@@ -34,14 +35,33 @@ This markdown is explanatory; **json wins** on conflict.
 | `A0` | **only** trailing exit trampoline (exact 13 bytes) |
 | Winsock | forbidden |
 
-## Shapes (file tier)
+## Grammar (must) — 句·段尺度
 
-Named bodies in json `shapes.*` then exit trampoline. Samples `cat`/`head`/`zero` must match + `*.ast.json`.
+Authoritative: `grammar.*` in json (not named shapes).
+
+| Rule | Value |
+| --- | --- |
+| Program | `entry stmt+ exit` |
+| Stmts | `SET_SIZE` / `ALLOC_BUF` / `LOAD_IN` / `WRITE_OUT` only |
+| Dataflow | `WRITE_OUT` requires prior size + buf |
+| Require write | body must include ≥1 `WRITE_OUT` |
+
+Named `shapes.*` are **aliases only** (convenience labels for samples).
+
+## Multi-scale AST — 任意尺度
+
+Each sample `*.ast.json` must byte-equal:
+
+- `lines` — every source line  
+- `stmts` — `KIND:opcode…`  
+- `program` — `{entry, body[], exit[]}`  
+
+Generative: `generative.trials` random legal programs, canonicalize idempotent.
 
 ## 全域 coverage
 
 `surface_coverage` in json: every ANYPROG tool is **in_contract** or explicit **out_***.  
-Missing key → RED (no silent gap).
+Missing key → RED (no silent gap). File-tier in: cat/head/zero/copy08/resize.
 
 ## Gates
 
@@ -52,4 +72,4 @@ scripts/stage-llmwrite.ps1
 
 Pin: `model-contract.sha256`
 
-≠ Thompson · ≠ “model already programs YOYO”
+≠ Thompson · ≠ 全 ISA · ≠ Winsock closed · ≠ “model already programs YOYO”

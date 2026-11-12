@@ -1,6 +1,6 @@
 {
-  "name": "yoyo-anyprog-llm-v2-aerospace",
-  "revision": 2,
+  "name": "yoyo-anyprog-llm-v3-scale",
+  "revision": 3,
   "target": "win32",
   "link": "yoyo link --target=win32 <in.ty> <out.exe>",
   "encoding": "utf-8-no-bom",
@@ -51,10 +51,32 @@
   "exit_trampoline_bytes": [
     "31", "C9", "48", "83", "EC", "20", "41", "FF", "97", "28", "00", "00", "00"
   ],
+  "grammar": {
+    "program": "entry stmt+ exit",
+    "stmts": ["SET_SIZE", "ALLOC_BUF", "LOAD_IN", "WRITE_OUT"],
+    "SET_SIZE": { "op": "30", "args": ["51", "IMM2"] },
+    "ALLOC_BUF": { "op": "20", "args": ["50", "IMM2"] },
+    "LOAD_IN": { "op": "50", "args": ["50", "00"] },
+    "WRITE_OUT": { "op": "51", "args": ["50", "02", "51"] },
+    "dataflow": {
+      "WRITE_OUT_requires": ["has_size", "has_buf"],
+      "SET_SIZE_sets": "has_size",
+      "ALLOC_BUF_sets": "has_buf",
+      "LOAD_IN_sets": "has_buf"
+    },
+    "require_write": true
+  },
   "shapes": {
     "cat": ["30 51 05", "50 50 00", "51 50 02 51"],
     "head": ["30 51 03", "50 50 00", "51 50 02 51"],
-    "zero": ["20 50 08", "30 51 04", "51 50 02 51"]
+    "zero": ["20 50 08", "30 51 04", "51 50 02 51"],
+    "copy08": ["30 51 08", "50 50 00", "51 50 02 51"],
+    "resize": ["30 51 05", "30 51 03", "50 50 00", "51 50 02 51"]
+  },
+  "generative": {
+    "trials": 64,
+    "max_extra_sets": 3,
+    "imm_choices": ["01", "02", "03", "04", "05", "08"]
   },
   "samples_llm_dir": "scripts/fixtures/anyprog/llm",
   "min_poison_distinct_reasons": 10,
@@ -62,10 +84,12 @@
     "cat": "in_contract",
     "head": "in_contract",
     "zero": "in_contract",
-    "hello_console": "out_raw_not_in_v2",
-    "cmdline": "out_raw_not_in_v2",
-    "tick": "out_raw_not_in_v2",
-    "thread": "out_raw_not_in_v2",
+    "copy08": "in_contract",
+    "resize": "in_contract",
+    "hello_console": "out_raw_not_in_v3",
+    "cmdline": "out_raw_not_in_v3",
+    "tick": "out_raw_not_in_v3",
+    "thread": "out_raw_not_in_v3",
     "socket": "out_winsock_open"
   },
   "doc": "MODEL-CONTRACT.md"

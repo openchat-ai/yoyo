@@ -1,7 +1,7 @@
 'use strict';
 /**
- * AUTO-LLMWRITEX: aerospace fail-closed LLM write-surface checker.
- * Lexical + semantic + canonical round-trip + AST gold + contract pin + poison diversity.
+ * AUTO-LLMWRITESCALE / LLMWRITEX: line→stmt→body→program unambiguous surface.
+ * Grammar+dataflow authority; shapes are aliases; generative round-trip any N.
  */
 const fs = require('fs');
 const path = require('path');
@@ -16,24 +16,23 @@ const HEX2 = /^[0-9A-F]{2}$/;
 function loadContract() {
   return JSON.parse(fs.readFileSync(contractPath, 'utf8'));
 }
-
 function sha256file(p) {
   return crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
 }
 
 function lexCheck(text) {
   const errors = [];
-  if (text.charCodeAt(0) === 0xfeff || (text.length >= 3 && text.charCodeAt(0) === 0xef)) {
-    // BOM UTF-8 EF BB BF
-    if (text.charCodeAt(0) === 0xfeff || (text.charCodeAt(0) === 0xef && text.charCodeAt(1) === 0xbb)) {
-      errors.push('forbid_bom');
-    }
+  if (
+    text.charCodeAt(0) === 0xfeff ||
+    (text.length >= 3 && text.charCodeAt(0) === 0xef && text.charCodeAt(1) === 0xbb && text.charCodeAt(2) === 0xbf)
+  ) {
+    errors.push('forbid_bom');
   }
   if (text.includes('\r')) errors.push('forbid_cr');
   if (text.includes('\t')) errors.push('forbid_tab');
   if (text.includes(';')) errors.push('forbid_comments');
   const lines = text.split('\n');
-  if (lines.length && lines[lines.length - 1] === '') lines.pop(); // allow final newline only
+  if (lines.length && lines[lines.length - 1] === '') lines.pop();
   for (let i = 0; i < lines.length; i++) {
     if (lines[i] === '') errors.push(`blank_line_${i}`);
   }
@@ -47,11 +46,9 @@ function parseStrict(lines, contract) {
     errors.push('empty');
     return { ops, errors };
   }
-  if (lines[0] !== contract.entry_line) {
-    errors.push('entry_line_mismatch');
-  } else {
-    ops.push({ op: '40', args: ['00'] });
-  }
+  if (lines[0] !== contract.entry_line) errors.push('entry_line_mismatch');
+  else ops.push({ op: '40', args: ['00'] });
+
   const indent = contract.body_indent;
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i];
@@ -63,11 +60,8 @@ function parseStrict(lines, contract) {
       errors.push(`over_indent_line_${i}`);
     }
     const body = line.slice(indent.length);
-    if (body !== body.trim() || /\s{2,}/.test(body)) {
-      // single spaces only between tokens; no lead/trail in body
-      if (body !== body.trim()) errors.push(`trim_line_${i}`);
-      if (/\s{2,}/.test(body.trim())) errors.push(`multi_space_line_${i}`);
-    }
+    if (body !== body.trim()) errors.push(`trim_line_${i}`);
+    if (/\s{2,}/.test(body.trim())) errors.push(`multi_space_line_${i}`);
     const parts = body.trim().split(' ');
     for (const t of parts) {
       if (!HEX2.test(t)) errors.push(`token_not_upper_hex2_${t}_line_${i}`);
@@ -84,25 +78,32 @@ function parseStrict(lines, contract) {
 function canonical(ops, contract) {
   const lines = [contract.entry_line];
   for (let i = 1; i < ops.length; i++) {
-    const o = ops[i];
-    lines.push(contract.body_indent + [o.op, ...o.args].join(' '));
+    lines.push(contract.body_indent + [ops[i].op, ...ops[i].args].join(' '));
   }
   return lines.join('\n') + '\n';
 }
 
-function astOf(ops) {
-  return {
-    entry: '40 00',
-    body: ops.slice(1).map((o) => [o.op, ...o.args].join(' ')),
-  };
+function classifyStmt(op, args, contract) {
+  if (op === '30' && args[0] === contract.slot_size && HEX2.test(args[1] || '')) return 'SET_SIZE';
+  if (op === '20' && args[0] === contract.slot_buffer && HEX2.test(args[1] || '')) return 'ALLOC_BUF';
+  if (op === '50' && args[0] === contract.slot_buffer && args[1] === '00') return 'LOAD_IN';
+  if (op === '51' && args[0] === contract.slot_buffer && args[1] === '02' && args[2] === contract.slot_size) {
+    return 'WRITE_OUT';
+  }
+  if (op === 'A0') return 'EXIT_BYTE';
+  return null;
 }
 
-function semanticCheck(ops, contract) {
+function semanticAndGrammar(ops, contract) {
   const errors = [];
   const allowed = contract.allowed_opcodes;
   const exitBytes = contract.exit_trampoline_bytes;
   const rawBytes = [];
   let inRaw = false;
+  let has_size = false;
+  let has_buf = false;
+  let writeCount = 0;
+  const stmts = [];
 
   for (let i = 0; i < ops.length; i++) {
     const { op, args } = ops[i];
@@ -128,12 +129,9 @@ function semanticCheck(ops, contract) {
     }
     if (inRaw) errors.push('raw_must_be_tail_only');
 
-    if (op === '20') {
-      if (args[0] !== contract.slot_buffer) errors.push('alloc_slot_must_be_50');
-    }
-    if (op === '30') {
-      if (args[0] !== contract.slot_size) errors.push('set_slot_must_be_51');
-    }
+    // slot / str checks (fail-closed)
+    if (op === '20' && args[0] !== contract.slot_buffer) errors.push('alloc_slot_must_be_50');
+    if (op === '30' && args[0] !== contract.slot_size) errors.push('set_slot_must_be_51');
     if (op === '50') {
       if (args[0] !== contract.slot_buffer) errors.push('load_slot_must_be_50');
       if (!contract.str_load_allowed.includes(args[1])) errors.push('load_str_not_allowed');
@@ -143,33 +141,60 @@ function semanticCheck(ops, contract) {
       if (!contract.str_write_allowed.includes(args[1])) errors.push('write_str_not_allowed');
       if (args[2] !== contract.slot_size) errors.push('write_sz_must_be_51');
     }
-    for (const a of args) {
-      if ((op === '20' || op === '30' || op === '50' || op === '51') && (a === '50' || a === '51')) {
-        if (!contract.slots_allowed.includes(a) && (op === '20' || op === '30' || (op === '50' && args.indexOf(a) === 0) || (op === '51' && (args.indexOf(a) === 0 || args.indexOf(a) === 2)))) {
-          /* covered above */
-        }
+
+    const kind = classifyStmt(op, args, contract);
+    if (i > 0 && !kind) {
+      errors.push(`stmt_not_in_grammar_${op}`);
+      continue;
+    }
+    if (kind && kind !== 'EXIT_BYTE') {
+      if (kind === 'WRITE_OUT') {
+        if (!has_size) errors.push('dataflow_write_without_size');
+        if (!has_buf) errors.push('dataflow_write_without_buf');
+        writeCount += 1;
       }
+      if (kind === 'SET_SIZE') has_size = true;
+      if (kind === 'ALLOC_BUF' || kind === 'LOAD_IN') has_buf = true;
+      stmts.push({ kind, text: [op, ...args].join(' ') });
     }
   }
 
   if (!rawBytes.length) errors.push('missing_exit_trampoline');
   else if (rawBytes.join(',') !== exitBytes.join(',')) errors.push('exit_trampoline_mismatch');
 
-  // shape: body before A0 must match a named shape if sample has shape name
-  return errors;
+  if (contract.grammar && contract.grammar.require_write && writeCount < 1) {
+    errors.push('grammar_require_write');
+  }
+
+  return { errors, stmts, writeCount };
 }
 
-function shapeBody(ops) {
+function multiScaleAst(ops, stmts, contract) {
+  const lines = [contract.entry_line];
+  for (let i = 1; i < ops.length; i++) {
+    lines.push(contract.body_indent + [ops[i].op, ...ops[i].args].join(' '));
+  }
+  const exit = [];
+  for (let i = 1; i < ops.length; i++) {
+    if (ops[i].op === 'A0') exit.push(ops[i].args[0]);
+  }
+  return {
+    lines,
+    stmts: stmts.map((s) => s.kind + ':' + s.text),
+    program: {
+      entry: '40 00',
+      body: stmts.map((s) => s.text),
+      exit,
+    },
+  };
+}
+
+function matchShapeAlias(ops, contract) {
   const body = [];
   for (let i = 1; i < ops.length; i++) {
     if (ops[i].op === 'A0') break;
     body.push([ops[i].op, ...ops[i].args].join(' '));
   }
-  return body;
-}
-
-function matchShape(ops, contract) {
-  const body = shapeBody(ops);
   for (const [name, seq] of Object.entries(contract.shapes || {})) {
     if (body.length === seq.length && body.every((b, i) => b === seq[i])) return name;
   }
@@ -179,20 +204,18 @@ function matchShape(ops, contract) {
 function validateText(text, contract) {
   const { errors: lexErrs, lines } = lexCheck(text);
   const { ops, errors: parseErrs } = parseStrict(lines, contract);
-  const semErrs = ops.length ? semanticCheck(ops, contract) : [];
-  const errors = [...lexErrs, ...parseErrs, ...semErrs];
+  const g = ops.length ? semanticAndGrammar(ops, contract) : { errors: [], stmts: [] };
+  const errors = [...lexErrs, ...parseErrs, ...g.errors];
   let canon = null;
   let ast = null;
+  let shape = null;
   if (!errors.length) {
     canon = canonical(ops, contract);
-    if (canon !== text && canon !== text.replace(/\r\n/g, '\n')) {
-      // require exact canonical including trailing newline
-      if (text !== canon) errors.push('canonical_mismatch');
-    }
-    ast = astOf(ops);
-    if (!matchShape(ops, contract)) errors.push('shape_not_named');
+    if (text !== canon) errors.push('canonical_mismatch');
+    shape = matchShapeAlias(ops, contract);
+    ast = multiScaleAst(ops, g.stmts, contract);
   }
-  return { errors, ops, canon, ast, shape: errors.includes('shape_not_named') ? null : matchShape(ops, contract) };
+  return { errors, ops, canon, ast, shape, stmts: g.stmts };
 }
 
 function checkGood(filePath, contract) {
@@ -200,102 +223,162 @@ function checkGood(filePath, contract) {
   const text = fs.readFileSync(filePath, 'utf8');
   const r = validateText(text, contract);
   if (r.errors.length) {
-    console.log(`LLMWRITEX sample=${name} status=RED reason=${r.errors.join('|')}`);
-    return { ok: false };
+    console.log(`LLMSCALE sample=${name} status=RED reason=${r.errors.join('|')}`);
+    return false;
   }
   const astPath = path.join(path.dirname(filePath), `${name}.ast.json`);
   if (!fs.existsSync(astPath)) {
-    console.log(`LLMWRITEX sample=${name} status=RED reason=ast_missing`);
-    return { ok: false };
+    console.log(`LLMSCALE sample=${name} status=RED reason=ast_missing`);
+    return false;
   }
-  const wantAst = JSON.parse(fs.readFileSync(astPath, 'utf8'));
+  const want = JSON.stringify(JSON.parse(fs.readFileSync(astPath, 'utf8')));
   const got = JSON.stringify(r.ast);
-  const want = JSON.stringify(wantAst);
   if (got !== want) {
-    console.log(`LLMWRITEX sample=${name} status=RED reason=ast_mismatch`);
-    return { ok: false };
+    console.log(`LLMSCALE sample=${name} status=RED reason=ast_mismatch`);
+    return false;
   }
-  if (r.shape !== name) {
-    console.log(`LLMWRITEX sample=${name} status=RED reason=shape_name_mismatch got=${r.shape}`);
-    return { ok: false };
+  // round-trip idempotent
+  const again = validateText(r.canon, contract);
+  if (again.errors.length || again.canon !== r.canon) {
+    console.log(`LLMSCALE sample=${name} status=RED reason=roundtrip_fail`);
+    return false;
   }
-  console.log(`LLMWRITEX sample=${name} shape=${r.shape} status=GREEN`);
-  return { ok: true };
+  console.log(`LLMSCALE sample=${name} stmts=${r.stmts.length} shape_alias=${r.shape || '-'} status=GREEN`);
+  return true;
 }
 
 function checkPoison(filePath, contract, reasonsSeen) {
   const name = path.basename(filePath);
   const text = fs.readFileSync(filePath, 'utf8');
-  // poisons may violate lexical rules — use soft path: still run validateText
   const r = validateText(text, contract);
   if (!r.errors.length) {
-    console.log(`LLMWRITEX poison=${name} status=RED reason=expected_fail_got_pass`);
+    console.log(`LLMSCALE poison=${name} status=RED reason=expected_fail_got_pass`);
     return false;
   }
-  const reason = r.errors[0];
-  reasonsSeen.add(reason);
-  console.log(`LLMWRITEX poison=${name} status=RED_as_expected errs=${reason}`);
+  reasonsSeen.add(r.errors[0]);
+  console.log(`LLMSCALE poison=${name} status=RED_as_expected errs=${r.errors[0]}`);
+  return true;
+}
+
+function imm2(n) {
+  return n.toString(16).toUpperCase().padStart(2, '0');
+}
+
+function buildProgram(contract, stmts) {
+  const ops = [{ op: '40', args: ['00'] }];
+  for (const s of stmts) {
+    const p = s.split(' ');
+    ops.push({ op: p[0], args: p.slice(1) });
+  }
+  for (const b of contract.exit_trampoline_bytes) {
+    ops.push({ op: 'A0', args: [b] });
+  }
+  return canonical(ops, contract);
+}
+
+function generativeRoundTrip(contract) {
+  const gen = contract.generative || { trials: 32, imm_choices: ['01', '03', '05', '08'], max_extra_sets: 2 };
+  const imms = gen.imm_choices;
+  let ok = 0;
+  for (let t = 0; t < gen.trials; t++) {
+    const mode = t % 4;
+    const stmts = [];
+    const extra = t % ((gen.max_extra_sets || 2) + 1);
+    for (let e = 0; e < extra; e++) {
+      stmts.push(`30 51 ${imms[(t + e) % imms.length]}`);
+    }
+    if (mode === 0) {
+      // load path
+      stmts.push(`30 51 ${imms[t % imms.length]}`);
+      stmts.push('50 50 00');
+      stmts.push('51 50 02 51');
+    } else if (mode === 1) {
+      // alloc path
+      stmts.push(`20 50 ${imms[(t + 1) % imms.length]}`);
+      stmts.push(`30 51 ${imms[t % imms.length]}`);
+      stmts.push('51 50 02 51');
+    } else if (mode === 2) {
+      // resize then load
+      stmts.push(`30 51 ${imms[0]}`);
+      stmts.push(`30 51 ${imms[t % imms.length]}`);
+      stmts.push('50 50 00');
+      stmts.push('51 50 02 51');
+    } else {
+      // alloc then load overwrites buf
+      stmts.push(`20 50 ${imms[t % imms.length]}`);
+      stmts.push(`30 51 ${imms[(t + 2) % imms.length]}`);
+      stmts.push('50 50 00');
+      stmts.push('51 50 02 51');
+    }
+    const text = buildProgram(contract, stmts);
+    const r = validateText(text, contract);
+    if (r.errors.length) {
+      console.log(`LLMSCALE gen=${t} status=RED reason=${r.errors.join('|')}`);
+      return false;
+    }
+    if (r.canon !== text) {
+      console.log(`LLMSCALE gen=${t} status=RED reason=gen_canon_mismatch`);
+      return false;
+    }
+    const r2 = validateText(r.canon, contract);
+    if (r2.errors.length || r2.canon !== r.canon) {
+      console.log(`LLMSCALE gen=${t} status=RED reason=gen_roundtrip`);
+      return false;
+    }
+    ok += 1;
+  }
+  console.log(`LLMSCALE generative trials=${ok} status=GREEN`);
   return true;
 }
 
 function main() {
   const contract = loadContract();
-  if (contract.revision !== 2) {
-    console.log('LLMWRITEX status=RED reason=contract_not_v2');
+  if (contract.revision < 3) {
+    console.log('LLMSCALE status=RED reason=contract_not_v3');
     process.exit(1);
   }
   if (!fs.existsSync(path.join(anyprog, 'MODEL-CONTRACT.md'))) {
-    console.log('LLMWRITEX status=RED reason=MODEL-CONTRACT_missing');
+    console.log('LLMSCALE status=RED reason=MODEL-CONTRACT_missing');
     process.exit(1);
   }
   if (!fs.existsSync(pinPath)) {
-    console.log('LLMWRITEX status=RED reason=contract_pin_missing');
+    console.log('LLMSCALE status=RED reason=contract_pin_missing');
     process.exit(1);
   }
   const gotPin = sha256file(contractPath);
   const wantPin = fs.readFileSync(pinPath, 'utf8').trim().split(/\s+/)[0].toLowerCase();
   if (gotPin !== wantPin) {
-    console.log(`LLMWRITEX status=RED reason=contract_pin_DIFF want=${wantPin} got=${gotPin}`);
+    console.log(`LLMSCALE status=RED reason=contract_pin_DIFF want=${wantPin} got=${gotPin}`);
     process.exit(1);
   }
-  console.log(`LLMWRITEX contract_pin=EQUAL sha256_prefix=${gotPin.slice(0, 16)}`);
+  console.log(`LLMSCALE contract_pin=EQUAL sha256_prefix=${gotPin.slice(0, 16)}`);
 
-  // 全域：ANYPROG 已知工具必须在 surface_coverage 里显式 in/out（禁漏网）
   const cov = contract.surface_coverage || {};
   const requiredTools = [
-    'cat',
-    'head',
-    'zero',
-    'hello_console',
-    'cmdline',
-    'tick',
-    'thread',
-    'socket',
+    'cat', 'head', 'zero', 'copy08', 'resize',
+    'hello_console', 'cmdline', 'tick', 'thread', 'socket',
   ];
   for (const t of requiredTools) {
     if (!cov[t]) {
-      console.log(`LLMWRITEX status=RED reason=surface_coverage_missing tool=${t}`);
+      console.log(`LLMSCALE status=RED reason=surface_coverage_missing tool=${t}`);
       process.exit(1);
     }
   }
-  const inNames = Object.entries(cov)
-    .filter(([, v]) => v === 'in_contract')
-    .map(([k]) => k)
-    .sort();
-  console.log(`LLMWRITEX surface_in=${inNames.join(',')} surface_classified=${requiredTools.length}`);
+  const inNames = Object.entries(cov).filter(([, v]) => v === 'in_contract').map(([k]) => k).sort();
+  console.log(`LLMSCALE surface_in=${inNames.join(',')} classified=${requiredTools.length}`);
 
   const llmDir = path.join(root, contract.samples_llm_dir.replace(/\//g, path.sep));
   const files = fs.readdirSync(llmDir).filter((f) => f.endsWith('.ty'));
   const goods = files.filter((f) => !f.startsWith('_poison')).sort();
   const poisons = files.filter((f) => f.startsWith('_poison')).sort();
-  if (goods.length < 3) {
-    console.log(`LLMWRITEX status=RED reason=too_few_samples n=${goods.length}`);
+  if (goods.length < 5) {
+    console.log(`LLMSCALE status=RED reason=too_few_samples n=${goods.length} want>=5`);
     process.exit(1);
   }
 
   let ok = true;
   for (const f of goods) {
-    if (!checkGood(path.join(llmDir, f), contract).ok) ok = false;
+    if (!checkGood(path.join(llmDir, f), contract)) ok = false;
   }
   const reasons = new Set();
   for (const f of poisons) {
@@ -303,17 +386,24 @@ function main() {
   }
   const minP = contract.min_poison_distinct_reasons || 10;
   if (reasons.size < minP) {
-    console.log(`LLMWRITEX status=RED reason=poison_diversity got=${reasons.size} want>=${minP}`);
-    console.log(`LLMWRITEX reasons=${[...reasons].join(',')}`);
+    console.log(`LLMSCALE status=RED reason=poison_diversity got=${reasons.size} want>=${minP}`);
     process.exit(1);
   }
+  if (!generativeRoundTrip(contract)) ok = false;
+
+  // dataflow poisons must exist
+  if (!reasons.has('dataflow_write_without_size') && !fs.existsSync(path.join(llmDir, '_poison_df_size.ty'))) {
+    console.log('LLMSCALE status=RED reason=missing_dataflow_poison');
+    process.exit(1);
+  }
+
   if (!ok) {
-    console.log('LLMWRITEX status=RED');
+    console.log('LLMSCALE status=RED');
     process.exit(1);
   }
-  console.log(`LLMWRITEX samples=${goods.length} poisons=${poisons.length} distinct_reasons=${reasons.size}`);
-  console.log('LLMWRITEX status=GREEN');
-  console.log('LLMWRITEX doc=AUTO-LLMWRITEX.md');
+  console.log(`LLMSCALE samples=${goods.length} poisons=${poisons.length} distinct_reasons=${reasons.size}`);
+  console.log('LLMSCALE status=GREEN');
+  console.log('LLMSCALE doc=AUTO-LLMWRITESCALE.md');
   process.exit(0);
 }
 
