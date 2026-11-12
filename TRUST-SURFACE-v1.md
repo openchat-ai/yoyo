@@ -17,18 +17,18 @@
 
 stub `.text` / 消 A1 / 空盘 → 已到或禁。
 
-## 人/AI 抽查（… → AUDITCLR）
+## 人/AI 抽查（… → AUDITCLR → AUDITLIVE）
 
 1. **`STUB.AI.md`**  
-2. `STUB.WALKTHROUGH.md`  
-3. 细节 → **`STUB.SKELETON.txt`**（非生肉）  
-4. 全量 disasm 仅 FOLD 边界  
-合同：CALLSEQ + 禁串 + 无假解码。bins 仍非读完对象。
+2. `STUB.WALKTHROUGH.md` / **`STUB.SKELETON.txt`**  
+3. 全量 disasm 仅 FOLD 边界  
+4. **AUDITLIVE**：窗外落地窗 pin + 现场 allow 文件 ≡ fixture  
+合同：CALLSEQ + 禁串 + 无假解码 + OOW/live。bins 仍非读完对象。
 
 ## 下一刀
 
-默认停。
+AUDITLIVE 绿后停。
 
 ---
 
-*TRUSTLIM…4 + HUMANAUDIT + AUDITMAX + AUDITCLR · ≠ Thompson*
+*… + AUDITCLR + AUDITLIVE · ≠ Thompson*
