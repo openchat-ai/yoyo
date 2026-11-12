@@ -36,7 +36,7 @@ Applies to place_stub / compiler place. ≠ silent grow.
 | Item | Why |
 | --- | --- |
 | **Winsock** | `WSAStartup` under handmade PE AVs in `ws2_32!OpenWinSockRegistryRoot` (stack/host). Fixture `socket.ty` retained; not in gate. |
-| Higher source / macros | still `.ty` + RAW; human writeability next axis |
+| Higher source / macros | human deferred; see `AUTO-LLMWRITE` + `MODEL-CONTRACT` (LLM unambiguous file tier) |
 | Linux app peer | Win32-first this knife |
 
 ≠ Thompson · ≠ C replacement · cold-start A1 not expanded

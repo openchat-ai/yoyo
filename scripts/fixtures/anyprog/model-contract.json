@@ -1,0 +1,40 @@
+{
+  "name": "yoyo-anyprog-llm-v1",
+  "target": "win32",
+  "link": "yoyo link --target=win32 <in.ty> <out.exe>",
+  "entry_handler": "40 00",
+  "forbid_ret_ff": true,
+  "forbid_winsock": true,
+  "slots": { "buffer": "50", "size": "51" },
+  "strings": {
+    "0": "input.tyb",
+    "1": "input.ky",
+    "2": "output.exe"
+  },
+  "app_iat": [
+    "VirtualAlloc",
+    "CreateFileA",
+    "ReadFile",
+    "WriteFile",
+    "CloseHandle",
+    "ExitProcess",
+    "GetStdHandle",
+    "GetCommandLineA",
+    "GetTickCount64",
+    "CreateThread",
+    "WaitForSingleObject"
+  ],
+  "allowed_opcodes": {
+    "40": { "name": "HANDLER", "arity": 1 },
+    "20": { "name": "ALLOC", "arity": 2 },
+    "30": { "name": "SET", "arity": 2 },
+    "50": { "name": "LOAD_FILE", "arity": 2 },
+    "51": { "name": "WRITE_FILE", "arity": 3 },
+    "A0": { "name": "RAW_BYTE", "arity": 1, "only": "exit_trampoline" }
+  },
+  "exit_trampoline_bytes": [
+    "31", "C9", "48", "83", "EC", "20", "41", "FF", "97", "28", "00", "00", "00"
+  ],
+  "samples_llm_dir": "scripts/fixtures/anyprog/llm",
+  "doc": "MODEL-CONTRACT.md"
+}

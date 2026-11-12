@@ -29,6 +29,7 @@
 | **TRUSTLIM4** | ✅ 更好检尽头：SLICELOCK hdr+IAT 窗 |
 | **HUMANAUDIT** | ✅ stub 人审包 `audit-stub/` · bins 非人眼极致 · ≠ Thompson |
 | **ANYPROG** | ✅ Win32 七工具（file+console+argv+tick+thread）· app IAT=11 · 冷启 A1=6 · Winsock OPEN · ≠ Thompson |
+| **LLMWRITE** | ✅ 大模型无歧义写面契约 v1（文件层）· `stage-llmwrite` · 人写后置 · ≠ Thompson |
 
 ## 次要账本（非本源 · 可冻结）
 
