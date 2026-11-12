@@ -15,9 +15,10 @@ STOP_ONLY=停 | ACTIVE=0 | COMPLETED=1
 
 | 文件 | 用途 |
 | --- | --- |
-| `STUB.AI.md` | AUDITMAX 一页 VERDICT（优先） |
+| `STUB.AI.md` | 一页 VERDICT（优先） |
 | `STUB.WALKTHROUGH.md` | API 时间线、CreateFile、分场 |
-| `STUB.disasm.txt` | `; => API` / `call#` / `==========` |
+| `STUB.SKELETON.txt` | **细节优先**（AUDITCLR 消歧义） |
+| `STUB.disasm.txt` | 全量但已 DATA/FOLD/OOW |
 | `STUB.CALLSEQ.pin` | 合同 pin |
 | `stage-humanaudit.ps1` | pin + 再生 + FLAG/VERDICT fail-closed |
 
