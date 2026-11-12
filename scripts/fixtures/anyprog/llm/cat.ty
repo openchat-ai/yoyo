@@ -1,7 +1,5 @@
-; ANYPROG tool 1: cat — copy input.tyb (5 bytes) → output.exe
-; Paths: str0=input.tyb str2=output.exe (pe_link string table). ≠ Thompson.
 40 00
-  30 51 5
+  30 51 05
   50 50 00
   51 50 02 51
   A0 31

@@ -30,6 +30,7 @@
 | **HUMANAUDIT** | ✅ stub 人审包 `audit-stub/` · bins 非人眼极致 · ≠ Thompson |
 | **ANYPROG** | ✅ Win32 七工具（file+console+argv+tick+thread）· app IAT=11 · 冷启 A1=6 · Winsock OPEN · ≠ Thompson |
 | **LLMWRITE** | ✅ 大模型无歧义写面契约 v1（文件层）· `stage-llmwrite` · 人写后置 · ≠ Thompson |
+| **LLMWRITEX** | ✅ 航天级 v2：规范形+语义槽+契约钉+毒样20+AST+全域 coverage · ≠ Thompson |
 
 ## 次要账本（非本源 · 可冻结）
 

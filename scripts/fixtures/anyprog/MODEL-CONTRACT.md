@@ -1,62 +1,55 @@
-# MODEL-CONTRACT — LLM write surface (unambiguous)
+# MODEL-CONTRACT v2 — aerospace / LLM unambiguous write surface
 
-Audience: code-generating models. Humans deferred. Win32 app PE only (`yoyo link --target=win32`).
+Fail-closed. Human ergonomics deferred. Spacecraft-facing: **no silent ambiguity**.
 
-## Hard rules
+## Normative source
 
-1. One entry handler: first line `40 00` then body; no other `40 hh` unless contract revision says so.
-2. End with **ExitProcess trampoline only** (never bare `FF` RET after PE `jmp` entry).
-3. Use only **allowed opcodes** below with exact arity.
-4. Prefer opcodes over `A0` RAW. RAW allowed **only** as the exit trampoline bytes listed in `model-contract.json` → `exit_trampoline_a0`.
-5. Fixed slots: `0x50` = buffer/pointer, `0x51` = size (bytes).
-6. Fixed paths (pe_link string table): str0=`input.tyb`, str1=`input.ky`, str2=`output.exe`.
-7. Do not invent imports, DLL names, or IAT slots outside the app IAT table.
-8. Winsock / network: **FORBIDDEN** this contract revision (OPEN host AV).
+`model-contract.json` (pinned by `model-contract.sha256`).  
+This markdown is explanatory; **json wins** on conflict.
 
-## Allowed opcodes (app file tier)
+## Lexical (must)
 
-| Op | Name | Args | Notes |
-| --- | --- | --- | --- |
-| `40` | HANDLER | hh | only `40 00` |
-| `20` | ALLOC | slot size | slot=`50` typical |
-| `30` | SET | slot imm | size in `51` |
-| `50` | LOAD_FILE | slot str | str=`00` → input.tyb |
-| `51` | WRITE_FILE | slot str sz | str=`02` → output.exe；sz=`51` |
-| `A0` | RAW_BYTE | byte | **exit trampoline only** |
+| Rule | Value |
+| --- | --- |
+| Encoding | UTF-8 **without BOM** |
+| Newline | LF only (`\n`); no `\r` |
+| Tabs | forbidden |
+| Comments | **forbidden** (`;` anywhere → RED) |
+| Blank lines | **forbidden** |
+| Entry line | exact `40 00` (no indent) |
+| Body lines | exact two spaces + tokens |
+| Tokens | uppercase hex, width 2 (`05` not `5`) |
 
-## Exit trampoline (mandatory)
+## Semantic (must)
 
-Exact byte sequence (see json). Meaning: `xor ecx,ecx; sub rsp,0x20; call [r15+0x28]` (ExitProcess).
+| Rule | Value |
+| --- | --- |
+| Handlers | exactly one: `40 00` |
+| `FF` RET | forbidden |
+| Slots | only `50` (buffer) / `51` (size) |
+| `20` ALLOC | `20 50 <sz>` |
+| `30` SET | `30 51 <imm>` only |
+| `50` LOAD | `50 50 00` only (input.tyb) |
+| `51` WRITE | `51 50 02 51` only (output.exe, size slot) |
+| `A0` | **only** trailing exit trampoline (exact 13 bytes) |
+| Winsock | forbidden |
 
-## Minimal program shapes
+## Shapes (file tier)
 
-### cat (copy 5-byte input.tyb → output.exe)
+Named bodies in json `shapes.*` then exit trampoline. Samples `cat`/`head`/`zero` must match + `*.ast.json`.
 
-```
-40 00
-  30 51 5
-  50 50 00
-  51 50 02 51
-  <exit trampoline A0 lines>
-```
+## 全域 coverage
 
-### head (first 3 bytes)
+`surface_coverage` in json: every ANYPROG tool is **in_contract** or explicit **out_***.  
+Missing key → RED (no silent gap).
 
-Same as cat with `30 51 3`.
+## Gates
 
-### zero (ALLOC 8, write 4 zero bytes)
-
-```
-40 00
-  20 50 8
-  30 51 4
-  51 50 02 51
-  <exit trampoline>
+```text
+node yoyo-js/scripts/validate-llmwrite-contract.js
+scripts/stage-llmwrite.ps1
 ```
 
-## Gate
+Pin: `model-contract.sha256`
 
-- Structural: `node yoyo-js/scripts/validate-llmwrite-contract.js`
-- Behavioral: `scripts/stage-llmwrite.ps1` (includes file-tier run)
-
-≠ Thompson · ≠ human ergonomics
+≠ Thompson · ≠ “model already programs YOYO”

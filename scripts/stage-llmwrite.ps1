@@ -51,7 +51,7 @@ Run-File "cat" $hello $hello
 Run-File "head" $hello ([Text.Encoding]::ASCII.GetBytes("hel"))
 Run-File "zero" $null ([byte[]](0, 0, 0, 0))
 
-Write-Host "LLMWRITE note=contract_v1_file_tier;human_deferred;not_Thompson"
+Write-Host "LLMWRITE note=contract_v2_aerospace;surface_coverage;human_deferred;not_Thompson"
 Write-Host "LLMWRITE status=GREEN"
-Write-Host "LLMWRITE doc=AUTO-LLMWRITE.md"
+Write-Host "LLMWRITE doc=AUTO-LLMWRITEX.md"
 exit 0

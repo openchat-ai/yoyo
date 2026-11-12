@@ -1,6 +1,5 @@
-; ANYPROG tool 2: head — first 3 bytes of input.tyb → output.exe
 40 00
-  30 51 3
+  30 51 03
   50 50 00
   51 50 02 51
   A0 31

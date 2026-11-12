@@ -1,15 +1,31 @@
 {
-  "name": "yoyo-anyprog-llm-v1",
+  "name": "yoyo-anyprog-llm-v2-aerospace",
+  "revision": 2,
   "target": "win32",
   "link": "yoyo link --target=win32 <in.ty> <out.exe>",
-  "entry_handler": "40 00",
+  "encoding": "utf-8-no-bom",
+  "newline": "lf",
+  "forbid_bom": true,
+  "forbid_tab": true,
+  "forbid_cr": true,
+  "forbid_comments": true,
+  "forbid_blank_lines": true,
+  "entry_line": "40 00",
+  "body_indent": "  ",
+  "token_case": "upper_hex",
+  "op_width": 2,
+  "arg_width": 2,
   "forbid_ret_ff": true,
   "forbid_winsock": true,
-  "slots": { "buffer": "50", "size": "51" },
+  "slots_allowed": ["50", "51"],
+  "slot_buffer": "50",
+  "slot_size": "51",
+  "str_load_allowed": ["00"],
+  "str_write_allowed": ["02"],
   "strings": {
-    "0": "input.tyb",
-    "1": "input.ky",
-    "2": "output.exe"
+    "00": "input.tyb",
+    "01": "input.ky",
+    "02": "output.exe"
   },
   "app_iat": [
     "VirtualAlloc",
@@ -35,6 +51,22 @@
   "exit_trampoline_bytes": [
     "31", "C9", "48", "83", "EC", "20", "41", "FF", "97", "28", "00", "00", "00"
   ],
+  "shapes": {
+    "cat": ["30 51 05", "50 50 00", "51 50 02 51"],
+    "head": ["30 51 03", "50 50 00", "51 50 02 51"],
+    "zero": ["20 50 08", "30 51 04", "51 50 02 51"]
+  },
   "samples_llm_dir": "scripts/fixtures/anyprog/llm",
+  "min_poison_distinct_reasons": 10,
+  "surface_coverage": {
+    "cat": "in_contract",
+    "head": "in_contract",
+    "zero": "in_contract",
+    "hello_console": "out_raw_not_in_v2",
+    "cmdline": "out_raw_not_in_v2",
+    "tick": "out_raw_not_in_v2",
+    "thread": "out_raw_not_in_v2",
+    "socket": "out_winsock_open"
+  },
   "doc": "MODEL-CONTRACT.md"
 }
