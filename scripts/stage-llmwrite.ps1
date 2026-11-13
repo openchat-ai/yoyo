@@ -1,4 +1,4 @@
-# stage-llmwrite.ps1 — AUTO-LLMWRITETY/PIPE: .ty lex gate → contract → drift → behavioral
+# stage-llmwrite.ps1 — AUTO-LLMWRITEYOYO: .ty lex/grammar → yoyo llmwrite → drift → behavioral
 param([switch]$SkipBuild)
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
@@ -73,8 +73,8 @@ foreach ($p in $gramPoisons) {
 }
 Write-Host "LLMWRITEGRAM ty_gates status=GREEN doc=AUTO-LLMWRITEGRAM.md"
 
-# AST/generative residual Node (honest)
-& node (Join-Path $Root "yoyo-js\scripts\validate-llmwrite-contract.js")
+# AST/generative/schema — yoyo llmwrite (Node ABSENT)
+& $Yoyo llmwrite
 if ($LASTEXITCODE -ne 0) { Write-Host "LLMWRITE status=RED reason=validate"; exit 1 }
 
 function Run-File([string]$name, [byte[]]$inputBytes, [byte[]]$wantOut) {
@@ -147,11 +147,11 @@ Run-Stdout "cmdline" "yoyo"
 Run-Tick
 Run-Stdout "thread" "ok"
 
-Write-Host "LLMWRITE note=lex+grammar=.ty;pin=yoyo_hash;AST_js_residual;not_Thompson"
+Write-Host "LLMWRITE note=lex+grammar=.ty;AST+generative=yoyo_llmwrite;node_ABSENT;not_Thompson"
 
 & (Join-Path $Root "scripts\validate-llmwrite-drift.ps1") -Yoyo $Yoyo -SkipBuild
 if ($LASTEXITCODE -ne 0) { Write-Host "LLMWRITE status=RED reason=drift"; exit 1 }
 
 Write-Host "LLMWRITE status=GREEN"
-Write-Host "LLMWRITE doc=AUTO-LLMWRITEGRAM.md"
+Write-Host "LLMWRITE doc=AUTO-LLMWRITEYOYO.md"
 exit 0

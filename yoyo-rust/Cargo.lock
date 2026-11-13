@@ -1227,6 +1227,7 @@ dependencies = [
  "hex",
  "isa-proc",
  "libyoyo",
+ "serde_json",
  "sha2",
  "wasmtime",
  "yoyo-platform",

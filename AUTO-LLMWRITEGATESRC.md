@@ -26,7 +26,8 @@ STOP_ONLY=停 | ACTIVE=0 | COMPLETED=1
 
 - emitters ABSENT；`gate_lex.ty` / `gate_grammar.ty` remain  
 - stage GREEN  
-- 残余：AST/generative 仍 Node；≠ 方案 2  
+- 后继：AST/generative → `yoyo llmwrite`（`AUTO-LLMWRITEYOYO.md` COMPLETED）  
+
 
 ---
 

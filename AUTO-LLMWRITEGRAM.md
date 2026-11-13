@@ -24,7 +24,8 @@ STOP_ONLY=停 | ACTIVE=0 | COMPLETED=1 | hard-block
 ## Evidence
 
 - `gate_grammar.ty` sole source（无 `_emit-gate-grammar.js`）  
-- AST/generative = Node residual；≠ 方案 2 ty 产门  
+- AST/generative → `yoyo llmwrite`（见 `AUTO-LLMWRITEYOYO.md`）  
+
 
 ---
 

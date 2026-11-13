@@ -1,7 +1,8 @@
 'use strict';
 /**
- * AUTO-LLMWRITETY residual: grammar/AST/generative still Node.
- * Lex authority moved to scripts/fixtures/anyprog/gate/gate_lex.ty (stage-first).
+ * SUPERSEDED as stage authority by `yoyo llmwrite` (AUTO-LLMWRITEYOYO).
+ * Kept as optional JS contrast only — stage-llmwrite.ps1 does NOT call this.
+ * Runtime lex/file_grammar: gate_lex.ty / gate_grammar.ty.
  */
 const fs = require('fs');
 const path = require('path');
