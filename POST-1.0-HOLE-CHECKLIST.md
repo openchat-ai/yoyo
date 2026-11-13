@@ -23,7 +23,8 @@
 | **path 2 长杆** | ✅ OW-RT CLOSED @ S3.738（human A）— 自举运行信任面收了一大截 |
 | **状态** | 字面轴封口；**NOCOPY**：copy_self 废除 · **hard-block**=place_stub + Win32/PE A1 · ≠ Thompson |
 | **信任面结算** | ✅ `TRUST8ACCEPT`：7 CLOSED + #8 残留已接受 · 停同仓 pin · ≠ Thompson |
-| **LESSHOST** | ✅ 门上 pin 审：Node→`yoyo hash`（placepin/c1/fullbar）· cold_start 另账 · ≠ Thompson |
+| **LESSHOST** | ✅ 门上 pin 审：Node→`yoyo hash` · ≠ Thompson |
+| **LESSHOSTX** | ✅ 自举门 Node ABSENT 极致 · cold_start HARD_BLOCK · `stage-lesshostx` · ≠ Thompson |
 | **TRUSTLIM** | ✅ 冷启双极限（STUBMIN/POISON/PLACEPIN/BINSPOISON） |
 | **TRUSTLIM2** | ✅ 自再生：Y1PLPIN + A1PIN |
 | **TRUSTLIM3** | ✅ 内容 SoT：PLANTPOISON + DATAPLANT |

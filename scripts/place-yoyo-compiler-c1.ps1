@@ -47,25 +47,12 @@ if (-not $Bootstrap -or -not (Test-Path $Bootstrap)) {
 
 $needDerive = $ForceDerive -or (-not $CodeBin -and -not $DataBin -and (-not (Test-Path $codePath) -or -not (Test-Path $dataPath)))
 if ($needDerive) {
-    $derivedDir = Join-Path $OutDir "_derived"
-    New-Item -ItemType Directory -Force -Path $derivedDir | Out-Null
-    $derivedCode = Join-Path $derivedDir "code.bin"
-    $derivedData = Join-Path $derivedDir "data.bin"
-    Write-Output "HB_FX_PLACE auto_derive=ON"
-    & node (Join-Path $Root "yoyo-js\scripts\derive-code-from-plant-tyb.js") $derivedCode
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "HB_FX_PLACE status=RED reason=auto_derive_code"
-        exit 1
-    }
-    & node (Join-Path $Root "yoyo-js\scripts\derive-data-from-seeds.js") $derivedData
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "HB_FX_PLACE status=RED reason=auto_derive_data"
-        exit 1
-    }
-    $codePath = $derivedCode
-    $dataPath = $derivedData
-    $placeInput = "plant_derive_plus_assemble"
-    $derivedUsed = $true
+    # AUTO-LESSHOSTX: refuse Node auto-derive on place gate. Bins must be pin-present.
+    Write-Host "HB_FX_PLACE auto_derive=REFUSED"
+    Write-Host "HB_FX_PLACE node_derive=ABSENT"
+    Write-Host "HB_FX_PLACE status=RED reason=bins_required_no_node_derive"
+    Write-Host "HB_FX_PLACE hint=restore pin-locked code.bin/data.bin; doc=AUTO-LESSHOSTX.md"
+    exit 1
 }
 
 if (-not (Test-Path $codePath) -or -not (Test-Path $dataPath)) {

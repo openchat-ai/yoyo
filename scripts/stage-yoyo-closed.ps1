@@ -1,8 +1,4 @@
-# stage-yoyo-closed.ps1 — AUTO-YOYO-CLOSED E2E (Y0–Y4)
-#
-# Single gate: HB-FX + (REAL|fullbar) + payload repro.
-# Reads fullbar yoyo-closed-markers.txt (not Write-Host capture).
-# Honesty: one Node place-yoyo-compiler for C1 still allowed.
+# stage-yoyo-closed.ps1 — AUTO-YOYO-CLOSED E2E (LESSHOSTX: Node ABSENT on gate)
 #
 #   cd F:\yoyo
 #   & .\scripts\stage-yoyo-closed.ps1
@@ -33,15 +29,10 @@ function Read-Markers([string]$Path) {
 }
 
 Write-Host "=== AUTO-YOYO-CLOSED E2E ==="
-Write-Host "YOYO_CLOSED doc=AUTO-YOYO-CLOSED.md"
+Write-Host "YOYO_CLOSED doc=AUTO-LESSHOSTX.md"
+Write-Host "YOYO_CLOSED node_verify=ABSENT"
 
-Invoke-Checked "Y0a_verify-compiler-code" {
-    & node (Join-Path $Root "yoyo-js\scripts\verify-compiler-code.js")
-}
-Invoke-Checked "Y0b_verify-native-front" {
-    & node (Join-Path $Root "yoyo-js\scripts\verify-native-front.js")
-}
-Invoke-Checked "Y0c_stage-hb-fx-peer-compiler" {
+Invoke-Checked "Y0_stage-hb-fx-peer-compiler" {
     & (Join-Path $Root "scripts\stage-hb-fx-peer-compiler.ps1")
 }
 
@@ -60,6 +51,7 @@ if (-not $SkipReal) {
     & (Join-Path $Root "scripts\stage-fullbar-trust-root.ps1") -SkipEmitRt
     if ($LASTEXITCODE -ne 0) {
         Write-Host "YOYO_CLOSED status=RED reason=fullbar"
+        Write-Host "YOYO_CLOSED hint=c1_cold_start_HARD_BLOCK_see_AUTO-LESSHOSTX"
         exit 1
     }
 }
@@ -96,14 +88,14 @@ if ($mk['cold_start_emitter'] -ne 'peer_compiler_c1_tyb') {
 }
 Write-Host "YOYO_CLOSED y3=GREEN"
 
-# Y4 consolidated
 Write-Host "YOYO_CLOSED y4=GREEN"
 Write-Host "YOYO_CLOSED node_host_emit_hops=ABSENT"
+Write-Host "YOYO_CLOSED node_verify=ABSENT"
 Write-Host "YOYO_CLOSED repro=EQUAL"
 Write-Host "YOYO_CLOSED h00=EQUAL"
 Write-Host ("YOYO_CLOSED fixedpoint_sha256_prefix={0}" -f $mk['fixedpoint_sha256_prefix'])
 Write-Host "YOYO_CLOSED rust=contrast_only"
 Write-Host "YOYO_CLOSED closed_loop=GREEN"
-Write-Host "YOYO_CLOSED note=place_c1_once_via_node_still;y2_powershell_link_peer;not_c1_native_compiler_pe_emit;not_Thompson"
+Write-Host "YOYO_CLOSED note=c1_place+yoyo_hash;node_ABSENT;not_Thompson"
 Write-Host "YOYO_CLOSED status=GREEN"
 exit 0
