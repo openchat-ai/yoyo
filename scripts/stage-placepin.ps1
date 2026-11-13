@@ -8,9 +8,18 @@ Enable-YoyoUnattendedUiHarden | Out-Null
 
 Write-Host "=== AUTO-PLACEPIN (place C1 sha pin) ==="
 
+. (Join-Path $Root "scripts\lib\Assert-YoyoFilePin.ps1")
+$Yoyo = Join-Path $Root "yoyo-rust\target\release\yoyo.exe"
+if (-not (Test-Path -LiteralPath $Yoyo)) { throw "PLACEPIN status=RED reason=missing_yoyo" }
+
 $stub = Join-Path $Root "scripts\fixtures\yoyo_place_stub.exe"
-& node (Join-Path $Root "yoyo-js\scripts\verify-place-stub-pin.js")
-if ($LASTEXITCODE -ne 0) { Write-Host "PLACEPIN status=RED reason=stub_pin"; exit 1 }
+try {
+  Assert-YoyoShaPin -Yoyo $Yoyo -File $stub `
+    -PinPath (Join-Path $Root "scripts\fixtures\yoyo_place_stub.pin") `
+    -Label PLACE_STUB -Doc AUTO-TRUER4.md
+} catch {
+  Write-Host "PLACEPIN status=RED reason=stub_pin"; exit 1
+}
 
 $work = Join-Path $Root "scripts\_stage-placepin"
 if (Test-Path $work) { Remove-Item -Recurse -Force $work }
@@ -21,8 +30,13 @@ $placeOut = Join-Path $work "place"
 if ($LASTEXITCODE -ne 0) { Write-Host "PLACEPIN status=RED reason=place"; exit 1 }
 $c1 = Join-Path $placeOut "yoyo_compiler.exe"
 
-& node (Join-Path $Root "yoyo-js\scripts\verify-place-c1-pin.js") $c1
-if ($LASTEXITCODE -ne 0) { Write-Host "PLACEPIN status=RED reason=c1_pin"; exit 1 }
+try {
+  Assert-YoyoShaPin -Yoyo $Yoyo -File $c1 `
+    -PinPath (Join-Path $Root "scripts\fixtures\yoyo_place_c1.pin") `
+    -Label PLACE_C1 -Doc AUTO-PLACEPIN.md
+} catch {
+  Write-Host "PLACEPIN status=RED reason=c1_pin"; exit 1
+}
 
 # Poison must be caught
 $poison = Join-Path $work "poison_c1.exe"
@@ -30,14 +44,21 @@ Copy-Item -Force $c1 $poison
 $b = [IO.File]::ReadAllBytes($poison)
 $b[0x200] = $b[0x200] -bxor 0xFF
 [IO.File]::WriteAllBytes($poison, $b)
-& node (Join-Path $Root "yoyo-js\scripts\verify-place-c1-pin.js") $poison
-if ($LASTEXITCODE -eq 0) {
+$poisonCaught = $false
+try {
+  Assert-YoyoShaPin -Yoyo $Yoyo -File $poison `
+    -PinPath (Join-Path $Root "scripts\fixtures\yoyo_place_c1.pin") `
+    -Label PLACE_C1 -Doc AUTO-PLACEPIN.md
+} catch {
+  $poisonCaught = $true
+}
+if (-not $poisonCaught) {
   Write-Host "PLACEPIN status=RED reason=poison_not_caught"
   exit 1
 }
 Write-Host "PLACEPIN poison_caught=RED_OK"
 
-Write-Host "PLACEPIN note=place_product_detection;not_Thompson"
+Write-Host "PLACEPIN note=place_product_detection;yoyo_hash_pin;node_ABSENT;not_Thompson"
 Write-Host "PLACEPIN status=GREEN"
-Write-Host "PLACEPIN doc=AUTO-PLACEPIN.md"
+Write-Host "PLACEPIN doc=AUTO-LESSHOST.md"
 exit 0

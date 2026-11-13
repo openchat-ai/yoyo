@@ -1,7 +1,7 @@
 'use strict';
 /**
- * BD-3 / AUTO-TRUER: fail-closed if code.bin/data.bin drift from payload.pin.
- * Operational SoT = fixture PE; bins are derived (regen-payload-from-c1).
+ * SUPERSEDED on stage path by Assert-YoyoPayloadBinsPin (yoyo hash).
+ * AUTO-LESSHOST: kept as optional Node contrast only.
  */
 const fs = require('fs');
 const path = require('path');

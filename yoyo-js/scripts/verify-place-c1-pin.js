@@ -1,6 +1,7 @@
 'use strict';
 /**
- * AUTO-PLACEPIN: fail-closed if placed C1 drifts from pin.
+ * SUPERSEDED on stage path by scripts/lib/Assert-YoyoFilePin.ps1 (yoyo hash).
+ * AUTO-LESSHOST: kept as optional Node contrast only.
  *   node yoyo-js/scripts/verify-place-c1-pin.js <c1.exe>
  */
 const fs = require('fs');

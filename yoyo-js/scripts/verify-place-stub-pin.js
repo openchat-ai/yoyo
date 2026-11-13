@@ -1,6 +1,7 @@
 'use strict';
 /**
- * AUTO-TRUER4: fail-closed if place-stub fixture drifts from pin.
+ * SUPERSEDED on stage path by scripts/lib/Assert-YoyoFilePin.ps1 (yoyo hash).
+ * AUTO-LESSHOST: kept as optional Node contrast only.
  */
 const fs = require('fs');
 const path = require('path');

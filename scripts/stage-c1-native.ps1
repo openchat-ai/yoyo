@@ -9,16 +9,30 @@ Set-Location $Root
 
 Write-Host "=== AUTO-C1-NATIVE E2E ==="
 
-Write-Host "=== TRUER4 verify place-stub pin (cold-start executable SoT) ==="
-& node (Join-Path $Root "yoyo-js\scripts\verify-place-stub-pin.js")
-if ($LASTEXITCODE -ne 0) {
+. (Join-Path $Root "scripts\lib\Assert-YoyoFilePin.ps1")
+$Yoyo = Join-Path $Root "yoyo-rust\target\release\yoyo.exe"
+if (-not (Test-Path -LiteralPath $Yoyo)) {
+    Write-Host "C1_NATIVE status=RED reason=missing_yoyo"
+    exit 1
+}
+
+Write-Host "=== TRUER4 verify place-stub pin (yoyo hash; Node ABSENT) ==="
+try {
+    Assert-YoyoShaPin -Yoyo $Yoyo `
+        -File (Join-Path $Root "scripts\fixtures\yoyo_place_stub.exe") `
+        -PinPath (Join-Path $Root "scripts\fixtures\yoyo_place_stub.pin") `
+        -Label PLACE_STUB -Doc AUTO-TRUER4.md
+} catch {
     Write-Host "C1_NATIVE status=RED reason=place_stub_pin"
     exit 1
 }
 
-Write-Host "=== BD-3 verify bins pin (compiler content SoT) ==="
-& node (Join-Path $Root "yoyo-js\scripts\verify-payload-bins-pin.js")
-if ($LASTEXITCODE -ne 0) {
+Write-Host "=== BD-3 verify bins pin (yoyo hash; Node ABSENT) ==="
+try {
+    Assert-YoyoPayloadBinsPin -Yoyo $Yoyo `
+        -PayloadDir (Join-Path $Root "yoyo-js\src\platform\yoyo-compiler-payload") `
+        -Label HB_FX_BINS -Doc AUTO-TRUER6.md
+} catch {
     Write-Host "C1_NATIVE status=RED reason=bins_pin"
     exit 1
 }

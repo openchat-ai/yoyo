@@ -25,15 +25,18 @@ Enable-YoyoUnattendedUiHarden
 
 Write-Host "=== AUTO-FULLBAR FS-2 / F2 (non-Rust cold-start trust-root) ==="
 
-Write-Host "=== BD-3 payload bins pin lock ==="
-& node (Join-Path $Root "yoyo-js\scripts\verify-payload-bins-pin.js")
-if ($LASTEXITCODE -ne 0) {
+$Yoyo = Join-Path $Root "yoyo-rust\target\release\yoyo.exe"
+. (Join-Path $Root "scripts\lib\Assert-YoyoFilePin.ps1")
+Write-Host "=== BD-3 payload bins pin lock (yoyo hash; Node ABSENT) ==="
+try {
+    Assert-YoyoPayloadBinsPin -Yoyo $Yoyo `
+        -PayloadDir (Join-Path $Root "yoyo-js\src\platform\yoyo-compiler-payload") `
+        -Label HB_FX_BINS -Doc AUTO-TRUER6.md
+} catch {
     Write-Host "FULLBAR_F2 status=RED reason=bins_pin"
     exit 1
 }
 Write-Host "FULLBAR_F2 bins_node_rebuild_on_gate=ABSENT"
-
-$Yoyo = Join-Path $Root "yoyo-rust\target\release\yoyo.exe"
 $Ty = Join-Path $Root "yoyo\projects\yoyo.ty"
 $Tyb = Join-Path $Root "yoyo\projects\yoyo.tyb"
 $Work = Join-Path $Root "scripts\_stage-fullbar-fs2-chain"
