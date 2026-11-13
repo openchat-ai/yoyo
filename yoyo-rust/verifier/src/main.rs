@@ -27,7 +27,6 @@ mod custom_mcu_interp;
 mod evm_interp;
 mod plan9_interp;
 mod ddc;
-mod llmwrite_contract;
 mod emit;
 mod executor;
 mod fixup;
@@ -84,7 +83,6 @@ fn usage() -> ! {
            yoyo link [--target=win32|linux|stub|baremetal|cuda|android|apple|8051|x86|freedos|riscv64|mips|ppc64le|avr|arm32|wasm|macos-x64|serenity|loongarch|sparc|riscv32|arm64-win|freebsd|haiku|plan9|xtensa|z80|6502|m68k|msp430|pic|stm8|rocm|vulkan|evm|qiskit] [--posture=...] [--morph=...] <input.ty> <output>\n\
            yoyo diff [--selfhost-body] <a.bin> <b.bin>\n\
            yoyo hash <file>\n\
-           yoyo llmwrite\n\
            yoyo selftest\n\
            yoyo render <input.ty>\n\
            yoyo simulate <input.ty>\n\
@@ -127,7 +125,6 @@ fn main() -> ExitCode {
         "bootstrap" => cmd_bootstrap(&args[1..]),
         "diff" => cmd_diff(&args[1..]),
         "hash" => cmd_hash(&args[1..]),
-        "llmwrite" => cmd_llmwrite(&args[1..]),
         "selftest" => {
             self_test::run_self_test().map(|_| {
                 println!("selftest: ok");
@@ -831,14 +828,6 @@ fn cmd_hash(args: &[String]) -> Result<(), types::IsaError> {
     let data = fs::read(&args[0]).map_err(|e| types::IsaError::IoError { msg: e.to_string() })?;
     println!("{}", ddc::sha256_hex(&data));
     Ok(())
-}
-
-fn cmd_llmwrite(args: &[String]) -> Result<(), types::IsaError> {
-    if !args.is_empty() {
-        usage();
-    }
-    let root = repo_root()?;
-    llmwrite_contract::run(&root)
 }
 
 fn cmd_simulate(args: &[String]) -> Result<(), types::IsaError> {

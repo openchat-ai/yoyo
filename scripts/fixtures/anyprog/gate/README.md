@@ -1,15 +1,20 @@
 # LLM write gates (YOYO source)
 
-**Sole source (runtime):** `gate_lex.ty`, `gate_grammar.ty`.  
-Edit these files directly. There is **no** JS/Python emitter in-tree.
+**Sole source:** `gate_lex.ty`, `gate_grammar.ty`, `gate_exact.ty`.  
+Edit these files directly. There is **no** JS/Python/Rust contract auditor in the stage path.
 
 | Gate | Role |
 | --- | --- |
 | `gate_lex.ty` | lex fail-closed on `input.tyb` |
 | `gate_grammar.ty` | `file_grammar` stmts + dataflow + exit |
+| `gate_exact.ty` | `exact_body` (A0 mid-OK) + trailing exit |
 
-**AST / generative / exact_body / schema:** `yoyo llmwrite` (Rust). Stage does **not** call Node validate.
+**Also stage-checked (yoyo binary, not a new auditor):**
+- `yoyo hash` on `model-contract.json` + `llm/ast-pins.sha256`
+- static generative corpus `llm/gen/g*.ty` via `gate_grammar`
+
+`NO_NEW_HOST_AUDITOR` — do not reintroduce Node/Python/`*_contract.rs` as stage authority.
 
 Build/run: `yoyo link --target=win32 <gate>.ty <out.exe>`（stage does this）.
 
-≠ Thompson · ≠ “ty produced the gate” (that would be knife 2)
+≠ Thompson · link 仍是既有 Rust 债（只许缩）

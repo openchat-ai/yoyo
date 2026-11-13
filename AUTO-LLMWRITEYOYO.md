@@ -25,7 +25,8 @@ STOP_ONLY=停 | ACTIVE=0 | COMPLETED=1 | hard-block
 
 - `yoyo llmwrite`：9 samples + 22 poisons + generative=64 GREEN  
 - stage：`node_ABSENT`；doc=`AUTO-LLMWRITEYOYO.md`  
-- 残余诚实：JS 文件可对照，**不是** stage 门；≠ 方案 2；≠ Thompson  
+- 后继：`AUTO-LLMWRITENOHOST.md` 已把 Rust `llmwrite` 也撤出 stage（审进 `.ty`）  
+
 
 ## Honesty
 

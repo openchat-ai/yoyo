@@ -1,10 +1,10 @@
-# stage-llmwrite.ps1 — AUTO-LLMWRITEYOYO: .ty lex/grammar → yoyo llmwrite → drift → behavioral
+# stage-llmwrite.ps1 — AUTO-LLMWRITENOHOST: gate_*.ty + yoyo hash/link only (NO_NEW_HOST_AUDITOR)
 param([switch]$SkipBuild)
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
-Write-Host "=== AUTO-LLMWRITE ==="
+Write-Host "=== AUTO-LLMWRITENOHOST ==="
 
 $Yoyo = Join-Path $Root "yoyo-rust\target\release\yoyo.exe"
 if (-not (Test-Path $Yoyo)) {
@@ -59,6 +59,11 @@ foreach ($g in $goods) {
     if ($kind -eq 'file_grammar') {
         Invoke-TyGate "gate_grammar" $g.FullName 0
         Write-Host "LLMWRITEGRAM gate_grammar sample=$($g.BaseName) status=GREEN"
+    } elseif ($kind -eq 'exact_body') {
+        Invoke-TyGate "gate_exact" $g.FullName 0
+        Write-Host "LLMWRITEEXACT gate_exact sample=$($g.BaseName) status=GREEN"
+    } else {
+        throw "LLMWRITE status=RED reason=unknown_program_kind sample=$($g.BaseName) kind=$kind"
     }
 }
 $lexPoisons = @('_poison_cr.ty','_poison_tab.ty','_poison_bom.ty','_poison_comment.ty','_poison_entry.ty')
@@ -71,11 +76,46 @@ foreach ($p in $gramPoisons) {
     Invoke-TyGate "gate_grammar" (Join-Path $Fix $p) 1
     Write-Host "LLMWRITEGRAM gate_grammar poison=$p status=RED_as_expected"
 }
-Write-Host "LLMWRITEGRAM ty_gates status=GREEN doc=AUTO-LLMWRITEGRAM.md"
+$exactPoisons = @('_poison_no_exit.ty','_poison_exact_midexit.ty','_poison_op.ty','_poison_ret.ty')
+foreach ($p in $exactPoisons) {
+    Invoke-TyGate "gate_exact" (Join-Path $Fix $p) 1
+    Write-Host "LLMWRITEEXACT gate_exact poison=$p status=RED_as_expected"
+}
+Write-Host "LLMWRITENOHOST ty_gates status=GREEN doc=AUTO-LLMWRITENOHOST.md"
 
-# AST/generative/schema — yoyo llmwrite (Node ABSENT)
-& $Yoyo llmwrite
-if ($LASTEXITCODE -ne 0) { Write-Host "LLMWRITE status=RED reason=validate"; exit 1 }
+# generative corpus — static .ty, judged by gate_grammar (no host gen loop)
+$GenDir = Join-Path $Fix 'gen'
+$genFiles = @(Get-ChildItem -LiteralPath $GenDir -Filter 'g*.ty' | Sort-Object Name)
+if ($genFiles.Count -lt 64) {
+    throw "LLMWRITE status=RED reason=gen_corpus_short n=$($genFiles.Count) want>=64"
+}
+foreach ($g in $genFiles) {
+    Invoke-TyGate "gate_lex" $g.FullName 0
+    Invoke-TyGate "gate_grammar" $g.FullName 0
+}
+Write-Host "LLMWRITENOHOST generative_corpus n=$($genFiles.Count) status=GREEN"
+
+# AST drift pins — yoyo hash only (no Rust/JS AST parse)
+$AstPin = Join-Path $Fix 'ast-pins.sha256'
+if (-not (Test-Path -LiteralPath $AstPin)) { throw "LLMWRITE status=RED reason=ast_pins_missing" }
+$astMap = @{}
+Get-Content -LiteralPath $AstPin | Where-Object { $_.Trim() -ne '' } | ForEach-Object {
+    $parts = $_ -split '\s+', 2
+    if ($parts.Count -ne 2) { throw "LLMWRITE status=RED reason=ast_pin_line" }
+    $astMap[$parts[1].Trim()] = $parts[0].Trim().ToLowerInvariant()
+}
+$astFiles = @(Get-ChildItem -LiteralPath $Fix -Filter '*.ast.json' | Sort-Object Name)
+if ($astFiles.Count -lt 9) { throw "LLMWRITE status=RED reason=ast_files_short" }
+foreach ($a in $astFiles) {
+    $got = (& $Yoyo hash $a.FullName).Trim().ToLowerInvariant()
+    $want = $astMap[$a.Name]
+    if (-not $want) { throw "LLMWRITE status=RED reason=ast_pin_missing file=$($a.Name)" }
+    if ($got -ne $want) {
+        throw "LLMWRITE status=RED reason=ast_pin_DIFF file=$($a.Name) want=$want got=$got"
+    }
+}
+Write-Host "LLMWRITENOHOST ast_pins n=$($astFiles.Count) yoyo_hash status=GREEN"
+Write-Host "LLMWRITENOHOST authority=gate_ty+yoyo_hash; rust_llmwrite_ABSENT; NO_NEW_HOST_AUDITOR"
 
 function Run-File([string]$name, [byte[]]$inputBytes, [byte[]]$wantOut) {
     $dir = Join-Path $Work $name
@@ -147,11 +187,11 @@ Run-Stdout "cmdline" "yoyo"
 Run-Tick
 Run-Stdout "thread" "ok"
 
-Write-Host "LLMWRITE note=lex+grammar=.ty;AST+generative=yoyo_llmwrite;node_ABSENT;not_Thompson"
+Write-Host "LLMWRITE note=lex+grammar+exact=.ty;gen=corpus;ast=yoyo_hash;not_Thompson"
 
 & (Join-Path $Root "scripts\validate-llmwrite-drift.ps1") -Yoyo $Yoyo -SkipBuild
 if ($LASTEXITCODE -ne 0) { Write-Host "LLMWRITE status=RED reason=drift"; exit 1 }
 
 Write-Host "LLMWRITE status=GREEN"
-Write-Host "LLMWRITE doc=AUTO-LLMWRITEYOYO.md"
+Write-Host "LLMWRITE doc=AUTO-LLMWRITENOHOST.md"
 exit 0
