@@ -40,7 +40,7 @@ Write-Host "YOYO_CLOSED_Y2 node_buildCompilerCode=ABSENT"
 Write-Host "YOYO_CLOSED_Y2 node_linkPeWin32=ABSENT"
 Write-Host "YOYO_CLOSED_Y2 node_place_yoyo_compiler=ABSENT"
 Write-Host "YOYO_CLOSED_Y2 emitter=c1_try_place_bins"
-Write-Host "YOYO_CLOSED_Y2 bootstrap=fixture_yoyo_compiler"
+Write-Host "YOYO_CLOSED_Y2 bootstrap=c1_product_pin_bits"
 
 $p1 = Join-Path $OutDir "place1"
 $p2 = Join-Path $OutDir "place2"
@@ -74,7 +74,7 @@ if ($ec -ne 0 -or -not (Test-Path $seed)) {
 }
 $seedSha = (Get-FileHash $seed -Algorithm SHA256).Hash.ToLowerInvariant()
 Write-Host ("YOYO_CLOSED_Y2 cold_start=GREEN seed_bytes={0} sha256_prefix={1}" -f (Get-Item $seed).Length, $seedSha.Substring(0, 16))
-Write-Host "YOYO_CLOSED_Y2 note=dual_fixture_place_EQUAL;c1_tyb_cold_GREEN;trust_root=fixture_yoyo_compiler;not_Thompson"
+Write-Host "YOYO_CLOSED_Y2 note=dual_rebuild_place_EQUAL;c1_tyb_cold_GREEN;trust_root=c1_product_pin;not_Thompson"
 Write-Host "YOYO_CLOSED_Y2 doc=AUTO-C1COLD.md"
 Write-Host "YOYO_CLOSED_Y2 status=GREEN"
 exit 0

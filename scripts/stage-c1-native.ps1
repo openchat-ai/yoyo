@@ -50,7 +50,7 @@ $fullC1 = Join-Path $placeOut "yoyo_compiler.exe"
 try {
     Assert-YoyoShaPin -Yoyo $Yoyo -File $fullC1 `
         -PinPath (Join-Path $Root "scripts\fixtures\yoyo_place_c1.pin") `
-        -Label PLACE_C1 -RequireTrustRoot fixture_yoyo_compiler -Doc AUTO-C1COLD.md
+        -Label PLACE_C1 -RequireTrustRoot c1_product_pin -Doc AUTO-BREAK3.md
 } catch {
     Write-Host "C1_NATIVE status=RED reason=c1_product_pin"
     exit 1
@@ -71,7 +71,7 @@ if ($hc0 -ne $hc1 -or $hd0 -ne $hd1) {
     Write-Host "C1_NATIVE status=RED reason=emit_NE_bins_pin"
     exit 1
 }
-Write-Host "C1_NATIVE trust_root=fixture_yoyo_compiler"
+Write-Host "C1_NATIVE trust_root=c1_product_pin"
 Write-Host "C1_NATIVE bins_sot=fixture_pe"
 Write-Host "C1_NATIVE fixture_place_emit=EQUAL"
 Write-Host "C1_NATIVE yoyo_bins_node_rebuild=ABSENT"
@@ -145,7 +145,7 @@ if ($mk['critical_trust_blobs'] -ne '2') {
     Write-Host "C1_NATIVE status=RED reason=critical_trust_blobs"
     exit 1
 }
-if ($mk['trust_root'] -ne 'fixture_yoyo_compiler' -and $mk['trust_root'] -ne 'place_stub') {
+if ($mk['trust_root'] -ne 'c1_product_pin' -and $mk['trust_root'] -ne 'fixture_yoyo_compiler' -and $mk['trust_root'] -ne 'place_stub') {
     Write-Host "C1_NATIVE status=RED reason=trust_root"
     exit 1
 }

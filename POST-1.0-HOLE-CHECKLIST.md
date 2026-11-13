@@ -21,10 +21,12 @@
 | **自举** | ✅ 主路径有限自举成立（parse1 / CreateProcess-compiler · Gate I 类） |
 | **打破后门（检测）** | ✅ DDC+Lock + 自举窗可用；⚠️ 仍是 detection，不是证明 |
 | **path 2 长杆** | ✅ OW-RT CLOSED @ S3.738（human A）— 自举运行信任面收了一大截 |
-| **状态** | 字面轴封口；**NOCOPY**：copy_self 废除 · **hard-block**=place_stub + Win32/PE A1 · ≠ Thompson |
-| **信任面结算** | ✅ `TRUST8ACCEPT`：7 CLOSED + #8 残留已接受 · 停同仓 pin · ≠ Thompson |
+| **状态** | 字面轴封口；**NOCOPY**：copy_self 废除 · **hard-block**=Win32/PE A1 + #8 同仓共谋 · ≠ Thompson |
+| **信任面结算** | ✅ `TRUST8ACCEPT` + **`BREAK3`**：fixture 已贬为离线 bootstrap；A1/#8 机器证据硬墙 · ≠ Thompson |
 | **LESSHOST** | ✅ 门上 pin 审：Node→`yoyo hash` · ≠ Thompson |
-| **LESSHOSTX** | ✅ 自举门 Node ABSENT 极致 · cold_start HARD_BLOCK · `stage-lesshostx` · ≠ Thompson |
+| **LESSHOSTX** | ✅ 自举门 Node ABSENT · cold_start GREEN（C1COLD）· ≠ Thompson |
+| **C1COLD** | ✅ fixture-emit C1 自编译 · seed `378af8a7…` · ≠ Thompson |
+| **BREAK3** | ✅ Gate-I 无 Node；`c1_product_pin`；双路见证；A1/#8 HARD_BLOCK 诚实 · ≠ Thompson |
 | **TRUSTLIM** | ✅ 冷启双极限（STUBMIN/POISON/PLACEPIN/BINSPOISON） |
 | **TRUSTLIM2** | ✅ 自再生：Y1PLPIN + A1PIN |
 | **TRUSTLIM3** | ✅ 内容 SoT：PLANTPOISON + DATAPLANT |

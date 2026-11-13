@@ -35,7 +35,7 @@ $c1 = Join-Path $placeOut "yoyo_compiler.exe"
 try {
   Assert-YoyoShaPin -Yoyo $Yoyo -File $c1 `
     -PinPath (Join-Path $Root "scripts\fixtures\yoyo_place_c1.pin") `
-    -Label PLACE_C1 -RequireTrustRoot fixture_yoyo_compiler -Doc AUTO-C1COLD.md
+    -Label PLACE_C1 -RequireTrustRoot c1_product_pin -Doc AUTO-BREAK3.md
 } catch {
   Write-Host "PLACEPIN status=RED reason=c1_pin"; exit 1
 }
@@ -50,7 +50,7 @@ $poisonCaught = $false
 try {
   Assert-YoyoShaPin -Yoyo $Yoyo -File $poison `
     -PinPath (Join-Path $Root "scripts\fixtures\yoyo_place_c1.pin") `
-    -Label PLACE_C1 -RequireTrustRoot fixture_yoyo_compiler -Doc AUTO-C1COLD.md
+    -Label PLACE_C1 -RequireTrustRoot c1_product_pin -Doc AUTO-BREAK3.md
 } catch {
   $poisonCaught = $true
 }

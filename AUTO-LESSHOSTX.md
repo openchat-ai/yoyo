@@ -33,9 +33,10 @@ STOP_ONLY=停 | ACTIVE=0 | COMPLETED=1 | hard-block墙
 
 | 已砍尽 | 仍 hard-block |
 |---|---|
-| 门上 Node place / pin / emit verify / auto-derive | Win32/PE A1 |
-| HB-FX 改 C1+hash | #8 共谋改钉 |
-| C1+tyb cold_start（C1COLD） | fixture PE 仍为一次宿主根（≠ Thompson） |
+| 门上 Node place / pin / emit verify / auto-derive | Win32/PE A1（消除=空盘） |
+| HB-FX 改 C1+hash | #8 同仓共谋（需人类/多机） |
+| C1+tyb cold_start（C1COLD） | |
+| fixture 贬根（BREAK3 · `c1_product_pin`） | |
 
 ---
 

@@ -16,14 +16,16 @@ Enable-YoyoUnattendedUiHarden
 
 Write-Host "=== AUTO-REAL-FIXEDPOINT (no soft graduation) ==="
 
-# R2 / HB-FX: JS peer place script + payload bins present
-$jsPlace = Join-Path $Root "yoyo-js\scripts\place-yoyo-compiler.js"
+# R2 / BREAK3: C1 place script + payload bins present (Node place ABSENT)
+$c1Place = Join-Path $Root "scripts\place-yoyo-compiler-c1.ps1"
 $payloadCode = Join-Path $Root "yoyo-js\src\platform\yoyo-compiler-payload\code.bin"
 $payloadData = Join-Path $Root "yoyo-js\src\platform\yoyo-compiler-payload\data.bin"
-if (-not (Test-Path $jsPlace) -or -not (Test-Path $payloadCode) -or -not (Test-Path $payloadData)) {
-    Write-Host "REAL_FP status=RED reason=missing_js_peer_compiler_place"
+if (-not (Test-Path $c1Place) -or -not (Test-Path $payloadCode) -or -not (Test-Path $payloadData)) {
+    Write-Host "REAL_FP status=RED reason=missing_c1_place_or_bins"
     exit 1
 }
+Write-Host "REAL_FP node_place=ABSENT"
+Write-Host "REAL_FP compiler_place=c1_try_place_bins"
 
 # R3 Gate I
 Write-Host "=== R3 Gate I ==="
@@ -42,7 +44,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "REAL_FP rust_place_compiler_cargo=ABSENT"
-Write-Host "REAL_FP compiler_emitter=js_peer_link"
+Write-Host "REAL_FP compiler_emitter=c1_try_place_bins"
 Write-Host "REAL_FP rust_yoyo_exe_on_emit_hops=ABSENT (Gate I + fullbar chain)"
 
 # R5 observe

@@ -97,21 +97,23 @@ Copy-Item -Force $AltSrc (Join-Path $YoyoDir "yoyo_rt.dll")
 Copy-Item -Force $TrustRoot (Join-Path $YoyoDir "emitter_gen4.exe")
 Copy-Item -Force $Tyb (Join-Path $YoyoDir "input.tyb")
 Copy-Item -Force $Ty (Join-Path $YoyoDir "input.ky")
-# HB-FX: CreateProcess child via JS peer link (no fixture copy, no cargo place-compiler).
-Write-Host "=== co-place yoyo_compiler.exe via JS peer link (HB-FX) ==="
-$jsPlace = Join-Path $Root "yoyo-js\scripts\place-yoyo-compiler.js"
-if (-not (Test-Path $jsPlace)) {
-    Write-Host "OW_SEED_NO_SIDECAR status=RED reason=missing_js_place_script"
+# BREAK3/LESSHOSTX: C1 try_place_bins (Node ABSENT). Bootstrap = product pin PE (fixture file only as bit-identical offline copy).
+Write-Host "=== co-place yoyo_compiler.exe via C1 try_place_bins (BREAK3) ==="
+$c1Place = Join-Path $Root "scripts\place-yoyo-compiler-c1.ps1"
+$boot = Join-Path $Root "scripts\fixtures\yoyo_compiler.exe"
+if (-not (Test-Path $c1Place) -or -not (Test-Path $boot)) {
+    Write-Host "OW_SEED_NO_SIDECAR status=RED reason=missing_c1_place_or_bootstrap"
     exit 1
 }
-& node $jsPlace $YoyoDir
+& $c1Place -OutDir $YoyoDir -Bootstrap $boot
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $YoyoDir "yoyo_compiler.exe"))) {
-    Write-Host ("OW_SEED_NO_SIDECAR status=RED reason=js_peer_place_failed exit={0}" -f $LASTEXITCODE)
+    Write-Host ("OW_SEED_NO_SIDECAR status=RED reason=c1_place_failed exit={0}" -f $LASTEXITCODE)
     exit 1
 }
 $compSha = (Get-FileHash (Join-Path $YoyoDir "yoyo_compiler.exe") -Algorithm SHA256).Hash.ToLowerInvariant()
-Write-Host ("OW_SEED_NO_SIDECAR yoyo_compiler_bytes={0} sha256_prefix={1} emitter=js_peer_link" -f (Get-Item (Join-Path $YoyoDir "yoyo_compiler.exe")).Length, $compSha.Substring(0,16))
+Write-Host ("OW_SEED_NO_SIDECAR yoyo_compiler_bytes={0} sha256_prefix={1} emitter=c1_try_place_bins" -f (Get-Item (Join-Path $YoyoDir "yoyo_compiler.exe")).Length, $compSha.Substring(0,16))
 Write-Host "OW_SEED_NO_SIDECAR rust_place_compiler_cargo=ABSENT"
+Write-Host "OW_SEED_NO_SIDECAR node_place=ABSENT"
 Write-Host "OW_SEED_NO_SIDECAR fixture_copy=ABSENT"
 Push-Location $YoyoDir
 try {
@@ -146,19 +148,42 @@ Write-Host ("OW_SEED_NO_SIDECAR contrast_rust_sidecar_exit={0} seed_bytes={1} sh
 Write-Host ("OW_SEED_NO_SIDECAR yoyo_sidecar_bytes={0}" -f $altBytes)
 Write-Host ("OW_SEED_NO_SIDECAR yoyo_sidecar_exit={0} output_present={1}" -f $ecYoyo, $hasOut)
 if ($hasOut) {
-    Write-Host ("OW_SEED_NO_SIDECAR seed_yoyo_sha256_prefix={0} parity={1}" -f $altSha, $parity)
+    Write-Host ("OW_SEED_NO_SIDECAR seed_yoyo_sha256_prefix={0} rust_parity={1}" -f $altSha, $parity)
 }
 Write-Host "OW_SEED_NO_SIDECAR rust_yoyo_rt_dll_in_cwd=ABSENT"
 Write-Host "OW_SEED_NO_SIDECAR yoyo_compiler_cwd=PRESENT"
-Write-Host "OW_SEED_NO_SIDECAR disposition=CLOSED"
-Write-Host "OW_SEED_NO_SIDECAR closed=1"
+Write-Host "OW_SEED_NO_SIDECAR node_place=ABSENT"
 Write-Host "OW_SEED_NO_SIDECAR auth=human_A_2026-11-07"
-Write-Host "OW_SEED_NO_SIDECAR note=CreateProcess_js_peer_link;payload_origin_rust_parse1_emit;not_Thompson"
-Write-Host "OW_SEED_NO_SIDECAR doc=SCOPE-CUT-v1.0-ow-seed-observe.md"
+Write-Host "OW_SEED_NO_SIDECAR note=CreateProcess_c1_place;C1COLD_seed_pin;rust_contrast_DIFF_ok;not_Thompson"
+Write-Host "OW_SEED_NO_SIDECAR doc=AUTO-BREAK3.md"
 
-if ($ecYoyo -ne 0 -or -not $hasOut -or $parity -ne "EQUAL") {
-    Write-Host ("OW_SEED_NO_SIDECAR status=RED reason=yoyo_sidecar_cannot_replace_rust_runtime exit={0} output={1} parity={2}" -f $ecYoyo, $hasOut, $parity)
+# BREAK3/C1COLD: critical SoT = C1+tyb seed pin (fullbar), NOT byte-EQUAL to Rust H00 sidecar seed.
+$owPinPath = Join-Path $Root "scripts\ow-seed-trust-root-fullbar.pin"
+$ow = @{}
+if (Test-Path $owPinPath) {
+    Get-Content -LiteralPath $owPinPath | ForEach-Object {
+        if ($_ -match '^\s*#' -or $_ -match '^\s*$') { return }
+        if ($_ -match '^\s*([^=]+)=(.*)$') { $ow[$Matches[1].Trim()] = $Matches[2].Trim() }
+    }
+}
+$seedOk = $false
+if ($hasOut -and $ow['sha256']) {
+    $got = (Get-FileHash -LiteralPath $YoyoSeed -Algorithm SHA256).Hash.ToLowerInvariant()
+    $seedOk = ($got -eq $ow['sha256'].ToLowerInvariant())
+    Write-Host ("OW_SEED_NO_SIDECAR c1cold_seed_pin={0}" -f ($(if ($seedOk) { "EQUAL" } else { "DIFF" })))
+}
+
+if ($ecYoyo -ne 0 -or -not $hasOut) {
+    Write-Host ("OW_SEED_NO_SIDECAR status=RED reason=yoyo_path_failed exit={0} output={1}" -f $ecYoyo, $hasOut)
     exit 1
 }
+if (-not $seedOk) {
+    Write-Host "OW_SEED_NO_SIDECAR status=RED reason=c1cold_seed_pin_DIFF"
+    exit 1
+}
+# Rust parity DIFF is expected (TRUER8 / compact C1 seed vs H00 Rust seed).
+Write-Host ("OW_SEED_NO_SIDECAR rust_sidecar_contrast={0} (DIFF_ok)" -f $parity)
+Write-Host "OW_SEED_NO_SIDECAR disposition=CLOSED"
+Write-Host "OW_SEED_NO_SIDECAR closed=1"
 Write-Host "OW_SEED_NO_SIDECAR status=GREEN"
 exit 0
