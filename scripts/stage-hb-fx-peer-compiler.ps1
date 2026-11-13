@@ -29,8 +29,8 @@ $work = Join-Path $Root "scripts\_stage-hb-fx-peer-compiler"
 if (Test-Path $work) { Remove-Item -Recurse -Force $work }
 New-Item -ItemType Directory -Force -Path $work | Out-Null
 
-$stub = Join-Path $Root "scripts\fixtures\yoyo_place_stub.exe"
-& (Join-Path $Root "scripts\place-yoyo-compiler-c1.ps1") -OutDir $work -Bootstrap $stub
+$fx = Join-Path $Root "scripts\fixtures\yoyo_compiler.exe"
+& (Join-Path $Root "scripts\place-yoyo-compiler-c1.ps1") -OutDir $work -Bootstrap $fx
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $work "yoyo_compiler.exe"))) {
     Write-Host "HB_FX status=RED reason=c1_place_failed"
     exit 1

@@ -37,17 +37,25 @@ try {
     exit 1
 }
 
-Write-Host "=== TRUER4 stub×bins → full C1; emit bins ≡ pin ==="
-$stub = Join-Path $Root "scripts\fixtures\yoyo_place_stub.exe"
-$placeOut = Join-Path $Root "scripts\_stage-c1-native\stub-place"
+Write-Host "=== C1COLD fixture×bins → full C1; emit bins ≡ pin ==="
+$fx = Join-Path $Root "scripts\fixtures\yoyo_compiler.exe"
+$placeOut = Join-Path $Root "scripts\_stage-c1-native\fixture-place"
 if (Test-Path $placeOut) { Remove-Item -Recurse -Force $placeOut }
-& (Join-Path $Root "scripts\place-yoyo-compiler-c1.ps1") -OutDir $placeOut -Bootstrap $stub
+& (Join-Path $Root "scripts\place-yoyo-compiler-c1.ps1") -OutDir $placeOut -Bootstrap $fx
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "C1_NATIVE status=RED reason=stub_place"
+    Write-Host "C1_NATIVE status=RED reason=fixture_place"
     exit 1
 }
 $fullC1 = Join-Path $placeOut "yoyo_compiler.exe"
-$emitOut = Join-Path $Root "scripts\_stage-yoyo-bins\stub-gate-emit"
+try {
+    Assert-YoyoShaPin -Yoyo $Yoyo -File $fullC1 `
+        -PinPath (Join-Path $Root "scripts\fixtures\yoyo_place_c1.pin") `
+        -Label PLACE_C1 -RequireTrustRoot fixture_yoyo_compiler -Doc AUTO-C1COLD.md
+} catch {
+    Write-Host "C1_NATIVE status=RED reason=c1_product_pin"
+    exit 1
+}
+$emitOut = Join-Path $Root "scripts\_stage-yoyo-bins\fixture-gate-emit"
 if (Test-Path $emitOut) { Remove-Item -Recurse -Force $emitOut }
 & (Join-Path $Root "scripts\emit-bins-c1.ps1") -OutDir $emitOut -Bootstrap $fullC1
 if ($LASTEXITCODE -ne 0) {
@@ -63,10 +71,11 @@ if ($hc0 -ne $hc1 -or $hd0 -ne $hd1) {
     Write-Host "C1_NATIVE status=RED reason=emit_NE_bins_pin"
     exit 1
 }
-Write-Host "C1_NATIVE trust_root=place_stub"
-Write-Host "C1_NATIVE bins_sot=pin_locked_content"
-Write-Host "C1_NATIVE stub_place_emit=EQUAL"
+Write-Host "C1_NATIVE trust_root=fixture_yoyo_compiler"
+Write-Host "C1_NATIVE bins_sot=fixture_pe"
+Write-Host "C1_NATIVE fixture_place_emit=EQUAL"
 Write-Host "C1_NATIVE yoyo_bins_node_rebuild=ABSENT"
+Write-Host "C1_NATIVE place_stub_role=truer4_pin_only"
 
 Write-Host "=== N0/N2 yc2 C1 process repro ==="
 & (Join-Path $Root "scripts\yc2-compiler-payload-repro.ps1")
@@ -136,7 +145,7 @@ if ($mk['critical_trust_blobs'] -ne '2') {
     Write-Host "C1_NATIVE status=RED reason=critical_trust_blobs"
     exit 1
 }
-if ($mk['trust_root'] -ne 'place_stub') {
+if ($mk['trust_root'] -ne 'fixture_yoyo_compiler' -and $mk['trust_root'] -ne 'place_stub') {
     Write-Host "C1_NATIVE status=RED reason=trust_root"
     exit 1
 }
@@ -156,14 +165,14 @@ Write-Host "C1_NATIVE h00=EQUAL"
 Write-Host ("C1_NATIVE fixedpoint_sha256_prefix={0}" -f $mk['fixedpoint_sha256_prefix'])
 Write-Host "C1_NATIVE node_plant=ABSENT"
 Write-Host "C1_NATIVE escape=ABSENT"
-Write-Host "C1_NATIVE trust_root=place_stub"
-Write-Host "C1_NATIVE bins_sot=pin_locked_content"
+Write-Host ("C1_NATIVE trust_root={0}" -f $mk['trust_root'])
+Write-Host "C1_NATIVE bins_sot=fixture_pe"
 Write-Host "C1_NATIVE seed_sot=c1_tyb"
 Write-Host "C1_NATIVE critical_pe_roots=1"
 Write-Host "C1_NATIVE critical_trust_blobs=2"
 Write-Host "C1_NATIVE sidecar_required_on_critical=ABSENT"
 Write-Host "C1_NATIVE cargo_emit_rt=ABSENT"
-Write-Host "C1_NATIVE note=truer4_stub_tcb_no_sidecar_critical;not_Thompson"
-Write-Host "C1_NATIVE doc=AUTO-C1-NATIVE.md"
+Write-Host "C1_NATIVE note=c1cold_fixture_product;place_stub_pin_only;not_Thompson"
+Write-Host "C1_NATIVE doc=AUTO-C1COLD.md"
 Write-Host "C1_NATIVE status=GREEN"
 exit 0

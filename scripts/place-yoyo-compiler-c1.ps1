@@ -19,12 +19,14 @@ Set-Location $Root
 Enable-YoyoUnattendedUiHarden
 
 if (-not $Bootstrap) {
+    # AUTO-C1COLD: prefer fixture compiler (compile+yc2). place_stub is TRUER4 stub pin only.
     $candidates = @(
-        (Join-Path $Root "scripts\fixtures\yoyo_place_stub.exe"),
         (Join-Path $Root "scripts\fixtures\yoyo_compiler.exe"),
+        (Join-Path $Root "scripts\_stage-c1-native\stub-place\yoyo_compiler.exe"),
         (Join-Path $Root "scripts\_stage-c1-native\yoyo_compiler.exe"),
         (Join-Path $Root "scripts\_stage-hb-fx-peer-compiler\yoyo_compiler.exe"),
-        (Join-Path $Root "scripts\_stage-fullbar-fs2-chain\_peer_compiler_once\yoyo_compiler.exe")
+        (Join-Path $Root "scripts\_stage-fullbar-fs2-chain\_peer_compiler_once\yoyo_compiler.exe"),
+        (Join-Path $Root "scripts\fixtures\yoyo_place_stub.exe")
     )
     foreach ($c in $candidates) {
         if (Test-Path $c) { $Bootstrap = $c; break }

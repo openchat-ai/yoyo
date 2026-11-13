@@ -59,17 +59,15 @@ $ec = Invoke-YoyoUnattendedNativeExe -FilePath (Join-Path $cold "yoyo_compiler.e
 $outOk = Test-Path (Join-Path $cold "output.exe")
 if ($ec -eq 0 -and $outOk) {
     Write-Host "LESSHOSTX cold_start=GREEN"
+    Write-Host "LESSHOSTX node_on_gate=ABSENT"
+    Write-Host "LESSHOSTX placepin=GREEN"
+    Write-Host "LESSHOSTX hb_fx=GREEN"
+    Write-Host "LESSHOSTX yc2=GREEN"
     Write-Host "LESSHOSTX status=GREEN"
-    Write-Host "LESSHOSTX doc=AUTO-LESSHOSTX.md"
+    Write-Host "LESSHOSTX doc=AUTO-C1COLD.md"
     exit 0
 }
 
 Write-Host ("LESSHOSTX cold_start=HARD_BLOCK exit={0} out={1}" -f $ec, $outOk)
-Write-Host "LESSHOSTX cold_start_note=C1_place_PE_pin_EQUAL_but_tyb_compile_fails;fix=separate;not_Stage17"
-Write-Host "LESSHOSTX node_on_gate=ABSENT"
-Write-Host "LESSHOSTX placepin=GREEN"
-Write-Host "LESSHOSTX hb_fx=GREEN"
-Write-Host "LESSHOSTX yc2=GREEN"
-Write-Host "LESSHOSTX status=GREEN_WITH_HARD_BLOCK"
-Write-Host "LESSHOSTX doc=AUTO-LESSHOSTX.md"
-exit 0
+Write-Host "LESSHOSTX status=RED reason=cold_start"
+exit 1

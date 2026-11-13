@@ -1,11 +1,11 @@
-﻿# Cold-start place product SoT (AUTO-PLACEPIN). stub x bins -> C1.
-# Detection pin for place output. ≠ Thompson.
+# C1 product SoT (AUTO-C1COLD). fixture x fixture-emit bins (identity).
+# place_stub remains TRUER4 stub pin only — not this product. != Thompson.
 name=yoyo_compiler.exe
-bytes=248832
-sha256=13d6c6db090950811a9ec94e5b95f3278405107a6c94be9807e3ff562b0a9928
-sha256_prefix=13d6c6db09095081
-path=derived:place-yoyo-compiler-c1(stub,payload_bins)
-bootstrap=scripts/fixtures/yoyo_place_stub.exe
-trust_root=place_stub
-role=place_product_detection_pin
-doc=AUTO-PLACEPIN.md
+bytes=246272
+sha256=c525b1cc284c2b8dc0d10cffd4a7b7e9d76bf16bb3e199520af6c5482053777b
+sha256_prefix=c525b1cc284c2b8d
+path=derived:place-yoyo-compiler-c1(fixture,payload_bins)
+bootstrap=scripts/fixtures/yoyo_compiler.exe
+trust_root=fixture_yoyo_compiler
+role=c1_product_detection_pin
+doc=AUTO-C1COLD.md

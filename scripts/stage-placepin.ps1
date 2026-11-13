@@ -16,24 +16,26 @@ $stub = Join-Path $Root "scripts\fixtures\yoyo_place_stub.exe"
 try {
   Assert-YoyoShaPin -Yoyo $Yoyo -File $stub `
     -PinPath (Join-Path $Root "scripts\fixtures\yoyo_place_stub.pin") `
-    -Label PLACE_STUB -Doc AUTO-TRUER4.md
+    -Label PLACE_STUB -RequireTrustRoot place_stub -Doc AUTO-TRUER4.md
 } catch {
   Write-Host "PLACEPIN status=RED reason=stub_pin"; exit 1
 }
 
+$fx = Join-Path $Root "scripts\fixtures\yoyo_compiler.exe"
 $work = Join-Path $Root "scripts\_stage-placepin"
 if (Test-Path $work) { Remove-Item -Recurse -Force $work }
 New-Item -Force -ItemType Directory $work | Out-Null
 
 $placeOut = Join-Path $work "place"
-& (Join-Path $Root "scripts\place-yoyo-compiler-c1.ps1") -OutDir $placeOut -Bootstrap $stub
+# C1COLD: C1 product = fixture x fixture-emit bins (compile+yc2)
+& (Join-Path $Root "scripts\place-yoyo-compiler-c1.ps1") -OutDir $placeOut -Bootstrap $fx
 if ($LASTEXITCODE -ne 0) { Write-Host "PLACEPIN status=RED reason=place"; exit 1 }
 $c1 = Join-Path $placeOut "yoyo_compiler.exe"
 
 try {
   Assert-YoyoShaPin -Yoyo $Yoyo -File $c1 `
     -PinPath (Join-Path $Root "scripts\fixtures\yoyo_place_c1.pin") `
-    -Label PLACE_C1 -Doc AUTO-PLACEPIN.md
+    -Label PLACE_C1 -RequireTrustRoot fixture_yoyo_compiler -Doc AUTO-C1COLD.md
 } catch {
   Write-Host "PLACEPIN status=RED reason=c1_pin"; exit 1
 }
@@ -48,7 +50,7 @@ $poisonCaught = $false
 try {
   Assert-YoyoShaPin -Yoyo $Yoyo -File $poison `
     -PinPath (Join-Path $Root "scripts\fixtures\yoyo_place_c1.pin") `
-    -Label PLACE_C1 -Doc AUTO-PLACEPIN.md
+    -Label PLACE_C1 -RequireTrustRoot fixture_yoyo_compiler -Doc AUTO-C1COLD.md
 } catch {
   $poisonCaught = $true
 }

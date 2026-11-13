@@ -206,7 +206,7 @@ Write-Host "FULLBAR_F2 sidecar_sot=contrast_only"
 
 $ancestry = "c1_tyb_seed_no_sidecar_critical"
 $operational = "c1_tyb_seed_rerun_fixedpoint"
-$prov = "truer4_place_stub_plus_c1_tyb"
+$prov = "c1cold_fixture_plus_c1_tyb"
 
 if ($ancestry -match 'rust_stage9_gen1') {
     Write-Host "FULLBAR_F2 status=RED reason=ancestry_still_names_rust_gen1"
@@ -304,7 +304,7 @@ $markersPath = Join-Path $Work "yoyo-closed-markers.txt"
     "seed_fixture_required=ABSENT"
     "critical_pe_roots=1"
     "critical_trust_blobs=2"
-    "trust_root=place_stub"
+    "trust_root=fixture_yoyo_compiler"
     "sidecar_sot=contrast_only"
     "sidecar_required_on_critical=ABSENT"
     "cargo_emit_rt=ABSENT"
