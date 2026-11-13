@@ -15,6 +15,9 @@ Edit these files directly. There is **no** JS/Python/Rust contract auditor in th
 
 `NO_NEW_HOST_AUDITOR` — do not reintroduce Node/Python/`*_contract.rs` as stage authority.
 
+**Status:** bootstrap-phase auditor · **frozen regression** (`AUTO-LLMWRITEFREEZE.md`).  
+Not on wake / self-host critical path. Manual: `& scripts\stage-llmwrite.ps1`.
+
 Build/run: `yoyo link --target=win32 <gate>.ty <out.exe>`（stage does this）.
 
 ≠ Thompson · link 仍是既有 Rust 债（只许缩）

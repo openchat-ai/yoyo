@@ -44,6 +44,7 @@ NO_NEW_HOST_AUDITOR=1
 - link 仍 Rust 实现 ≠ 已去宿主  
 - 审的语义在 `.ty`；不再「去 JS 换 Rust 审」  
 - AST 现为 hash 钉（不每次重算树）· ≠ Thompson  
+- **后继冻结**：`AUTO-LLMWRITEFREEZE.md` — 审员撤出 wake 主路径（回归可选）  
 
 ---
 
