@@ -11,7 +11,7 @@
 | v1.2 | 📝 草案 | `SCOPE-v1.2.md` | （未建） | 另「定」后激活：源语/库面/套接字/跨平台等 |
 
 开关：`AUTO-LANG.md`（`ACTIVE=1` 时无人值守推当前语言版）。  
-总规划：`YOYO-LANG-PLAN.md` · 机构图：`YOYO-机构图.md` · 全局 prompt：`.cursor/rules/stage4-auto-owner.mdc`
+总规划：`YOYO-LANG-PLAN.md` · 机构图：`YOYO-机构图.md` · 架构驱动：`docs/ARCH/` · 全局 prompt：`.cursor/rules/stage4-auto-owner.mdc`
 
 ---
 

@@ -1,7 +1,8 @@
 # YOYO 机构图（总览）
 
 > 一张图看清：产品分层 · 版本轴 · 文档/开关谁说了算。  
-> 北星（2026-11-14 起）：**独立语言**；v1.0 自举/信任 = 地基与回归。
+> 北星（2026-11-14 起）：**独立语言**；v1.0 自举/信任 = 地基与回归。  
+> 完整驱动：`docs/ARCH/`（尤其 `00-DRIVER.md`）。
 
 ---
 
@@ -48,10 +49,12 @@
 │  （机器门禁）      │     │  （毕业）           │
 └───────────────────┘     └────────────────────┘
 
-全局 prompt（agent 必读）
-  · .cursor/rules/stage4-auto-owner.mdc   ← alwaysApply
-  · AGENTS.md                             ← 看板入口
-  · YOYO-LANG-PLAN.md                     ← 独立语言总规划
+全局 prompt / 架构驱动（agent 必读）
+  · docs/ARCH/00-DRIVER.md
+  · docs/ARCH/README.md
+  · .cursor/rules/stage4-auto-owner.mdc
+  · AGENTS.md
+  · YOYO-LANG-PLAN.md
   · 本文件 YOYO-机构图.md
 ```
 
@@ -92,4 +95,13 @@ c1_product_pin bits × payload bins
 
 ---
 
-*与 `YOYO-LANG-PLAN.md` / `LANG-SURFACE.md` 配套*
+## 5. 文档驱动环（ARCH）
+
+```text
+00-DRIVER → 选 SCOPE 未勾项 → 09-DEV-LOOP 剧本
+         → 07-GATES 验收 → 勾选/commit → 10-VERSIONING 毕业
+```
+
+---
+
+*与 `docs/ARCH/` · `YOYO-LANG-PLAN.md` · `LANG-SURFACE.md` 配套*

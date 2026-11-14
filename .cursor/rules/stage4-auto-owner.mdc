@@ -18,6 +18,7 @@ alwaysApply: true
 
 **长期北星（2026-11-14 用户改口）**：**独立语言**（`YOYO-LANG-PLAN.md` / `ROADMAP-POST-1.0.md`）。  
 **v1.0 地基**（已毕业）：自举 + 打破后门魔咒（检测）；DDC/Lock/OW-\* = **回归附录**，不得偷换回唯一进度尺。  
+**架构 SoT（文档驱动全流程）**：`docs/ARCH/` — 每次语言开发先读 `docs/ARCH/00-DRIVER.md`。  
 总览：`YOYO-机构图.md`。**禁止** Thompson-proof；**禁止** invent 无界 Stage17 tip 工厂。
 
 ---
@@ -25,6 +26,7 @@ alwaysApply: true
 ## 0. 每次 wake 最先读开关
 
 ```text
+F:\yoyo\docs\ARCH\00-DRIVER.md
 F:\yoyo\AUTO-LANG.md
 F:\yoyo\YOYO-LANG-PLAN.md
 F:\yoyo\AUTO_TO_1.0.md

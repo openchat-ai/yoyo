@@ -5,7 +5,8 @@
 ## 负责人看板（零指令）
 
 - **北星**：独立语言 — `YOYO-LANG-PLAN.md` · 机构图 `YOYO-机构图.md` · 表面 `LANG-SURFACE.md`
-- **现主线（v1.1+）**：`ROADMAP-POST-1.0.md` + `AUTO-LANG.md`；用户 `定 1.2` / `继续` 语言轴时读此
+- **架构驱动（全流程 SoT）**：`docs/ARCH/` · 入口 `docs/ARCH/README.md` · 协议 `docs/ARCH/00-DRIVER.md`
+- **现主线（v1.1+）**：`ROADMAP-POST-1.0.md` + `AUTO-LANG.md`；用户 `定 1.2` / `继续` 语言轴时读 ARCH+SCOPE
 - **附录（关洞/信任）**：`POST-1.0-HOLE-CHECKLIST.md` — 用户 `关洞` 时；≠ 偷换语言主尺
 - **v1.0 毕业（历史）**：`STAGE16_OWNER_CHECKLIST.md` + `SCOPE-v1.0.md`（勿回改）
 - **更早历史看板**：`STAGE4`–`STAGE15` 见各 `STAGE*_OWNER_CHECKLIST`
