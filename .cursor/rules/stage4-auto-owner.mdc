@@ -16,22 +16,27 @@ alwaysApply: true
 - 否则 `AUTO_TO_1.0.md` `ACTIVE=1` → 历史 AUTO-TO-1.0
 - 皆 `ACTIVE=0` → 零指令触发词
 
-**长期北星**：**打破后门魔咒 / 自举**（`SCOPE-v1.0.md` / `ROADMAP-TO-1.0.md` → 1.0 已毕业）。进度只问自举是否更硬、DDC+Lock 检测是否更实。DDC = detection（对外禁吹牛 ≠ 进度尺）；OW-\* = 宿主债附录；**禁止** Thompson-proof 宣称；**禁止** invent Stage 17 / 无界 tip 工厂。
+**长期北星（2026-11-14 用户改口）**：**独立语言**（`YOYO-LANG-PLAN.md` / `ROADMAP-POST-1.0.md`）。  
+**v1.0 地基**（已毕业）：自举 + 打破后门魔咒（检测）；DDC/Lock/OW-\* = **回归附录**，不得偷换回唯一进度尺。  
+总览：`YOYO-机构图.md`。**禁止** Thompson-proof；**禁止** invent 无界 Stage17 tip 工厂。
 
 ---
 
 ## 0. 每次 wake 最先读开关
 
 ```text
+F:\yoyo\AUTO-LANG.md
+F:\yoyo\YOYO-LANG-PLAN.md
 F:\yoyo\AUTO_TO_1.0.md
 F:\yoyo\AUTO-FIXEDPOINT.md
 ```
 
 | 开关 | 模式 |
 |------|------|
-| `AUTO_TO_1.0` `ACTIVE=1` | 历史 **AUTO-TO-1.0**（v1.0 已 `COMPLETED=1` → 应保持 0） |
-| `AUTO-FIXEDPOINT` `ACTIVE=1` | **固定点全自动**：三链终极 + 非 Rust 唯一发射；只走该文件 FP-0…DONE |
-| 两轨皆 `ACTIVE=0` 且无触发词 | 普通零指令（`继续` / `关洞` / `继续固定点` 等才推进） |
+| `AUTO-LANG` `ACTIVE=1` | **独立语言更高版本**（v1.2+）；读 `ROADMAP-POST-1.0` / 当前 SCOPE / LANG 看板 |
+| `AUTO_TO_1.0` `ACTIVE=1` | 历史（v1.0 已 `COMPLETED=1` → 应保持 0） |
+| `AUTO-FIXEDPOINT` `ACTIVE=1` | 固定点回归轨（已 COMPLETED 则勿回改主叙事） |
+| 语言/信任加深皆 `ACTIVE=0` 且无触发词 | 零指令（`继续` / `定 1.2` / `关洞` 等才推进） |
 
 用户已说过 **自动持续 / 推到1.0 / 固定点自动 / 离电脑** 且对应 flag=`ACTIVE=1` 时：**不要**向用户索取「继续」；**不要**教用户打字。
 

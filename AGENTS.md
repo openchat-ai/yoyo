@@ -2,12 +2,14 @@
 
 > 自动迁移自 ~/.config/opencode/AGENTS.md (yoyo 调试/自举/调试工具)。编辑请改此文件或原全局文件。
 
-## Stage 4 负责人看板（零指令）
+## 负责人看板（零指令）
 
-- **现主线看板（post-v1.0 关洞）**：`POST-1.0-HOLE-CHECKLIST.md` — path 2 缩宿主信任 A→B→C；用户 `继续`/`关洞` 时读此文件（`AUTO_TO_1.0.md` **`ACTIVE=0` · `COMPLETED=1`** · 勿 invent Stage 17）
-- **v1.0 毕业看板（历史）**：`STAGE16_OWNER_CHECKLIST.md` + `SCOPE-v1.0.md`（Stage 16 / v1.0 全绿 · 勿回改）
+- **北星**：独立语言 — `YOYO-LANG-PLAN.md` · 机构图 `YOYO-机构图.md` · 表面 `LANG-SURFACE.md`
+- **现主线（v1.1+）**：`ROADMAP-POST-1.0.md` + `AUTO-LANG.md`；用户 `定 1.2` / `继续` 语言轴时读此
+- **附录（关洞/信任）**：`POST-1.0-HOLE-CHECKLIST.md` — 用户 `关洞` 时；≠ 偷换语言主尺
+- **v1.0 毕业（历史）**：`STAGE16_OWNER_CHECKLIST.md` + `SCOPE-v1.0.md`（勿回改）
 - **更早历史看板**：`STAGE4`–`STAGE15` 见各 `STAGE*_OWNER_CHECKLIST`
-- **自动规则**：`.cursor/rules/stage4-auto-owner.mdc` — post-v1.0：`继续`/`关洞` → `POST-1.0-HOLE-CHECKLIST` 单轨；`继续 两板` PE+ELF 并行 worktree（`scripts/stage4-two-board.ps1`）
+- **全局 prompt**：`.cursor/rules/stage4-auto-owner.mdc`（alwaysApply）
 - **CI anti-thrash**：`.cursor/rules/ci-anti-thrash.mdc` — 允许 auto-fix；禁止 push 风暴 / 默认 H00 bisect；本地先 `& .\scripts\stage17-ow-iat-wireup.ps1`
 
 ## CI anti-thrash（摘要）
