@@ -9,8 +9,8 @@ SET_BY=user
 REASON=离电脑；无人值守推到1.0（或 hard block）
 NORTH_STAR=打破后门魔咒 / 自举
 STOP_ONLY=停 | hard-blocker needing human | ACTIVE=0
-NOTE=v1.0 / Stage 16 graduated — ROADMAP endpoint; no Stage 17; path2 frozen to north star (self-host + backdoor detection); banlist=claim discipline not progress ruler
-NEXT_AUTO=AUTO-FIXEDPOINT.md (三链终极 + 非 Rust 唯一发射；默认 ACTIVE=0)
+NOTE=v1.0 / Stage 16 graduated — self-host milestone DONE. Higher versions = independent language (user 2026-11-14). No unbounded Stage17 tip factory.
+NEXT_AUTO=AUTO-LANG.md (v1.1+ 独立语言；ACTIVE=1 时推)
 ```
 
 ## Agent 必读（每次 wake / loop tick **最先**检查本文件）

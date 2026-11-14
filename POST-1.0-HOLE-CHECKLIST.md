@@ -1,18 +1,18 @@
 # Post-v1.0 看板 — 本源纠正
 
-## 本源尺子（唯一主尺）
+## 本源尺子
 
-**打破后门魔咒** + **自举**
+**v1.0 地基**：打破后门魔咒 + **自举**（已毕业）。  
+**v1.1+ 主尺（用户 2026-11-14 授权）**：**独立语言** — 见 `ROADMAP-POST-1.0.md` / `AUTO-LANG.md`。
 
 | 是 | 不是 |
 | --- | --- |
-| 自举主路径能自己编、自己跑 | 翻译器 / 通用语言功能表 |
-| DDC+Lock **检出**编译器级异常 | 宣称 Thompson 免疫 / 「0 漏洞」 |
-| 缩**自举路径上的**宿主外包 | 把 OW-\* 病历名当成 ISA / CPU 概念 |
-| 像 CPU：有限能力自给 | 无限 tip（S3.N / FO.N / S4.N）工厂 |
+| 独立语言：能写、能编、能跑的程序面 | 空盘 / Thompson-proof |
+| 自举主路径仍自己编、自己跑（回归） | 无界 tip 工厂 / 假 Stage17 |
+| DDC+Lock 仍作检测附录 | 宣称已替代 C/Rust |
 
-> 对外禁词（detection≠proof）是 **防吹牛**，不是进度定义。  
-> 进度只问：**自举是否更硬？后门检测面是否更实？**
+> v1.0 进度问自举/检测；**更高版本**问：语言表面是否更立得住？  
+> 开关：`AUTO-LANG.md` `ACTIVE=1` 时推 v1.1。
 
 ## 当前判定
 
@@ -27,6 +27,7 @@
 | **LESSHOSTX** | ✅ 自举门 Node ABSENT · cold_start GREEN（C1COLD）· ≠ Thompson |
 | **C1COLD** | ✅ fixture-emit C1 自编译 · seed `378af8a7…` · ≠ Thompson |
 | **BREAK3** | ✅ Gate-I 无 Node；`c1_product_pin`；双路见证；A1/#8 HARD_BLOCK 诚实 · ≠ Thompson |
+| **v1.1 LANG** | ✅ 独立语言第一成毕业 · tag `v1.1.0` · Winsock CUT · ≠ 替代 C |
 | **TRUSTLIM** | ✅ 冷启双极限（STUBMIN/POISON/PLACEPIN/BINSPOISON） |
 | **TRUSTLIM2** | ✅ 自再生：Y1PLPIN + A1PIN |
 | **TRUSTLIM3** | ✅ 内容 SoT：PLANTPOISON + DATAPLANT |
