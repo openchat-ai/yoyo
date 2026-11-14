@@ -1,0 +1,84 @@
+;; LANG-READABLE v1.2 — human-structured form of hello_console
+;; Expands to .ty then yoyo link --target=win32
+program hello_hi
+target win32
+
+; stdout "hi\n" via GetStdHandle + WriteFile; then ExitProcess
+; IAT: WriteFile=3 GetStdHandle=6 ExitProcess=5 · str @ r15+0x100C0
+
+; --- prologue / GetStdHandle(-11) ---
+raw 40 00
+raw A0 48
+raw A0 83
+raw A0 EC
+raw A0 48
+raw A0 B9
+raw A0 F5
+raw A0 FF
+raw A0 FF
+raw A0 FF
+raw A0 41
+raw A0 FF
+raw A0 97
+raw A0 30
+raw A0 00
+raw A0 00
+raw A0 00
+
+; --- WriteFile(handle, buf, 3, …) ---
+raw A0 48
+raw A0 89
+raw A0 C1
+raw A0 49
+raw A0 8D
+raw A0 97
+raw A0 C0
+raw A0 00
+raw A0 01
+raw A0 00
+raw A0 41
+raw A0 B8
+raw A0 03
+raw A0 00
+raw A0 00
+raw A0 00
+raw A0 4C
+raw A0 8D
+raw A0 4C
+raw A0 24
+raw A0 20
+raw A0 48
+raw A0 C7
+raw A0 44
+raw A0 24
+raw A0 20
+raw A0 00
+raw A0 00
+raw A0 00
+raw A0 00
+raw A0 41
+raw A0 FF
+raw A0 97
+raw A0 18
+raw A0 00
+raw A0 00
+raw A0 00
+
+; --- ExitProcess(0) ---
+raw A0 48
+raw A0 83
+raw A0 C4
+raw A0 48
+raw A0 31
+raw A0 C9
+raw A0 48
+raw A0 83
+raw A0 EC
+raw A0 20
+raw A0 41
+raw A0 FF
+raw A0 97
+raw A0 28
+raw A0 00
+raw A0 00
+raw A0 00

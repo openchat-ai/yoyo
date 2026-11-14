@@ -5,13 +5,19 @@
 
 ## 是什么
 
-YOYO 程序 = **`.ty` 文本**（十六进制助记/指令流约定），经 **`yoyo link --target=win32`** 链成 PE32+，直接运行。
+YOYO 程序：
+
+| 层 | 形式 | 链路 |
+|----|------|------|
+| **可读（v1.2）** | `.yoyor` | Expand-YoyoReadable → `.ty` → `yoyo link` |
+| **规范映像源（v1.1）** | `.ty` hex | `yoyo link --target=win32` → PE |
 
 ```text
-foo.ty  →  yoyo.exe link --target=win32 foo.ty foo.exe  →  .\foo.exe
+foo.yoyor → Expand-YoyoReadable → foo.ty → yoyo.exe link --target=win32 foo.exe → .\foo.exe
+foo.ty    → yoyo.exe link --target=win32 foo.ty foo.exe → .\foo.exe
 ```
 
-编译器自举路径另用 `.tyb` + C1 place（v1.0）；**应用面**以 `yoyo link` 为准。
+可读层说明：`LANG-READABLE.md`。编译器自举仍用 `.tyb` + C1 place（v1.0）。
 
 ## 最小能力（已有门禁）
 
@@ -40,8 +46,8 @@ foo.ty  →  yoyo.exe link --target=win32 foo.ty foo.exe  →  .\foo.exe
 
 ## 下一版可能（非本版承诺）
 
-更高源语、模块/库面、套接字闭合、非 Win32 应用 peer——另「定」v1.2+。
+模块/库面、套接字闭合、非 Win32 应用 peer、符号/标签——另「定」v1.3+。
 
 ---
 
-*v1.1 · LANG-SURFACE*
+*v1.2 · LANG-SURFACE（含 READABLE）*
