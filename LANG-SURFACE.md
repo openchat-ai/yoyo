@@ -1,53 +1,62 @@
-# YOYO 语言表面（v1.1）
+# YOYO 语言表面（v1.3 · 独立语言 · 两极）
 
-> 独立语言第一成：人（或模型）怎么写、怎么编、怎么跑。  
-> 自举/信任检测见 post-v1.0 附录；此处主尺 = **能写程序**。
+> **两极政策（用户 2026-11-16）**：要么**完全不可读**，要么**最可读**。  
+> 禁止中间态（`raw A0 48` 包装）冒充「可读语言」。  
+> 主尺仍是**独立语言**（写/编/跑），不是信任修辞。
 
-## 是什么
+## 两极
 
-YOYO 程序：
-
-| 层 | 形式 | 链路 |
-|----|------|------|
-| **可读（v1.2）** | `.yoyor` | Expand-YoyoReadable → `.ty` → `yoyo link` |
-| **规范映像源（v1.1）** | `.ty` hex | `yoyo link --target=win32` → PE |
+| 极 | 文件 | 谁写 | 链路 |
+|----|------|------|------|
+| **不可读** | `.ty` 纯 hex | 机器 / 钉扎 / 自举 | `yoyo link --target=win32` |
+| **最可读** | `.yoyo` | 人 | `Expand-YoyoHi` → `.ty` → `yoyo link` |
 
 ```text
-foo.yoyor → Expand-YoyoReadable → foo.ty → yoyo.exe link --target=win32 foo.exe → .\foo.exe
-foo.ty    → yoyo.exe link --target=win32 foo.ty foo.exe → .\foo.exe
+# 最可读
+hello_hi.yoyo  →  Expand-YoyoHi  →  .ty  →  yoyo link  →  .exe
+
+# 完全不可读
+hello_console.ty  →  yoyo link  →  .exe
 ```
 
-可读层说明：`LANG-READABLE.md`。编译器自举仍用 `.tyb` + C1 place（v1.0）。
+### `.yoyo`（最可读 · v1.3）
 
-## 最小能力（已有门禁）
+```text
+program hello_hi
+target win32
+print "hi\n"
+exit 0
+```
+
+- **禁止**源文件出现 `raw` / `db` / 十六进制字节行  
+- 说明：`LANG-HI.md`  
+- 门禁：`stage-lang3.ps1`
+
+### `.ty`（不可读）
+
+- 既有 ANYPROG hex 样例  
+- 门禁：`stage-lang1` / `stage-anyprog`
+
+### 中间态（非主尺）
+
+- `.yoyor` + `raw hex`（v1.2）= **降级**：可留作展开实验回归，**不是**人读语言表面。
+
+## 最小能力（不可读极 · 已门禁）
 
 | 能力 | 证明 |
 |------|------|
-| 文件读写 | anyprog：cat / head / zero |
-| 控制台 stdout | hello_console |
-| 命令行 | cmdline（GetCommandLineA） |
-| 时间 | tick |
-| 线程 | thread |
-| 退出 | ExitProcess |
+| 文件读写 | cat / head / zero |
+| 控制台 | hello_console · **及** `.yoyo` print |
+| argv / 时间 / 线程 | cmdline / tick / thread |
 
-冷启编译器 A1 仍钉 6 名；应用 PE 可多导入（见 `scripts/fixtures/anyprog/API-HONEST.md`）。
-
-## 样例位置
-
-- 应用样例：`scripts/fixtures/anyprog/*.ty`  
-- 门禁：`scripts/stage-anyprog.ps1` · `scripts/stage-lang1.ps1`  
-- 写面契约（LLM/精确体）：`scripts/fixtures/anyprog/MODEL-CONTRACT.md`（回归，非本版主叙事）
+冷启编译器 A1 仍钉 6 名；应用 IAT 见 `API-HONEST.md`。
 
 ## 诚实边界
 
-- **不是**完整标准库 / 跨平台产品语言（Linux app peer 未作 1.1 必达）  
-- Winsock：**OPEN**（见 ANYPROG）；1.1 门 D 决定绿或 CUT  
-- ≠ 宣称替代 C/Rust；≠ Thompson-proof  
-
-## 下一版可能（非本版承诺）
-
-模块/库面、套接字闭合、非 Win32 应用 peer、符号/标签——另「定」v1.3+。
+- `.yoyo` 1.3 = `print`+`exit` 最小最可读，不是完整高级语言  
+- Winsock 仍 OPEN/CUT  
+- ≠ 替代 C/Rust；≠ Thompson-proof  
 
 ---
 
-*v1.2 · LANG-SURFACE（含 READABLE）*
+*v1.3 · 两极表面*

@@ -1,0 +1,7 @@
+;; YOYO maximal-readable surface (v1.3) — NO hex, NO raw
+;; Two extremes: this file OR pure .ty — never raw-A0 middle.
+
+program hello_hi
+target win32
+print "hi\n"
+exit 0
