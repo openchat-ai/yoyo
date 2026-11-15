@@ -1,0 +1,140 @@
+{
+  "name": "yoyo-anyprog-llm-v5-pipe",
+  "revision": 5,
+  "target": "win32",
+  "link": "yoyo link --target=win32 <in.ty> <out.exe>",
+  "encoding": "utf-8-no-bom",
+  "newline": "lf",
+  "forbid_bom": true,
+  "forbid_tab": true,
+  "forbid_cr": true,
+  "forbid_comments": true,
+  "forbid_blank_lines": true,
+  "entry_line": "40 00",
+  "body_indent": "  ",
+  "token_case": "upper_hex",
+  "op_width": 2,
+  "arg_width": 2,
+  "forbid_ret_ff": true,
+  "forbid_winsock": true,
+  "slots_allowed": ["50", "51"],
+  "slot_buffer": "50",
+  "slot_size": "51",
+  "str_load_allowed": ["00"],
+  "str_write_allowed": ["02"],
+  "strings": {
+    "00": "input.tyb",
+    "01": "input.ky",
+    "02": "output.exe"
+  },
+  "app_iat": [
+    "VirtualAlloc",
+    "CreateFileA",
+    "ReadFile",
+    "WriteFile",
+    "CloseHandle",
+    "ExitProcess",
+    "GetStdHandle",
+    "GetCommandLineA",
+    "GetTickCount64",
+    "CreateThread",
+    "WaitForSingleObject"
+  ],
+  "allowed_opcodes": {
+    "40": { "name": "HANDLER", "arity": 1 },
+    "20": { "name": "ALLOC", "arity": 2 },
+    "30": { "name": "SET", "arity": 2 },
+    "50": { "name": "LOAD_FILE", "arity": 2 },
+    "51": { "name": "WRITE_FILE", "arity": 3 },
+    "A0": { "name": "RAW_BYTE", "arity": 1, "file_grammar": "exit_tail_only", "exact_body": "anywhere" }
+  },
+  "exit_trampoline_bytes": [
+    "31", "C9", "48", "83", "EC", "20", "41", "FF", "97", "28", "00", "00", "00"
+  ],
+  "grammar": {
+    "program": "entry stmt+ exit",
+    "stmts": ["SET_SIZE", "ALLOC_BUF", "LOAD_IN", "WRITE_OUT"],
+    "SET_SIZE": { "op": "30", "args": ["51", "IMM2"] },
+    "ALLOC_BUF": { "op": "20", "args": ["50", "IMM2"] },
+    "LOAD_IN": { "op": "50", "args": ["50", "00"] },
+    "WRITE_OUT": { "op": "51", "args": ["50", "02", "51"] },
+    "dataflow": {
+      "WRITE_OUT_requires": ["has_size", "has_buf"],
+      "SET_SIZE_sets": "has_size",
+      "ALLOC_BUF_sets": "has_buf",
+      "LOAD_IN_sets": "has_buf"
+    },
+    "require_write": true
+  },
+  "program_kinds": {
+    "cat": "file_grammar",
+    "head": "file_grammar",
+    "zero": "file_grammar",
+    "copy08": "file_grammar",
+    "resize": "file_grammar",
+    "hello_console": "exact_body",
+    "cmdline": "exact_body",
+    "tick": "exact_body",
+    "thread": "exact_body"
+  },
+  "shapes": {
+    "cat": ["30 51 05", "50 50 00", "51 50 02 51"],
+    "head": ["30 51 03", "50 50 00", "51 50 02 51"],
+    "zero": ["20 50 08", "30 51 04", "51 50 02 51"],
+    "copy08": ["30 51 08", "50 50 00", "51 50 02 51"],
+    "resize": ["30 51 05", "30 51 03", "50 50 00", "51 50 02 51"]
+  },
+  "generative": {
+    "trials": 64,
+    "max_extra_sets": 3,
+    "imm_choices": ["01", "02", "03", "04", "05", "08"]
+  },
+  "dual_emit": {
+    "mode": "canon_relink",
+    "require_agree": true,
+    "independent_second_linker": "HARD_BLOCK_single_pe_emitter"
+  },
+  "drift": {
+    "rebuild_times": 3,
+    "bitflip_source_sample": "cat",
+    "bitflip_artifact_sample": "cat",
+    "note": "software integrity only; not SEU-hardened silicon"
+  },
+  "artifact_pins": {
+    "cat": "42454d08b3463f43dd3b450f2f65a08ee6c77f189d00fd5f58ffd5ec4a303092",
+    "head": "e73998b79204f2973702ccaa9859b81f227179f2a2cc5078f033905f554311c9",
+    "zero": "952bbc13025c813f21f9343453eb0651f2aca3f2fa13f75ec19ea7012c36f9fa",
+    "copy08": "e9c55376a09450c7897f23aeab9d8e640e6d3fcf8278c8f056b016d226487ad2",
+    "resize": "b8d1370952f78ce73184b44ac461cedde334bfdaf8381eda9d52a637be53a3e3",
+    "hello_console": "6ce70ae2f52c71ad8293254712e187d2bbcb9dea31239f05b8c541edb94a6340",
+    "cmdline": "da894bb75ccd873b9d583a23b6de805717232c511dbd5110b2b3e76db0709d98",
+    "tick": "1aa9e71dc63584c85ab3668581ee988ffd3d3b6be50b6858aa892cdfa1722f69",
+    "thread": "e39cc7c8a35a9c96731afb12f79fe5a132f8ae825784edd1e2410968b608d47c"
+  },
+  "section_pins": {
+    "cat": { "text_sha256": "5d9291e73fb6035e7e1bcbfd0c0a7734fba653ff768571bf755f7863498e5b02" },
+    "head": { "text_sha256": "0b0f0406422f4e3757e873733b2914316de64967df68ee0d580360d58a20ee7d" },
+    "zero": { "text_sha256": "b89d0cea56cff1fbf202a67cd56ab007001d371e7ea31d5d8de96de20694e5f4" },
+    "copy08": { "text_sha256": "2fb947957aba87ec74abbb3c02442b1ddeb0cb7416a1d9e968632e9355a9c269" },
+    "resize": { "text_sha256": "56e84d6eb1204c5cae4bdd7cc993baef3a803b43954c726cb3cb90cea770ffaa" },
+    "hello_console": { "text_sha256": "97d3d8049932d799a7fbd5d51c1c01b59c048a4966998d8dbd4a0e86941534c7" },
+    "cmdline": { "text_sha256": "3d9fef4166e6f6261582bd60bbef6e37e50030ff6d38dae023949090c24996ee" },
+    "tick": { "text_sha256": "4b1e3066e711cb194a1b1af4640950e870dd0342869cb307501f3afbe37af74a" },
+    "thread": { "text_sha256": "7a57df55b7e8076a852b2fd0957ff7d6f5ad56e31112ea65f6ca77ef2ff79094" }
+  },
+  "samples_llm_dir": "scripts/fixtures/anyprog/llm",
+  "min_poison_distinct_reasons": 10,
+  "surface_coverage": {
+    "cat": "in_contract",
+    "head": "in_contract",
+    "zero": "in_contract",
+    "copy08": "in_contract",
+    "resize": "in_contract",
+    "hello_console": "in_contract",
+    "cmdline": "in_contract",
+    "tick": "in_contract",
+    "thread": "in_contract",
+    "socket": "out_winsock_open"
+  },
+  "doc": "MODEL-CONTRACT.md"
+}

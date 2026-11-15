@@ -1,0 +1,13 @@
+# AUTO-TRUSTLIM4 slice pin. Detection only. ≠ Thompson.
+name=yoyo_place_stub.exe
+role=cold_start_stub
+bytes=15360
+entry_rva=4096
+data_raw=7168
+hdr_window=0x200
+hdr_sha256=67f9796b2592af517b1a2a420e5ff8c81acbf272b1beaf42dc516a7611b88863
+hdr_sha256_prefix=67f9796b2592af51
+iat_window=0x100
+iat_sha256=630f9bc92d0c8f3b57d8eceeea506ae1c450dc62197269b0f5193322fa59b05b
+iat_sha256_prefix=630f9bc92d0c8f3b
+doc=AUTO-TRUSTLIM4.md

@@ -1,0 +1,9 @@
+name=seed_yoyo_win32.exe
+bytes=251392
+sha256=b0a8dbb0d3133e2a7f763fe79af19975bb2f2f505b0fed1d625d0e8b8f793a74
+sha256_prefix=b0a8dbb0d3133e2a
+role=contrast_only
+disposition=CONTRAST_ONLY
+seed_sot=ABSENT
+note=TRUER2;not_ancestry_SoT;optional_contrast;not_Thompson
+doc=AUTO-TRUER2.md

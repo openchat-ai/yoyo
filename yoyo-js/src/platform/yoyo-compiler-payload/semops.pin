@@ -1,0 +1,10 @@
+# AUTO-SEMOPS / SEMFULL / SEMHOST pin — yoyo-semops-compiler.tyb
+tyb_sha256=f7e28e829b191c3e408c5c58a426f8619e6e12aa0eb10af1a82975a64899cc0e
+tyb_bytes=3600
+src_kind=yoyo_ty_not_yoyc
+yoyc_role=stock_residual
+parse1_sem_slices=14
+host_a1_face_bytes=1341
+host_a1_face_max=2048
+host_a1_marker=SEMHOST1
+gate_node_emit=ABSENT

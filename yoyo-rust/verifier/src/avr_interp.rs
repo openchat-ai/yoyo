@@ -82,7 +82,7 @@ impl Cpu {
         // RET: 0x9508
         if insn == 0x9508 {
             // Pop PC (2 bytes from stack)
-            let sp_lo = self.mem_get(0x5D + 0x100) as u16; // SPL = 0x5D + 0x100 offset
+            let _sp_lo = self.mem_get(0x5D + 0x100) as u16; // SPL = 0x5D + 0x100 offset
             // Actually AVR stack is at 0x0100+ (SRAM), but we don't track SP precisely.
             // For simple RET, check if we're at top level.
             // For emitted code, RET is the exit instruction.

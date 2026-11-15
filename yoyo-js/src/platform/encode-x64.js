@@ -82,7 +82,7 @@ function encodeOp(op, args, branchPlaceholder) {
     return branchPlaceholder ? (op === 0x41 ? [0xe8, 0, 0, 0, 0] : [0xe9, 0, 0, 0, 0]) : [0xc3];
   }
   if (op >= 0x71 && op <= 0x7a) {
-    return branchPlaceholder ? [0x0f, JCC[op], 0, 0, 0, 0] : [0/c3];
+    return branchPlaceholder ? [0x0f, JCC[op], 0, 0, 0, 0] : [0xc3];
   }
   if (op === 0x30) {
     return [...movabsRax(a(1)), ...storeState(a(0), 0, 0)];

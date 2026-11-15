@@ -754,15 +754,13 @@ pub mod stub_resolve {
 mod tests {
     use super::*;
 
-    /// `SetCurrentDirectoryA` is process-global; serialize cwd-based manual-map smokes.
-    #[cfg(windows)]
-    static MANUAL_MAP_SMOKE_CWD_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
+    /// `SetCurrentDirectoryA` is process-global; serialize cwd-based smokes via
+    /// the one shared lock in [`crate::cwd_guard`]. `#[cfg(windows)]` because
+    /// the lock lives only there (cwd mutation is a Windows concern); the
+    /// callers are all `#[cfg(windows)]` tests.
     #[cfg(windows)]
     fn manual_map_smoke_cwd_lock() -> std::sync::MutexGuard<'static, ()> {
-        MANUAL_MAP_SMOKE_CWD_LOCK
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
+        crate::cwd_guard::test_cwd_lock()
     }
 
     fn write_u32(buf: &mut [u8], off: usize, v: u32) {

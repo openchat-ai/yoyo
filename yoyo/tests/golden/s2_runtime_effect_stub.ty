@@ -1,0 +1,21 @@
+; S2.5 — minimal «runtime effect» stub firmware (TYB sibling: .tyb)
+; Honest: ALLOC/LOAD_FILE/WRITE_FILE are StubPlatform-aligned (store size /
+; str_idx into state). **Not** real heap / file I/O. OW-RT remains CUT.
+;
+; Contract sketch (read → transform buffer → write):
+;   STR path fragments in .data (bind points for later real I/O)
+;   ALLOC  slot0 size=16
+;   LOAD_FILE  slot1 str_idx=0
+;   WRITE_FILE slot2 str_idx=1
+;   RET
+;
+; Acceptance: scripts/stage17-s2-runtime-effect.ps1 + verifier s2_runtime_effect_*
+; Fail-closed: mini rejects WRITE_FILE argc=3; unknown ops reject.
+;
+; TYB wire (6 records) — see s2_runtime_effect_stub.tyb
+;   12 03 69 00 6E 00 00 00   STR 'i','n',0
+;   12 03 6F 00 75 00 74 00   STR 'o','u','t'
+;   20 02 00 00 10 00 00 00   ALLOC slot=0 size=16
+;   50 02 01 00 00 00 00 00   LOAD_FILE slot=1 str_idx=0
+;   51 02 02 00 01 00 00 00   WRITE_FILE slot=2 str_idx=1
+;   FF 00 00 00 00 00 00 00   RET

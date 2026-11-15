@@ -1,0 +1,13 @@
+# AUTO-AUDITLIVE: place_stub OUT_OF_WINDOW landing in full code.bin
+# jmp 0x140005262 is beyond stub window; pin the code.bin bytes it would hit.
+# ≠ Thompson.
+oow_va=0x140005262
+image_base=0x140000000
+text_rva=0x1000
+startup=13
+code_bin_off=0x4255
+window_bytes=64
+landing_sha256=a9bebcef962f53d62fb14bc07503e0851bd95f52a1b8cf7f75a427e8cfaeab14
+expect_oow_count_in_disasm=1
+expect_oow_tgt=0x140005262
+doc=AUTO-AUDITLIVE.md

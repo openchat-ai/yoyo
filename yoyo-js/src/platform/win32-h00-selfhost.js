@@ -10,7 +10,8 @@ const {
   H00_MANUAL_MAP_STUB_LEN,
 } = require('./h00-manual-map-peer');
 
-const TEMP_DLL_NAME = Buffer.from('yoyo_rt.dll\0');
+// TRUER6: zero-length name face (11+NUL slot kept for layout). Contrast H00+dll stays optional/red.
+const TEMP_DLL_NAME = Buffer.alloc(12);
 const PE_STARTUP_LEN = 13;
 const H00_SLOT_LEN = 18;
 const SECTION_ALIGN = 0x1000;

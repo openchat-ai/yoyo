@@ -22,7 +22,9 @@
 
 **Post-v1.0 path 2（关洞）· OW-H00 曾 CLOSED（JS IAT sync · 历史）：** 当时 `three_peer_full=EQUAL` · **`72c27c9f`** / **18944** B。**Gate C（2026-09-03）重测：full `.text` DIFF → OW-H00 回 CUT** — **禁止**沿用 CLOSED。
 
-**Post-v1.0 path 2（关洞）· OW-SEED observe pin（2026-08-29）：** stage13/15/16 fail-closed 钉 **emitter**（`yoyo.exe` basename + size + sha256_prefix）+ **seed**（PE size + sha256_prefix 与 `SEED_HOST` 一致）+ **path=h00**。`SEED_HOST sha256_prefix` 扩至 **16** hex。**仍 CUT**（seed 仍由 Rust `yoyo.exe` 发射）— **禁止**标 CLOSED / SEED_HOST_GONE。
+**Post-v1.0 path 2（关洞）· OW-SEED observe pin（2026-08-29）：** stage13/15/16 fail-closed 钉 **emitter**（`yoyo.exe` basename + size + sha256_prefix）+ **seed**（PE size + sha256_prefix 与 `SEED_HOST` 一致）+ **path=h00**。`SEED_HOST sha256_prefix` 扩至 **16** hex。该行仍是 **v1.0 inventory 对照路径 CUT 钉**（Rust `yoyo link` contrast）。
+
+**Post-v1.0 path 2（关洞）· OW-SEED CLOSED（2026-11-07 · human auth A）：** 生产信任根 = FULLBAR pin（JS/asm 冷启 + YOYO H00 + Gate I）；`scripts/ow-seed-trust-root-fullbar.pin` `disposition=CLOSED` · `closed=1`。fixture compiler 经人类接受；**≠ Thompson**；**禁止**把 stage15 Rust-contrast CUT 行说成「生产根未关」。详 `SCOPE-CUT-v1.0-ow-seed-observe.md`。
 
 **Post-v1.0 path 2（关洞）· Gate A+B GREEN（2026-09-02 · PR #26 · master `8f9d98c`）：** Win `stage17-ow-iat-wireup.ps1` with-sidecar **GREEN**（no-sidecar fail-closed exit=2）；Linux `stage10-linux-pure-m4.sh` **GREEN**。**OW-IAT 仍 CUT**（sidecar + kernel32 I/O / dlopen）— **GREEN ≠ CLOSED**。**OW-H00：Gate C 重测 full `.text` DIFF → CUT**（slot 仍对齐；**禁止**沿用旧 CLOSED 话术）。
 

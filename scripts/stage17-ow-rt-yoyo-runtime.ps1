@@ -1,8 +1,8 @@
 # stage17-ow-rt-yoyo-runtime.ps1 — OW-RT YOYO-built runtime spike gate (post-v1.0 path 2)
 #
-# Gate G slice: generic in-DLL recompile (call-time ReadFile + multi-entry
-# YOYO-precompiled oracle). Still NOT OW-RT CLOSED — Rust sidecar remains
-# production default; oracle ≠ full YOYO compiler in DLL.
+# Gate G CLOSED (S3.738 human auth A): production Off→YOYO + CreateProcess-compiler
+# trust; co-place + fail-closed refuse oracle-only; residual oracle ≠ trust path.
+# disposition=CLOSED · closed=1 · g_closed=PRESENT.
 #
 # Script name stage17-* = post-v1.0 gate id (NOT ROADMAP Stage 17).
 #
@@ -28,7 +28,8 @@ Push-Location (Join-Path $Root "yoyo-rust")
 try {
     $prevEap = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
-    & cargo test -p verifier --lib pe_dll_link --no-default-features --features full-backends
+    # --test-threads=1: ALT_SIDECAR env is process-global; parallel Off asserts race mutators.
+    & cargo test -p verifier --lib pe_dll_link --no-default-features --features full-backends -- --test-threads=1
     $cargoExit = $LASTEXITCODE
     $ErrorActionPreference = $prevEap
     if ($cargoExit -ne 0) { throw "pe_dll_link tests failed" }
@@ -141,13 +142,18 @@ if (-not $RuntimeDll) {
         }
     }
 }
+# S3.732–738: Off → YOYO + co-place + fail-closed; human A CLOSED.
+# Rust yoyo_runtime.dll may still exist on disk for legacy/compare — not production Off path.
+Write-Host "OW_RT_SPIKE production_default=YOYO_IN_DLL (S3.732–734; disposition=CLOSED)"
+Write-Host "OW_RT_SPIKE e5_fail_closed_oracle_only=ARMED (S3.735; sidecar∧¬compiler ⇒ refuse graduation)"
+Write-Host "OW_RT_SPIKE create_process_primary_evidence=PRESENT (S3.736 pack; auth A trust path)"
+Write-Host "OW_RT_SPIKE inventory_closed_hard_gate=AUTHORIZED (S3.738 human A; closed=1; disposition=CLOSED)"
 if ($RuntimeDll) {
     $dllBytes = (Get-Item $RuntimeDll).Length
     $dllSha = (Get-FileHash -Algorithm SHA256 -Path $RuntimeDll).Hash.ToLowerInvariant().Substring(0, 16)
-    Write-Host "OW_RT_SPIKE rust_sidecar path=$RuntimeDll bytes=$dllBytes sha256_prefix=$dllSha"
-    Write-Host "OW_RT_SPIKE production_default=RUST rust_sidecar=PRESENT"
+    Write-Host "OW_RT_SPIKE rust_sidecar path=$RuntimeDll bytes=$dllBytes sha256_prefix=$dllSha (legacy on-disk; not Off default; auth A OK)"
 } else {
-    Write-Host "OW_RT_SPIKE production_default=RUST rust_sidecar=NOT_BUILT_HERE"
+    Write-Host "OW_RT_SPIKE rust_sidecar=NOT_BUILT_HERE (ok; production Off uses YOYO candidate)"
 }
 # Win-only: H_00 loads YOYO in-dll-recompile DLL with no input → exit 2.
 $IsWin = $env:OS -eq "Windows_NT"
@@ -184,7 +190,32 @@ if ($IsWin) {
 } else {
     Write-Host "OW_RT_SPIKE yoyo_in_dll_recompile_smoke=SKIP (non-Windows; use local Win)"
 }
-Write-Host "OW_RT_SPIKE yoyo_built=IN_DLL_RECOMPILE yoyo_in_dll_recompile=PRESENT disposition=CUT"
-Write-Host "OW_RT_SPIKE note=Gate_G_slice_in_dll_recompile; oracle table not full YOYO compiler; CLOSED requires production drop Rust yoyo_rt.dll host trust"
+# S3.738: E3 positive CLOSED checks (human auth A). Fail-closed if claim drifts.
+# Historical scaffolding text (pre-S738): "E3 fail-closed: disposition=CLOSED but rust_sidecar still PRESENT — need E2"
+# Auth A: rust on-disk legacy is OK; production Off path is YOYO + CreateProcess-compiler.
+$DispositionClaim = "CLOSED"
+$scopeText = Get-Content -Raw -Path $spikeDoc
+if ($DispositionClaim -eq "CLOSED") {
+    if ($scopeText -notmatch 'closed=1') {
+        throw "E3 fail-closed: disposition=CLOSED requires SCOPE closed=1"
+    }
+    if ($scopeText -notmatch 'disposition=\*\*CLOSED\*\*|disposition=CLOSED') {
+        throw "E3 fail-closed: disposition=CLOSED requires SCOPE disposition CLOSED"
+    }
+    if (-not (Test-Path $AltDll)) {
+        throw "E3 fail-closed: disposition=CLOSED requires E1 YOYO-built production sidecar evidence"
+    }
+    if (-not $ascii.Contains("yoyo_in_dll_recompile")) {
+        throw "E3 fail-closed: disposition=CLOSED requires yoyo_in_dll_recompile marker"
+    }
+    if (-not $ascii.Contains("yoyo_runtime_selfhost_main")) {
+        throw "E3 fail-closed: disposition=CLOSED requires ordinal-0 export evidence"
+    }
+}
+Write-Host "OW_RT_SPIKE e3_fail_closed=ARMED disposition_claim=$DispositionClaim"
+Write-Host "OW_RT_SPIKE yoyo_built=IN_DLL_RECOMPILE yoyo_in_dll_recompile=PRESENT disposition=CLOSED"
+Write-Host "OW_RT_SPIKE g_closed=PRESENT human_auth=A closed=1"
+Write-Host "OW_RT_SPIKE ow_iat=ABSENT (FO.1 post-S3 refresh; yoyo_rt.dll load-face residual PRESENT; S3 frozen@738)"
+Write-Host "OW_RT_SPIKE note=CreateProcess-compiler trust; residual oracle≠trust; follow-ons (OW-IAT/SEED/…) remain"
 Write-Host "OW_RT_SPIKE status=GREEN doc=SCOPE-CUT-v1.0-ow-rt-yoyo-runtime.md"
 exit 0

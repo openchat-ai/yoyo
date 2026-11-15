@@ -930,7 +930,7 @@ fn gen_h00_manual_map_body(
     let gpa_call_site = c.len();
     patch_rel32(&mut c, gpa_call + 1, gpa_call + 5, gpa_call_site);
     emit_call_gpa_preserve_r11(&mut c);
-    let thunk_resolved = c.len();
+    let _thunk_resolved = c.len();
     c.extend_from_slice(&[0x48, 0x85, 0xC0]); // resolve failed → fail_import
     emit_jz_pop_shadow_then_fail(&mut c, chunk_text_off as usize, fail_import);
     c.extend_from_slice(&[0x49, 0x89, 0x03]); // mov [r11], rax (IAT slot)
@@ -1220,7 +1220,7 @@ fn gen_h00_manual_map_body(
     c.extend_from_slice(&[0x31, 0xC0]);
     c.extend_from_slice(&[0xC3]);
 
-    let resolve_export_ordinal = c.len();
+    let _resolve_export_ordinal = c.len();
     c.extend_from_slice(&[0x89, 0xC1]); // mov ecx, eax (ordinal)
     c.extend_from_slice(&[0x8B, 0x47, 0x3C]); // eax = e_lfanew
     c.extend_from_slice(&[0x8B, 0x84, 0x07, 0x88, 0x00, 0x00, 0x00]); // [rdi+rax+88h] export dir RVA

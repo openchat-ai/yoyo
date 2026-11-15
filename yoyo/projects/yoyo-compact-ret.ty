@@ -1,0 +1,4 @@
+# yoyo-compact-ret ? AUTO-TRUER11
+# Single RET (0xFF). YOYO SoT for data.bin compact PE template (.text = C3).
+# Machine form: yoyo-compact-ret.tyb
+FF

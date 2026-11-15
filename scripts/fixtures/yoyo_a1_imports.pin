@@ -1,0 +1,8 @@
+# A1 import-surface pin (AUTO-A1PIN). Growth = RED.
+# Detection/少信: Win32 face must not silently expand. ≠ Thompson.
+name=kernel32_io_face
+dll=kernel32.dll
+funcs=VirtualAlloc,CreateFileA,ReadFile,WriteFile,CloseHandle,ExitProcess
+func_count=6
+applies_to=yoyo_place_stub.exe,yoyo_compiler.exe(place)
+doc=AUTO-A1PIN.md

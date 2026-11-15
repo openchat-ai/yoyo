@@ -3,7 +3,7 @@
 //! Produces a `.spv` binary file containing a minimal valid SPIR-V module.
 //! For Phase 1, this emits a stub SPIR-V module with a minimal compute shader.
 
-use crate::tir::{instr_branch_kind, BranchKind, TirInst, TirOp};
+use crate::tir::{TirInst, TirOp};
 use crate::types::IsaResult;
 
 /// SPIR-V word (u32) helper
@@ -40,7 +40,7 @@ pub fn emit_spirv(tir: &[TirInst]) -> IsaResult<Vec<u8>> {
     // Generator: unknown
     spv.extend_from_slice(&spv_word(0x00000000));
     // Bound: maximum ID + 1 (will be patched at the end)
-    let bound_pos = spv.len();
+    let _bound_pos = spv.len();
     spv.extend_from_slice(&spv_word(0x00000000));
     // Reserved (schema)
     spv.extend_from_slice(&spv_word(0x00000000));

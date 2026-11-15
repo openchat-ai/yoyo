@@ -1,0 +1,2 @@
+; S3.3 — meta-emit bare RET via RAW_BYTES
+; Sibling: s3_meta_emit_ret.tyb → byte C3 ≡ emit_x86(RET) / empty+auto-ret

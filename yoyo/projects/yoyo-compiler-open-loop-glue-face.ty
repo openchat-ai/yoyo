@@ -1,0 +1,11 @@
+# yoyo-compiler-open-loop-glue-face - AUTO-TRUER37
+# A1 emits VA→CreateFile control-flow glue, then RET.
+# Present in C1 connected open-path; ABSENT from product (faces are disjoint A1 blobs).
+40 0
+  A1 48 85 C0
+  A1 0F 84 01
+  A1 07 00 00
+  A1 48 89 C6
+  A1 48 89 D9
+  A1 48 89 F2
+  FF

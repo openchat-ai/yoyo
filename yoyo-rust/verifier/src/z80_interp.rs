@@ -259,7 +259,7 @@ impl Cpu {
                 let imm = self.fetch8();
                 let diff = (self.a as i16) - (imm as i16) - (self.carry() as i16);
                 self.set_carry(diff < 0);
-                self.a = (diff as u8);
+                self.a = diff as u8;
                 None
             }
             0x05 => { // DEC B

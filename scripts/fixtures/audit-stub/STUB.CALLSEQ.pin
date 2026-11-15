@@ -1,0 +1,7 @@
+# AUTO-AUDITMAX call contract for place_stub (fail-closed).
+# ≠ Thompson.
+opens=input.tyb,output.exe,input.tyb,output.exe,emit.bins,yoyo_compiler.exe,code.bin,data.bin,code.bin,data.bin
+apis=CreateFileA,ReadFile,CloseHandle,VirtualAlloc,CreateFileA,WriteFile,CloseHandle,ExitProcess,ExitProcess,CreateFileA,VirtualAlloc,ReadFile,CloseHandle,CreateFileA,WriteFile,CloseHandle,ExitProcess,CreateFileA,CloseHandle,VirtualAlloc,CreateFileA,ReadFile,CloseHandle,CreateFileA,WriteFile,CloseHandle,CreateFileA,WriteFile,CloseHandle,VirtualAlloc,VirtualAlloc,VirtualAlloc,CreateFileA,ReadFile,CloseHandle,CreateFileA,ReadFile,CloseHandle
+api_counts=CloseHandle:10,CreateFileA:10,ExitProcess:3,ReadFile:5,VirtualAlloc:6,WriteFile:4
+calls=38
+createfile=10

@@ -13,6 +13,10 @@ yoyo-js/node_modules/
 
 # Temp / scratch / build artifacts
 scripts/_*.txt
+scripts/_head-*
+scripts/_hb_fx*/
+scripts/_probe*/
+scripts/_stage-hb-fx*/
 scripts/_stage5-*/
 scripts/_stage8-*/
 scripts/_stage9-*/
@@ -39,6 +43,7 @@ yoyo-rust/target-nosidecar/
 yoyo-rust/target-selfhost-build/
 yoyo-rust/target-sh-build/
 yoyo-rust/target-runtime-z/
+yoyo-rust/target-ciwin/
 yoyo-rust/target-stage*/
 yoyo-test/
 __pycache__/
@@ -53,3 +58,8 @@ _ls_*
 _tmp_*
 *.bin
 *.tmp
+# HB-FX: tracked peer payload bins + seeds (live JS emit pin)
+!yoyo-js/src/platform/yoyo-compiler-payload/*.bin
+!yoyo-js/src/platform/yoyo-compiler-payload/payload.pin
+!yoyo-js/src/platform/yoyo-compiler-payload/seeds/*.pe
+

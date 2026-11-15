@@ -1,0 +1,11 @@
+# AUTO-A1BYTES / HDRPIN
+
+> 并入 `AUTO-TRUSTLIM4.md` / `stage-slicelock.ps1`。
+
+```
+ACTIVE=0
+COMPLETED=1
+PARENT=AUTO-TRUSTLIM4.md
+```
+
+*2026-11-11 · COMPLETED*

@@ -1,0 +1,8 @@
+; AUTO-SEMPLACE — place_mode epilogue (add rsp,0x88; jmp old_h00)
+; rel32 of jmp is 0 here; bake patches to land at end of prefix.
+40 0
+  A1 48 81 C4
+  A1 88 00 00
+  A1 00 E9 00
+  A1 00 00 00
+  FF

@@ -1,0 +1,18 @@
+; ANYPROG tool 3: zero — ALLOC 8 bytes, WRITE_FILE size 4 → output.exe (zeros)
+40 00
+  20 50 8
+  30 51 4
+  51 50 02 51
+  A0 31
+  A0 C9
+  A0 48
+  A0 83
+  A0 EC
+  A0 20
+  A0 41
+  A0 FF
+  A0 97
+  A0 28
+  A0 00
+  A0 00
+  A0 00
